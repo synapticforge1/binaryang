@@ -382,7 +382,7 @@ Full text: `git show 9758fc736:cmem/binaryen-ts/best-practices.md`
 ## `binaryen-ts/bridge.md` (312 lines) — the binaryen-ts ↔ wabt-ts ↔ wasmtk contract
 
 It held the pipeline, five decisions, the naming MUST, the constructor-API contract, the UP-1…UP-7 bridge view, and the
-T13.22 catch-scope coupling. All of it closed at the merge. The bridge is now `src/bridge/`, and S6 step 5 deletes it.
+T13.22 catch-scope coupling. All of it closed at the merge. The bridge became `src/bridge/`, and S6 step 5 deleted it (M8e, 2026-09-18).
 **Kept:**
 - [decision] **Encoder ownership:** binaryen-ts's encoder is canonical for OPTIMIZED output; wabt-ts's serves the
   format tools and round-trip fidelity. The wabt-ts IR is a tree with no parent context or upward references, which is

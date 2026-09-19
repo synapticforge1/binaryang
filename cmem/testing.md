@@ -11,7 +11,7 @@ gates.
 
 ```sh
 deno task check        # type-check src/ + main.ts + tests/ + scripts/
-deno task test         # the full suite — 1043 tests / 0 ignored (2026-09-12); was 912 tests / 3153 steps / 2 ignored (2026-08-27)
+deno task test         # the full suite — 1265 tests / 0 ignored (2026-09-19); 1043 (2026-09-12); was 912 tests / 3153 steps / 2 ignored (2026-08-27)
 deno task fmt:check    # format
 deno lint
 deno task ci           # check + test

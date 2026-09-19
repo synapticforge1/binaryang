@@ -84,12 +84,13 @@ and modules move into common `src/` folders as they converge. **Promotion is pro
 asserted**: a module earns a common folder when nothing in either namespaced tree still imports it
 from the other side — the import graph answers that. "It felt shared" is not the test.
 
-🔓 **One standing exception: the bridge**, at `src/bridge/` (decided 2026-08-27; tests at
-`tests/bridge/`). The rule's test is a proxy for its intent — "this module belongs to neither side".
+🔓 **There was one exception: the bridge**, at `src/bridge/` (decided 2026-08-27; tests at
+`tests/bridge/`) — ✅ **deleted 2026-09-18** (S6 step 5, M8e), so no exception stands today. The
+reasoning stays the rule's precedent. The rule's test is a proxy for its intent — "this module belongs to neither side".
 The bridge satisfies the intent maximally and fails the proxy by construction, because being
 cross-tree is its job. **When the proxy and the intent disagree, the intent governs, and the
 disagreement is written down.** A second exception would be a sign the rule needs rewriting. (S6
-deletes the bridge — [ir-convergence.md](ir-convergence.md).)
+deleted the bridge — [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".)
 
 Two namespaced trees with a working bridge is a _stable_ arrangement — nothing breaks if convergence
 never happens — which is what made it safe to start this way, and why it needs counter-pressure.

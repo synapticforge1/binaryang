@@ -307,6 +307,12 @@ the tool** — `deno fmt --check` going from `32 not formatted` to `Checked 283 
 unambiguous signal in the entire line-ending episode, and every hand-rolled measurement around it
 was noise.
 
+**🔁 Again on 2026-09-19, twice, in throwaway scripts:** a heredoc'd measurement script lost the
+backslashes in its regexes (`Unterminated regexp literal`), and a `sed` that generated a mutant
+script turned `\n` escapes into real newlines, breaking both mutants silently until they reported
+"0 occurrences". Both were rewritten with the file-writing tool and ran first time. The rule holds
+for scratch files too.
+
 ### 🔁 Knowing the rule did not prevent it — four failure modes, one family
 
 Broken again five times on 2026-09-02 **by the author of this rule**, so the trigger is worth
@@ -1198,6 +1204,71 @@ noticed, because no corpus module delegates (the same held for a named `if`, who
 bridge dropped). An agreement check against the old code (49,335 references, 0 differ) proves
 agreement, not correctness, over exactly the cases the corpus reaches. For every case it does
 not reach, read the CONSUMERS' rule and test it directly.
+
+## 🆕 Lessons from the post-M8 run (2026-09-18 → 2026-09-19)
+
+Fourteen items — post-M8 fixes 1–10, W10b, W11, the scheduled cleanup — each measured, mutated and
+gated ([open-work.md](open-work.md) § "Done 2026-09-18 → 2026-09-19"). What they taught, in order of
+how much they cost when ignored:
+
+### A task's own description is a claim — check it before scoping
+
+The working rule "a row's PREMISE is not evidence" ([working-rules.md](working-rules.md)) paid out
+three more times. **Fix 8** said "read the index as a LEB, as every other memory index is": the
+premise was false — four more DECODER sites read one byte, and the ENCODER wrote all six as
+`writeU8(n & 0xff)`, naming a different memory from index 256. **Fix 6** said a filter "never meets a
+placeholder": true, and beside the point — it met a real `(nop)` and dropped it from the module.
+**The cleanup** rested on "no definition shares an import's name": a corpus count found one module
+that does (the spec's `func.74`, malformed on purpose). How to apply: before choosing a fix, grep for
+the item's claim ("every other …", "never …", "cannot …") and count it on the corpus.
+
+### A guard that looks dead: list what it DOES meet
+
+A filter declared stale because nothing it was written for reaches it can still act on inputs
+nobody listed. Fix 6's `'nop'` filter received no placeholders, and did receive real `nop`
+instructions. Before deleting, keeping or retargeting a guard, enumerate its actual inputs — probe
+with the unusual-but-valid ones (`(nop)`, a statement where an operand is expected, an import).
+
+### A tree-shape change is a behaviour change for every consumer of the tree
+
+Bytes did not move once in fixes 4, 5, 9, 10, W10b or W11, and each still broke something that
+READ the tree: M8d tests that took their sibling shapes from the old parser (fixes 4, 5, W10b), a
+multi-memory test that assumed linear output (W11), and — the serious one — `deriveTypes`, which
+walked a branch's operands in `visitChildren` order (condition BEFORE values). Nothing had ever put
+a `pop` inside a `br_if`'s value until W10b did, and the spec's invalid `br.6` was then typed from
+the condition and ACCEPTED. How to apply: after changing what a front end builds, run every
+order- or shape-sensitive consumer over the corpus (`prepareForPasses` over the linear texts, main
+against the branch) and read BOTH directions — newly refused (fix 5: 109, all V8-invalid, good) and
+newly ACCEPTED (W10b: 1, V8-invalid, a defect).
+
+### Test the FOLDED form on its own — it does not pad
+
+Linear text pops through `popN`, which pads a short stack with placeholders; the folded form takes
+only the children it finds. So padding code (`carried`) acts only in folded input, and in fixes 5
+and 9 the mutant removing it SURVIVED every linear test. Where a rule concerns operands, test a
+linear and a folded spelling of the same case.
+
+### For a text change the verdict is RE-ASSEMBLY, of every changed text
+
+W11's first cut printed `()` for a `pop` in two invalid spec modules — well-formed-looking output
+that does not parse. Only re-assembling all 872 changed folded texts (main's verdict against the
+branch's, per file) caught it; the targeted tests had passed. Set the name section aside when
+comparing (N1: our `wat2wasm` always writes one, upstream's only with `--debug-names`), or every
+spec binary reads as different.
+
+### A "cannot happen" gets a count
+
+Two comments said so this run and were rewritten after counting: "function names are unique"
+(one malformed exception) and "no placeholder reaches this filter" (true, but a real `nop` did). A
+count over the corpus costs a minute; state the claim with its scope ("in every well-formed module")
+and its exceptions named.
+
+### An equivalent mutant: name the caller that makes it equivalent
+
+Three survived and were kept as findings, each with its reason: fix 9's first-versus-default target
+(every target of a valid `br_table` carries the same values), fix 10's root arity in an init
+expression (it cannot branch), W11's `pop` return value (its one caller ignores it — deleting the
+line fails). "Equivalent" without the reason is indistinguishable from a missing test.
 
 ## Where to go for the rest
 

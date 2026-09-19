@@ -540,7 +540,7 @@ The invariants from each round:
   have no validator surface and stay ungated. The CLI `--enable-*`/`--disable-*` flags must ship in
   the same change (T13.10). Compare `ValueType`s with `valueTypeEquals`, never `===` (T10.7).
 
-**Bridge** (`src/bridge/bridge.ts`, formerly `binaryen-bridge.ts`; S6 deletes it)
+**Bridge** (`src/bridge/bridge.ts`, formerly `binaryen-bridge.ts`; ✅ DELETED 2026-09-18, S6 step 5 M8e — the entries below are its history)
 - [decision] **Every branch-target construct pushes a label frame** on `ctx.labelStack`: `block`, `loop`,
   `if`, `try_table`, and legacy `try` if it is ever bridged — "not pushing" is never right. An unlabeled
   `if` pushes `IF_FRAME = '<if-frame>'`, and `resolveLabel` throws on it (T13.24; `tests/bridge/label_frames.test.ts`).

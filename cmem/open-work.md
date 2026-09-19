@@ -22,9 +22,10 @@ that history now lives in its topic files — nothing was dropped:
 | the predecessors' wings (T-ids, UP-n, WT-n, invariants → tests) | [wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md) |
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
-**State, 2026-09-14:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
-ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
-bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
+**State, 2026-09-19:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
+ahead, unpushed and unbumped, at 1265 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
+`direct` 544/544 and `direct-behaviour` 1953 calls agreeing (the bridge and its gates were deleted
+2026-09-18), one pack. Re-derive before quoting.
 
 ## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b, W11 and the scheduled cleanup ALL DONE; next: the owner's call)
 
@@ -103,59 +104,33 @@ entity collections stay there until the records themselves are one type (M8).
 | M8d     | `0846a44da` | `deriveTypes`: every node typed by the factories' rules and the decoder's context. Agrees with the bridge except the bridge's `i32` `pop`s, and with the decoder over 2,490 valid spec binaries except the decoder's defects (2026-09-18) |
 | M8e     | (this merge) | the bridge goes: `prepareForPasses`; the direct path's bytes ARE `wat2wasm`'s (421/421), its -O3 output behaves the same (1,806 calls); `direct` / `direct-behaviour` gates — **item 6 and S6 step 5 CLOSED** (2026-09-18) |
 
+### Done 2026-09-18 → 2026-09-19 — every item the owner ordered
+
+| item                        | code        | what                                                                                                   |
+| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| post-M8 fix 1               | `ddd5f6163` | `table.get` typed by its table                                                                         |
+| post-M8 fix 2               | `4b2488540` | a multi-value `call_indirect` typed by every result                                                   |
+| post-M8 fix 3               | `565e7b2c2` | size / grow typed by the memory's / table's address type                                              |
+| post-M8 fix 4               | `a82dadf90` | the binary reader: a one-value `br_if` is an operand                                                   |
+| post-M8 fix 5               | `89b6a1805` | the WAT parser knows a branch target's arity; the text→optimizer route refuses 109 invalid modules it typed silently |
+| post-M8 fix 6               | `653fd3839` | a folded `br_table` no longer DROPS a `(nop)` operand (a byte short of upstream)                       |
+| post-M8 fix 7               | `517bf7c89` | `direct` / `direct-behaviour` also run `prepare.test.ts`'s fixture: they now see a start section          |
+| post-M8 fix 8               | `dbe986344` | binaryen-ts reads and writes every memory index as a LEB (12 sites, not the 2 listed)                  |
+| post-M8 fix 9               | `cf1b50bd8` | a `br_table` holds its carried values, in both front ends (W9 (a))                                    |
+| post-M8 fix 10              | `a7915f1e1` | a branch to the function label carries the function's results (W9 (b))                                |
+| owner decision (W10)        | `2fdc64ba8` | prefer the MORE ACCURATELY FOLDED form: W10a (keep ours) DESIGN, W10b match upstream                   |
+| W10b                        | `cd37142a6` | a transfer is the next instruction's operand, as upstream folds it; fixed with it: `deriveTypes` typed a branch's condition before its values and accepted the invalid `br.6` |
+| W11                         | `f2baf2ada` | folded `wasm2wat` folds EVERY instruction kind: 3,174 linear lines in folded output → 0, as upstream   |
+| the scheduled cleanup       | `95be871f7` | RemoveUnusedModuleElements's no-op `importedFuncs` set deleted; 0 optimizer outputs moved              |
+
+Records: [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes", § "W10b", § "W11"; each merge
+message carries its measurements. Lessons: [best-practices.md](best-practices.md) § "Lessons from
+the post-M8 run". **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was.
+
 ### Next, in order
 
-1. ✅ **Post-M8 fixes — ALL 10 DONE (2026-09-18 → 2026-09-19).** Each record is in
-   [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes"; each merge message carries its
-   measurements.
-
-   | fix | code        | what                                                                                          |
-   | --- | ----------- | --------------------------------------------------------------------------------------------- |
-   | 1   | `ddd5f6163` | `table.get` typed by its table                                                                |
-   | 2   | `4b2488540` | a multi-value `call_indirect` typed by every result                                          |
-   | 3   | `565e7b2c2` | size / grow typed by the memory's / table's address type                                     |
-   | 4   | `a82dadf90` | the binary reader: a one-value `br_if` is an operand                                          |
-   | 5   | `89b6a1805` | the WAT parser knows a branch target's arity; the text→optimizer route refuses 109 invalid modules it typed silently |
-   | 6   | `653fd3839` | a folded `br_table` no longer DROPS a `(nop)` operand (a byte short of upstream)              |
-   | 7   | `517bf7c89` | `direct` / `direct-behaviour` also run `prepare.test.ts`'s fixture: they now see a start section |
-   | 8   | `dbe986344` | binaryen-ts reads and writes every memory index as a LEB (12 sites, not the 2 listed)         |
-   | 9   | `cf1b50bd8` | a `br_table` holds its carried values, in both front ends (W9 (a))                           |
-   | 10  | `a7915f1e1` | a branch to the function label carries the function's results (W9 (b))                       |
-
-   Lessons from the run, in their records: a row's premise is not evidence (fixes 6 and 8 were each
-   bigger than listed); padding acts only in the FOLDED form (fixes 5 and 9 each had mutants survive
-   on it); a gate is evidence about what it REACHES (fix 7). Left open by it: **W10**, now decided (below).
-
-   **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was. S6 step 5 is
-   closed; **the next STEP is the owner's call** (S7 is independent and ready).
-2. ✅ **W10b — DONE (`cd37142a6`, 2026-09-19): a transfer is the next instruction's operand in both
-   front ends, as upstream folds it.** Parents of `br_table` agree with upstream 122 of 122 (was 69).
-   It exposed, and fixed, `deriveTypes` typing a branch's condition before its values (the spec's
-   invalid `br.6` had been accepted). Record: ir-convergence.md § "W10b". The scoping note that led
-   here, kept for reference: after
-   an unconditional transfer the stack is polymorphic, and upstream `wasm2wat --fold-exprs` lets the
-   next instruction take the transfer as its value — `(br 0 (br_table 0 0 (i32.const 9)
-   (i32.const 0)))` — where ours prints siblings. The owner's principle (W10a): the more accurately
-   folded the better. Scope first: which front end builds the tree (the binary reader, as for
-   fixes 4 / 9 / 10) and whether the WAT parser should follow so the two agree; measure against
-   upstream with scratch `kids.ts` / `parents.ts`; bytes must not move. ⚠️ Keep W10a as it is — do
-   not adopt upstream's all-or-nothing rule while matching its unreachable-code nesting.
-3. ✅ **W11 — DONE (`f2baf2ada`, 2026-09-19; owner: "go back to the rule" — every instruction has
-   a folded form): folded `wasm2wat` folds every kind.** Linear lines in folded output 3,174 → 0
-   (upstream 0). Record: ir-convergence.md § "W11". The item as it was filed: the WAT writer cannot fold ~30
-   instruction kinds — `br_on`, `call_ref`, `throw_ref`, atomics, most SIMD, GC arrays, bulk
-   table ops (the list is [divergences.md](divergences.md) W11). `foldSpec` has no case, so the node
-   and the rest of its region print linear where upstream folds. Add their operand specs, as the
-   existing cases do; measure against upstream per kind (scratch `kids.ts` / `parents.ts`); bytes
-   must not move (re-assembly check); the emitted-byte baseline's folded column may, in its own
-   commit.
-4. ✅ **The scheduled cleanup — DONE (`95be871f7`, 2026-09-19):** RemoveUnusedModuleElements's no-op
-   `importedFuncs` set deleted. Only definitions are pruned and the walk looks a queued name up among
-   definitions, so an import is never walked; the set decided nothing. Measured: every module through
-   the optimizer at -O1 … -Oz, from both front ends (decoder over every `.wasm`, text route over every
-   `.wat`), main against the branch — 0 outputs differ. The premise (no definition shares an import's
-   name) held in every well-formed module; the one exception was the spec's `func.74`, an
-   `assert_malformed` "duplicate func". Inverted: `continue` → `break` on an import fails the suite.
+**The owner's call.** S6 step 5 is closed and every ordered item is done; S7 is independent and
+ready. Everything else open is listed below, by kind.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
 - binaryen-ts's decoder reads a `ref.null` / typed element segment but **refuses an element type other
@@ -164,11 +139,6 @@ entity collections stay there until the records themselves are one type (M8).
 - the WAT writer does not print an empty `(offset)` / `(item)` (M2a)
 - the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8**
 - Asyncify refuses `call_ref` (K1)
-- **W10 — folded `wasm2wat`'s remaining nesting differences from upstream: DECIDED (owner,
-  2026-09-19)** — "the more accurate the folded nature the better our setup treats it". (a) where a
-  statement splits operands we fold what we truly hold, upstream folds none: **keep ours** (W10a,
-  DESIGN). (b) in unreachable code upstream nests a transfer as the next one's operand: **match
-  upstream** (W10b, DEFECT) — item 2 in "Next, in order".
 
 **Working method that keeps paying** (the rules in [working-rules.md](working-rules.md) /
 [best-practices.md](best-practices.md) — today's evidence):
@@ -189,85 +159,13 @@ null tests first, convert by reading, and mutate each one back — see
 
 ---
 
-The 2026-09-14 session was **memory work, not code**. `src/` behaviour is unchanged (baseline
-IDENTICAL after every merge), and the full gate passed on the committed tree at `1cbe88be8`.
-
-| merge       | what landed                                                                                                                                                                             |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cff3284b8` | machine-local memory moved into cmem; machine facts in the PRIVATE, gitignored `cmem/local/` (history rewritten before any push, so they never entered it); open-work cut to open items |
-| `6e5e1b72c` | `scope-1.5.2.md` retired into a summary; the cleanup policy recorded ([INDEX.md](INDEX.md) § "Cleanup policy")                                                                          |
-| `1672c2a5a` | eight cmem references in code that used wabt-ts's pre-merge paths fixed                                                                                                                 |
-| `de803de12` | core consolidated by topic, 19 files → 13                                                                                                                                               |
-| `9758fc736` | code path references follow binaryang's layout (193 unresolved → 69, all by design); `git gc --prune=now`                                                                               |
-| `1cbe88be8` | both wings corrected and summarized: 26 files / 16,805 lines → [wabt-ts.md](wabt-ts.md) + [binaryen-ts.md](binaryen-ts.md), 1,662 lines; the findings below were added to this file     |
-
-**Later the same day, the owner decided four rows.** Two landed as code:
-
-- **Decision 6, the release flow** — `deno task bump` then `deno task release` now works as
-  documented, because `RELEASE_FILES` is one list ([publishing.md](publishing.md) § "The flow").
-- **K3, merged** — `simd.shift` is a `binary` ([ir-convergence.md](ir-convergence.md) § "K3").
-
-The other two went to an options review. **TranslateEH (row 7) was then decided — implement — and
-built:** `TranslateToExnref`, 70 / 70 legacy spec assertions through it
-([binaryen-ts.md](binaryen-ts.md) § "TranslateEH"). Building it found and fixed two silent
-miscompiles elsewhere (see [unreleased.md](unreleased.md)) and found a third — `-Oz` on legacy EH
-failing 30 of 70 spec assertions — which the owner had fixed next (`959954015`: DCE trusted an
-`if` typed unreachable that wasm validates as void; divergence U1). **`call_indirect`'s `sig`
-(row 3) was then decided — A, binaryen-ts takes `sig` — and done** (`b034cedb1`,
-[ir-convergence.md](ir-convergence.md) § "Group 3"). No owner decision is pending in the table
-below except the standing ones (1, 4, 5). **The non-nullable-local probe then ran** and found the
-fixup reachable through Flatten; it is built (`135a81f99`, [binaryen-ts.md](binaryen-ts.md)).
-Checking it found `-O3` unable to encode three recursive corpus modules, which the owner had fixed
-next (`426e78eb8`: Inlining removed a recursive callee it had counted as fully consumed). The
-owner then aligned dead-function removal with upstream (option B, `909c2fc54`, divergence I1
-retired): RemoveUnusedModuleElements where upstream schedules it, Inlining removing only what it
-inlined. Measuring that found Inlining's `-O3` output invalid on 16 corpus modules, fixed as
-upstream behaves (a multi-value callee's wrapper typed with its whole result type); the corpus's
-optimized output is now validated at every level by `deno task optimize-corpus`.
-
-**2026-09-15, before step 5, by owner decision** ("so we can measure the difference before and after
-the bridge is ineffective, and prior to the full delete"): the bridge was dropping every element
-segment and every start function, SILENTLY. Fixed (`031100942`), so bridged output can be run at
-all. Then `deno task bridge-behaviour` was built (`30acce91a`) and the pre-step-5 baseline taken —
-**1806 calls across 602 exports, 420 of 421 modules agreeing, 0 divergences**
-([ir-convergence.md](ir-convergence.md) § "Step 5"). `deno task bridge` had read 421/421 through
-both defects, because it compiles what the bridge builds and never runs it.
-
-**S6 step 5 STARTED 2026-09-15** ([ir-convergence.md](ir-convergence.md) § "Step 5"). A
-compile-time ratchet (`tests/ir/expr_convergence.test.ts`) measured the two expression types at 34
-identical / 14 types / 25 names; stage A (six renames, `4d39bea0e`) and stage B (optionality,
-`19b7186fe`) took it to **52 / 5 / 16**, byte-identical and 1806/1806 behaviourally throughout. Two
-defects fixed on the way (a plain `struct.get` decoded as `get_u`; `(memory.size $b)` asking memory
-0). **Owner, 2026-09-15:** (a) locals are `var` (done, 55 / 5 / 13); (b) C — the bridge's MODULE
-half is decided AFTER one `Expression` and one value-type representation exist, with measured sizes.
-✅ **(b) RESOLVED the same day, ahead of the sizes: B — UNIFY `Module`, do not keep a shim**
-(owner: *"on Item 2 we want to unify not keep a small shim."*). The module half is a full
-unification of `Module` and `WasmModule` on the expression half's terms, and the bridge is deleted
-outright; A (a thin adapter) is off the table and the size measurement is now only a record.
-**Value types DONE the same day (stages V1–V4):** one representation in shape, value and type —
-scalars are wabt-ts's `Type` members (`ValType` a const subset), heap types `HeapTypeRef`, a ref
-type `{ heapType, nullable }`. ⚠️ Several are PUBLIC and breaking — [unreleased.md](unreleased.md).
-**Stages S1–S3, L1, B1–B3, A3, C1 and L2 then took it to 65 / 1 / 7** — labels as `Var`,
-`br_table`/`br_on`, `array.init_*`, constants as BITS (four defects, three of them run-time
-observable), and a carrier's own label as `label: string`.
-**Next:** the block family's three remaining fields — the catch records, the block TYPE
-(`blockType` against `type` + `params` + `typeIndex`), and the bodies (`Expr[]` against
-`RegionExpr`) — then `call_indirect`'s type use, `select.resultType`, `ref.null` (deferred by
-Group 3 to type derivation), the node base (`readonly`, `loc`, literal vs enum `kind`), the
-one-sided kinds, the alias, and the type-derivation pass. Then the MODULE half, by decision B. 🔑 Not a choice: one `Expression` needs one VALUE-TYPE
-representation, because 12 wabt-ts node fields and binaryen-ts's `type` / `FuncSignature` embed
-each side's own — so value types are the next stage whichever way (b) goes.
-
-**Suggested order:**
-
-1. **S6 step 5 — delete the bridge.** Both acceptances are now in hand and neither can carry the
-   step: `deno task bridge` 421/421 (`ed38c084f`) and `deno task bridge-behaviour` 1806/1806
-   (`30acce91a`), both green BEFORE the unification. Step 5's job is therefore not to turn a gate
-   green but to keep both green while one `Expression` replaces two — and to carry the bridge's
-   type derivation (`inferBinaryType` / `inferUnaryType`) forward as a pass. The 20 old bridge
-   misses were one `call_indirect` signature bug, and the stale `ref.as_non_null` refusal was NOT
-   among them (checked 2026-09-15: 18 were "fallthru", 2 were operand-type mismatches).
-2. The cheap cleanups: the stale-comment list and `engine-check.ts`'s must-accept self-test.
+**History kept here as a pointer only.** The 2026-09-14 memory-work session (merges `cff3284b8` …
+`1cbe88be8`), the owner decisions that followed it (release flow, K3, TranslateEH, `call_indirect`'s
+`sig`, dead-function removal as upstream, the module half UNIFIED — decision B) and the S6 step 5
+narrative that led to M8 are recorded in their topic files: [publishing.md](publishing.md),
+[ir-convergence.md](ir-convergence.md), [binaryen-ts.md](binaryen-ts.md),
+[unreleased.md](unreleased.md). The block as it stood, with its since-finished "Next" and
+"Suggested order": `git show c302bfadd:cmem/open-work.md`.
 
 ## Owner actions — nothing here is blocked on code
 
@@ -289,11 +187,9 @@ the predecessors are frozen. Do not re-open ([project.md](project.md)).
 
 Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where it stands".
 
-- ⬚ **S6 step 5 — delete the bridge**, carrying its type derivation forward as a pass. Its
-  acceptance (`deno task bridge` 421/421) was **met on 2026-09-15 ahead of the step**
-  (`ed38c084f`): C10a's 20 remaining modules had one cause, a `call_indirect` signature the bridge
-  never resolved. So the gate now starts green and can only say the step did not break it —
-  [ir-convergence.md](ir-convergence.md) § "Step 5".
+- ✅ **S6 step 5 — the bridge is deleted** (M8e, 2026-09-18): `prepareForPasses` (names M8c, types
+  M8d) replaced it, and `deno task direct` / `direct-behaviour` its gates —
+  [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
 - ⬚ **S7 — the linear-form marker.** Independent of the rest. ⚠️ Changed by C3: binaryen-ts now
   keeps custom sections, so S7 must strip its own marker deliberately when optimization runs.
 - ✅ **K1 — atomics and `call_ref` in binaryen-ts** — ported 2026-09-16 (S6 step 5 item 5 (5)).
@@ -311,8 +207,9 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   the spec's invalid `br.6` pass. `deriveTypes` now orders branch operands itself (`cd37142a6`);
   any OTHER order-sensitive visitor of branches is still exposed.
 - ⬚ LocalCSE treats a multi-value `return` as opaque (as it did the `tuple.make`).
-- ⬚ **43 node LITERALS in `src/` bypass their factory** and hand-compute its `type` — 29 in the WAT
-  parser, 7 in inlining (count: `grep "kind: ExpressionKind\.X,"` outside `ir/expressions.ts`). The
+- ⬚ **26 node LITERALS in `src/` bypass their factory** and hand-compute its `type` — 17 in
+  binaryen-ts's WAT parser, 5 in inlining, 4 in three other passes (re-counted 2026-09-19, was 43 on
+  2026-09-14: `grep -rnE "kind: ExpressionKind\.\w+," src` outside `ir/expressions.ts`). The
   `br_if` one was wrong. The rest want a sweep comparing each literal's type to the factory's.
 - ⬚ **LocalCSE is an allow-list of kinds** and is opaque to everything it does not list — e.g. an
   expression under `extract_lane` (or any other SIMD kind) is never reused, where upstream
@@ -344,28 +241,25 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   `call_indirect` encode against table 0). A loud gap, not a silent one — the decoder already
   resolves `call_indirect`'s table index. The day it is lifted, both encoders must thread the real
   index.
-- ⬚ **`src/bridge/bridge.ts:1190-1194` refuses `ref.as_non_null`** because "binaryen-ts v1.0.9 has
-  no makeRefAsNonNull factory"; the factory exists since UP-4 (`f664ba579`). A stale blocker, moot
-  if S6 step 5 deletes the bridge — check whether it is among the bridge's 20 refusals first.
 - ⬚ **`scripts/wabt-ts/engine-check.ts` self-tests only the reject direction** (~195–219: a
   known-INVALID module must be refused). No must-ACCEPT module guards an engine that refuses
   everything — the exact failure its Wasmer comment describes (`--enable-all` made every module read
   as rejected).
-- ⬚ **Stale source comments** (claim vs artifact; each verified 2026-09-14):
-  - `src/wabt-ts/ir/ir-util.ts` — the `ModuleContext` class doc and the field comment at 86–90 claim
-    validator/writer traffic; `getExprArity` has no production caller ([wabt-ts.md](wabt-ts.md)).
-  - `src/wabt-ts/ir/apply-names.ts` header NOTE still calls the rewriter partial; T13.20 made it
+- ⬚ **Stale source comments** (claim vs artifact; first verified 2026-09-14, ALL seven re-checked
+  and still stale 2026-09-19, line numbers current):
+  - `src/wabt-ts/ir/ir-util.ts` ~80 / ~91 — the `ModuleContext` doc claims traffic "across
+    validator, binary writer, and bridge" (the bridge is deleted); `getExprArity` has no production
+    caller ([wabt-ts.md](wabt-ts.md)).
+  - `src/wabt-ts/ir/apply-names.ts` ~16 header NOTE still calls the rewriter partial; T13.20 made it
     total.
-  - `src/wabt-ts/reader/binary-reader.ts` ~2572 calls relaxed ternaries a known limitation; they
-    decode as ternary.
-  - `src/binaryen-ts/encoder/wasm-encoder.ts` ~1594–1605 describes "four sites" and
-    `sealFrame`-stamped blocks, a mechanism S6 5 removed; so does the header of
-    `tests/binaryen-ts/binary/region_body.test.ts` ("three of these thirteen" fail on a revert of
-    `encodeRegionBody`).
-  - `src/binaryen-ts/passes/asyncify.ts` ~263 says loads carry no memory index, and ~541–545 says
-    the reader discards the name section; N1 P4 (`138148881`) reads names. Neither limitation
-    re-probed.
-  - `src/binaryen-ts/tools/wasm-opt.ts` ~461–463 says `import.meta.main` is "not yet universal"; the
+  - `src/wabt-ts/reader/binary-reader.ts` ~2721–2724 calls the relaxed ternaries "not yet
+    distinguishable… a known limitation"; ~2700 decodes them as ternary.
+  - `src/binaryen-ts/encoder/wasm-encoder.ts` ~1736–1744 describes "four sites" and
+    `sealFrame`-stamped blocks, a mechanism S6 5 removed; so does
+    `tests/binaryen-ts/binary/region_body.test.ts` ~152.
+  - `src/binaryen-ts/passes/asyncify.ts` ~276 says loads carry no memory index, and ~553 says the
+    reader discards the name section; N1 P4 (`138148881`) reads names. Neither limitation re-probed.
+  - `src/binaryen-ts/tools/wasm-opt.ts` ~463 says `import.meta.main` is "not yet universal"; the
     Node 22.18 floor has it.
   - `tests/wabt-ts/tools/cli_io_errors.test.ts:27` says `deno task test` runs `--allow-read` only.
 - ⬚ **Minor, wabt-ts**: `parseHexFloat` (`core/literal.ts`) sums `parseInt` parts, imprecise but
@@ -384,8 +278,10 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   doing, second ([testing.md](testing.md)).
 - ⬚ **N4** — under `-O2 -g` we keep the local and label names passes leave; upstream drops them.
   Provisional, pending owner action 4.
-- ⬚ **`wasm2wat` cosmetics** — entity and branch references print by index (`call 0`) where upstream
-  prints `call $foo`; folded siblings share a line. Text only, never bytes ([names.md](names.md)).
+- ⬚ **`wasm2wat` cosmetics** (re-probed 2026-09-19) — ENTITY references print by index (`call 0`,
+  `global.set 0`) where upstream prints `call $f` / `global.set $g` from the name section; branch
+  LABELS print by name since N8. Folded siblings share a line (`(call 0)) (i32.add`). Text only,
+  never bytes ([names.md](names.md)).
 - ⬚ **Doc references mapped on plausibility**: `binaryen-ts/parser/tokenizer`, `parser/wat-parser`
   and `wasm/demo_bytes` named subpaths that never existed and were pointed at `./api` and `./wasm`.
   Someone who knows the intent should confirm (recorded in 1.5.2's scope, summarized in
