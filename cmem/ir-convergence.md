@@ -4149,6 +4149,26 @@ better our setup treats it".
 - **W11 found** (divergences.md): the writer's `foldSpec` has no case for ~30 kinds, which print
   linear, and pull their whole region with them.
 
+**W11 — folded `wasm2wat` folds every instruction** (`f2baf2ada`, 2026-09-19; owner: "go back to the
+rule" — best-practices.md § "Every linear instruction has a folded form").
+- The defect: `foldSpec` declined ~30 kinds and `try_table`; a decline sent its whole top-level
+  expression, blocks included, to the linear writer.
+- The fix: `foldSpec`'s default nests ANY plain kind — operands from the new
+  `ExprVisitor.visitShallow` (evaluation order is the folded order), head written through it;
+  `try_table` folds in `writeFoldedControl`, catches before its label is pushed; a `pop` writes
+  nothing (an `if` condition, a block's entry value — both used to decline); SCATTERED placeholders,
+  which nesting cannot say, fold as siblings `(a) (b) (op)` (`writeFoldedSiblings`).
+- Measured (main against the branch): linear text 0 changed; folded text 890 changed, each
+  re-assembling exactly as main's did; baseline IDENTICAL. Lines written linearly in the 339 changed
+  files upstream prints: **upstream 0, main 3,174, now 0** (scratch `linear_lines.ts`). Two
+  regressions found by that re-assembly check and fixed before the commit: a `pop` reaching the
+  generic default printed `()` (invalid spec modules `block.159`, `if.78` — an entry value and a
+  condition that are pops).
+- Test `fold_every_kind.test.ts`; `multi_memory.test.ts` had assumed `memory.init` prints linear.
+  Mutants 7 / 7 killed; flipping `writeFoldedExpr`'s pop return to false is EQUIVALENT (the `if`
+  condition, its one caller, ignores it) — deleting the line fails. Gate on `f2baf2ada`: exit 0,
+  1265 tests.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop

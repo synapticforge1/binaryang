@@ -1071,6 +1071,11 @@ only the LAST instruction of its condition slot and silently dropped the input (
   operands than it consumes, taking the rest from the stack.
 - A claim about what text can express is checked against upstream `wat2wasm` before it is written
   down — it is the authority on the text format, and a probe costs a minute.
+- **A WRITER applies it too** (W11, 2026-09-19, `f2baf2ada`): folded `wasm2wat` declined ~30
+  instruction kinds and wrote them — and the whole expression around each — linearly, 3,174 lines
+  over the corpora. Every plain kind now nests its operands (`ExprVisitor.visitShallow` gives them in
+  evaluation order), `try_table` folds, a `pop` writes nothing, and only operands with SCATTERED
+  placeholders fall back to folded siblings `(a) (b) (op)`. A writer never falls back to linear.
 
 ## 🆕 A pinned list must be a RATCHET, not a ceiling (S6 decision 6A, 2026-09-10)
 

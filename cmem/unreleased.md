@@ -391,6 +391,10 @@ their own bump — and nothing breaks by their standing still.
   `cd37142a6`): `(br 0 (br_table 0 0 …))`, `(i32.eqz (unreachable))`; the WAT parser's linear trees
   match. Text and trees only. Fixed with it: the optimizer's text route typed a branch's condition
   before its values, and so ACCEPTED the spec's invalid `br.6`; it is refused again.
+- **Folded `wasm2wat` folds EVERY instruction** (W11, `f2baf2ada`): atomics, SIMD lane / shuffle /
+  ternary ops, GC arrays, bulk table ops, `br_on_*`, `call_ref`, `throw_ref` and `try_table` were
+  written linearly — with the whole expression around each. Over the corpora 3,174 linear lines in
+  folded output are now 0, as upstream. Text only.
 
 - **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
