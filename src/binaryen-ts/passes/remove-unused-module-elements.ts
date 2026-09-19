@@ -59,12 +59,17 @@ registerPass(RemoveUnusedModuleElementsPass);
 // ---------------------------------------------------------------------------
 
 function _removeUnused(module: WasmModule): void {
-  // Set of imported function names — these must never be removed
-  const importedFuncs = new Set<string>(
-    module.imports
-      .filter((imp) => imp.kind === ExternalKind.Func)
-      .map((imp) => imp.func.name),
-  );
+  // Imported FUNCTIONS need no set of their own. Only definitions are ever
+  // pruned (`module.functions`), and the walk looks a name up among
+  // definitions, so an imported callee is simply not found and not walked.
+  // An `importedFuncs` set used to guard both; an M4 mutant emptying it
+  // changed nothing (EQUIVALENT), and it was deleted in the scheduled cleanup,
+  // measured to move no optimizer output. Its one other use kept a DEFINITION
+  // that shared an import's name — in no well-formed module: function names are
+  // unique across the index space (the decoder names by index and renames a
+  // duplicate from a name section; WAT rejects a duplicate `$name`). Over the
+  // corpora the only such module was the spec's `func.74`, an
+  // `assert_malformed` "duplicate func".
   const importedGlobals = new Set<string>(
     module.imports
       .filter((imp) => imp.kind === ExternalKind.Global)
@@ -93,12 +98,12 @@ function _removeUnused(module: WasmModule): void {
   if (module.start !== undefined) liveFuncs.add(requireName(module.start, 'start'));
 
   // --- Step 2: fixed-point reachability walk ---
-  const queue = [...liveFuncs].filter((n) => !importedFuncs.has(n));
+  const queue = [...liveFuncs];
   while (queue.length > 0) {
     const name = queue.pop()!;
     const fn = funcMap.get(name);
     if (!fn) continue; // imported or unknown
-    _collectCallTargets(fn.body, liveFuncs, queue, importedFuncs);
+    _collectCallTargets(fn.body, liveFuncs, queue);
   }
 
   // --- Step 3: collect referenced globals (from live functions + global inits) ---
@@ -106,9 +111,7 @@ function _removeUnused(module: WasmModule): void {
 
   // Globals referenced by live functions
   for (const [name, fn] of funcMap) {
-    if (liveFuncs.has(name) || importedFuncs.has(name)) {
-      _collectGlobalRefs(fn.body, liveGlobals);
-    }
+    if (liveFuncs.has(name)) _collectGlobalRefs(fn.body, liveGlobals);
   }
 
   // Globals referenced by other global initialisers (globals can depend on each other)
@@ -145,33 +148,21 @@ function _removeUnused(module: WasmModule): void {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function _collectCallTargets(
-  expr: Expression,
-  live: Set<string>,
-  queue: string[],
-  imported: Set<string>,
-): void {
+function _collectCallTargets(expr: Expression, live: Set<string>, queue: string[]): void {
+  // A newly live name is queued; the queue skips one with no definition (an
+  // import), so imports need no check here.
+  const reach = (target: string): void => {
+    if (live.has(target)) return;
+    live.add(target);
+    queue.push(target);
+  };
   walkExpression(expr, (e) => {
-    if (e.kind === ExpressionKind.Call) {
-      // The liveness sets are keyed by NAME, so the reference is read as one.
-      // This pass runs before any index resolution; an index-form target here
-      // would mean the module was built by a path that skipped naming, which
-      // requireName says rather than silently missing the entity.
-      const target = requireName(e.func, 'call target');
-      if (!live.has(target) && !imported.has(target)) {
-        live.add(target);
-        queue.push(target);
-      } else if (!live.has(target)) {
-        live.add(target);
-      }
-    }
-    if (e.kind === ExpressionKind.RefFunc) {
-      const target = requireName(e.func, 'ref.func');
-      if (!live.has(target)) {
-        live.add(target);
-        if (!imported.has(target)) queue.push(target);
-      }
-    }
+    // The liveness sets are keyed by NAME, so the reference is read as one.
+    // This pass runs before any index resolution; an index-form target here
+    // would mean the module was built by a path that skipped naming, which
+    // requireName says rather than silently missing the entity.
+    if (e.kind === ExpressionKind.Call) reach(requireName(e.func, 'call target'));
+    if (e.kind === ExpressionKind.RefFunc) reach(requireName(e.func, 'ref.func'));
   });
 }
 
