@@ -4125,6 +4125,30 @@ by the owner on 2026-09-19: keep our folding where a statement splits operands (
 upstream's nesting in unreachable code (W10b, to fix) — "the more accurate the folded nature the
 better our setup treats it".
 
+**W10b — a transfer is the next instruction's operand** (`cd37142a6`, 2026-09-19; owner-decided).
+- Upstream's rule, read in the vendored `ir-util.cc` (`GetExprArity`): `br`, `br_table`, `return`,
+  `unreachable`, `throw_ref` leave ONE value for folding, a return call its results, `throw` /
+  `rethrow` none; `PushExpr` then lets the next instruction take it.
+- The fix: the binary reader's `pushTransfer`, and the WAT parser's `transferValues` so the front
+  ends agree. Several results (a multi-result return call) stay a statement, as for `br_if`. W10a
+  untouched.
+- **It exposed a defect, fixed with it:** `deriveTypes` emitted a branch's operands in
+  `visitChildren` order — CONDITION before values, the reverse of evaluation (the shared walker's
+  recorded open item). With a `pop` nested in a `br_if`'s value for the first time, the spec's
+  INVALID `br.6` was typed from the condition and accepted. `deriveTypes` now orders `Break` /
+  `Switch` operands itself; the walker is still open (it may move `-Oz` bytes).
+- Measured (main against the branch): baseline IDENTICAL; folded text 112 of 6,436 changed, linear
+  0, all re-assembling as before. Parents agreeing with upstream: `br` 104 → 150 of 162, `br_table`
+  69 → 122 of 122, `return` 46 → 93 of 98, `unreachable` 65 → 121 of 148; children: `br` 156 → 162,
+  `br_table` 103 → 121 of 122, `return` 88 → 93. Residuals sampled: W10a (a consumer upstream will
+  not fold for lack of operands) and W11 (our writer cannot fold `br_on` / `call_ref`). Parser: 0 of
+  2,286 WAT files and 0 of 5,794 round trips move a byte; 113 linear texts parse differently; the
+  optimizer's text route: nothing newly refused or accepted.
+- Tests `transfer_nesting.test.ts` + a `br.6` regression; mutants 8 / 8 killed (two needed their
+  patterns re-cut after `deno fmt`). Gate on `cd37142a6`: exit 0, 1264 tests.
+- **W11 found** (divergences.md): the writer's `foldSpec` has no case for ~30 kinds, which print
+  linear, and pull their whole region with them.
+
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
    spelling of false; call_indirect keeps its written `typeVar` AND a filled `sig` (the bridge's drop

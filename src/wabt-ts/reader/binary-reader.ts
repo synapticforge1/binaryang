@@ -241,6 +241,25 @@ function pushStmt(stack: Expr[], stmts: Expr[], expr: Expr): void {
   stmts.push(expr);
 }
 
+/**
+ * Commit an UNCONDITIONAL transfer — `br`, `br_table`, `return`,
+ * `unreachable`, `throw_ref`, a `return_call*` — as upstream's folding counts
+ * it (divergence W10b, owner 2026-09-19: "the more accurate the folded nature
+ * the better").
+ *
+ * After a transfer the stack is polymorphic, so the next instruction may take
+ * it as an operand: upstream `wasm2wat --fold-exprs` gives these a result
+ * count (`GetExprArity`: 1, or a return call's results) and nests them —
+ * `(br 0 (br_table 0 0 …))` — where a statement left them siblings. `values`
+ * is that count: one goes on the operand stack; none, or several (one stack
+ * slot cannot stand for a tuple, as for `br_if`, fix 4), stays a statement.
+ * Order is kept either way: a later statement drains the stack first.
+ */
+function pushTransfer(stack: Expr[], stmts: Expr[], expr: Expr, values: number): void {
+  if (values === 1) stack.push(expr);
+  else pushStmt(stack, stmts, expr);
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -1441,7 +1460,7 @@ export class BinaryReader {
       switch (op) {
         // --- Control ---
         case Opcode.Unreachable: {
-          pushStmt(stack, stmts, { kind: 'unreachable', loc } as UnreachableExpr);
+          pushTransfer(stack, stmts, { kind: 'unreachable', loc } as UnreachableExpr, 1);
           break;
         }
         case Opcode.Nop: {
@@ -1713,7 +1732,7 @@ export class BinaryReader {
             if (v === undefined) break;
             values.unshift(v);
           }
-          pushStmt(stack, stmts, { kind: 'br', target: varIndex(depth), values, loc });
+          pushTransfer(stack, stmts, { kind: 'br', target: varIndex(depth), values, loc }, 1);
           break;
         }
         case Opcode.BrIf: {
@@ -1757,19 +1776,19 @@ export class BinaryReader {
             if (v === undefined) break;
             values.unshift(v);
           }
-          pushStmt(stack, stmts, {
+          pushTransfer(stack, stmts, {
             kind: 'br_table',
             targets,
             defaultTarget,
             condition: value,
             values,
             loc,
-          });
+          }, 1);
           break;
         }
         case Opcode.Return: {
           const values = funcResultCount > 0 ? popN(stack, funcResultCount) : [];
-          pushStmt(stack, stmts, { kind: 'return', values, loc });
+          pushTransfer(stack, stmts, { kind: 'return', values, loc }, 1);
           break;
         }
 
@@ -1826,13 +1845,13 @@ export class BinaryReader {
           const funcIdx = this.readU32Leb();
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
-          pushStmt(stack, stmts, {
+          pushTransfer(stack, stmts, {
             kind: 'call',
             isReturn: true,
             func: varIndex(funcIdx),
             operands: args,
             loc,
-          });
+          }, sig.results.length);
           break;
         }
         case Opcode.ReturnCallIndirect: {
@@ -1844,7 +1863,7 @@ export class BinaryReader {
           const entry = m.types[typeIdx];
           const sigType: { params: ValueType[]; results: ValueType[] } =
             entry && entry.kind === 'func' ? entry.sig : { params: [], results: [] };
-          pushStmt(stack, stmts, {
+          pushTransfer(stack, stmts, {
             kind: 'call_indirect',
             isReturn: true,
             sig: sigType,
@@ -1854,7 +1873,7 @@ export class BinaryReader {
             operands: args,
             callee,
             loc,
-          });
+          }, sig.results.length);
           break;
         }
         case Opcode.ReturnCallRef: {
@@ -1862,14 +1881,14 @@ export class BinaryReader {
           const sig = getTypeSig(m, typeIdx);
           const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
-          pushStmt(stack, stmts, {
+          pushTransfer(stack, stmts, {
             kind: 'call_ref',
             isReturn: true,
             sigType: varIndex(typeIdx),
             operands: args,
             callee,
             loc,
-          });
+          }, sig.results.length);
           break;
         }
 
@@ -2264,7 +2283,7 @@ export class BinaryReader {
         }
         case Opcode.ThrowRef: {
           const exnref = stack.pop() ?? operandPlaceholder(loc);
-          pushStmt(stack, stmts, { kind: 'throw_ref', exnref, loc });
+          pushTransfer(stack, stmts, { kind: 'throw_ref', exnref, loc }, 1);
           break;
         }
         case Opcode.Rethrow: {
