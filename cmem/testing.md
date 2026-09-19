@@ -503,9 +503,10 @@ cannot assemble without `--enable-exceptions`.
 | W5 — type order | **421 / 421**                      | `bd327efe7` (`232768359`) |
 
 ⚠️ **Since S7 (2026-09-19)** "outside custom sections" matters: by default our `wat2wasm` adds a
-`binaryang.text-form` section to sources with linearly written functions (20 of these 421) — a
-DESIGN divergence, owner-decided; `--no-text-form` gives upstream's bytes exactly, so parity with
-that flag is 421 / 421 whole-file.
+`binaryang.text-form` section to sources written other than as the plain nested fold — linear, or
+any mix (75 of these 421 since the per-instruction record, `b366262ce`; 20 when it was per
+function) — a DESIGN divergence, owner-decided; `--no-text-form` gives upstream's bytes exactly, so
+parity with that flag is 421 / 421 whole-file.
 
 The name sections, compared on their own, are equal on 426/426. Parity is now total on this corpus,
 so **any new difference is a regression or a new divergence, and gets a row** in

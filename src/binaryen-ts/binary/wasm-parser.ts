@@ -10,7 +10,8 @@
 import { BinaryReader, WasmBinaryError } from './reader.ts';
 import { DecodedNames } from './names.ts';
 import { MADE_UP } from '../../wabt-ts/ir/made-up-names.ts';
-import { MAX_MATERIALIZED_LOCALS } from '../../wabt-ts/reader/binary-reader.ts';
+import { MAX_MATERIALIZED_LOCALS, readBinaryIr } from '../../wabt-ts/reader/binary-reader.ts';
+import { makeErrorList } from '../../wabt-ts/core/error.ts';
 import {
   blockResult,
   heapAbstract,
@@ -849,7 +850,11 @@ class WasmParser {
    */
   private readonly names: DecodedNames;
 
+  /** The input, for S7: the text-form prediction is the wabt-ts reader's tree of it. */
+  private readonly bytes: Uint8Array;
+
   constructor(bytes: Uint8Array, options: ParseWasmOptions = {}) {
+    this.bytes = bytes;
     this.r = new BinaryReader(bytes);
     this.lowerBlockParams = options.lowerBlockParams ?? false;
     this.names = new DecodedNames(bytes);
@@ -892,12 +897,22 @@ class WasmParser {
     // S7: the first `binaryang.text-form` section becomes as-written metadata
     // (`text-form.ts`), as wabt-ts's reader makes it — not a raw custom section,
     // which passes would carry through optimization with its function indices
-    // gone stale. A pass run resets the table, so optimized output drops it; a
+    // and positions gone stale. A pass run resets the table, so optimized output drops it; a
     // plain decode → encode writes it back, last. One that does not decode or
     // fit stays raw.
     const marker = out.customSections.find((c) => c.name === TEXT_FORM_SECTION);
-    const indices = marker?.data ? decodeTextForm(marker.data) : null;
-    if (marker !== undefined && indices !== null && applyTextForm(out, indices)) {
+    // The forms are predicted from the wabt-ts reader's tree of these bytes; a
+    // function this tree does not hold one-for-one (a lowered block param, a
+    // scratch local) keeps none.
+    const entries = marker?.data ? decodeTextForm(marker.data) : null;
+    if (
+      marker !== undefined && entries !== null &&
+      applyTextForm(
+        out,
+        entries,
+        readBinaryIr(this.bytes, makeErrorList(), { readDebugNames: false }),
+      )
+    ) {
       out.customSections = out.customSections.filter((c) => c !== marker);
     }
     return out;

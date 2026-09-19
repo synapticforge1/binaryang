@@ -96,11 +96,13 @@ export interface FidelityEntry {
   readonly sig?: FuncSignature;
 
   /**
-   * On a FUNCTION: its body was written LINEARLY (S7, `text-form.ts`), so
-   * `wasm2wat` writes it back linearly. Absent means folded. Carried in the
-   * `binaryang.text-form` custom section; a pass run drops it with the table.
+   * On a FUNCTION: how each instruction of its body was written — bare or
+   * folded, and around how many items — in binary order (S7, `text-form.ts`),
+   * so `wasm2wat` writes it back the same. Absent means the plain nested fold.
+   * Carried in the `binaryang.text-form` custom section; a pass run drops it
+   * with the table.
    */
-  readonly linearBody?: true;
+  readonly textForm?: readonly number[];
 }
 
 // ⚠️ `placeholder` is deliberately NOT here, though the plan listed it.

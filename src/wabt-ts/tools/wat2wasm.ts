@@ -52,12 +52,13 @@ export interface Wat2WasmOptions {
   /** Source filename shown in error messages. Default: `'<input>'`. */
   filename?: string;
   /**
-   * Record which functions were written LINEARLY in a `binaryang.text-form`
-   * custom section, so `wasm2wat` gives back the form it was given (S7).
-   * Default: **`true`** — `wat2wasm` → `wasm2wat` transpiles verbatim (owner,
-   * 2026-09-19). The section is written only when some function was written
-   * linearly; `false` then gives upstream `wat2wasm`'s bytes exactly. CLI:
-   * `--no-text-form`.
+   * Record how each instruction was written — bare or folded, grouped how — in
+   * a `binaryang.text-form` custom section, so `wasm2wat` gives back the form
+   * it was given, linear, folded or mixed (S7). Default: **`true`** —
+   * `wat2wasm` → `wasm2wat` transpiles verbatim (owner, 2026-09-19). The
+   * section is written only when some function was written other than as the
+   * plain nested fold; `false` then gives upstream `wat2wasm`'s bytes exactly.
+   * CLI: `--no-text-form`.
    */
   textForm?: boolean;
 }
@@ -148,8 +149,8 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   if (!input) {
     console.error(
       'usage: wat2wasm <input.wat> [-o <output.wasm>] [--no-text-form]\n' +
-        '  --no-text-form  do not record which functions were written linearly\n' +
-        '                  (upstream wat2wasm bytes exactly; wasm2wat then folds them)',
+        '  --no-text-form  do not record how each instruction was written\n' +
+        '                  (upstream wat2wasm bytes exactly; wasm2wat then folds it)',
     );
     process.exit(1);
   }

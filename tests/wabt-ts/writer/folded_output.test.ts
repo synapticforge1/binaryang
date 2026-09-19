@@ -40,9 +40,9 @@ function asm(wat: string, name: string): Uint8Array {
  * the two texts are supposed to differ; only the meaning must not.
  *
  * Since S7 the two forms differ in exactly one section: `wat2wasm` records
- * which functions were written linearly (`binaryang.text-form`), and the
- * linear text's are. So both are assembled WITHOUT that record, and the
- * forms are forced as written (`asWritten: false`) — this is about folding.
+ * how each instruction was written (`binaryang.text-form`), and the linear
+ * text's are recorded bare. So both are assembled WITHOUT that record, and
+ * the forms are forced (`asWritten: false`) — this is about folding.
  */
 function assertFormsAgree(source: string) {
   const original = asm(source, 'src.wat');

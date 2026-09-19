@@ -130,7 +130,9 @@ import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { blockTypeOf, BrOnOp, localNameEntries } from '../ir/ir.ts';
 import { isRealName } from '../ir/made-up-names.ts';
-import { encodeTextForm, linearFunctionIndices, TEXT_FORM_SECTION } from '../ir/text-form.ts';
+import { encodeTextForm, hasWrittenForms, TEXT_FORM_SECTION } from '../ir/text-form.ts';
+import { readBinaryIr } from '../reader/binary-reader.ts';
+import { makeErrorList } from '../core/error.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1896,9 +1898,16 @@ class BinaryWriter {
     ) {
       this.writeNameSection();
     }
-    // S7: which functions were written linearly — LAST, after the `name`
-    // section, so a read → write round trip puts it back where it was.
-    const textForm = this.writeTextForm ? encodeTextForm(linearFunctionIndices(this.m)) : null;
+    // S7: how each instruction was written — LAST, after the `name`
+    // section, so a read → write round trip puts it back where it was. What
+    // the reader would predict comes from reading back the bytes so far — the
+    // whole module but this section (`text-form.ts`).
+    const textForm = this.writeTextForm && hasWrittenForms(this.m)
+      ? encodeTextForm(
+        this.m,
+        readBinaryIr(s.toUint8Array(), makeErrorList(), { readDebugNames: false }),
+      )
+      : null;
     if (textForm !== null) {
       s.writeSection(BinarySection.Custom, () => {
         s.writeName(TEXT_FORM_SECTION);
@@ -1943,14 +1952,14 @@ export interface WriteBinaryOptions {
   writeDebugNames?: boolean;
 
   /**
-   * Write the `binaryang.text-form` section — which functions were written
-   * LINEARLY — so `wasm2wat` gives back the form it was given (S7,
-   * `text-form.ts`). Default: **`true`**, the owner's rule: `wat2wasm` →
+   * Write the `binaryang.text-form` section — how each instruction was
+   * written, bare or folded — so `wasm2wat` gives back the form it was given
+   * (S7, `text-form.ts`). Default: **`true`**, the owner's rule: `wat2wasm` →
    * `wasm2wat` transpiles verbatim (2026-09-19).
    *
-   * `false` gives upstream `wat2wasm`'s exact bytes for a source with linear
-   * functions, which never differ otherwise — the section is written only when
-   * some function was written linearly. `wasm-strip` passes `false`.
+   * `false` gives upstream `wat2wasm`'s exact bytes for a source written other
+   * than as the plain nested fold, which never differ otherwise — the section
+   * is written only when some function was. `wasm-strip` passes `false`.
    */
   writeTextForm?: boolean;
 }

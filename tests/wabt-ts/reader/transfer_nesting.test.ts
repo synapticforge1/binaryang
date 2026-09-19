@@ -112,8 +112,12 @@ describe('an unconditional transfer is the next instruction’s operand', () => 
 
   it('both text forms re-assemble to the same bytes, and they run', () => {
     const bytes = wat2wasm(LINEAR).binary!;
+    // As written, every byte comes back; each FORCED form gives the same code
+    // (naming a form rewrites S7's text-form record, and only that).
+    const code = (wat: string) => wat2wasm(wat, { textForm: false }).binary;
+    assertEquals(wat2wasm(wasm2wat(bytes).text).binary, bytes, 'as written');
     for (const fold of [true, false]) {
-      assertEquals(wat2wasm(wasm2wat(bytes, { fold }).text).binary, bytes, `fold: ${fold}`);
+      assertEquals(code(wasm2wat(bytes, { fold }).text), code(LINEAR), `fold: ${fold}`);
     }
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports as Record<string, () => number>;

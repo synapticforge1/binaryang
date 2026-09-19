@@ -334,14 +334,18 @@ their own bump — and nothing breaks by their standing still.
 
 ## Behaviour changes — bytes move
 
-- **`wat2wasm` → `wasm2wat` keeps each function's WRITTEN form** (S7, `899263b7b`; owner: fidelity
-  first on the text path). `wat2wasm` now appends a `binaryang.text-form` custom section when a
-  source has functions written linearly, and `wasm2wat` gives those back linearly (others folded, as
-  before). **Bytes move** for such sources — by that section only; `wat2wasm(src, { textForm: false })`
-  / `--no-text-form` gives the previous (and upstream's) bytes exactly. New options: `Wat2WasmOptions
-  .textForm`, `Wasm2WatOptions.asWritten`, `WriteWatOptions.asWritten`, `WriteBinaryOptions
-  .writeTextForm`. ⚠️ CLI `wasm2wat --fold` now folds EVERY function (it was the default, a no-op).
-  Optimizing and `wasm-strip` drop the section.
+- **`wat2wasm` → `wasm2wat` keeps every instruction's WRITTEN form** (S7, `899263b7b` per function,
+  `b366262ce` per instruction; owner: fidelity first on the text path, "one to one unless it goes
+  through optimization"). `wat2wasm` now appends a `binaryang.text-form` custom section when a
+  source is written other than as the plain nested fold, and `wasm2wat` gives it back as written —
+  linear stays linear, folded stays folded, a mix stays the same mix. **Bytes move** for such sources
+  (268 of the 1,043 corpus sources) — by that section only; `wat2wasm(src, { textForm: false })` /
+  `--no-text-form` gives the previous (and upstream's) bytes exactly. New options:
+  `Wat2WasmOptions.textForm`, `Wasm2WatOptions.asWritten`, `WriteWatOptions.asWritten`,
+  `WriteBinaryOptions.writeTextForm`. ⚠️ Naming a form forces it everywhere: CLI `wasm2wat --fold`
+  / `--linear` and `wasm2wat(b, { fold })` write EVERY function in that form (`--fold` was the
+  default, a no-op). Optimizing and `wasm-strip` drop the section. `wat2wasm` is ~30% slower with
+  the record on (it reads its own output back to predict what a reader will), not with it off.
 
 - **Dead functions are removed at every `-O` level, as upstream** (owner decision, 2026-09-14; was
   divergence I1): `RemoveUnusedModuleElements` now runs before the function passes from `-O2` and
@@ -377,6 +381,11 @@ their own bump — and nothing breaks by their standing still.
   - a linear `call_indirect` / `return_call_indirect` / `call_ref` took the WHOLE operand stack as
     its arguments, T10.5's defect for `call`, which they never got the fix for. A value belonging to
     a later instruction became an extra argument.
+- **The binary reader indexes imports within their own kind** (`ab1a211ee`, found by S7). After a
+  global, table or memory import, a call to an imported function — or a `throw` of an imported tag
+  — read back with the wrong signature: `(call $log (global.get $g))` came back as a call with no
+  operands beside a stray `global.get`. Bytes were never affected; `wasm2wat` now prints such calls
+  folded around their operands.
 - **Folded `wasm2wat` nests a value-carrying `br_if` as upstream does** (post-M8 fix 4, `a82dadf90`).
   wabt-ts's binary reader made every `br_if` a statement, so `(i32.add (br_if 0 v c) x)` printed as
   `(br_if 0 v c) (i32.add x)`. Text only: 20 of 5,704 corpus binaries print differently, each

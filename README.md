@@ -100,16 +100,17 @@ deno run -A jsr:@jrmarcum/binaryang <command> [options]
 | command                   | does                                                                                                                 |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `wat2wasm <in.wat>`       | assemble WAT to a WASM binary · `-o <file>` · `--no-text-form`¹                                                      |
-| `wasm2wat <in.wasm>`      | disassemble to WAT, each function in its written form¹ · `-o <file>` · `--linear` / `--fold` for one form throughout |
+| `wasm2wat <in.wasm>`      | disassemble to WAT, every instruction in its written form¹ · `-o <file>` · `--linear` / `--fold` for one form throughout |
 | `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>`                                               |
 | `wasm-objdump <in.wasm>`  | dump sections                                                                                                        |
 | `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                                                                 |
 | `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`, `--hybrid`                                                               |
 | `wasm2ts <in.wasm>`       | emit TypeScript — **not yet implemented**                                                                            |
 
-¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records which functions were written
-linearly in a `binaryang.text-form` custom section, and `wasm2wat` gives each back in that form
-(folded where nothing is recorded, as for any other tool's binary). `--no-text-form` omits the
+¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records how each instruction was written
+— bare or folded, and grouped how — in a `binaryang.text-form` custom section, and `wasm2wat` gives
+it back that way: linear stays linear, folded stays folded, a mix stays the same mix (the plain
+nested fold where nothing is recorded, as for any other tool's binary). `--no-text-form` omits the
 record — upstream `wat2wasm`'s bytes exactly. Optimizing drops it, and so does `wasm-strip`.
 
 ```sh
