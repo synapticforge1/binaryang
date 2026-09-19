@@ -45,7 +45,9 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 > bytes and text; **fidelity only** — the side table, the text-form record, as-written spellings;
 > **optimization only** — the passes and the PREPARATION they need (`prepareForPasses`: naming,
 > types, and whatever binaryen-ts's decoder does for the passes today). Scoped by measurement
-> first — § "One front end" — before any code moves.
+> first — § "One front end" — before any code moves. **Scoped by the owner** (same day): merge the
+> IR, the reader and the encoder — `wat/wasm → reader → ir → features → ir → encoder → wat/wasm` —
+> and nothing else; the features stay separate (§ "One front end", "Scope").
 
 ## Where it stands — 2026-09-17
 
@@ -4375,6 +4377,98 @@ findings beside the question: **route A already emits INVALID output for valid s
    synthesize types" step for pass- and API-built modules; then delete `wasm-encoder.ts`.
 5. Retire binaryen-ts's internal `parseWat` (already planned).
 With one reader, S7's read-back question narrows to parser vs reader.
+
+#### 🛑 Scope — owner, 2026-09-19: the IR, the reader and the encoder; nothing else
+
+"Lets scope the unification part to merge the ir, the reader and the encoder. The other wabt-ts
+and binaryen-ts features can stay separate. So we should have
+wat/wasm -> reader -> ir -> features -> ir -> encoder -> wat/wasm".
+
+```
+wat/wasm → reader (WAT parser | binary reader) → IR + fidelity table
+         → features: wabt-ts tools  |  binaryen-ts: prepareForPasses → passes
+         → IR → encoder (WAT writer | binary writer) → wat/wasm
+```
+
+The TEXT side already has this shape: one WAT parser (wabt-ts's; binaryen-ts's internal
+`parseWat` retires, W4) and one WAT writer (binaryen-ts has none — `wasm-opt -S` refuses natively
+and names `wasm2wat`). The duplication is the BINARY reader and writer.
+
+Refinements PROPOSED with it, ⏳ pending the owner's confirmation:
+1. **Each feature side owns its entry step.** The reader gives the faithful tree and fills the
+   fidelity table (part of the IR). binaryen-ts's side begins with `prepareForPasses`, which takes
+   over the decoder's pass-oriented reshaping (R11', R12–R15 below); its passes already drop the
+   table. wabt-ts's tools read it.
+2. **The encoder takes the IR in both states the features leave it in**: as read (indices,
+   `typeVar`s) and as optimized or API-built (names, no type table, pass-made blocks). Resolving
+   names and synthesizing the type table (W1–W3 below) is byte work, so it lives IN the encoder —
+   without disturbing an as-written index (T1).
+3. **One IR is one node kind per instruction**: no reader may choose between `simd.load` and
+   `load`, and the opcode set holds the scalar saturating truncations — plan stage 1.
+
+#### Inventory — what each reader and writer does that the other does not (2026-09-19)
+
+Read from the code at `7632be94d` (file:line as of then; they rot — re-find by name). ✓ marks a claim
+the measurement above confirmed; the rest was read, not re-verified. Class: **(a)** byte work to
+share, **(b)** optimizer preparation (after the reader / inside the encoder), **(c)** fidelity.
+RA = wabt-ts `reader/binary-reader.ts`; RB = binaryen-ts `binary/wasm-parser.ts` (+ `names.ts`,
+`reader.ts`); WA = wabt-ts `writer/binary-writer.ts`; WB = binaryen-ts `encoder/wasm-encoder.ts`.
+
+**Readers**
+
+| #   | what                                                                                                                                                                                                                                                                      | side                           | class |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ----- |
+| R1  | error model: RA collects an `ErrorList`, never throws (backstop returns an empty module, RA ~3478); RB throws `WasmBinaryError`                                                                                                                                           | differ                         | (a)   |
+| R2  | section order and duplicate sections, unknown id, section-size mismatch reported (RA ~2975–3113); RB rejects an unknown id but skips to the section end on a size mismatch                                                                                                | RA                             | (a)   |
+| R3  | function / code count match, DataCount against data, `memory.init` / `data.drop` need DataCount (RA ~1333, 2901, 3117) ✓ (B refuses 1,349 invalid binaries A accepts)                                                                                                  | RA                             | (a)   |
+| R4  | names decoded as STRICT UTF-8 keeping a BOM (RA ~49–60); RB's `TextDecoder()` is lenient (U+FFFD) and strips a BOM — looks like an RB defect                                                                                                                              | RA                             | (a)   |
+| R5  | mutability byte > 1 and the tag attribute byte checked (RA ~800, 2886); RB reads `!== 0` / ignores them                                                                                                                                                                  | RA                             | (a)   |
+| R6  | the locals limits (2^32−1, `MAX_MATERIALIZED_LOCALS`) — already shared                                                                                                                                                                                                   | both                           | (a)   |
+| R7  | `sectionMeta`, `loc`, `filename` recorded (for `wasm-objdump`) ✓                                                                                                                                                                                                          | RA                             | (c)   |
+| R8  | name section: RA applies the LAST one after the module is complete; a malformed / incomplete / second one is kept RAW at its place; `readDebugNames: false` keeps it raw (wasm-strip)                                                                                     | RA                             | (c)   |
+| R8' | name section: RB pre-scans for the last one BEFORE decoding (its references need names up front); a malformed one yields no names and is REGENERATED — loses bytes where RA keeps them                                                                                  | RB                             | (c)   |
+| R9  | RB names every reference and every block, and the function frame (`bodyFrameLabel`); RA leaves indices and `''` labels — `nameReferences` (M8c) closes it ✓ (the naming convention differs: `$l0_0` vs `$l0_frame`)                                                    | RB                             | (b)   |
+| R10 | RB builds with the `make*` factories, so every node has `type`; RA only declared types — `deriveTypes` (M8d) closes it ✓                                                                                                                                                  | RB                             | (b)   |
+| R11 | operands, RA: `stack` + `stmts`, a statement drains pending values, a missing operand is an untyped `pop`; byte-faithful                                                                                                                                                   | RA                             | (a)+(c) |
+| R11'| operands, RB: a value beneath a statement is SPILLED to a scratch local; an empty polymorphic stack yields `unreachable` — both change bytes on decode → encode ✓ (98 functions gain locals; 28 files not byte-identical)                                                   | RB                             | (b)   |
+| R12 | multi-value results: RB pushes N−1 typed `pop`s beneath a multi-result call / block / if / loop / try / try_table; RA pushes one entry (and pairs a neighbour — open-work.md) ✓                                                                                         | RB                             | (b)   |
+| R13 | catch entry: RB seeds one typed `pop` per tag parameter; RA none                                                                                                                                                                                                          | RB                             | (b)   |
+| R14 | block params, default: both keep `params` on the node; RB also seeds typed `pop`s in the region                                                                                                                                                                           | RB extra                       | (b)   |
+| R15 | `lowerBlockParams`: spills params to locals, rewrites branches to loops, a `br_table` trampoline for mixed targets; suppresses the written `typeIndex` — reached by `PassRunner` through an encode + DECODE round trip (`passes/lower-block-params.ts`)                     | RB                             | (b)   |
+| R16 | the text-form section: RA applies it to its own tree; RB re-reads the bytes with RA to predict — RB already depends on RA                                                                                                                                                  | both                           | (c)   |
+| R17 | relaxed SIMD: RA reads it, RB refuses ✓ (8 valid spec modules); RA may decode ANY unknown 0xFD sub-opcode as a binary op without error (unsure); RA refuses compact imports explicitly                                                                                     | RA                             | (a)   |
+| R18 | scalar SATURATING truncation (0xFC 0x00–0x07): RB decodes it as the TRAPPING opcodes — a miscompile ✓ (4 of 4 corpus modules); RA keeps it                                                                                                                                 | RA right                       | (a)   |
+| R19 | SIMD loads: RB builds `simd.load`, RA `load` ✓ (90 functions) — a node-kind split in the one tree type                                                                                                                                                                  | differ                         | (a)   |
+
+**Writers**
+
+| #   | what                                                                                                                                                                                                                                                    | side      | class   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------- |
+| W1  | references: WA requires index `Var`s (throws on a name), resolving only LABEL names itself, which keeps as-written depths; WB resolves names or indices for every entity and label                                                                        | WB        | (b)     |
+| W2  | type section: WA writes `m.types` verbatim and requires `typeVar` / `typeIndex` ("run synthesizeTypes"); WB derives and dedupes a table when `m.types` is empty, interns missing block types, and uses `typeVar` only while it still matches            | WB        | (b)     |
+| W3  | carrier block type: WA the declared type + index; WB the written index, else params, else the node's `type`, refusing `unreachable`                                                                                                                      | differ    | (b)/(c) |
+| W4  | typed `select`: WA reads `fidelity.selectResultType`, else `resultType`; WB promotes an untyped reference select to the typed form from the node's `type`                                                                                                 | differ    | (c)/(b) |
+| W5  | more than one table: WB THROWS (`checkSingleTable`), WA writes them ✓ (178 valid corpus modules)                                                                                                                                                        | WA        | (a)     |
+| W6  | `code_metadata`: WA writes nothing for the node (W8, open); WB throws; the optimizer strips the nodes                                                                                                                                                  | differ    | (c)     |
+| W7  | name section: same layout, real names only; WA has `writeDebugNames`, writes a raw kept section verbatim and then generates none; WB writes when `hasNameSection`, with no raw-section handling (unsure: a raw one would give two)                       | differ    | (c)     |
+| W8  | custom-section placement (`precedingSection`, the `data: null` name placeholder): equivalent                                                                                                                                                            | both      | (c)     |
+| W9  | the text-form section: both write it last, predicted by RA; WA has `writeTextForm`                                                                                                                                                                     | both      | (c)     |
+| W10 | an active element segment with no offset: WB fabricates `i32.const 0`, WA throws                                                                                                                                                                       | differ    | (a)     |
+| W11 | locals run-length: WA merges adjacent groups by `===`, so two `(ref $T)` locals held as separate objects never merge (valid, other bytes) — a minor WA defect; WB merges by value                                                                        | WB        | (a)     |
+| W12 | DataCount rule, `pop` writes nothing, limits: the same                                                                                                                                                                                                  | both      | (a)     |
+
+**Who calls the binaryen-ts reader and writer** (`src/`): `tools/wasm-opt.ts` (binary → optimizer
+→ bytes; with no passes a plain decode → encode), `tools/read-wat.ts` (WAT → `wat2wasm` → decoder),
+`api/binaryen-compat.ts` (`emitBinary`, `readBinary`), `api/index.ts` (`toBinary`),
+`passes/lower-block-params.ts` (the encode + decode round trip), and the published `./binary` and
+`./encoder` entry points. Tests: `parseWasm` in ~70 files, `encodeWasm` in ~94; scripts ~24 / ~20.
+
+**Hardest to unify, in order**: (1) operand reconstruction — RB rebuilds the stack for the passes
+while decoding (R11'–R14), so moving it means rewriting a finished tree (`deriveTypes` already
+simulates the stack for `pop`s); (2) `lowerBlockParams` as a tree pass (R15); (3) name resolution and
+type synthesis in the one encoder without disturbing as-written indices (W1–W3); (4) the name
+section — keep RA's handling; the optimizer then relies on `nameReferences`; (5) the error model of
+the published `parseWasm` (R1), and RA's stricter checks (R2–R5) newly refusing inputs RB accepted.
 
 ### What is NOT in scope
 
