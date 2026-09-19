@@ -2,8 +2,9 @@
 
 **`deno.json` reads 1.5.4 and is deliberately NOT bumped.** The version line arms a release
 ([publishing.md](publishing.md)), so the bump happens when the owner decides to ship, not while work
-runs. Everything below is merged to `main`, unpushed, and green as of 2026-09-12: **1043 tests / 0
-ignored, baseline IDENTICAL, spec 100% on four axes, bridge 421/421 since 2026-09-15.** Re-derive
+runs. Everything below is merged to `main`, unpushed, and green as of 2026-09-19: **1265 tests / 0
+ignored, baseline IDENTICAL, spec 100% on four axes, `direct` 544/544 (the bridge's gates were
+deleted with it, 2026-09-18).** Re-derive
 before quoting.
 
 Gathered 2026-09-14 from `open-work.md` and from machine-local memory, where half of it was the only

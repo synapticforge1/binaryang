@@ -50,6 +50,8 @@ DIVERGE** — the 421 corpus modules plus `prepare.test.ts`'s 123 (post-M8 fix 7
   call plus a memory hash; on the mutant that restores the drop it reports 39 DIVERGE while
   `deno task bridge` still reports 421/421. It calls corpus entry points, which is where the
   coverage is (419 exports) and also why it needs a worker it can kill — one module never returns.
+  (Both are history since M8e: `deno task direct` / `direct-behaviour` carry the same pair — one
+  compiles and validates, the other RUNS in lockstep — over the prepared tree.)
 
 - ⚠️ **A gate is evidence about what it REACHES.** Not one corpus module has a `(start …)`, so
   when M8e's mutant dropped the start function both direct gates stayed green; only a unit test
