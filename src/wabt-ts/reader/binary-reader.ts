@@ -283,10 +283,23 @@ function entryParams(bt: BlockType, stack: Expr[], m: Module): BlockParams | und
   return { types: [...getTypeSig(m, bt.typeIdx).params], values: popN(stack, n) };
 }
 
-function brTargetResultCount(labelStack: Frame[], depth: number, m: Module): number {
+/**
+ * How many values a branch to `depth` carries: a loop's params, a block's
+ * results — and for the outermost label, the FUNCTION's results (`rootArity`).
+ * The root frame's block type is void, so reading it gave 0, and a branch to
+ * the function label carried nothing: `(drop (br_if 0 (i32.const 9) …))` in a
+ * function returning `i32` read back as siblings (post-M8 fix 10, W9 (b)).
+ */
+function brTargetResultCount(
+  labelStack: Frame[],
+  depth: number,
+  m: Module,
+  rootArity: number,
+): number {
   const idx = labelStack.length - 1 - depth;
   if (idx < 0) return 0;
   const frame = labelStack[idx]!;
+  if (frame.kind === 'root') return rootArity;
   if (frame.kind === 'loop') return blockParamCount(frame.blockType, m);
   return blockResultCount(frame.blockType, m);
 }
@@ -1413,6 +1426,9 @@ export class BinaryReader {
 
   private decodeBody(bodyEnd: number, m: Module, func: Func | null): Expr[] {
     const funcResultCount = func ? func.sig.results.length : 1;
+    // What a branch to the outermost label carries: the function's results.
+    // An init expression has no such label to branch to (invalid), so 0.
+    const rootArity = func ? func.sig.results.length : 0;
     const rootLoc = this.loc();
     const labelStack: Frame[] = [new Frame('root', BLOCK_TYPE_VOID, '', rootLoc)];
 
@@ -1688,7 +1704,7 @@ export class BinaryReader {
         // --- Branches ---
         case Opcode.Br: {
           const depth = this.readU32Leb();
-          const rCount = brTargetResultCount(labelStack, depth, m);
+          const rCount = brTargetResultCount(labelStack, depth, m, rootArity);
           // The target may carry SEVERAL results; pop them all and restore
           // stack order. Popping one dropped the rest for a multi-value label.
           const values: Expr[] = [];
@@ -1702,7 +1718,7 @@ export class BinaryReader {
         }
         case Opcode.BrIf: {
           const depth = this.readU32Leb();
-          const rCount = brTargetResultCount(labelStack, depth, m);
+          const rCount = brTargetResultCount(labelStack, depth, m, rootArity);
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const values: Expr[] = [];
           for (let i = 0; i < rCount; i++) {
@@ -1734,7 +1750,7 @@ export class BinaryReader {
           // own (post-M8 fix 9, divergence W9 (a)): left as preceding
           // statements, folded `wasm2wat` printed them as siblings where
           // upstream nests them. Only what the region holds is taken.
-          const rCount = brTargetResultCount(labelStack, defaultDepth, m);
+          const rCount = brTargetResultCount(labelStack, defaultDepth, m, rootArity);
           const values: Expr[] = [];
           for (let i = 0; i < rCount; i++) {
             const v = stack.pop();
@@ -2212,7 +2228,7 @@ export class BinaryReader {
           // The target may take `t*` below the ref. br_on_null's target takes
           // exactly those; br_on_non_null's takes them plus the (non-null)
           // ref, so one of its result slots is the ref itself.
-          const want = brTargetResultCount(labelStack, depth, m) -
+          const want = brTargetResultCount(labelStack, depth, m, rootArity) -
             (op === Opcode.BrOnNonNull ? 1 : 0);
           const values: Expr[] = [];
           for (let i = 0; i < want; i++) {
