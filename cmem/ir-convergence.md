@@ -4405,7 +4405,28 @@ before it:
    type had been masking it. `names.2` is a second, A-only one: "Duplicate export name ''".
 2. **Move A's preparation into `prepareForPasses`** (pops, spills, block-param lowering as a tree
    pass), and explain B's three -O3 invalid outputs. Gate: optimizer output equal to route A's or
-   each difference explained, plus a behaviour check on every differing module.
+   each difference explained, plus a behaviour check on every differing module. 🚧 IN PROGRESS:
+   - ✅ **one stack entry per VALUE, in both front ends** (`58fd43576`, re-baseline `36ecaddb3`):
+     the reader AND the parser held one entry per NODE, so a consumer popping N values from a
+     multi-result producer took its NEIGHBOURS (the defect recorded 2026-09-19). Both push
+     `pop` placeholders for a producer's earlier values now (`pushValues` / `pushProduced`); a held
+     `pop` stays on the stack across a statement and is DROPPED if nobody consumes it; and
+     `canonicalForm` follows what the fold writer nests (operands from the first non-pop on; a bare
+     head where a pop is scattered). Identical bodies 48,666 → 48,752 of 49,254, the multi-value
+     category (315 functions) gone; S7 back to 1,043 / 1,043 on forms, bytes and shapes; baseline
+     moved 3 files (the section's bytes and folded text; linear text unchanged).
+     ⚠️ Found on the way, and each one a lesson: draining a held `pop` as a statement broke 2,727
+     functions, and flushing an unconsumed one broke `deriveTypes` on 19 valid modules — a
+     placeholder is not an instruction, in either direction.
+     ⬚ **Known gap**: the fold writer and the prediction disagree on 6 of 26,454 functions
+     (`1_regular-expressions` f25 @29 `binary` 3 vs 5; `27_StringSplitAndForOf` f35 @207 and
+     `27_string-functions` f31 @38 `local.set` 2 vs 5 / 2 vs 4, each duplicated across two corpora).
+     Forms still reproduce because those functions are recorded; one whose source form EQUALLED the
+     prediction there would be absent and render differently. Worth closing with a gate that pins
+     "the fold writer's grouping IS the prediction" over the corpus.
+   - ⬚ LEFT: typed `pop`s at catch entry and for block params (R13, R14); the scratch-local spills
+     and `unreachable`-for-an-empty-stack (R11', ~137 functions); block-param lowering as a tree
+     pass (R15) — which is what breaks `fac.0` / `if.0`, and `Inlining` on route B at -O3.
 3. **Switch the entry points** (`wasm-opt`, `read-wat`, the compat API, `lowerBlockParams`) to B,
    keep `parseWasm` as a thin published wrapper if the owner wants the API kept; then delete
    `wasm-parser.ts`.

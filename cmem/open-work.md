@@ -171,16 +171,12 @@ predict — the price of exactness by construction. `--no-text-form` is within n
 Nothing is pending on it; it is here so the trade is visible.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
-- ⬚ **the wabt-ts binary reader attaches a multi-value operand's NEIGHBOUR** (DEFECT, trees only;
-  found by S7's measurement, 2026-09-19): it pops operand NODES, not values, so in
-  `(call $add2 (local.get 0) (call $take2 (call $pair)))` — `$pair` returning two values — the
-  `local.get` hangs on `$take2` and `$add2` gets a `pop`. Bytes are right; `wasm2wat --fold` prints
-  that wrong nesting (it re-assembles to the same code). Measured: 41 corpus functions where
-  binaryen-ts's decoder (which leaves the `pop`) and the reader disagree, every one a `call` of this
-  shape. ⚠️ Fixing it changes
-  the reader's tree, and S7's prediction IS that tree: entries written before the fix fail their
-  hash check and those functions print as predicted — degraded, never wrong. Measure that on the
-  corpus before choosing.
+- ✅ ~~the wabt-ts binary reader attaches a multi-value operand's NEIGHBOUR~~ — FIXED 2026-09-19
+  (`58fd43576`, One front end stage 2), in the reader AND the WAT parser: both hold one stack entry
+  per VALUE now, so a multi-result producer fills its own slots. It had popped operand NODES, which
+  gave `(call $add2 (local.get 0) (call $take2 (call $pair)))` the `local.get` on `$take2`; bytes
+  were right, the tree was not. ir-convergence.md § "One front end", stage 2, has what it took and
+  the one gap left (the fold writer and the prediction disagree on 6 of 26,454 functions).
 - binaryen-ts's decoder reads a `ref.null` / typed element segment but **refuses an element type other
   than `funcref`** until the element model carries it — M3 left this deliberately
 - the text format has no spelling for where the `name` section sat (M2f); `wasm2wat` → `wat2wasm` puts it last
