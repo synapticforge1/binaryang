@@ -1499,6 +1499,11 @@ export class WastParser {
    * upstream folds them. Unknown arity keeps the token's rule.
    */
   private producesValue(tt: TokenType, expr: Expr): boolean {
+    // An unconditional transfer leaves a polymorphic stack, and upstream's
+    // folding lets the next instruction take it as an operand (divergence W10b,
+    // owner 2026-09-19) — as wabt-ts's binary reader does (`pushTransfer`).
+    const transfer = this.transferValues(expr);
+    if (transfer !== undefined) return transfer === 1;
     // A call whose callee is KNOWN to return nothing is a statement. Pushed as
     // a value, a following branch took the void call as its carried value and
     // left the real one a sibling (post-M8 fix 5).
@@ -1511,6 +1516,39 @@ export class WastParser {
       return this.branchArity(expr.target) === 0;
     }
     return false;
+  }
+
+  /**
+   * What an UNCONDITIONAL transfer counts as leaving, as upstream's folding
+   * counts it (`GetExprArity`): one for `br`, `br_table`, `return`,
+   * `unreachable` and `throw_ref`; a return call's results; nothing for
+   * `throw` / `rethrow`. `undefined` for anything that is not a transfer, or a
+   * return call whose callee is not known.
+   */
+  private transferValues(expr: Expr): number | undefined {
+    switch (expr.kind) {
+      case 'br':
+        return expr.condition === undefined ? 1 : undefined;
+      case 'br_table':
+      case 'return':
+      case 'unreachable':
+      case 'throw_ref':
+        return 1;
+      case 'throw':
+      case 'rethrow':
+        return 0;
+      case 'call':
+      case 'call_indirect':
+      case 'call_ref': {
+        if (expr.isReturn !== true) return undefined;
+        // The callee's results, read as for a plain call (`isReturn` is
+        // `true` or absent since M8a2, so drop it rather than set it false).
+        const { isReturn: _, ...call } = expr;
+        return this.resultCount(call as Expr);
+      }
+      default:
+        return undefined;
+    }
   }
 
   /**

@@ -259,8 +259,41 @@ describe('M8d — deriveTypes: `pop`, typed by the value stack', () => {
   });
 
   it('in unreachable code the stack is polymorphic: `unreachable`', () => {
-    const m = fromText('(module (func unreachable drop))');
+    // Since W10b the parser nests `unreachable drop` as `drop(unreachable)`,
+    // as upstream folds it; the pop a front end leaves after a transfer it
+    // does NOT nest (a statement between them) is built here by hand.
+    const m = fromText('(module (func unreachable drop))', false);
+    lift(m.functions[0]!.body.children, 0, 'value'); // drop(unreachable) -> unreachable; drop(pop)
+    deriveTypes(m);
     assertEquals(all(m.functions[0]!.body, 'pop')[0].type, Unreachable);
+  });
+
+  it("a branch's carried values are emitted BEFORE its condition (the spec's invalid br.6)", () => {
+    // `br 0` to an i32 block with nothing on the stack is invalid. Nested as
+    // the br_if's value (W10b), its pop was typed from the br_if's CONDITION —
+    // `visitChildren` lists that first — and the module was accepted.
+    assertThrows(
+      () =>
+        fromText(`(module (func
+          i32.const 0
+          block (result i32)
+            br 0
+            i32.const 1
+            br_if 0
+          end
+          i32.eqz
+          drop))`),
+      Error,
+      'br at line 4 consumes 1 value(s) and the stack holds 0',
+    );
+  });
+
+  it('…and the nested form a front end builds now: drop takes the transfer', () => {
+    const m = fromText('(module (func unreachable drop))');
+    const [drop] = m.functions[0]!.body.children;
+    assert(drop?.kind === 'drop' && drop.value.kind === 'unreachable');
+    assertEquals(drop.value.type, Unreachable);
+    assertEquals(all(m.functions[0]!.body, 'pop'), []);
   });
 
   it('reachable, with nothing on the stack: refused, naming the line', () => {

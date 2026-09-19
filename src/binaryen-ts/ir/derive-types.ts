@@ -240,6 +240,17 @@ class Deriver {
         return [...(e.params?.values ?? [])];
       case ExpressionKind.If:
         return [...(e.params?.values ?? []), e.condition];
+      // A branch's carried values are pushed BEFORE its condition / index —
+      // wasm's evaluation order. `visitChildren` gives the reverse (a recorded
+      // open item: fixing it there may move optimizer bytes), which put a
+      // condition's value on this stack first; a `pop` nested in a carried
+      // value then took it. Found by W10b: the spec's INVALID `br.6` — a
+      // `br` needing a value it lacks, nested as a `br_if`'s value — was
+      // typed from the `br_if`'s condition instead of refused.
+      case ExpressionKind.Break:
+        return e.condition === undefined ? [...e.values] : [...e.values, e.condition];
+      case ExpressionKind.Switch:
+        return [...e.values, e.condition];
       case ExpressionKind.Region:
         throw new Error('derive-types: a region reached an operand slot');
       default: {
