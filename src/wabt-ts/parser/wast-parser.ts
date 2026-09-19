@@ -1055,7 +1055,10 @@ function carried(values: Expr[], arity: number | undefined, loc: Location): Expr
  * Fixed 2026-05-25 — reported by wasmtk's wabt-ts 1.0.4 migration.
  */
 function flushStack(ctx: ExprCtx): void {
-  for (const e of ctx.stack) ctx.stmts.push(e);
+  // A `pop` placeholder nobody consumed is not part of the program: it stands
+  // for one value of a multi-result producer (`pushProduced`), and it writes
+  // nothing. The binary reader's `Frame.flush` drops it the same way.
+  for (const e of ctx.stack) if (e.kind !== 'pop') ctx.stmts.push(e);
   ctx.stack.length = 0;
 }
 
@@ -1082,8 +1085,13 @@ function flushStack(ctx: ExprCtx): void {
  * return. Regression tests in tests/wabt-ts/parser/stmt_order.test.ts.
  */
 function pushStmt(ctx: ExprCtx, expr: Expr): void {
-  for (const e of ctx.stack) ctx.stmts.push(e);
+  // Pending VALUES are committed so their order survives; a `pop` placeholder
+  // is not one — it stands for a value a later instruction will consume, and it
+  // stays on the stack (as in the binary reader's `pushStmt`).
+  const held = ctx.stack.filter((e) => e.kind === 'pop');
+  for (const e of ctx.stack) if (e.kind !== 'pop') ctx.stmts.push(e);
   ctx.stack.length = 0;
+  ctx.stack.push(...held);
   ctx.stmts.push(expr);
 }
 
@@ -1579,6 +1587,22 @@ export class WastParser {
       return m === null ? undefined : this.lookupFuncTypeEntry(m, expr.sigType)?.results.length;
     }
     return undefined;
+  }
+
+  /**
+   * Push one stack entry per VALUE `expr` produces — the node on top, a `pop`
+   * placeholder beneath it for each earlier value — exactly as the binary
+   * reader's `pushValues` does.
+   *
+   * One tree per program: a two-result call filling two operand slots is what
+   * every other front end builds, and S7's written forms are rendered against
+   * the READER's tree, so an item structure that differs there cannot be
+   * reproduced (One front end, stage 2, 2026-09-19).
+   */
+  private pushProduced(ctx: ExprCtx, expr: Expr, loc: Location, count?: number): void {
+    const n = count ?? this.resultCount(expr) ?? 1;
+    for (let i = 1; i < n; i++) ctx.stack.push(operandPlaceholder(loc));
+    ctx.stack.push(expr);
   }
 
   /** Bring a carrier's label into scope for its body; {@link leaveLabel} ends it. */
@@ -3654,7 +3678,7 @@ export class WastParser {
     if (expr !== null) {
       this.written(expr, 1 + inner);
       if (this.producesValue(tt2, expr)) {
-        ctx.stack.push(expr);
+        this.pushProduced(ctx, expr, loc);
       } else {
         pushStmt(ctx, expr);
       }
@@ -3699,7 +3723,7 @@ export class WastParser {
           loc,
         };
       this.written(node, 1);
-      if (hasValue) ctx.stack.push(node);
+      if (hasValue) this.pushProduced(ctx, node, loc, this.blockSig(blockType).results.length);
       else pushStmt(ctx, node);
       return Result.Ok;
     }
@@ -3780,7 +3804,7 @@ export class WastParser {
         loc,
       }, 1 + inner);
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node);
+      if (hasValue) this.pushProduced(ctx, node, loc, this.blockSig(blockType).results.length);
       else pushStmt(ctx, node);
       return Result.Ok;
     }
@@ -3821,7 +3845,7 @@ export class WastParser {
         loc,
       }, 1);
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node);
+      if (hasValue) this.pushProduced(ctx, node, loc, this.blockSig(blockType).results.length);
       else pushStmt(ctx, node);
       return Result.Ok;
     }
@@ -3910,7 +3934,7 @@ export class WastParser {
         };
       this.written(node, 1);
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node);
+      if (hasValue) this.pushProduced(ctx, node, loc, this.blockSig(blockType).results.length);
       else pushStmt(ctx, node);
       return Result.Ok;
     }
@@ -4026,7 +4050,7 @@ export class WastParser {
         };
       this.written(node, BARE);
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node);
+      if (hasValue) this.pushProduced(ctx, node, loc, this.blockSig(blockType).results.length);
       else pushStmt(ctx, node);
       return Result.Ok;
     }
@@ -4076,7 +4100,7 @@ export class WastParser {
       };
       this.written(node, BARE);
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node);
+      if (hasValue) this.pushProduced(ctx, node, loc, this.blockSig(blockType).results.length);
       else pushStmt(ctx, node);
       return Result.Ok;
     }
@@ -4144,7 +4168,7 @@ export class WastParser {
         };
       this.written(node, BARE);
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node);
+      if (hasValue) this.pushProduced(ctx, node, loc, this.blockSig(blockType).results.length);
       else pushStmt(ctx, node);
       return Result.Ok;
     }
@@ -4191,7 +4215,7 @@ export class WastParser {
       };
       this.written(node, BARE);
       const hasValue = blockType.kind !== 'void';
-      if (hasValue) ctx.stack.push(node);
+      if (hasValue) this.pushProduced(ctx, node, loc, this.blockSig(blockType).results.length);
       else pushStmt(ctx, node);
       return Result.Ok;
     }
@@ -4222,7 +4246,7 @@ export class WastParser {
     this.written(expr, BARE);
 
     if (this.producesValue(tt, expr)) {
-      ctx.stack.push(expr);
+      this.pushProduced(ctx, expr, loc);
     } else {
       pushStmt(ctx, expr);
     }
