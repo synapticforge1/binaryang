@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 8 of 10 done; resume at fix 9)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 9 of 10 done; resume at fix 10)
 
-**Where the work stopped.** `main` is at the merge of post-M8 fix 8 (code last changed at
-`dbe986344`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `dbe986344` (as on every stage before it) and every step exited 0: fmt, lint, **1261 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of post-M8 fix 9 (code last changed at
+`cf1b50bd8`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `cf1b50bd8` (as on every stage before it) and every step exited 0: fmt, lint, **1262 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -121,13 +121,9 @@ entity collections stay there until the records themselves are one type (M8).
      (`scripts/direct-inputs.ts`): the dropped-start mutant now fails BOTH gates;
    - ✅ binaryen-ts reads AND writes a memory index as a LEB — six decoder reads and six encoder
      writes (`memory.size` / `grow` / `init` / `copy` ×2 / `fill`), not the two the item named;
-   - ⏭️ **NEXT — fix 9** (added by the owner, 2026-09-19; divergence W9 (a)): wabt-ts's binary reader never gives
-     `br_table` its carried values — it leaves them as preceding statements (`binary-reader.ts`
-     `Opcode.BrTable`), so folded `wasm2wat` prints them as siblings where upstream nests them
-     (`br_if.0` func 23). Pop the default target's arity below the index, as fix 5 does for the
-     parser's other branches; judge against upstream `wasm2wat --fold-exprs`. ⚠️ The parser's linear
-     `br_table` takes its index only too — decide whether it follows, so the two front ends agree;
-   - fix 10 (added by the owner, 2026-09-19; divergence W9 (b)): wabt-ts's binary reader types the
+   - ✅ a `br_table` holds the values it carries, in BOTH front ends (the parser followed, so they
+     agree): folded `br_table` children agree with upstream for 136 of 149, up from 37;
+   - ⏭️ **NEXT — fix 10** (added by the owner, 2026-09-19; divergence W9 (b)): wabt-ts's binary reader types the
      FUNCTION label's frame void (`decodeBody`'s root `Frame`), so a `br` / `br_if` / `br_on_*` to
      it carries nothing (`unwind.0` func 4). Give the root frame the function's results. ⚠️ After
      it, `lift` in `derive_types.test.ts` names this as the last live source of sibling-shaped

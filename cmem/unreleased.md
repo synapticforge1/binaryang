@@ -382,6 +382,9 @@ their own bump — and nothing breaks by their standing still.
   `grow`, `init`, `copy` and `fill` read and wrote their memory index as one byte, so a multi-memory
   module with 128+ memories failed to decode, or decoded and re-encoded WRONG (from 256, naming a
   different memory). Now a LEB both ways, as the spec and wabt-ts have it.
+- **Folded `wasm2wat` nests a `br_table`'s carried values, as upstream does** (post-M8 fix 9,
+  `cf1b50bd8`); the WAT parser's linear `br_table` holds them too. Text and trees only — no bytes
+  move; the optimizer's text route refuses 4 more V8-invalid modules.
 
 - **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11

@@ -4070,6 +4070,28 @@ defects to the task list"); their scope is in open-work.md.
      site; 127 passes under every mutant, as it should. Gate on `dbe986344`: exit 0, 1261 tests.
    - Lesson (again, "a row's premise is not evidence"): the item's "as every other memory index is"
      was never checked; checking it found five more sites and the whole write side.
+9. ✅ **A `br_table` holds the values it carries, in both front ends** (`cf1b50bd8`, 2026-09-19;
+   divergence W9 (a)).
+   - The defect: the binary reader gave `br_table` its index alone and left the carried values as
+     preceding statements, so folded `wasm2wat` printed them as siblings where upstream nests them.
+     The parser's linear `br_table` did the same (fix 5 left it for this item).
+   - Decided: BOTH follow, so the front ends agree. Each takes its DEFAULT target's values below the
+     index (every target carries the same number). The reader takes what the region holds, as its
+     `br` does; the parser takes exactly the arity (`peekLastVar`), a value from outside the region
+     a `pop` (`carried`).
+   - Measured (main against the branch): folded `wasm2wat` text 24 changed, linear 0, all
+     re-assembling as before; direct children of each folded `br_table` against upstream 1.0.41:
+     **37 of 149 → 136** (scratch `kids.ts`). Of the 13 left, three inspected: all-or-nothing folding
+     (upstream folds no operand when a statement splits them; our writer folds the index alone) and
+     operands in unreachable code (upstream nests a transfer as the next one's operand); `func.0` /
+     `unwind.0` branch to the function label (fix 10). `br_if` parents 130 → 131 of 133. Bytes: 0 of
+     2,286 WAT files, 0 of 5,794 round trips; 17 linear texts parse differently; the optimizer's text
+     route refuses 4 more modules, all V8-invalid.
+   - Test `br_table_values.test.ts`. Mutants 3 / 3 killed after a folded-parameter step was added
+     (padding again acts only in the FOLDED form — fix 5's lesson, met a second time); a fourth,
+     reading the FIRST target's arity instead of the default's, survives and is EQUIVALENT: every
+     target of a valid `br_table` carries the same values.
+   - Gate on `cf1b50bd8`: exit 0, 1262 tests; baseline IDENTICAL.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
