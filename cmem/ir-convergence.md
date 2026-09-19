@@ -3876,7 +3876,7 @@ wires in at M8e, after `nameReferences`.
   - the parser does not know a branch target's arity, so a `br_if` value that really comes from
     outside the region drops out, as it did before S5;
   - wabt-ts's BINARY reader does not treat a `br_if` as producing a value (the pass follows wasm's
-    rule regardless);
+    rule regardless) — ✅ fixed by post-M8 fix 4 (`a82dadf90`);
   - `makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64;
   - the decoder's `table.get` default and the factory's multi-value `call_indirect`.
 - **Gate** on `8aca27cbd`: every step exit 0, 1288 tests.
@@ -3962,6 +3962,31 @@ Each item is its own branch, measured, tested, mutated and gated.
    - ⚠️ Seen in passing, not changed here: the decoder reads `memory.size` / `memory.grow`'s memory
      index as ONE BYTE, where multi-memory writes a LEB (the same value below 128). Added to the
      list as fix 8 (owner, 2026-09-18).
+4. ✅ **A `br_if` carrying one value is an operand in wabt-ts's binary reader** (`a82dadf90`,
+   re-baseline `abd8b7e5d`, tests `b2547af78`; 2026-09-19).
+   - The defect: the reader committed every `br_if` as a statement, so `(i32.add (br_if 0 v c) x)`
+     read back as two siblings and folded `wasm2wat` printed `(br_if 0 v c) (i32.add x)`.
+   - The fix: a `br_if` whose target carries exactly ONE value goes on the operand stack, as a `call`
+     with a result does. Two or more stay a statement, as upstream folds them — the first cut used
+     `> 0`, and a probe showed a `drop` taking a two-value `br_if` whole.
+   - Measured (scratch `wabt_hashes.ts` + `parents.ts`, main against the branch, 6,436 binaries:
+     the 421 wasmtk modules, binaryen's 91 test binaries, the spec corpus; 5,704 read by both):
+     linear text 0 changed; folded text 20 changed, each re-assembling exactly as main's did. Against
+     upstream wabt 1.0.41's `wasm2wat --fold-exprs`, the parent of each of those files' 648 `br_if`s
+     agreed for **533 on main, 646 now**. ⚠️ Judging re-assembly needs the name section set aside:
+     our `wat2wasm` always writes one (N1), upstream's only with `--debug-names`.
+   - The 2 left are separate reader defects, recorded in open-work for the owner, not fixed here:
+     `br_table` never takes its carried values (`br_if.0` func 23), and the function label's frame is
+     typed void, so a branch to it carries nothing (`unwind.0` func 4; `br` alike).
+   - The gate's first run on `abd8b7e5d` was RED: two M8d `deriveTypes` tests took their sibling-shape
+     tree from this very defect. The shape still arises from the WAT parser on linear text (fix 5), so
+     they read linear text now, expectations unchanged, plus a step pinning the reader's new shape.
+   - Mutants 5 / 5 killed (reader: always a statement, `> 0`, always an operand; `deriveTypes`:
+     `consumes` → `claimed`, `br_if` typed by the factory rule). Always-an-operand first SURVIVED —
+     the void fixture was followed by a statement — until a void `br_if` between two operands and
+     their `i32.add` was added.
+   - Gate on `b2547af78`: exit 0, 1258 tests; baseline re-baselined (folded column of
+     `1_fib-rs-opt` / `1_fib-zig-opt` only).
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one

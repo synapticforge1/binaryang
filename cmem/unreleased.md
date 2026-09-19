@@ -367,6 +367,10 @@ their own bump — and nothing breaks by their standing still.
   - a linear `call_indirect` / `return_call_indirect` / `call_ref` took the WHOLE operand stack as
     its arguments, T10.5's defect for `call`, which they never got the fix for. A value belonging to
     a later instruction became an extra argument.
+- **Folded `wasm2wat` nests a value-carrying `br_if` as upstream does** (post-M8 fix 4, `a82dadf90`).
+  wabt-ts's binary reader made every `br_if` a statement, so `(i32.add (br_if 0 v c) x)` printed as
+  `(br_if 0 v c) (i32.add x)`. Text only: 20 of 5,704 corpus binaries print differently, each
+  re-assembling to the same bytes; linear output unchanged.
 
 - **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
