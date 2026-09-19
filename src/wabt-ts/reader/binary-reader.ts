@@ -132,6 +132,7 @@ import {
 import { BrOnOp, locOf } from '../ir/ir.ts';
 import { countImports, totalFuncs } from '../ir/ir.ts';
 import { nameEveryEntity } from '../ir/made-up-names.ts';
+import { applyTextForm, decodeTextForm, TEXT_FORM_SECTION } from '../ir/text-form.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -2890,6 +2891,24 @@ export class BinaryReader {
    */
   private pendingNames: { custom: Custom & { data: Uint8Array }; at: number } | null = null;
 
+  /**
+   * The first `binaryang.text-form` section (S7, `text-form.ts`). It is kept
+   * among the customs as it is read, in its place, and applied once the module
+   * is complete — its functions exist only then. Applied, it leaves the customs
+   * (the fidelity table holds it now, and the writers put it back last); one
+   * that does not decode, or does not fit this module, stays as raw bytes.
+   */
+  private pendingTextForm: Custom & { data: Uint8Array } | null = null;
+
+  private applyPendingTextForm(m: Module): void {
+    const pending = this.pendingTextForm;
+    if (pending === null) return;
+    const indices = decodeTextForm(pending.data);
+    if (indices !== null && applyTextForm(m, indices)) {
+      m.customSections = m.customSections.filter((c) => c !== pending);
+    }
+  }
+
   readModule(): Module {
     const m = makeModule();
     m.filename = this.filename;
@@ -3007,6 +3026,9 @@ export class BinaryReader {
             this.pendingNames = { custom, at: m.customSections.length };
             m.hasNameSection = true;
           } else {
+            if (name === TEXT_FORM_SECTION && this.pendingTextForm === null) {
+              this.pendingTextForm = custom;
+            }
             m.customSections.push(custom);
           }
           this.pos = sectionEnd;
@@ -3082,6 +3104,7 @@ export class BinaryReader {
       this.err('function and code section have inconsistent lengths');
     }
     if (this.ok()) {
+      this.applyPendingTextForm(m);
       const listed = this.applyPendingNames(m);
       // Every entity named, the real names recorded (owner decision 4; M7c3b
       // b1b) — as binaryen-ts's decoder does. No section read: every function

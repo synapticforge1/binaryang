@@ -103,7 +103,9 @@ describe('an unconditional transfer is the next instruction’s operand', () => 
   });
 
   it('folded wasm2wat prints the nesting upstream prints', () => {
-    const text = wasm2wat(wat2wasm(LINEAR).binary!).text;
+    // The fixture is written linearly; this is about FOLDING, so the S7
+    // record (written linearly → written back linearly) is set aside.
+    const text = wasm2wat(wat2wasm(LINEAR).binary!, { asWritten: false }).text;
     assert(/\(br 0 \(;@1;\)\s+\(br_table 0 \(;@1;\) 0 \(;@1;\)/.test(text), text);
     assert(/\(i32\.eqz\s+\(unreachable\)\)/.test(text), text);
   });

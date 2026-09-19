@@ -22,6 +22,7 @@ import {
 } from '../../wabt-ts/ir/ir.ts';
 import { type Opcode, OPCODE_V128_LOAD, OPCODE_V128_STORE } from '../../wabt-ts/core/opcode.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
+import { applyTextForm, decodeTextForm, TEXT_FORM_SECTION } from '../../wabt-ts/ir/text-form.ts';
 import {
   type CustomSection,
   type ElementSegment,
@@ -869,7 +870,7 @@ class WasmParser {
     mod.functions.forEach((f, i) => {
       f.typeVar = varIndex(this.funcTypeIndices[i]!);
     });
-    return {
+    const out = {
       ...mod,
       name: this.names.moduleName(),
       types: this.heapTypeDefs,
@@ -888,6 +889,18 @@ class WasmParser {
       hasNameSection: this.names.hasSection,
       explicitNames: this.names.explicit((i) => this.names.func(i)),
     };
+    // S7: the first `binaryang.text-form` section becomes as-written metadata
+    // (`text-form.ts`), as wabt-ts's reader makes it — not a raw custom section,
+    // which passes would carry through optimization with its function indices
+    // gone stale. A pass run resets the table, so optimized output drops it; a
+    // plain decode → encode writes it back, last. One that does not decode or
+    // fit stays raw.
+    const marker = out.customSections.find((c) => c.name === TEXT_FORM_SECTION);
+    const indices = marker?.data ? decodeTextForm(marker.data) : null;
+    if (marker !== undefined && indices !== null && applyTextForm(out, indices)) {
+      out.customSections = out.customSections.filter((c) => c !== marker);
+    }
+    return out;
   }
 
   private readHeader(): void {

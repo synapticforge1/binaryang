@@ -50,8 +50,8 @@ if (result !== Result.Ok) {
   console.log(binary.length); // 41
 
   const { text } = wasm2wat(binary, {});
-  console.log(text); // the module, back as WAT — folded s-expressions
-  // ...or wasm2wat(binary, { fold: false }) for the flat stack-machine form
+  console.log(text); // the module, back as WAT — in the form it was written (folded here)
+  // ...or wasm2wat(binary, { fold: false }) for the flat stack-machine form throughout
 }
 ```
 
@@ -97,15 +97,20 @@ One entry point, seven commands:
 deno run -A jsr:@jrmarcum/binaryang <command> [options]
 ```
 
-| command                   | does                                                                   |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `wat2wasm <in.wat>`       | assemble WAT to a WASM binary · `-o <file>`                            |
-| `wasm2wat <in.wasm>`      | disassemble to WAT · `-o <file>` · `--linear` for stack-machine form    |
-| `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>` |
-| `wasm-objdump <in.wasm>`  | dump sections                                                          |
-| `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                   |
-| `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`, `--hybrid`                 |
-| `wasm2ts <in.wasm>`       | emit TypeScript — **not yet implemented**                              |
+| command                   | does                                                                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `wat2wasm <in.wat>`       | assemble WAT to a WASM binary · `-o <file>` · `--no-text-form`¹                                                      |
+| `wasm2wat <in.wasm>`      | disassemble to WAT, each function in its written form¹ · `-o <file>` · `--linear` / `--fold` for one form throughout |
+| `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>`                                               |
+| `wasm-objdump <in.wasm>`  | dump sections                                                                                                        |
+| `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                                                                 |
+| `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`, `--hybrid`                                                               |
+| `wasm2ts <in.wasm>`       | emit TypeScript — **not yet implemented**                                                                            |
+
+¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records which functions were written
+linearly in a `binaryang.text-form` custom section, and `wasm2wat` gives each back in that form
+(folded where nothing is recorded, as for any other tool's binary). `--no-text-form` omits the
+record — upstream `wat2wasm`'s bytes exactly. Optimizing drops it, and so does `wasm-strip`.
 
 ```sh
 deno run -A jsr:@jrmarcum/binaryang wat2wasm add.wat -o add.wasm

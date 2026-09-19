@@ -103,8 +103,12 @@ describe('folded wasm2wat folds every instruction kind', () => {
   });
 
   it('both text forms re-assemble to the same bytes', () => {
+    const code = wat2wasm(KINDS, { textForm: false }).binary;
     for (const fold of [true, false]) {
-      assertEquals(wat2wasm(wasm2wat(bytes!, { fold }).text).binary, bytes, `fold: ${fold}`);
+      // The same CODE: forcing a form changes the S7 text-form record, and
+      // only that — so both sides are assembled without it.
+      const text = wasm2wat(bytes!, { fold, asWritten: false }).text;
+      assertEquals(wat2wasm(text, { textForm: false }).binary, code, `fold: ${fold}`);
     }
   });
 
@@ -113,7 +117,8 @@ describe('folded wasm2wat folds every instruction kind', () => {
     // tree it is given, and `()` does not parse.
     const p = parseWatModule('(module (func if (then) end))');
     assert(p.module);
-    const text = writeWatModule(p.module, { fold: true });
+    // Written linearly; this is about the FOLDED writer, so S7's record is set aside.
+    const text = writeWatModule(p.module, { fold: true, asWritten: false });
     assert(!text.includes('()'), text);
     assert(/\(if\s+\(then\)\)/.test(text), text);
     assert(!/\n\s*\n/.test(text.trim()), `no blank line: ${JSON.stringify(text)}`);

@@ -51,6 +51,15 @@ import process from 'node:process';
 export interface Wat2WasmOptions {
   /** Source filename shown in error messages. Default: `'<input>'`. */
   filename?: string;
+  /**
+   * Record which functions were written LINEARLY in a `binaryang.text-form`
+   * custom section, so `wasm2wat` gives back the form it was given (S7).
+   * Default: **`true`** — `wat2wasm` → `wasm2wat` transpiles verbatim (owner,
+   * 2026-09-19). The section is written only when some function was written
+   * linearly; `false` then gives upstream `wat2wasm`'s bytes exactly. CLI:
+   * `--no-text-form`.
+   */
+  textForm?: boolean;
 }
 
 /** Return value from {@link wat2wasm}. */
@@ -97,7 +106,7 @@ export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}
   // failure must REPORT.
   let binary: Uint8Array;
   try {
-    binary = writeBinaryIr(module);
+    binary = writeBinaryIr(module, { writeTextForm: opts.textForm ?? true });
   } catch (e) {
     addError(
       errors,
@@ -123,23 +132,30 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   args = args.slice();
   let input: string | undefined;
   let output: string | undefined;
+  let textForm = true;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
+    } else if (arg === '--no-text-form') {
+      textForm = false;
     } else if (arg && !arg.startsWith('-')) {
       input = arg;
     }
   }
 
   if (!input) {
-    console.error('usage: wat2wasm <input.wat> [-o <output.wasm>]');
+    console.error(
+      'usage: wat2wasm <input.wat> [-o <output.wasm>] [--no-text-form]\n' +
+        '  --no-text-form  do not record which functions were written linearly\n' +
+        '                  (upstream wat2wasm bytes exactly; wasm2wat then folds them)',
+    );
     process.exit(1);
   }
 
   const source = await cliRead('wat2wasm', input);
-  const { binary, errors, result } = wat2wasm(source, { filename: input });
+  const { binary, errors, result } = wat2wasm(source, { filename: input, textForm });
 
   if (errors.length > 0) {
     console.error(formatErrors(errors));

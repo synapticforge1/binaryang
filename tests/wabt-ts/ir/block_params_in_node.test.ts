@@ -132,10 +132,16 @@ describe('a carrier OWNS its entry values', () => {
     it(`${fx.name}: the bytes run, and the folded text re-assembles to them`, () => {
       const bytes = compile(fx.wat);
       assertEquals(run(bytes), fx.answer);
-      const folded = wasm2wat(bytes, { fold: true }).text!;
-      assert(same(compile(folded), bytes), folded);
-      const linear = wasm2wat(bytes, { fold: false }).text!;
-      assert(same(compile(linear), bytes), linear);
+      // As written, the text re-assembles to the bytes themselves (S7).
+      const asWritten = wasm2wat(bytes).text!;
+      assert(same(compile(asWritten), bytes), asWritten);
+      // Each FORCED form gives the same code; it changes S7's text-form
+      // record, and only that, so the code is compared without it.
+      const code = (wat: string) => wat2wasm(wat, { textForm: false }).binary;
+      for (const fold of [true, false]) {
+        const text = wasm2wat(bytes, { fold, asWritten: false }).text!;
+        assert(same(code(text), code(fx.wat)), text);
+      }
     });
   }
 

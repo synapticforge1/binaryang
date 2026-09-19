@@ -130,6 +130,7 @@ import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { blockTypeOf, BrOnOp, localNameEntries } from '../ir/ir.ts';
 import { isRealName } from '../ir/made-up-names.ts';
+import { encodeTextForm, linearFunctionIndices, TEXT_FORM_SECTION } from '../ir/text-form.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1185,9 +1186,12 @@ class BinaryWriter {
   /** Named labels by FUNCTION INDEX, collected as the code section is written. */
   private readonly labelNames = new Map<number, [number, string][]>();
 
-  constructor(m: Module, writeDebugNames: boolean) {
+  private readonly writeTextForm: boolean;
+
+  constructor(m: Module, writeDebugNames: boolean, writeTextForm: boolean) {
     this.m = m;
     this.writeDebugNames = writeDebugNames;
+    this.writeTextForm = writeTextForm;
     this.s = new MemoryStream(4096);
     this.bodyWriter = new BodyWriter(this.s, m.fidelity);
     this.visitor = new ExprVisitor(this.bodyWriter);
@@ -1892,6 +1896,15 @@ class BinaryWriter {
     ) {
       this.writeNameSection();
     }
+    // S7: which functions were written linearly — LAST, after the `name`
+    // section, so a read → write round trip puts it back where it was.
+    const textForm = this.writeTextForm ? encodeTextForm(linearFunctionIndices(this.m)) : null;
+    if (textForm !== null) {
+      s.writeSection(BinarySection.Custom, () => {
+        s.writeName(TEXT_FORM_SECTION);
+        s.writeBytes(textForm);
+      });
+    }
 
     return s.toUint8Array();
   }
@@ -1928,6 +1941,18 @@ export interface WriteBinaryOptions {
    * the generated one.
    */
   writeDebugNames?: boolean;
+
+  /**
+   * Write the `binaryang.text-form` section — which functions were written
+   * LINEARLY — so `wasm2wat` gives back the form it was given (S7,
+   * `text-form.ts`). Default: **`true`**, the owner's rule: `wat2wasm` →
+   * `wasm2wat` transpiles verbatim (2026-09-19).
+   *
+   * `false` gives upstream `wat2wasm`'s exact bytes for a source with linear
+   * functions, which never differ otherwise — the section is written only when
+   * some function was written linearly. `wasm-strip` passes `false`.
+   */
+  writeTextForm?: boolean;
 }
 
 /**
@@ -1935,5 +1960,5 @@ export interface WriteBinaryOptions {
  * encoder doesn't accumulate errors (any IR shape it can't encode throws).
  */
 export function writeBinaryIr(m: Module, opts: WriteBinaryOptions = {}): Uint8Array {
-  return new BinaryWriter(m, opts.writeDebugNames ?? true).write();
+  return new BinaryWriter(m, opts.writeDebugNames ?? true, opts.writeTextForm ?? true).write();
 }

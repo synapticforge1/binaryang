@@ -92,7 +92,9 @@ describe('a branch to the function label carries the function’s results', () =
   });
 
   it('folded wasm2wat nests them, as upstream prints them', () => {
-    const text = wasm2wat(bytes()).text;
+    // The fixture is written linearly; this is about FOLDING, so the S7
+    // record (written linearly → written back linearly) is set aside.
+    const text = wasm2wat(bytes(), { asWritten: false }).text;
     assert(/\(br 0 \(;@0;\)\s+\(i32\.const 9\)\)/.test(text), text);
     assert(/\(drop\s+\(br_if 0 \(;@0;\)\s+\(i32\.const 9\)/.test(text), text);
   });

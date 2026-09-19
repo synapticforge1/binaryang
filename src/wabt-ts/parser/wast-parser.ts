@@ -152,6 +152,7 @@ import { BinarySection } from '../core/binary.ts';
 import { placementAnchor } from '../core/custom-placement.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
+import { markWrittenLinear } from '../ir/text-form.ts';
 import { LexerSource } from './lexer-source.ts';
 import { WastLexer } from './wast-lexer.ts';
 import {
@@ -2445,7 +2446,13 @@ export class WastParser {
       // The function's own frame: a `return`, or a branch to the outermost
       // depth, carries its results.
       this.labels = [{ name: '', arity: sigOf(pb.func)?.results.length }];
+      this.formCounts = { folded: 0, linear: 0 };
       this.parseInstrListInto(pb.func.body.children);
+      // S7: a body written with no folded instruction is written back linearly
+      // (`text-form.ts`). One that mixes the forms is recorded as folded.
+      if (this.formCounts.linear > 0 && this.formCounts.folded === 0) {
+        markWrittenLinear(module, pb.func);
+      }
       if (this.pos !== pb.endPos) {
         // Unconsumed input between here and the function's `)`. The instr
         // loop stops at the first thing it cannot parse and `parseInstrList`
@@ -3502,14 +3509,28 @@ export class WastParser {
       // folded expression
       const next = this.peek(1);
       if (isPlainInstr(next) || isBlockInstr(next)) {
+        this.formCounts.folded++;
         return this.parseFoldedInstr(ctx);
       }
       return Result.Error;
     }
-    if (isBlockInstr(this.peek())) return this.parseLinearBlockInstr(ctx);
-    if (isPlainInstr(this.peek())) return this.parseLinearPlainInstr(ctx);
+    if (isBlockInstr(this.peek())) {
+      this.formCounts.linear++;
+      return this.parseLinearBlockInstr(ctx);
+    }
+    if (isPlainInstr(this.peek())) {
+      this.formCounts.linear++;
+      return this.parseLinearPlainInstr(ctx);
+    }
     return Result.Error;
   }
+
+  /**
+   * How the instructions of the body being parsed were written — every nested
+   * list comes through {@link parseOneInstr}. A body with linear instructions
+   * and no folded one is recorded as written linearly (S7, `text-form.ts`).
+   */
+  private formCounts = { folded: 0, linear: 0 };
 
   // -------------------------------------------------------------------------
   // Folded instruction parsing

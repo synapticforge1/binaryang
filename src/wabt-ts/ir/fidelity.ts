@@ -94,6 +94,13 @@ export interface FidelityEntry {
 
   /** The inline signature that accompanied {@link typeUse}, where one was written. */
   readonly sig?: FuncSignature;
+
+  /**
+   * On a FUNCTION: its body was written LINEARLY (S7, `text-form.ts`), so
+   * `wasm2wat` writes it back linearly. Absent means folded. Carried in the
+   * `binaryang.text-form` custom section; a pass run drops it with the table.
+   */
+  readonly linearBody?: true;
 }
 
 // ⚠️ `placeholder` is deliberately NOT here, though the plan listed it.

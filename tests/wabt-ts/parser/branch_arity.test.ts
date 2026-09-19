@@ -47,9 +47,16 @@ const kinds = (es: readonly Expr[]) => es.map((e) => e.kind);
 function runs(wat: string, calls: [string, unknown[], number][]): void {
   const bytes = wat2wasm(wat, { filename: 't.wat' }).binary;
   assert(bytes !== undefined && WebAssembly.validate(bytes as BufferSource), 'the module is valid');
+  // The same CODE through each forced form: forcing one changes S7's
+  // text-form record, and only that, so both sides are assembled without it.
+  const code = wat2wasm(wat, { filename: 't.wat', textForm: false }).binary;
   for (const fold of [true, false]) {
-    const back = wat2wasm(wasm2wat(bytes, { fold }).text, { filename: 'b.wat' }).binary;
-    assertEquals(back, bytes, `fold: ${fold}`);
+    const text = wasm2wat(bytes, { fold, asWritten: false }).text;
+    assertEquals(
+      wat2wasm(text, { filename: 'b.wat', textForm: false }).binary,
+      code,
+      `fold: ${fold}`,
+    );
   }
   const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource), {})
     .exports as Record<string, (...a: unknown[]) => number>;

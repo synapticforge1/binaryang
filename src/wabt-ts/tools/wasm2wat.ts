@@ -73,6 +73,16 @@ export interface Wasm2WatOptions {
    */
   fold?: boolean;
   /**
+   * Write each function in the form it was WRITTEN, where the binary records it
+   * (S7: the `binaryang.text-form` section our `wat2wasm` writes for functions
+   * written linearly). Default: **`true`** — `wat2wasm` → `wasm2wat` transpiles
+   * verbatim (owner, 2026-09-19). `false` ignores the record and lets `fold`
+   * decide every function. A binary without the section — from any other tool,
+   * or optimized — is written by `fold` either way. CLI: `--fold` sets this
+   * `false` (everything folded); `--linear` writes everything linearly.
+   */
+  asWritten?: boolean;
+  /**
    * Invent names (`$f0`, `$g0`, `$t0`, …) for the entities that have none.
    * Default: **`false`**, as upstream `wasm2wat`, where it is
    * `--generate-names`.
@@ -121,6 +131,7 @@ export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2W
   const text = writeWatModule(module, {
     inlineExport: opts.inlineExport !== false,
     fold: opts.fold !== false,
+    asWritten: opts.asWritten !== false,
     // This module came from a BINARY, where a branch target is a depth and the
     // author's spelling was never in the file — so a label's name (N2) is the
     // best text there is, and `br $outer` beats `br 1 (;@1;)` beside a block
@@ -147,6 +158,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   let input: string | undefined;
   let output: string | undefined;
   let fold = true;
+  let asWritten = true;
   let generateNames = false;
 
   for (let i = 0; i < args.length; i++) {
@@ -156,10 +168,12 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     } else if (arg === '--generate-names') {
       generateNames = true;
     } else if (arg === '--fold' || arg === '-f') {
-      // Explicit, even though it is the default since 1.5.4: a script that
-      // needs folded output should be able to ASK for it rather than rely
-      // on the default staying put.
+      // Explicit, even though folded is the default since 1.5.4: a script
+      // that needs folded output should be able to ASK for it rather than rely
+      // on the default staying put. Asked for, it means EVERY function —
+      // including those the binary records as written linearly (S7).
       fold = true;
+      asWritten = false;
     } else if (arg === '--linear' || arg === '-l') {
       // The stack-machine view: one line per instruction, in execution
       // order. No longer the default, but its reason for existing is
@@ -175,7 +189,8 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       'usage: wasm2wat <input.wasm> [-o <output.wat>] [--linear|-l] [--fold|-f] [--generate-names]',
     );
     console.error(
-      '  output is FOLDED by default; --linear emits the flat stack-machine form',
+      '  each function is written in the form it was written (our wat2wasm records it),\n' +
+        '  otherwise FOLDED; --fold folds every function, --linear writes every one flat',
     );
     console.error(
       '  --generate-names invents $f0, $g0, ... for entities the binary does not name',
@@ -184,7 +199,12 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   }
 
   const binary = await cliRead('wasm2wat', input);
-  const { text, errors, result } = wasm2wat(binary, { filename: input, fold, generateNames });
+  const { text, errors, result } = wasm2wat(binary, {
+    filename: input,
+    fold,
+    asWritten,
+    generateNames,
+  });
 
   if (errors.length > 0) {
     console.error(formatErrors(errors));
