@@ -276,11 +276,39 @@ export class ExprVisitor {
     return this.dispatch(expr);
   }
 
+  /** Set while {@link visitShallow} runs: the one node visited in full. */
+  private shallowTop: Expr | undefined;
+  private shallowOperand: ((e: Expr) => void) | undefined;
+
+  /**
+   * Visit `expr` ONE level deep: each operand is handed to `onOperand`, in
+   * evaluation order, instead of being visited; then the delegate's callback
+   * for `expr` itself runs — its head, opcode and immediates alone.
+   *
+   * For a PLAIN instruction only. A structured one (block, loop, if, try,
+   * try_table) visits its body through the same dispatch, so its body's
+   * instructions would arrive here as "operands".
+   */
+  visitShallow(expr: Expr, onOperand: (e: Expr) => void): Result {
+    const saved = [this.shallowTop, this.shallowOperand] as const;
+    this.shallowTop = expr;
+    this.shallowOperand = onOperand;
+    try {
+      return this.dispatch(expr);
+    } finally {
+      [this.shallowTop, this.shallowOperand] = saved;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Internal dispatch — post-order: children first, then callback on parent
   // ---------------------------------------------------------------------------
 
   private dispatch(e: Expr): Result {
+    if (this.shallowOperand !== undefined && e !== this.shallowTop) {
+      this.shallowOperand(e);
+      return Result.Ok;
+    }
     switch (e.kind) {
       // --- No children, single callback ---
       case 'nop':

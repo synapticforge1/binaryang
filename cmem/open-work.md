@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes ALL DONE; W10b DONE; next: W11 (confirm with the owner))
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b and W11 ALL DONE; next: the owner's call)
 
-**Where the work stopped.** `main` is at the merge of W10b (code last changed at
-`cd37142a6`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `cd37142a6` (as on every stage before it) and every step exited 0: fmt, lint, **1264 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of W11 (code last changed at
+`f2baf2ada`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `f2baf2ada` (as on every stage before it) and every step exited 0: fmt, lint, **1265 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -140,14 +140,16 @@ entity collections stay there until the records themselves are one type (M8).
    fixes 4 / 9 / 10) and whether the WAT parser should follow so the two agree; measure against
    upstream with scratch `kids.ts` / `parents.ts`; bytes must not move. ⚠️ Keep W10a as it is — do
    not adopt upstream's all-or-nothing rule while matching its unreachable-code nesting.
-3. ⏭️ **W11 (found by W10b; a DEFECT by the owner's principle): the WAT writer cannot fold ~30
-   instruction kinds** — `br_on`, `call_ref`, `throw_ref`, atomics, most SIMD, GC arrays, bulk
+3. ✅ **W11 — DONE (`f2baf2ada`, 2026-09-19; owner: "go back to the rule" — every instruction has
+   a folded form): folded `wasm2wat` folds every kind.** Linear lines in folded output 3,174 → 0
+   (upstream 0). Record: ir-convergence.md § "W11". The item as it was filed: the WAT writer cannot fold ~30
+   instruction kinds — `br_on`, `call_ref`, `throw_ref`, atomics, most SIMD, GC arrays, bulk
    table ops (the list is [divergences.md](divergences.md) W11). `foldSpec` has no case, so the node
    and the rest of its region print linear where upstream folds. Add their operand specs, as the
    existing cases do; measure against upstream per kind (scratch `kids.ts` / `parents.ts`); bytes
    must not move (re-assembly check); the emitted-byte baseline's folded column may, in its own
-   commit. ⚠️ The owner has not yet ordered this item; confirm before starting.
-4. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
+   commit.
+4. ⏭️ **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
    changes nothing — delete it or make it mean something, in the M7/M8 pass.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
