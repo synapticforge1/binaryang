@@ -182,7 +182,11 @@ describe('multi-memory — round-trip', () => {
   it('emits memory.init in TEXT operand order (memory first)', () => {
     const { text } = wasm2wat(compile(TWO_MEMS));
     assert(text);
-    const line = text.split('\n').map((l) => l.trim()).find((l) => l.startsWith('memory.init'));
+    // Folded since divergence W11 (`(memory.init 1 0 …`); linear before. The
+    // immediate order is the point, in either form.
+    const line = text.split('\n').map((l) => l.trim().replace(/^\(/, '')).find((l) =>
+      l.startsWith('memory.init')
+    );
     assert(line, 'expected a memory.init in the output');
     // $m1 is memory 1 and $d0 is data segment 0 -> "memory.init 1 0".
     assertEquals(line.replace(/\)+$/, '').trim(), 'memory.init 1 0');

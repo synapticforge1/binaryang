@@ -68,6 +68,21 @@ import { Result } from '../core/result.ts';
 // single module-level instance is safe and avoids reallocating per string.
 const TEXT_ENCODER = new TextEncoder();
 
+/**
+ * Kinds that wrap a BODY, not operands — the visitor walks their body through
+ * the same dispatch, so they never take the operand path of `foldSpec` or the
+ * folded-siblings fallback. `block`, `loop`, `if`, `try` and `try_table` fold
+ * in `writeFoldedControl` (`try_table` since divergence W11).
+ */
+const STRUCTURED: ReadonlySet<string> = new Set([
+  'block',
+  'loop',
+  'if',
+  'try',
+  'try_table',
+  'region',
+]);
+
 // ---------------------------------------------------------------------------
 // Public options & entry point
 // ---------------------------------------------------------------------------
@@ -1676,7 +1691,17 @@ class WatWriter extends ModuleContext {
           };
 
         default:
-          return null;
+          // Every other PLAIN instruction nests too (divergence W11): the
+          // visitor hands over its operands in evaluation order — the order a
+          // folded form writes them — and writes its head alone. The cases
+          // above predate this and agree with it. A structured kind wraps a
+          // body, not operands, and still declines here.
+          // A `pop` is not an instruction: it writes nothing, and nests nowhere.
+          if (STRUCTURED.has(e.kind) || e.kind === 'pop') return null;
+          return {
+            operands: this.plainOperands(e),
+            head: (d) => void new ExprVisitor(d).visitShallow(e, () => {}),
+          };
       }
     })();
 
@@ -1732,11 +1757,17 @@ class WatWriter extends ModuleContext {
    * operands rather than discovering the problem halfway through.
    */
   private writeFoldedExpr(e: Expr): boolean {
-    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'if' || e.kind === 'try') {
+    // A `pop` is a value already on the stack: folded, as linear, it writes
+    // nothing — `(if (then …))` takes its condition from the stack.
+    if (e.kind === 'pop') return true;
+    if (
+      e.kind === 'block' || e.kind === 'loop' || e.kind === 'if' || e.kind === 'try' ||
+      e.kind === 'try_table'
+    ) {
       return this.writeFoldedControl(e);
     }
     const spec = this.foldSpec(e);
-    if (spec === null) return false;
+    if (spec === null) return this.writeFoldedSiblings(e);
     this.puts('(', NC.None);
     this.indent += 2;
     if (spec.operands.length === 0) {
@@ -1752,6 +1783,38 @@ class WatWriter extends ModuleContext {
     }
     this.close(NC.Space);
     return true;
+  }
+
+  /**
+   * A plain instruction `foldSpec` cannot nest — no operand spec for its kind,
+   * or placeholders scattered through its operands — written FOLDED all the
+   * same: its operands as folded siblings, in evaluation order, then its head
+   * in parentheses, `(a) (b) (op imm*)`. That unfolds to exactly `a b op`.
+   *
+   * The owner rule (cmem/best-practices.md, 2026-09-10): "anything written
+   * linearly can be written folded by putting parentheses around the
+   * instruction" — "this has no folded form" is never a reason. This used to
+   * DECLINE instead, and a decline sent the whole top-level expression, and
+   * every block in it, to the linear writer (divergence W11). A `pop` operand
+   * is already on the stack and writes nothing, as in linear form.
+   */
+  private writeFoldedSiblings(e: Expr): boolean {
+    if (STRUCTURED.has(e.kind)) return false; // its body is not operands
+    for (const op of this.plainOperands(e)) {
+      if (op.kind !== 'pop' && !this.writeFoldedExpr(op)) return false;
+    }
+    this.puts('(', NC.None);
+    this.indent += 2;
+    new ExprVisitor(this.makeDelegate()).visitShallow(e, () => {});
+    this.close(NC.Space);
+    return true;
+  }
+
+  /** A plain instruction's operands, in evaluation order. */
+  private plainOperands(e: Expr): Expr[] {
+    const out: Expr[] = [];
+    new ExprVisitor({}).visitShallow(e, (op) => out.push(op));
+    return out;
   }
 
   /**
@@ -1782,7 +1845,7 @@ class WatWriter extends ModuleContext {
         const isLoop = e.kind === 'loop';
         // Entry values run BEFORE the construct, so they fold as its preceding
         // siblings: `(i32.const 7) (block (param i32) …)`.
-        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
+        for (const v of e.params?.values ?? []) if (v.kind !== 'pop') this.writeFoldedExpr(v);
         this.puts('(', NC.None);
         this.putsSpace(isLoop ? 'loop' : 'block');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
@@ -1799,13 +1862,32 @@ class WatWriter extends ModuleContext {
         this.close(NC.Space);
         return true;
       }
+      case 'try_table': {
+        // `(try_table $l (result T) (catch $tag $target)* instr*)` (divergence
+        // W11: it never folded, and a `try_table` sent its whole expression
+        // linear). The catch clauses name ENCLOSING labels, so they are written
+        // BEFORE this one's label is pushed — as the linear writer does.
+        for (const v of e.params?.values ?? []) if (v.kind !== 'pop') this.writeFoldedExpr(v);
+        this.puts('(', NC.None);
+        this.putsSpace('try_table');
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
+        this.writeBlockType(this.declaredBlockType(e));
+        this.newline(true);
+        this.indent += 2;
+        for (const tc of e.catches) this.writeTableCatch(tc);
+        this.beginBlock(this.shownLabel(e.label), LabelType.TryTable, this.declaredBlockType(e));
+        this.writeExprList(e.body.children);
+        this.endBlock();
+        this.close(NC.Space);
+        return true;
+      }
       case 'try': {
         // `(try $l (result T) (do instr*) (catch $tag instr*) (catch_all instr*))`
         //
         // Unlike `block`, the arms are named CLAUSES rather than a bare
         // sequence, so each gets its own paren. A `delegate` replaces the
         // handlers entirely.
-        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
+        for (const v of e.params?.values ?? []) if (v.kind !== 'pop') this.writeFoldedExpr(v);
         this.puts('(', NC.None);
         this.putsSpace('try');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
@@ -1847,8 +1929,9 @@ class WatWriter extends ModuleContext {
       }
       case 'if': {
         // `(if blocktype? folded-cond (then instr*) (else instr*)?)`. The
-        // condition is an OPERAND, so a placeholder there — meaning the value is
-        // already on the stack — has no folded spelling and declines.
+        // condition is an OPERAND; a placeholder there — the value is already on
+        // the stack — writes nothing, `(if (then …))` (divergence W11: it used
+        // to decline, sending the construct linear).
         if (!this.canFold(e.condition) || !this.canFoldEntry(e)) return false;
         this.puts('(', NC.None);
         this.putsSpace('if');
@@ -1857,10 +1940,14 @@ class WatWriter extends ModuleContext {
         this.newline(true);
         this.indent += 2;
         // `(if bt foldedinstr* (then …))`: the entry values, then the condition.
-        for (const v of e.params?.values ?? []) this.writeFoldedExpr(v);
+        for (const v of e.params?.values ?? []) if (v.kind !== 'pop') this.writeFoldedExpr(v);
         this.writeFoldedExpr(e.condition);
         this.beginBlock(this.shownLabel(e.label), LabelType.If, this.declaredBlockType(e));
-        this.newline(true);
+        // Nothing written before `(then` when every one of those is a `pop`: no
+        // blank line for it.
+        const wroteHead = e.condition.kind !== 'pop' ||
+          (e.params?.values ?? []).some((v) => v.kind !== 'pop');
+        if (wroteHead) this.newline(true);
         this.puts('(', NC.None);
         this.putsSpace('then');
         this.indent += 2;
@@ -1884,24 +1971,32 @@ class WatWriter extends ModuleContext {
   }
 
   /**
-   * Whether a carrier's entry values fold. They are operands, so a `pop` among
-   * them (the value is already on the stack) has no folded spelling.
+   * Whether a carrier's entry values fold. A `pop` among them is a value
+   * already on the stack: it writes nothing, folded as in linear form, so it
+   * no longer declines (divergence W11 — it sent the block linear).
    */
   private canFoldEntry(e: { readonly params?: BlockParams }): boolean {
-    return (e.params?.values ?? []).every((v) => this.canFold(v));
+    return (e.params?.values ?? []).every((v) => v.kind === 'pop' || this.canFold(v));
   }
 
   /** Whether `e` and every descendant can be folded — checked before committing output. */
   private canFold(e: Expr): boolean {
+    if (e.kind === 'pop') return true; // writes nothing (`writeFoldedExpr`)
     // A folded block or loop wraps an instruction SEQUENCE, so its body may be
     // linear inside — there is nothing about its contents that can prevent the
     // wrapper. `if` is different only because its condition is an operand.
     // `try` wraps CLAUSES, each holding an instruction sequence, so like block
     // and loop nothing in its contents can prevent the wrapper.
-    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'try') return this.canFoldEntry(e);
+    if (e.kind === 'block' || e.kind === 'loop' || e.kind === 'try' || e.kind === 'try_table') {
+      return this.canFoldEntry(e);
+    }
     if (e.kind === 'if') return this.canFold(e.condition) && this.canFoldEntry(e);
     const spec = this.foldSpec(e);
-    if (spec === null) return false;
+    if (spec === null) {
+      // `writeFoldedSiblings`: every plain instruction folds, as siblings.
+      if (STRUCTURED.has(e.kind)) return false;
+      return this.plainOperands(e).every((op) => op.kind === 'pop' || this.canFold(op));
+    }
     return spec.operands.every((op) => this.canFold(op));
   }
 
