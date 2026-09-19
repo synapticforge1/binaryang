@@ -17,6 +17,11 @@
 // - and, where it instantiates, return from every exported function what the
 //   `wat2wasm` module returns, at each sampled argument — the bridge tests ran
 //   these, so the direct path's OPTIMIZED output is run too.
+//
+// ⚠️ The fixture is also an input to `deno task direct` and `deno task
+// direct-behaviour` (`scripts/direct-inputs.ts`, post-M8 fix 7): its start
+// module is the only one either gate sees. Removing a module removes it from
+// both gates too.
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';

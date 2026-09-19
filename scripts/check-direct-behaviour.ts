@@ -27,17 +27,20 @@
  * while the bridge's compile gate read a clean **421/421** on that same mutant.
  * That is the whole reason this file exists.
  *
- * ⚠️ **What it CANNOT see, measured the same way:** dropping the start function
- * again leaves it fully green, because not one of the 421 corpus modules has a
- * `(start …)` section. Only `tests/binaryen-ts/ir/prepare.test.ts` covers that.
- * A gate is evidence about what it reaches, and this one does not reach start
- * sections — nor the 441 exports that are memories, globals and tables rather
- * than functions, which it reports on every run.
+ * ⚠️ **What it could NOT see, measured the same way:** dropping the start
+ * function again left it fully green, because not one of the 421 corpus modules
+ * has a `(start …)` section. A gate is evidence about what it reaches. Since
+ * post-M8 fix 7 it also runs `prepare.test.ts`'s 123 fixture modules
+ * (`direct-inputs.ts`), whose start module answers differently without its
+ * start — so that mutant now DIVERGEs here. It still does not reach the exports
+ * that are memories, globals and tables rather than functions, which it reports
+ * on every run.
  *
  * Usage: `deno task direct-behaviour`
  */
 
-import { CORPUS, type Row, type Status } from './direct-behaviour/differential.ts';
+import { type Row, type Status } from './direct-behaviour/differential.ts';
+import { type DirectInput, directInputs } from './direct-inputs.ts';
 
 /**
  * Per-module budget. Generous on purpose: the cost of being wrong here is a
@@ -49,11 +52,7 @@ const BUDGET_MS = 20_000;
 
 const WORKER = new URL('./direct-behaviour/worker.ts', import.meta.url);
 
-const files: string[] = [];
-for await (const entry of Deno.readDir(CORPUS)) {
-  if (entry.isFile && entry.name.endsWith('.wat')) files.push(entry.name);
-}
-files.sort((a, b) => a.localeCompare(b));
+const { corpus, inputs } = await directInputs();
 
 const rows: Row[] = [];
 
@@ -61,12 +60,12 @@ const rows: Row[] = [];
  * Run `queue` in a worker until it finishes or one module goes quiet. Resolves
  * with what is LEFT to do: empty when the queue drained.
  */
-function drain(queue: string[]): Promise<string[]> {
+function drain(queue: DirectInput[]): Promise<DirectInput[]> {
   return new Promise((resolve) => {
     const worker = new Worker(WORKER, { type: 'module' });
     let next = 0; // index in `queue` the worker is currently on
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const finish = (remaining: string[]) => {
+    const finish = (remaining: DirectInput[]) => {
       clearTimeout(timer);
       worker.terminate();
       resolve(remaining);
@@ -77,7 +76,7 @@ function drain(queue: string[]): Promise<string[]> {
         // The module that never posted is the one that hung.
         const stuck = queue[next]!;
         rows.push({
-          file: stuck,
+          file: stuck.name,
           status: 'timeout',
           exports: 0,
           calls: 0,
@@ -96,7 +95,7 @@ function drain(queue: string[]): Promise<string[]> {
     };
     worker.onerror = (ev) => {
       rows.push({
-        file: queue[next] ?? '<unknown>',
+        file: queue[next]?.name ?? '<unknown>',
         status: 'DIVERGE',
         exports: 0,
         calls: 0,
@@ -107,11 +106,11 @@ function drain(queue: string[]): Promise<string[]> {
     };
 
     arm();
-    worker.postMessage({ files: queue });
+    worker.postMessage({ inputs: queue });
   });
 }
 
-let queue = files;
+let queue = inputs;
 while (queue.length > 0) queue = await drain(queue);
 
 rows.sort((a, b) => a.file.localeCompare(b.file));
@@ -128,7 +127,10 @@ for (const r of rows) {
 }
 
 console.log('  === wat2wasm vs the optimizer (-O3) over the same tree, RUN in lockstep ===');
-console.log(`    modules compared        ${String(rows.length).padStart(5)}`);
+console.log(
+  `    modules compared        ${String(rows.length).padStart(5)}` +
+    `   (${corpus} corpus + ${inputs.length - corpus} fixture)`,
+);
 console.log(`    agree                   ${String(by('agree').length).padStart(5)}`);
 console.log(`    DIVERGE                 ${String(diverged.length).padStart(5)}`);
 console.log(`    no runnable export      ${String(by('no-runnable-export').length).padStart(5)}`);

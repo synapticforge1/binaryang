@@ -3919,7 +3919,8 @@ wires in at M8e, after `nameReferences`.
   - dropping element segments in `prepareForPasses` fails the test, `direct` (exit 1) and
     `direct-behaviour` (39 DIVERGE, as with the bridge);
   - skipping `deriveTypes` fails all three;
-  - dropping the start function fails only the test. No corpus module has a `(start …)`, as the
+  - dropping the start function fails only the test (✅ both gates too since post-M8 fix 7,
+    `517bf7c89`). No corpus module has a `(start …)`, as the
     behaviour gate's doc says; the fixture's start module is the witness.
 - **Gate** on `84a128f82`: every step exit 0, 1254 tests (1288, minus the 16 bridge files, plus one).
 
@@ -4034,6 +4035,22 @@ defects to the task list"); their scope is in open-work.md.
      its byte and tree steps. Gate on `653fd3839`: exit 0, 1260 tests.
    - Lesson: "stale, never reached" was a claim about the PLACEHOLDER; the filter's real inputs were
      never enumerated. Ask what a dead-looking guard actually meets before choosing its fate.
+7. ✅ **The direct gates reach a start section** (`517bf7c89`, docs `3f6c4d645`; 2026-09-19).
+   - The gap: M8e's dropped-start mutant left `direct` and `direct-behaviour` green — no corpus
+     module has a `(start …)` — and only `prepare.test.ts` caught it, through its fixture.
+   - The fix: both gates read `scripts/direct-inputs.ts` — the 421 corpus modules plus the fixture's
+     123. The behaviour worker takes `{ name, wat }` pairs; the corpus URL moved there from
+     `differential.ts`. A missing or EMPTY fixture fails the gate (an explicit guard), so a gate
+     cannot quietly lose its inputs.
+   - Result: `direct` **544 / 544** byte-identical and valid at -O1 … -Oz (the fixture had been
+     held to -O3 only); `direct-behaviour` 544 modules, 0 DIVERGE, **1953 calls / 651 exports**
+     (was 1806 / 602); one fixture module needs imports (skipped, reported).
+   - Inverted: dropping the start function fails `direct` (`fixture#61` 83 bytes, `wat2wasm` wrote
+     86) and `direct-behaviour` (`fixture#61` `f()`: 99 vs 0), both exit 1; a missing fixture file and
+     an empty one both exit 1.
+   - Also corrected: `working-rules.md`'s gate checklist still named the deleted `bridge` tasks. It
+     names the direct ones with their counts, and gains "a gate is evidence about what it reaches".
+   - Gate on `3f6c4d645`: exit 0, 1260 tests.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one

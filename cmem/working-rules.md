@@ -32,9 +32,12 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 `deno fmt --check` · `deno lint` · `deno task ci` · `sh scripts/check-naming.sh` ·
 `sh scripts/check-portability.sh` · `deno task baseline` · `deno publish --dry-run --allow-dirty`
 
-then the project's own: `deno task operators` · `deno task spec <corpus>` · `deno task bridge` ·
-`deno task bridge-behaviour` · `deno task translate-eh <testsuite-main>/legacy <outDir>` ·
-`deno task optimize-corpus`.
+then the project's own: `deno task operators` · `deno task spec <corpus>` · `deno task direct` ·
+`deno task direct-behaviour` · `deno task translate-eh <testsuite-main>/legacy <outDir>` ·
+`deno task optimize-corpus`. (`direct` / `direct-behaviour` replaced `bridge` /
+`bridge-behaviour` when M8e deleted the bridge, 2026-09-18; this list named the old tasks until
+2026-09-19.) Expect `direct` **544 / 544** and `direct-behaviour` **1953 calls / 651 exports, 0
+DIVERGE** — the 421 corpus modules plus `prepare.test.ts`'s 123 (post-M8 fix 7).
 
 - ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
   (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes
@@ -47,6 +50,12 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` · `d
   call plus a memory hash; on the mutant that restores the drop it reports 39 DIVERGE while
   `deno task bridge` still reports 421/421. It calls corpus entry points, which is where the
   coverage is (419 exports) and also why it needs a worker it can kill — one module never returns.
+
+- ⚠️ **A gate is evidence about what it REACHES.** Not one corpus module has a `(start …)`, so
+  when M8e's mutant dropped the start function both direct gates stayed green; only a unit test
+  saw it. Since post-M8 fix 7 both also run `prepare.test.ts`'s fixture (`scripts/direct-inputs.ts`),
+  and that mutant fails both (`direct`: 3 bytes short; `direct-behaviour`: `f()` 99 vs 0). Before
+  trusting a gate for a feature, find an input in it that HAS the feature.
 
 - ⚠️ **Run it after the LAST edit.** If an edit follows the gate, the gate has not run — decision 5
   merged with `deno lint` red that way.
