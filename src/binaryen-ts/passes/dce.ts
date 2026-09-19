@@ -24,7 +24,6 @@ import {
   type RegionExpr,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
-import { Unreachable } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 /**
