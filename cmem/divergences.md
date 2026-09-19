@@ -111,6 +111,7 @@ Each is pinned by a test whose expected output is upstream's (or V8's, where ups
 | wabt     | an implicit signature reused the LAST equal explicit type; upstream the first               | `bd327efe7` | `implicit_type_order.test.ts` |
 | wabt     | folded `wasm2wat` printed a value-carrying `br_if` as a SIBLING of its consumer, not nested (post-M8 fix 4) | `a82dadf90` | `br_if_value.test.ts` |
 | wabt     | a folded `br_table` DROPPED a `(nop)` operand: one byte short of upstream `wat2wasm` (post-M8 fix 6) | `653fd3839` | `br_table_operands.test.ts` |
+| binaryen | binaryen-ts read and wrote a memory index as ONE BYTE in size / grow / init / copy / fill: wrong from 128, a different memory from 256 (post-M8 fix 8) | `dbe986344` | `memory_index_leb.test.ts` |
 
 W3 with block PARAMETERS: the binary path keeps them since B1, and external WAT with them reaches
 binaryen-ts through wabt-ts since W4's route. Only binaryen-ts's internal `parseWat` still refuses

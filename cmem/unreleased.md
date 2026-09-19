@@ -378,6 +378,10 @@ their own bump — and nothing breaks by their standing still.
   operand. The optimizer's text route now REFUSES 109 V8-invalid modules it used to type silently.
 - **`wat2wasm` no longer drops a `(nop)` operand of a folded `br_table`** (post-M8 fix 6,
   `653fd3839`): it wrote one byte fewer than upstream. No corpus module had the shape.
+- **binaryen-ts handles memory indices from 128 up** (post-M8 fix 8, `dbe986344`): `memory.size`,
+  `grow`, `init`, `copy` and `fill` read and wrote their memory index as one byte, so a multi-memory
+  module with 128+ memories failed to decode, or decoded and re-encoded WRONG (from 256, naming a
+  different memory). Now a LEB both ways, as the spec and wabt-ts have it.
 
 - **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
