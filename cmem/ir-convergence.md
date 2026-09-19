@@ -24,9 +24,16 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 > "The first rule is fidelity for the wat2wasm and wasm2wat. This part is separate from the
 > optimization part which requires the folded structure. So this part transpiles verbatim. The
 > optimization does not and is not fidelity tied, and must use the folded structure in the tree."
-> So `wat2wasm` → `wasm2wat` gives back each function in the form it was WRITTEN (S7, below), and
-> the folding decision above governs what a function written folded — or any binary with no
-> record — is written as, and the tree the optimizer works on.
+> So `wat2wasm` → `wasm2wat` gives back every instruction in the form it was WRITTEN (S7, below),
+> and the folding decision above governs what an unrecorded function — written as the plain nested
+> fold, or from any binary with no record — is written as, and the tree the optimizer works on.
+
+> 🛑 **Owner decision, 2026-09-19 (later) — MIXED stays mixed: one-to-one unless optimized.** "The
+> default should be a mixed form if a mixed form is in the wat for fidelity for wat2wasm and
+> wasm2wat. It should also be linear if linear is what is in the wat file, or folded if folded is
+> what is in the wat file. It should never change the state unless it goes into optimization." And:
+> "It is basically a one to one translation unless it goes through optimization." S7 had recorded
+> forms per FUNCTION (a mixed one came back folded); it records them per INSTRUCTION since.
 
 ## Where it stands — 2026-09-17
 
@@ -45,7 +52,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
 | S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **76 identical / 5 types / 1 names** (the block family, item 4, and item 5 (5)'s eight ported kinds, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15). **Item 6 (the module half) is at M7b**: M1–M7b landed 2026-09-16/17, module ratchet **24 / 7 / 19** (from 46 / 29 / 15), M7c and M8 left |
-| S7 text-form marker    | ✅ DONE 2026-09-19 (`899263b7b`): per function, on by default (owner: fidelity first on the text path), stripped by the optimizer — see S7                                                                     |
+| S7 text-form record    | ✅ DONE 2026-09-19: per function (`899263b7b`), then per INSTRUCTION — a mix stays the same mix (`b366262ce`); on by default (owner: fidelity first on the text path), stripped by the optimizer — see S7    |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
 `open-work.md`'s summary; the detail is under "The measurements this rests on"):
@@ -4194,42 +4201,81 @@ rule" — best-practices.md § "Every linear instruction has a folded form").
    agreement BEFORE deletion; then the bridge, its 16 test files and both scripts are deleted, their
    front-end-to-optimizer checks kept as direct gates.
 
-### ✅ S7 — the text-form marker (DONE 2026-09-19, `899263b7b`; re-baseline `337c884a3`)
+### ✅ S7 — the text-form record (DONE 2026-09-19: per function `899263b7b`, per instruction `b366262ce`)
 
-Owner (2026-09-19): fidelity first on the text path, ON by default; per FUNCTION; stripped by the
-optimizer. The design, as built (`src/wabt-ts/ir/text-form.ts`):
-- **The fact is as-written metadata**: `FidelityEntry.linearBody` on each function's `nodeId`. The
-  parser records a body with linear instructions and no folded one (`parseOneInstr` counts every
-  list); a body that MIXES the forms is recorded folded — measured, mixing is between functions
-  (2 of ~7,600 wasmtk-corpus functions mix within one).
-- **The section**: `binaryang.text-form`, written LAST (after `name`) by both binary writers —
-  u8 version 1, then a vector of function-space indices (imports first) of the functions written
-  linearly. ABSENT means all folded, so no other binary changes. Both readers turn it back into
-  metadata once the module is complete; one that does not decode or fit (unknown version, an import,
-  out of range, unsorted, trailing bytes, truncated) stays a raw custom section and is ignored.
-- **The optimizer strips it for free**: the pass runner already resets the fidelity table. The
-  original record's warning held: binaryen-ts keeps custom sections since C3, so a RAW marker would
-  have ridden through passes with stale indices — which is why both readers parse it, the binaryen-ts
-  decoder included.
-- **The tools**: `wasm2wat` honours it (`asWritten`, default true; CLI `--fold` folds every
-  function, `--linear` writes every one flat); `wat2wasm --no-text-form` omits it — upstream
-  `wat2wasm`'s bytes exactly; `wasm-strip` drops it with the other custom sections, or by name.
+Owner (2026-09-19): fidelity first on the text path, ON by default, stripped by the optimizer — and
+then "a mixed form if a mixed form is in the wat … It should never change the state unless it goes
+into optimization" (the decision at the top). The first cut recorded forms per FUNCTION and wrote a
+mixed one back folded (`git show 145ac840a:cmem/ir-convergence.md`, § "S7"); it records them per
+INSTRUCTION since. The design, as built (`src/wabt-ts/ir/text-form.ts`):
+- **Folding is syntax**: `(op f1 … fk)` IS `f1 … fk op`, so the bytes fix the instruction SEQUENCE
+  and only its grouping is free. Walked in binary order (`formNodes`), each instruction gets a FORM
+  — 0 written bare, `k + 1` written folded around the `k` folded items just before it. That rebuilds
+  the text exactly: `wasm2wat`'s `writtenItems` keeps a stack of written items, a folded
+  instruction takes the last `k`, and forms that do not fit the body are declined BEFORE anything is
+  written (the fold writer then).
+- **The fact is as-written metadata**: `FidelityEntry.textForm`, on each function's `nodeId` (it
+  replaced `linearBody`). The parser records every function, marking each node where it builds it
+  (`written(node, form)` at the six construction sites; a folded instruction counts the items
+  `parseOneInstr` read inside its parens).
+- **Only what a reader would NOT predict is written.** The prediction is the CANONICAL forms — the
+  plain nested fold, around every operand that is not a `pop` — of the **wabt-ts reader's tree of the
+  very bytes the section follows**: both encoders read their own output back to get it. ⚠️ Not the
+  tree in hand: trees differ for the same bytes, and a prediction from the writer's tree decodes to
+  other forms in another reader. Measured (the agreement script, § "Measured" below): the parser's
+  and the reader's canonical forms disagree in 11 of 26,454 functions — a void call written inside
+  another call's parens (the parser makes it an operand), a multi-value operand, operands across
+  `unreachable`; binaryen-ts's decoder and the reader in 41 more with the same instruction count
+  and 7 with another. And the fold writer's grouping IS the reader tree's canonical forms, 26,454 /
+  26,454 — so an unrecorded function prints as written.
+- **The section, version 2** — `binaryang.text-form`, LAST (after `name`) from both binary writers:
+  per recorded function, ascending, its index (imports first), a base (0 predicted, 1 every
+  instruction bare), its instruction count, a 4-byte FNV-1a of the prediction when the base is
+  predicted, and the exceptions as (gap, form). A linear function is base 1 and no exceptions.
+  ABSENT means predicted, so no other binary changes. Version 1 was never released and is not read.
+- **Guards, two kinds.** A payload that is malformed (unknown version, truncated, trailing bytes, an
+  import or an index past the module, unsorted, a base that is neither, an exception past the body)
+  stays a raw custom section and nothing is applied. An ENTRY that is well-formed but does not match
+  the tree reading it — another instruction count, another prediction hash — is SKIPPED: that
+  function prints as predicted, never grouped wrongly. binaryen-ts's decoder predicts with the
+  wabt-ts reader too (it reads its input again when a section is present), and skips the functions
+  its own tree does not hold one-for-one. A future change to the reader's tree skips old entries
+  rather than misapplying them.
+- **The optimizer strips it for free**: the pass runner resets the fidelity table. Both readers
+  parse the section, so a RAW record never rides through passes with stale positions.
+- **The tools**: `wasm2wat` honours it by default; NAMING a form forces it everywhere — `fold: true
+  | false` without `asWritten` (CLI `--fold` / `--linear`). `wat2wasm --no-text-form` omits it —
+  upstream `wat2wasm`'s bytes exactly; `wasm-strip` drops it with the other custom sections, or by
+  name.
 
-**Measured** (main against the branch, every `.wat` in the corpora — 1,042 that assemble):
-`--no-text-form` byte-identical to main 1,042 / 1,042; by default main's bytes plus the trailing
-section only, 1,042 / 1,042 (122 carry it); `wat2wasm(wasm2wat(b)) === b` 1,042 / 1,042; every
-function's form reproduced — 26,454 functions, 10,676 of them linear; binaryen-ts decode → encode
-keeps it (its 28 mismatches all predate S7); no optimized output carries it. Baseline: 20 of 421
-moved (bytes by the section; folded text to the written form; linear text unchanged).
+**Measured** (main against the branch, every `.wat` in the five corpora — 1,043 that assemble):
+every instruction's form reproduced in 1,043 files — 26,454 functions, 2,295,102 instructions, 62
+functions mixed — by the parser's reading of `wasm2wat`'s output AND by a lexer-free token shape of
+every body; `wat2wasm(wasm2wat(b)) === b` 1,043 and a text fixed point 1,043; by default main's
+bytes plus the trailing section only, 1,043; `--no-text-form` equal to main's, 1,043. The section
+sits in 268 files, 59.5 KB against 6.6 MB: 10,962 entries — 10,699 bare base, 263 predicted base,
+908 exceptions. binaryen-ts decode → encode byte-identical 1,004, as on main (the 28 others differ
+on main too); no optimized output carries it. Cost: `wat2wasm` +26–35% (the read-back;
+`--no-text-form` is within noise of main), `wasm2wat` +8–11%. Baseline (`cbb2cca20`): 75 of 421
+moved — bytes by the section only; the `--fold` column equals main's FORCED fold on all 421 (naming
+a form forces it now); `--linear` unchanged. Gate on `b366262ce` exit 0 at every step, 1273 tests;
+the re-baseline commit reads IDENTICAL.
 
-**Tests** `tests/wabt-ts/tools/text_form.test.ts` (16 steps); mutants 15 / 15 killed. Eleven
-existing tests changed, keeping their intent — a folding test over a linear fixture asks for
-`asWritten: false`; a byte comparison ACROSS forms compares code (`textForm: false`), because a
-forced form now changes the record, and only that. Gate on `337c884a3`: exit 0, 1269 tests.
+**Tests** `tests/wabt-ts/tools/text_form.test.ts` (30 steps) — the mix, siblings and partial folds,
+forms through control, a form only the reader predicts differently (its premise asserted: the parser
+records nothing there), a record binaryen-ts's own tree would predict differently, malformed
+payloads kept raw, mismatched entries skipped, forms that cannot group declined. Mutants 33 / 33
+killed — four survived the first run and each exposed a test that did not reach what it claimed;
+one test's premise was false outright (its fixture recorded nothing). Three cross-form byte tests
+assemble without the record; `nameless_reference` too (binaryen-ts's `parseWat` keeps no text
+form).
 
-⚠️ **Still whole-function.** A function that mixes the forms comes back folded. A finer grain would
-be a new section VERSION (a reader that meets an unknown version keeps it raw and folds), so it can
-land later without breaking a binary written now.
+**Found on the way** — a reader defect, fixed on the branch (`ab1a211ee`): `getFuncSig` /
+`getTagSig` indexed `m.imports` across ALL kinds, so after a global import a call to an imported
+function read back with no operands. And one recorded, not fixed (open-work.md): the reader pops
+operand NODES, not values, so a multi-value operand takes its neighbour —
+`(call $add2 (local.get 0) (call $take2 (call $pair)))` reads back with the `local.get` on `$take2`.
+Bytes are right in both; the tree is not.
 
 ### What is NOT in scope
 

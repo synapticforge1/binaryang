@@ -1270,6 +1270,38 @@ Three survived and were kept as findings, each with its reason: fix 9's first-ve
 expression (it cannot branch), W11's `pop` return value (its one caller ignores it — deleting the
 line fails). "Equivalent" without the reason is indistinguishable from a missing test.
 
+## 🆕 Lessons from S7's mixed form (2026-09-19)
+
+### Anything encoded RELATIVE to a tree must name ONE tree
+
+The first cut encoded each function's forms as exceptions against the canonical forms of "the
+tree" — whichever the writer held. Trees for the same bytes differ (the parser, the wabt-ts reader
+and binaryen-ts's decoder attach multi-value operands, void calls and operands across `unreachable`
+differently), so the same payload decoded to other forms in another reader: 16 files lost their
+forms, silently, with every byte still right. The fix was a definition, not a patch — the
+prediction is the wabt-ts READER's tree of the very bytes, and both encoders read their output back
+to get it — plus a hash so a reader whose tree differs SKIPS rather than misapplies. How to apply:
+for any compressed or relative encoding, write down which computation the decoder repeats, and
+make it the same computation on the same input, not an equivalent one on another.
+
+### Measure agreement between the trees before trusting any of them
+
+The agreement script (instruction sequence, slot counts, canonical forms — parser vs reader vs
+decoder, per function, over the corpus) cost minutes and found two reader defects nobody was looking
+for: imports indexed across kinds (fixed, `ab1a211ee`) and multi-value operands attached by node
+count (recorded). Three front ends that each pass their own byte gates can still build different
+trees; only comparing them says so.
+
+### A test's premise gets asserted in the test
+
+"A form the reader would predict differently is recorded" passed from its first run — because its
+fixture recorded NOTHING, so both sides agreed trivially. The mutant that should have killed it
+survived, and that is how it was found. The replacement asserts its premise first (the parser
+records nothing there; the section has exactly that entry). The same held for the hash test, whose
+crafted entry was invalid for a second reason, so a different check stood between it and the output.
+How to apply: when a test is about a condition, assert the condition holds before asserting what
+follows from it — and let a surviving mutant send you to the premise first.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

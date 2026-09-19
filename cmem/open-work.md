@@ -23,15 +23,16 @@ that history now lives in its topic files — nothing was dropped:
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
 **State, 2026-09-19:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
-ahead, unpushed and unbumped, at 1269 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
+ahead, unpushed and unbumped, at 1273 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 `direct` 544/544 and `direct-behaviour` 1953 calls agreeing (the bridge and its gates were deleted
 2026-09-18), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b, W11, the cleanup and S7 ALL DONE; next: the owner's call)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b, W11, the cleanup, S7 and S7's mixed form ALL DONE; next: the owner's call)
 
-**Where the work stopped.** `main` is at the merge of S7 (code last changed at `899263b7b`, re-baseline
-`337c884a3`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `337c884a3` (as on every stage before it) and every step exited 0: fmt, lint, **1269 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of S7's mixed form (the reader fix `ab1a211ee`,
+code `b366262ce`, re-baseline `cbb2cca20`), clean, nothing pushed, `deno.json` still 1.5.4. **No
+branch is open.** The full gate ran on the committed tree `b366262ce` (as on every stage before it;
+the re-baseline commit after it reads IDENTICAL) and every step exited 0: fmt, lint, **1273 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -123,6 +124,8 @@ entity collections stay there until the records themselves are one type (M8).
 | W11                         | `f2baf2ada` | folded `wasm2wat` folds EVERY instruction kind: 3,174 linear lines in folded output → 0, as upstream   |
 | the scheduled cleanup       | `95be871f7` | RemoveUnusedModuleElements's no-op `importedFuncs` set deleted; 0 optimizer outputs moved              |
 | S7 (owner: fidelity first)  | `899263b7b` | `wat2wasm` → `wasm2wat` keeps each function's written form: the `binaryang.text-form` section; the optimizer strips it |
+| reader: import index space  | `ab1a211ee` | the binary reader looked up an imported function's / tag's signature among ALL imports: after a global import a call read back without operands (found by S7's measurement) |
+| S7 mixed form (owner: one-to-one) | `b366262ce` | per INSTRUCTION: linear stays linear, folded folded, a mix the same mix — 2,295,102 instructions' forms reproduced over 1,043 sources; predicted from the wabt-ts reader's tree, skipped (never misapplied) where a tree disagrees |
 
 Records: [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes", § "W10b", § "W11"; each merge
 message carries its measurements. Lessons: [best-practices.md](best-practices.md) § "Lessons from
@@ -130,10 +133,25 @@ the post-M8 run". **`prepareForPasses` stays internal (owner, 2026-09-18)**, as 
 
 ### Next, in order
 
-**The owner's call.** S6 step 5 is closed, S7 is done, and every ordered item is done. Everything
-else open is listed below, by kind.
+**The owner's call.** S6 step 5 is closed, S7 is done — per instruction since `b366262ce` — and
+every ordered item is done. Everything else open is listed below, by kind.
+
+⚖️ **A cost the owner may want to weigh:** with the record on, `wat2wasm` is ~30% slower over the
+corpus (+26–35%), because it reads its own output back to learn what the wabt-ts reader will
+predict — the price of exactness by construction. `--no-text-form` is within noise of main.
+Nothing is pending on it; it is here so the trade is visible.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
+- ⬚ **the wabt-ts binary reader attaches a multi-value operand's NEIGHBOUR** (DEFECT, trees only;
+  found by S7's measurement, 2026-09-19): it pops operand NODES, not values, so in
+  `(call $add2 (local.get 0) (call $take2 (call $pair)))` — `$pair` returning two values — the
+  `local.get` hangs on `$take2` and `$add2` gets a `pop`. Bytes are right; `wasm2wat --fold` prints
+  that wrong nesting (it re-assembles to the same code). Measured: 41 corpus functions where
+  binaryen-ts's decoder (which leaves the `pop`) and the reader disagree, every one a `call` of this
+  shape. ⚠️ Fixing it changes
+  the reader's tree, and S7's prediction IS that tree: entries written before the fix fail their
+  hash check and those functions print as predicted — degraded, never wrong. Measure that on the
+  corpus before choosing.
 - binaryen-ts's decoder reads a `ref.null` / typed element segment but **refuses an element type other
   than `funcref`** until the element model carries it — M3 left this deliberately
 - the text format has no spelling for where the `name` section sat (M2f); `wasm2wat` → `wat2wasm` puts it last
@@ -191,9 +209,9 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 - ✅ **S6 step 5 — the bridge is deleted** (M8e, 2026-09-18): `prepareForPasses` (names M8c, types
   M8d) replaced it, and `deno task direct` / `direct-behaviour` its gates —
   [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".
-- ✅ **S7 — the text-form marker** (`899263b7b`, 2026-09-19): per function, on by default, stripped
-  by the optimizer — [ir-convergence.md](ir-convergence.md) § "S7". Left open: a finer grain than
-  a whole function (a new section version when wanted).
+- ✅ **S7 — the text-form record** (2026-09-19): per function (`899263b7b`), then per INSTRUCTION —
+  a mix stays the same mix (`b366262ce`, owner: "one to one unless it goes through optimization");
+  on by default, stripped by the optimizer — [ir-convergence.md](ir-convergence.md) § "S7".
 - ✅ **K1 — atomics and `call_ref` in binaryen-ts** — ported 2026-09-16 (S6 step 5 item 5 (5)).
   Left from it: Asyncify refuses `call_ref` (upstream instruments it as an indirect call).
 - ⬚ **W8 — wabt-ts drops `(@metadata.code.*)` text annotations** (DEFECT, silent). The `code_metadata`
