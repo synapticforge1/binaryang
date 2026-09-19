@@ -1145,8 +1145,16 @@ export interface StructNewExpr {
    * A flag rather than a kind because that is what it is: the same instruction
    * with its field values implied. binaryen-ts already modelled it as
    * `defaultInit`, and the operand count is what every consumer branches on.
+   *
+   * `true` or ABSENT, never `false` — one spelling, as a call's `isReturn`
+   * (M8a2). binaryen-ts's factory wrote `false` where every reader had none, so
+   * the same instruction read two ways depending on the front end (One front
+   * end, stage 1, 2026-09-19). ⚠️ Upstream binaryen has no flag and asks
+   * whether the operands are empty, which cannot tell `struct.new $empty` from
+   * `struct.new_default $empty` on a struct with NO fields — two opcodes, one
+   * meaning. This keeps them apart.
    */
-  readonly defaultInit?: boolean;
+  readonly defaultInit?: true;
   readonly typeVar: Var;
   readonly operands: Expr[];
   readonly type?: ExprType;

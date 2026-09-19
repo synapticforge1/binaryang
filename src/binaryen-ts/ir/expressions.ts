@@ -1742,7 +1742,17 @@ export function makeBreak(
   // unreachable, so no fallthrough value is required). A conditional `br_if`
   // falls through when the condition is false, so it takes its values' type
   // (`none` when value-less).
-  const type: Type = condition == null ? Unreachable : valuesType(values);
+  //
+  // 🔧 Unless the CONDITION is unreachable, which upstream tests FIRST — the
+  // branch is then never reached at all. This took the values' type, so
+  // `(br_if $l (i32.const 8) (unreachable))` was i32 here and `unreachable`
+  // through `deriveTypes` once that learned upstream's rule; the optimizer
+  // removes what follows an unreachable-typed node (One front end, stage 1,
+  // 2026-09-19). An unreachable VALUE already came out unreachable through
+  // `valuesType`.
+  const type: Type = condition == null || typeOf(condition) === Unreachable
+    ? Unreachable
+    : valuesType(values);
   return {
     kind: ExpressionKind.Break,
     type,
@@ -2290,7 +2300,6 @@ export function makeStructNew(
     type: resultType,
     typeVar,
     operands,
-    defaultInit: false,
   };
 }
 

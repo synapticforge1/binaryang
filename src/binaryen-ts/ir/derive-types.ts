@@ -379,9 +379,17 @@ class Deriver {
         // A `br_if` falls through with its target's values — what the
         // factory's rule (its operands' types) gives on a well-formed tree, and
         // right on one whose value the tree left as a sibling (see `leave`).
-        return e.condition === undefined
-          ? typeOf(makeBreak('', e.condition, e.values))
-          : resultOf(this.carried(e.target));
+        //
+        // 🔧 Unless an operand is UNREACHABLE, which makes the whole thing
+        // unreachable (upstream `Break::finalize`): `(drop (br_if $l (br $l
+        // (i32.const 8)) (i32.const 1)))` was typed i32 here and `unreachable`
+        // by binaryen-ts's decoder — the optimizer removes what follows an
+        // unreachable-typed node, so the two routes saw different programs
+        // (One front end, stage 1, 2026-09-19; 6 nodes in the spec corpus).
+        if (e.condition === undefined) return typeOf(makeBreak('', e.condition, e.values));
+        if (typeOf(e.condition) === Unreachable) return Unreachable;
+        if (e.values.some((v) => typeOf(v) === Unreachable)) return Unreachable;
+        return resultOf(this.carried(e.target));
 
       case ExpressionKind.LocalGet:
       case ExpressionKind.LocalTee:
@@ -613,6 +621,13 @@ export function deriveTypes(m: WasmModule): void {
   for (const s of m.elements) {
     constant(s.offset);
     for (const entry of s.elemExprs) constant(entry);
+  }
+  // An IMPORTED function has no code, and its record carries an empty body:
+  // `none`, as binaryen-ts's decoder types it. Left untyped, it was the one
+  // difference between the two routes on 3,381 corpus modules (One front end,
+  // stage 1).
+  for (const imp of m.imports) {
+    if (imp.kind === ExternalKind.Func) (imp.func.body as Mut<W.RegionExpr>).type = None;
   }
   for (const f of m.functions) {
     const body = f.body as Mut<W.RegionExpr>;
