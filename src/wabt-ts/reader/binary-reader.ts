@@ -95,6 +95,7 @@ import {
   heapAbstract,
   type HeapTypeRef,
   type I31GetExpr,
+  type Import,
   type Limits,
   type LocalGetExpr,
   makeModule,
@@ -324,10 +325,29 @@ function brTargetResultCount(
   return blockResultCount(frame.blockType, m);
 }
 
+/**
+ * The `n`th import of `kind` — an index space counts only its own kind.
+ *
+ * 🔧 `getFuncSig` and `getTagSig` read `m.imports[n]`, the nth import of ANY
+ * kind, so once a global, table or memory import came first every call to an
+ * imported function took the wrong signature: `(call $log (global.get $g))`
+ * read back as a call with no operands beside a stray `global.get`. The bytes
+ * were right; the tree every consumer reads was not (found by S7's
+ * reader-agreement measurement, 2026-09-19).
+ */
+function nthImport(m: Module, kind: ExternalKind, n: number): Import | undefined {
+  let seen = 0;
+  for (const imp of m.imports) {
+    if (imp.kind !== kind) continue;
+    if (seen++ === n) return imp;
+  }
+  return undefined;
+}
+
 function getFuncSig(m: Module, funcIdx: number): FuncSignature {
   const totalImports = countImports(m, ExternalKind.Func);
   if (funcIdx < totalImports) {
-    const imp = m.imports[funcIdx];
+    const imp = nthImport(m, ExternalKind.Func, funcIdx);
     if (imp && imp.kind === ExternalKind.Func) return imp.func.sig;
     return { params: [], results: [] };
   }
@@ -344,7 +364,7 @@ function getTypeSig(m: Module, typeIdx: number): FuncSignature {
 function getTagSig(m: Module, tagIdx: number): FuncSignature {
   const totalImports = countImports(m, ExternalKind.Tag);
   if (tagIdx < totalImports) {
-    const imp = m.imports[tagIdx];
+    const imp = nthImport(m, ExternalKind.Tag, tagIdx);
     if (imp && imp.kind === ExternalKind.Tag) return imp.tag.sig;
     return { params: [], results: [] };
   }
