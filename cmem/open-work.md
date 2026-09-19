@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b and W11 ALL DONE; next: the owner's call)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b, W11 and the scheduled cleanup ALL DONE; next: the owner's call)
 
-**Where the work stopped.** `main` is at the merge of W11 (code last changed at
-`f2baf2ada`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `f2baf2ada` (as on every stage before it) and every step exited 0: fmt, lint, **1265 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of the scheduled cleanup (code last changed at
+`95be871f7`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `95be871f7` (as on every stage before it) and every step exited 0: fmt, lint, **1265 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -149,8 +149,13 @@ entity collections stay there until the records themselves are one type (M8).
    existing cases do; measure against upstream per kind (scratch `kids.ts` / `parents.ts`); bytes
    must not move (re-assembly check); the emitted-byte baseline's folded column may, in its own
    commit.
-4. ⏭️ **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
-   changes nothing — delete it or make it mean something, in the M7/M8 pass.
+4. ✅ **The scheduled cleanup — DONE (`95be871f7`, 2026-09-19):** RemoveUnusedModuleElements's no-op
+   `importedFuncs` set deleted. Only definitions are pruned and the walk looks a queued name up among
+   definitions, so an import is never walked; the set decided nothing. Measured: every module through
+   the optimizer at -O1 … -Oz, from both front ends (decoder over every `.wasm`, text route over every
+   `.wat`), main against the branch — 0 outputs differ. The premise (no definition shares an import's
+   name) held in every well-formed module; the one exception was the spec's `func.74`, an
+   `assert_malformed` "duplicate func". Inverted: `continue` → `break` on an import fails the suite.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
 - binaryen-ts's decoder reads a `ref.null` / typed element segment but **refuses an element type other
@@ -298,14 +303,8 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 ### Follow-ups kept deliberately behaviour-neutral
 
-- ⬚ **RemoveUnusedModuleElements's `importedFuncs` set changes nothing** (found by an M4 mutant,
-  2026-09-17, and confirmed EQUIVALENT rather than a test gap: emptying the set leaves every result
-  unchanged, because both branches of `_collectCallTargets` add the target to `live` and the queue
-  lookup then finds no body and skips). Either delete the set and the parameter, or make the guard
-  mean something — an imported name reaching `live` is arguably what `importedFuncs` was meant to
-  prevent. 🗓️ **Scheduled: the M7 / M8 cleanup pass**, where the pass is touched anyway and the
-  bridge's deletion re-checks liveness; doing it earlier would be a behaviour-neutral edit in the
-  middle of the module stages.
+- ✅ ~~RemoveUnusedModuleElements's `importedFuncs` set changes nothing~~ — deleted in the scheduled
+  cleanup (`95be871f7`); the entry as it stood: `git show 7fa9c8246:cmem/open-work.md`.
 - ⬚ `mapExpression` / `walkExpression` visit a branch's condition BEFORE its values — the reverse of
   wasm's evaluation order. Fixing it may move `-Oz` bytes, so it wants its own measured commit.
   ⚠️ It was not only theoretical: `deriveTypes` (order-sensitive) used it, and W10b's nesting made
