@@ -11,6 +11,11 @@
 // no byte gate could see it; the TREE was wrong, and a value-less `br_if` was
 // typed by its phantom value instead of `none`.
 //
+// Since post-M8 fix 5 the parser knows the target's arity, so a value-less
+// branch pops no padding at all; the filter remains only for a target it cannot
+// resolve. These tests hold the outcome either way (branch_arity.test.ts holds
+// the arity).
+//
 // `br_table` has the same stale filter, but in linear text its arity is 1 (the
 // index), so it never pads: a value below the index stays a loose sibling, and
 // no input reaches the filter with a placeholder. It is left alone.

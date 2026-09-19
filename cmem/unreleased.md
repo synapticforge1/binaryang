@@ -371,6 +371,11 @@ their own bump — and nothing breaks by their standing still.
   wabt-ts's binary reader made every `br_if` a statement, so `(i32.add (br_if 0 v c) x)` printed as
   `(br_if 0 v c) (i32.add x)`. Text only: 20 of 5,704 corpus binaries print differently, each
   re-assembling to the same bytes; linear output unchanged.
+- **The WAT parser gives a branch its TARGET's values** (post-M8 fix 5, `89b6a1805`). Visible in
+  `parseWatModule`'s tree, not in bytes (0 of 2,286 WAT files, 0 of 5,794 round trips): linear `br` /
+  `return` no longer swallow the whole stack (a void `call` included), a value-less `br_if` no
+  longer takes a stray value, a block-param value is kept as a `pop`, and a one-value `br_if` is an
+  operand. The optimizer's text route now REFUSES 109 V8-invalid modules it used to type silently.
 
 - **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11

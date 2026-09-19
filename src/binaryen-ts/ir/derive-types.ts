@@ -199,10 +199,11 @@ class Deriver {
   /**
    * What `e` leaves on the stack — its type, except where wasm's rule and the
    * tree can disagree. A `br_if` falls through with exactly its target's
-   * values, whether or not the tree holds them as its operands (the WAT
-   * parser does not know a target's arity, so LINEAR text's
-   * `br_if 0 … br_if 0` reads as two siblings — post-M8 fix 5; wabt-ts's
-   * binary reader did the same until fix 4). A `br_on_*` falls
+   * values, whether or not the tree holds them as its operands: a front end
+   * that does not know a target's arity reads `(br_if 0 (br_if 0 …) …)` as
+   * two siblings. wabt-ts's binary reader did until post-M8 fix 4, and still
+   * does for a branch to the function label (divergence W9); the WAT parser
+   * did until fix 5, and still does where a label cannot be resolved. A `br_on_*` falls
    * through with its carried values AND — except `br_on_non_null` — the ref;
    * its node type is the ref's alone, as the decoder gives it.
    */
