@@ -1,5 +1,5 @@
 # wabt-ts corpus output baseline
-# files=421 totalBytes=1961204
+# files=421 totalBytes=1962476
 # columns: file <tab> wasmBytes <tab> sha256-16(wasm) <tab> sha256-16(wasm2wat FOLDED) <tab> sha256-16(wasm2wat LINEAR)
 10b_DynamicArrayOperations.wat	4577	9b1669cbfff9fc08	8d07a161ab78f12c	07bc56cd91bd9ad7
 10b_DynamicArrays.wat	6336	a9e894ff21de6176	abdd7b73bdee2cf8	720deb84785b5f9b
@@ -33,9 +33,9 @@
 17_ConstructorChainingAndFieldPrefixOffest.wat	4823	9948a1dab4cdb21b	9602859d483b682c	62bfcce304b2e64d
 17_Cross-PolymorphicArrayStride.wat	5277	fa2179d928c5befd	5076dca34250d4a0	4761ce11f6d8a4cb
 17_DeepHierarchyCTable.wat	5277	14674850048bf650	adb972c7f99c7d84	72a5e4f540dd1de6
-18_Multi-ScopeScaleAndMemoryLongevityTest.wat	7607	4ab52e46657441a2	96e5890b5fac36e8	336c2dcedb58b40d
+18_Multi-ScopeScaleAndMemoryLongevityTest.wat	7633	a4fe5534c38ae572	a852c22d3f88e590	336c2dcedb58b40d
 18_WasmImportMerge.wat	489	91ea94691c955f23	2bf252aa746956bc	972c579d20c55518
-18_symbol_table.wat	318	87d4e66fcd05477b	f0c655b8bc1dcdfd	1229e4bb1a4484af
+18_symbol_table.wat	343	fc622d4037bbcbf0	97c44b8e0996384a	1229e4bb1a4484af
 18b_SharedHeapTwoLibraries.wat	489	91ea94691c955f23	2bf252aa746956bc	972c579d20c55518
 18c_SetCapabilityLibrary.wat	489	91ea94691c955f23	2bf252aa746956bc	972c579d20c55518
 18d_MapCapabilityLibrary.wat	489	91ea94691c955f23	2bf252aa746956bc	972c579d20c55518
@@ -103,19 +103,19 @@
 1_environment-variables.wat	632	ab176ce586c7e20f	0a64dc77b2c8996a	091832e38b831e6d
 1_epoch.wat	5369	0e7a9e542637e672	57996e4607e570db	2345734aff445fc9
 1_execing-processes.wat	624	0159fd07d2ed776e	38c92e29bb9ae036	28811bfb0fb3bc3a
-1_fib-rs-opt.wat	41203	6c77c767f19a5b43	1b90410a3eb73462	0cfd1b827280ab3b
-1_fib-rs.wat	41127	1683acdc3debebb2	dea68b7c8a7a8bf2	8481af987a1a342c
-1_fib-zig-opt.wat	2646	b3f274aa242ac945	4b73785c8f69a5f6	ede72ef2e15d7bc3
+1_fib-rs-opt.wat	41310	33ee74ee0a3f9de6	c3d4ccd57cf600fc	0cfd1b827280ab3b
+1_fib-rs.wat	41287	0842dafa65f7fb7b	92055b1cacea61cc	8481af987a1a342c
+1_fib-zig-opt.wat	2677	e898b1976d8fbaf3	074aeb78444bbe33	ede72ef2e15d7bc3
 1_fizzbuzz_wat.wat	593	b31adb577560ea0d	a23f6cc691d5e9a1	ffa5f35506051ac3
 1_for.wat	4513	fdd161aaa86d785e	99d73554f3e17c03	604811987d4a0441
 1_functions.wat	4356	78308f47426953ec	fd768e6c5bb4430e	210d4948bdcd0955
 1_goroutines.wat	5269	313a99c4e50777df	1bc357f55627f8cc	716a863a650ed3e0
 1_hello-world.wat	598	324650255c8fb71f	9fdf3cd4f7e7ca9c	593956ad5ede1b42
 1_helloWorld_wat.wat	193	3aeedf08ea27ca30	e5b5ac322177666a	a61fd766585de9be
-1_helloworld.wat	175	44b85abb7ccd9622	62e861287a3b7738	02f6f935409ce1ca
+1_helloworld.wat	200	caf6e6a1ead6ea53	0e5f6d087b12b8c1	02f6f935409ce1ca
 1_http-client.wat	869	eae04f85d5561ace	b21e794d027b5690	dab79b0fe69d078d
 1_if-else.wat	5262	bfcd857505a8b1c7	3bb333a2ec4094de	945fbc9382b4e15a
-1_print.wat	234	a91776387cbca6ce	c155870dc3d8f50a	6930d87f9c0a7c69
+1_print.wat	261	0f9472d1d0a86aea	6930d87f9c0a7c69	6930d87f9c0a7c69
 1_reading-files.wat	5186	bd076fbcf7cb5bb4	9fe2d632905687f7	46c7d3126f40a3ea
 1_recursion.wat	4230	727c1d52c91a13fd	82868b22ed284715	e97072dc49ae8f87
 1_regular-expressions.wat	6018	bcdedfd238fa8627	3efd88324c227f83	10f8c6462c041952
@@ -144,7 +144,7 @@
 21_NestedCompoundTuple.wat	4931	29df4665ca28f9c4	43dfe0b72160f617	da2ba3bdc9b9a30b
 21_SkippedElementsAndGaps.wat	4550	a5ed7477cd97304a	55a661474ab1ae7c	0c4e11ac70e34ed0
 22_CombinedStressTest.wat	4140	404716a035a82988	8f7f9438ab3a94b5	01c86d56b10aeb8c
-22_ConstEnumFoldingAndExponentCast.wat	13842	e84dabc035adb2ca	846d0ddd62f62e98	9ac7989bdc8d3265
+22_ConstEnumFoldingAndExponentCast.wat	13909	9ee346a636b2262a	25b8de30b43fe4e6	9ac7989bdc8d3265
 22_DoubleCastErasure.wat	4565	e28c816b423fecde	72eaa217dbc9d266	33fdc30cf53e85a5
 22_EnumObjectMemberCompoundMap.wat	4809	1c4084006fa45af3	4df713f9dee796f6	7a3561d55261d6a9
 22_HeterogeneousAndMixedStringEnum.wat	1046	52f4de7760fbb3cb	e80c9180c1a4c67f	7e6d5a637213c84c
@@ -173,7 +173,7 @@
 27_file-paths.wat	6742	43828acb9bd8fa5b	ac64132b542bc5c3	5ddce440b2472b3a
 27_line-filters.wat	4935	bad069781702cb40	389cba02d839fa82	0f2ccaae6d2113bc
 27_number-parsing.wat	9594	ec0aeb67306d5a20	52c77e13b0d797e5	b7801c110cf26302
-27_string-formatting.wat	20971	41529bc6ed2be082	05e5644aa61d85da	fd3a053220ba3d07
+27_string-formatting.wat	21038	934e33ff61da4d04	3e450dad44a58519	fd3a053220ba3d07
 27_string-functions.wat	9728	4f2eff1a324a7363	47d4dd342c76c0f6	e8697dff8ad8fe13
 27_tcp-server.wat	4961	7dfc171836a641ca	bfaa6dedde979f8e	6e59d90866615e07
 27_text-templates.wat	6498	b8373e2f0bf69ff8	52683e80bf30a6ca	aed220357340a9e4
@@ -239,11 +239,11 @@
 37_FlatArray.wat	6160	148ddbf3075c89df	82495b8cad43847b	fe8a077adca463b5
 37_FlatMapArray.wat	5836	4639b75fed04cb2e	c0c68781d41e73fb	152675af644632b0
 37_Phase37Combined.wat	6741	1323a56bb8d0f060	ee38c4dfa462e932	3170ab6cf720d3f9
-38_MathExpLog.wat	14990	89f520b1aa705cad	df6dc95c1d602028	72a20c45b40c15f6
-38_MathHyperbolic.wat	14457	c98e347eeedade12	3ccd2967bec32ef8	840610bee55add6c
-38_MathRandom.wat	13362	747a2ba72d331ca7	890095cf78dd3e64	16176563ae91f77a
-38_MathTrig.wat	15148	e6ab2c0b5a9dee04	857f003416428882	9f5d75d5546a3752
-38_Phase38Combined.wat	14594	1b4f634bf7b861fd	643a11c719e01ecf	d2fdec261f3b5ed6
+38_MathExpLog.wat	15057	96cb5dcc706464f6	cb74f7b04aa285a2	72a20c45b40c15f6
+38_MathHyperbolic.wat	14524	70dc76d569e84092	a23f8885b62c646c	840610bee55add6c
+38_MathRandom.wat	13429	a6fe5d84f29432d5	46f86082f6371234	16176563ae91f77a
+38_MathTrig.wat	15215	6a08c45aecf70676	cede09eaebf61d74	9f5d75d5546a3752
+38_Phase38Combined.wat	14661	0a96f91ca1752c74	23f6109610cfdc45	d2fdec261f3b5ed6
 39_JstyperBasic.wat	4276	2337c9339436f943	91d5b814b9c3f875	dcd37ba31de6d9f4
 39_JstyperF64.wat	4353	6aa52cfcac54e98a	f6af43063222c4a5	0efe33e903f420ec
 39_JstyperMixed.wat	4908	d7ce7baafdd85ba5	8a569bfb32504c1b	eceefc7fab0b7f5b
@@ -281,12 +281,12 @@
 47_Phase47Combined.wat	5796	8256bd2192037b30	cdfdc83a20244ba3	a5d693daba5bb3db
 47_SuperConstructor.wat	4778	96c265aa47206b5f	9f2fdda442f8e61e	73445a16fc6ffdd3
 47_VirtualDispatch.wat	4649	811b3ed7ee7fb454	f3d8781f94f766b7	ffb71cec83498d54
-48_ExponentAssign.wat	13443	2d74ed6cdcd040e3	0b14ba84ba189d7e	9811d4a1d939061d
+48_ExponentAssign.wat	13510	89fcd7cf99e0c3a0	47bbd982e967b569	9811d4a1d939061d
 48_LabeledContinue.wat	4419	8d1e3b4a03f3101f	59bb3f034acfc7b6	827bf41dd70e42b2
 48_NumberConstants.wat	4745	11cc57b0db202a66	972ec2b2f0bba1fd	59be5d38fd7ef37e
 48_NumberPredicates.wat	1534	d543b4b31c9ecaa8	d39db2125a9bbf6e	0e7f7d98148c74a5
 48_ObjectDestructDefault.wat	4634	0e1bdcfca1df5a45	694ba462098d2641	a3975fd9b06430fc
-48_Phase48Combined.wat	14462	2b5aaa9c52a277a9	80bd4e74a70d2a99	bf4d07b867a827da
+48_Phase48Combined.wat	14529	f82b31fbcb1f37f3	f14208aea7882940	bf4d07b867a827da
 48_SingleLineBraceIf.wat	4946	6a328580aed103a4	f5b299d15f3bd3c7	b1b6d346f14e4daa
 48_SwitchFallthrough.wat	1085	7486c260896c2887	79175e8e54121a12	6737911ce55a39bd
 48_ToStringRadix.wat	5966	98e63395b4855869	eaf628f8a0839f31	f809a00f34bbbb54
@@ -358,9 +358,9 @@
 64_ReportModuleTryCatch.wat	1766	95410be05277e5ee	89fdb2961cfdf6a1	5e2567d207c7d391
 64_ReportStringAppendSubscript.wat	5275	a9a69a2ac607af1a	1be6925afc454a20	0dc483e3c24a16d8
 64_ReportThrowTemplate.wat	5304	05a25b7d5fa5cfe9	10a60f069a7309a9	9ca2bdee2173a804
-65_ReportTrigLargeArg.wat	13482	2f9c7e0ec94fec4e	b6cf719d2556b08b	9d17949fa37aaa9c
+65_ReportTrigLargeArg.wat	13549	ebb97eecda8e87fc	652436d1d2c4f7c1	9d17949fa37aaa9c
 66_Dragon4Formatting.wat	5652	b9aa23dc123478cf	4a0a12eeef4786a1	8e62d579b44ef761
-67_TrigCorrectlyRounded.wat	14695	bbf3e24738057542	95efca82c19fd76b	c4709eb573f1e5e7
+67_TrigCorrectlyRounded.wat	14762	037636b5b9668c78	e236952ad53112b2	c4709eb573f1e5e7
 6a_NumericArrays.wat	4698	b8ec0cece268e7a2	c676bdbb59b29ef2	7823639eacc01e7f
 6a_command-line-arguments.wat	2300	20f33d880a8d0716	bdb97a11fee571eb	800c2940389bbb5c
 6a_command-line-subcommands.wat	2482	24597ff2dd82fdd6	32603043576caa4a	781d4dcd1b5a2865
@@ -384,8 +384,8 @@
 6d_Multi-DimensionalArrays.wat	4895	a3d7f91802c8f817	85a4879dca72d426	73f22129f53bcfa4
 6d_Multi-DimensionalArrays2.wat	4231	2538e871107d6420	e1dc6e94a3be31fc	bbac75719eb680fe
 6d_arrays.wat	6731	d407fd1809e94ba7	ace59edf14592980	91c29d89362d6092
-7a_MathIntrinsics.wat	14789	9dd95890272e34a4	e7b5031f1856cce3	140402d4f9dad9ae
-7a_constants.wat	14279	26f85a45b0881b2d	fb1c73c88bdd02c7	daefa1314c7a8385
+7a_MathIntrinsics.wat	14856	b0c027eab31b5220	c775a1a2bd8b7f44	140402d4f9dad9ae
+7a_constants.wat	14346	036f06463b3a8b1f	54f6e66859f8b4b3	daefa1314c7a8385
 7b_ConsoleErrorWarn.wat	753	730a3a8ed3ac94c3	278d5f7746b15d4e	ec95d9b9f41bc06d
 9_ChainedNewAndMultiStmt.wat	4645	6ffb8ffb2f387465	7febcc6727cf48dc	b6ec447535030991
 9_Classes.wat	5502	8c860d2a1a6cde58	16978749fdffdb80	b26db6881f3169b8
