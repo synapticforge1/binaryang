@@ -3959,8 +3959,9 @@ Each item is its own branch, measured, tested, mutated and gated.
      lacks are now REFUSED where they were read and re-encoded; V8 rejects all 4 for that reason.
      Spec still 100% on four axes.
    - Mutants 11 / 11 killed. Gate on `565e7b2c2`: exit 0, 1257 tests.
-   - ⚠️ Seen in passing, not changed: the decoder reads `memory.size` / `memory.grow`'s memory
-     index as ONE BYTE, where multi-memory writes a LEB (the same value below 128).
+   - ⚠️ Seen in passing, not changed here: the decoder reads `memory.size` / `memory.grow`'s memory
+     index as ONE BYTE, where multi-memory writes a LEB (the same value below 128). Added to the
+     list as fix 8 (owner, 2026-09-18).
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one

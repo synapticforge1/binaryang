@@ -26,7 +26,7 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18, owner paused — post-M8 fixes: 3 of 7 done; resume at fix 4)
+## Start the next session here (handoff, 2026-09-18, owner paused — post-M8 fixes: 3 of 8 done; resume at fix 4)
 
 **Where the work stopped.** `main` is at the merge of post-M8 fix 3 (code last changed at
 `565e7b2c2`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
@@ -118,8 +118,10 @@ entity collections stay there until the records themselves are one type (M8).
      with the reason);
    - fix 7: the dropped-start mutant only `prepare.test.ts` caught. Make `deno task direct` (and
      ideally `direct-behaviour`) also run the fixture's modules, so a gate sees start sections;
-   - also seen: the decoder reads `memory.size` / `grow`'s memory index as one byte (see fix 3's
-     record) — the owner's call whether it joins the list.
+   - fix 8 (added by the owner, 2026-09-18): the decoder reads `memory.size` / `memory.grow`'s
+     memory index as ONE BYTE where multi-memory writes a LEB `u32` — the same value below 128,
+     wrong (and misaligned for the rest of the body) from 128 up. Read it as a LEB, as every other
+     memory index is; test with a memory index >= 128 and against V8.
 
    **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was. S6 step 5 is
    closed; the next STEP after these fixes is the owner's call (S7 is independent and ready).
