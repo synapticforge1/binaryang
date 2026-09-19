@@ -16,9 +16,10 @@
 // resolve. These tests hold the outcome either way (branch_arity.test.ts holds
 // the arity).
 //
-// `br_table` has the same stale filter, but in linear text its arity is 1 (the
-// index), so it never pads: a value below the index stays a loose sibling, and
-// no input reaches the filter with a placeholder. It is left alone.
+// `br_table` had the same stale filter (`'nop'`), and in linear text its arity
+// is 1 (the index), so it never padded and no placeholder reached the filter.
+// It was not harmless: it dropped a real `(nop)` child from the module. Removed
+// by post-M8 fix 6 — see br_table_operands.test.ts.
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';

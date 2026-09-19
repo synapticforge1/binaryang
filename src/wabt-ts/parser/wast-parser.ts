@@ -4294,7 +4294,13 @@ export class WastParser {
         // target. Taking op0() as the index put a carried value there and
         // dropped the real index whenever the folded form supplied both.
         const idx = operands.length > 0 ? operands[operands.length - 1]! : op0();
-        const carried = operands.slice(0, -1).filter((x) => x.kind !== 'nop');
+        // Every operand below the index is kept (post-M8 fix 6). This filtered
+        // `'nop'` — the placeholder once — but none reaches here: linear text
+        // pops the index alone, and the folded form never pads. What it DID
+        // meet was a real `(nop)` child, and dropped it from the module:
+        // `(br_table 0 (nop) (local.get 0))` wrote one byte fewer than
+        // upstream `wat2wasm`. `br` / `br_if` / `return` keep theirs.
+        const carried = operands.slice(0, -1);
         return {
           kind: 'br_table',
           targets,
