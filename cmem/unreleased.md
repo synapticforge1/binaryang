@@ -385,6 +385,8 @@ their own bump — and nothing breaks by their standing still.
 - **Folded `wasm2wat` nests a `br_table`'s carried values, as upstream does** (post-M8 fix 9,
   `cf1b50bd8`); the WAT parser's linear `br_table` holds them too. Text and trees only — no bytes
   move; the optimizer's text route refuses 4 more V8-invalid modules.
+- **Folded `wasm2wat` nests the values of a branch to the FUNCTION label** (post-M8 fix 10,
+  `a7915f1e1`): the binary reader treated that label as carrying nothing. Text only.
 
 - **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11
