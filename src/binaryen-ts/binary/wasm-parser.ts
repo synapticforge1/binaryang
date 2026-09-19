@@ -3131,29 +3131,33 @@ function decodeMiscPrefix(
 ): void {
   const sub = r.readU32();
   switch (sub) {
+    // The eight SATURATING truncations. 🔧 These decoded as the TRAPPING
+    // `UnaryOp.Trunc*` (0xa8–0xb1) — a silent miscompile on every decode →
+    // encode, since binaryen-ts had no opcodes for them (One front end,
+    // 2026-09-19).
     case 0:
-      push(makeUnary(UnaryOp.TruncSF32ToI32, pop()));
-      break; // i32.trunc_sat_f32_s
+      push(makeUnary(UnaryOp.TruncSatSF32ToI32, pop()));
+      break;
     case 1:
-      push(makeUnary(UnaryOp.TruncUF32ToI32, pop()));
+      push(makeUnary(UnaryOp.TruncSatUF32ToI32, pop()));
       break;
     case 2:
-      push(makeUnary(UnaryOp.TruncSF64ToI32, pop()));
+      push(makeUnary(UnaryOp.TruncSatSF64ToI32, pop()));
       break;
     case 3:
-      push(makeUnary(UnaryOp.TruncUF64ToI32, pop()));
+      push(makeUnary(UnaryOp.TruncSatUF64ToI32, pop()));
       break;
     case 4:
-      push(makeUnary(UnaryOp.TruncSF32ToI64, pop()));
+      push(makeUnary(UnaryOp.TruncSatSF32ToI64, pop()));
       break;
     case 5:
-      push(makeUnary(UnaryOp.TruncUF32ToI64, pop()));
+      push(makeUnary(UnaryOp.TruncSatUF32ToI64, pop()));
       break;
     case 6:
-      push(makeUnary(UnaryOp.TruncSF64ToI64, pop()));
+      push(makeUnary(UnaryOp.TruncSatSF64ToI64, pop()));
       break;
     case 7:
-      push(makeUnary(UnaryOp.TruncUF64ToI64, pop()));
+      push(makeUnary(UnaryOp.TruncSatUF64ToI64, pop()));
       break;
     case 10: { // memory.copy
       const dstMem = r.readU32();
