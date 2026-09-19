@@ -20,7 +20,7 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, makeNop } from '../ir/expressions.ts';
+import { type Expression, ExpressionKind, makeNop, neverFallsThrough } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { Unreachable } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
@@ -82,7 +82,11 @@ function _vacuumNode(expr: Expression): Expression {
     case ExpressionKind.Drop: {
       const inner = expr.value;
       if (inner.kind === ExpressionKind.Nop) return makeNop();
-      if (inner.type === Unreachable) return inner;
+      // 🔧 This read `inner.type === Unreachable`, which is true of a node that
+      // merely HAS an unreachable operand — and such a node still pushes its
+      // value in the bytes, so dropping the `drop` left it for the enclosing
+      // `end`: invalid output from `wasm-opt` (see `neverFallsThrough`).
+      if (neverFallsThrough(inner)) return inner;
       if (
         inner.kind === ExpressionKind.Const ||
         inner.kind === ExpressionKind.LocalGet ||

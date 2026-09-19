@@ -381,6 +381,13 @@ their own bump — and nothing breaks by their standing still.
   - a linear `call_indirect` / `return_call_indirect` / `call_ref` took the WHOLE operand stack as
     its arguments, T10.5's defect for `call`, which they never got the fix for. A value belonging to
     a later instruction became an extra argument.
+- **`wasm-opt` no longer emits INVALID modules for some unreachable code** (`0498fbbae`). DCE and
+  Vacuum treated an `unreachable` TYPE as "control stops here". A node is typed unreachable when any
+  of its OPERANDS is, and it still runs and still leaves its value on the stack, so removing what
+  followed it — or removing a `drop` around it — left that value for the enclosing `end`: engines
+  refused the output ("expected N elements on the stack for fallthru"). Four spec modules were
+  affected, a shape any unreachable code can have. Dead code after a real terminator is still
+  removed; corpus optimizer sizes are unchanged. New: `neverFallsThrough` in binaryen-ts's IR.
 - **`wasm-opt` no longer turns saturating truncation into trapping truncation** (`2ca4513f1`).
   binaryen-ts's decoder read `i32.trunc_sat_f32_s` and the seven like it as the TRAPPING
   instructions, so optimizing a binary that used them changed its behaviour: a result that should

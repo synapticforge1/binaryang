@@ -149,13 +149,19 @@ with a five-stage plan for the owner to confirm. Found by that measurement, and 
   representation. The two routes' trees now differ only in OPERAND SHAPE —
   ir-convergence.md § "One front end". Next: stage 2 (move binaryen-ts's decoder reshaping into
   `prepareForPasses`), after the pass defect above.
-- 🔴 **`wasm-opt` emits INVALID output for 7 valid spec modules** at -O2 (`br.0`, `return.0`,
-  `unreachable.0`, `names.2`, `fac.0`, `if.0`, `unreached-valid.0`) — `optimize-corpus` covers only
-  the 421 wasmtk modules, so no gate sees it. A PASS defect, not a front-end one: V8 says
-  "expected 1 elements on the stack for fallthru, found 2" on three of them, and "Duplicate export
-  name ''" on `names.2`. ⚠️ Since stage 1 (`1ffdcb561`) route B reproduces three of them too — its
-  wrong `br_if` type had masked them. Worth fixing BEFORE stage 2 compares the routes' optimizer
-  output, since it is noise in that comparison.
+- ✅ ~~`wasm-opt` emits INVALID output for 7 valid spec modules~~ — the DEAD-TAIL family fixed
+  (`0498fbbae`, owner: fix it before stage 2): DCE and Vacuum read an `unreachable` TYPE as "control
+  stops here", but a node is typed unreachable when any OPERAND is, and it still pushes its own value
+  in the bytes. `neverFallsThrough` asks the real question. At -O2 / -Oz, modules optimizing to
+  invalid output: 7 → 3 on binaryen-ts's decoder route, 6 → 2 on the reader route. What is left,
+  each with its cause, all of it later stages' work:
+  - `fac.0`, `if.0` — `PassRunner`'s block-param lowering, on BOTH routes ("not enough arguments on
+    the stack for local.set"; "start-arity and end-arity of one-armed if must match"). Stage 2 owns
+    block params.
+  - `names.2` — binaryen-ts's decode → encode loses an empty export name ("Duplicate export name
+    ''"), that route only; it goes when the decoder does (stage 3).
+  - at -O3 only, `Inlining` on the reader route: `dynrt_lib_modc`, `Chapter11/vector`, `nop.0`,
+    `br.0` ("not enough arguments on the stack for local.set") — operand shape, stage 2's subject.
 - binaryen-ts's encoder refuses every module with more than one table (178 valid corpus modules);
   its decoder refuses relaxed SIMD (8).
 

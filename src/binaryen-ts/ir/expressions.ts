@@ -776,6 +776,43 @@ export interface ExprBase {
  * optionality is paid for. A node reaching a pass untyped names itself instead
  * of turning into a silent `undefined` comparison.
  */
+/**
+ * Whether `e` NEVER hands control to what follows it — in the BYTES, not only
+ * in the type.
+ *
+ * ⚠️ An `unreachable` TYPE is not the same question, and reading it as if it
+ * were is how `wasm-opt` emitted invalid modules. A node is typed unreachable
+ * when any operand is, and such a node still runs in the byte stream and still
+ * leaves its own value on the stack: `(select (unreachable) x y)` encodes as
+ * `unreachable x y select`, and the `select` pushes. Dropping what follows it,
+ * or dropping a `drop` around it, leaves that value for the enclosing `end` —
+ * "expected 0 elements on the stack for fallthru, found 1" (the spec's
+ * `unreached-valid.0`, DCE) and "expected 1 … found 2" (`br.0`, Vacuum). Only
+ * these kinds truly terminate: entering the polymorphic state TRUNCATES the
+ * value stack to the frame, which is what makes the tail droppable.
+ *
+ * A conditional branch is NOT one: `br_if` falls through when its condition is
+ * false. Nor is a structured node, whose own `end` is a join point — keeping
+ * those out costs a little dead code and never validity (One front end,
+ * 2026-09-19).
+ */
+export function neverFallsThrough(e: Expression): boolean {
+  switch (e.kind) {
+    case ExpressionKind.Unreachable:
+    case ExpressionKind.Return:
+    case ExpressionKind.Switch:
+    case ExpressionKind.Throw:
+    case ExpressionKind.ThrowRef:
+    case ExpressionKind.Rethrow:
+      return true;
+    case ExpressionKind.Break:
+      // `br` always transfers; `br_if` falls through.
+      return e.condition === undefined;
+    default:
+      return false;
+  }
+}
+
 export function typeOf(e: ExprBase): Type {
   if (e.type === undefined) {
     throw new Error(

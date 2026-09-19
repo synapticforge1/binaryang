@@ -20,10 +20,10 @@ import {
   type BlockExpr,
   type Expression,
   ExpressionKind,
+  neverFallsThrough,
   type RegionExpr,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
-import { Unreachable } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 /**
@@ -100,7 +100,13 @@ function eliminateDeadList<T extends BlockExpr | RegionExpr>(block: T): T {
     // unreachable, but we still want to clean inside it.
     const processed = eliminateDeadCode(block.children[i]!); // bounded by the loop header
     newChildren.push(processed);
-    if (processed.type === Unreachable && i < block.children.length - 1) {
+    // 🔧 This asked whether the child's TYPE is unreachable. A node with an
+    // unreachable OPERAND is typed unreachable and still pushes its value in
+    // the bytes, so the tail it trimmed was carrying that value to the
+    // enclosing `end`: `(select (unreachable) …)` in the spec's
+    // `unreached-valid.0` left "1 element for fallthru" where 0 were expected
+    // — invalid output from `wasm-opt` (see `neverFallsThrough`).
+    if (neverFallsThrough(processed) && i < block.children.length - 1) {
       trimmed = true;
       // Everything after this point is dead — stop collecting.
       break;
