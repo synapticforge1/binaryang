@@ -136,6 +136,19 @@ the post-M8 run". **`prepareForPasses` stays internal (owner, 2026-09-18)**, as 
 **The owner's call.** S6 step 5 is closed, S7 is done — per instruction since `b366262ce` — and
 every ordered item is done. Everything else open is listed below, by kind.
 
+🛑 **NEW, 2026-09-19 — ONE FRONT END** (owner decision): the readers and writers are shared too, not
+only the tree. Measured, NOT started: [ir-convergence.md](ir-convergence.md) § "One front end",
+with a five-stage plan for the owner to confirm. Found by that measurement, and open:
+- 🔴 **binaryen-ts's decoder MISCOMPILES saturating truncation** (DEFECT, silent, SHIPPED): 0xFC
+  0x00–0x07 decode as the TRAPPING truncations, so `wasm-opt` on any binary using them turns a
+  saturated result into a trap. 4 of 4 corpus modules with the instruction. Stage 0 of the plan:
+  fix first, independent of the decision.
+- **route A's `wasm-opt` emits INVALID output for 7 valid spec modules** at -O2 (`br.0`,
+  `return.0`, `unreachable.0`, `names.2`, `fac.0`, `if.0`, `unreached-valid.0`) — `optimize-corpus`
+  covers only the 421 wasmtk modules.
+- binaryen-ts's encoder refuses every module with more than one table (178 valid corpus modules);
+  its decoder refuses relaxed SIMD (8).
+
 ⚖️ **A cost the owner may want to weigh:** with the record on, `wat2wasm` is ~30% slower over the
 corpus (+26–35%), because it reads its own output back to learn what the wabt-ts reader will
 predict — the price of exactness by construction. `--no-text-form` is within noise of main.
