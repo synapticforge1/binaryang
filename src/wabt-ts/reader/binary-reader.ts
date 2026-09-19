@@ -2923,8 +2923,8 @@ export class BinaryReader {
   private applyPendingTextForm(m: Module): void {
     const pending = this.pendingTextForm;
     if (pending === null) return;
-    const indices = decodeTextForm(pending.data);
-    if (indices !== null && applyTextForm(m, indices)) {
+    const entries = decodeTextForm(pending.data);
+    if (entries !== null && applyTextForm(m, entries)) {
       m.customSections = m.customSections.filter((c) => c !== pending);
     }
   }

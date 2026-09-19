@@ -127,11 +127,9 @@ import {
   type Var,
 } from '../../wabt-ts/ir/ir.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
-import {
-  encodeTextForm,
-  linearFunctionIndices,
-  TEXT_FORM_SECTION,
-} from '../../wabt-ts/ir/text-form.ts';
+import { encodeTextForm, hasWrittenForms, TEXT_FORM_SECTION } from '../../wabt-ts/ir/text-form.ts';
+import { readBinaryIr } from '../../wabt-ts/reader/binary-reader.ts';
+import { makeErrorList } from '../../wabt-ts/core/error.ts';
 
 /**
  * The memory an instruction addresses. An ABSENT field means memory 0 — the
@@ -719,11 +717,17 @@ class WasmEncoder {
     if (this.mod.hasNameSection && !this.wroteNameSection) {
       this.writeNameSection(out, this.mod.explicitNames);
     }
-    // S7: which functions were written linearly, LAST — the bytes wabt-ts's
+    // S7: how each instruction was written, LAST — the bytes wabt-ts's
     // writer puts there (`text-form.ts`). A pass run resets the fidelity table
     // it is read from, so optimized output never carries it (owner: the
     // optimizer is not fidelity-tied).
-    const textForm = encodeTextForm(linearFunctionIndices(this.mod));
+    // The prediction is the wabt-ts reader's, of the bytes so far.
+    const textForm = hasWrittenForms(this.mod)
+      ? encodeTextForm(
+        this.mod,
+        readBinaryIr(out.toUint8Array(), makeErrorList(), { readDebugNames: false }),
+      )
+      : null;
     if (textForm !== null) {
       this.writeSection(out, 0, (w) => {
         w.writeUTF8(TEXT_FORM_SECTION);

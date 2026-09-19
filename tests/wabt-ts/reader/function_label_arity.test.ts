@@ -101,8 +101,12 @@ describe('a branch to the function label carries the function’s results', () =
 
   it('both text forms re-assemble to the same bytes, and they run', () => {
     const b = bytes();
+    // As written, every byte comes back; each FORCED form gives the same code
+    // (naming a form rewrites S7's text-form record, and only that).
+    const code = (wat: string) => wat2wasm(wat, { textForm: false }).binary;
+    assertEquals(wat2wasm(wasm2wat(b).text).binary, b, 'as written');
     for (const fold of [true, false]) {
-      assertEquals(wat2wasm(wasm2wat(b, { fold }).text).binary, b, `fold: ${fold}`);
+      assertEquals(code(wasm2wat(b, { fold }).text), code(wasm2wat(b).text), `fold: ${fold}`);
     }
     const x = new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource))
       .exports as Record<string, (...a: unknown[]) => number>;

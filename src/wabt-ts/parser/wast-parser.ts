@@ -152,7 +152,7 @@ import { BinarySection } from '../core/binary.ts';
 import { placementAnchor } from '../core/custom-placement.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
-import { markWrittenLinear } from '../ir/text-form.ts';
+import { BARE, type Form, formNodes, recordForms } from '../ir/text-form.ts';
 import { LexerSource } from './lexer-source.ts';
 import { WastLexer } from './wast-lexer.ts';
 import {
@@ -2446,13 +2446,19 @@ export class WastParser {
       // The function's own frame: a `return`, or a branch to the outermost
       // depth, carries its results.
       this.labels = [{ name: '', arity: sigOf(pb.func)?.results.length }];
-      this.formCounts = { folded: 0, linear: 0 };
+      this.writtenForm = new WeakMap();
       this.parseInstrListInto(pb.func.body.children);
-      // S7: a body written with no folded instruction is written back linearly
-      // (`text-form.ts`). One that mixes the forms is recorded as folded.
-      if (this.formCounts.linear > 0 && this.formCounts.folded === 0) {
-        markWrittenLinear(module, pb.func);
-      }
+      // S7: how each instruction was written, in binary order, for every
+      // function (`text-form.ts`) — the encoder writes only what a reader would
+      // not predict. A node the parser did not build as an instruction keeps
+      // its canonical form.
+      const { nodes } = formNodes(pb.func.body.children, false);
+      let unmarked: Form[] | undefined;
+      const forms = nodes.map((e, i) =>
+        this.writtenForm.get(e) ??
+          (unmarked ??= formNodes(pb.func.body.children).canonical)[i]!
+      );
+      recordForms(module, pb.func, forms, true);
       if (this.pos !== pb.endPos) {
         // Unconsumed input between here and the function's `)`. The instr
         // loop stops at the first thing it cannot parse and `parseInstrList`
@@ -3509,28 +3515,31 @@ export class WastParser {
       // folded expression
       const next = this.peek(1);
       if (isPlainInstr(next) || isBlockInstr(next)) {
-        this.formCounts.folded++;
         return this.parseFoldedInstr(ctx);
       }
       return Result.Error;
     }
     if (isBlockInstr(this.peek())) {
-      this.formCounts.linear++;
       return this.parseLinearBlockInstr(ctx);
     }
     if (isPlainInstr(this.peek())) {
-      this.formCounts.linear++;
       return this.parseLinearPlainInstr(ctx);
     }
     return Result.Error;
   }
 
   /**
-   * How the instructions of the body being parsed were written — every nested
-   * list comes through {@link parseOneInstr}. A body with linear instructions
-   * and no folded one is recorded as written linearly (S7, `text-form.ts`).
+   * How each instruction of the body being parsed was written (S7,
+   * `text-form.ts`): {@link BARE}, or folded around `k` items as `k + 1`. Set
+   * where each node is built; read, in binary order, once the body is done.
    */
-  private formCounts = { folded: 0, linear: 0 };
+  private writtenForm = new WeakMap<Expr, Form>();
+
+  /** Record `node`'s written form and hand it back. */
+  private written<T extends Expr>(node: T, form: Form): T {
+    this.writtenForm.set(node, form);
+    return node;
+  }
 
   // -------------------------------------------------------------------------
   // Folded instruction parsing
@@ -3585,11 +3594,13 @@ export class WastParser {
     // 3. Sub-expression loop. Only `(`-prefixed folded sub-expressions are
     //    valid here per WAT grammar; immediates have already been consumed.
     const innerCtx = newCtx();
+    let inner = 0; // folded items written inside the parens (S7)
     while (
       this.peek() === TokenType.Lpar &&
       (isPlainInstr(this.peek(1)) || isBlockInstr(this.peek(1)))
     ) {
       this.parseOneInstr(innerCtx);
+      inner++;
     }
     flushStack(innerCtx);
     const subExprEndPos = this.pos;
@@ -3639,6 +3650,7 @@ export class WastParser {
     if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
 
     if (expr !== null) {
+      this.written(expr, 1 + inner);
       if (this.producesValue(tt2, expr)) {
         ctx.stack.push(expr);
       } else {
@@ -3684,6 +3696,7 @@ export class WastParser {
           body: region(bodyCtx.stmts, loc),
           loc,
         };
+      this.written(node, 1);
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
       return Result.Ok;
@@ -3700,6 +3713,7 @@ export class WastParser {
       // until `(then` / `(else`; the last value left is the condition.
       let cond: Expr | undefined;
       const condCtx = newCtx();
+      let inner = 0; // folded items written before `(then` (S7)
       while (
         this.peek() === TokenType.Lpar && this.peek(1) !== TokenType.Then &&
         this.peek(1) !== TokenType.Else &&
@@ -3708,6 +3722,7 @@ export class WastParser {
         const before = this.pos;
         this.parseFoldedInstr(condCtx);
         if (this.pos === before) break; // nothing consumed — do not spin
+        inner++;
       }
       if (condCtx.stmts.length > 0 || condCtx.stack.length > 0) {
         // The LAST folded value is the condition. Everything folded before it
@@ -3750,7 +3765,7 @@ export class WastParser {
       this.expect(TokenType.Rpar);
 
       const condExpr: Expr = cond ?? operandPlaceholder(loc);
-      const node: IfExpr = {
+      const node: IfExpr = this.written({
         kind: 'if',
         label,
         ...this.headerOf(blockType),
@@ -3761,7 +3776,7 @@ export class WastParser {
         // neither (W1) — so an empty one is NO else. Only a binary spells it.
         ifFalse: ifFalse.length === 0 ? null : region(ifFalse, loc),
         loc,
-      };
+      }, 1 + inner);
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3794,7 +3809,7 @@ export class WastParser {
       this.leaveLabel();
       flushStack(bodyCtx);
       this.expect(TokenType.Rpar);
-      const node: TryTableExpr = {
+      const node: TryTableExpr = this.written({
         kind: 'try_table',
         label,
         ...this.headerOf(blockType),
@@ -3802,7 +3817,7 @@ export class WastParser {
         body: region(bodyCtx.stmts, loc),
         catches,
         loc,
-      };
+      }, 1);
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -3891,6 +3906,7 @@ export class WastParser {
           delegate,
           loc,
         };
+      this.written(node, 1);
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -4006,6 +4022,7 @@ export class WastParser {
           body: region(bodyCtx.stmts, loc),
           loc,
         };
+      this.written(node, BARE);
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -4055,6 +4072,7 @@ export class WastParser {
         ifFalse: ifFalse.length === 0 ? null : region(ifFalse, loc),
         loc,
       };
+      this.written(node, BARE);
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -4122,6 +4140,7 @@ export class WastParser {
           delegate,
           loc,
         };
+      this.written(node, BARE);
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -4168,6 +4187,7 @@ export class WastParser {
         catches,
         loc,
       };
+      this.written(node, BARE);
       const hasValue = blockType.kind !== 'void';
       if (hasValue) ctx.stack.push(node);
       else pushStmt(ctx, node);
@@ -4197,6 +4217,7 @@ export class WastParser {
 
     const expr = this.buildPlainExpr(tok, loc, operands);
     if (expr === null) return Result.Error;
+    this.written(expr, BARE);
 
     if (this.producesValue(tt, expr)) {
       ctx.stack.push(expr);

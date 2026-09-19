@@ -12,6 +12,11 @@
 // name section. What these tests compare — instruction and section encodings —
 // the name section does not touch, so the reference leaves it out.
 //
+// The same for S7's `binaryang.text-form` section: `parseWat` keeps no text
+// form (the optimizer's path is not fidelity-tied), and since the mixed-form
+// record a source written other than as the plain nested fold gets one — so
+// the reference is assembled without it (`textForm: false`).
+//
 // ⚠️ Only for `parseWat` comparisons. A DECODE → ENCODE test must use the full
 // `wat2wasm` bytes: binaryen-ts keeps names on that path, and stripping them
 // would hide exactly the loss P4–P5 closed (the three that used this until P5 —
@@ -60,8 +65,8 @@ export function withoutNameSection(binary: Uint8Array): Uint8Array {
   return out;
 }
 
-/** `wat2wasm`, with the name section cut out of the binary. See the file header. */
+/** `wat2wasm`, with no text-form section and the name section cut out. See the file header. */
 export function wabtReference(wat: string, opts: Wat2WasmOptions = {}): Wat2WasmResult {
-  const r = wat2wasm(wat, opts);
+  const r = wat2wasm(wat, { textForm: false, ...opts });
   return r.binary.length === 0 ? r : { ...r, binary: withoutNameSection(r.binary) };
 }

@@ -61,7 +61,7 @@ import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
-import { isWrittenLinear } from '../ir/text-form.ts';
+import { BARE, type Form, writtenForms } from '../ir/text-form.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { Result } from '../core/result.ts';
 
@@ -83,6 +83,20 @@ const STRUCTURED: ReadonlySet<string> = new Set([
   'try_table',
   'region',
 ]);
+
+/**
+ * One item of a body as it was written (S7, `text-form.ts`): an instruction,
+ * bare or folded around the `inner` items written inside its parens; a
+ * construct's `arms` are its bodies — `then` and `else`, `do` and each catch.
+ */
+interface WrittenItem {
+  readonly e: Expr;
+  readonly folded: boolean;
+  readonly inner: WrittenItem[];
+  readonly arms: WrittenItem[][];
+  /** A code-metadata annotation, not an instruction: always as it is. */
+  readonly annotation?: true;
+}
 
 // ---------------------------------------------------------------------------
 // Public options & entry point
@@ -116,11 +130,13 @@ export interface WriteWatOptions {
   fold?: boolean;
   /**
    * Write each function in the form it was WRITTEN, where the module records
-   * one (S7, `text-form.ts`): a function written linearly comes back linearly
-   * even under `fold`. Default: **`true`** — `wat2wasm` → `wasm2wat` transpiles
+   * one (S7, `text-form.ts`): every instruction bare or folded, and grouped,
+   * as in the source — linear stays linear, a mix stays the same mix — even
+   * under `fold`. Default: **`true`** — `wat2wasm` → `wasm2wat` transpiles
    * verbatim (owner, 2026-09-19). `false` ignores the record, so `fold` alone
-   * decides. A module that records nothing — any binary not from our
-   * `wat2wasm`, any optimized one — is written by `fold` either way.
+   * decides. A function the module records nothing for — written as the plain
+   * nested fold, or from any binary not from our `wat2wasm`, or optimized — is
+   * written by `fold` either way.
    */
   asWritten?: boolean;
   /** Emit `(export "name")` inline inside func/global/table/memory declarations. Default: `true`. */
@@ -1455,6 +1471,248 @@ class WatWriter extends ModuleContext {
   }
 
   /**
+   * A body as it was WRITTEN (S7, `text-form.ts`): its instructions, in binary
+   * order, grouped by `forms` — a folded instruction takes the `k` folded items
+   * written just before it — into the items the text had. `null` when the
+   * forms do not fit the body (a count that differs, a fold around more items
+   * than precede it, or around a bare one), decided before anything is written.
+   */
+  private writtenItems(body: Expr[], forms: readonly Form[]): WrittenItem[] | null {
+    const top: WrittenItem[] = [];
+    // The item lists being filled: the body, then each open construct's arm.
+    const lists: WrittenItem[][] = [top];
+    const open: WrittenItem[] = [];
+    let at = 0;
+    let fits = true;
+    const current = (): WrittenItem[] => lists[lists.length - 1]!;
+    const take = (e: Expr): WrittenItem => {
+      const form = forms[at++];
+      if (form === undefined) {
+        fits = false;
+        return { e, folded: false, inner: [], arms: [] };
+      }
+      if (form === BARE) return { e, folded: false, inner: [], arms: [] };
+      const list = current();
+      const inner = list.splice(list.length - (form - 1), form - 1);
+      if (inner.length !== form - 1 || inner.some((i) => !i.folded)) fits = false;
+      return { e, folded: true, inner, arms: [] };
+    };
+    const instr = (e: Expr): Result => {
+      current().push(take(e));
+      return Result.Ok;
+    };
+    const begin = (e: Expr): Result => {
+      const item = take(e);
+      current().push(item);
+      open.push(item);
+      const arm: WrittenItem[] = [];
+      item.arms.push(arm);
+      lists.push(arm);
+      return Result.Ok;
+    };
+    const nextArm = (): Result => {
+      const arm: WrittenItem[] = [];
+      open[open.length - 1]!.arms.push(arm);
+      lists[lists.length - 1] = arm;
+      return Result.Ok;
+    };
+    const end = (): Result => {
+      open.pop();
+      lists.pop();
+      return Result.Ok;
+    };
+    const handlers: Record<string, (e: Expr) => Result> = {
+      afterIfTrueExpr: nextArm,
+      onCatchExpr: nextArm,
+      // `delegate` closes a `try` in place of its `end`.
+      onDelegateExpr: end,
+      onCodeMetadataExpr: (e) => {
+        current().push({ e, folded: true, inner: [], arms: [], annotation: true });
+        return Result.Ok;
+      },
+    };
+    const delegate = new Proxy({} as ExprVisitorDelegate, {
+      get: (_t, name) => {
+        if (typeof name !== 'string') return undefined;
+        if (handlers[name]) return handlers[name];
+        if (name.startsWith('begin')) return begin;
+        if (name.startsWith('end')) return end;
+        if (name.startsWith('on')) return instr;
+        return undefined;
+      },
+    });
+    new ExprVisitor(delegate).visitExprList(body);
+    return fits && at === forms.length && lists.length === 1 ? top : null;
+  }
+
+  /** Write {@link writtenItems}' items, each in the form it was written. */
+  private writeItems(items: readonly WrittenItem[]): void {
+    for (const item of items) this.writeItem(item);
+  }
+
+  /** One delegate for every item: its callbacks read the writer's state as they run. */
+  private itemDelegate: ExprVisitorDelegate | undefined;
+
+  private writeItem(item: WrittenItem): void {
+    const d = this.itemDelegate ??= this.makeDelegate();
+    const e = item.e;
+    if (item.annotation) {
+      d.onCodeMetadataExpr?.(e as Parameters<NonNullable<typeof d.onCodeMetadataExpr>>[0]);
+      return;
+    }
+    if (!STRUCTURED.has(e.kind)) {
+      if (!item.folded) {
+        new ExprVisitor(d).visitShallow(e, () => {});
+        return;
+      }
+      this.puts('(', NC.None);
+      this.indent += 2;
+      new ExprVisitor(d).visitShallow(e, () => {});
+      this.writeItems(item.inner);
+      this.close(NC.Space);
+      return;
+    }
+    const [first = [], ...rest] = item.arms;
+    switch (e.kind) {
+      case 'block':
+      case 'loop': {
+        const isLoop = e.kind === 'loop';
+        if (!item.folded) {
+          if (isLoop) d.beginLoopExpr?.(e);
+          else d.beginBlockExpr?.(e);
+          this.writeItems(first);
+          if (isLoop) d.endLoopExpr?.(e);
+          else d.endBlockExpr?.(e);
+          return;
+        }
+        this.puts('(', NC.None);
+        this.putsSpace(isLoop ? 'loop' : 'block');
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
+        this.writeBlockType(this.declaredBlockType(e));
+        this.newline(true);
+        this.beginBlock(
+          this.shownLabel(e.label),
+          isLoop ? LabelType.Loop : LabelType.Block,
+          this.declaredBlockType(e),
+        );
+        this.indent += 2;
+        this.writeItems(first);
+        this.endBlock();
+        this.close(NC.Space);
+        return;
+      }
+      case 'try_table': {
+        if (!item.folded) {
+          d.beginTryTableExpr?.(e);
+          this.writeItems(first);
+          d.endTryTableExpr?.(e);
+          return;
+        }
+        this.puts('(', NC.None);
+        this.putsSpace('try_table');
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
+        this.writeBlockType(this.declaredBlockType(e));
+        this.newline(true);
+        this.indent += 2;
+        for (const tc of e.catches) this.writeTableCatch(tc);
+        this.beginBlock(this.shownLabel(e.label), LabelType.TryTable, this.declaredBlockType(e));
+        this.writeItems(first);
+        this.endBlock();
+        this.close(NC.Space);
+        return;
+      }
+      case 'try': {
+        if (!item.folded) {
+          d.beginTryExpr?.(e);
+          this.writeItems(first);
+          if (e.delegate !== undefined) {
+            d.onDelegateExpr?.(e);
+            return;
+          }
+          e.catches.forEach((c, i) => {
+            d.onCatchExpr?.(e, c, i);
+            this.writeItems(rest[i] ?? []);
+          });
+          d.endTryExpr?.(e);
+          return;
+        }
+        this.puts('(', NC.None);
+        this.putsSpace('try');
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
+        this.writeBlockType(this.declaredBlockType(e));
+        this.newline(true);
+        this.beginBlock(this.shownLabel(e.label), LabelType.Try, this.declaredBlockType(e));
+        this.indent += 2;
+        this.puts('(', NC.None);
+        this.putsSpace('do');
+        this.indent += 2;
+        this.writeItems(first);
+        this.close(NC.Newline);
+        if (e.delegate !== undefined) {
+          this.puts('(', NC.None);
+          this.putsSpace('delegate');
+          this.indent += 2;
+          this.writeVar(e.delegate, NC.None);
+          this.close(NC.Newline);
+        } else {
+          e.catches.forEach((c, i) => {
+            this.puts('(', NC.None);
+            if (c.tag !== undefined) {
+              this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
+              this.writeVar(c.tag, NC.Space);
+            } else {
+              this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
+            }
+            this.indent += 2;
+            this.writeItems(rest[i] ?? []);
+            this.close(NC.Newline);
+          });
+        }
+        this.endBlock();
+        this.close(NC.Space);
+        return;
+      }
+      case 'if': {
+        const [elseArm = []] = rest;
+        if (!item.folded) {
+          d.beginIfExpr?.(e);
+          this.writeItems(first);
+          d.afterIfTrueExpr?.(e);
+          this.writeItems(elseArm);
+          d.endIfExpr?.(e);
+          return;
+        }
+        this.puts('(', NC.None);
+        this.putsSpace('if');
+        if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
+        this.writeBlockType(this.declaredBlockType(e));
+        this.newline(true);
+        this.indent += 2;
+        // `(if bt foldedinstr* (then …))`: the items written before `(then`.
+        this.writeItems(item.inner);
+        this.beginBlock(this.shownLabel(e.label), LabelType.If, this.declaredBlockType(e));
+        if (item.inner.length > 0) this.newline(true);
+        this.puts('(', NC.None);
+        this.putsSpace('then');
+        this.indent += 2;
+        this.writeItems(first);
+        this.close(NC.Space);
+        if (e.ifFalse !== null && e.ifFalse.children.length > 0) {
+          this.newline(true);
+          this.puts('(', NC.None);
+          this.putsSpace('else');
+          this.indent += 2;
+          this.writeItems(elseArm);
+          this.close(NC.Space);
+        }
+        this.endBlock();
+        this.close(NC.Space);
+        return;
+      }
+    }
+  }
+
+  /**
    * Emit a constant expression as ONE folded s-expression, e.g.
    * `(ref.func $f)` or `(ref.i31 (global.get $g))`.
    *
@@ -2240,9 +2498,12 @@ class WatWriter extends ModuleContext {
     this.beginFunc(func);
     this.labelFunc = func.name;
     this.bodyLocalNames = localNames;
-    // S7: a body written linearly is written back linearly (`text-form.ts`).
-    if (this.opts.asWritten && isWrittenLinear(this.module, func)) {
-      this.writeExprListLinear(func.body.children);
+    // S7: a body is written back as it was written — bare, folded, or any mix
+    // (`text-form.ts`). Forms that do not fit the body fall back to `fold`.
+    const forms = this.opts.asWritten ? writtenForms(this.module, func) : undefined;
+    const written = forms === undefined ? null : this.writtenItems(func.body.children, forms);
+    if (written !== null) {
+      this.writeItems(written);
     } else {
       this.writeExprList(func.body.children);
     }

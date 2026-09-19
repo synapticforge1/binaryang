@@ -74,12 +74,17 @@ export interface Wasm2WatOptions {
   fold?: boolean;
   /**
    * Write each function in the form it was WRITTEN, where the binary records it
-   * (S7: the `binaryang.text-form` section our `wat2wasm` writes for functions
-   * written linearly). Default: **`true`** — `wat2wasm` → `wasm2wat` transpiles
-   * verbatim (owner, 2026-09-19). `false` ignores the record and lets `fold`
-   * decide every function. A binary without the section — from any other tool,
-   * or optimized — is written by `fold` either way. CLI: `--fold` sets this
-   * `false` (everything folded); `--linear` writes everything linearly.
+   * (S7: the `binaryang.text-form` section our `wat2wasm` writes — every
+   * instruction bare or folded, grouped as in the source, so linear stays
+   * linear and a mix stays the same mix). `false` ignores the record and lets
+   * `fold` decide every function. A function the binary records nothing for —
+   * written as the plain nested fold, or from any other tool, or optimized — is
+   * written by `fold` either way.
+   *
+   * Default: **`true` unless `fold` is given** — `wat2wasm` → `wasm2wat`
+   * transpiles verbatim (owner, 2026-09-19), and NAMING a form asks for that
+   * form everywhere. CLI: `--fold` folds every function, `--linear` writes
+   * every one flat.
    */
   asWritten?: boolean;
   /**
@@ -131,7 +136,7 @@ export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2W
   const text = writeWatModule(module, {
     inlineExport: opts.inlineExport !== false,
     fold: opts.fold !== false,
-    asWritten: opts.asWritten !== false,
+    asWritten: opts.asWritten ?? opts.fold === undefined,
     // This module came from a BINARY, where a branch target is a depth and the
     // author's spelling was never in the file — so a label's name (N2) is the
     // best text there is, and `br $outer` beats `br 1 (;@1;)` beside a block
@@ -171,14 +176,15 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       // Explicit, even though folded is the default since 1.5.4: a script
       // that needs folded output should be able to ASK for it rather than rely
       // on the default staying put. Asked for, it means EVERY function —
-      // including those the binary records as written linearly (S7).
+      // including those the binary records as written otherwise (S7).
       fold = true;
       asWritten = false;
     } else if (arg === '--linear' || arg === '-l') {
       // The stack-machine view: one line per instruction, in execution
       // order. No longer the default, but its reason for existing is
-      // unchanged.
+      // unchanged. Every function, as `--fold`.
       fold = false;
+      asWritten = false;
     } else if (arg && !arg.startsWith('-')) {
       input = arg;
     }
@@ -189,7 +195,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       'usage: wasm2wat <input.wasm> [-o <output.wat>] [--linear|-l] [--fold|-f] [--generate-names]',
     );
     console.error(
-      '  each function is written in the form it was written (our wat2wasm records it),\n' +
+      '  every instruction is written in the form it was written (our wat2wasm records it),\n' +
         '  otherwise FOLDED; --fold folds every function, --linear writes every one flat',
     );
     console.error(
