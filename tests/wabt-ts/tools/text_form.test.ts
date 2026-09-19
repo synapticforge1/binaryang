@@ -252,26 +252,36 @@ describe('S7 — binaryen-ts: kept without passes, dropped by the optimizer', ()
     assert(eq(encodeWasm(parseWasm(bytes)), bytes));
   });
 
-  // binaryen-ts's tree is not the wabt-ts reader's: for a multi-value operand
-  // the reader hangs the call's neighbour on it (it counts operand NODES), the
-  // decoder leaves a `pop`. The section is predicted from the READER's tree,
-  // so the decoder predicts with that reader too — or it would skip the entry
-  // and lose the form on a plain decode → encode.
-  it('decode → encode keeps a record its own tree would predict differently', () => {
+  // The section is predicted from the wabt-ts READER's tree, and binaryen-ts's
+  // decoder predicts with that reader rather than with its own tree.
+  //
+  // 🔧 This fixture was written when the two trees DID disagree here — the
+  // reader popped operand NODES, so a multi-value operand took the call's
+  // neighbour. They agree everywhere in the corpus since the reader pops
+  // VALUES (One front end, stage 2), so the disagreement can no longer be
+  // staged; what the guard does when a tree disagrees is covered by
+  // "an entry that does not match its tree is skipped" below.
+  it('decode → encode keeps a record for a multi-value tree', () => {
+    // The consumer is written LINEARLY, so it has a record to keep; its tree is
+    // the multi-value one (`$pair` fills two of `$add2`'s three operand slots).
     const src = `(module
       (func $pair (result i32 i32) (i32.const 1) (i32.const 2))
       (func $take2 (param i32 i32) (result i32) (i32.sub (local.get 0) (local.get 1)))
       (func $add2 (param i32 i32) (result i32) (i32.add (local.get 0) (local.get 1)))
       (func (export "f") (param i32) (result i32)
-        (call $add2 (local.get 0) (call $take2 (call $pair)))))`;
+        local.get 0
+        call $pair
+        call $take2
+        call $add2))`;
     const bytes = asm(src);
-    // The premise: the two trees predict differently, and there is an entry.
+    // The premise: the two trees agree on the prediction, and the record is
+    // there to be kept.
     const plain = asm(src, { textForm: false });
     const reader = readBinaryIr(plain, makeErrorList()).functions[3]!;
     const decoded = parseWasm(plain).functions[3]!;
-    assertNotEquals(
-      formNodes(reader.body.children).canonical,
+    assertEquals(
       formNodes(decoded.body.children).canonical,
+      formNodes(reader.body.children).canonical,
     );
     assertEquals(decodeTextForm(trailingRecord(bytes)!)!.map((e) => e.index), [3]);
 

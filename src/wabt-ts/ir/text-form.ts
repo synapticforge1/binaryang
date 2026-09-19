@@ -147,11 +147,20 @@ function canonicalForm(e: Expr): Form {
     case 'if':
       return 1 + [...(e.params?.values ?? []), e.condition].filter((x) => x.kind !== 'pop').length;
     default: {
-      let k = 0;
-      new ExprVisitor({}).visitShallow(e, (op) => {
-        if (op.kind !== 'pop') k++;
-      });
-      return 1 + k;
+      // What the fold writer actually nests (`foldSpec`): a PREFIX of `pop`s is
+      // expressible by omitting it, so the items are every operand from the
+      // first non-pop on. A pop SCATTERED among them is not expressible at all
+      // — that node is written as siblings plus a bare head, which is `1`.
+      //
+      // ⚠️ This counted every non-pop operand, which is the same number only
+      // while pops form a prefix. Multi-value producers put one mid-list (One
+      // front end, stage 2), and the prediction then disagreed with the writer
+      // on 4 corpus files, so their recorded forms could not be reproduced.
+      const ops: Expr[] = [];
+      new ExprVisitor({}).visitShallow(e, (op) => ops.push(op));
+      const first = ops.findIndex((op) => op.kind !== 'pop');
+      if (first === -1) return 1;
+      return ops.slice(first).some((op) => op.kind === 'pop') ? 1 : 1 + (ops.length - first);
     }
   }
 }

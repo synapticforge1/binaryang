@@ -199,7 +199,10 @@ class Frame {
   }
 
   flush(): Expr[] {
-    const result = [...this.stmts, ...this.stack];
+    // A `pop` placeholder nobody consumed is not part of the program: it stands
+    // for a value a later instruction was expected to take (`pushValues`), it
+    // writes nothing, and as a statement it is a node no consumer can type.
+    const result = [...this.stmts, ...this.stack.filter((e) => e.kind !== 'pop')];
     this.stmts = [];
     this.stack = [];
     return result;
@@ -239,8 +242,18 @@ class Frame {
  * on the other side of the round-trip (v1.3.0).
  */
 function pushStmt(stack: Expr[], stmts: Expr[], expr: Expr): void {
-  for (const pending of stack) stmts.push(pending);
+  // A `pop` placeholder is NOT a pending instruction: it stands for a value a
+  // later instruction will consume — a multi-result producer's earlier values
+  // (`pushValues`) — and it writes nothing. It stays on the stack.
+  //
+  // 🔧 Draining it committed it as a statement, and the instruction that should
+  // have consumed it took a fresh placeholder instead: two `local.set`s after a
+  // two-result call read back as a stray `pop` statement and a `local.set` of
+  // nothing, in 2,727 corpus functions (One front end, stage 2, 2026-09-19).
+  const held = stack.filter((e) => e.kind === 'pop');
+  for (const pending of stack) if (pending.kind !== 'pop') stmts.push(pending);
   stack.length = 0;
+  stack.push(...held);
   stmts.push(expr);
 }
 
@@ -382,6 +395,24 @@ function popN(stack: Expr[], n: number): Expr[] {
     );
   }
   return result;
+}
+
+/**
+ * Push one stack entry per VALUE `node` produces: a multi-result producer takes
+ * `count` slots — the node itself on top, a `pop` placeholder beneath it for
+ * each earlier value.
+ *
+ * 🔧 The stack held one entry per NODE, so a consumer popping two values took
+ * the producer AND ITS NEIGHBOUR:
+ * `(call $add2 (local.get 0) (call $take2 (call $pair)))`, with `$pair`
+ * returning two values, read back with the `local.get` hanging on `$take2` and
+ * a placeholder left for `$add2`. The bytes were right; the tree every consumer
+ * reads was not (41 corpus functions; One front end, stage 2, 2026-09-19).
+ * binaryen-ts's decoder has modelled it this way all along.
+ */
+function pushValues(stack: Expr[], node: Expr, count: number, loc: Location): void {
+  for (let i = 1; i < count; i++) stack.push(operandPlaceholder(loc));
+  stack.push(node);
 }
 
 // ---------------------------------------------------------------------------
@@ -1736,7 +1767,7 @@ export class BinaryReader {
             // by emitting linear form, which reassembles -- so this was invisible
             // in bytes and visible only as an IR that could not be folded.
             const rCount = blockResultCount(frame.blockType, m);
-            if (rCount > 0) parent.stack.push(node);
+            if (rCount > 0) pushValues(parent.stack, node, rCount, loc);
             else pushStmt(parent.stack, parent.stmts, node);
           }
           break;
@@ -1820,7 +1851,7 @@ export class BinaryReader {
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
           const callExpr: Expr = { kind: 'call', func: varIndex(funcIdx), operands: args, loc };
-          if (sig.results.length > 0) stack.push(callExpr);
+          if (sig.results.length > 0) pushValues(stack, callExpr, sig.results.length, loc);
           else pushStmt(stack, stmts, callExpr);
           break;
         }
@@ -1843,7 +1874,7 @@ export class BinaryReader {
             callee,
             loc,
           };
-          if (sig.results.length > 0) stack.push(ciExpr);
+          if (sig.results.length > 0) pushValues(stack, ciExpr, sig.results.length, loc);
           else pushStmt(stack, stmts, ciExpr);
           break;
         }
@@ -1859,7 +1890,7 @@ export class BinaryReader {
             callee,
             loc,
           };
-          if (sig.results.length > 0) stack.push(crExpr);
+          if (sig.results.length > 0) pushValues(stack, crExpr, sig.results.length, loc);
           else pushStmt(stack, stmts, crExpr);
           break;
         }
