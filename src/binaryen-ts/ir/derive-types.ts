@@ -199,9 +199,10 @@ class Deriver {
   /**
    * What `e` leaves on the stack — its type, except where wasm's rule and the
    * tree can disagree. A `br_if` falls through with exactly its target's
-   * values, whether or not the tree holds them as its operands (wabt-ts's
-   * binary reader does not treat a `br_if` as producing a value, so
-   * `(br_if 0 (br_if 0 …) …)` reads as two siblings). A `br_on_*` falls
+   * values, whether or not the tree holds them as its operands (the WAT
+   * parser does not know a target's arity, so LINEAR text's
+   * `br_if 0 … br_if 0` reads as two siblings — post-M8 fix 5; wabt-ts's
+   * binary reader did the same until fix 4). A `br_on_*` falls
    * through with its carried values AND — except `br_on_non_null` — the ref;
    * its node type is the ref's alone, as the decoder gives it.
    */
@@ -363,7 +364,7 @@ class Deriver {
       case ExpressionKind.Break:
         // A `br_if` falls through with its target's values — what the
         // factory's rule (its operands' types) gives on a well-formed tree, and
-        // right on one whose value the reader left as a sibling (see `leave`).
+        // right on one whose value the tree left as a sibling (see `leave`).
         return e.condition === undefined
           ? typeOf(makeBreak('', e.condition, e.values))
           : resultOf(this.carried(e.target));

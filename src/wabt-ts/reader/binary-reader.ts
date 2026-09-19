@@ -1710,13 +1710,15 @@ export class BinaryReader {
             if (v === undefined) break;
             values.unshift(v);
           }
-          pushStmt(stack, stmts, {
-            kind: 'br',
-            target: varIndex(depth),
-            condition: cond_,
-            values,
-            loc,
-          });
+          const node: Expr = { kind: 'br', target: varIndex(depth), condition: cond_, values, loc };
+          // A `br_if` whose target carries ONE value leaves it on the stack
+          // when it falls through, so it is an OPERAND. As a statement,
+          // `(i32.add (br_if 0 v c) x)` read back as two siblings, which
+          // `wasm2wat` printed unlike upstream's. Two or more values stay a
+          // statement, as upstream folds them: one stack slot would let a
+          // `drop` take the whole tuple.
+          if (rCount === 1) stack.push(node);
+          else pushStmt(stack, stmts, node);
           break;
         }
         case Opcode.BrTable: {

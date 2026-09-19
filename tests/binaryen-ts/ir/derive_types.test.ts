@@ -260,15 +260,33 @@ describe('M8d — deriveTypes: `pop`, typed by the value stack', () => {
 });
 
 describe("M8d — deriveTypes: branches follow wasm's rule where the tree shape differs", () => {
-  it("a br_if whose value the reader left as a sibling falls through with its target's values", () => {
-    // wabt-ts's reader reads the inner br_if as a sibling, not the outer's value.
+  it("a br_if whose value the tree left as a sibling falls through with its target's values", () => {
+    // The WAT parser, reading LINEAR text, leaves the inner br_if as a sibling,
+    // not the outer's value (it does not know a target's arity: post-M8 fix 5).
+    // ⚠️ This came from wabt-ts's binary reader until post-M8 fix 4 made a
+    // one-value br_if an operand there; when fix 5 lands, build the tree by hand.
+    const m = fromText(`(module (func (result i32)
+      (block (result i32)
+        i32.const 1
+        i32.const 2
+        br_if 0
+        i32.const 3
+        br_if 0
+        drop
+        i32.const 4)))`);
+    const brs = all(m.functions[0]!.body, 'br');
+    assertEquals(brs.map((b) => b.type), [ValType.I32, ValType.I32]);
+    assertEquals(all(m.functions[0]!.body, 'pop').map((p) => p.type), [ValType.I32]);
+  });
+
+  it('the binary reader nests that br_if as the value: the same types, and no pop', () => {
     const m = fromBinary(`(module (func (result i32)
       (block (result i32)
         (drop (br_if 0 (br_if 0 (i32.const 1) (i32.const 2)) (i32.const 3)))
         (i32.const 4))))`);
     const brs = all(m.functions[0]!.body, 'br');
     assertEquals(brs.map((b) => b.type), [ValType.I32, ValType.I32]);
-    assertEquals(all(m.functions[0]!.body, 'pop').map((p) => p.type), [ValType.I32]);
+    assertEquals(all(m.functions[0]!.body, 'pop'), []);
   });
 
   it('br_on_null falls through with its carried values AND the ref', () => {
@@ -298,9 +316,10 @@ describe("M8d — deriveTypes: branches follow wasm's rule where the tree shape 
   });
 
   it("a br_if removes its target's values even when the tree does not hold them", () => {
-    // The reader leaves the inner br_if as a sibling; the outer br_if still
-    // consumes its value, so the second drop reaches the i64 below.
-    const m = fromBinary(`(module (func (result i32)
+    // The parser leaves the inner br_if as a sibling (linear text; see above);
+    // the outer br_if still consumes its value, so the second drop reaches the
+    // i64 below.
+    const m = fromText(`(module (func (result i32)
       (block (result i32)
         i64.const 9
         i32.const 1
