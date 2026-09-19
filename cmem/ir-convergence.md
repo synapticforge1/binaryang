@@ -4092,6 +4092,28 @@ defects to the task list"); their scope is in open-work.md.
      reading the FIRST target's arity instead of the default's, survives and is EQUIVALENT: every
      target of a valid `br_table` carries the same values.
    - Gate on `cf1b50bd8`: exit 0, 1262 tests; baseline IDENTICAL.
+10. ✅ **A branch to the function label carries the function's results** (`a7915f1e1`, 2026-09-19;
+    divergence W9 (b)).
+    - The defect: the binary reader's root frame for a function body has a void block type, and
+      `brTargetResultCount` read the arity from it — so a `br` / `br_if` / `br_table` / `br_on_null`
+      to the outermost label carried nothing, and its values stayed siblings.
+    - The fix: `brTargetResultCount` takes the function's result count for the root frame (0 in an
+      init expression, which cannot branch — equivalent for any valid input).
+    - Measured (main against the branch, fix 4's 6,436 binaries): folded text 21 changed, linear 0,
+      all re-assembling as before; baseline IDENTICAL. Direct children against upstream 1.0.41:
+      `br` 11 → 21 of 23, `br_if` 11 → 14 of 19, `br_table` 86 → 92 of 98 (`return` 34 of 35 both);
+      `br_if` parents 17 → 19 of 19. The residual inspected (`br_table.0`) is unreachable code — W10.
+    - Test `function_label_arity.test.ts`; the root-arity-0 mutant fails 5 of its 6 steps (the sixth
+      checks bytes and V8 answers, which the defect never touched).
+    - `deriveTypes`' stack rule is still needed, and its notes say why: a `br_if` carrying TWO or
+      more values stays a statement in both front ends (as upstream folds it), so what consumes those
+      values finds `pop`s.
+    - Gate on `a7915f1e1`: exit 0, 1263 tests; baseline IDENTICAL.
+
+**The post-M8 list is COMPLETE (2026-09-19): 10 of 10.** Across it, bytes moved only where they
+were wrong — fix 6 (a dropped `nop`) and fix 8 (memory indices from 128) — and the rest changed
+types, trees and folded text. What it left open is W10 ([divergences.md](divergences.md)), the
+owner's call.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one

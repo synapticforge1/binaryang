@@ -201,9 +201,11 @@ class Deriver {
    * tree can disagree. A `br_if` falls through with exactly its target's
    * values, whether or not the tree holds them as its operands: a front end
    * that does not know a target's arity reads `(br_if 0 (br_if 0 …) …)` as
-   * two siblings. wabt-ts's binary reader did until post-M8 fix 4, and still
-   * does for a branch to the function label (divergence W9); the WAT parser
-   * did until fix 5, and still does where a label cannot be resolved. A `br_on_*` falls
+   * two siblings. wabt-ts's binary reader did until post-M8 fixes 4 and 10,
+   * the WAT parser until fix 5 (and still does where a label cannot be
+   * resolved). Both still leave a `br_if` carrying TWO or more values a
+   * statement, as upstream folds it, so what consumes them finds `pop`s this
+   * rule types. A `br_on_*` falls
    * through with its carried values AND — except `br_on_non_null` — the ref;
    * its node type is the ref's alone, as the decoder gives it.
    */

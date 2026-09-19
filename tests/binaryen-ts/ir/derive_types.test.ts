@@ -47,10 +47,11 @@ function fromBinary(wat: string): W.Module {
  * Lift the operand in `slot` of `list[i]` out as the sibling BEFORE it, leaving
  * a `pop` behind in a `value`, and NOTHING in a branch's `values` (the value
  * drops out, as the binary reader's tree had it) — the tree a front end builds
- * when it does not know a value is there. Neither does so for a `br_if` since
- * post-M8 fixes 4 (the binary reader) and 5 (the WAT parser), except the reader
- * for a branch to the FUNCTION label (divergence W9) — so the shapes
- * `deriveTypes`' stack rule exists for are built here by hand.
+ * when it does not know a value is there. Neither does so for a one-value
+ * `br_if` since post-M8 fixes 4 and 10 (the binary reader; 10 was a branch to
+ * the FUNCTION label) and 5 (the WAT parser) — so the shapes `deriveTypes`'
+ * stack rule exists for are built here by hand. (It still meets them: a
+ * two-value `br_if` stays a statement in both.)
  */
 function lift(list: unknown[], i: number, slot: 'value' | 'values'): void {
   // deno-lint-ignore no-explicit-any

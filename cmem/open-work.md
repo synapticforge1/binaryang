@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 9 of 10 done; resume at fix 10)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: ALL 10 DONE; the next step is the owner's call)
 
-**Where the work stopped.** `main` is at the merge of post-M8 fix 9 (code last changed at
-`cf1b50bd8`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `cf1b50bd8` (as on every stage before it) and every step exited 0: fmt, lint, **1262 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of post-M8 fix 10 (code last changed at
+`a7915f1e1`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `a7915f1e1` (as on every stage before it) and every step exited 0: fmt, lint, **1263 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -105,32 +105,29 @@ entity collections stay there until the records themselves are one type (M8).
 
 ### Next, in order
 
-1. **Post-M8 fixes (owner, 2026-09-18): the defects M8d found, and the mutant M8e noted.** The list,
-   with each item's record, is [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes":
-   - ✅ `table.get` typed by its table;
-   - ✅ `makeCallIndirect`'s multi-value type;
-   - ✅ 64-bit index types for `memory.size` / `memory.grow` and `table.size` / `table.grow`;
-   - ✅ wabt-ts's binary reader makes a one-value `br_if` an operand (folded `wasm2wat` nests it as
-     upstream does: 533 → 646 of 648 `br_if` parents agree);
-   - ✅ the WAT parser knows a branch target's arity (a label stack; a void `call` is a statement);
-     trees only, bytes unchanged — and the optimizer's text route now REFUSES 109 V8-invalid modules
-     it typed silently. The M8d stack-rule tests build their sibling trees by hand (`lift`);
-   - ✅ `br_table`'s `'nop'` filter removed — not merely stale: it dropped a REAL `(nop)` child from
-     the module, one byte short of upstream `wat2wasm` (no corpus has the shape);
-   - ✅ `direct` and `direct-behaviour` also run `prepare.test.ts`'s 123 fixture modules
-     (`scripts/direct-inputs.ts`): the dropped-start mutant now fails BOTH gates;
-   - ✅ binaryen-ts reads AND writes a memory index as a LEB — six decoder reads and six encoder
-     writes (`memory.size` / `grow` / `init` / `copy` ×2 / `fill`), not the two the item named;
-   - ✅ a `br_table` holds the values it carries, in BOTH front ends (the parser followed, so they
-     agree): folded `br_table` children agree with upstream for 136 of 149, up from 37;
-   - ⏭️ **NEXT — fix 10** (added by the owner, 2026-09-19; divergence W9 (b)): wabt-ts's binary reader types the
-     FUNCTION label's frame void (`decodeBody`'s root `Frame`), so a `br` / `br_if` / `br_on_*` to
-     it carries nothing (`unwind.0` func 4). Give the root frame the function's results. ⚠️ After
-     it, `lift` in `derive_types.test.ts` names this as the last live source of sibling-shaped
-     `br_if`s — update that note.
+1. ✅ **Post-M8 fixes — ALL 10 DONE (2026-09-18 → 2026-09-19).** Each record is in
+   [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes"; each merge message carries its
+   measurements.
+
+   | fix | code        | what                                                                                          |
+   | --- | ----------- | --------------------------------------------------------------------------------------------- |
+   | 1   | `ddd5f6163` | `table.get` typed by its table                                                                |
+   | 2   | `4b2488540` | a multi-value `call_indirect` typed by every result                                          |
+   | 3   | `565e7b2c2` | size / grow typed by the memory's / table's address type                                     |
+   | 4   | `a82dadf90` | the binary reader: a one-value `br_if` is an operand                                          |
+   | 5   | `89b6a1805` | the WAT parser knows a branch target's arity; the text→optimizer route refuses 109 invalid modules it typed silently |
+   | 6   | `653fd3839` | a folded `br_table` no longer DROPS a `(nop)` operand (a byte short of upstream)              |
+   | 7   | `517bf7c89` | `direct` / `direct-behaviour` also run `prepare.test.ts`'s fixture: they now see a start section |
+   | 8   | `dbe986344` | binaryen-ts reads and writes every memory index as a LEB (12 sites, not the 2 listed)         |
+   | 9   | `cf1b50bd8` | a `br_table` holds its carried values, in both front ends (W9 (a))                           |
+   | 10  | `a7915f1e1` | a branch to the function label carries the function's results (W9 (b))                       |
+
+   Lessons from the run, in their records: a row's premise is not evidence (fixes 6 and 8 were each
+   bigger than listed); padding acts only in the FOLDED form (fixes 5 and 9 each had mutants survive
+   on it); a gate is evidence about what it REACHES (fix 7). Left open by it: **W10** (below).
 
    **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was. S6 step 5 is
-   closed; the next STEP after these fixes is the owner's call (S7 is independent and ready).
+   closed; **the next STEP is the owner's call** (S7 is independent and ready).
 2. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
    changes nothing — delete it or make it mean something, in the M7/M8 pass.
 
@@ -141,13 +138,11 @@ entity collections stay there until the records themselves are one type (M8).
 - the WAT writer does not print an empty `(offset)` / `(item)` (M2a)
 - the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8**
 - Asyncify refuses `call_ref` (K1)
-- found by M8d (its record), being fixed now (item 1 above): ~~the decoder types every `table.get` `funcref`~~ (fixed
-  `ddd5f6163`); ~~`makeCallIndirect` types a multi-value call by its
-  first result~~ (fixed `4b2488540`); ~~`makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64~~ (fixed `565e7b2c2`);
-  ~~wabt-ts's binary reader does not treat a `br_if` as producing a value~~ (fixed `a82dadf90`);
-  ~~the WAT parser does not know a branch target's arity~~ (fixed `89b6a1805`).
-- found by fix 4 (its record; divergence **W9**), **joined the list as fixes 9 and 10 (owner,
-  2026-09-19)**: the reader's `br_table` values and its function-label arity.
+- 🗓️ **W10 — folded `wasm2wat`'s remaining nesting differences from upstream** (found measuring
+  fixes 9 and 10; [divergences.md](divergences.md) W10). Text only, bytes right: (a) where a
+  statement splits an instruction's operands, upstream folds NONE of them and our writer folds
+  those it can; (b) in unreachable code upstream nests a transfer as the next one's operand. Owner's
+  call whether to match upstream here.
 
 **Working method that keeps paying** (the rules in [working-rules.md](working-rules.md) /
 [best-practices.md](best-practices.md) — today's evidence):
