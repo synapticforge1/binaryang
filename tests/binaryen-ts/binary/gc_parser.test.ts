@@ -198,10 +198,12 @@ Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr dire
   // Single-result function body: the body IS the struct.new (no wrapper block)
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.StructNew);
-  const sn = body as { typeVar: Var; operands: unknown[]; defaultInit: boolean };
+  const sn = body as { typeVar: Var; operands: unknown[]; defaultInit?: true };
   assertEquals(sn.typeVar, varIndex(0));
   assertEquals(sn.operands.length, 2);
-  assertEquals(sn.defaultInit, false);
+  // Not `struct.new_default`: the flag is `true` or ABSENT, never `false`
+  // (One front end, stage 1 — one spelling, as a call's `isReturn`).
+  assertEquals(sn.defaultInit, undefined);
 });
 
 Deno.test('GC parser: array type definition is decoded', () => {

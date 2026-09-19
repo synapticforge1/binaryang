@@ -4378,7 +4378,31 @@ before it:
      never moved (baseline IDENTICAL); the tree did — route comparison 90 functions → 0, identical
      bodies 48,540 → 48,648.
    - ✅ saturating truncations — stage 0.
-   - ⬚ `struct.new`'s `defaultInit` (`false` vs absent); ⬚ the types of nodes in unreachable code.
+   - ✅ **`defaultInit` and the unreachable `br_if`** (`1ffdcb561`; owner: option A on both, after
+     the measurement below). `struct.new`'s `defaultInit` is `true` or ABSENT, `false`
+     unrepresentable (the `isReturn` precedent, M8a2) — NOT upstream's "are the operands empty?",
+     which cannot tell `struct.new $empty` from `struct.new_default $empty` on a zero-field struct.
+     A `br_if` with an unreachable operand is unreachable (upstream `Break::finalize`): the rule was
+     missing from `deriveTypes` (the carried values) AND from binaryen-ts's own `makeBreak` (the
+     condition — found by inverting the first fix). An imported function's empty body is typed
+     `none` in `prepareForPasses`.
+   - ⬚ LEFT: the `if`-arm regions of a parametrised `if` (6 nodes, 2 modules) — the block-param
+     representation, which stage 2 settles.
+
+   **Measured for the decision** (route B against binaryen-ts's decoder, 4,115 valid corpus modules,
+   6.3M node pairs; scripts `one/stage1_rest.ts`): `defaultInit` differed on 17 of 64 `struct.new`
+   nodes, all "A `false` / B absent", no consumer affected (every one tests truthiness); no
+   zero-field non-default `struct.new` in the corpus, though it is legal. Types differed on 3,393
+   nodes / 1,535 modules: 3,381 imported-function stubs, 6 `br_if`s (spec `br.0`), 6 `if`-arm
+   regions. 🔑 **Types are not why the routes optimize differently**: copying binaryen-ts's types
+   onto route B's tree converged 1 module at -O2 and 1 at -O3 and left 12 / 48 differing — the
+   cause is operand shape (stage 2). After: `defaultInit` 0, types 6 nodes / 2 modules, identical
+   bodies 48,666 of 49,254, optimizer differences at -O2 22 → 19.
+
+   ⚠️ **Convergence exposed a PASS defect** (it ships on route A; recorded under the owner's call in
+   open-work.md): on `br.0`, `return.0` and `unreachable.0`, route B now reproduces route A's
+   INVALID optimizer output — "expected 1 elements on the stack for fallthru, found 2". B's wrong
+   type had been masking it. `names.2` is a second, A-only one: "Duplicate export name ''".
 2. **Move A's preparation into `prepareForPasses`** (pops, spills, block-param lowering as a tree
    pass), and explain B's three -O3 invalid outputs. Gate: optimizer output equal to route A's or
    each difference explained, plus a behaviour check on every differing module.
