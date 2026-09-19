@@ -26,13 +26,13 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 6 of 10 done; resume at fix 7)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 7 of 10 done; resume at fix 8)
 
-**Where the work stopped.** `main` is at the merge of post-M8 fix 6 (code last changed at
-`653fd3839`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `653fd3839` (as on every stage before it) and every step exited 0: fmt, lint, **1260 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of post-M8 fix 7 (code last changed at
+`517bf7c89`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `3f6c4d645` (as on every stage before it) and every step exited 0: fmt, lint, **1260 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
-misses**, `direct` **421/421 byte-identical to wat2wasm, valid at every level**, `direct-behaviour` **1806 calls / 602 exports agree at -O3**, `translate-eh`
+misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
 stage of item 6; `wat2wasm` output 0 of 421. Fix 4 moved folded `wasm2wat` TEXT for 2 of 421
 (re-baselined in its own commit, `abd8b7e5d`); bytes and linear text unchanged. Fix 5 changed
@@ -117,9 +117,9 @@ entity collections stay there until the records themselves are one type (M8).
      it typed silently. The M8d stack-rule tests build their sibling trees by hand (`lift`);
    - ✅ `br_table`'s `'nop'` filter removed — not merely stale: it dropped a REAL `(nop)` child from
      the module, one byte short of upstream `wat2wasm` (no corpus has the shape);
-   - ⏭️ **NEXT — fix 7:** the dropped-start mutant only `prepare.test.ts` caught. Make `deno task direct` (and
-     ideally `direct-behaviour`) also run the fixture's modules, so a gate sees start sections;
-   - fix 8 (added by the owner, 2026-09-18): the decoder reads `memory.size` / `memory.grow`'s
+   - ✅ `direct` and `direct-behaviour` also run `prepare.test.ts`'s 123 fixture modules
+     (`scripts/direct-inputs.ts`): the dropped-start mutant now fails BOTH gates;
+   - ⏭️ **NEXT — fix 8** (added by the owner, 2026-09-18): the decoder reads `memory.size` / `memory.grow`'s
      memory index as ONE BYTE where multi-memory writes a LEB `u32` — the same value below 128,
      wrong (and misaligned for the rest of the body) from 128 up. Read it as a LEB, as every other
      memory index is; test with a memory index >= 128 and against V8;
