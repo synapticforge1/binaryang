@@ -26,7 +26,7 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: ALL 10 DONE; the next step is the owner's call)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: ALL 10 DONE; next: W10b (owner-decided), then the owner's call)
 
 **Where the work stopped.** `main` is at the merge of post-M8 fix 10 (code last changed at
 `a7915f1e1`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
@@ -124,11 +124,19 @@ entity collections stay there until the records themselves are one type (M8).
 
    Lessons from the run, in their records: a row's premise is not evidence (fixes 6 and 8 were each
    bigger than listed); padding acts only in the FOLDED form (fixes 5 and 9 each had mutants survive
-   on it); a gate is evidence about what it REACHES (fix 7). Left open by it: **W10** (below).
+   on it); a gate is evidence about what it REACHES (fix 7). Left open by it: **W10**, now decided (below).
 
    **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was. S6 step 5 is
    closed; **the next STEP is the owner's call** (S7 is independent and ready).
-2. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
+2. ⏭️ **W10b (owner, 2026-09-19): nest a transfer in unreachable code, as upstream folds it.** After
+   an unconditional transfer the stack is polymorphic, and upstream `wasm2wat --fold-exprs` lets the
+   next instruction take the transfer as its value — `(br 0 (br_table 0 0 (i32.const 9)
+   (i32.const 0)))` — where ours prints siblings. The owner's principle (W10a): the more accurately
+   folded the better. Scope first: which front end builds the tree (the binary reader, as for
+   fixes 4 / 9 / 10) and whether the WAT parser should follow so the two agree; measure against
+   upstream with scratch `kids.ts` / `parents.ts`; bytes must not move. ⚠️ Keep W10a as it is — do
+   not adopt upstream's all-or-nothing rule while matching its unreachable-code nesting.
+3. **The scheduled cleanup** (below, "Follow-ups"): RemoveUnusedModuleElements's `importedFuncs` set
    changes nothing — delete it or make it mean something, in the M7/M8 pass.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
@@ -138,11 +146,11 @@ entity collections stay there until the records themselves are one type (M8).
 - the WAT writer does not print an empty `(offset)` / `(item)` (M2a)
 - the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8**
 - Asyncify refuses `call_ref` (K1)
-- 🗓️ **W10 — folded `wasm2wat`'s remaining nesting differences from upstream** (found measuring
-  fixes 9 and 10; [divergences.md](divergences.md) W10). Text only, bytes right: (a) where a
-  statement splits an instruction's operands, upstream folds NONE of them and our writer folds
-  those it can; (b) in unreachable code upstream nests a transfer as the next one's operand. Owner's
-  call whether to match upstream here.
+- **W10 — folded `wasm2wat`'s remaining nesting differences from upstream: DECIDED (owner,
+  2026-09-19)** — "the more accurate the folded nature the better our setup treats it". (a) where a
+  statement splits operands we fold what we truly hold, upstream folds none: **keep ours** (W10a,
+  DESIGN). (b) in unreachable code upstream nests a transfer as the next one's operand: **match
+  upstream** (W10b, DEFECT) — item 2 in "Next, in order".
 
 **Working method that keeps paying** (the rules in [working-rules.md](working-rules.md) /
 [best-practices.md](best-practices.md) — today's evidence):

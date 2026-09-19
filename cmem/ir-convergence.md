@@ -12,6 +12,14 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 > Measured on the new route: every corpus module, written by our `wasm2wat` in linear or folded
 > form, reads back 421/421 valid and byte-identical to decoding its original bytes.
 
+> 🛑 **Owner decision, 2026-09-19 — prefer the more ACCURATELY FOLDED form.** "The more accurate
+> the folded nature the better our setup treats it." The defects this project kept finding were in
+> the linear / less-folded shapes (post-M8 fixes 4, 5, 9, 10), so where our text can be folded
+> truly, fold it, even where upstream `wasm2wat --fold-exprs` stays flatter; where upstream folds
+> MORE, match it. Applied first to divergence W10: keep our folding where a statement splits an
+> instruction's operands (W10a, DESIGN), match upstream's nesting in unreachable code (W10b, open).
+> Bytes are never the question — both forms assemble to the same code.
+
 ## Where it stands — 2026-09-17
 
 **The goal is ONE TREE with TWO VERB SETS, not one merged IR.** Fidelity and optimization are two
@@ -4112,8 +4120,10 @@ defects to the task list"); their scope is in open-work.md.
 
 **The post-M8 list is COMPLETE (2026-09-19): 10 of 10.** Across it, bytes moved only where they
 were wrong — fix 6 (a dropped `nop`) and fix 8 (memory indices from 128) — and the rest changed
-types, trees and folded text. What it left open is W10 ([divergences.md](divergences.md)), the
-owner's call.
+types, trees and folded text. What it left open is W10 ([divergences.md](divergences.md)), decided
+by the owner on 2026-09-19: keep our folding where a statement splits operands (W10a, DESIGN), match
+upstream's nesting in unreachable code (W10b, to fix) — "the more accurate the folded nature the
+better our setup treats it".
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
