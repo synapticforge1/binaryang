@@ -35,6 +35,18 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 > "It is basically a one to one translation unless it goes through optimization." S7 had recorded
 > forms per FUNCTION (a mixed one came back folded); it records them per INSTRUCTION since.
 
+> 🛑 **Owner decision, 2026-09-19 — ONE FRONT END: the readers and writers are shared too.** Asked
+> why wabt-ts and binaryen-ts still each read and write bytes after the bridge went: "When we
+> removed the bridge, I thought we were merging the ir parts and the read and write parts. And
+> keeping the individual parts that should not cross separate, like the optimization and fidelity
+> parts." The record had scoped only the TREE ("one tree type, two verb sets", § "What is NOT in
+> scope") and was silent on the readers and writers, so two binary readers, two binary writers and
+> two WAT parsers remained. The target now: **shared** — the IR and the reading and writing of
+> bytes and text; **fidelity only** — the side table, the text-form record, as-written spellings;
+> **optimization only** — the passes and the PREPARATION they need (`prepareForPasses`: naming,
+> types, and whatever binaryen-ts's decoder does for the passes today). Scoped by measurement
+> first — § "One front end" — before any code moves.
+
 ## Where it stands — 2026-09-17
 
 **The goal is ONE TREE with TWO VERB SETS, not one merged IR.** Fidelity and optimization are two
@@ -4277,12 +4289,103 @@ operand NODES, not values, so a multi-value operand takes its neighbour —
 `(call $add2 (local.get 0) (call $take2 (call $pair)))` reads back with the `local.get` on `$take2`.
 Bytes are right in both; the tree is not.
 
+### 🚧 One front end — measured 2026-09-19, NOT started (owner decision at the top)
+
+The question: can the wabt-ts reader + `prepareForPasses` (route **B**) replace binaryen-ts's decoder
+(route **A**) as the optimizer's entry, and one writer replace two? Measured over every binary in
+the five corpora — the `.wasm` files plus `wat2wasm` of every WAT, 7,569 inputs, 4,115 of them
+V8-valid and read by both — main at `7632be94d`. Scripts: session scratch (`one/front.ts`,
+`one/opt.ts`); an inventory of each reader's and writer's own behaviour was read from the code.
+
+**Refusals.** Valid binaries: A refuses **8** that B reads — all relaxed SIMD, which A does not
+decode (`wasm-parser.ts`, "unsupported SIMD opcode"); B refuses none that A reads. Invalid binaries:
+A ACCEPTS 1,349 that B refuses — B's reader checks section order, counts, UTF-8, mutability bytes and
+DataCount, A's does not.
+
+**Trees** (names, labels and reference spellings set aside): **48,540 of 49,254 function bodies are
+the same tree** (98.6%). The 714 others, by first difference:
+- operand shape — A's decoder rebuilds the stack for the passes: typed `pop`s under a multi-value
+  result and at catch entry (R12, R13), a SCRATCH LOCAL spill for a value beneath a statement (98
+  functions gain locals), `unreachable` for an empty polymorphic stack; B keeps the byte-faithful
+  shape (and B's reader has the multi-value attachment defect, open-work.md). ~480 functions by
+  operand shape, 98 more by the added locals.
+- **a node-kind split inside the ONE tree type**: a SIMD load is `simd.load` from A and `load` from
+  B (90). One instruction, two node shapes — whichever reader built the tree decides what a pass sees.
+- **saturating truncation**: A decodes `i32.trunc_sat_f32_s` and the seven like it as the TRAPPING
+  opcodes (`decodeMiscPrefix` maps 0xFC 0x00–0x07 to `UnaryOp.Trunc*`; binaryen-ts's `UnaryOp` has
+  no scalar saturating truncation at all). **A silent miscompile**: `wasm-opt` on a binary turns
+  `2147483647` for `1e10` into a TRAP. Every corpus module with the instruction is affected (4 of 4,
+  21 instructions). B keeps them, and B's route optimizes them correctly (checked at -O2).
+- smaller: `struct.new`'s `defaultInit: false` vs absent (12), a branch's / region's type in
+  unreachable code (10).
+Module level, beyond names: an imported function's placeholder body is typed only by A; B records
+`sectionMeta` (for `wasm-objdump`); `explicitNames.localsListed` is `null` vs `{}`; 5 raw custom
+sections kept by B only; 3 globals' `defaultInit`.
+
+**Writers.** From the input bytes, byte-identical output: wabt-ts's writer on B's tree **3,977 /
+4,115**, binaryen-ts's encoder on A's tree 3,619 (on B's tree 3,650). binaryen-ts's encoder REFUSES
+**178** valid modules — more than one table (`checkSingleTable`), which wabt-ts's writes.
+
+**The optimizer** (valid, read by both; A and B each through `PassRunner`, both encoded by
+binaryen-ts's encoder, name section aside; 192 refused by both — the multi-table encoder):
+
+|     | identical | differ, both valid | A's output invalid, B's valid | B's invalid, A's valid | both invalid |
+| --- | --------- | ------------------ | ----------------------------- | ---------------------- | ------------ |
+| -O2 | 3,896     | 22                 | 4                             | 0                      | 3            |
+| -O3 | 3,860     | 55                 | 3                             | **3**                  | 5            |
+| -Oz | 3,896     | 22                 | 4                             | 0                      | 3            |
+
+("identical" includes 5 that differ only in the name section, and the both-invalid pairs whose
+outputs are equal.)
+
+So 99.3% identical at -O2/-Oz; the -O3 differences are the Inlining sensitivity M8e measured. Two
+findings beside the question: **route A already emits INVALID output for valid spec modules**
+(`br.0`, `return.0`, `unreachable.0`, `names.2`, `fac.0`, `if.0`, `unreached-valid.0`) — the
+`optimize-corpus` gate covers only the 421 wasmtk modules; and B's three -O3 invalid outputs
+(`dynrt_lib_modc`, `Chapter11/vector`, `nop.0`) must be understood before B carries the optimizer.
+⚠️ `PassRunner` lowers block params by encoding and decoding again with A's decoder
+(`passes/lower-block-params.ts`), so route B still meets A inside the runner.
+
+**What A's decoder does that B must get elsewhere** (the inventory; R/W numbers as found):
+- preparation — belongs in `prepareForPasses`: typed `pop`s for multi-value, catch and block
+  params (R12–R14); scratch-local spills and `unreachable` for stack-y code (R11'); block-param
+  lowering as a TREE pass instead of the encode+decode round trip (R15, the `br_table`
+  trampoline included); every reference named and every node typed (R9, R10 — `nameReferences`
+  and `deriveTypes` already do these).
+- the node-kind split (`simd.load` / `load`) and the missing saturating opcodes — to be settled in
+  the TREE, so no reader can choose.
+- the writer side: binaryen-ts's encoder resolves names and SYNTHESIZES a type table for modules
+  built by passes or the API (W1–W3); wabt-ts's requires indices and `typeVar`s. One writer needs
+  that step before it, without disturbing as-written indices (T1).
+- the API: `parseWasm` throws `WasmBinaryError`, `readBinaryIr` collects an `ErrorList`; both are
+  published entry points (`./binary`, `./encoder`).
+
+**A plan, for the owner to confirm** — each stage gated like every stage before it:
+0. **Fix the saturating-truncation miscompile now** — it ships in the current decoder, independent
+   of the decision.
+1. **Settle the tree**: one node shape for SIMD loads, the scalar saturating truncations in the
+   opcode set, `defaultInit`, the unreachable-code types — so both readers build the same kinds.
+2. **Move A's preparation into `prepareForPasses`** (pops, spills, block-param lowering as a tree
+   pass), and explain B's three -O3 invalid outputs. Gate: optimizer output equal to route A's or
+   each difference explained, plus a behaviour check on every differing module.
+3. **Switch the entry points** (`wasm-opt`, `read-wat`, the compat API, `lowerBlockParams`) to B,
+   keep `parseWasm` as a thin published wrapper if the owner wants the API kept; then delete
+   `wasm-parser.ts`.
+4. **One writer**: wabt-ts's (more byte-exact, writes multiple tables), with a "resolve names +
+   synthesize types" step for pass- and API-built modules; then delete `wasm-encoder.ts`.
+5. Retire binaryen-ts's internal `parseWat` (already planned).
+With one reader, S7's read-back question narrows to parser vs reader.
+
 ### What is NOT in scope
 
 **Merging the two IRs into one is not the goal, and was briefly recorded as though it were.** The
 goal is one tree type with two verb sets. wabt-ts's operations and binaryen-ts's passes stay
 separate — they are different phases, and the side table is what lets them share a tree without
 sharing obligations.
+
+⚠️ This paragraph said nothing about the READERS and WRITERS, and they stayed duplicated — which the
+owner had not intended (decision "ONE FRONT END", 2026-09-19, at the top). Reading and writing
+belong to neither phase; they are shared, like the tree.
 
 ## Why this was invisible until now
 
