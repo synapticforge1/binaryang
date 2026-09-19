@@ -4362,7 +4362,8 @@ findings beside the question: **route A already emits INVALID output for valid s
 - the API: `parseWasm` throws `WasmBinaryError`, `readBinaryIr` collects an `ErrorList`; both are
   published entry points (`./binary`, `./encoder`).
 
-**A plan, for the owner to confirm** — each stage gated like every stage before it:
+**The plan — ✅ confirmed by the owner ("proceed", 2026-09-19)**; each stage gated like every stage
+before it:
 0. **Fix the saturating-truncation miscompile now** — it ships in the current decoder, independent
    of the decision.
 1. **Settle the tree**: one node shape for SIMD loads, the scalar saturating truncations in the
@@ -4384,25 +4385,65 @@ With one reader, S7's read-back question narrows to parser vs reader.
 and binaryen-ts features can stay separate. So we should have
 wat/wasm -> reader -> ir -> features -> ir -> encoder -> wat/wasm".
 
+The target, as confirmed with the owner (2026-09-19 — "Your graph makes sense … excellent"):
+
 ```
-wat/wasm → reader (WAT parser | binary reader) → IR + fidelity table
-         → features: wabt-ts tools  |  binaryen-ts: prepareForPasses → passes
-         → IR → encoder (WAT writer | binary writer) → wat/wasm
+                ┌──────────────────────── SHARED ────────────────────────┐
+  .wat  ───────►│ READER   WAT parser     (wabt-ts wast-parser.ts)       │
+  .wasm ───────►│          binary reader  (wabt-ts binary-reader.ts)     │
+                │    the faithful tree, exactly as written               │
+                │ IR       one tree type (Expr / Module)                 │
+                │          + fidelity side table                         │
+                │          one node kind per instruction (refinement 3)  │
+                └───────────────────────────┬────────────────────────────┘
+                        ┌───────────────────┴───────────────────┐
+                        ▼                                       ▼
+   ┌── FEATURES: wabt-ts ──────────┐     ┌── FEATURES: binaryen-ts ───────────────────┐
+   │ read the fidelity table       │     │ prepareForPasses (refinement 1): names,    │
+   │ wasm2wat · wat2wasm ·         │     │  types, and what the decoder does for the  │
+   │ validate · objdump · strip …  │     │  passes today — pops, scratch locals,      │
+   │ no reshaping                  │     │  block-param lowering                      │
+   │                               │     │ passes -O1 … -Oz (drop the fidelity table) │
+   │                               │     │ the compat API builds IR directly          │
+   └───────────────┬───────────────┘     └──────────────────────┬─────────────────────┘
+      IR as read: indices, type refs        IR as optimized / built: names, no type
+                   │                        table, blocks the passes made
+                   └───────────────────┬────────────────────────┘
+                                       ▼
+                ┌──────────────────────── SHARED ────────────────────────┐
+                │ ENCODER  resolve step (refinement 2): names → indices, │
+                │          the type table — only what is missing, never  │
+                │          a written index; a no-op on a tree as read    │
+                │          ├─► WAT writer     (wabt-ts wat-writer.ts) ───┼──► .wat
+                │          └─► binary writer  (wabt-ts binary-writer.ts)─┼──► .wasm
+                └────────────────────────────────────────────────────────┘
+
+  DELETED: binaryen-ts's decoder (wasm-parser.ts), its encoder (wasm-encoder.ts), its parseWat.
 ```
+
+The optimizer's output goes back to the IR and through the SAME writers as everything else — the
+owner's reading, confirmed: nothing bypasses them. Today it does: `wasm-opt` ends in binaryen-ts's
+own `encodeWasm`, which is why `wasm-opt -S` refuses natively. The one part of that encoder that
+survives is its knowledge of writing a tree the optimizer made, and it becomes the resolve step
+before BOTH writers (the WAT writer needs it too). Consequences: `wasm-opt -S` works through the WAT
+writer; an encoding fix lands once (e.g. multiple tables, which only wabt-ts's writer handles).
 
 The TEXT side already has this shape: one WAT parser (wabt-ts's; binaryen-ts's internal
-`parseWat` retires, W4) and one WAT writer (binaryen-ts has none — `wasm-opt -S` refuses natively
-and names `wasm2wat`). The duplication is the BINARY reader and writer.
+`parseWat` retires, W4) and one WAT writer (binaryen-ts has none). The duplication is the BINARY
+reader and writer.
 
-Refinements PROPOSED with it, ⏳ pending the owner's confirmation:
+Refinements, ✅ CONFIRMED by the owner with the diagram (2026-09-19):
 1. **Each feature side owns its entry step.** The reader gives the faithful tree and fills the
    fidelity table (part of the IR). binaryen-ts's side begins with `prepareForPasses`, which takes
    over the decoder's pass-oriented reshaping (R11', R12–R15 below); its passes already drop the
    table. wabt-ts's tools read it.
 2. **The encoder takes the IR in both states the features leave it in**: as read (indices,
    `typeVar`s) and as optimized or API-built (names, no type table, pass-made blocks). Resolving
-   names and synthesizing the type table (W1–W3 below) is byte work, so it lives IN the encoder —
-   without disturbing an as-written index (T1).
+   names and synthesizing the type table (W1–W3 below) is byte work, so it lives IN the encoder, as
+   a step before both writers — without disturbing an as-written index (T1).
+
+⏳ **Still open, needed by stage 3:** whether the published `parseWasm` / `encodeWasm`
+(`./binary`, `./encoder`) stay as thin wrappers over the shared reader and encoder.
 3. **One IR is one node kind per instruction**: no reader may choose between `simd.load` and
    `load`, and the opcode set holds the scalar saturating truncations — plan stage 1.
 
