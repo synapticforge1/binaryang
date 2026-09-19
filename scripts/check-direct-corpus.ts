@@ -16,6 +16,10 @@
  * What the optimized modules DO is `deno task direct-behaviour`'s question; this
  * one runs nothing. It exits 1 on any failure (the bridge's gate only printed).
  *
+ * It runs over the corpus AND `prepare.test.ts`'s fixture (`direct-inputs.ts`,
+ * post-M8 fix 7): the corpus has no start section, so a dropped start function
+ * passed this gate until the fixture's start module joined it.
+ *
  * Usage: `deno task direct`
  */
 
@@ -26,8 +30,7 @@ import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
 import { prepareForPasses } from '../src/binaryen-ts/ir/prepare.ts';
 import { encodeWasm } from '../src/binaryen-ts/encoder/index.ts';
 import { PassRunner } from '../src/binaryen-ts/passes/index.ts';
-
-const CORPUS = new URL('../tests/wabt-ts/wasmtk/', import.meta.url);
+import { directInputs } from './direct-inputs.ts';
 
 const LEVELS = [
   ['-O1', { optimizeLevel: 1, shrinkLevel: 0 }],
@@ -62,16 +65,11 @@ function rejection(bytes: Uint8Array): string | null {
 const same = (a: Uint8Array, b: Uint8Array) =>
   a.length === b.length && a.every((x, i) => x === b[i]);
 
-const files: string[] = [];
-for await (const entry of Deno.readDir(CORPUS)) {
-  if (entry.isFile && entry.name.endsWith('.wat')) files.push(entry.name);
-}
-files.sort((a, b) => a.localeCompare(b));
+const { corpus, inputs } = await directInputs();
 
 const failures: { file: string; where: string; detail: string }[] = [];
 let identical = 0;
-for (const file of files) {
-  const wat = await Deno.readTextFile(new URL(file, CORPUS));
+for (const { name: file, wat } of inputs) {
   const expected = wat2wasm(wat, { filename: file }).binary;
   try {
     const bytes = encodeWasm(prepared(wat));
@@ -98,7 +96,10 @@ for (const file of files) {
 }
 
 console.log('  === direct path: wabt-ts parse -> prepareForPasses -> binaryen-ts ===');
-console.log(`    byte-identical to wat2wasm   ${String(identical).padStart(4)} / ${files.length}`);
+console.log(
+  `    modules                      ${corpus} corpus + ${inputs.length - corpus} fixture`,
+);
+console.log(`    byte-identical to wat2wasm   ${String(identical).padStart(4)} / ${inputs.length}`);
 console.log(`    optimized, engine-valid      ${LEVELS.map(([t]) => t).join(' ')}`);
 if (failures.length > 0) {
   console.log(`\n  === ${failures.length} failure(s) (first 30) ===`);
@@ -108,5 +109,5 @@ if (failures.length > 0) {
   Deno.exit(1);
 }
 console.log(
-  `\n  TOTAL — all ${files.length} byte-identical to wat2wasm, and valid at every level.`,
+  `\n  TOTAL — all ${inputs.length} byte-identical to wat2wasm, and valid at every level.`,
 );
