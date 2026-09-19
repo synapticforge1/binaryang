@@ -3964,7 +3964,7 @@ defects to the task list"); their scope is in open-work.md.
    - Mutants 11 / 11 killed. Gate on `565e7b2c2`: exit 0, 1257 tests.
    - ⚠️ Seen in passing, not changed here: the decoder reads `memory.size` / `memory.grow`'s memory
      index as ONE BYTE, where multi-memory writes a LEB (the same value below 128). Added to the
-     list as fix 8 (owner, 2026-09-18).
+     list as fix 8 (owner, 2026-09-18) — ✅ fixed `dbe986344`, and it was twelve sites, not two.
 4. ✅ **A `br_if` carrying one value is an operand in wabt-ts's binary reader** (`a82dadf90`,
    re-baseline `abd8b7e5d`, tests `b2547af78`; 2026-09-19).
    - The defect: the reader committed every `br_if` as a statement, so `(i32.add (br_if 0 v c) x)`
@@ -4051,6 +4051,25 @@ defects to the task list"); their scope is in open-work.md.
    - Also corrected: `working-rules.md`'s gate checklist still named the deleted `bridge` tasks. It
      names the direct ones with their counts, and gains "a gate is evidence about what it reaches".
    - Gate on `3f6c4d645`: exit 0, 1260 tests.
+8. ✅ **A memory index is a LEB in every binaryen-ts instruction, read and written** (`dbe986344`,
+   2026-09-19).
+   - The item: the decoder reads `memory.size` / `memory.grow`'s index as ONE BYTE — "read it as a
+     LEB, as every other memory index is".
+   - ⚠️ **The premise did not hold.** `memory.init`, `memory.copy` (both) and `memory.fill` read one
+     byte too; only the memarg path read a LEB. And the ENCODER wrote the same six with `writeU8`
+     (`n & 0xff`): from 128 a continuation byte (the body misaligned), from 256 a DIFFERENT memory,
+     silently. wabt-ts is LEB on both sides.
+   - Probed first: at index 150 decode failed ("unknown opcode"), the LEB's second byte read as the
+     next instruction; 150's second byte is `0x01`, `nop`, so other shapes decode silently wrong.
+   - The fix: six `readU32`, six `writeU32`.
+   - Measured (scratch `memidx/measure.ts`, main against the branch): decode → encode over 6,526
+     binaries, 6,081 decoded by both, all identical, none newly accepted or refused — no corpus has
+     a memory index >= 128.
+   - Test `memory_index_leb.test.ts`: every memory-index instruction at 150 (199), byte-identical and
+     the same answers on V8; `memory.size` at 127 / 128 / 255 / 256. Mutants 12 / 12 killed, one per
+     site; 127 passes under every mutant, as it should. Gate on `dbe986344`: exit 0, 1261 tests.
+   - Lesson (again, "a row's premise is not evidence"): the item's "as every other memory index is"
+     was never checked; checking it found five more sites and the whole write side.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
