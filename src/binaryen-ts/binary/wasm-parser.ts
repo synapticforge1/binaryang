@@ -32,6 +32,8 @@ import {
   type WasmModule,
 } from '../ir/module.ts';
 import {
+  type AddressType,
+  addressTypeOf,
   BinaryOp,
   type BlockParams,
   type Expression,
@@ -259,6 +261,14 @@ interface DecoderCtx {
    * `externref` or `anyref` table's included (found by M8d, 2026-09-18).
    */
   tableElemTypes: ValueType[];
+  /**
+   * Each table's and each memory's address type, in their index spaces
+   * (imports first) — what `table.size` / `table.grow` and `memory.size` /
+   * `memory.grow` yield: `i64` for table64 / memory64. They were typed `i32`
+   * whatever the memory (found by M8d, 2026-09-18).
+   */
+  tableAddressTypes: AddressType[];
+  memoryAddressTypes: AddressType[];
   tagInfos: TagInfo[];
   /**
    * Every tag's payload types, in the tag INDEX space — imports first. `tagInfos`
@@ -814,6 +824,8 @@ class WasmParser {
   private globalInfos: GlobalInfo[] = [];
   private tableNames: string[] = [];
   private tableElemTypes: ValueType[] = [];
+  private tableAddressTypes: AddressType[] = [];
+  private memoryAddressTypes: AddressType[] = [];
   private tagInfos: TagInfo[] = [];
   /** See {@link DecoderCtx.tagParams}. */
   private readonly tagParams: ValueType[][] = [];
@@ -1098,6 +1110,7 @@ class WasmParser {
           const tname = this.names.table(this.tableNames.length);
           this.tableNames.push(tname);
           this.tableElemTypes.push(elemType);
+          this.tableAddressTypes.push(addressTypeOf(limits));
           this.builder.addTableImport(tname, module, base, elemType, limits);
           break;
         }
@@ -1107,6 +1120,7 @@ class WasmParser {
           // imported memory, which collided with the first defined one — named
           // `mem0` too — and with each other under multi-memory.
           const mname = this.names.memory(this.memoryCount++);
+          this.memoryAddressTypes.push(addressTypeOf(limits));
           this.builder.addMemoryImport(mname, module, base, limits);
           break;
         }
@@ -1165,6 +1179,7 @@ class WasmParser {
       const name = this.names.table(this.tableNames.length);
       this.tableNames.push(name);
       this.tableElemTypes.push(elemType);
+      this.tableAddressTypes.push(addressTypeOf(limits));
       this.builder.addTable(name, elemType, limits, null, init);
     }
   }
@@ -1174,7 +1189,9 @@ class WasmParser {
     for (let i = 0; i < count; i++) {
       // In the memory INDEX space, imports first — as the export section names
       // them. `mem${i}` counted defined memories only.
-      this.builder.addMemory(this.names.memory(this.memoryCount++), this.readLimits(true));
+      const limits = this.readLimits(true);
+      this.memoryAddressTypes.push(addressTypeOf(limits));
+      this.builder.addMemory(this.names.memory(this.memoryCount++), limits);
     }
   }
 
@@ -1363,6 +1380,8 @@ class WasmParser {
       globalInfos: this.globalInfos,
       tableNames: this.tableNames,
       tableElemTypes: this.tableElemTypes,
+      tableAddressTypes: this.tableAddressTypes,
+      memoryAddressTypes: this.memoryAddressTypes,
       tagInfos: this.tagInfos,
       tagParams: this.tagParams,
       lowerBlockParams: this.lowerBlockParams,
@@ -2586,13 +2605,15 @@ class WasmParser {
           break;
         }
 
-        case 0x3f:
-          push(makeMemorySize(varIndex(r.readU8())));
-          break; // memory.size
+        case 0x3f: { // memory.size
+          const mem = r.readU8();
+          push(makeMemorySize(varIndex(mem), memoryAddressType(ctx, mem, r)));
+          break;
+        }
         case 0x40: { // memory.grow
           // The memidx byte precedes the operand, so read it first.
           const growMem = r.readU8();
-          push(makeMemoryGrow(pop(), varIndex(growMem)));
+          push(makeMemoryGrow(pop(), varIndex(growMem), memoryAddressType(ctx, growMem, r)));
           break;
         }
 
@@ -3006,6 +3027,28 @@ function elemSegName(ctx: DecoderCtx, i: number): string {
 }
 
 /** A table's name, by index. */
+/** Memory `i`'s address type; an index past the memories is refused. */
+function memoryAddressType(ctx: DecoderCtx, i: number, r: BinaryReader): AddressType {
+  const t = ctx.memoryAddressTypes[i];
+  if (t === undefined) {
+    return r.error(
+      `memory index ${i} is out of range (module declares ${ctx.memoryAddressTypes.length})`,
+    );
+  }
+  return t;
+}
+
+/** Table `i`'s address type; an index past the tables is refused. */
+function tableAddressType(ctx: DecoderCtx, i: number, r: BinaryReader): AddressType {
+  const t = ctx.tableAddressTypes[i];
+  if (t === undefined) {
+    return r.error(
+      `table index ${i} is out of range (module declares ${ctx.tableAddressTypes.length})`,
+    );
+  }
+  return t;
+}
+
 function tableName(ctx: DecoderCtx, i: number): string {
   return ctx.names.table(i);
 }
@@ -3164,11 +3207,19 @@ function decodeMiscPrefix(
       const tableIdx = r.readU32();
       const delta = pop();
       const value = pop();
-      push(makeTableGrow(varName(tableName(ctx, tableIdx)), value, delta));
+      push(
+        makeTableGrow(
+          varName(tableName(ctx, tableIdx)),
+          value,
+          delta,
+          tableAddressType(ctx, tableIdx, r),
+        ),
+      );
       break;
     }
     case 16: { // table.size
-      push(makeTableSize(varName(tableName(ctx, r.readU32()))));
+      const tableIdx = r.readU32();
+      push(makeTableSize(varName(tableName(ctx, tableIdx)), tableAddressType(ctx, tableIdx, r)));
       break;
     }
     case 17: { // table.fill

@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-18 — S6 step 5 CLOSED; post-M8 fixes in progress, 2 of 7 done)
+## Start the next session here (handoff, 2026-09-18, owner paused — post-M8 fixes: 3 of 7 done; resume at fix 4)
 
-**Where the work stopped.** `main` is at the merge of M8e (code last changed at
-`84a128f82`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `84a128f82` (as on every stage before it) and every step exited 0: fmt, lint, **1254 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of post-M8 fix 3 (code last changed at
+`565e7b2c2`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `565e7b2c2` (as on every stage before it) and every step exited 0: fmt, lint, **1257 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **421/421 byte-identical to wat2wasm, valid at every level**, `direct-behaviour` **1806 calls / 602 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -107,12 +107,19 @@ entity collections stay there until the records themselves are one type (M8).
    with each item's record, is [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes":
    - ✅ `table.get` typed by its table;
    - ✅ `makeCallIndirect`'s multi-value type;
-   - 64-bit index types for `memory.size` / `memory.grow` (and `table.size` / `table.grow` for
-     table64);
-   - wabt-ts's binary reader and `br_if` as a value;
-   - the WAT parser's branch arity;
-   - `br_table`'s stale filter;
-   - the dropped-start mutant only the test caught.
+   - ✅ 64-bit index types for `memory.size` / `memory.grow` and `table.size` / `table.grow`;
+   - ⏭️ **NEXT — fix 4:** wabt-ts's binary reader does not treat a `br_if` as producing a value, so
+     `(br_if 0 (br_if 0 …) …)` reads as two siblings. It changes `wasm2wat`'s FOLDED output: judge it
+     against upstream wabt 1.0.41's `wasm2wat` (on PATH), and measure with `wabt_hashes.ts`;
+   - fix 5: the WAT parser does not know a branch target's arity (a `br` drains every value on the
+     stack, a void `call` included; a `br_if` value that comes from outside the region drops out). It
+     changes TREES, not bytes; `deriveTypes`' stack rule already tolerates the shapes;
+   - fix 6: `br_table`'s stale `'nop'` filter (it never meets a placeholder; remove or make it `'pop'`,
+     with the reason);
+   - fix 7: the dropped-start mutant only `prepare.test.ts` caught. Make `deno task direct` (and
+     ideally `direct-behaviour`) also run the fixture's modules, so a gate sees start sections;
+   - also seen: the decoder reads `memory.size` / `grow`'s memory index as one byte (see fix 3's
+     record) — the owner's call whether it joins the list.
 
    **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was. S6 step 5 is
    closed; the next STEP after these fixes is the owner's call (S7 is independent and ready).
@@ -128,7 +135,7 @@ entity collections stay there until the records themselves are one type (M8).
 - Asyncify refuses `call_ref` (K1)
 - found by M8d (its record), being fixed now (item 1 above): ~~the decoder types every `table.get` `funcref`~~ (fixed
   `ddd5f6163`); ~~`makeCallIndirect` types a multi-value call by its
-  first result~~ (fixed `4b2488540`); `makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64. Also: the WAT
+  first result~~ (fixed `4b2488540`); ~~`makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64~~ (fixed `565e7b2c2`). Also: the WAT
   parser does not know a branch target's arity, and wabt-ts's binary reader does not treat a `br_if`
   as producing a value. Tree-shape imprecision, bytes right.
 

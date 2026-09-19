@@ -3945,6 +3945,22 @@ Each item is its own branch, measured, tested, mutated and gated.
      INVALID (`wat2wasm` does not validate) and read as an optimizer defect until checked: a test
      module is now asserted valid before it is judged.
    - Mutants 2 / 2 killed. Gate on `4b2488540`: exit 0, 1256 tests.
+3. ✅ **Size and grow are typed by the address type** (`565e7b2c2`).
+   - The defect: `memory.size` / `memory.grow` and `table.size` / `table.grow` were `i32` whatever
+     the memory or table (the factories hard-coded it); memory64 / table64 give `i64`.
+   - The fix:
+     - the four factories take an `AddressType`, required (`addressTypeOf(limits)`);
+     - the decoder records each memory's and table's (imports first) and refuses an index past them;
+     - `deriveTypes` reads it through the factories;
+     - binaryen-ts's WAT parser (tests only; it reads no 64-bit memory or table) says `i32`
+       explicitly;
+     - the compat API takes upstream's `(name, memory64)` on `memory.size` / `grow`.
+   - Measured: bytes unchanged (0 / 1,023, 0 / 2,526). 4 spec binaries that name a memory the module
+     lacks are now REFUSED where they were read and re-encoded; V8 rejects all 4 for that reason.
+     Spec still 100% on four axes.
+   - Mutants 11 / 11 killed. Gate on `565e7b2c2`: exit 0, 1257 tests.
+   - ⚠️ Seen in passing, not changed: the decoder reads `memory.size` / `memory.grow`'s memory
+     index as ONE BYTE, where multi-memory writes a LEB (the same value below 128).
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one

@@ -2001,23 +2001,36 @@ export function makeCallRef(
   };
 }
 
-/** Creates a `memory.size` expression. */
-export function makeMemorySize(memidx: Var = varIndex(0)): MemorySizeExpr {
-  return {
-    kind: ExpressionKind.MemorySize,
-    type: ValType.I32,
-    memidx,
-  };
+/**
+ * The type a memory or table is addressed by — `i64` for a memory64 memory or
+ * a table64 table, else `i32`. It is what `memory.size` / `memory.grow` and
+ * `table.size` / `table.grow` yield (and `grow`'s delta).
+ */
+export type AddressType = typeof ValType.I32 | typeof ValType.I64;
+
+/** The {@link AddressType} of a memory or table with these limits. */
+export function addressTypeOf(limits: { readonly is64: boolean }): AddressType {
+  return limits.is64 ? ValType.I64 : ValType.I32;
 }
 
-/** Creates a `memory.grow` expression. */
-export function makeMemoryGrow(delta: Expression, memidx: Var = varIndex(0)): MemoryGrowExpr {
-  return {
-    kind: ExpressionKind.MemoryGrow,
-    type: ValType.I32,
-    delta,
-    memidx,
-  };
+/**
+ * Creates a `memory.size` expression, typed by the memory's address type.
+ *
+ * 🔧 It was always `i32` — a memory64 memory's size is `i64` (found by M8d,
+ * 2026-09-18). The address type is required: a default of `i32` is how the
+ * 64-bit case went unseen.
+ */
+export function makeMemorySize(memidx: Var, addressType: AddressType): MemorySizeExpr {
+  return { kind: ExpressionKind.MemorySize, type: addressType, memidx };
+}
+
+/** Creates a `memory.grow` expression, typed by the memory's address type (see {@link makeMemorySize}). */
+export function makeMemoryGrow(
+  delta: Expression,
+  memidx: Var,
+  addressType: AddressType,
+): MemoryGrowExpr {
+  return { kind: ExpressionKind.MemoryGrow, type: addressType, delta, memidx };
 }
 
 /** Creates a `table.init` expression. */
@@ -2060,18 +2073,19 @@ export function makeDataDrop(segment: Var): DataDropExpr {
   return { kind: ExpressionKind.DataDrop, type: None, segment };
 }
 
-/** Creates a `table.size` expression. */
-export function makeTableSize(table: Var): TableSizeExpr {
-  return { kind: ExpressionKind.TableSize, type: ValType.I32, table };
+/** Creates a `table.size` expression, typed by the table's address type (`i64` for table64 — it was always `i32`). */
+export function makeTableSize(table: Var, addressType: AddressType): TableSizeExpr {
+  return { kind: ExpressionKind.TableSize, type: addressType, table };
 }
 
-/** Creates a `table.grow` expression. */
+/** Creates a `table.grow` expression, typed by the table's address type (see {@link makeTableSize}). */
 export function makeTableGrow(
   table: Var,
   value: Expression,
   delta: Expression,
+  addressType: AddressType,
 ): TableGrowExpr {
-  return { kind: ExpressionKind.TableGrow, type: ValType.I32, table, value, delta };
+  return { kind: ExpressionKind.TableGrow, type: addressType, table, value, delta };
 }
 
 /** Creates a `table.fill` expression. */
