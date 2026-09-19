@@ -15,8 +15,8 @@
 // siblings are emitted in order — so assert the TREE; and check each module is
 // valid, runs, and round-trips.
 //
-// `br_table` is not covered: it still takes only its index, as the binary
-// reader does (divergence W9; its filter is post-M8 fix 6).
+// `br_table` joined in post-M8 fix 9 (its default target's values); its tests
+// are br_table_values.test.ts and br_table_operands.test.ts.
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';

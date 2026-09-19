@@ -1433,16 +1433,36 @@ export class WastParser {
     return v;
   }
 
+  /** The LAST of a run of vars — `br_table`'s default target — without consuming any. */
+  private peekLastVar(): Var | null {
+    const savedPos = this.pos;
+    const savedErrors = this.errors.length;
+    let last: Var | null = null;
+    while (this.peekMatchVar()) {
+      const v = this.parseVar();
+      if (v === null) break;
+      last = v;
+    }
+    this.pos = savedPos;
+    this.errors.length = savedErrors;
+    return last;
+  }
+
   /**
    * How many stack operands a branch takes, from its target's arity — or
    * `undefined` when the token is not a branch this resolves, or the target
    * is not known (no enclosing function, an unknown label), in which case the
-   * token-type fallback keeps the old behaviour. `br_table` is not here: it
-   * takes only its index and leaves carried values as siblings, as wabt-ts's
-   * binary reader does (divergence W9, post-M8 fix 6).
+   * token-type fallback keeps the old behaviour. `br_table` takes its DEFAULT
+   * target's values (every target carries the same number) and the index —
+   * as wabt-ts's binary reader does since post-M8 fix 9; until then both took
+   * the index alone and left the values as siblings (divergence W9 (a)).
    */
   private branchInputCount(tt: TokenType): number | undefined {
     if (tt === TokenType.Return) return this.labels[0]?.arity;
+    if (tt === TokenType.BrTable) {
+      const arity = this.branchArity(this.peekLastVar());
+      return arity === undefined ? undefined : arity + 1;
+    }
     if (
       tt !== TokenType.Br && tt !== TokenType.BrIf &&
       tt !== TokenType.BrOnNull && tt !== TokenType.BrOnNonNull
@@ -4294,19 +4314,18 @@ export class WastParser {
         // target. Taking op0() as the index put a carried value there and
         // dropped the real index whenever the folded form supplied both.
         const idx = operands.length > 0 ? operands[operands.length - 1]! : op0();
-        // Every operand below the index is kept (post-M8 fix 6). This filtered
-        // `'nop'` — the placeholder once — but none reaches here: linear text
-        // pops the index alone, and the folded form never pads. What it DID
-        // meet was a real `(nop)` child, and dropped it from the module:
-        // `(br_table 0 (nop) (local.get 0))` wrote one byte fewer than
-        // upstream `wat2wasm`. `br` / `br_if` / `return` keep theirs.
-        const carried = operands.slice(0, -1);
+        // Every operand below the index is kept (post-M8 fix 6): a `'nop'`
+        // filter here once dropped a real `(nop)` child from the module. Since
+        // fix 9 linear text pops the default target's values too (see
+        // `branchInputCount`), and one the region does not hold is a `pop`,
+        // as for `br`.
+        const values = carried(operands.slice(0, -1), this.branchArity(defaultTarget), loc);
         return {
           kind: 'br_table',
           targets,
           defaultTarget,
           condition: idx,
-          values: carried,
+          values,
           loc,
         } as BrTableExpr;
       }
