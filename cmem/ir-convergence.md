@@ -20,6 +20,14 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 > instruction's operands (W10a, DESIGN), match upstream's nesting in unreachable code (W10b, open).
 > Bytes are never the question — both forms assemble to the same code.
 
+> 🛑 **Owner decision, 2026-09-19 — FIDELITY first on the text path; FOLDED for the optimizer.**
+> "The first rule is fidelity for the wat2wasm and wasm2wat. This part is separate from the
+> optimization part which requires the folded structure. So this part transpiles verbatim. The
+> optimization does not and is not fidelity tied, and must use the folded structure in the tree."
+> So `wat2wasm` → `wasm2wat` gives back each function in the form it was WRITTEN (S7, below), and
+> the folding decision above governs what a function written folded — or any binary with no
+> record — is written as, and the tree the optimizer works on.
+
 ## Where it stands — 2026-09-17
 
 **The goal is ONE TREE with TWO VERB SETS, not one merged IR.** Fidelity and optimization are two
@@ -37,7 +45,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
 | S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **76 identical / 5 types / 1 names** (the block family, item 4, and item 5 (5)'s eight ported kinds, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15). **Item 6 (the module half) is at M7b**: M1–M7b landed 2026-09-16/17, module ratchet **24 / 7 / 19** (from 46 / 29 / 15), M7c and M8 left |
-| S7 linear-form marker  | ⬚ untouched, independent of the rest — and changed by C3 (see S7)                                                                                                                                              |
+| S7 text-form marker    | ✅ DONE 2026-09-19 (`899263b7b`): per function, on by default (owner: fidelity first on the text path), stripped by the optimizer — see S7                                                                     |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
 `open-work.md`'s summary; the detail is under "The measurements this rests on"):
@@ -4186,23 +4194,42 @@ rule" — best-practices.md § "Every linear instruction has a folded form").
    agreement BEFORE deletion; then the bridge, its 16 test files and both scripts are deleted, their
    front-end-to-optimizer checks kept as direct gates.
 
-### S7 — the linear-form marker
+### ✅ S7 — the text-form marker (DONE 2026-09-19, `899263b7b`; re-baseline `337c884a3`)
 
-A custom section recording that the source was linear, so `wasm2wat` reproduces the form it was
-given. Independent of S2–S6 and can land at any point.
+Owner (2026-09-19): fidelity first on the text path, ON by default; per FUNCTION; stripped by the
+optimizer. The design, as built (`src/wabt-ts/ir/text-form.ts`):
+- **The fact is as-written metadata**: `FidelityEntry.linearBody` on each function's `nodeId`. The
+  parser records a body with linear instructions and no folded one (`parseOneInstr` counts every
+  list); a body that MIXES the forms is recorded folded — measured, mixing is between functions
+  (2 of ~7,600 wasmtk-corpus functions mix within one).
+- **The section**: `binaryang.text-form`, written LAST (after `name`) by both binary writers —
+  u8 version 1, then a vector of function-space indices (imports first) of the functions written
+  linearly. ABSENT means all folded, so no other binary changes. Both readers turn it back into
+  metadata once the module is complete; one that does not decode or fit (unknown version, an import,
+  out of range, unsorted, trailing bytes, truncated) stays a raw custom section and is ignored.
+- **The optimizer strips it for free**: the pass runner already resets the fidelity table. The
+  original record's warning held: binaryen-ts keeps custom sections since C3, so a RAW marker would
+  have ridden through passes with stale indices — which is why both readers parse it, the binaryen-ts
+  decoder included.
+- **The tools**: `wasm2wat` honours it (`asWritten`, default true; CLI `--fold` folds every
+  function, `--linear` writes every one flat); `wat2wasm --no-text-form` omits it — upstream
+  `wat2wasm`'s bytes exactly; `wasm-strip` drops it with the other custom sections, or by name.
 
-- wabt-ts already models custom sections (`Custom { name, data, loc, afterSection }`)
-- ~~**binaryen-ts drops custom sections entirely**, so optimization strips the marker for free —
-  exactly the wanted behaviour, with no code~~ ⚠️ **No longer true since C3 (2026-09-11,
-  `4c162c584`)**: binaryen-ts keeps every custom section and passes keep them, as upstream does
-  through `-O2`. So S7 must strip its own marker DELIBERATELY when optimization runs.
-- corpus sources are folded (58 of 60 sampled), so emitting the marker only for linear input leaves
-  the emitted-byte baseline untouched
-- absence means folded, so binaries produced before this exists still read right
+**Measured** (main against the branch, every `.wat` in the corpora — 1,042 that assemble):
+`--no-text-form` byte-identical to main 1,042 / 1,042; by default main's bytes plus the trailing
+section only, 1,042 / 1,042 (122 carry it); `wat2wasm(wasm2wat(b)) === b` 1,042 / 1,042; every
+function's form reproduced — 26,454 functions, 10,676 of them linear; binaryen-ts decode → encode
+keeps it (its 28 mismatches all predate S7); no optimized output carries it. Baseline: 20 of 421
+moved (bytes by the section; folded text to the written form; linear text unchanged).
 
-⚠️ **A whole-module flag cannot reproduce MIXED WAT** — and mixed is common in hand-written source
-(fold the arithmetic, leave the control flow flat). Version the section so per-function form can
-land later without breaking old binaries.
+**Tests** `tests/wabt-ts/tools/text_form.test.ts` (16 steps); mutants 15 / 15 killed. Eleven
+existing tests changed, keeping their intent — a folding test over a linear fixture asks for
+`asWritten: false`; a byte comparison ACROSS forms compares code (`textForm: false`), because a
+forced form now changes the record, and only that. Gate on `337c884a3`: exit 0, 1269 tests.
+
+⚠️ **Still whole-function.** A function that mixes the forms comes back folded. A finer grain would
+be a new section VERSION (a reader that meets an unknown version keeps it raw and folds), so it can
+land later without breaking a binary written now.
 
 ### What is NOT in scope
 

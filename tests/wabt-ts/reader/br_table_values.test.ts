@@ -107,7 +107,9 @@ describe('a br_table holds the values it carries', () => {
   });
 
   it('folded wasm2wat nests the value, as upstream prints it', () => {
-    const text = wasm2wat(wat2wasm(LINEAR).binary!).text;
+    // The fixture is written linearly; this is about FOLDING, so the S7
+    // record (written linearly → written back linearly) is set aside.
+    const text = wasm2wat(wat2wasm(LINEAR).binary!, { asWritten: false }).text;
     assert(
       /\(br_table 0 \(;@1;\) 0 \(;@1;\)\s+\(i32\.const 7\) \(local\.get 0\)\)/.test(text),
       text,

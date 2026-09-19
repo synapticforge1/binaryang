@@ -61,6 +61,7 @@ import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
+import { isWrittenLinear } from '../ir/text-form.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { Result } from '../core/result.ts';
 
@@ -113,6 +114,15 @@ export interface WriteWatOptions {
    * too.
    */
   fold?: boolean;
+  /**
+   * Write each function in the form it was WRITTEN, where the module records
+   * one (S7, `text-form.ts`): a function written linearly comes back linearly
+   * even under `fold`. Default: **`true`** — `wat2wasm` → `wasm2wat` transpiles
+   * verbatim (owner, 2026-09-19). `false` ignores the record, so `fold` alone
+   * decides. A module that records nothing — any binary not from our
+   * `wat2wasm`, any optimized one — is written by `fold` either way.
+   */
+  asWritten?: boolean;
   /** Emit `(export "name")` inline inside func/global/table/memory declarations. Default: `true`. */
   inlineExport?: boolean;
   /** Emit `(import "m" "f")` inline inside declarations instead of standalone. Default: `false`. */
@@ -234,6 +244,7 @@ class WatWriter extends ModuleContext {
     super(module);
     this.opts = {
       fold: opts.fold ?? true,
+      asWritten: opts.asWritten ?? true,
       inlineExport: opts.inlineExport ?? true,
       inlineImport: opts.inlineImport ?? false,
       namedLabelTargets: opts.namedLabelTargets ?? false,
@@ -2229,7 +2240,12 @@ class WatWriter extends ModuleContext {
     this.beginFunc(func);
     this.labelFunc = func.name;
     this.bodyLocalNames = localNames;
-    this.writeExprList(func.body.children);
+    // S7: a body written linearly is written back linearly (`text-form.ts`).
+    if (this.opts.asWritten && isWrittenLinear(this.module, func)) {
+      this.writeExprListLinear(func.body.children);
+    } else {
+      this.writeExprList(func.body.children);
+    }
     this.bodyLocalNames = undefined;
     this.endFunc();
     this.closeNewline();

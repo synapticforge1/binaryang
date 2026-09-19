@@ -198,7 +198,12 @@ describe("the owner's test: WAT → wat2wasm → wasm2wat gives the WAT back", (
       ) {
         assert(text.includes(n), `lost ${n}:\n${text}`);
       }
-      assert(same(assemble(text), bytes), `not a fixed point:\n${text}`);
+      // A byte fixed point as written (folded, the probe's own form); FORCED
+      // linear, the same code with the names intact — forcing a form changes
+      // S7's text-form record, and only that.
+      const code = (wat: string) => wat2wasm(wat, { textForm: false }).binary;
+      if (fold) assert(same(assemble(text), bytes), `not a fixed point:\n${text}`);
+      else assert(same(code(text), code(PROBE)), `not the same code:\n${text}`);
     });
   }
 

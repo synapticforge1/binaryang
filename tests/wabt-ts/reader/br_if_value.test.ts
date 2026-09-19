@@ -134,9 +134,13 @@ describe('binary reader — a br_if carrying one value is an operand', () => {
 
   it('both text forms re-assemble to the same bytes, and they run', () => {
     const bytes = assemble();
+    const code = wat2wasm(WAT, { textForm: false }).binary;
     for (const fold of [true, false]) {
-      const back = wat2wasm(wasm2wat(bytes, { fold }).text, { filename: 'back.wat' }).binary;
-      assertEquals(back, bytes, `fold: ${fold}`);
+      // The same CODE: forcing a form changes the S7 text-form record, and
+      // only that — so both sides are assembled without it.
+      const text = wasm2wat(bytes, { fold, asWritten: false }).text;
+      const back = wat2wasm(text, { filename: 'back.wat', textForm: false }).binary;
+      assertEquals(back, code, `fold: ${fold}`);
     }
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports as Record<string, (c: number) => number>;

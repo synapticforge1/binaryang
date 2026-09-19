@@ -127,6 +127,11 @@ import {
   type Var,
 } from '../../wabt-ts/ir/ir.ts';
 import { type BinarySection, ExternalKind } from '../../wabt-ts/core/binary.ts';
+import {
+  encodeTextForm,
+  linearFunctionIndices,
+  TEXT_FORM_SECTION,
+} from '../../wabt-ts/ir/text-form.ts';
 
 /**
  * The memory an instruction addresses. An ABSENT field means memory 0 — the
@@ -713,6 +718,17 @@ class WasmEncoder {
     // wrote it above, at the place it held among the other custom sections.
     if (this.mod.hasNameSection && !this.wroteNameSection) {
       this.writeNameSection(out, this.mod.explicitNames);
+    }
+    // S7: which functions were written linearly, LAST — the bytes wabt-ts's
+    // writer puts there (`text-form.ts`). A pass run resets the fidelity table
+    // it is read from, so optimized output never carries it (owner: the
+    // optimizer is not fidelity-tied).
+    const textForm = encodeTextForm(linearFunctionIndices(this.mod));
+    if (textForm !== null) {
+      this.writeSection(out, 0, (w) => {
+        w.writeUTF8(TEXT_FORM_SECTION);
+        w.writeBytes(textForm);
+      });
     }
 
     return out.toUint8Array();

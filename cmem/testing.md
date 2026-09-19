@@ -502,6 +502,11 @@ cannot assemble without `--enable-exceptions`.
 | W6 — DataCount  | 400 / 421                          | `cb474baaa` (`5dbe951f1`) |
 | W5 — type order | **421 / 421**                      | `bd327efe7` (`232768359`) |
 
+⚠️ **Since S7 (2026-09-19)** "outside custom sections" matters: by default our `wat2wasm` adds a
+`binaryang.text-form` section to sources with linearly written functions (20 of these 421) — a
+DESIGN divergence, owner-decided; `--no-text-form` gives upstream's bytes exactly, so parity with
+that flag is 421 / 421 whole-file.
+
 The name sections, compared on their own, are equal on 426/426. Parity is now total on this corpus,
 so **any new difference is a regression or a new divergence, and gets a row** in
 [divergences.md](divergences.md). Details of both fixes are their rows there; W5's implicit types

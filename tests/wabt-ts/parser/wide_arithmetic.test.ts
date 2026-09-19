@@ -144,7 +144,8 @@ describe('wide arithmetic — the quaternary operands reach the IR', () => {
 
   it('encodes both forms to the same bytes', () => {
     const folded = compile(FOLDED);
-    assertEquals(compile(LINEAR), folded);
+    // The same CODE: the linear source also gets S7's text-form record.
+    assertEquals(wat2wasm(LINEAR, { textForm: false }).binary, folded);
     // 0xfc 0x13 = i64.add128, preceded by the four i64.consts.
     const i = folded.findIndex((b, j) => b === 0xfc && folded[j + 1] === 0x13);
     assert(i >= 0, 'i64.add128 opcode not found');

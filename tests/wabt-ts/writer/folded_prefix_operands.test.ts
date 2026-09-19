@@ -117,8 +117,15 @@ describe('folded output — rethrow', () => {
         (i32.const 20) (i32.const 4) (call $sub3 (i32.const 3))))`;
     const bin = wat2wasm(src, { filename: 'b.wat' });
     assert(bin.binary && !hasErrors(bin.errors));
-    const lin = wat2wasm(wasm2wat(bin.binary, { fold: false }).text, { filename: 'l.wat' });
-    const fld = wat2wasm(wasm2wat(bin.binary, { fold: true }).text, { filename: 'f.wat' });
+    // Code, not the whole file: forcing a form changes S7's text-form record.
+    const lin = wat2wasm(wasm2wat(bin.binary, { fold: false }).text, {
+      filename: 'l.wat',
+      textForm: false,
+    });
+    const fld = wat2wasm(wasm2wat(bin.binary, { fold: true, asWritten: false }).text, {
+      filename: 'f.wat',
+      textForm: false,
+    });
     assert(fld.binary && !hasErrors(fld.errors), 'folded output must assemble');
     assertEquals(Array.from(fld.binary), Array.from(lin.binary));
   });

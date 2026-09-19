@@ -36,14 +36,24 @@ function asm(wat: string, name: string): Uint8Array {
 
 /**
  * The invariant: for any module, the folded and linear disassemblies must
- * assemble to the SAME bytes. Asserting bytes rather than text is deliberate —
+ * assemble to the SAME CODE. Asserting bytes rather than text is deliberate —
  * the two texts are supposed to differ; only the meaning must not.
+ *
+ * Since S7 the two forms differ in exactly one section: `wat2wasm` records
+ * which functions were written linearly (`binaryang.text-form`), and the
+ * linear text's are. So both are assembled WITHOUT that record, and the
+ * forms are forced as written (`asWritten: false`) — this is about folding.
  */
 function assertFormsAgree(source: string) {
   const original = asm(source, 'src.wat');
   const linear = wasm2wat(original, { fold: false }).text;
-  const folded = wasm2wat(original, { fold: true }).text;
-  assertEquals([...asm(folded, 'folded.wat')], [...asm(linear, 'linear.wat')]);
+  const folded = wasm2wat(original, { fold: true, asWritten: false }).text;
+  const code = (wat: string, name: string) => {
+    const r = wat2wasm(wat, { filename: name, textForm: false });
+    assert(r.binary !== undefined && !hasErrors(r.errors), `${name} failed to assemble`);
+    return r.binary;
+  };
+  assertEquals([...code(folded, 'folded.wat')], [...code(linear, 'linear.wat')]);
 }
 
 describe('wasm2wat --fold', () => {

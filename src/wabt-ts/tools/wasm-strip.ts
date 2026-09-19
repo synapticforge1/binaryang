@@ -34,6 +34,7 @@
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
+import { TEXT_FORM_SECTION } from '../ir/text-form.ts';
 import { Result } from '../core/result.ts';
 import {
   addError,
@@ -122,8 +123,16 @@ export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): Wasm
   // section from the IR (N1 P2) — and would put one back into every module
   // this tool had just stripped. A `name` section the caller asked to keep is
   // still among the customs and is written verbatim.
+  //
+  // The same for S7's `binaryang.text-form` section: the reader moves it into
+  // the fidelity table, so the writer would put it back. It goes when every
+  // custom section goes, or when it is named (`text-form.ts`).
+  const stripTextForm = opts.sections === undefined || opts.sections.includes(TEXT_FORM_SECTION);
   try {
-    const stripped = writeBinaryIr(module, { writeDebugNames: false });
+    const stripped = writeBinaryIr(module, {
+      writeDebugNames: false,
+      writeTextForm: !stripTextForm,
+    });
     return { binary: stripped, errors, result: Result.Ok };
   } catch (e) {
     addError(errors, unknownLocation(), e instanceof Error ? e.message : String(e));

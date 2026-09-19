@@ -334,6 +334,15 @@ their own bump — and nothing breaks by their standing still.
 
 ## Behaviour changes — bytes move
 
+- **`wat2wasm` → `wasm2wat` keeps each function's WRITTEN form** (S7, `899263b7b`; owner: fidelity
+  first on the text path). `wat2wasm` now appends a `binaryang.text-form` custom section when a
+  source has functions written linearly, and `wasm2wat` gives those back linearly (others folded, as
+  before). **Bytes move** for such sources — by that section only; `wat2wasm(src, { textForm: false })`
+  / `--no-text-form` gives the previous (and upstream's) bytes exactly. New options: `Wat2WasmOptions
+  .textForm`, `Wasm2WatOptions.asWritten`, `WriteWatOptions.asWritten`, `WriteBinaryOptions
+  .writeTextForm`. ⚠️ CLI `wasm2wat --fold` now folds EVERY function (it was the default, a no-op).
+  Optimizing and `wasm-strip` drop the section.
+
 - **Dead functions are removed at every `-O` level, as upstream** (owner decision, 2026-09-14; was
   divergence I1): `RemoveUnusedModuleElements` now runs before the function passes from `-O2` and
   at the end at `-O1` and up, and `Inlining` removes only functions it inlined. Corpus: `-O1` /
