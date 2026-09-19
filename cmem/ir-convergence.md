@@ -3924,7 +3924,9 @@ wires in at M8e, after `nameReferences`.
 - **Gate** on `84a128f82`: every step exit 0, 1254 tests (1288, minus the 16 bridge files, plus one).
 
 **Post-M8 fixes (owner, 2026-09-18): "fix the defects that were found and the mutants noted."**
-Each item is its own branch, measured, tested, mutated and gated.
+Each item is its own branch, measured, tested, mutated and gated. Fixes 9 and 10 — divergence W9's
+two reader defects, found by fix 4 — joined the list on 2026-09-19 (owner: "add the fixes to the
+defects to the task list"); their scope is in open-work.md.
 1. ✅ **`table.get` is typed by its table's element type** (`ddd5f6163` + `4f2841e66`).
    - The defect: the decoder never passed the element type to `makeTableGet`, whose default was
      `funcref`, and binaryen-ts's own WAT parser wrote `funcref` outright.

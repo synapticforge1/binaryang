@@ -26,7 +26,7 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 6 of 8 done; resume at fix 7)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 6 of 10 done; resume at fix 7)
 
 **Where the work stopped.** `main` is at the merge of post-M8 fix 6 (code last changed at
 `653fd3839`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
@@ -122,7 +122,18 @@ entity collections stay there until the records themselves are one type (M8).
    - fix 8 (added by the owner, 2026-09-18): the decoder reads `memory.size` / `memory.grow`'s
      memory index as ONE BYTE where multi-memory writes a LEB `u32` — the same value below 128,
      wrong (and misaligned for the rest of the body) from 128 up. Read it as a LEB, as every other
-     memory index is; test with a memory index >= 128 and against V8.
+     memory index is; test with a memory index >= 128 and against V8;
+   - fix 9 (added by the owner, 2026-09-19; divergence W9 (a)): wabt-ts's binary reader never gives
+     `br_table` its carried values — it leaves them as preceding statements (`binary-reader.ts`
+     `Opcode.BrTable`), so folded `wasm2wat` prints them as siblings where upstream nests them
+     (`br_if.0` func 23). Pop the default target's arity below the index, as fix 5 does for the
+     parser's other branches; judge against upstream `wasm2wat --fold-exprs`. ⚠️ The parser's linear
+     `br_table` takes its index only too — decide whether it follows, so the two front ends agree;
+   - fix 10 (added by the owner, 2026-09-19; divergence W9 (b)): wabt-ts's binary reader types the
+     FUNCTION label's frame void (`decodeBody`'s root `Frame`), so a `br` / `br_if` / `br_on_*` to
+     it carries nothing (`unwind.0` func 4). Give the root frame the function's results. ⚠️ After
+     it, `lift` in `derive_types.test.ts` names this as the last live source of sibling-shaped
+     `br_if`s — update that note.
 
    **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was. S6 step 5 is
    closed; the next STEP after these fixes is the owner's call (S7 is independent and ready).
@@ -141,11 +152,8 @@ entity collections stay there until the records themselves are one type (M8).
   first result~~ (fixed `4b2488540`); ~~`makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64~~ (fixed `565e7b2c2`);
   ~~wabt-ts's binary reader does not treat a `br_if` as producing a value~~ (fixed `a82dadf90`);
   ~~the WAT parser does not know a branch target's arity~~ (fixed `89b6a1805`).
-- 🗓️ **found by fix 4, NOT on the list — owner's call whether they join it** (fix 4's record; divergence **W9**):
-  wabt-ts's binary reader (a) never gives `br_table` its carried values (it leaves them as preceding
-  statements, `binary-reader.ts` `Opcode.BrTable`), and (b) types the FUNCTION label's frame void, so
-  a `br` / `br_if` / `br_on_*` to it carries nothing. The 2 of 648 `br_if`s still nested unlike
-  upstream's folded `wasm2wat` are one of each; bytes right.
+- found by fix 4 (its record; divergence **W9**), **joined the list as fixes 9 and 10 (owner,
+  2026-09-19)**: the reader's `br_table` values and its function-label arity.
 
 **Working method that keeps paying** (the rules in [working-rules.md](working-rules.md) /
 [best-practices.md](best-practices.md) — today's evidence):
