@@ -139,10 +139,12 @@ every ordered item is done. Everything else open is listed below, by kind.
 🛑 **NEW, 2026-09-19 — ONE FRONT END** (owner decision): the readers and writers are shared too, not
 only the tree. Measured, NOT started: [ir-convergence.md](ir-convergence.md) § "One front end",
 with a five-stage plan for the owner to confirm. Found by that measurement, and open:
-- 🔴 **binaryen-ts's decoder MISCOMPILES saturating truncation** (DEFECT, silent, SHIPPED): 0xFC
-  0x00–0x07 decode as the TRAPPING truncations, so `wasm-opt` on any binary using them turns a
-  saturated result into a trap. 4 of 4 corpus modules with the instruction. Stage 0 of the plan:
-  fix first, independent of the decision.
+- ✅ ~~binaryen-ts's decoder MISCOMPILED saturating truncation~~ — FIXED 2026-09-19 (`2ca4513f1`,
+  stage 0 of the confirmed plan): 0xFC 0x00–0x07 decoded as the TRAPPING truncations, so `wasm-opt`
+  on any binary using them turned a saturated result into a trap (4 of 4 corpus modules; now 0).
+  It shipped in 1.5.4 — see unreleased.md.
+- **Next: stage 1 of the plan** (settle the tree — one node kind per instruction): ir-convergence.md
+  § "One front end". The plan and the three refinements are confirmed (owner, 2026-09-19).
 - **route A's `wasm-opt` emits INVALID output for 7 valid spec modules** at -O2 (`br.0`,
   `return.0`, `unreachable.0`, `names.2`, `fac.0`, `if.0`, `unreached-valid.0`) — `optimize-corpus`
   covers only the 421 wasmtk modules.

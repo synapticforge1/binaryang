@@ -381,6 +381,11 @@ their own bump — and nothing breaks by their standing still.
   - a linear `call_indirect` / `return_call_indirect` / `call_ref` took the WHOLE operand stack as
     its arguments, T10.5's defect for `call`, which they never got the fix for. A value belonging to
     a later instruction became an extra argument.
+- **`wasm-opt` no longer turns saturating truncation into trapping truncation** (`2ca4513f1`).
+  binaryen-ts's decoder read `i32.trunc_sat_f32_s` and the seven like it as the TRAPPING
+  instructions, so optimizing a binary that used them changed its behaviour: a result that should
+  saturate (`1e10` → `2147483647`, NaN → 0) trapped instead. Shipped in 1.5.4, on every route into
+  `wasm-opt` — WAT input too, since `read-wat` assembles and then decodes. New: `UnaryOp.TruncSat*`.
 - **The binary reader indexes imports within their own kind** (`ab1a211ee`, found by S7). After a
   global, table or memory import, a call to an imported function — or a `throw` of an imported tag
   — read back with the wrong signature: `(call $log (global.get $g))` came back as a call with no

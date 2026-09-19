@@ -4364,8 +4364,9 @@ findings beside the question: **route A already emits INVALID output for valid s
 
 **The plan — ✅ confirmed by the owner ("proceed", 2026-09-19)**; each stage gated like every stage
 before it:
-0. **Fix the saturating-truncation miscompile now** — it ships in the current decoder, independent
-   of the decision.
+0. ✅ **Fix the saturating-truncation miscompile now** — DONE 2026-09-19 (`2ca4513f1`): eight
+   `UnaryOp.TruncSat*` opcodes, the decoder maps each to its own; corpus 4 of 4 modules rewritten
+   → 0; `tests/binaryen-ts/binary/trunc_sat.test.ts`.
 1. **Settle the tree**: one node shape for SIMD loads, the scalar saturating truncations in the
    opcode set, `defaultInit`, the unreachable-code types — so both readers build the same kinds.
 2. **Move A's preparation into `prepareForPasses`** (pops, spills, block-param lowering as a tree
@@ -4478,7 +4479,7 @@ RA = wabt-ts `reader/binary-reader.ts`; RB = binaryen-ts `binary/wasm-parser.ts`
 | R15 | `lowerBlockParams`: spills params to locals, rewrites branches to loops, a `br_table` trampoline for mixed targets; suppresses the written `typeIndex` — reached by `PassRunner` through an encode + DECODE round trip (`passes/lower-block-params.ts`)                     | RB                             | (b)   |
 | R16 | the text-form section: RA applies it to its own tree; RB re-reads the bytes with RA to predict — RB already depends on RA                                                                                                                                                  | both                           | (c)   |
 | R17 | relaxed SIMD: RA reads it, RB refuses ✓ (8 valid spec modules); RA may decode ANY unknown 0xFD sub-opcode as a binary op without error (unsure); RA refuses compact imports explicitly                                                                                     | RA                             | (a)   |
-| R18 | scalar SATURATING truncation (0xFC 0x00–0x07): RB decodes it as the TRAPPING opcodes — a miscompile ✓ (4 of 4 corpus modules); RA keeps it                                                                                                                                 | RA right                       | (a)   |
+| R18 | scalar SATURATING truncation (0xFC 0x00–0x07): RB decoded it as the TRAPPING opcodes — a miscompile ✓ (4 of 4 corpus modules); RA keeps it. ✅ FIXED `2ca4513f1` (stage 0)                                                                                                 | both now                       | (a)   |
 | R19 | SIMD loads: RB builds `simd.load`, RA `load` ✓ (90 functions) — a node-kind split in the one tree type                                                                                                                                                                  | differ                         | (a)   |
 
 **Writers**

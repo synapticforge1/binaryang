@@ -267,6 +267,18 @@ export const UnaryOp = {
   TruncUF32ToI64: 0xaf, // i64.trunc_f32_u
   TruncSF64ToI64: 0xb0, // i64.trunc_f64_s
   TruncUF64ToI64: 0xb1, // i64.trunc_f64_u
+  // The SATURATING truncations (0xFC 0x00–0x07): out of range they clamp, and
+  // NaN gives 0, where the eight above trap. There were no entries for them, so
+  // the decoder mapped them onto the trapping ones — a module that returned
+  // 2147483647 for 1e10 trapped after `wasm-opt` (One front end, 2026-09-19).
+  TruncSatSF32ToI32: (0xfc << 16) | 0x00, // i32.trunc_sat_f32_s
+  TruncSatUF32ToI32: (0xfc << 16) | 0x01, // i32.trunc_sat_f32_u
+  TruncSatSF64ToI32: (0xfc << 16) | 0x02, // i32.trunc_sat_f64_s
+  TruncSatUF64ToI32: (0xfc << 16) | 0x03, // i32.trunc_sat_f64_u
+  TruncSatSF32ToI64: (0xfc << 16) | 0x04, // i64.trunc_sat_f32_s
+  TruncSatUF32ToI64: (0xfc << 16) | 0x05, // i64.trunc_sat_f32_u
+  TruncSatSF64ToI64: (0xfc << 16) | 0x06, // i64.trunc_sat_f64_s
+  TruncSatUF64ToI64: (0xfc << 16) | 0x07, // i64.trunc_sat_f64_u
   PromoteF32: 0xbb, // f64.promote_f32
   DemoteF64: 0xb6, // f32.demote_f64
   ConvertSI32ToF32: 0xb2, // f32.convert_i32_s
