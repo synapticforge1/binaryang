@@ -2606,13 +2606,13 @@ class WasmParser {
         }
 
         case 0x3f: { // memory.size
-          const mem = r.readU8();
+          const mem = r.readU32();
           push(makeMemorySize(varIndex(mem), memoryAddressType(ctx, mem, r)));
           break;
         }
         case 0x40: { // memory.grow
-          // The memidx byte precedes the operand, so read it first.
-          const growMem = r.readU8();
+          // The memory index (a LEB, as every memory index) precedes the operand.
+          const growMem = r.readU32();
           push(makeMemoryGrow(pop(), varIndex(growMem), memoryAddressType(ctx, growMem, r)));
           break;
         }
@@ -3128,8 +3128,8 @@ function decodeMiscPrefix(
       push(makeUnary(UnaryOp.TruncUF64ToI64, pop()));
       break;
     case 10: { // memory.copy
-      const dstMem = r.readU8();
-      const srcMem = r.readU8();
+      const dstMem = r.readU32();
+      const srcMem = r.readU32();
       const size = pop();
       const src = pop();
       const dst = pop();
@@ -3137,7 +3137,7 @@ function decodeMiscPrefix(
       break;
     }
     case 11: { // memory.fill
-      const fillMem = r.readU8();
+      const fillMem = r.readU32();
       const size = pop();
       const val = pop();
       const dst = pop();
@@ -3153,7 +3153,7 @@ function decodeMiscPrefix(
     // it is retired now that the IR can represent every one of them.
     case 8: { // memory.init
       const segIdx = r.readU32();
-      const initMem = r.readU8();
+      const initMem = r.readU32();
       const size = pop();
       const offset = pop();
       const dst = pop();
