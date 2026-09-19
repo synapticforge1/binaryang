@@ -1725,17 +1725,28 @@ export class BinaryReader {
           const numTargets = this.readU32Leb();
           const targets: Var[] = [];
           for (let i = 0; i < numTargets; i++) targets.push(varIndex(this.readU32Leb()));
-          const defaultTarget = varIndex(this.readU32Leb());
+          const defaultDepth = this.readU32Leb();
+          const defaultTarget = varIndex(defaultDepth);
           const value = stack.pop() ?? operandPlaceholder(loc);
-          // Values carried to the target sit below the index. Leave them as
-          // preceding statements (the linear shape) rather than pulling them
-          // into the node, matching how the binary stream orders them.
+          // The values carried to the target sit below the index, and every
+          // target carries the same number (validation), so the default's
+          // arity is the table's. They go INTO the node, as `br` takes its
+          // own (post-M8 fix 9, divergence W9 (a)): left as preceding
+          // statements, folded `wasm2wat` printed them as siblings where
+          // upstream nests them. Only what the region holds is taken.
+          const rCount = brTargetResultCount(labelStack, defaultDepth, m);
+          const values: Expr[] = [];
+          for (let i = 0; i < rCount; i++) {
+            const v = stack.pop();
+            if (v === undefined) break;
+            values.unshift(v);
+          }
           pushStmt(stack, stmts, {
             kind: 'br_table',
             targets,
             defaultTarget,
             condition: value,
-            values: [],
+            values,
             loc,
           });
           break;

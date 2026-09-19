@@ -61,7 +61,10 @@ describe('a folded br_table keeps every operand below its index', () => {
     assertEquals(bt.condition.kind, 'local.get');
   });
 
-  it('a linear br_table still takes its index only', () => {
+  // Until post-M8 fix 9 a linear br_table took its index alone and left the
+  // value a sibling; it now takes its default target's values, as the binary
+  // reader does.
+  it('a linear br_table takes its target’s value and its index', () => {
     const p = parseWatModule(`(module (func (param i32) (result i32)
       block (result i32)
         i32.const 7
@@ -73,6 +76,7 @@ describe('a folded br_table keeps every operand below its index', () => {
     assert(block?.kind === 'block');
     const bt = block.children.find((e) => e.kind === 'br_table');
     assert(bt?.kind === 'br_table');
-    assertEquals(bt.values, []);
+    assertEquals(bt.values.map((e) => e.kind), ['const']);
+    assertEquals(block.children.length, 1, 'the value is no longer a sibling');
   });
 });
