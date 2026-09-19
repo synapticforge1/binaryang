@@ -26,11 +26,11 @@ that history now lives in its topic files — nothing was dropped:
 ahead, unpushed and unbumped, at 1043 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 bridge 421/421 (was 401 until 2026-09-15), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 5 of 8 done; resume at fix 6)
+## Start the next session here (handoff, 2026-09-19 — post-M8 fixes: 6 of 8 done; resume at fix 7)
 
-**Where the work stopped.** `main` is at the merge of post-M8 fix 5 (code last changed at
-`89b6a1805`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
-on the committed tree `89b6a1805` (as on every stage before it) and every step exited 0: fmt, lint, **1259 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at the merge of post-M8 fix 6 (code last changed at
+`653fd3839`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open.** The full gate ran
+on the committed tree `653fd3839` (as on every stage before it) and every step exited 0: fmt, lint, **1260 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **421/421 byte-identical to wat2wasm, valid at every level**, `direct-behaviour` **1806 calls / 602 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -115,10 +115,9 @@ entity collections stay there until the records themselves are one type (M8).
    - ✅ the WAT parser knows a branch target's arity (a label stack; a void `call` is a statement);
      trees only, bytes unchanged — and the optimizer's text route now REFUSES 109 V8-invalid modules
      it typed silently. The M8d stack-rule tests build their sibling trees by hand (`lift`);
-   - ⏭️ **NEXT — fix 6:** `br_table`'s stale `'nop'` filter in the WAT parser (it never meets a
-     placeholder — still true after fix 5, which left `br_table` taking its index only; remove or make
-     it `'pop'`, with the reason). ⚠️ Giving `br_table` its carried values is W9's half, not this;
-   - fix 7: the dropped-start mutant only `prepare.test.ts` caught. Make `deno task direct` (and
+   - ✅ `br_table`'s `'nop'` filter removed — not merely stale: it dropped a REAL `(nop)` child from
+     the module, one byte short of upstream `wat2wasm` (no corpus has the shape);
+   - ⏭️ **NEXT — fix 7:** the dropped-start mutant only `prepare.test.ts` caught. Make `deno task direct` (and
      ideally `direct-behaviour`) also run the fixture's modules, so a gate sees start sections;
    - fix 8 (added by the owner, 2026-09-18): the decoder reads `memory.size` / `memory.grow`'s
      memory index as ONE BYTE where multi-memory writes a LEB `u32` — the same value below 128,

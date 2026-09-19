@@ -376,6 +376,8 @@ their own bump — and nothing breaks by their standing still.
   `return` no longer swallow the whole stack (a void `call` included), a value-less `br_if` no
   longer takes a stray value, a block-param value is kept as a `pop`, and a one-value `br_if` is an
   operand. The optimizer's text route now REFUSES 109 V8-invalid modules it used to type silently.
+- **`wat2wasm` no longer drops a `(nop)` operand of a folded `br_table`** (post-M8 fix 6,
+  `653fd3839`): it wrote one byte fewer than upstream. No corpus module had the shape.
 
 - **binaryen-ts kept a table64 a table64** (S6 step 5 item 6 (M2g)). The table reader took the whole
   flag byte as "has a maximum": a 64-bit table decoded as a 32-bit one and was re-encoded as one — 11

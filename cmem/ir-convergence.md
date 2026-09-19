@@ -4016,6 +4016,22 @@ Each item is its own branch, measured, tested, mutated and gated.
      SURVIVED first — padding matters only in the FOLDED form (linear `popN` pads already), and
      `br_on_non_null` had no test — and two first died in TYPE-CHECKING, not the test; all rewritten.
    - Gate on `89b6a1805`: exit 0, 1259 tests; baseline IDENTICAL.
+6. ✅ **A folded `br_table` keeps every operand below its index** (`653fd3839`, 2026-09-19).
+   - The item as listed: the WAT parser's `br_table` filtered its carried values by `'nop'` (the
+     placeholder before S5) and "never meets a placeholder" — true, and still true after fix 5
+     (linear `br_table` pops its index alone; the folded form never pads).
+   - ⚠️ **The probe found it was not harmless.** What it DID meet was a real `(nop)` child:
+     `(br_table 0 0 (i32.const 7) (nop) (local.get 0))` wrote one byte fewer than upstream 1.0.41's
+     `wat2wasm`. Probed across every branch: only `br_table` lost it (`br` / `br_if` / `return` /
+     `br_on_null` filter `pop`, or nothing, so they kept it).
+   - The fix: removed, not made `'pop'` (dead — nothing pads there). The module equals upstream's but
+     for the name section; `prepareForPasses` encodes it the same, and -O3 leaves it valid.
+   - Measured: 0 of 2,286 WAT files change bytes or tree; 0 of 5,794 round trips differ — no corpus
+     has the shape, so only the probe could see it.
+   - Test `br_table_operands.test.ts` pins upstream's body bytes; the restore-the-filter mutant fails
+     its byte and tree steps. Gate on `653fd3839`: exit 0, 1260 tests.
+   - Lesson: "stale, never reached" was a claim about the PLACEHOLDER; the filter's real inputs were
+     never enumerated. Ask what a dead-looking guard actually meets before choosing its fate.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
 1. **M8a — one convention per field in the node type:** `align` in bytes everywhere; `isReturn` one
