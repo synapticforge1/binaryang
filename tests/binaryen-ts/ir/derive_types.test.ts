@@ -43,6 +43,31 @@ function fromBinary(wat: string): W.Module {
   return m;
 }
 
+/**
+ * Lift the operand in `slot` of `list[i]` out as the sibling BEFORE it, leaving
+ * a `pop` behind in a `value`, and NOTHING in a branch's `values` (the value
+ * drops out, as the binary reader's tree had it) — the tree a front end builds
+ * when it does not know a value is there. Neither does so for a `br_if` since
+ * post-M8 fixes 4 (the binary reader) and 5 (the WAT parser), except the reader
+ * for a branch to the FUNCTION label (divergence W9) — so the shapes
+ * `deriveTypes`' stack rule exists for are built here by hand.
+ */
+function lift(list: unknown[], i: number, slot: 'value' | 'values'): void {
+  // deno-lint-ignore no-explicit-any
+  const node = list[i] as any;
+  const operand = slot === 'value' ? node.value : node.values[0];
+  const pop = { kind: 'pop', loc: node.loc };
+  const rest = slot === 'value' ? { ...node, value: pop } : { ...node, values: [] };
+  list.splice(i, 1, operand, rest);
+}
+
+/** The children of function `f`'s outermost block. */
+function blockOf(m: W.Module, f = 0): unknown[] {
+  const b = m.functions[f]!.body.children.find((e) => e.kind === 'block');
+  assert(b?.kind === 'block');
+  return b.children;
+}
+
 /** Every node of `kind` under `root`, in document order. */
 // deno-lint-ignore no-explicit-any
 function all(root: unknown, kind: string): any[] {
@@ -201,14 +226,19 @@ describe('M8d — deriveTypes: `pop`, typed by the value stack', () => {
   });
 
   it("a value an earlier instruction left: a br_if's fall-through", () => {
-    const m = fromText(`(module (func (param i32) (result i64)
+    const m = fromText(
+      `(module (func (param i32) (result i64)
       block (result i64)
         i64.const 48
         local.get 0
         br_if 0
         drop
         i64.const 1
-      end))`);
+      end))`,
+      false,
+    );
+    lift(blockOf(m), 0, 'value'); // drop (br_if …) -> br_if …; drop (pop)
+    deriveTypes(m);
     assertEquals(all(m.functions[0]!.body, 'pop')[0].type, ValType.I64);
   });
 
@@ -261,11 +291,36 @@ describe('M8d — deriveTypes: `pop`, typed by the value stack', () => {
 
 describe("M8d — deriveTypes: branches follow wasm's rule where the tree shape differs", () => {
   it("a br_if whose value the tree left as a sibling falls through with its target's values", () => {
-    // The WAT parser, reading LINEAR text, leaves the inner br_if as a sibling,
-    // not the outer's value (it does not know a target's arity: post-M8 fix 5).
-    // ⚠️ This came from wabt-ts's binary reader until post-M8 fix 4 made a
-    // one-value br_if an operand there; when fix 5 lands, build the tree by hand.
-    const m = fromText(`(module (func (result i32)
+    // The inner br_if as a sibling, not the outer's value: built by hand (see
+    // `lift`). It came from the binary reader until post-M8 fix 4, then from
+    // the WAT parser on linear text until fix 5.
+    const m = fromText(
+      `(module (func (result i32)
+      (block (result i32)
+        (drop (br_if 0 (br_if 0 (i32.const 1) (i32.const 2)) (i32.const 3)))
+        (i32.const 4))))`,
+      false,
+    );
+    lift(blockOf(m), 0, 'value'); // drop (br_if …) -> br_if …; drop (pop)
+    lift(blockOf(m), 0, 'values'); // br_if (br_if …) … -> br_if …; br_if …
+    deriveTypes(m);
+    assertEquals(blockOf(m).map((e) => (e as { kind: string }).kind), [
+      'br',
+      'br',
+      'drop',
+      'const',
+    ]);
+    const brs = all(m.functions[0]!.body, 'br');
+    assertEquals(brs.map((b) => b.type), [ValType.I32, ValType.I32]);
+    assertEquals(all(m.functions[0]!.body, 'pop').map((p) => p.type), [ValType.I32]);
+  });
+
+  it('both front ends nest that br_if as the value: the same types, and no pop', () => {
+    const folded = `(module (func (result i32)
+      (block (result i32)
+        (drop (br_if 0 (br_if 0 (i32.const 1) (i32.const 2)) (i32.const 3)))
+        (i32.const 4))))`;
+    const linear = `(module (func (result i32)
       (block (result i32)
         i32.const 1
         i32.const 2
@@ -273,20 +328,12 @@ describe("M8d — deriveTypes: branches follow wasm's rule where the tree shape 
         i32.const 3
         br_if 0
         drop
-        i32.const 4)))`);
-    const brs = all(m.functions[0]!.body, 'br');
-    assertEquals(brs.map((b) => b.type), [ValType.I32, ValType.I32]);
-    assertEquals(all(m.functions[0]!.body, 'pop').map((p) => p.type), [ValType.I32]);
-  });
-
-  it('the binary reader nests that br_if as the value: the same types, and no pop', () => {
-    const m = fromBinary(`(module (func (result i32)
-      (block (result i32)
-        (drop (br_if 0 (br_if 0 (i32.const 1) (i32.const 2)) (i32.const 3)))
-        (i32.const 4))))`);
-    const brs = all(m.functions[0]!.body, 'br');
-    assertEquals(brs.map((b) => b.type), [ValType.I32, ValType.I32]);
-    assertEquals(all(m.functions[0]!.body, 'pop'), []);
+        i32.const 4)))`;
+    for (const m of [fromBinary(folded), fromText(folded), fromText(linear)]) {
+      const brs = all(m.functions[0]!.body, 'br');
+      assertEquals(brs.map((b) => b.type), [ValType.I32, ValType.I32]);
+      assertEquals(all(m.functions[0]!.body, 'pop'), []);
+    }
   });
 
   it('br_on_null falls through with its carried values AND the ref', () => {
@@ -316,10 +363,10 @@ describe("M8d — deriveTypes: branches follow wasm's rule where the tree shape 
   });
 
   it("a br_if removes its target's values even when the tree does not hold them", () => {
-    // The parser leaves the inner br_if as a sibling (linear text; see above);
-    // the outer br_if still consumes its value, so the second drop reaches the
-    // i64 below.
-    const m = fromText(`(module (func (result i32)
+    // With the inner br_if a sibling (built by hand, as above), the outer
+    // br_if still consumes its value, so the second drop reaches the i64 below.
+    const m = fromText(
+      `(module (func (result i32)
       (block (result i32)
         i64.const 9
         i32.const 1
@@ -329,7 +376,22 @@ describe("M8d — deriveTypes: branches follow wasm's rule where the tree shape 
         br_if 0
         drop
         drop
-        i32.const 4)))`);
+        i32.const 4)))`,
+      false,
+    );
+    // [i64.const, drop (br_if (br_if …) …), drop, …] -> the inner br_if a
+    // sibling and the outer one holding no value (see `lift`).
+    lift(blockOf(m), 1, 'value');
+    lift(blockOf(m), 1, 'values');
+    deriveTypes(m);
+    assertEquals(blockOf(m).map((e) => (e as { kind: string }).kind), [
+      'const',
+      'br',
+      'br',
+      'drop',
+      'drop',
+      'const',
+    ]);
     assertEquals(all(m.functions[0]!.body, 'pop').map((p) => p.type), [ValType.I32, ValType.I64]);
   });
 

@@ -1027,6 +1027,20 @@ function popN(ctx: ExprCtx, n: number, fallback: Location): Expr[] {
 }
 
 /**
+ * A branch's carried values, given its target's arity (post-M8 fix 5). Fewer
+ * than the target carries — the folded form found no more, or they come from
+ * outside the region — are padded BELOW with placeholders, as `popN` pads, so
+ * the tree says a value arrives from elsewhere; a placeholder writes nothing.
+ * More are kept: that module is invalid, and dropping one would hide it.
+ * Unknown arity keeps what was given.
+ */
+function carried(values: Expr[], arity: number | undefined, loc: Location): Expr[] {
+  if (arity === undefined || values.length >= arity) return values;
+  const missing = Array.from({ length: arity - values.length }, () => operandPlaceholder(loc));
+  return [...missing, ...values];
+}
+
+/**
  * Flush remaining stack items as sequential statements (for end-of-block).
  *
  * Preserves order: stack `[a, b, c]` (a pushed first, c on top) flushes to
@@ -1192,8 +1206,19 @@ export class WastParser {
    */
   private allowNanPatterns = false;
 
-  private funcParamCounts: number[] = [];
-  private funcParamCountsByName = new Map<string, number>();
+  private funcParamCounts: (number | undefined)[] = [];
+  private funcParamCountsByName = new Map<string, number | undefined>();
+  /** Each function's result count, as {@link funcParamCounts}: see {@link producesValue}. */
+  private funcResultCounts: (number | undefined)[] = [];
+  private funcResultCountsByName = new Map<string, number | undefined>();
+  /**
+   * The labels in scope while a function body is parsed, outermost (the
+   * function's own frame, unnamed) first, each with the number of values a
+   * branch to it carries — `undefined` where that is not known. Empty outside
+   * a body, so a branch there keeps the token-type arity. See
+   * {@link branchInputCount}.
+   */
+  private labels: { name: string; arity: number | undefined }[] = [];
 
   constructor(tokens: readonly Token[]) {
     this.tokens = tokens;
@@ -1409,6 +1434,103 @@ export class WastParser {
   }
 
   /**
+   * How many stack operands a branch takes, from its target's arity — or
+   * `undefined` when the token is not a branch this resolves, or the target
+   * is not known (no enclosing function, an unknown label), in which case the
+   * token-type fallback keeps the old behaviour. `br_table` is not here: it
+   * takes only its index and leaves carried values as siblings, as wabt-ts's
+   * binary reader does (divergence W9, post-M8 fix 6).
+   */
+  private branchInputCount(tt: TokenType): number | undefined {
+    if (tt === TokenType.Return) return this.labels[0]?.arity;
+    if (
+      tt !== TokenType.Br && tt !== TokenType.BrIf &&
+      tt !== TokenType.BrOnNull && tt !== TokenType.BrOnNonNull
+    ) return undefined;
+    const arity = this.branchArity(this.peekVar());
+    if (arity === undefined) return undefined;
+    // br: the carried values. br_if: those and the condition. br_on_null:
+    // those and the ref. br_on_non_null: the ref is the target's LAST value.
+    if (tt === TokenType.Br) return arity;
+    if (tt === TokenType.BrOnNonNull) return Math.max(arity, 1);
+    return arity + 1;
+  }
+
+  /**
+   * The number of values a branch to `v` carries: the target block's results,
+   * a loop's params, the function's results for its outermost label. By
+   * depth or by name — the innermost label of that name, as `resolveNames`
+   * binds it. `undefined` when it cannot be known.
+   */
+  private branchArity(v: Var | null): number | undefined {
+    if (v === null) return undefined;
+    const i = v.kind === 'index'
+      ? this.labels.length - 1 - v.value
+      : this.labels.findLastIndex((l) => l.name !== '' && l.name === v.name);
+    return i >= 0 ? this.labels[i]!.arity : undefined;
+  }
+
+  /**
+   * Whether `expr` leaves ONE value for a following instruction to take — an
+   * operand, not a statement. Beyond the token's own rule: a `br_if` whose
+   * target carries one value falls through with it, and a `br_on_null` to a
+   * void target falls through with the ref alone. Two or more stay a
+   * statement, as wabt-ts's binary reader has them (post-M8 fix 4) and
+   * upstream folds them. Unknown arity keeps the token's rule.
+   */
+  private producesValue(tt: TokenType, expr: Expr): boolean {
+    // A call whose callee is KNOWN to return nothing is a statement. Pushed as
+    // a value, a following branch took the void call as its carried value and
+    // left the real one a sibling (post-M8 fix 5).
+    if (this.resultCount(expr) === 0) return false;
+    if (instrProducesValue(tt)) return true;
+    if (expr.kind === 'br' && expr.condition !== undefined) {
+      return this.branchArity(expr.target) === 1;
+    }
+    if (expr.kind === 'br_on' && expr.opcode === BrOnOp.Null) {
+      return this.branchArity(expr.target) === 0;
+    }
+    return false;
+  }
+
+  /**
+   * How many results a call leaves, where the callee's signature is known —
+   * `undefined` for anything else, and for a callee not (yet) known.
+   */
+  private resultCount(expr: Expr): number | undefined {
+    if (expr.kind === 'call' && expr.isReturn !== true) {
+      const v = expr.func;
+      return v.kind === 'index'
+        ? this.funcResultCounts[v.value]
+        : this.funcResultCountsByName.get(v.name);
+    }
+    if (expr.kind === 'call_indirect' && expr.isReturn !== true) {
+      // An inline signature wins, as `varArityForTok` reads it.
+      const { sig, typeVar } = expr;
+      if (sig.params.length > 0 || sig.results.length > 0 || typeVar === undefined) {
+        return sig.results.length;
+      }
+      const m = this.currentModule;
+      return m === null ? undefined : this.lookupFuncTypeEntry(m, typeVar)?.results.length;
+    }
+    if (expr.kind === 'call_ref' && expr.isReturn !== true) {
+      const m = this.currentModule;
+      return m === null ? undefined : this.lookupFuncTypeEntry(m, expr.sigType)?.results.length;
+    }
+    return undefined;
+  }
+
+  /** Bring a carrier's label into scope for its body; {@link leaveLabel} ends it. */
+  private enterLabel(name: string, bt: BlockType, isLoop: boolean): void {
+    const sig = this.blockSig(bt);
+    this.labels.push({ name, arity: (isLoop ? sig.params : sig.results).length });
+  }
+
+  private leaveLabel(): void {
+    this.labels.pop();
+  }
+
+  /**
    * Stack arity of a variable-arity opcode, resolved from its immediate.
    *
    * `instrInputCount` returns -1 for `call` because the arity is the CALLEE's
@@ -1433,6 +1555,13 @@ export class WastParser {
    * the whole module field list is known — see {@link parsePendingBodies}.
    */
   private varArityForTok(tok: Token): number {
+    // A branch's arity is its TARGET's (post-M8 fix 5, found by M8d): without
+    // it `br` / `return` drained the whole stack — a void `call` and values
+    // belonging to later instructions included — and `br_if` / `br_on_*`
+    // popped a fixed two, taking a stray value for a void target and dropping
+    // a real one that came from outside the region.
+    const branch = this.branchInputCount(tok.tokenType);
+    if (branch !== undefined) return branch;
     const n = instrInputCountForTok(tok);
     if (n !== -1) return n;
     switch (tok.tokenType) {
@@ -2217,26 +2346,47 @@ export class WastParser {
     const savedModule = this.currentModule;
     const savedCounts = this.funcParamCounts;
     const savedByName = this.funcParamCountsByName;
+    const savedResults = this.funcResultCounts;
+    const savedResultsByName = this.funcResultCountsByName;
 
     // Function index space: imports first, then definitions — the same order
     // resolveNames binds it in.
-    const counts: number[] = [];
-    const byName = new Map<string, number>();
-    const record = (name: string, n: number): void => {
-      if (name) byName.set(name, n);
-      counts.push(n);
+    //
+    // A `(type $t)` declared LATER left a function's `sig` empty
+    // (`settleTypeUse`); every type is known by now, so read it from there —
+    // or not at all when it names nothing, which keeps the draining fallback.
+    const sigOf = (f: Func): FuncSignature | undefined =>
+      typeof f.typeUse === 'object'
+        ? this.lookupFuncTypeEntry(module, f.typeUse) ?? undefined
+        : f.sig;
+    const counts: (number | undefined)[] = [];
+    const byName = new Map<string, number | undefined>();
+    const results: (number | undefined)[] = [];
+    const resultsByName = new Map<string, number | undefined>();
+    const record = (f: Func): void => {
+      const sig = sigOf(f);
+      if (f.name) byName.set(f.name, sig?.params.length);
+      if (f.name) resultsByName.set(f.name, sig?.results.length);
+      counts.push(sig?.params.length);
+      results.push(sig?.results.length);
     };
     for (const imp of module.imports) {
-      if (imp.kind === ExternalKind.Func) record(imp.func.name, imp.func.sig.params.length);
+      if (imp.kind === ExternalKind.Func) record(imp.func);
     }
-    for (const f of module.functions) record(f.name, f.sig.params.length);
+    for (const f of module.functions) record(f);
     this.funcParamCounts = counts;
     this.funcParamCountsByName = byName;
+    this.funcResultCounts = results;
+    this.funcResultCountsByName = resultsByName;
 
+    const savedLabels = this.labels;
     for (const pb of pending) {
       this.pos = pb.pos;
       this.localScope = pb.scope;
       this.currentModule = module;
+      // The function's own frame: a `return`, or a branch to the outermost
+      // depth, carries its results.
+      this.labels = [{ name: '', arity: sigOf(pb.func)?.results.length }];
       this.parseInstrListInto(pb.func.body.children);
       if (this.pos !== pb.endPos) {
         // Unconsumed input between here and the function's `)`. The instr
@@ -2250,9 +2400,12 @@ export class WastParser {
       }
       checkLabelScopes(pb.func.body.children, (loc, msg) => this.error(loc, msg));
     }
+    this.labels = savedLabels;
 
     this.funcParamCounts = savedCounts;
     this.funcParamCountsByName = savedByName;
+    this.funcResultCounts = savedResults;
+    this.funcResultCountsByName = savedResultsByName;
     this.currentModule = savedModule;
     this.localScope = savedScope;
     this.pos = savedPos;
@@ -3407,7 +3560,7 @@ export class WastParser {
     if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
 
     if (expr !== null) {
-      if (instrProducesValue(tt2)) {
+      if (this.producesValue(tt2, expr)) {
         ctx.stack.push(expr);
       } else {
         pushStmt(ctx, expr);
@@ -3427,7 +3580,9 @@ export class WastParser {
       const params = this.takeEntryParams(ctx, blockType, loc);
 
       const bodyCtx = newCtx();
+      this.enterLabel(label, blockType, tt === TokenType.Loop);
       this.parseInstrList(bodyCtx);
+      this.leaveLabel();
       flushStack(bodyCtx);
 
       this.expect(TokenType.Rpar);
@@ -3496,6 +3651,7 @@ export class WastParser {
       const params = this.takeEntryParams(ctx, blockType, loc);
 
       // then branch
+      this.enterLabel(label, blockType, false);
       const ifTrue: Expr[] = [];
       if (this.matchLpar(TokenType.Then)) {
         this.parseInstrListInto(ifTrue);
@@ -3510,6 +3666,7 @@ export class WastParser {
         this.parseInstrListInto(ifFalse);
         this.expect(TokenType.Rpar);
       }
+      this.leaveLabel();
 
       this.expect(TokenType.Rpar);
 
@@ -3553,7 +3710,9 @@ export class WastParser {
         if (c !== null) catches.push(c);
       }
       const bodyCtx = newCtx();
+      this.enterLabel(label, blockType, false);
       this.parseInstrList(bodyCtx);
+      this.leaveLabel();
       flushStack(bodyCtx);
       this.expect(TokenType.Rpar);
       const node: TryTableExpr = {
@@ -3594,6 +3753,9 @@ export class WastParser {
       const bodyCtx = newCtx();
       const catches: Catch[] = [];
       let delegate: Var | undefined;
+      // The try's label covers its body and handlers; `delegate`'s target is
+      // read with `parseVar`, which never consults the label stack.
+      this.enterLabel(label, blockType, false);
       while (this.peek() === TokenType.Lpar && isTryLegacySubBlock(this.peek(1))) {
         const subLoc = this.loc();
         this.drop(); // consume '('
@@ -3627,6 +3789,7 @@ export class WastParser {
       ) {
         this.parseInstrList(bodyCtx);
       }
+      this.leaveLabel();
       flushStack(bodyCtx);
       this.expect(TokenType.Rpar);
       const node: TryExpr = delegate === undefined
@@ -3741,7 +3904,9 @@ export class WastParser {
       const blockType = this.parseBlockType();
       const params = this.takeEntryParams(ctx, blockType, loc);
       const bodyCtx = newCtx();
+      this.enterLabel(label, blockType, tt === TokenType.Loop);
       this.parseInstrList(bodyCtx);
+      this.leaveLabel();
       this.expect(TokenType.End);
       this.matchClosingLabel(label);
       flushStack(bodyCtx);
@@ -3777,6 +3942,7 @@ export class WastParser {
 
       const ifTrue: Expr[] = [];
       const then_Ctx = newCtx();
+      this.enterLabel(label, blockType, false);
       this.parseInstrList(then_Ctx);
 
       const ifFalse: Expr[] = [];
@@ -3792,6 +3958,7 @@ export class WastParser {
         flushStack(then_Ctx);
         ifTrue.push(...then_Ctx.stmts);
       }
+      this.leaveLabel();
 
       this.expect(TokenType.End);
       this.matchClosingLabel(label);
@@ -3829,6 +3996,7 @@ export class WastParser {
       const blockType = this.parseBlockType();
       const params = this.takeEntryParams(ctx, blockType, loc);
       const bodyCtx = newCtx();
+      this.enterLabel(label, blockType, false);
       this.parseInstrList(bodyCtx);
       flushStack(bodyCtx);
       const catches: Catch[] = [];
@@ -3847,6 +4015,7 @@ export class WastParser {
           catches.push({ loc: cLoc, isRef: false, body: region(handler, cLoc) });
         }
       }
+      this.leaveLabel();
       if (this.peek() === TokenType.Delegate) {
         this.drop();
         delegate = this.parseVar() ?? varIndex(0);
@@ -3905,7 +4074,9 @@ export class WastParser {
         if (c !== null) catches.push(c);
       }
       const bodyCtx = newCtx();
+      this.enterLabel(label, blockType, false);
       this.parseInstrList(bodyCtx);
+      this.leaveLabel();
       flushStack(bodyCtx);
       this.expect(TokenType.End);
       this.matchClosingLabel(label);
@@ -3948,7 +4119,7 @@ export class WastParser {
     const expr = this.buildPlainExpr(tok, loc, operands);
     if (expr === null) return Result.Error;
 
-    if (instrProducesValue(tt)) {
+    if (this.producesValue(tt, expr)) {
       ctx.stack.push(expr);
     } else {
       pushStmt(ctx, expr);
@@ -4004,14 +4175,23 @@ export class WastParser {
         // (`(func (result i32 i32) ...)`) all stack values become return
         // values; capturing only operands[0] silently dropped the rest and
         // produced binaries that V8 rejected as missing operands.
-        return { kind: 'return', values: operands, loc } as ReturnExpr;
+        return {
+          kind: 'return',
+          values: carried(operands, this.labels[0]?.arity, loc),
+          loc,
+        } as ReturnExpr;
       case TokenType.Br: {
         const v = this.parseVar();
         if (v === null) return null;
         // `br` is variable-arity: every operand is a carried value, in stack
         // order. Keeping only operands[0] dropped the rest for a multi-value
         // target — the same defect ReturnExpr.values fixed.
-        return { kind: 'br', target: v, values: operands, loc } as BrExpr;
+        return {
+          kind: 'br',
+          target: v,
+          values: carried(operands, this.branchArity(v), loc),
+          loc,
+        } as BrExpr;
       }
       case TokenType.BrIf: {
         const v = this.parseVar();
@@ -4038,10 +4218,14 @@ export class WastParser {
         // value-less `br_if` in linear text carried a phantom value. Its bytes
         // were right (a `pop` is written as nothing), so no gate saw it; the
         // bridge typed each such `br_if` by that value instead of `none`.
-        // ⚠️ The parser does not know the target's arity, so a value that
-        // genuinely comes from outside the region (a block parameter) drops
-        // out too — as it did before S5.
-        const values = operands.slice(0, -1).filter((e) => e.kind !== 'pop');
+        // Where the target's arity is known (post-M8 fix 5) there is no
+        // padding to drop: every slot below the condition is a carried value,
+        // and one from outside the region (a block parameter) stays, as a
+        // `pop`. The filter is only the unknown-arity fallback's.
+        const arity = this.branchArity(v);
+        const values = arity === undefined
+          ? operands.slice(0, -1).filter((e) => e.kind !== 'pop')
+          : carried(operands.slice(0, -1), arity, loc);
         return { kind: 'br', target: v, condition: cond, values, loc } as BrExpr;
       }
       case TokenType.BrOnNull:
@@ -4052,10 +4236,21 @@ export class WastParser {
         // any values the target carries sit BELOW it, exactly as for `br_if`.
         // Taking op0() read the bottom operand as the ref, so
         // `(br_on_null $l (local.get $n) (local.get $r))` tested $n and
-        // dropped $r entirely. The padding placeholder is not a carried value,
-        // so it drops out (the filter read `'nop'` after S5 — see `br_if`).
+        // dropped $r entirely. Where the target's arity is unknown the padding
+        // placeholder is not a carried value, so it drops out (the filter read
+        // `'nop'` after S5 — see `br_if`).
         const ref = operands[operands.length - 1] ?? operandPlaceholder(loc);
-        const values = operands.slice(0, -1).filter((x) => x.kind !== 'pop');
+        // With the target's arity known, the carried values are exactly the
+        // slots below the ref: all of the target's for br_on_null, all but
+        // its last (the ref itself) for br_on_non_null — see `br_if`.
+        const arity = this.branchArity(v);
+        const values = arity === undefined
+          ? operands.slice(0, -1).filter((x) => x.kind !== 'pop')
+          : carried(
+            operands.slice(0, -1),
+            tt === TokenType.BrOnNonNull ? Math.max(arity - 1, 0) : arity,
+            loc,
+          );
         return {
           kind: 'br_on',
           opcode: tt === TokenType.BrOnNull ? BrOnOp.Null : BrOnOp.NonNull,
@@ -5257,20 +5452,25 @@ export class WastParser {
    * parsed (stage (c2)). An inline signature that needs an index gets
    * `UNASSIGNED_TYPE_INDEX` here and its real one in {@link assignImplicitTypes}.
    */
+  /** A block type's params and results: an inline signature, or the type it names. */
+  private blockSig(bt: BlockType): { params: readonly ValueType[]; results: readonly ValueType[] } {
+    if (bt.kind === 'void') return { params: [], results: [] };
+    if (bt.kind === 'value') return { params: [], results: [bt.type] };
+    const pending = this.pendingBlockSigs.get(bt);
+    if (pending !== undefined) return pending;
+    const entry = this.currentModule?.types[bt.typeIdx];
+    return entry?.kind === 'func' ? entry.sig : { params: [], results: [] };
+  }
+
   private headerOf(bt: BlockType): { type: BlockResult; typeIndex?: number } {
     if (bt.kind === 'void') return { type: 'none' };
     if (bt.kind === 'value') return { type: bt.type };
-    const pending = this.pendingBlockSigs.get(bt);
-    const entry = pending === undefined ? this.currentModule?.types[bt.typeIdx] : undefined;
-    const results = pending?.results ?? (entry?.kind === 'func' ? entry.sig.results : []);
-    return { type: blockResult(results), typeIndex: bt.typeIdx };
+    return { type: blockResult(this.blockSig(bt).results), typeIndex: bt.typeIdx };
   }
 
   private takeEntryParams(ctx: ExprCtx, bt: BlockType, loc: Location): BlockParams | undefined {
     if (bt.kind !== 'func_type') return undefined;
-    const pending = this.pendingBlockSigs.get(bt);
-    const entry = pending === undefined ? this.currentModule?.types[bt.typeIdx] : undefined;
-    const types = pending?.params ?? (entry?.kind === 'func' ? entry.sig.params : []);
+    const types = this.blockSig(bt).params;
     if (types.length === 0) return undefined;
     return { types: [...types], values: popN(ctx, types.length, loc) };
   }
