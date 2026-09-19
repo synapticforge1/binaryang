@@ -143,13 +143,19 @@ with a five-stage plan for the owner to confirm. Found by that measurement, and 
   stage 0 of the confirmed plan): 0xFC 0x00–0x07 decoded as the TRAPPING truncations, so `wasm-opt`
   on any binary using them turned a saturated result into a trap (4 of 4 corpus modules; now 0).
   It shipped in 1.5.4 — see unreleased.md.
-- 🚧 **Stage 1 of the plan** (settle the tree — one node kind per instruction): SIMD loads DONE
-  (`f60e4e575`, owner: both readers build `simd.load`); left: `struct.new`'s `defaultInit`, the
-  types in unreachable code — ir-convergence.md § "One front end". The plan and the three
-  refinements are confirmed (owner, 2026-09-19).
-- **route A's `wasm-opt` emits INVALID output for 7 valid spec modules** at -O2 (`br.0`,
-  `return.0`, `unreachable.0`, `names.2`, `fac.0`, `if.0`, `unreached-valid.0`) — `optimize-corpus`
-  covers only the 421 wasmtk modules.
+- ✅ **Stage 1 of the plan** (settle the tree — one node kind per instruction) is DONE but for one
+  item: SIMD loads (`f60e4e575`), `defaultInit` and the unreachable `br_if` (`1ffdcb561`); the
+  `if`-arm regions of a parametrised `if` are left to stage 2, which settles the block-param
+  representation. The two routes' trees now differ only in OPERAND SHAPE —
+  ir-convergence.md § "One front end". Next: stage 2 (move binaryen-ts's decoder reshaping into
+  `prepareForPasses`), after the pass defect above.
+- 🔴 **`wasm-opt` emits INVALID output for 7 valid spec modules** at -O2 (`br.0`, `return.0`,
+  `unreachable.0`, `names.2`, `fac.0`, `if.0`, `unreached-valid.0`) — `optimize-corpus` covers only
+  the 421 wasmtk modules, so no gate sees it. A PASS defect, not a front-end one: V8 says
+  "expected 1 elements on the stack for fallthru, found 2" on three of them, and "Duplicate export
+  name ''" on `names.2`. ⚠️ Since stage 1 (`1ffdcb561`) route B reproduces three of them too — its
+  wrong `br_if` type had masked them. Worth fixing BEFORE stage 2 compares the routes' optimizer
+  output, since it is noise in that comparison.
 - binaryen-ts's encoder refuses every module with more than one table (178 valid corpus modules);
   its decoder refuses relaxed SIMD (8).
 
