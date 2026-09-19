@@ -1552,7 +1552,37 @@ export interface SimdLoadLaneExpr {
   readonly type?: ExprType;
   readonly loc?: Location;
 }
-/** SIMD `v128.load*_splat` — loads a scalar and broadcasts it to every lane. */
+/**
+ * The SIMD loads that are NOT a plain `v128.load`: the extending loads
+ * (`v128.load8x8_s` … `v128.load32x2_u`, 0xFD 0x01–0x06), the splats
+ * (0x07–0x0a) and the zero loads (0x5c, 0x5d) — each a {@link LoadSplatExpr}
+ * (`simd.load`). `v128.load` itself (0xFD 0x00) is a `load`.
+ *
+ * ONE rule, asked by every front end. 🔧 Each used to decide for itself: the
+ * WAT parser built `load` for all twelve, the binary reader `simd.load` for
+ * the splats and zero loads only, binaryen-ts's decoder `simd.load` for all
+ * twelve — so the same bytes gave a different node kind depending on who read
+ * them, and the optimizer, which dispatches on kind, saw a different program
+ * (One front end, stage 1, 2026-09-19). binaryen-ts's `SIMDLoadOp` is this set,
+ * pinned by `tests/ir/simd_load_kind.test.ts`.
+ */
+export const SIMD_LOAD_OPCODES: ReadonlySet<number> = new Set(
+  [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x5c, 0x5d].map((s) =>
+    (0xfd << 16) | s
+  ),
+);
+
+/** Whether a load with `opcode` is a `simd.load` node — see {@link SIMD_LOAD_OPCODES}. */
+export function isSimdLoadOpcode(opcode: number): boolean {
+  return SIMD_LOAD_OPCODES.has(opcode);
+}
+
+/**
+ * SIMD `v128.load*` other than `v128.load` itself: an extending load (reads
+ * 8 bytes, widens each lane), a splat (loads a scalar and broadcasts it to
+ * every lane) or a zero load (loads a scalar into lane 0, zeroing the rest).
+ * Which opcodes: {@link SIMD_LOAD_OPCODES}.
+ */
 export interface LoadSplatExpr {
   readonly kind: 'simd.load';
   readonly opcode: Opcode;
