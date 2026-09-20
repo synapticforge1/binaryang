@@ -25,6 +25,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 9  | 2026-08-31 | wasmtk      | defect 5's precondition is a conjunction (a struct or array exists AND no function shares the tag's signature) — wider than reported; they had no `.gitattributes`                                   | ✅ closed by them: `binaryen` alias renamed `binaryen-backend`, `.gitattributes` widened, defect 5 closed with a conditional                                       |
 | 10 | 2026-08-31 | wasmtk      | correction: they are on 1.5.3, not 1.5.2; the convert pair priced by building it (two layers)                                                                                                        | ⬚ **one question awaiting their answer** — is `br_on_cast` still failing for them on 1.5.3? ([open-work.md](open-work.md)); convert pair since built (`9d5c886be`) |
 | 11 | 2026-08-31 | wasmtk      | adopting their conditional-not-clearance form and their import-alias invariant; a fifth property-in-view instance                                                                                    | ⬚ outbound                                                                                                                                                         |
+| 12 | 2026-09-19 | wasmtk (in) | two parser-leniency reports against 1.5.3, found by hardening their `.wast` runner (one catch around "assemble the module" had let an ENCODER error satisfy an `assert_malformed`): limits took no range check; a legacy `try`'s clause structure was unchecked. Their write-up: `wasmtk/scripts/binaryang-report.md` | ✅ both reproduced on `main` and fixed (`d59816990`), with their correction about `(memory 0x1_0000_0000)` PINNED as a test. Outbound: a `catch` after `catch_all` is INVALID, not malformed (wabt parses it) — three of their rows are parse bugs, the fourth is our validator's gap, still open |
 
 ## Lessons the correspondence paid for
 
@@ -48,3 +49,11 @@ pricing it; results get attributed to the property in view. These are the ones f
   extension.
 - **Correct your own record before the other side plans against it** (§§ 7, 10): both corrections
   went out before the reader acted, including one that only fixed a version number.
+- **A report can carry its own "do not conflate this" clause, and it earns its place** (§ 12). wasmtk
+  named the case that LOOKS like their bug and is not — `(memory 0x1_0000_0000)`, 2^32, in range for
+  a u64 limit — because treating it as malformed would have re-broken the wasmrt team's correction to
+  `proposals/threads/memory.wast`. We turned that paragraph into a test and a mutant, so the
+  distinction is now enforced rather than remembered.
+- **Two verdicts, not one** (§ 12): their four `try` rows mixed malformed (parse) with invalid
+  (validation). Upstream wabt parses `catch` after `catch_all` and the engine rejects it, so only
+  three were parser bugs. Asking each oracle per row is what separated them.
