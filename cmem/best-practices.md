@@ -1332,6 +1332,23 @@ line as the result. An external tool's non-zero exit is a REASON, not a skip: co
 flag exists before a run depends on it — a wrong flag fails every call identically, which reads like
 "the tool cannot do this" rather than "I asked wrongly".
 
+## 🆕 A value's POSITION carries meaning, and a two-list model loses it (2026-09-20)
+
+The binary reader keeps a region as `stack` (values something may still consume) and `stmts`
+(committed statements), and ends it with `[...stmts, ...stack]`. Seeding a carrier's parameters onto
+`stack` (R13 / R14) therefore emitted them AFTER the statements that ran with those values already on
+the stack — and since a region's type is its LAST child's, an arm whose parameters were unconsumed
+came out typed `i32` where the decoder typed it `none`. The nodes were all correct; only their order
+was wrong, and the type is read off the order.
+
+🔑 The bytes could not catch it: a `pop` writes nothing, so the baseline, `direct` 544/544 and the
+engine were all green through the bug. It took a fixture built to leave an entry value UNCONSUMED
+next to a statement. **How to apply:** when a producer emits into a list, ask what the list's ORDER
+is read for downstream (here: the region's type, and what a later consumer takes) — and when a model
+splits one sequence into two lists, any new insertion needs its position chosen explicitly, not
+inherited from whichever list it landed in. The interleaving hazard is already documented in
+`pushStmt`'s comment for the drain case; seeding hit the same seam from the other side.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:
