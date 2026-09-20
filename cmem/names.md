@@ -287,3 +287,45 @@ own passes leaving bytes on the floor where upstream's same-named pass does not 
 are bigger under an identical pass list, which is the honest measure of pass quality and the number
 the open LocalCSE / scheduling items in [open-work.md](open-work.md) are eating into. Our encoder is
 within 0.8%.
+
+## ✅ Does optimization RENAME things to shrink them? (owner's question, 2026-09-19)
+
+Asked directly: "what name does the optimization give to the variables and functions that makes it
+smaller and do we currently do the same?" Probed on a module written for it (long module / field /
+export / function / local / label names, one uncalled function), `scratchpad/names/probe.wat`.
+
+**Neither side renames anything to save bytes, because internal names cost nothing to begin with.**
+In a binary a function, local, label, type or global is referenced by INDEX. The only names that
+occupy bytes in a stripped module are the import `module` / `field` strings and the export strings —
+the interface, which is inviolable (N1's first rule). Everything else lives in the `name` custom
+section or nowhere. So shortening `$a_long_local_variable` to `$0` saves nothing at all unless a name
+section is being written.
+
+| on the probe (312 bytes in, `--debug-names`)    | bytes | what it did to names                                                      |
+| ----------------------------------------------- | ----- | -------------------------------------------------------------------------- |
+| `wasm-opt -Oz`                                  |   139 | no name section; import and export strings kept EXACTLY                    |
+| `wasm-opt -Oz -g`                               |   203 | function names only, the originals unshortened — no locals, no labels       |
+| `wasm-opt -Oz --minify-imports-and-exports`     |   106 | the 33-char export became `a`; prints the map as JSON                       |
+| `wasm-opt -Oz -g --minify-imports-and-exports`  |   170 | both of the above                                                          |
+| ours `-Oz`                                      |   152 | no name section; import and export strings kept EXACTLY                    |
+| ours `-Oz` + `debugInfo`                        |   263 | function names AND local names (params too), the originals unshortened      |
+
+Three conclusions, each probed:
+
+1. **Upstream's smaller `-g` section is achieved by DROPPING categories, never by shortening.** The
+   names it keeps are byte-for-byte the ones it was given; it simply writes no local and no label
+   subsection. We keep those — the N4 divergence, priced in the section above.
+2. **The one place upstream renames for size is opt-in and not part of `-O`/`-Oz`:**
+   `--minify-imports-and-exports` (also `--minify-imports`, `--minify-exports`) rewrites the interface
+   strings to `a`, `b`, `c`… and emits the old→new map as JSON so the host can be updated. On the probe
+   it took a stripped module from 139 to **106 bytes, −24%**, all of it one long export name. **We have
+   no such pass** — see [open-work.md](open-work.md). ⚠️ Under the owner's rule ("an exported name must
+   absolutely be preserved, or we have name mangling") it can only ever be opt-in, which is exactly how
+   upstream ships it.
+3. **We never write an INVENTED name into a binary, and upstream nearly does.** Fed a module with no
+   name section at all, our `debugInfo` output is byte-identical to our default output — 152 bytes, no
+   `name` section — so decision 4's "made-up names are for the IR, only REAL names are written" holds
+   end to end through `PassRunner`. Upstream in that same case still emits a 5-byte name-section stub.
+   In TEXT the two differ in style and neither costs binary bytes: upstream prints its invented short
+   names (`$0` for a param, `$label` for a loop), our `wasm2wat` prints indices (`(;0;)`, `local.get 1`)
+   and invents nothing unless asked (N2, `generateNames` opt-in).

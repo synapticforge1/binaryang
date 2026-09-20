@@ -29,8 +29,24 @@ ahead, unpushed and unbumped, at 1281 tests / 0 ignored, baseline IDENTICAL, spe
 
 ## Start the next session here (handoff, 2026-09-19 — S7 and its mixed form done; ONE FRONT END stages 0 and 1 done, stage 2 STARTED; two wasmtk leniency reports fixed)
 
-**Where the work stopped.** `main` is at `ad2dc00bc`, the merge of the wasmtk leniency fixes (code
-`d59816990`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ several stale
+**Owner paused the session on 2026-09-19 ("I need to pause here for today. We will start again
+tomorrow or the next day"), with NO code change in flight** — the last three merges are docs only, so
+the tree is exactly the gated `d59816990` plus cmem. Pick up here, in this order:
+
+1. **One front end stage 2's three remaining items** (below) — everything else waits on them.
+2. **Answer owed to the owner, already drafted in chat and recorded above:** the pipeline-convergence
+   proposal ("passes until the delta is under 0.1%"). The measurement to run FIRST is the `-Oz` list
+   2× and 3× over the corpus; do not build the loop before that number exists.
+3. The `-Oz` size record is fresh and complete: [names.md](names.md) §§ "Names under optimization,
+   priced" and "Does optimization RENAME things to shrink them?". Do not re-measure it; four new
+   items in this file's optimizer list draw on it.
+4. ⚠️ **Unfinished measurement**: `scratchpad/names/types.ts` (Type-section bytes, ours vs upstream)
+   was still running when the session ended and its number was never read. Re-run it — the scratchpad
+   is session-scoped and will be gone.
+
+**Where the work stopped.** The last CODE merge is `ad2dc00bc`, the wasmtk leniency fixes (code
+`d59816990`); `main`'s head is the docs merge after it (`bc3866196` and the names/renaming merge that
+follows), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ several stale
 branches from earlier sessions still exist and are merged — `docs/memory-refresh` among them; check
 `git log -1 <branch>` before reusing a name, or a checkout will hand you an old tree).
 The full gate ran on `d59816990` and every step exited 0: fmt, lint, **1281 tests / 0 failed**, naming (no output),
@@ -332,6 +348,32 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   **3,943 functions kept to upstream's 2,663**. Scheduling Inlining at `-O2` / `-Oz` is the cheapest
   probe, since the pass exists; ⚠️ it must wait for One front end stage 2, because `Inlining` is one of
   the passes the block-param round trip currently breaks (above).
+- ⬚ **No `MinifyImportsAndExports` pass** — the ONLY name-based size lever there is, since every other
+  name is an index ([names.md](names.md) § "Does optimization RENAME things to shrink them?"). Upstream's
+  `--minify-imports-and-exports` rewrites the interface strings to `a`, `b`, `c`… and prints the old→new
+  map as JSON; on the probe module it was **139 → 106 bytes, −24%**. ⚠️ Opt-in ONLY, never in `-Oz`:
+  the owner's rule is that an exported name must absolutely be preserved "or we have name mangling", and
+  a renamed export is only correct when the host is updated from that map. Upstream ships it exactly
+  that way.
+- ⬚ **Our `RemoveUnusedModuleElements` does not prune unused TYPES** — on the probe module, after the
+  uncalled function was correctly removed, ours kept **2 type entries to upstream's 1** (4 bytes there).
+  ⚠️ UNMEASURED over the corpus: the run that would have priced it was still going when the session
+  ended (`scratchpad/names/types.ts` adds the Type-section total to `size.ts`; re-run it).
+- ⏳ **Owner's question, 2026-09-19, answer owed: should the pipeline ITERATE to a size fixed point?**
+  Their proposal: "perform passes until there is a delta decrease in size in the range of 0.1% then
+  stop." What upstream does: `-O`/`-Oz` is a FIXED list, and the convergence behaviour is a separate
+  opt-in flag — `wasm-opt --converge` (`-c`) repeats the whole pipeline until the module stops changing
+  at all, off by default because of the cost. So the owner's instinct matches upstream's, with a cheaper
+  stopping rule (a percentage floor instead of a fixed point). The cautions to carry into the design:
+  a round can GROW bytes before the next shrinks them (Inlining, Flatten), so it needs best-so-far
+  tracking and a never-regress guard; passes can undo each other (LocalCSE's tee vs CoalesceLocals), so
+  it needs an iteration cap and cycle detection on a module hash; the delta can only be read by
+  ENCODING each round, which is the honest measure and a real cost; and it would move emitted bytes, so
+  it re-baselines. **First step is a measurement, not a build:** run the existing `-Oz` list 2× and 3×
+  over the corpus and see what round 2 and round 3 actually return — if round 2 is worth 0.3% the
+  60.3 KB coverage gap above is the better investment, and if it is worth 3% this becomes the cheapest
+  win we have. ⚠️ Either way it comes after One front end stage 2, because iterating a pipeline that
+  currently breaks `Inlining` multiplies the exposure.
 - ⬚ **LocalCSE runs after SimplifyLocals and CoalesceLocals at -Oz**, so the tee it adds is never
   cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
 - ⬚ **binaryen-ts could run-length-compress its locals** as wabt-ts now does — roughly 5,600 bytes
