@@ -4470,8 +4470,29 @@ before it:
      already differed rather than new disagreements. Gate green on the committed tree: 1283 tests,
      baseline IDENTICAL, `direct` 544/544, `direct-behaviour` 1953, optimize-corpus, spec
      2248 · 2714 · 711 · 1229 no misses, translate-eh 70/70 × 3, publish dry-run, naming, portability.
-   - 🔑 **item 2 (R11') PRICED, 2026-09-20, and the price is ~zero — the recommendation is to EXPLAIN
-     it rather than copy it.** What A does: a value sitting BELOW a statement is spilled to a fresh
+   - ✅ **item 2 (R11') BUILT, 2026-09-20 — `passes/spill-stack-values.ts`, and the reason is
+     CORRECTNESS, not size.** A value the reader left on the stack is reachable only through the
+     stack, so a pass that puts a block boundary between it and its `pop` loses it: `Inlining` did
+     exactly that at -O3 to `br.0` and `nop.0`, and `Flatten` refused such a tree outright ("pop is
+     not yet supported by this port"). It runs in `PassRunner` before the first pass and ONLY when a
+     pass will run, so decode → encode stays byte-exact; it is the decoder's three rules on a finished
+     tree (spill to a local at the producer's position; nest where the consumer is next; `unreachable`
+     for a `pop` with nothing behind it). Results: identical optimizer output 2,863 → **2,875 of
+     3,075**, "differ (both valid)" 15 → 7, **"A valid, B INVALID" 2 → 0**. 1287 tests, baseline
+     IDENTICAL, `direct` 544/544, `direct-behaviour` 1953, spec no misses, translate-eh 70/70 × 3.
+     ⚠️ **Three things it must not touch, each found by breaking them**: a value from a SIBLING OPERAND
+     (`i32.sub(pop, call)` — the first version called that a `pop` with nothing behind it and the trees
+     TRAPPED, 10 tests), an ENTRY value, and a MULTI-result producer (no single node to spill, and one
+     local cannot hold a tuple). And it does not re-derive which node a `pop` finds: `deriveTypes`
+     already simulates that and now records the origins on request (`PopSources`). A second copy of
+     that simulation is what the first attempt was.
+   - 🔑 **How item 2 was nearly skipped, which is the part worth keeping.** I priced it first and
+     reported ~zero: at -Oz route B is 473 bytes SMALLER than route A over 2,880 modules, behaviour
+     agrees, and the only demonstrated effect was a fixture the passes left unoptimized. All true, and
+     the conclusion drawn from it — "not wrong, only unoptimized" — was false: two modules prove the
+     passes do NOT leave it alone, they produce an invalid module. The register had also attributed
+     those two to R15, and neither has a block parameter. **A size measurement cannot answer a
+     correctness question, and a register entry is not evidence.** What A does: a value sitting BELOW a statement is spilled to a fresh
      local at its original position and read back, because A's single list cannot hold "a value under
      a statement" and returning it directly would move it after side effects it can observe (the
      TinyGo `$__stack_pointer` case in `wasm-parser.ts`'s `pop`). B does not need the workaround: the
