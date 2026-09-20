@@ -2049,6 +2049,29 @@ export class WastParser {
   }
 
   /** Parse limits: optional `i32`/`i64` index type, then `N` or `N M`, optionally `shared`. */
+  /**
+   * A limit must fit a u64 — the widest a `memtype` / `tabletype` limit is
+   * spelled, under memory64 / table64.
+   *
+   * 🔧 Limits took no range check at all, while an instruction operand does
+   * (`i32.const 0x1_0000_0000` is rejected): `(memory i64 0x1_0000_0000_0000_0000)`
+   * parsed and then failed in the WRITER with "u64 LEB128 out of range", so an
+   * `assert_malformed` meaning "this text cannot be decoded" was satisfied by an
+   * encoder error (reported by the wasmtk team, 2026-09-19; upstream wabt and
+   * wasm-tools both reject it at parse).
+   *
+   * ⚠️ The check is u64 EVEN FOR A 32-BIT memory or table, deliberately.
+   * `(memory 0x1_0000_0000)` is 2^32 — in range for the limit's u64 spelling, so
+   * it is a WELL-FORMED module that the validator must reject, not bad text.
+   * wasm-tools agrees; upstream wabt calls it malformed. Treating it as
+   * malformed would re-break what the wasmrt team fixed in
+   * `proposals/threads/memory.wast`, where "i32 constant out of range" was the
+   * stale expectation. The two cases look alike and are not.
+   */
+  private checkLimitRange(n: bigint, loc: Location): void {
+    if (n > 0xffff_ffff_ffff_ffffn) this.error(loc, `i64 constant out of range: ${n}`);
+  }
+
   parseLimits(): Limits | null {
     // Optional index type for the memory64 proposal: `(memory i64 N M)`.
     // Default i32. The earlier code matched TokenType.I64X2 — a SIMD shape
@@ -2075,15 +2098,20 @@ export class WastParser {
       this.error(initTok.loc, 'invalid limit');
       return null;
     }
+    this.checkLimitRange(initN, initTok.loc);
     // Kept as the EXACT bigint the source wrote. `Number(initN)` used to round
     // anything past 2^53, so a 64-bit limit at the top of its range arrived as
     // a different value than the one written (T13.2).
     const initial = initN;
     let max: bigint | undefined;
     if (this.peek() === TokenType.Nat || this.peek() === TokenType.Int) {
+      const maxTok = this.peekToken();
       const maxText = (this.consume() as LiteralToken).literal.text;
       const maxN = parseNatText(maxText);
-      if (maxN !== null) max = maxN;
+      if (maxN !== null) {
+        this.checkLimitRange(maxN, maxTok.loc);
+        max = maxN;
+      }
     }
     const shared = this.match(TokenType.Shared);
     // `(pagesize N)` trails the limits, AFTER `shared`. The keyword had a lexer
@@ -3876,11 +3904,33 @@ export class WastParser {
       // The try's label covers its body and handlers; `delegate`'s target is
       // read with `parseVar`, which never consults the label stack.
       this.enterLabel(label, blockType, false);
+      // The clause STRUCTURE is checked here, as upstream wabt's parser checks
+      // it: one `(do …)` first, then any number of `(catch …)`, at most one
+      // `(catch_all …)`, or a `(delegate …)` instead of the handlers. Nothing
+      // checked it before, so `(try (do) (do) (catch_all))` and
+      // `(try (catch_all))` — no `do` at all — assembled into modules that RUN
+      // (reported by the wasmtk team, 2026-09-19).
+      //
+      // ⚠️ A `catch` AFTER `catch_all` is deliberately NOT a parse error: wabt
+      // accepts that text and the engine rejects the module, so it is invalid,
+      // not malformed. The validator is the place for it (recorded as open).
+      let sawDo = false;
+      let sawCatchAll = false;
+      let sawDelegate = false;
       while (this.peek() === TokenType.Lpar && isTryLegacySubBlock(this.peek(1))) {
         const subLoc = this.loc();
         this.drop(); // consume '('
         const sub = this.consume(); // do / catch / catch_all / delegate
+        if (sub.tokenType !== TokenType.Do && !sawDo) {
+          this.error(subLoc, 'expected (do ...) as the first clause of try');
+          sawDo = true; // report once, then read the rest
+        }
+        if (sub.tokenType !== TokenType.Do && sawDelegate) {
+          this.error(subLoc, 'delegate must be the last clause of try');
+        }
         if (sub.tokenType === TokenType.Do) {
+          if (sawDo) this.error(subLoc, 'multiple do clauses not allowed');
+          sawDo = true;
           this.parseInstrList(bodyCtx);
         } else if (sub.tokenType === TokenType.Catch) {
           // `(catch $tag handler...)` — tag-typed handler.
@@ -3890,25 +3940,28 @@ export class WastParser {
           catches.push({ loc: subLoc, tag, isRef: false, body: region(handler, subLoc) });
         } else if (sub.tokenType === TokenType.CatchAll) {
           // `(catch_all handler...)` — matches any tag, no params.
+          if (sawCatchAll) this.error(subLoc, 'multiple catch_all clauses not allowed');
+          sawCatchAll = true;
           const handler: Expr[] = [];
           this.parseInstrListInto(handler);
           catches.push({ loc: subLoc, isRef: false, body: region(handler, subLoc) });
         } else {
           // `(delegate $target)` — re-raise to an outer try; no body.
+          if (catches.length > 0) this.error(subLoc, 'delegate cannot follow a catch clause');
+          if (sawDelegate) this.error(subLoc, 'multiple delegate clauses not allowed');
+          sawDelegate = true;
           delegate = this.parseVar() ?? varIndex(0);
           this.expect(TokenType.Rpar);
           continue;
         }
         this.expect(TokenType.Rpar);
       }
-      // Bare-body form without a `(do ...)` wrapper: remaining instrs are
-      // the protected body.
-      if (
-        bodyCtx.stmts.length === 0 && bodyCtx.stack.length === 0 &&
-        catches.length === 0 && delegate === undefined
-      ) {
-        this.parseInstrList(bodyCtx);
-      }
+      // 🔧 A body with NO `(do …)` wrapper used to be accepted here, on the
+      // reading that the remaining instructions are the protected body. Upstream
+      // rejects that text ("unexpected token nop, expected ("), and accepting it
+      // let `(try (catch_all))` assemble into a module engines then ACCEPT —
+      // malformed text that runs. `do` is mandatory.
+      if (!sawDo) this.error(loc, 'expected (do ...) as the first clause of try');
       this.leaveLabel();
       flushStack(bodyCtx);
       this.expect(TokenType.Rpar);
@@ -4124,6 +4177,11 @@ export class WastParser {
       flushStack(bodyCtx);
       const catches: Catch[] = [];
       let delegate: Var | undefined;
+      // The same clause rules as the folded form: at most one `catch_all`, and a
+      // `delegate` in place of the handlers rather than after them (upstream:
+      // "multiple catch_all clauses not allowed"; "unexpected token delegate,
+      // expected end"). A `catch` after `catch_all` is invalid, not malformed.
+      let sawCatchAll = false;
       while (this.peek() === TokenType.Catch || this.peek() === TokenType.CatchAll) {
         const cLoc = this.loc();
         const isCatch = this.peek() === TokenType.Catch;
@@ -4134,12 +4192,15 @@ export class WastParser {
           this.parseInstrListInto(handler);
           catches.push({ loc: cLoc, tag, isRef: false, body: region(handler, cLoc) });
         } else {
+          if (sawCatchAll) this.error(cLoc, 'multiple catch_all clauses not allowed');
+          sawCatchAll = true;
           this.parseInstrListInto(handler);
           catches.push({ loc: cLoc, isRef: false, body: region(handler, cLoc) });
         }
       }
       this.leaveLabel();
       if (this.peek() === TokenType.Delegate) {
+        if (catches.length > 0) this.error(this.loc(), 'delegate cannot follow a catch clause');
         this.drop();
         delegate = this.parseVar() ?? varIndex(0);
       } else {
