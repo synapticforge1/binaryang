@@ -190,15 +190,33 @@ class Frame {
   params: BlockParams | undefined = undefined;
 
   /**
-   * The values this region was ENTERED with, as the typed `pop`s that stand for
-   * them: a carrier's parameters, a `catch` handler's payload (R13, R14). They
-   * are also on `stack`, where an instruction can consume them; this list is
-   * what {@link flush} uses to put the SURVIVORS back at the region's start,
-   * since that is where they were — `[...stmts, ...stack]` would emit a
-   * parameter after the statements that ran with it already on the stack, which
-   * flips the region's type (its last child's).
+   * Put a TYPED `pop` on the operand stack, recording WHERE it was pushed.
+   *
+   * A typed `pop` stands for a value that is on the wasm stack without any
+   * instruction in this region producing it: a carrier's parameter, a `catch`
+   * handler's payload (R13, R14), or a multi-result producer's earlier values
+   * (R12). An instruction may consume it — so it goes on `stack` — and if none
+   * does it is part of what the region holds, so it must be EMITTED, at the
+   * point it appeared.
+   *
+   * `stmts` is what carries that position: the placeholder is appended there
+   * when it is pushed, and {@link flush} drops it again if the stack no longer
+   * holds it, which is exactly the case where something consumed it. Nothing
+   * else reads `stmts` before `flush`, and `pushStmt` never copies a `pop`, so
+   * it cannot be emitted twice.
+   *
+   * 🔧 Without the position, `[...stmts, ...stack]` emitted an entry value AFTER
+   * the statements that ran with it already on the stack — and a region's type
+   * is its LAST child's, so a parametrised `if`'s arm typed itself from the
+   * parameter where the decoder typed it from the arm's last instruction. The
+   * first fix for that tracked entry values only; a multi-value placeholder
+   * pushed MID-region needs the same thing, so the rule is one rule now.
    */
-  seeds: Expr[] = [];
+  pushPlaceholder(type: ValueType, loc: Location): void {
+    const p: Expr = { kind: 'pop', type, loc } as Expr;
+    this.stack.push(p);
+    this.stmts.push(p);
+  }
 
   constructor(kind: FrameKind, blockType: BlockType, label: string, loc: Location) {
     this.kind = kind;
@@ -221,29 +239,31 @@ class Frame {
     // always kept these, and the region's type is its last child's on both
     // sides, so dropping them left a parametrised `if`'s arm typed `none` where
     // the decoder typed it from the parameter (6 nodes, One front end stage 2).
-    const kept = this.stack.filter((e) => e.kind !== 'pop' || e.type !== undefined);
-    const isSeed = new Set<Expr>(this.seeds);
+    // A typed `pop` sits in `stmts` at the position it was pushed
+    // ({@link pushPlaceholder}); it belongs to the region only while the stack
+    // still holds it, since leaving the stack is what consumption means.
+    const live = new Set<Expr>(this.stack);
     const result = [
-      ...kept.filter((e) => isSeed.has(e)), // entry values: where they entered
-      ...this.stmts,
-      ...kept.filter((e) => !isSeed.has(e)),
+      ...this.stmts.filter((e) => e.kind !== 'pop' || live.has(e)),
+      ...this.stack.filter((e) => e.kind !== 'pop'),
     ];
     this.stmts = [];
     this.stack = [];
-    this.seeds = [];
     return result;
   }
 
   /**
-   * Enter this region with one typed `pop` per value the format pushes here —
-   * see {@link seeds}. Replaces any previous seeding, which is what an `else`
-   * needs: `flush` emptied the frame, and the arm starts with the same
-   * parameters again.
+   * Enter this region with one typed `pop` per value the format pushes here: a
+   * carrier's parameters (R14), a `catch` handler's payload (R13). In parameter
+   * order, so the LAST is on top and the first consumer takes it — the order
+   * they were pushed in.
+   *
+   * Called again for an `else`, which is what that arm needs: `flush` emptied the
+   * frame, and both arms start with the same parameters (evaluated once, before
+   * the `if`).
    */
   seed(types: readonly ValueType[], loc: Location): void {
-    if (types.length === 0) return;
-    this.seeds = seedValues(types, loc);
-    this.stack.push(...this.seeds);
+    for (const t of types) this.pushPlaceholder(t, loc);
   }
 }
 
@@ -318,12 +338,17 @@ function pushTransfer(stack: Expr[], stmts: Expr[], expr: Expr, values: number):
 // Helpers
 // ---------------------------------------------------------------------------
 
-function blockResultCount(bt: BlockType, m: Module): number {
-  if (bt.kind === 'void') return 0;
-  if (bt.kind === 'value') return 1;
+/** A carrier's result TYPES — one enumeration, which `blockResultCount` counts. */
+function blockResultTypes(bt: BlockType, m: Module): readonly ValueType[] {
+  if (bt.kind === 'void') return [];
+  if (bt.kind === 'value') return [bt.type];
   const entry = m.types[bt.typeIdx];
-  if (!entry || entry.kind !== 'func') return 0;
-  return entry.sig.results.length;
+  if (!entry || entry.kind !== 'func') return [];
+  return entry.sig.results;
+}
+
+function blockResultCount(bt: BlockType, m: Module): number {
+  return blockResultTypes(bt, m).length;
 }
 
 function blockParamCount(bt: BlockType, m: Module): number {
@@ -357,21 +382,15 @@ function entryParams(bt: BlockType, stack: Expr[], m: Module): BlockParams | und
 }
 
 /**
- * One TYPED `pop` per value the format leaves on a region's stack at entry: a
- * carrier's parameters (R14) and a `catch` handler's exception payload (R13).
- *
- * In parameter order, so the LAST one is on top and the first instruction that
- * consumes a value takes it — the order the values were pushed in. Typed,
- * because the type is what makes the placeholder a value rather than a gap:
- * {@link Frame.flush} keeps a typed `pop` and drops an untyped one, a region's
- * type is its last child's, and `deriveTypes` re-types a CONSUMED `pop` from its
- * own seeded stack, so a consumed one costs nothing and an unconsumed one now
- * says what the region holds. binaryen-ts's decoder seeds exactly this
- * (`enterParams`, `seedElse`, and the `catch` case's `tagParams.map(makePop)`).
+ * Why a placeholder is TYPED, in one place, since three rules depend on it: the
+ * type is what makes a `pop` a VALUE rather than a gap. {@link Frame.flush} keeps
+ * a typed one and drops an untyped one; a region's type is its last child's; and
+ * `deriveTypes` re-types a CONSUMED `pop` from its own simulated stack, so a
+ * consumed placeholder costs nothing and an unconsumed one says what the region
+ * holds. binaryen-ts's decoder has always built them this way — `enterParams`,
+ * `seedElse`, the `catch` case's `tagParams.map(makePop)`, and `makePop` beneath
+ * a multi-result producer. See {@link Frame.pushPlaceholder}.
  */
-function seedValues(types: readonly ValueType[], loc: Location): Expr[] {
-  return types.map((t) => ({ kind: 'pop', type: t, loc }) as Expr);
-}
 
 /**
  * How many values a branch to `depth` carries: a loop's params, a block's
@@ -465,9 +484,14 @@ function popN(stack: Expr[], n: number): Expr[] {
  * reads was not (41 corpus functions; One front end, stage 2, 2026-09-19).
  * binaryen-ts's decoder has modelled it this way all along.
  */
-function pushValues(stack: Expr[], node: Expr, count: number, loc: Location): void {
-  for (let i = 1; i < count; i++) stack.push(operandPlaceholder(loc));
-  stack.push(node);
+function pushValues(frame: Frame, node: Expr, types: readonly ValueType[], loc: Location): void {
+  // 🔧 The placeholders were UNTYPED, and `flush` drops an untyped `pop`: a
+  // two-result call whose FIRST value nothing consumed came back as the call
+  // alone, where the decoder has `pop` then call (315 corpus functions, the
+  // largest route difference left after R13 / R14). Typed, they carry their
+  // value's type and survive in place (R12, completed 2026-09-20).
+  for (const t of types.slice(0, -1)) frame.pushPlaceholder(t, loc);
+  frame.stack.push(node);
 }
 
 // ---------------------------------------------------------------------------
@@ -1837,7 +1861,7 @@ export class BinaryReader {
             // by emitting linear form, which reassembles -- so this was invisible
             // in bytes and visible only as an IR that could not be folded.
             const rCount = blockResultCount(frame.blockType, m);
-            if (rCount > 0) pushValues(parent.stack, node, rCount, loc);
+            if (rCount > 0) pushValues(parent, node, blockResultTypes(frame.blockType, m), loc);
             else pushStmt(parent.stack, parent.stmts, node);
           }
           break;
@@ -1921,7 +1945,7 @@ export class BinaryReader {
           const sig = getFuncSig(m, funcIdx);
           const args = popN(stack, sig.params.length);
           const callExpr: Expr = { kind: 'call', func: varIndex(funcIdx), operands: args, loc };
-          if (sig.results.length > 0) pushValues(stack, callExpr, sig.results.length, loc);
+          if (sig.results.length > 0) pushValues(frame, callExpr, sig.results, loc);
           else pushStmt(stack, stmts, callExpr);
           break;
         }
@@ -1944,7 +1968,7 @@ export class BinaryReader {
             callee,
             loc,
           };
-          if (sig.results.length > 0) pushValues(stack, ciExpr, sig.results.length, loc);
+          if (sig.results.length > 0) pushValues(frame, ciExpr, sig.results, loc);
           else pushStmt(stack, stmts, ciExpr);
           break;
         }
@@ -1960,7 +1984,7 @@ export class BinaryReader {
             callee,
             loc,
           };
-          if (sig.results.length > 0) pushValues(stack, crExpr, sig.results.length, loc);
+          if (sig.results.length > 0) pushValues(frame, crExpr, sig.results, loc);
           else pushStmt(stack, stmts, crExpr);
           break;
         }

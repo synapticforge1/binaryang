@@ -71,4 +71,43 @@ describe('binary reader — one stack entry per value', () => {
     assertEquals((x.f as (v: number) => number)(5), 5 + 1 + 2);
     assertEquals((x.g as () => number)(), 1 + 2 + 9);
   });
+
+  // The placeholders are TYPED, which is what lets an unconsumed one survive:
+  // `Frame.flush` keeps a typed `pop` and drops an untyped one, and a typed one
+  // is emitted where it was PUSHED. Untyped, a two-result call whose first value
+  // nothing consumed came back as the call alone where the decoder had `pop`
+  // then call — 345 corpus functions, the largest route difference left after
+  // R13 / R14 (One front end, stage 2, 2026-09-20).
+  describe('a placeholder carries its value type, and its position', () => {
+    // Nothing consumes the pair's FIRST value: the function returns two values,
+    // so both stay on the stack to the end.
+    const tail = wat2wasm(
+      `(module
+      (func $pair (result i32 f64) (i32.const 1) (f64.const 2))
+      (func (export "f") (result i32 f64) (call $pair)))`,
+      { textForm: false },
+    ).binary;
+
+    it('an unconsumed value is a typed `pop`, in the place it was pushed', () => {
+      const m = readBinaryIr(tail, makeErrorList());
+      const d = parseWasm(tail);
+      const shape = (x: { functions: readonly { body: { children: readonly Expr[] } }[] }) =>
+        x.functions[1]!.body.children.map((e) =>
+          `${e.kind}(${JSON.stringify((e as { type?: unknown }).type)})`
+        );
+      // The pair's first value (i32) as a `pop` BEFORE the call, which stands
+      // for the second (f64) — the decoder's shape, now the reader's too.
+      assertEquals(shape(m), ['pop(127)', 'call(undefined)']);
+      assertEquals(shape(d).map((s) => s.replace(/\(.*\)/, '')), ['pop', 'call']);
+      assertEquals(shape(m)[0], shape(d)[0], 'the same typed placeholder');
+    });
+
+    it('a placeholder nothing consumes still writes nothing', () => {
+      const again = wat2wasm(wasm2wat(tail).text, { textForm: false }).binary;
+      assertEquals([...again], [...tail], 'byte-identical through text');
+      assert(WebAssembly.validate(tail as BufferSource));
+      const x = new WebAssembly.Instance(new WebAssembly.Module(tail as BufferSource)).exports;
+      assertEquals((x.f as () => unknown[])(), [1, 2], 'and the values come back in order');
+    });
+  });
 });
