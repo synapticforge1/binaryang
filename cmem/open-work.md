@@ -158,8 +158,17 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
 Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (one writer), stage 5
 (retire binaryen-ts's internal `parseWat`).
 
-⏳ **Owner call still needed, by stage 3: do `./binary` and `./encoder` stay published?** The facts,
-gathered 2026-09-19 after the owner asked why they are published at all:
+✅ **Decided (owner, 2026-09-19): option (a) — `./binary` and `./encoder` are UNPUBLISHED at the next
+version bump, and not before every open fix and quality check below is finished.** In the owner's
+words: "I agree with the unpublish at the next bump when we get to it. But that is after all our fixes
+and quality check are finished from our open items." So the order is fixed: the open items first, the
+bump second, the two subpaths dropped from `deno.json`'s `exports` in that bump — never as a drive-by
+edit while a fix is in flight, because dropping an export is the BREAKING half of a release and
+`deno.json` staying at 1.5.4 is what keeps a release unarmed ([working-rules.md](working-rules.md)).
+Stage 3 therefore needs no wrapper: the two subpaths go away rather than being re-pointed at the
+shared reader and encoder. Until the bump they keep working, so nothing in the tree may stop exporting
+`parseWasm` / `encodeWasm` before then. The facts that decided it, gathered 2026-09-19 after the owner
+asked why they are published at all:
 - They ARE public functions today, and the ONLY public way to decode or encode a binary into the IR:
   the root export (`src/index.ts`) exports NOTHING, so `parseWasm` / `encodeWasm` are reachable only
   through those two subpaths. `README.md` documents both — an example (`import { parseWasm } from
@@ -171,11 +180,16 @@ gathered 2026-09-19 after the owner asked why they are published at all:
   change and belongs to a version decision (owner action 5).
 - They do not disappear internally either way: `wasm-opt`, `read-wat`, the compat API and
   `lowerBlockParams` all call them.
-Options: (a) unpublish both at the next major and let the compat APIs plus the tool entry points be
-the public surface — it also removes the wrapper question from stage 3; (b) keep them as thin
-wrappers over the shared reader and encoder (`readBinaryIr` + `prepareForPasses`, and the shared
-writer), preserving today's contract that `parseWasm` returns an OPTIMIZER-READY tree; (c) publish
-the SHARED reader and writer under honest names and leave these two as deprecated aliases.
+The options as put to the owner, with (a) chosen: (a) unpublish both at the next bump and let the
+compat APIs plus the tool entry points be the public surface — it also removes the wrapper question
+from stage 3; (b) keep them as thin wrappers over the shared reader and encoder (`readBinaryIr` +
+`prepareForPasses`, and the shared writer), preserving today's contract that `parseWasm` returns an
+OPTIMIZER-READY tree; (c) publish the SHARED reader and writer under honest names and leave these two
+as deprecated aliases. Consequences of (a) to carry out IN the bump, not before: drop both from
+`deno.json`'s `exports`; delete the `parseWasm` example and the two entry-point rows from `README.md`;
+keep both modules in the tree, since `wasm-opt`, `read-wat`, the compat API and `lowerBlockParams` all
+call them; say in `CHANGELOG.md` that the public way to reach the IR is now the compat APIs and the
+tool entry points.
 ⚠️ Whatever is chosen, `parseWasm`'s published contract is "a tree the passes can run on", which is
 reader + `prepareForPasses` — not the faithful tree alone.
 
@@ -308,7 +322,16 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   expression under `extract_lane` (or any other SIMD kind) is never reused, where upstream
   `--local-cse` reuses it. Found scoping K3. K3 fixed the shift itself, which is now a `binary`, but
   not what sits beneath an unlisted kind: the K3 test's first fixture tripped on exactly this. How
-  much of the size gap to upstream it explains is unmeasured.
+  much of the size gap to upstream it explains is unmeasured — but the gap it lives in now is:
+  **42.1 KB over 421 modules** is all that our twelve passes lose to upstream's SAME twelve, measured
+  2026-09-19 ([names.md](names.md) § "Names under optimization, priced"). That is the budget every item
+  in this list draws from; a fix claiming more than it has is claiming someone else's bytes.
+- ⬚ **The bigger half of the `-Oz` size gap is coverage, not quality: 60.3 KB** of the 109.5 KB comes
+  from passes upstream runs at `-Oz` and we do not run at all — Inlining (ours is `-O3` only), DAE,
+  DuplicateFunctionElimination, Precompute, MergeBlocks, SimplifyGlobals. It shows in what survives:
+  **3,943 functions kept to upstream's 2,663**. Scheduling Inlining at `-O2` / `-Oz` is the cheapest
+  probe, since the pass exists; ⚠️ it must wait for One front end stage 2, because `Inlining` is one of
+  the passes the block-param round trip currently breaks (above).
 - ⬚ **LocalCSE runs after SimplifyLocals and CoalesceLocals at -Oz**, so the tee it adds is never
   cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
 - ⬚ **binaryen-ts could run-length-compress its locals** as wabt-ts now does — roughly 5,600 bytes
