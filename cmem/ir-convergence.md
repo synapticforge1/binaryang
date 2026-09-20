@@ -4271,7 +4271,11 @@ bytes plus the trailing section only, 1,043; `--no-text-form` equal to main's, 1
 sits in 268 files, 59.5 KB against 6.6 MB: 10,962 entries — 10,699 bare base, 263 predicted base,
 908 exceptions. binaryen-ts decode → encode byte-identical 1,004, as on main (the 28 others differ
 on main too); no optimized output carries it. Cost: `wat2wasm` +26–35% (the read-back;
-`--no-text-form` is within noise of main), `wasm2wat` +8–11%. Baseline (`cbb2cca20`): 75 of 421
+`--no-text-form` is within noise of main), `wasm2wat` +8–11%. 🛑 The cost is CLOSED as a question
+(owner, 2026-09-19: "ignore the slower part for now. we already addressed that issue with the ir,
+reader and writer that we are in the process of merging") — the read-back exists only because two
+front ends can differ, so One front end removes its reason; deleting it is an action of stage 2, not
+a trade to weigh (open-work.md). Baseline (`cbb2cca20`): 75 of 421
 moved — bytes by the section only; the `--fold` column equals main's FORCED fold on all 421 (naming
 a form forces it now); `--linear` unchanged. Gate on `b366262ce` exit 0 at every step, 1273 tests;
 the re-baseline commit reads IDENTICAL.
@@ -4430,6 +4434,11 @@ before it:
    - ⬚ LEFT: typed `pop`s at catch entry and for block params (R13, R14); the scratch-local spills
      and `unreachable`-for-an-empty-stack (R11', ~137 functions); block-param lowering as a tree
      pass (R15) — which is what breaks `fac.0` / `if.0`, and `Inlining` on route B at -O3.
+   - ⏭️ AND THEN, once the parser and the reader agree: **delete S7's read-back** — predict the text
+     forms from the module in hand instead of re-reading the bytes, and re-measure `wat2wasm`
+     (+26–35% today). The owner closed the cost as a question on the strength of this merge
+     (2026-09-19); the prediction hash keeps it safe to try, since a residual disagreement prints as
+     predicted rather than wrongly.
 3. **Switch the entry points** (`wasm-opt`, `read-wat`, the compat API, `lowerBlockParams`) to B,
    keep `parseWasm` as a thin published wrapper if the owner wants the API kept; then delete
    `wasm-parser.ts`.

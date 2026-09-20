@@ -174,10 +174,17 @@ Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (o
   mutability bytes, DataCount). Keeping the reader's checks is the point of one front end; worth a
   count in the gate once the switch happens.
 
-⚖️ **A cost the owner may want to weigh:** with the record on, `wat2wasm` is ~30% slower over the
-corpus (+26–35%), because it reads its own output back to learn what the wabt-ts reader will
-predict — the price of exactness by construction. `--no-text-form` is within noise of main.
-Nothing is pending on it; it is here so the trade is visible.
+🛑 **Not an open question — owner, 2026-09-19: "ignore the slower part for now. we already addressed
+that issue with the ir, reader and writer that we are in the process of merging."** `wat2wasm` is
+~30% slower with the text-form record on (+26–35%) because it reads its own output back to learn
+what the wabt-ts reader will predict; `--no-text-form` is within noise. The read-back exists ONLY
+because two front ends can build different trees for the same bytes, which is exactly what One front
+end removes.
+⏭️ **Action it becomes**, when stage 2 finishes converging the parser and the reader: predict from the
+module in hand, delete the read-back, and re-measure `wat2wasm` against main. The guard that makes
+this safe to try is already in the format — an entry whose prediction hash does not match is skipped,
+so a residual disagreement degrades to "printed as predicted", never to wrong output
+([ir-convergence.md](ir-convergence.md) § "S7").
 
 📥 **From the wasmtk team, 2026-09-19** (their write-up: `wasmtk/scripts/binaryang-report.md`) — two
 parser-leniency reports, both reproduced on `main` and FIXED (`d59816990`): limits took no range
