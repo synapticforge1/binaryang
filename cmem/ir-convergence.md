@@ -4470,11 +4470,41 @@ before it:
      already differed rather than new disagreements. Gate green on the committed tree: 1283 tests,
      baseline IDENTICAL, `direct` 544/544, `direct-behaviour` 1953, optimize-corpus, spec
      2248 · 2714 · 711 · 1229 no misses, translate-eh 70/70 × 3, publish dry-run, naming, portability.
-   - ⬚ LEFT: the scratch-local spills and `unreachable`-for-an-empty-stack (R11', 97 `locals` + 41
-     `unreachable`/`pop` = 138 functions); block-param lowering as a tree pass (R15) — which is what
-     breaks `fac.0` / `if.0`, and `Inlining` on route B at -O3. Residual total: **146 functions of
-     49,271** (R11's 138 plus 8 one-offs: 2 `drop`/`br`, `local.get`/`br_on`, `local.get`/`pop`,
-     `pop`/`br`, `if`/`pop`, a `throw` operand, an `unreachable` value).
+   - 🔑 **item 2 (R11') PRICED, 2026-09-20, and the price is ~zero — the recommendation is to EXPLAIN
+     it rather than copy it.** What A does: a value sitting BELOW a statement is spilled to a fresh
+     local at its original position and read back, because A's single list cannot hold "a value under
+     a statement" and returning it directly would move it after side effects it can observe (the
+     TinyGo `$__stack_pointer` case in `wasm-parser.ts`'s `pop`). B does not need the workaround: the
+     value stays a statement where it was and the consumer takes a `pop`, which is the same order.
+     Measured, at -Oz over **2,880 modules** both routes read (`scratchpad/one/spillsize.ts`):
+     **B is 473 bytes SMALLER in total (−0.03%)** — bigger on 2 modules (3 bytes each), equal on
+     2,866, smaller on 12. Behaviour agrees: the `$__stack_pointer` shape returns the saved value on
+     both routes at every level (`scratchpad/one/spill.ts`), and `direct-behaviour` agrees on 1953
+     calls. What the spill DOES buy is optimizability of that shape: on the fixture A goes 76 → 57
+     bytes where B stays at 70, because the passes cannot work across a value they only see as a
+     `pop`. That is real but rare here — 97 functions of 49,271, and net zero bytes.
+     ⚠️ Two numbers I published on the way and had to correct, both from my own harness: the first
+     said B was **27.5%** bigger, which was `readDebugNames` defaulted OFF (so the reader kept the name
+     section raw, by design, for `wasm-strip`); the second said **0.75%**, which was the stale-section
+     defect below. The lesson is in [best-practices.md](best-practices.md): find WHERE the bytes are
+     before attributing them.
+     ⬚ So R11' stays open as a decision, not a task: copying the spill adds locals the merged tree does
+     not need, moves bytes (a re-baseline) and is the largest of stage 2's items, for no measured gain.
+     The cost of NOT copying it is that stacky producers (wasic, TinyGo) keep code the passes leave
+     alone — invisible, since it is not wrong, only unoptimized. Owner's call.
+   - 🔧 **Found by that measurement and FIXED (`stale_name_section`, 2026-09-20): a raw-kept name
+     section survived optimization on route B** — 286 modules keep one, **211 still carried it after
+     -Oz, 13,720 bytes**, 13,670 of them one DWARF module. `PassRunner` cleared `hasNameSection` and
+     left the bytes, which name code the passes renumbered. Now dropped when a pass has run, `-g`
+     included (the names the module still has are in the IR); the `data: null` PLACEMENT marker stays.
+     Route-B only — A regenerates rather than keeping bytes (R8') — so it would have shipped with
+     stage 3.
+   - ⬚ LEFT: block-param lowering as a tree pass (R15) — which is what breaks `fac.0` / `if.0`, and
+     `Inlining` on route B at -O3, where B still emits **INVALID output for `br.0` and `nop.0`**. That
+     is the only remaining place either route is wrong, so it is stage 2's real blocker. Residual tree
+     differences: **146 functions of 49,271** (R11's 138 plus 8 one-offs: 2 `drop`/`br`,
+     `local.get`/`br_on`, `local.get`/`pop`, `pop`/`br`, `if`/`pop`, a `throw` operand, an
+     `unreachable` value).
    - ⏭️ AND THEN, once the parser and the reader agree: **delete S7's read-back** — predict the text
      forms from the module in hand instead of re-reading the bytes, and re-measure `wat2wasm`
      (+26–35% today). The owner closed the cost as a question on the strength of this merge

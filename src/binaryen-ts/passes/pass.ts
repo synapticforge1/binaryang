@@ -329,6 +329,21 @@ export class PassRunner {
     if (optimized) {
       this._module.fidelity = new FidelityTable();
       this._module.sectionMeta = [];
+      // A name section the READER could not fully apply is kept RAW, at its
+      // place, so `wasm-strip` and a plain round trip can give the bytes back
+      // (R8). Once a pass has run those bytes name code that is gone: the
+      // indices inside them were renumbered, removed or merged. The names the
+      // module still has are in the IR and are written from there under `-g`, so
+      // the raw copy is stale whether or not `-g` was asked for, and it goes.
+      // 🔧 It did not, and route B's optimized output carried it: 211 of 286
+      // modules that keep one, 13,720 bytes, 13,670 of them one DWARF module —
+      // stale debug info, not just size. binaryen-ts's decoder never had the
+      // problem because it re-generates rather than keeping bytes (R8'), so this
+      // only appears on the reader route and would have shipped with stage 3
+      // (One front end, found measuring stage 2 item 2, 2026-09-20).
+      this._module.customSections = this._module.customSections.filter((c) =>
+        c.name !== 'name' || c.data === null
+      );
     }
   }
 

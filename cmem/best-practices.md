@@ -1349,6 +1349,25 @@ splits one sequence into two lists, any new insertion needs its position chosen 
 inherited from whichever list it landed in. The interleaving hazard is already documented in
 `pushStmt`'s comment for the drain case; seeding hit the same seam from the other side.
 
+## 🆕 Find WHERE the bytes are before attributing them (2026-09-20)
+
+Pricing One front end's item 2 produced three different answers for the same question.
+**27.5% bigger** — my harness read with `readDebugNames` defaulted OFF, which makes the reader keep
+the name section as RAW BYTES on purpose (for `wasm-strip`), so I was measuring a debug section, not
+code. **0.75% bigger** — real, and a defect: `PassRunner` dropped the applied names and left the raw
+copy, so optimized output carried a stale name section. **0.03% SMALLER** — the answer, once both were
+out of the way.
+
+Each wrong answer would have justified a different decision, and the first would have justified a
+large piece of work (copying the decoder's scratch-local spills) on the strength of a number that had
+nothing to do with spills.
+
+🔑 The check that caught it took one command: a section-by-section diff of the two outputs, which said
+`custom +3839` and nothing else. **How to apply:** before a size number becomes an argument, split it
+by section (or by whatever the units are) and name the biggest contributor. If a total moves and no
+individual part explains it, the harness is the suspect — and a default that differs between the tool
+and the harness is the likeliest one.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

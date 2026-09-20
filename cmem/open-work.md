@@ -188,15 +188,26 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
    differing**, measured as a set diff in both directions, which is what showed the two shifted
    categories to be re-classifications. One position rule now covers entry values and mid-region
    residue, and item 1's special case is gone. Gate green on the committed tree.
-2. **NEXT — the scratch-local spills and `unreachable`-for-an-empty-stack (R11')**: 138 functions (97
-   `locals`, 41 `unreachable`/`pop`), and after item 1a they are **95% of what is left** — the
-   residual total is 146 functions of 49,271, the other 8 being one-offs (2 `drop`/`br`,
-   `local.get`/`br_on`, `local.get`/`pop`, `pop`/`br`, `if`/`pop`, a `throw` operand, an
-   `unreachable` value). ⚠️ Unlike items 1 and 1a this one MOVES BYTES on decode → encode (the spills
-   add locals), so it needs its own re-baseline commit and a behaviour check, not just a tree diff.
-3. block-param lowering as a TREE pass (R15), replacing `PassRunner`'s encode + decode round trip —
-   which is what breaks `fac.0` and `if.0` on both routes, and `Inlining` on the reader route at -O3
-   (`dynrt_lib_modc`, `Chapter11/vector`, `nop.0`, `br.0`).
+2. ⏳ **OWNER CALL — the scratch-local spills and `unreachable`-for-an-empty-stack (R11'), 138
+   functions: PRICED AT ~ZERO, so copying it may not be worth building.** At -Oz over 2,880 modules
+   route B is **473 bytes SMALLER** than route A (−0.03%): bigger on 2 (3 bytes each), equal on 2,866,
+   smaller on 12. Behaviour agrees, including on the `$__stack_pointer` shape the decoder's spill was
+   written for. What the spill buys is optimizability of that shape (a fixture goes 76 → 57 bytes on A
+   and stays 70 on B, because the passes cannot work across a value they see only as a `pop`) — real,
+   but 97 functions of 49,271 and net zero bytes here. Copying it adds locals the merged tree does not
+   need and moves bytes (a re-baseline), and it is the largest of stage 2's items. **Not copying it
+   means stacky producers (wasic, TinyGo) keep code the passes leave alone — not wrong, just
+   unoptimized, and invisible.** Full record: [ir-convergence.md](ir-convergence.md) § "One front end".
+2a. ✅ **Found while pricing item 2 and FIXED: a raw-kept name section survived optimization on route
+   B** — 211 of 286 modules carried one after -Oz, 13,720 bytes, stale (the passes had renumbered what
+   it names). Dropped now when a pass has run, `-g` included; the `data: null` placement marker stays.
+   Route-B only, so it would have shipped with stage 3.
+3. **NEXT, and the real blocker — block-param lowering as a TREE pass (R15)**, replacing `PassRunner`'s
+   encode + decode round trip. It is the only place either route is still WRONG: route B emits INVALID
+   output at -O3 for `spec/br/br.0.wasm` and `spec/nop/nop.0.wasm`, and it breaks `fac.0` / `if.0` on
+   both routes.
+   The `Inlining` failures on the reader route at -O3 are the same root: `dynrt_lib_modc`,
+   `Chapter11/vector`, `nop.0`, `br.0`.
 Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (one writer), stage 5
 (retire binaryen-ts's internal `parseWat`).
 
