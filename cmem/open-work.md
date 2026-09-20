@@ -170,6 +170,20 @@ corpus (+26–35%), because it reads its own output back to learn what the wabt-
 predict — the price of exactness by construction. `--no-text-form` is within noise of main.
 Nothing is pending on it; it is here so the trade is visible.
 
+📥 **From the wasmtk team, 2026-09-19** (their write-up: `wasmtk/scripts/binaryang-report.md`) — two
+parser-leniency reports, both reproduced on `main` and FIXED (`d59816990`): limits took no range
+check, and a legacy `try`'s clause structure was unchecked. Their runner had one catch around
+"assemble the module", so an ENCODER error satisfied an `assert_malformed`; splitting the stages
+flipped two assertions to skip. Left open by that report:
+- ⬚ **the validator accepts a `catch` after `catch_all`** in a legacy `try` (V8: "catch after
+  catch-all"). Upstream wabt parses that text too, so it is INVALID, not malformed — the parser is
+  right to accept it and our validator should reject it. Cheap, and it belongs with the EH checks.
+- ⬚ **a limit that overflows its OWN index type fails in the writer, not the validator**:
+  `(memory 0x1_0000_0000)` is well-formed (2^32 fits the u64 spelling) and invalid, but we report
+  "cannot encode module: u32 LEB128 out of range" instead of a validation error. Same shape as the
+  bug above, one layer down. ⚠️ Do NOT make it malformed: that is the case the wasmrt team corrected
+  in `proposals/threads/memory.wast`, and `malformed_text.test.ts` pins it.
+
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
 - ✅ ~~the wabt-ts binary reader attaches a multi-value operand's NEIGHBOUR~~ — FIXED 2026-09-19
   (`58fd43576`, One front end stage 2), in the reader AND the WAT parser: both hold one stack entry
