@@ -393,6 +393,14 @@ their own bump — and nothing breaks by their standing still.
   instructions, so optimizing a binary that used them changed its behaviour: a result that should
   saturate (`1e10` → `2147483647`, NaN → 0) trapped instead. Shipped in 1.5.4, on every route into
   `wasm-opt` — WAT input too, since `read-wat` assembles and then decodes. New: `UnaryOp.TruncSat*`.
+- **`wat2wasm` rejects two kinds of malformed text it used to accept** (`d59816990`, reported by the
+  wasmtk team). A limit's integer literal is range-checked as a u64, so
+  `(memory i64 0x1_0000_0000_0000_0000)` is a parse error ("i64 constant out of range") instead of a
+  writer error ("u64 LEB128 out of range"); 2^64−1 still parses, and `(memory 0x1_0000_0000)` — 2^32,
+  in range for the u64 spelling — still parses, being well-formed and invalid rather than malformed.
+  And a legacy `try`'s clauses are checked: `do` is mandatory and first (the bare-body form is gone),
+  one `do`, at most one `catch_all`, and `delegate` instead of handlers rather than after them —
+  `(try (do) (do) (catch_all))` and `(try (catch_all))` used to assemble into modules that RUN.
 - **The binary reader indexes imports within their own kind** (`ab1a211ee`, found by S7). After a
   global, table or memory import, a call to an imported function — or a `throw` of an imported tag
   — read back with the wrong signature: `(call $log (global.get $g))` came back as a call with no

@@ -1302,6 +1302,21 @@ crafted entry was invalid for a second reason, so a different check stood betwee
 How to apply: when a test is about a condition, assert the condition holds before asserting what
 follows from it — and let a surviving mutant send you to the premise first.
 
+## 🆕 An assertion that spans stages is satisfied by the WRONG stage (2026-09-19)
+
+The wasmtk team's runner had one `catch` around "assemble the module", so a failure at ANY stage —
+parse, encode, engine validation — counted as `assert_malformed` passing. Two assertions had been
+green for years on an encoder error, which is not what "this text cannot be decoded" means. Splitting
+the stages turned them into skips and found two real leniency bugs here (limits unchecked, legacy
+`try` clauses unchecked), both fixed in `d59816990`.
+
+🔑 It is the same shape as the `bin-roundtrip=OK` probe on this side, which reported success for
+modules it never round-tripped, and as `direct` reading 421/421 while the bridge dropped every
+element segment. **How to apply:** for every assertion that names a STAGE ("malformed" = parse,
+"invalid" = validation, "traps" = run), assert the stage — catch that stage's failure alone, and let
+the others fail the test loudly. A single try/catch spanning a pipeline is a green light wired to the
+wrong switch.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:
