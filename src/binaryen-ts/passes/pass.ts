@@ -28,6 +28,7 @@ import type { WasmModule } from '../ir/module.ts';
 import { dropWrittenTypeIndex } from '../ir/expressions.ts';
 import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
+import { spillStackValues } from './spill-stack-values.ts';
 import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
 import { FidelityTable } from '../../wabt-ts/ir/fidelity.ts';
 
@@ -295,8 +296,16 @@ export class PassRunner {
     // them (S6 decision 7b(i)). Lower them before the first pass sees the tree.
     // (The lowering re-encodes and re-decodes, so it relies on the encoder
     // writing the module's names — N1 P5.)
-    lowerBlockParams(this._module);
     const optimized = this._queue.length > 0;
+    // A value the wabt-ts reader left on the operand stack is reachable only
+    // THROUGH the stack, and a pass that introduces a block boundary between it
+    // and the `pop` that takes it makes the module invalid (R11'; it did, at -O3,
+    // through `Inlining`). Make every such value explicit before the first pass
+    // sees the tree — only when a pass will run, so a plain read-and-write stays
+    // byte-exact. binaryen-ts's decoder does the same thing while decoding, so a
+    // tree that came from it has nothing here to find.
+    if (optimized) spillStackValues(this._module);
+    lowerBlockParams(this._module);
     // As-written type indices are FORM (S6 decision 7c) — which of several
     // identical types a `call_indirect` named, and whether a block header was
     // written as an index. A pass may retype either, leaving the index naming
