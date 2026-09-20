@@ -4431,9 +4431,31 @@ before it:
      Forms still reproduce because those functions are recorded; one whose source form EQUALLED the
      prediction there would be absent and render differently. Worth closing with a gate that pins
      "the fold writer's grouping IS the prediction" over the corpus.
-   - ⬚ LEFT: typed `pop`s at catch entry and for block params (R13, R14); the scratch-local spills
-     and `unreachable`-for-an-empty-stack (R11', ~137 functions); block-param lowering as a tree
-     pass (R15) — which is what breaks `fac.0` / `if.0`, and `Inlining` on route B at -O3.
+   - ✅ **a region is ENTERED with its values, typed and in place (R13, R14)** (`0e2a2bd2b`,
+     2026-09-20): the reader now seeds one typed `pop` per value the FORMAT pushes at a region's
+     entry — a carrier's parameters, a `catch` handler's payload — as the decoder always has.
+     `Frame.seed` records them, `flush` KEEPS a typed leftover pop (an untyped one is still
+     dropped), and surviving seeds are emitted FIRST. Nodes differing in `type`: **6 / 2 modules →
+     0 of 1,291,777 nodes, 0 modules** — the number this item was scoped to settle. Functions
+     agreeing 48,770 → **48,780 of 49,271**; the two categories it closes are gone and no new
+     category appeared (lists diffed both directions). Not a byte moved: baseline IDENTICAL,
+     `direct` 544/544, `direct-behaviour` 1953 calls, optimize-corpus valid at every level, spec
+     2248 · 2714 · 711 · 1229 no misses, translate-eh 70/70 in all three worlds, 1283 tests.
+     ⚠️ **Order is not cosmetic**: `[...stmts, ...stack]` first put a parameter AFTER the `nop` that
+     ran with it on the stack, which made the arm's type the parameter's where the decoder had the
+     `nop`'s — a region's type is its LAST child's on both sides. Found by a fixture written to
+     discriminate, after the rest already worked.
+     🔑 **What it also revealed**: R12 (done in `58fd43576`) left its multi-value placeholders
+     UNTYPED, so `flush` still drops an unconsumed one and the decoder's leading `pop` beneath a
+     multi-result producer has no counterpart — **the single largest residual category, 315
+     functions** (`[A "pop" | B "call"]`), plus 18 `local.set`, 5 `drop`, 4 `block`, 4
+     `call_indirect`, 1 `br`, 1 `if` of the same shape. Typing those placeholders from the
+     producer's result types is the same mechanism as this item and closes them; it was NOT in
+     R13/R14's scope, so it is recorded here rather than folded in silently.
+   - ⬚ LEFT: type R12's multi-value placeholders (above, ~348 functions); the scratch-local spills
+     and `unreachable`-for-an-empty-stack (R11', 97 `locals` + 40 `unreachable`/`pop` = ~137
+     functions); block-param lowering as a tree pass (R15) — which is what breaks `fac.0` / `if.0`,
+     and `Inlining` on route B at -O3. Residual total after R13/R14: **491 functions of 49,271**.
    - ⏭️ AND THEN, once the parser and the reader agree: **delete S7's read-back** — predict the text
      forms from the module in hand instead of re-reading the bytes, and re-measure `wat2wasm`
      (+26–35% today). The owner closed the cost as a question on the strength of this merge

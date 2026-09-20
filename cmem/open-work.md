@@ -29,11 +29,15 @@ ahead, unpushed and unbumped, at 1281 tests / 0 ignored, baseline IDENTICAL, spe
 
 ## Start the next session here (handoff, 2026-09-19 — S7 and its mixed form done; ONE FRONT END stages 0 and 1 done, stage 2 STARTED; two wasmtk leniency reports fixed)
 
-**Owner paused the session on 2026-09-19 ("I need to pause here for today. We will start again
-tomorrow or the next day"), with NO code change in flight** — the last three merges are docs only, so
-the tree is exactly the gated `d59816990` plus cmem. Pick up here, in this order:
+**2026-09-20: One front end stage 2, item 1 is DONE and merged** (code `0e2a2bd2b`) — the first of
+the three, with the full gate green on the committed tree: fmt, lint, **1283 tests / 0 failed**,
+naming (no output), portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 ·
+2714 · 711 · 1229, no misses**, `direct` **544/544**, `direct-behaviour` **1953 calls / 651
+exports**, `translate-eh` **70/70 legacy, translated and translated -Oz**, optimize-corpus every
+level. Pick up here, in this order:
 
-1. **One front end stage 2's three remaining items** (below) — everything else waits on them.
+1. **One front end stage 2's remaining items** (below, now 1a / 2 / 3) — everything else waits on
+   them. Item 1a is new, found by item 1, and is the cheapest of the three.
 2. **NOT the pipeline-convergence proposal** ("passes until the delta over the next two rounds averages
    under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
    practice once the open items are worked through. Do not start it — not even the measurement — while
@@ -49,9 +53,10 @@ the tree is exactly the gated `d59816990` plus cmem. Pick up here, in this order
    was still running when the session ended and its number was never read. Re-run it — the scratchpad
    is session-scoped and will be gone.
 
-**Where the work stopped.** The last CODE merge is `ad2dc00bc`, the wasmtk leniency fixes (code
-`d59816990`); `main`'s head is the docs merge after it (`bc3866196` and the names/renaming merge that
-follows), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ several stale
+**Where the work stopped.** The last CODE change is `0e2a2bd2b` (One front end stage 2 item 1), gated
+and merged on 2026-09-20; before it, `ad2dc00bc` / `d59816990`, the wasmtk leniency fixes, and five
+docs-only merges. Clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ several
+stale
 branches from earlier sessions still exist and are merged — `docs/memory-refresh` among them; check
 `git log -1 <branch>` before reusing a name, or a checkout will hand you an old tree).
 The full gate ran on `d59816990` and every step exited 0: fmt, lint, **1281 tests / 0 failed**, naming (no output),
@@ -169,10 +174,19 @@ form", § "An assertion that spans stages is satisfied by the WRONG stage".
 [ir-convergence.md](ir-convergence.md) § "One front end". Stages 0 and 1 are done (see the Done
 table). Stage 2 moves what binaryen-ts's decoder does FOR THE PASSES into `prepareForPasses`; its
 first piece (one stack entry per value) landed in `58fd43576`. What is left of it, in order:
-1. typed `pop`s at catch entry and for block params (inventory rows R13, R14) — this also settles the
-   6 remaining type differences (a parametrised `if`'s arm regions).
-2. the scratch-local spills and `unreachable`-for-an-empty-stack (R11') — ~137 functions, the last
-   operand-shape difference between the routes.
+1. ✅ **DONE 2026-09-20 (`0e2a2bd2b`, merge below): typed `pop`s at catch entry and for block params
+   (R13, R14).** The 6 type differences are settled — **0 differing nodes of 1,291,777** — and
+   functions agreeing went 48,770 → 48,780 of 49,271 with no new difference category and not a byte
+   moved. Record and the ordering trap it hid: [ir-convergence.md](ir-convergence.md) § "One front
+   end", stage 2. 🆕 **It surfaced the next item**: R12 typed nothing, so its multi-value
+   placeholders are still dropped — ~348 functions, now the largest residual category, and the same
+   mechanism closes them.
+1a. ⬚ **NEW — type R12's multi-value placeholders** from the producer's result types, so an
+   unconsumed one survives `flush` as the decoder's does (315 `[A pop | B call]` + 18 `local.set` +
+   5 `drop` + 4 `block` + 4 `call_indirect` + 1 `br` + 1 `if`). Cheapest of the three left, and it
+   is the same change as item 1 one level down.
+2. the scratch-local spills and `unreachable`-for-an-empty-stack (R11') — ~137 functions (97
+   `locals`, 40 `unreachable`/`pop`), the last operand-shape difference between the routes.
 3. block-param lowering as a TREE pass (R15), replacing `PassRunner`'s encode + decode round trip —
    which is what breaks `fac.0` and `if.0` on both routes, and `Inlining` on the reader route at -O3
    (`dynrt_lib_modc`, `Chapter11/vector`, `nop.0`, `br.0`).

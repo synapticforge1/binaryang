@@ -189,6 +189,17 @@ class Frame {
   // entry parameters, popped from the ENCLOSING stack at the opcode
   params: BlockParams | undefined = undefined;
 
+  /**
+   * The values this region was ENTERED with, as the typed `pop`s that stand for
+   * them: a carrier's parameters, a `catch` handler's payload (R13, R14). They
+   * are also on `stack`, where an instruction can consume them; this list is
+   * what {@link flush} uses to put the SURVIVORS back at the region's start,
+   * since that is where they were — `[...stmts, ...stack]` would emit a
+   * parameter after the statements that ran with it already on the stack, which
+   * flips the region's type (its last child's).
+   */
+  seeds: Expr[] = [];
+
   constructor(kind: FrameKind, blockType: BlockType, label: string, loc: Location) {
     this.kind = kind;
     this.blockType = blockType;
@@ -199,13 +210,40 @@ class Frame {
   }
 
   flush(): Expr[] {
-    // A `pop` placeholder nobody consumed is not part of the program: it stands
-    // for a value a later instruction was expected to take (`pushValues`), it
-    // writes nothing, and as a statement it is a node no consumer can type.
-    const result = [...this.stmts, ...this.stack.filter((e) => e.kind !== 'pop')];
+    // An UNTYPED `pop` nobody consumed is not part of the program: it stands for
+    // a value a later instruction was expected to take, it writes nothing, and
+    // as a statement it is a node no consumer can type.
+    //
+    // A TYPED one is different, and it is kept. It stands for a value the FORMAT
+    // put on this region's stack — a carrier's parameters, a caught exception's
+    // payload (R13, R14) — so it is part of what the region holds even when no
+    // instruction takes it, and its type says what. binaryen-ts's decoder has
+    // always kept these, and the region's type is its last child's on both
+    // sides, so dropping them left a parametrised `if`'s arm typed `none` where
+    // the decoder typed it from the parameter (6 nodes, One front end stage 2).
+    const kept = this.stack.filter((e) => e.kind !== 'pop' || e.type !== undefined);
+    const isSeed = new Set<Expr>(this.seeds);
+    const result = [
+      ...kept.filter((e) => isSeed.has(e)), // entry values: where they entered
+      ...this.stmts,
+      ...kept.filter((e) => !isSeed.has(e)),
+    ];
     this.stmts = [];
     this.stack = [];
+    this.seeds = [];
     return result;
+  }
+
+  /**
+   * Enter this region with one typed `pop` per value the format pushes here —
+   * see {@link seeds}. Replaces any previous seeding, which is what an `else`
+   * needs: `flush` emptied the frame, and the arm starts with the same
+   * parameters again.
+   */
+  seed(types: readonly ValueType[], loc: Location): void {
+    if (types.length === 0) return;
+    this.seeds = seedValues(types, loc);
+    this.stack.push(...this.seeds);
   }
 }
 
@@ -316,6 +354,23 @@ function entryParams(bt: BlockType, stack: Expr[], m: Module): BlockParams | und
   const n = blockParamCount(bt, m);
   if (n === 0 || bt.kind !== 'func_type') return undefined;
   return { types: [...getTypeSig(m, bt.typeIdx).params], values: popN(stack, n) };
+}
+
+/**
+ * One TYPED `pop` per value the format leaves on a region's stack at entry: a
+ * carrier's parameters (R14) and a `catch` handler's exception payload (R13).
+ *
+ * In parameter order, so the LAST one is on top and the first instruction that
+ * consumes a value takes it — the order the values were pushed in. Typed,
+ * because the type is what makes the placeholder a value rather than a gap:
+ * {@link Frame.flush} keeps a typed `pop` and drops an untyped one, a region's
+ * type is its last child's, and `deriveTypes` re-types a CONSUMED `pop` from its
+ * own seeded stack, so a consumed one costs nothing and an unconsumed one now
+ * says what the region holds. binaryen-ts's decoder seeds exactly this
+ * (`enterParams`, `seedElse`, and the `catch` case's `tagParams.map(makePop)`).
+ */
+function seedValues(types: readonly ValueType[], loc: Location): Expr[] {
+  return types.map((t) => ({ kind: 'pop', type: t, loc }) as Expr);
 }
 
 /**
@@ -1524,6 +1579,7 @@ export class BinaryReader {
           const bt = this.readBlockType();
           const f = new Frame('block', bt, '', loc);
           f.params = entryParams(bt, stack, m);
+          if (f.params) f.seed(f.params.types, loc);
           labelStack.push(f);
           break;
         }
@@ -1531,6 +1587,7 @@ export class BinaryReader {
           const bt = this.readBlockType();
           const f = new Frame('loop', bt, '', loc);
           f.params = entryParams(bt, stack, m);
+          if (f.params) f.seed(f.params.types, loc);
           labelStack.push(f);
           break;
         }
@@ -1541,6 +1598,7 @@ export class BinaryReader {
           f.condition = cond;
           // The entry values sit BENEATH the condition.
           f.params = entryParams(bt, stack, m);
+          if (f.params) f.seed(f.params.types, loc);
           labelStack.push(f);
           break;
         }
@@ -1552,12 +1610,18 @@ export class BinaryReader {
           const thenBody = frame.flush();
           frame.kind = 'if_else';
           frame.ifTrue = thenBody;
+          // Both arms start with the SAME parameters on their stack: the values
+          // were evaluated once, before the `if`, and each arm gets them at
+          // entry. `flush` above emptied the frame, so the else arm is seeded
+          // again (the decoder's `seedElse`).
+          if (frame.params) frame.seed(frame.params.types, frame.loc);
           break;
         }
         case Opcode.Try: {
           const bt = this.readBlockType();
           const f = new Frame('try', bt, '', loc);
           f.params = entryParams(bt, stack, m);
+          if (f.params) f.seed(f.params.types, loc);
           f.catches = [];
           labelStack.push(f);
           break;
@@ -1584,6 +1648,12 @@ export class BinaryReader {
           if (frame.catches) {
             frame.catches.push({ loc, tag: varIndex(tagIdx), isRef: false, body: region([], loc) });
           }
+          // `catch $tag` pushes the tag's parameters onto the handler's stack, so
+          // the handler's leading `local.set`s consume them (R13). Seed one typed
+          // `pop` each: an untyped placeholder only appeared where a consumer
+          // asked for a value, so a handler that binds NOTHING lost the payload
+          // entirely, where the decoder kept it.
+          frame.seed(getTagSig(m, tagIdx).params, loc);
           break;
         }
         case Opcode.CatchAll: {

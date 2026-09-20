@@ -85,7 +85,16 @@ describe('a br_table holds the values it carries', () => {
     assertEquals(valueKinds(m, 0), [['const']]);
     assertEquals(valueKinds(m, 1), [[]]);
     assertEquals(valueKinds(m, 2), [['const', 'const']]);
-    assertEquals(valueKinds(m, 3), [[]], 'the block parameter is outside the region');
+    // The block PARAMETER is a value the region was entered with, so the
+    // `br_table` inside it carries that value — held as the seeded `pop` that
+    // stands for it (R13 / R14, One front end stage 2). 🔧 This row asserted
+    // `[[]]` and said "the block parameter is outside the region": the reader
+    // kept the parameter only on the node and dropped anything unconsumed at the
+    // end of the region, so the `br_table` came back carrying NOTHING while the
+    // WAT parser's row below carried a `pop` for the same code. The two front
+    // ends now read it the same way; no byte moved either way (a `pop` writes
+    // nothing — the baseline and `direct` both held).
+    assertEquals(valueKinds(m, 3), [['pop']], 'the block parameter is in the region');
   });
 
   it('the WAT parser, linear: the same, with a block parameter held as a pop', () => {
