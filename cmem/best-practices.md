@@ -1317,6 +1317,21 @@ element segment. **How to apply:** for every assertion that names a STAGE ("malf
 the others fail the test loudly. A single try/catch spanning a pipeline is a green light wired to the
 wrong switch.
 
+## 🆕 A comparison must print its DENOMINATOR (2026-09-19)
+
+The first `-Oz` size script printed four neat totals — over **zero** modules. Every upstream call had
+failed because `--enable-all` is not a `wasm-opt` flag (it is `--all-features`), the loop's
+`if (!u1) continue` swallowed all 421, and the sums stayed at their initial `0`. Nothing was wrong
+with the arithmetic; the comparison had simply never happened. It looked like an answer, and the only
+reason it was caught is that `0.0 KB` is an implausible corpus size.
+
+🔑 A skipped input is invisible by construction — the same shape as "a skip is not a failure"
+([handoffs.md](handoffs.md) § 4) and as the stage-spanning assertion above. **How to apply:** every
+measurement prints how many inputs it compared and how many it dropped, with the reason, on the same
+line as the result. An external tool's non-zero exit is a REASON, not a skip: count it. And verify a
+flag exists before a run depends on it — a wrong flag fails every call identically, which reads like
+"the tool cannot do this" rather than "I asked wrongly".
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

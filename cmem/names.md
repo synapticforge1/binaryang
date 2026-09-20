@@ -152,7 +152,9 @@ keep passing, which is why P5's row names the file.)
   run re-encodes and re-decodes, and now gets the names back — which is what coupled P4 to P5.
 - **`-O2 -g` differs from upstream** (register N4): we keep the local and label names the passes
   leave; upstream drops every local name, params included, and writes no labels. What optimization
-  may do with names is the owner's future discussion, so this is recorded, not decided.
+  may do with names was the owner's future discussion — now priced at `-Oz`, § "Names under
+  optimization, priced" below: the divergence costs 127.4 KB of locals and labels over 421 modules,
+  under `-g` only, and is not where our size gap to upstream lives.
 - **`nameless_reference.ts` (then `wabt_reference.ts`) stays — for `parseWat` only.** `parseWat` carries no names by design (W4,
   not extended), so comparing its output with wabt-ts needs wabt-ts's bytes without a name section.
   The three DECODE → ENCODE tests that used it went back to full `wat2wasm` bytes, which they now
@@ -241,3 +243,47 @@ entity and branch REFERENCES by index (`call 0`, `br_if 1 (;@1;)`) where upstrea
    type entry and every struct / array field carries a name, made up where the section gave none,
    and the record lists the real ones. This reverses M5a's `name: ''` for a decoded type — which was
    right while nothing recorded which names were real, and is not once something does.
+
+## ✅ Names under optimization, priced (2026-09-19) — the discussion N4 deferred
+
+N4 recorded that our `-O2 -g` keeps local and label names upstream drops, and left "what
+optimization may do with names" to the owner. Measured before discussing it: 421 corpus modules,
+ours at `optimizeLevel: 2, shrinkLevel: 2` through `PassRunner`, upstream
+`wasm-opt -Oz --all-features`, each run twice (with `debugInfo` / `-g` and without).
+`scratchpad/names/size.ts`, `match.ts`.
+
+| at `-Oz`                        | ours        | upstream |
+| ------------------------------- | ----------- | -------- |
+| without `-g`                    | 893.7 KB    | 784.2 KB |
+| with `-g`                       | 1088.7 KB   | 836.5 KB |
+| the name section itself (`-g`)  | 193.9 KB    | 51.3 KB  |
+| modules carrying names, no `-g` | **0 / 421** | 0 / 421  |
+
+- **The default path agrees with upstream exactly**: neither side writes a name section without
+  `-g`, on all 421 modules. The two-phase rule in `PassRunner` (`pass.ts` ~325) behaves as intended.
+- **What our extra 142.6 KB of names buys**, by subsection: local **90.0 KB** and label **37.4 KB**
+  that upstream writes nothing for (ids 2 and 3 — upstream writes 1, 4, 5, 6, 7, 8, 9, 11 only),
+  plus **14.8 KB** more function names because we keep more functions (below). So the name gap is
+  exactly the N4 divergence, priced: locals + labels = 127.4 KB, +18.5% over our own no-`-g` output.
+- **Names are NOT the size story.** Without names at all we are still **109.5 KB (+14.0%)** bigger,
+  and bigger on **418 of 421** modules (smaller on 2, equal on 1 — the two wins are 3 bytes each).
+  Any "our optimizer is worse for size" conclusion must be argued on the no-`-g` column.
+
+**Where those 109.5 KB actually go** — same input, four columns (`match.ts`):
+
+| column                                               | total     | attributes                             |
+| ---------------------------------------------------- | --------- | -------------------------------------- |
+| unoptimized input                                    | 1915.2 KB | —                                      |
+| ours `-Oz`                                           | 893.7 KB  | −53.3% from input                      |
+| our `-Oz` output re-encoded by `wasm-opt`, no passes | 886.6 KB  | **our encoder: 7.1 KB (6%)**           |
+| `wasm-opt` running ONLY our 12-pass `-Oz` list       | 844.5 KB  | **weaker passes: 42.1 KB (38%)**       |
+| `wasm-opt -Oz` in full                               | 784.2 KB  | **passes we never run: 60.3 KB (55%)** |
+
+So over half the gap is coverage — upstream's `-O2`/`-Oz` also runs Inlining, DAE,
+DuplicateFunctionElimination, Precompute, MergeBlocks and SimplifyGlobals, where our list stops at
+12 passes and schedules Inlining at `-O3` only. It shows in what survives: without `-g` we keep
+**3,943 functions to upstream's 2,663** (code section 770.3 KB vs 684.7 KB). The other 38% is our
+own passes leaving bytes on the floor where upstream's same-named pass does not — 417 of 421 modules
+are bigger under an identical pass list, which is the honest measure of pass quality and the number
+the open LocalCSE / scheduling items in [open-work.md](open-work.md) are eating into. Our encoder is
+within 0.8%.

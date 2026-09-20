@@ -490,6 +490,18 @@ would have agreed with the first and proved nothing.
 
 ### Byte parity with upstream `wat2wasm` — 146 → 400 → 421 of 421
 
+⚠️ **`--enable-all` makes upstream `wat2wasm` emit bytes NOTHING else reads** — measured 2026-09-19
+while pricing `-Oz` sizes. On `11_logging.wat` it writes the **compact import section** form (the
+module name once, an empty field name, marker `0x7f`, then a count and the grouped entries) instead
+of one entry per import. That form is an unratified proposal: binaryen 132 refuses it
+(`compact imports not supported (at 0:95)`, and with `--all-features` the misleading
+`bad import kind (at 0:128)`), **V8 refuses it**, and our reader refuses it precisely —
+`unknown import kind 0x7f (at offset 0x5f)`, the same offset binaryen names. Our own `wat2wasm`
+never emits the form, so our bytes optimize fine where wabt's do not. The lesson for any harness
+that chains the oracles: **`wat2wasm --enable-all | wasm-opt` is not a valid pipe** — assemble with
+the features the file needs (`--enable-exceptions` etc.), or assemble with ours. A run that skips the
+module quietly, as the first size script did, reports a number computed over a corpus it never read.
+
 The byte baseline pins our OWN output, so it was blind to every divergence older than itself;
 wabt-ts's parity with upstream `wat2wasm` had never been measured. Measured 2026-09-10 with default
 features (`--enable-all` changes what upstream EMITS): **146 of 421 identical** — 242 differed in
