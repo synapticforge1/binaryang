@@ -374,6 +374,23 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   60.3 KB coverage gap above is the better investment, and if it is worth 3% this becomes the cheapest
   win we have. ⚠️ Either way it comes after One front end stage 2, because iterating a pipeline that
   currently breaks `Inlining` multiplies the exposure.
+  **Refined by the owner the same day: average the delta over the next TWO rounds rather than test one
+  round.** That is the right answer to the grow-then-shrink caution above — Inlining inflates and the
+  next round collapses it, so a one-round test stops exactly where the win begins. Note the equivalence:
+  "the average of two rounds is under 0.1%" IS "the cumulative gain over two rounds is under 0.2%", and
+  the cumulative form is what to build — a history of sizes compared against best-so-far, no lookahead
+  bookkeeping, and it generalises to **stop when the cumulative gain over the last `k` rounds is under
+  `T`**, defaults `k = 2`, `T = 0.2%`. If the corpus shows a three-round chain, only `k` changes.
+  ⚠️ Two design points survive the refinement: RETURN THE BEST-SO-FAR, not the last round — a two-round
+  window always pays for two rounds it then discards, and without best-so-far the loop can hand back a
+  module bigger than one it already held; and a window does not stop an OSCILLATION (LocalCSE's tee vs
+  CoalesceLocals can trade forever at a small nonzero delta), so the cap and the hash check stay.
+  ⚠️ Whether `k = 2` ever changes the ANSWER here is unmeasured and the same experiment settles it:
+  record per-round size per module for 3 rounds, then read both the marginal gain AND every instance of
+  a round that GREW. No module ever grows ⇒ `k = 1` and `k = 2` agree everywhere and the average only
+  costs time. ⚠️ And "two passes" is not "two rounds": single passes are wildly uneven (`PickLoadSigns`
+  does nothing to a module with no loads), so a two-PASS average mostly measures which two passes it
+  landed on. The unit is a full round of the twelve.
 - ⬚ **LocalCSE runs after SimplifyLocals and CoalesceLocals at -Oz**, so the tee it adds is never
   cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
 - ⬚ **binaryen-ts could run-length-compress its locals** as wabt-ts now does — roughly 5,600 bytes
