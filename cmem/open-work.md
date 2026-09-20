@@ -23,16 +23,17 @@ that history now lives in its topic files — nothing was dropped:
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
 **State, 2026-09-19:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
-ahead, unpushed and unbumped, at 1273 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
+ahead, unpushed and unbumped, at 1281 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
 `direct` 544/544 and `direct-behaviour` 1953 calls agreeing (the bridge and its gates were deleted
 2026-09-18), one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — post-M8 fixes, W10b, W11, the cleanup, S7 and S7's mixed form ALL DONE; next: the owner's call)
+## Start the next session here (handoff, 2026-09-19 — S7 and its mixed form done; ONE FRONT END stages 0 and 1 done, stage 2 STARTED; two wasmtk leniency reports fixed)
 
-**Where the work stopped.** `main` is at the merge of S7's mixed form (the reader fix `ab1a211ee`,
-code `b366262ce`, re-baseline `cbb2cca20`), clean, nothing pushed, `deno.json` still 1.5.4. **No
-branch is open.** The full gate ran on the committed tree `b366262ce` (as on every stage before it;
-the re-baseline commit after it reads IDENTICAL) and every step exited 0: fmt, lint, **1273 tests / 0 failed**, naming (no output),
+**Where the work stopped.** `main` is at `ad2dc00bc`, the merge of the wasmtk leniency fixes (code
+`d59816990`), clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ several stale
+branches from earlier sessions still exist and are merged — `docs/memory-refresh` among them; check
+`git log -1 <branch>` before reusing a name, or a checkout will hand you an old tree).
+The full gate ran on `d59816990` and every step exited 0: fmt, lint, **1281 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
 misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
 **70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
@@ -126,44 +127,52 @@ entity collections stay there until the records themselves are one type (M8).
 | S7 (owner: fidelity first)  | `899263b7b` | `wat2wasm` → `wasm2wat` keeps each function's written form: the `binaryang.text-form` section; the optimizer strips it |
 | reader: import index space  | `ab1a211ee` | the binary reader looked up an imported function's / tag's signature among ALL imports: after a global import a call read back without operands (found by S7's measurement) |
 | S7 mixed form (owner: one-to-one) | `b366262ce` | per INSTRUCTION: linear stays linear, folded folded, a mix the same mix — 2,295,102 instructions' forms reproduced over 1,043 sources; predicted from the wabt-ts reader's tree, skipped (never misapplied) where a tree disagrees |
+| ONE FRONT END decided, scoped, measured | `7dc93969a` `d2d4a5afa` `ccffc54e3` | 🛑 owner: the readers and writers are shared too — `wat/wasm → reader → ir → features → ir → encoder`; the inventory of both binary readers and writers; the five-stage plan and three refinements confirmed (docs only) |
+| stage 0 — saturating truncation      | `2ca4513f1` | binaryen-ts's decoder read 0xFC 0x00–0x07 as the TRAPPING truncations: `wasm-opt` turned a saturated result into a TRAP, on every route in, shipped in 1.5.4 (4 of 4 corpus modules; now 0) |
+| stage 1 — one kind per SIMD load     | `f60e4e575` | `SIMD_LOAD_OPCODES` is the one rule; the WAT parser built `load` for all twelve non-plain SIMD loads and the reader for the six extending ones (90 functions → 0) |
+| stage 1 — `defaultInit`, unreachable `br_if` | `1ffdcb561` | one spelling (`true` or absent, the `isReturn` precedent); a `br_if` with an unreachable operand is unreachable — missing from `deriveTypes` AND from binaryen-ts's own `makeBreak`; import stubs typed `none` (3,393 type differences → 6) |
+| the dead-tail pass defect            | `0498fbbae` | DCE and Vacuum read an `unreachable` TYPE as "control stops here": `wasm-opt` emitted INVALID modules. `neverFallsThrough` asks what terminates (invalid outputs at -O2 / -Oz: 7 → 3 and 6 → 2) |
+| stage 2 (first piece) — one entry per VALUE | `58fd43576` (re-baseline `36ecaddb3`) | the reader AND the parser held one stack entry per NODE, so a multi-result producer's consumer took its neighbours; identical bodies 48,666 → 48,752 of 49,254 |
+| wasmtk leniency reports              | `d59816990` | limits range-checked as a u64 at parse; a legacy `try`'s clauses checked in both text forms — two shapes had assembled into modules engines ACCEPT |
 
-Records: [ir-convergence.md](ir-convergence.md) § "Post-M8 fixes", § "W10b", § "W11"; each merge
-message carries its measurements. Lessons: [best-practices.md](best-practices.md) § "Lessons from
-the post-M8 run". **`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was.
+Records: [divergences.md](divergences.md) — the W rows and the closed-defect table carry the post-M8
+fixes, W10b and W11 — and [ir-convergence.md](ir-convergence.md) § "S7", § "One front end"; each
+merge message carries its measurements. Lessons:
+[best-practices.md](best-practices.md) § "Lessons from the post-M8 run", § "Lessons from S7's mixed
+form", § "An assertion that spans stages is satisfied by the WRONG stage".
+**`prepareForPasses` stays internal (owner, 2026-09-18)**, as the bridge was.
 
 ### Next, in order
 
-**The owner's call.** S6 step 5 is closed, S7 is done — per instruction since `b366262ce` — and
-every ordered item is done. Everything else open is listed below, by kind.
+**ONE FRONT END, stage 2** is the work in flight — the owner's plan, confirmed 2026-09-19, in
+[ir-convergence.md](ir-convergence.md) § "One front end". Stages 0 and 1 are done (see the Done
+table). Stage 2 moves what binaryen-ts's decoder does FOR THE PASSES into `prepareForPasses`; its
+first piece (one stack entry per value) landed in `58fd43576`. What is left of it, in order:
+1. typed `pop`s at catch entry and for block params (inventory rows R13, R14) — this also settles the
+   6 remaining type differences (a parametrised `if`'s arm regions).
+2. the scratch-local spills and `unreachable`-for-an-empty-stack (R11') — ~137 functions, the last
+   operand-shape difference between the routes.
+3. block-param lowering as a TREE pass (R15), replacing `PassRunner`'s encode + decode round trip —
+   which is what breaks `fac.0` and `if.0` on both routes, and `Inlining` on the reader route at -O3
+   (`dynrt_lib_modc`, `Chapter11/vector`, `nop.0`, `br.0`).
+Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (one writer), stage 5
+(retire binaryen-ts's internal `parseWat`).
 
-🛑 **NEW, 2026-09-19 — ONE FRONT END** (owner decision): the readers and writers are shared too, not
-only the tree. Measured, NOT started: [ir-convergence.md](ir-convergence.md) § "One front end",
-with a five-stage plan for the owner to confirm. Found by that measurement, and open:
-- ✅ ~~binaryen-ts's decoder MISCOMPILED saturating truncation~~ — FIXED 2026-09-19 (`2ca4513f1`,
-  stage 0 of the confirmed plan): 0xFC 0x00–0x07 decoded as the TRAPPING truncations, so `wasm-opt`
-  on any binary using them turned a saturated result into a trap (4 of 4 corpus modules; now 0).
-  It shipped in 1.5.4 — see unreleased.md.
-- ✅ **Stage 1 of the plan** (settle the tree — one node kind per instruction) is DONE but for one
-  item: SIMD loads (`f60e4e575`), `defaultInit` and the unreachable `br_if` (`1ffdcb561`); the
-  `if`-arm regions of a parametrised `if` are left to stage 2, which settles the block-param
-  representation. The two routes' trees now differ only in OPERAND SHAPE —
-  ir-convergence.md § "One front end". Next: stage 2 (move binaryen-ts's decoder reshaping into
-  `prepareForPasses`), after the pass defect above.
-- ✅ ~~`wasm-opt` emits INVALID output for 7 valid spec modules~~ — the DEAD-TAIL family fixed
-  (`0498fbbae`, owner: fix it before stage 2): DCE and Vacuum read an `unreachable` TYPE as "control
-  stops here", but a node is typed unreachable when any OPERAND is, and it still pushes its own value
-  in the bytes. `neverFallsThrough` asks the real question. At -O2 / -Oz, modules optimizing to
-  invalid output: 7 → 3 on binaryen-ts's decoder route, 6 → 2 on the reader route. What is left,
-  each with its cause, all of it later stages' work:
-  - `fac.0`, `if.0` — `PassRunner`'s block-param lowering, on BOTH routes ("not enough arguments on
-    the stack for local.set"; "start-arity and end-arity of one-armed if must match"). Stage 2 owns
-    block params.
-  - `names.2` — binaryen-ts's decode → encode loses an empty export name ("Duplicate export name
-    ''"), that route only; it goes when the decoder does (stage 3).
-  - at -O3 only, `Inlining` on the reader route: `dynrt_lib_modc`, `Chapter11/vector`, `nop.0`,
-    `br.0` ("not enough arguments on the stack for local.set") — operand shape, stage 2's subject.
-- binaryen-ts's encoder refuses every module with more than one table (178 valid corpus modules);
-  its decoder refuses relaxed SIMD (8).
+⏳ **Owner call still needed, by stage 3:** whether the published `parseWasm` / `encodeWasm`
+(`./binary`, `./encoder`) stay as thin wrappers over the shared reader and encoder.
+
+**Found by the One front end measurements, still open:**
+- ⬚ the fold writer and S7's prediction disagree on **6 of 26,454** functions, so a function whose
+  written form equalled the prediction there would print differently. Worth a gate that pins "the
+  fold writer's grouping IS the prediction" over the corpus — ir-convergence.md § "One front end".
+- ⬚ binaryen-ts's **encoder refuses every module with more than one table** (178 valid corpus
+  modules, which wabt-ts's writer handles); its **decoder refuses relaxed SIMD** (8 valid modules,
+  which the reader reads). Both close when stages 3–4 keep one of each.
+- ⬚ `names.2`: binaryen-ts's decode → encode loses an **empty export name** ("Duplicate export name
+  ''"), that route only — it goes with the decoder (stage 3).
+- ⬚ route A accepts **1,349 INVALID binaries** the reader refuses (section order, counts, UTF-8,
+  mutability bytes, DataCount). Keeping the reader's checks is the point of one front end; worth a
+  count in the gate once the switch happens.
 
 ⚖️ **A cost the owner may want to weigh:** with the record on, `wat2wasm` is ~30% slower over the
 corpus (+26–35%), because it reads its own output back to learn what the wabt-ts reader will

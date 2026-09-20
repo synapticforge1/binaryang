@@ -67,6 +67,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
 | S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **76 identical / 5 types / 1 names** (the block family, item 4, and item 5 (5)'s eight ported kinds, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15). **Item 6 (the module half) is at M7b**: M1–M7b landed 2026-09-16/17, module ratchet **24 / 7 / 19** (from 46 / 29 / 15), M7c and M8 left |
 | S7 text-form record    | ✅ DONE 2026-09-19: per function (`899263b7b`), then per INSTRUCTION — a mix stays the same mix (`b366262ce`); on by default (owner: fidelity first on the text path), stripped by the optimizer — see S7    |
+| One front end          | 🚧 RUNNING 2026-09-19 (owner: the reader and the encoder are shared too, scoped to IR + reader + encoder). Stage 0 ✅ `2ca4513f1`, stage 1 ✅ `f60e4e575` + `1ffdcb561`, stage 2 started ✅ `58fd43576`; stages 3–5 open — see "One front end" |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
 `open-work.md`'s summary; the detail is under "The measurements this rests on"):
@@ -4291,12 +4292,14 @@ operand NODES, not values, so a multi-value operand takes its neighbour —
 `(call $add2 (local.get 0) (call $take2 (call $pair)))` reads back with the `local.get` on `$take2`.
 Bytes are right in both; the tree is not.
 
-### 🚧 One front end — measured 2026-09-19, NOT started (owner decision at the top)
+### 🚧 One front end — RUNNING since 2026-09-19 (owner decision at the top; stages 0–1 done, stage 2 started)
 
 The question: can the wabt-ts reader + `prepareForPasses` (route **B**) replace binaryen-ts's decoder
 (route **A**) as the optimizer's entry, and one writer replace two? Measured over every binary in
 the five corpora — the `.wasm` files plus `wat2wasm` of every WAT, 7,569 inputs, 4,115 of them
-V8-valid and read by both — main at `7632be94d`. Scripts: session scratch (`one/front.ts`,
+V8-valid and read by both — main at `7632be94d`. ⚠️ Every figure in this block is that FIRST
+snapshot; stages 0, 1 and 2's first piece have moved them, and each stage entry under the plan
+carries its own numbers. Scripts: session scratch (`one/front.ts`,
 `one/opt.ts`); an inventory of each reader's and writer's own behaviour was read from the code.
 
 **Refusals.** Valid binaries: A refuses **8** that B reads — all relaxed SIMD, which A does not
