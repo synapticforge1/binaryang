@@ -4452,10 +4452,29 @@ before it:
      `call_indirect`, 1 `br`, 1 `if` of the same shape. Typing those placeholders from the
      producer's result types is the same mechanism as this item and closes them; it was NOT in
      R13/R14's scope, so it is recorded here rather than folded in silently.
-   - ⬚ LEFT: type R12's multi-value placeholders (above, ~348 functions); the scratch-local spills
-     and `unreachable`-for-an-empty-stack (R11', 97 `locals` + 40 `unreachable`/`pop` = ~137
-     functions); block-param lowering as a tree pass (R15) — which is what breaks `fac.0` / `if.0`,
-     and `Inlining` on route B at -O3. Residual total after R13/R14: **491 functions of 49,271**.
+   - ✅ **a placeholder carries its value's TYPE, and its position (R12 completed)** (`190ba909e`,
+     2026-09-20): R12 gave the reader one entry per VALUE but left the placeholders untyped, and
+     `flush` drops an untyped `pop`, so a multi-result producer whose earlier value nothing consumed
+     came back as the producer alone. Typed now from the producer's own result types (call,
+     `call_indirect`, `call_ref`, and a carrier's results at its `end` — `blockResultTypes`, which
+     `blockResultCount` counts, so the enumeration is in one place).
+     🔑 **One rule for position, replacing item 1's special case**: a typed `pop` is recorded in
+     `stmts` where it is PUSHED (`Frame.pushPlaceholder`) and `flush` drops it again if the stack no
+     longer holds it — which is what consumption means. So an unconsumed placeholder is emitted where
+     it appeared, whether it is an entry value (R13 / R14) or a multi-value residue (R12), and
+     `Frame.seeds` with its entry-values-first filter is gone. Item 1 needed the position only at a
+     region's start; this needed it mid-region; the general rule covers both.
+     Functions agreeing 48,780 → **49,125 of 49,271**. ⚠️ Measured as a SET diff in both directions,
+     not by counts: **345 fixed, 0 newly differing** — which is what proved the two shifted categories
+     (40 → 41 `unreachable`/`pop`, one `pop`/`if` flipping) to be RE-CLASSIFICATIONS of functions that
+     already differed rather than new disagreements. Gate green on the committed tree: 1283 tests,
+     baseline IDENTICAL, `direct` 544/544, `direct-behaviour` 1953, optimize-corpus, spec
+     2248 · 2714 · 711 · 1229 no misses, translate-eh 70/70 × 3, publish dry-run, naming, portability.
+   - ⬚ LEFT: the scratch-local spills and `unreachable`-for-an-empty-stack (R11', 97 `locals` + 41
+     `unreachable`/`pop` = 138 functions); block-param lowering as a tree pass (R15) — which is what
+     breaks `fac.0` / `if.0`, and `Inlining` on route B at -O3. Residual total: **146 functions of
+     49,271** (R11's 138 plus 8 one-offs: 2 `drop`/`br`, `local.get`/`br_on`, `local.get`/`pop`,
+     `pop`/`br`, `if`/`pop`, a `throw` operand, an `unreachable` value).
    - ⏭️ AND THEN, once the parser and the reader agree: **delete S7's read-back** — predict the text
      forms from the module in hand instead of re-reading the bytes, and re-measure `wat2wasm`
      (+26–35% today). The owner closed the cost as a question on the strength of this merge

@@ -29,15 +29,17 @@ ahead, unpushed and unbumped, at 1281 tests / 0 ignored, baseline IDENTICAL, spe
 
 ## Start the next session here (handoff, 2026-09-19 — S7 and its mixed form done; ONE FRONT END stages 0 and 1 done, stage 2 STARTED; two wasmtk leniency reports fixed)
 
-**2026-09-20: One front end stage 2, item 1 is DONE and merged** (code `0e2a2bd2b`) — the first of
-the three, with the full gate green on the committed tree: fmt, lint, **1283 tests / 0 failed**,
+**2026-09-20: One front end stage 2, items 1 and 1a are DONE and merged** (code `0e2a2bd2b`,
+`190ba909e`) — the operand shape now agrees on **49,125 functions of 49,271**, up from 48,770, with
+**0 newly differing** (set diff, both directions). What is left of stage 2 is R11' (138 of the 146
+remaining functions) and R15. The full gate ran green on each committed tree: fmt, lint, **1283 tests / 0 failed**,
 naming (no output), portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 ·
 2714 · 711 · 1229, no misses**, `direct` **544/544**, `direct-behaviour` **1953 calls / 651
 exports**, `translate-eh` **70/70 legacy, translated and translated -Oz**, optimize-corpus every
 level. Pick up here, in this order:
 
-1. **One front end stage 2's remaining items** (below, now 1a / 2 / 3) — everything else waits on
-   them. Item 1a is new, found by item 1, and is the cheapest of the three.
+1. **One front end stage 2's remaining items** (below: items 2 and 3, R11' then R15) — everything else waits on
+   them. Items 1 and 1a are done and merged; 146 functions of 49,271 still differ and 138 of those are item 2.
 2. **NOT the pipeline-convergence proposal** ("passes until the delta over the next two rounds averages
    under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
    practice once the open items are worked through. Do not start it — not even the measurement — while
@@ -53,7 +55,7 @@ level. Pick up here, in this order:
    was still running when the session ended and its number was never read. Re-run it — the scratchpad
    is session-scoped and will be gone.
 
-**Where the work stopped.** The last CODE change is `0e2a2bd2b` (One front end stage 2 item 1), gated
+**Where the work stopped.** The last CODE change is `190ba909e` (One front end stage 2 item 1a), gated
 and merged on 2026-09-20; before it, `ad2dc00bc` / `d59816990`, the wasmtk leniency fixes, and five
 docs-only merges. Clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ several
 stale
@@ -181,12 +183,17 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
    end", stage 2. 🆕 **It surfaced the next item**: R12 typed nothing, so its multi-value
    placeholders are still dropped — ~348 functions, now the largest residual category, and the same
    mechanism closes them.
-1a. ⬚ **NEW — type R12's multi-value placeholders** from the producer's result types, so an
-   unconsumed one survives `flush` as the decoder's does (315 `[A pop | B call]` + 18 `local.set` +
-   5 `drop` + 4 `block` + 4 `call_indirect` + 1 `br` + 1 `if`). Cheapest of the three left, and it
-   is the same change as item 1 one level down.
-2. the scratch-local spills and `unreachable`-for-an-empty-stack (R11') — ~137 functions (97
-   `locals`, 40 `unreachable`/`pop`), the last operand-shape difference between the routes.
+1a. ✅ **DONE 2026-09-20 (`190ba909e`): a placeholder carries its value's TYPE, and its position
+   (R12 completed).** Functions agreeing 48,780 → **49,125 of 49,271** — **345 fixed, 0 newly
+   differing**, measured as a set diff in both directions, which is what showed the two shifted
+   categories to be re-classifications. One position rule now covers entry values and mid-region
+   residue, and item 1's special case is gone. Gate green on the committed tree.
+2. **NEXT — the scratch-local spills and `unreachable`-for-an-empty-stack (R11')**: 138 functions (97
+   `locals`, 41 `unreachable`/`pop`), and after item 1a they are **95% of what is left** — the
+   residual total is 146 functions of 49,271, the other 8 being one-offs (2 `drop`/`br`,
+   `local.get`/`br_on`, `local.get`/`pop`, `pop`/`br`, `if`/`pop`, a `throw` operand, an
+   `unreachable` value). ⚠️ Unlike items 1 and 1a this one MOVES BYTES on decode → encode (the spills
+   add locals), so it needs its own re-baseline commit and a behaviour check, not just a tree diff.
 3. block-param lowering as a TREE pass (R15), replacing `PassRunner`'s encode + decode round trip —
    which is what breaks `fac.0` and `if.0` on both routes, and `Inlining` on the reader route at -O3
    (`dynrt_lib_modc`, `Chapter11/vector`, `nop.0`, `br.0`).
