@@ -158,8 +158,26 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
 Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (one writer), stage 5
 (retire binaryen-ts's internal `parseWat`).
 
-⏳ **Owner call still needed, by stage 3:** whether the published `parseWasm` / `encodeWasm`
-(`./binary`, `./encoder`) stay as thin wrappers over the shared reader and encoder.
+⏳ **Owner call still needed, by stage 3: do `./binary` and `./encoder` stay published?** The facts,
+gathered 2026-09-19 after the owner asked why they are published at all:
+- They ARE public functions today, and the ONLY public way to decode or encode a binary into the IR:
+  the root export (`src/index.ts`) exports NOTHING, so `parseWasm` / `encodeWasm` are reachable only
+  through those two subpaths. `README.md` documents both — an example (`import { parseWasm } from
+  '@jrmarcum/binaryang/binary'`) and the entry-point table.
+- Right, they are not CLI options; the CLI covers this ground through `wasm-opt`, `wat2wasm` and
+  `wasm2wat`.
+- **No known consumer imports them**: wasmtk, our only one, uses `/compat/binaryen` and
+  `/compat/wabt` only. Unknown JSR consumers cannot be ruled out, so dropping them is a BREAKING
+  change and belongs to a version decision (owner action 5).
+- They do not disappear internally either way: `wasm-opt`, `read-wat`, the compat API and
+  `lowerBlockParams` all call them.
+Options: (a) unpublish both at the next major and let the compat APIs plus the tool entry points be
+the public surface — it also removes the wrapper question from stage 3; (b) keep them as thin
+wrappers over the shared reader and encoder (`readBinaryIr` + `prepareForPasses`, and the shared
+writer), preserving today's contract that `parseWasm` returns an OPTIMIZER-READY tree; (c) publish
+the SHARED reader and writer under honest names and leave these two as deprecated aliases.
+⚠️ Whatever is chosen, `parseWasm`'s published contract is "a tree the passes can run on", which is
+reader + `prepareForPasses` — not the faithful tree alone.
 
 **Found by the One front end measurements, still open:**
 - ⬚ the fold writer and S7's prediction disagree on **6 of 26,454** functions, so a function whose
@@ -245,7 +263,7 @@ narrative that led to M8 are recorded in their topic files: [publishing.md](publ
 
 | # | item                            | note                                                                                                                                                                                                                                                                                                                                             |
 | - | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1 | **Create `RELEASE_PAT`**        | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                                                             |
+| 1 | **Create `RELEASE_PAT`** ✅ AGREED (owner, 2026-09-19: "yes on RELEASE_PAT") — the owner's to create, nothing in the code waits on it | Fine-grained, Contents: read/write, **owned by a JSR scope member**. Until it exists every DISPATCHED release needs a manual tag re-push — [publishing.md](publishing.md) § "ROOT CAUSE". A developer tag push works unaided (1.5.4)                                                                                                             |
 | 4 | **Names under optimization**    | 🗓️ future discussion (owner, 2026-09-10), not scheduled, not to be decided unilaterally: how binaryen-ts's OPTIMIZATION treats internal vs exported names, vs upstream (which under `-g` keeps only surviving functions' names). N4 is provisional until then. Export and import names stay inviolable (pinned)                                  |
 | 5 | **When to release**             | the next bump is the owner's decision, and several changes are API-visible — [unreleased.md](unreleased.md). **The bump must never be made incidentally**: the version line is what arms a release                                                                                                                                               |
 
