@@ -41,7 +41,11 @@ the tree is exactly the gated `d59816990` plus cmem. Pick up here, in this order
 3. The `-Oz` size record is fresh and complete: [names.md](names.md) §§ "Names under optimization,
    priced" and "Does optimization RENAME things to shrink them?". Do not re-measure it; four new
    items in this file's optimizer list draw on it.
-4. ⚠️ **Unfinished measurement**: `scratchpad/names/types.ts` (Type-section bytes, ours vs upstream)
+4. **On the next session's list (owner, 2026-09-19), after the items above:** list the DATA TYPES that
+   carry names, with what would need renaming and what references each, then discuss how to minify
+   without creating errors — upstream's way or a better-for-size way, measured either way. Scoped in the
+   optimizer list below, under the `MinifyImportsAndExports` item; start from [names.md](names.md) § 1.
+5. ⚠️ **Unfinished measurement**: `scratchpad/names/types.ts` (Type-section bytes, ours vs upstream)
    was still running when the session ended and its number was never read. Re-run it — the scratchpad
    is session-scoped and will be gone.
 
@@ -356,6 +360,31 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   the owner's rule is that an exported name must absolutely be preserved "or we have name mangling", and
   a renamed export is only correct when the host is updated from that map. Upstream ships it exactly
   that way.
+- 📝 **NOTED for the next session (owner, 2026-09-19), prerequisite to any minification: LIST THE DATA
+  TYPES — every kind of thing that carries a name — so we can see what would need RENAMING and what
+  REFERENCES it, then discuss how to do it without creating errors.** The owner's framing: whether we
+  follow upstream's approach or do better on size is part of that discussion, and **it has to be
+  measured**. Note only; it comes after the open items above.
+  Where to start, so this is not built from scratch: [names.md](names.md) § 1 already lists the twelve
+  name-section kinds with their corpus counts and their home field in each IR. What that table does NOT
+  yet carry is the three columns a minifier needs, and those are the deliverable:
+  1. **does this name occupy bytes?** For all twelve the answer is no — they live in the `name` custom
+     section or nowhere, and the entity itself is referenced by INDEX. Only the import `module` / `field`
+     strings and the export strings are bytes in a stripped module ([names.md](names.md) § "Does
+     optimization RENAME things to shrink them?"). ⚠️ This is what makes the inventory worth writing
+     down rather than assumed: it says in advance that eleven of the twelve kinds can be renamed freely
+     for zero gain, and that the whole size prize sits in the interface, where renaming is a CONTRACT
+     change and the risky one.
+  2. **what references it, and what must move in lock-step.** Inside the module: our `explicitNames`
+     record (which names are REAL — decision 4), the name-section writer, the text writer, and for a
+     label its branch targets. Outside: for an export, every host that calls it; for an import, every
+     host that supplies it. That outside column is the whole error surface — a wrong rename inside the
+     module makes ugly text, a wrong rename of the interface makes a module that no longer loads.
+  3. **what proves it did not break.** The gates that would have to hold: `direct-behaviour` (1953 calls
+     / 651 exports — it calls exports BY NAME, so it is the natural oracle for a rename map), the
+     `wat_input.test.ts` export-name pin (owner: "or we have name mangling"), and a new
+     round-trip-the-map check. ⚠️ A minifier whose map is wrong in one entry is a defect our byte gates
+     cannot see at all — they compare bytes, and the renamed bytes are self-consistent.
 - ⬚ **Our `RemoveUnusedModuleElements` does not prune unused TYPES** — on the probe module, after the
   uncalled function was correctly removed, ours kept **2 type entries to upstream's 1** (4 bytes there).
   ⚠️ UNMEASURED over the corpus: the run that would have priced it was still going when the session
