@@ -216,13 +216,53 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
 3. **NEXT — block-param lowering as a TREE pass (R15)**, replacing `PassRunner`'s encode + decode round
    trip. ⚠️ Its attribution is now CORRECTED: `br.0` and `nop.0` at -O3 were R11', not R15 (neither
    module has a block parameter at all — that was checked, not assumed, and the register said
-   otherwise for a day). What R15 still owns: `fac.0` and `if.0`, invalid on BOTH routes, and the
-   round trip itself, which will not survive stage 3 since it re-decodes through the decoder that
-   stage deletes.
-- ⬚ **`Flatten` emits an INVALID module for a body ending in `return`** — on BOTH routes, found while
-  building item 2 (`(func (result i32) nop nop local.get 0 nop nop return)` through `--flatten`).
-  Pre-existing and independent of the merge; `Flatten` is not in any `-O` list, which is why nothing
-  caught it.
+   otherwise for a day). What R15 owns, diagnosed 2026-09-20 by running the lowering ALONE, with no
+   pass after it:
+   - **`spec/fac/fac.0.wasm`**: "not enough arguments on the stack for local.set" — the loop
+     back-edge rewrite.
+   - **`spec/if/if.0.wasm`**: "start-arity and end-arity of one-armed if must match" — a one-armed
+     parametrised `if` needs an `else` once its parameters become locals, and gets none.
+   Both on BOTH routes, since both go through the decoder's lowering. So the existing lowering is not
+   merely in the wrong place: it is WRONG for 2 of the 8 modules that have block parameters.
+   **Scope of the work**: 8 modules of 3,083, 30 functions, **41 constructs** — 14 `block`, 13 `loop`,
+   13 `if`, 1 `try_table`, with 1–3 parameters each, every one of them in the spec testsuite's own
+   multi-value tests (`scratchpad/one/r15scope.ts`). The three pieces are entry values to locals,
+   a loop back-edge that writes those locals (and a `br_if` that must put them BACK for the
+   fall-through), and a `br_table` mixing a parametrised loop with other targets.
+   ⏳ **A first implementation is on the branch `wip/r15-tree-pass`, and it does NOT work yet** — see
+   that branch's commit message for exactly what fails and the two traps it already paid for. It is
+   not merged; `main` has none of it.
+- ⬚ **`Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
+  after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
+  corpus + the spec testsuite), on both routes (`scratchpad/one/flatscope.ts`):
+
+  | outcome                 | route A (decoder) | route B (reader) |
+  | ----------------------- | ----------------- | ---------------- |
+  | valid output            | 2,432             | 2,441            |
+  | **INVALID output**      | **133**           | **132**          |
+  | threw                   | 352               | 352              |
+
+  The classes, largest first — only the second is Flatten emitting something WRONG; the rest refuse:
+  - 150 `multiple tables are not supported` — the ENCODER's gap (W5), not Flatten's; it is what the
+    harness hit when writing the result out.
+  - **132 `expected N elements on the stack for fallthru` — the silent one.** This is the class the
+    `return` fixture is in: Flatten rebuilds a body whose fall-through arity it then contradicts.
+  - 45 `cannot encode value type: (i32 i32)` — a tuple hoisted into a local, which no value type can
+    spell (the sibling of `flatten_multivalue`'s existing refusal test).
+  - 45 `Flatten: call to "$x" returns N values; multi…` — an explicit refusal of multi-value calls.
+  - 24 `flatten: value-carrying br/br_if is not yet supported by this port`.
+  - 24 `mapExpression: unhandled expression kind "elem.drop"` — ⚠️ NOT Flatten's: a gap in the shared
+    walker, so anything that maps a tree over a module with `elem.drop` hits it. Worth its own fix.
+  - 14 `flatten: pop is not yet supported by this port` — on BOTH routes, since the `pop`s item 2
+    deliberately keeps (entry values, multi-result producers) are still there.
+
+  **Exposure**: `Flatten` is in no `-O` list, so no default pipeline touches it — but
+  `wasm-opt --flatten` reaches it from the CLI (any `--name` becomes a pass), and so does `add('Flatten')`
+  through the API. A user following upstream's documentation gets an invalid module for ~4.5% of inputs
+  and an exception for ~12%. Upstream runs Flatten mainly as a prerequisite of other passes; nothing in
+  this port depends on it, which is why nothing caught any of this.
+  ⬚ The decision to take: finish it, or refuse it loudly at the entry point until it is finished. A
+  pass that emits an invalid module silently is the worse of the two.
    The `Inlining` failures on the reader route at -O3 are the same root: `dynrt_lib_modc`,
    `Chapter11/vector`, `nop.0`, `br.0`.
 Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (one writer), stage 5
