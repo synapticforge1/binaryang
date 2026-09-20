@@ -34,9 +34,10 @@ tomorrow or the next day"), with NO code change in flight** — the last three m
 the tree is exactly the gated `d59816990` plus cmem. Pick up here, in this order:
 
 1. **One front end stage 2's three remaining items** (below) — everything else waits on them.
-2. **Answer owed to the owner, already drafted in chat and recorded above:** the pipeline-convergence
-   proposal ("passes until the delta is under 0.1%"). The measurement to run FIRST is the `-Oz` list
-   2× and 3× over the corpus; do not build the loop before that number exists.
+2. **NOT the pipeline-convergence proposal** ("passes until the delta over the next two rounds averages
+   under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
+   practice once the open items are worked through. Do not start it — not even the measurement — while
+   anything above it is open.
 3. The `-Oz` size record is fresh and complete: [names.md](names.md) §§ "Names under optimization,
    priced" and "Does optimization RENAME things to shrink them?". Do not re-measure it; four new
    items in this file's optimizer list draw on it.
@@ -359,7 +360,11 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   uncalled function was correctly removed, ours kept **2 type entries to upstream's 1** (4 bytes there).
   ⚠️ UNMEASURED over the corpus: the run that would have priced it was still going when the session
   ended (`scratchpad/names/types.ts` adds the Type-section total to `size.ts`; re-run it).
-- ⏳ **Owner's question, 2026-09-19, answer owed: should the pipeline ITERATE to a size fixed point?**
+- 📝 **PARKED by the owner, 2026-09-19, deliberately: "We can note it now and test it later in practice
+  once we have worked through our open items."** So this entry is a NOTE, not a task — no loop, no flag
+  and no measurement until the items above it are closed. It is written out in full because the design
+  reasoning is the perishable part; the build is cheap once the numbers exist. Should the pipeline
+  ITERATE to a size fixed point?
   Their proposal: "perform passes until there is a delta decrease in size in the range of 0.1% then
   stop." What upstream does: `-O`/`-Oz` is a FIXED list, and the convergence behaviour is a separate
   opt-in flag — `wasm-opt --converge` (`-c`) repeats the whole pipeline until the module stops changing
