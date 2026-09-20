@@ -29,17 +29,19 @@ ahead, unpushed and unbumped, at 1281 tests / 0 ignored, baseline IDENTICAL, spe
 
 ## Start the next session here (handoff, 2026-09-19 — S7 and its mixed form done; ONE FRONT END stages 0 and 1 done, stage 2 STARTED; two wasmtk leniency reports fixed)
 
-**2026-09-20: One front end stage 2, items 1 and 1a are DONE and merged** (code `0e2a2bd2b`,
-`190ba909e`) — the operand shape now agrees on **49,125 functions of 49,271**, up from 48,770, with
-**0 newly differing** (set diff, both directions). What is left of stage 2 is R11' (138 of the 146
-remaining functions) and R15. The full gate ran green on each committed tree: fmt, lint, **1283 tests / 0 failed**,
+**2026-09-20: One front end stage 2, items 1, 1a and 2 are DONE and merged** (code `0e2a2bd2b`,
+`190ba909e`, the stale-name fix, and `spill-stack-values`) — the operand shape agrees on **49,125 functions of 49,271**, up from 48,770, with
+**0 newly differing** (set diff, both directions), and route B's optimizer output is **never worse than
+route A's** anywhere in 3,075 modules (identical on 2,875, and the two it emitted INVALID at -O3 are
+fixed). What is left of stage 2 is **R15 alone**. The full gate ran green on each committed tree: fmt,
+lint, **1287 tests / 0 failed**,
 naming (no output), portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 ·
 2714 · 711 · 1229, no misses**, `direct` **544/544**, `direct-behaviour` **1953 calls / 651
 exports**, `translate-eh` **70/70 legacy, translated and translated -Oz**, optimize-corpus every
 level. Pick up here, in this order:
 
-1. **One front end stage 2's remaining items** (below: items 2 and 3, R11' then R15) — everything else waits on
-   them. Items 1 and 1a are done and merged; 146 functions of 49,271 still differ and 138 of those are item 2.
+1. **One front end stage 2's LAST item: R15** (item 3 below) — everything else waits on
+   it. Items 1, 1a and 2 are done and merged. ⚠️ R15's attribution was corrected: `br.0` / `nop.0` at -O3 were item 2's, not R15's.
 2. **NOT the pipeline-convergence proposal** ("passes until the delta over the next two rounds averages
    under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
    practice once the open items are worked through. Do not start it — not even the measurement — while
@@ -55,7 +57,7 @@ level. Pick up here, in this order:
    was still running when the session ended and its number was never read. Re-run it — the scratchpad
    is session-scoped and will be gone.
 
-**Where the work stopped.** The last CODE change is `190ba909e` (One front end stage 2 item 1a), gated
+**Where the work stopped.** The last CODE change is the spill (One front end stage 2 item 2), gated
 and merged on 2026-09-20; before it, `ad2dc00bc` / `d59816990`, the wasmtk leniency fixes, and five
 docs-only merges. Clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ several
 stale
@@ -188,8 +190,17 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
    differing**, measured as a set diff in both directions, which is what showed the two shifted
    categories to be re-classifications. One position rule now covers entry values and mid-region
    residue, and item 1's special case is gone. Gate green on the committed tree.
-2. ⏳ **OWNER CALL — the scratch-local spills and `unreachable`-for-an-empty-stack (R11'), 138
-   functions: PRICED AT ~ZERO, so copying it may not be worth building.** At -Oz over 2,880 modules
+2. ✅ **DONE 2026-09-20 (`spill-stack-values.ts`): make a stack-held value EXPLICIT before the passes
+   run (R11').** ⚠️ Read this before trusting any size argument about it: I first reported the item as
+   "priced at ~zero" and the owner reasonably said skip it; that was wrong, and the correction is the
+   point. The spill is not about bytes — it is what keeps a value REACHABLE. A pass only has to put a
+   block boundary between a value and the `pop` that takes it, which is what `Inlining` did at -O3 to
+   `br.0` and `nop.0` ("not enough arguments on the stack"), and `Flatten` refused such a tree
+   outright. After it: identical optimizer output 2,863 → **2,875** of 3,075, "differ (both valid)"
+   15 → 7, and **"A valid, B INVALID" 2 → 0** — route B is no longer worse than A anywhere.
+   It runs only when a pass will run, so decode → encode stays byte-exact.
+   **The old measurement, still true and still not the reason:** at -Oz route B is 473 bytes SMALLER
+   than route A over 2,880 modules. At -Oz over 2,880 modules
    route B is **473 bytes SMALLER** than route A (−0.03%): bigger on 2 (3 bytes each), equal on 2,866,
    smaller on 12. Behaviour agrees, including on the `$__stack_pointer` shape the decoder's spill was
    written for. What the spill buys is optimizability of that shape (a fixture goes 76 → 57 bytes on A
@@ -202,10 +213,16 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
    B** — 211 of 286 modules carried one after -Oz, 13,720 bytes, stale (the passes had renumbered what
    it names). Dropped now when a pass has run, `-g` included; the `data: null` placement marker stays.
    Route-B only, so it would have shipped with stage 3.
-3. **NEXT, and the real blocker — block-param lowering as a TREE pass (R15)**, replacing `PassRunner`'s
-   encode + decode round trip. It is the only place either route is still WRONG: route B emits INVALID
-   output at -O3 for `spec/br/br.0.wasm` and `spec/nop/nop.0.wasm`, and it breaks `fac.0` / `if.0` on
-   both routes.
+3. **NEXT — block-param lowering as a TREE pass (R15)**, replacing `PassRunner`'s encode + decode round
+   trip. ⚠️ Its attribution is now CORRECTED: `br.0` and `nop.0` at -O3 were R11', not R15 (neither
+   module has a block parameter at all — that was checked, not assumed, and the register said
+   otherwise for a day). What R15 still owns: `fac.0` and `if.0`, invalid on BOTH routes, and the
+   round trip itself, which will not survive stage 3 since it re-decodes through the decoder that
+   stage deletes.
+- ⬚ **`Flatten` emits an INVALID module for a body ending in `return`** — on BOTH routes, found while
+  building item 2 (`(func (result i32) nop nop local.get 0 nop nop return)` through `--flatten`).
+  Pre-existing and independent of the merge; `Flatten` is not in any `-O` list, which is why nothing
+  caught it.
    The `Inlining` failures on the reader route at -O3 are the same root: `dynrt_lib_modc`,
    `Chapter11/vector`, `nop.0`, `br.0`.
 Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (one writer), stage 5

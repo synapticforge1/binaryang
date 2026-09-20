@@ -67,8 +67,8 @@ import type { WasmModule } from './module.ts';
 
 type Mut<T> = { -readonly [K in keyof T]: T[K] };
 
-/** The types a result denotes, one per stack slot. */
-function slots(t: Type): ValueType[] {
+/** The types a result denotes, one per stack slot. Shared with the spill step. */
+export function slots(t: Type): ValueType[] {
   if (t === None || t === Unreachable) return [];
   return Array.isArray(t) ? [...t] : [t];
 }
@@ -94,22 +94,39 @@ class Space<T extends { name: string }> {
   }
 }
 
+/**
+ * Where a stack value came from: the node that produced it, or `'entry'` for one
+ * the region was ENTERED with (a carrier's parameter, a caught payload). Absent
+ * where a polymorphic stack had nothing to give. Recorded for
+ * {@link PopSources} — the spill step needs to know which node a `pop` will find,
+ * and this simulation is the only place that knows.
+ */
+type Origin = Expression | 'entry';
+
+/** What each `pop` takes: its producer, `'entry'`, or `undefined` for a phantom. */
+export type PopSources = Map<Expression, Origin | undefined>;
+
 /** One region's value stack, in emission order. */
 class Stack {
-  private readonly values: ValueType[];
+  private readonly values: { type: ValueType; from: Origin | undefined }[];
   /** After an `unreachable`-typed instruction the stack is polymorphic. */
   private dead = false;
   constructor(seed: readonly ValueType[]) {
-    this.values = [...seed];
+    this.values = seed.map((type) => ({ type, from: 'entry' as const }));
   }
   /**
    * The top `n` values, deepest first, WITHOUT removing them — `unreachable`
    * for each one a dead stack lacks. A live stack that lacks one is refused.
    */
   peek(n: number, what: string): Type[] {
-    const got: Type[] = this.values.slice(Math.max(0, this.values.length - n));
+    const got: Type[] = this.values.slice(Math.max(0, this.values.length - n)).map((v) => v.type);
     this.require(n, got.length, what);
     return [...new Array<Type>(n - got.length).fill(Unreachable), ...got];
+  }
+  /** Where the top `n` values came from, deepest first, padded like {@link peek}. */
+  peekFrom(n: number): (Origin | undefined)[] {
+    const got = this.values.slice(Math.max(0, this.values.length - n)).map((v) => v.from);
+    return [...new Array<Origin | undefined>(n - got.length).fill(undefined), ...got];
   }
   /** Remove the top `n` values. */
   drop(n: number, what: string): void {
@@ -121,11 +138,11 @@ class Stack {
       throw new Error(`derive-types: ${what} consumes ${n} value(s) and the stack holds ${held}`);
     }
   }
-  push(t: Type): void {
+  push(t: Type, from?: Origin): void {
     if (t === Unreachable) {
       this.values.length = 0;
       this.dead = true;
-    } else this.values.push(...slots(t));
+    } else for (const type of slots(t)) this.values.push({ type, from });
   }
 }
 
@@ -140,6 +157,8 @@ class Deriver {
     /** The function's results — what a branch to the frame carries. */
     results: readonly ValueType[],
     frameLabel: string,
+    /** Where each `pop` takes its value from, when a caller asked to record it. */
+    private readonly popSources?: PopSources,
   ) {
     this.labels = [{ name: frameLabel, types: results }];
   }
@@ -188,7 +207,14 @@ class Deriver {
     );
     const what = `${e.kind}${e.loc === undefined ? '' : ` at line ${e.loc.line}`}`;
     const values = stack.peek(claimed, what);
-    pops.forEach((o, i) => ((o as Mut<typeof o>).type = values[i]!));
+    // The same slots, by origin: what each `pop` will actually find at run time.
+    // Only the spill step asks (`popSources`), and only when it is going to
+    // rewrite; typing does not depend on it.
+    const sources = this.popSources === undefined ? undefined : stack.peekFrom(claimed);
+    pops.forEach((o, i) => {
+      (o as Mut<typeof o>).type = values[i]!;
+      if (sources !== undefined) this.popSources!.set(o, sources[i]);
+    });
     stack.drop(this.consumes(e, claimed), what);
     const params = carrierParams(e);
     if (params !== undefined) this.carrierBody(e, params.types);
@@ -212,9 +238,9 @@ class Deriver {
   private leave(e: Expression, stack: Stack): void {
     // A `br_if`'s node type IS its target's values (see `typeOfNode`).
     if (e.kind === ExpressionKind.BrOn) {
-      for (const v of e.values) stack.push(typeOf(v));
-      if (e.opcode !== BrOnOp.NonNull) stack.push(typeOf(e));
-    } else stack.push(typeOf(e));
+      for (const v of e.values) stack.push(typeOf(v), e);
+      if (e.opcode !== BrOnOp.NonNull) stack.push(typeOf(e), e);
+    } else stack.push(typeOf(e), e);
   }
 
   /**
@@ -608,7 +634,7 @@ class Module {
  * constant expression — as binaryen-ts's factories and decoder type them. In
  * place. See the module doc.
  */
-export function deriveTypes(m: WasmModule): void {
+export function deriveTypes(m: WasmModule, popSources?: PopSources): void {
   const mod = new Module(m);
   const constant = (r: W.RegionExpr | undefined) => {
     if (r !== undefined) {
@@ -631,9 +657,7 @@ export function deriveTypes(m: WasmModule): void {
   }
   for (const f of m.functions) {
     const body = f.body as Mut<W.RegionExpr>;
-    body.type = new Deriver(mod, f.locals, f.sig.results, f.bodyFrameLabel ?? '').region(
-      f.body.children,
-      [],
-    );
+    body.type = new Deriver(mod, f.locals, f.sig.results, f.bodyFrameLabel ?? '', popSources)
+      .region(f.body.children, []);
   }
 }

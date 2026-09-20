@@ -1368,6 +1368,22 @@ by section (or by whatever the units are) and name the biggest contributor. If a
 individual part explains it, the harness is the suspect — and a default that differs between the tool
 and the harness is the likeliest one.
 
+## 🆕 A SIZE measurement cannot answer a CORRECTNESS question (2026-09-20)
+
+One front end's item 2 (the scratch-local spills) was priced and reported as worth ~zero: route B was
+473 bytes smaller than route A over 2,880 modules, behaviour agreed, and the only visible effect was a
+fixture the passes left unoptimized. Every number was right. The conclusion drawn from them — "not
+wrong, only unoptimized" — was false, and the owner made a decision on it: **two modules emit an
+INVALID module at -O3**, because a pass put a block boundary between a value and the `pop` that takes
+it. The bytes could not say that, because an invalid module has a size too.
+
+🔑 Compounding it: the register attributed those two failures to a different item (R15, block-param
+lowering), and neither module has a block parameter at all — a check that took one command and had
+never been run. **How to apply:** when an item's value is in doubt, ask what it PREVENTS before asking
+what it saves, and test that directly (here: run the passes and validate the output). When a record
+says which item owns a failure, verify the attribution before pricing or skipping the item — a
+register entry is a claim, like any other written result.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:
