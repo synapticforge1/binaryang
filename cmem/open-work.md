@@ -385,6 +385,29 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
      `wat_input.test.ts` export-name pin (owner: "or we have name mangling"), and a new
      round-trip-the-map check. ⚠️ A minifier whose map is wrong in one entry is a defect our byte gates
      cannot see at all — they compare bytes, and the renamed bytes are self-consistent.
+
+  **The owner's principle for it (2026-09-19), which settles the shape:** the EXPORT side must keep
+  fidelity with the original names consumers reference; everything that is not referenced from outside
+  "can be minified without restraint as long as they maintain programmatic fidelity in process, not
+  necessarily in name". Two things follow, and the second is why this is a small job rather than a big
+  one:
+  - **The back-reference the owner expected to build already exists in the format.** The export section
+    maps a STRING to a kind plus an INDEX — it never mentions the function's internal name, and neither
+    does any other reference in a binary. So renaming anything internal cannot break an export, and
+    there is no "point the exports back at the minified name at the end of the file" step. What must stay
+    consistent is only in the IR: the entity's `name` field, `explicitNames`, and a label's branch
+    targets.
+  - **Renaming internals collects ZERO bytes,** already measured: internal names are not in the binary at
+    all, and our `-Oz` output carries no name section on any of the 421 modules
+    ([names.md](names.md) § "Does optimization RENAME things to shrink them?"). The only build where they
+    exist is `-g`, where shrinking them defeats what `-g` was asked for. So the permission is correct and
+    there is nothing behind it to collect; do not spend pass time on it.
+  So the ENTIRE prize is the interface strings — the two kinds the owner fenced off — and the fattest is
+  usually the import `module` string, because it repeats PER IMPORT ENTRY (twenty WASI imports carry
+  `"wasi_snapshot_preview1"` twenty times, 440 bytes). ⬚ **First step next session, and it is cheap — a
+  section scan with no optimizer in it: total interface-string bytes over the corpus, which is the
+  CEILING for every minification idea here.** Decide whether the pass is worth building against that
+  number, not against the 106-byte probe.
 - ⬚ **Our `RemoveUnusedModuleElements` does not prune unused TYPES** — on the probe module, after the
   uncalled function was correctly removed, ours kept **2 type entries to upstream's 1** (4 bytes there).
   ⚠️ UNMEASURED over the corpus: the run that would have priced it was still going when the session
