@@ -48,7 +48,11 @@
 
 import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
-import { type PassOptions, PassRunner } from '../../src/binaryen-ts/passes/index.ts';
+import {
+  optimizeToConvergence,
+  type PassOptions,
+  PassRunner,
+} from '../../src/binaryen-ts/passes/index.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { type Sig, v128Lanes, withV128Wrappers, wrapperName } from './v128.ts';
 
@@ -114,6 +118,14 @@ function variants(bytes: Uint8Array): [string, () => Uint8Array][] {
       return writeWasm(m);
     }]);
   }
+  // `wasm-opt -Oz --converge`: rounds of -Oz, the smallest kept. Every round
+  // must behave as the input, and so must the one that wins.
+  out.push(['-Oz --converge', () =>
+    optimizeToConvergence(
+      readForPasses(bytes),
+      { optimizeLevel: 2, shrinkLevel: 2 },
+      (r) => r.addDefaultOptimizationPasses(),
+    ).bytes]);
   return out;
 }
 
