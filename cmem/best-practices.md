@@ -351,6 +351,17 @@ gate's `fmt --check` never looks at cmem/, so nothing would have caught it; the 
 Undone WITHOUT discarding work: the formatted copies backed up first, the files written back from
 `HEAD`, the edits re-applied. Check `git diff --stat` after any tool that writes docs.
 
+⚠️ **Two more the same day, both in mutant runs:**
+- `deno test --filter '<an it() name>'` under `@std/testing/bdd` matches NO test — an `it` is a
+  STEP of its `describe`, and the filter matches test names — and a run of nothing exits **0**. Two
+  real mutants read MISSED until the whole file ran and caught both. Run the file, and print which
+  steps failed, so a green run shows what it ran.
+- `sed -i` on a scratch SCRIPT (to change its output line) wrote a raw newline and escapes into a
+  template literal; the script died at parse. It failed safe — before mutating anything — but it is
+  the same rule: a script is edited with Edit, or rewritten whole.
+- And a number typed from memory into a test's expected values (`1e39` as f64) failed at once:
+  every expected value is MEASURED first — the probe that found the defect prints them.
+
 ⚠️ **Two different silent failures in one session came from editing docs by script:** the eaten
 backslash, and a string-replace that silently matched nothing because `deno fmt` had reflowed the
 target paragraph between reading and writing. **Both were caught by re-reading the file, never by

@@ -497,9 +497,12 @@ the scripts that call `encodeWasm` onto `writeWasm`; `spec-behaviour`'s route A 
 reader + `prepareForPasses` — not the faithful tree alone.
 
 **Found by the One front end measurements, still open:**
-- ⬚ the fold writer and S7's prediction disagree on **6 of 26,454** functions, so a function whose
-  written form equalled the prediction there would print differently. Worth a gate that pins "the
-  fold writer's grouping IS the prediction" over the corpus — ir-convergence.md § "One front end".
+- ✅ ~~the fold writer and S7's prediction disagree on 6 of 26,454 functions~~ — FIXED 2026-09-28
+  (`a6193b625`): re-measured 6 of 26,896 (1,119 files, five corpora), all one shape — a multi-value
+  producer leaves `pop`s scattered in its consumer, the writer SPREADS that consumer inside the
+  enclosing fold, and the prediction counted it as one item. `items` in `text-form.ts`; now **0**,
+  pinned by `fold_prediction.test.ts` over the in-repo corpus. 3 baseline files moved in section
+  bytes only.
 - ✅ ~~binaryen-ts's encoder refuses every module with more than one table~~ ✅ lifted 2026-09-28
   (item 5); its **decoder refuses relaxed SIMD** (8 valid modules,
   which the reader reads). Both close when stages 3–4 keep one of each. ✅ CLOSED at 1.6.0: that
@@ -531,11 +534,11 @@ flipped two assertions to skip. Left open by that report:
 - ✅ ~~**the validator accepts a `catch` after `catch_all`**~~ — FIXED 2026-09-28 (pre-bump item 3,
   `cdbe4aaeb`): refused by the type checker, a second `catch_all` too; divergences.md W13 (upstream
   wabt accepts it, V8 and wasm-tools refuse it).
-- ⬚ **a limit that overflows its OWN index type fails in the writer, not the validator**:
-  `(memory 0x1_0000_0000)` is well-formed (2^32 fits the u64 spelling) and invalid, but we report
-  "cannot encode module: u32 LEB128 out of range" instead of a validation error. Same shape as the
-  bug above, one layer down. ⚠️ Do NOT make it malformed: that is the case the wasmrt team corrected
-  in `proposals/threads/memory.wast`, and `malformed_text.test.ts` pins it.
+- ✅ ~~**a limit that overflows its OWN index type fails in the writer, not the validator**~~ —
+  FIXED 2026-09-28 (`d732dee98`): when the writer refuses, `wat2wasm` asks the validator first, so
+  `(memory 0x1_0000_0000)` reports "initial pages (4294967296) must be <= (65536)" (upstream's
+  wording), then the writer's line. `wat2wasm` still validates nothing it CAN write. Still
+  well-formed, not malformed (`malformed_text.test.ts`). `no_repair.test.ts`.
 
 **Open, recorded not done** (each in its stage's record in ir-convergence.md):
 - ✅ ~~the wabt-ts binary reader attaches a multi-value operand's NEIGHBOUR~~ — FIXED 2026-09-19
@@ -755,12 +758,13 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   defect.
 - ✅ **Multiple tables were refused at encode** — lifted 2026-09-28 (item 5 of the handoff above).
   Both encoders already threaded the real index; the guard was all that was left.
-- ⬚ **`scripts/wabt-ts/engine-check.ts` self-tests only the reject direction** (~195–219: a
-  known-INVALID module must be refused). No must-ACCEPT module guards an engine that refuses
-  everything — the exact failure its Wasmer comment describes (`--enable-all` made every module read
-  as rejected).
-- ⬚ **Stale source comments** (claim vs artifact; first verified 2026-09-14, ALL seven re-checked
-  and still stale 2026-09-19, line numbers current):
+- ✅ ~~**`scripts/wabt-ts/engine-check.ts` self-tests only the reject direction**~~ — FIXED
+  2026-09-28 (`d732dee98`): a KNOWN_GOOD module (KNOWN_BAD's one-byte correction) every engine must
+  accept, or the run aborts. All three engines pass; inverted, exit 1.
+- ✅ ~~**Stale source comments**~~ — all seven corrected against the code 2026-09-28
+  (`d732dee98`), each re-verified first (the relaxed ternaries ARE ternary; loads DO carry
+  `memidx`; the reader DOES keep the name section; `deno task test` DOES grant `--allow-run`). The
+  list, for the record (first verified 2026-09-14):
   - `src/wabt-ts/ir/ir-util.ts` ~80 / ~91 — the `ModuleContext` doc claims traffic "across
     validator, binary writer, and bridge" (the bridge is deleted); `getExprArity` has no production
     caller ([wabt-ts.md](wabt-ts.md)).
@@ -776,19 +780,28 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   - `src/binaryen-ts/tools/wasm-opt.ts` ~463 says `import.meta.main` is "not yet universal"; the
     Node 22.18 floor has it.
   - `tests/wabt-ts/tools/cli_io_errors.test.ts:27` says `deno task test` runs `--allow-read` only.
-- ⬚ **Minor, wabt-ts**: `parseHexFloat` (`core/literal.ts`) sums `parseInt` parts, imprecise but
-  lexer-level only (the const path uses `parseF64Bits`); `wasm-objdump -h` only re-sets a default
-  that is already `true`; the lexer's `isDigit && !readNum()` guard is dead.
-- ⬚ **T2** — "binaryen-ts's encoder derives the type-section order" is NOT reproducible on decode →
-  encode; open until reproduced with a case on whatever path was measured.
-- ⬚ **E1 unification** — wabt-ts drops an explicit empty `else` where binaryen-ts keeps it; unify in
-  S6.
-- ⬚ **Does the ONE READER consume-and-discard anywhere?** (Re-pointed 2026-09-28: asked of
-  binaryen-ts's decoder, deleted at 1.6.0; the question holds for wabt-ts's reader, now the only
-  one.) The convert pair was a KNOWN opcode deliberately discarded (`push(pop())`), not an unknown
-  one refused — so the fail-loud contract can be violated by a known opcode. Worth an enumeration
-  of the reader's dispatches; the section, export-kind and import-kind dispatches all carry comments
-  about this shape having bitten before.
+- ✅ ~~**Minor, wabt-ts**: `parseHexFloat`; `wasm-objdump -h`; the dead lexer guard~~ — FIXED
+  2026-09-28 (`d732dee98`). "Lexer-level only" was WRONG: `parseF32Literal` / `parseF64Literal` are
+  PUBLIC, and were silently wrong on six shapes (`0x1.5` → 0 — the regex required `p`; `1_000.5` →
+  1; double rounding past bit 52 and on f32 decimals; `1e39` → f32 infinity; `1.5abc` → 1.5). They
+  now use the WAT parser's exact conversions, MOVED into `core/literal.ts` and shared — bit for bit
+  with `wat2wasm`. `-h` means something (upstream's rule: show what the flags ask for). The guard
+  says what it does. `literal.test.ts`, `objdump_flags.test.ts`.
+- ✅ ~~**T2** — "the encoder derives the type-section order"~~ — NOT REPRODUCED, and moot: that
+  encoder is deleted. Asked of the one writer instead (2026-09-28, `scratchpad/t2.ts`): the type
+  section is kept byte-for-byte in 2,914 of 2,919 valid modules, and the 5 others keep every type in
+  order — an empty rec group dropped (`type-rec.0`), an empty type section dropped (`custom.1`,
+  `binary.62`), padded LEBs canonicalized (`binary-leb128.8`/`.9`).
+- ✅ ~~**E1 unification**~~ — UNIFIED by the one reader (checked 2026-09-28, `scratchpad/e1.ts`):
+  an explicit empty `else` in BYTES is kept by both byte routes (wabt-ts read → write, and
+  `readForPasses` → `writeWasm`), exactly as upstream `wasm-opt` keeps it; every TEXT route drops it
+  (`wasm2wat`, `wat2wasm`), exactly as upstream wabt does.
+- ✅ ~~**Does the ONE READER consume-and-discard anywhere?**~~ — NO instruction is dropped, measured
+  2026-09-28 (`scratchpad/discard.ts`): 2,919 valid modules through both routes, the code section
+  changes in 6 and every change is encoding (zero-count local groups merged, padded LEBs, an empty
+  code section). The spec suite exercises essentially every opcode the reader dispatches; an opcode
+  it does not use is the gap this cannot see. One side finding: dropping an EMPTY section moves the
+  custom sections anchored to it (`custom.1`: "after type" → "before type"); text only.
 - ✅ COVERED by `deno task spec-behaviour` (in the gate; SIMD too since pre-bump item 6). Left, and
   optional: nothing in the gate checks the manifests' own EXPECTED values (the SIMD oracle check,
   24,110 / 24,115, was a scratch probe). Was: **`assert_return` / `assert_trap` are not run by
@@ -798,11 +811,30 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   the original module run in V8, not against the manifests' `expected` values — checking those
   directly would also judge the ORIGINAL decode, which the differential cannot.
 - ⬚ **N4** — under `-O2 -g` we keep the local and label names passes leave; upstream drops them.
-  Provisional, pending owner action 4.
-- ⬚ **`wasm2wat` cosmetics** (re-probed 2026-09-19) — ENTITY references print by index (`call 0`,
-  `global.set 0`) where upstream prints `call $f` / `global.set $g` from the name section; branch
-  LABELS print by name since N8. Folded siblings share a line (`(call 0)) (i32.add`). Text only,
-  never bytes ([names.md](names.md)).
+  Provisional, pending owner action 4. **An owner decision, fully priced** ([names.md](names.md)
+  § "Names under optimization, priced": 127.4 KB of locals and labels over 421 modules, under `-g`
+  only, not where the size gap lives). Nothing to build until it is decided.
+- ⬚ **`wasm2wat` cosmetics** (re-probed 2026-09-28: still `call 15` beside a function the name
+  section calls `$__str_char_at`) — ENTITY references print by index where upstream prints the
+  name; branch LABELS print by name since N8. Folded siblings share a line. Text only, never bytes.
+  **Scoped 2026-09-28, not built — an owner call:** (a) every reference SITE must move together
+  (calls, `global.*`, `table.*`, `memory.*` immediates, `(type N)` uses, exports, `start`, elem
+  segments, tags) or the text is inconsistent — the T13.20 lesson; the total `rewriteExprVars` covers
+  expressions only; (b) a name section need not hold UNIQUE names — two `$f`s would make `call $f`
+  re-assemble to the first, WRONG BYTES silently — so it needs upstream's dedup rule first; (c) it
+  moves the text of every corpus module with names (a text re-baseline, and a CHANGELOG line, like
+  folded-by-default was).
+- ⬚ **The CLI is unreachable from JSR** (found 2026-09-28 fixing a stale comment): README's
+  `deno run -A jsr:@jrmarcum/binaryang <command>` runs the `.` export, `src/index.ts`, which has no
+  dispatcher — measured on the PUBLISHED 1.6.0: `--help` prints nothing and exits **0**, as does
+  `wasm-validate /nonexistent.wasm`. The per-tool forms in the tools' JSDoc
+  (`jsr:@jrmarcum/binaryang/wasm-validate …`, "CLI form (via `import.meta.main`)") do the same: the
+  tools no longer self-execute (A9–A12). Since `4651be129` (2026-08-27), so probably never worked on
+  binaryang. `main.ts` calls its dispatcher UNCONDITIONALLY, so pointing `.` at it would run the CLI
+  on every library import. The likely fix: `main.ts` guards `await main()` with `import.meta.main`
+  (the reason README gives for the 22.18 floor — nothing uses it today but `engine-check`), and a
+  `./cli` export (or `.` → `main.ts` with the library at `./lib`); then the JSDoc forms. ⚠️ Changes
+  the published entry points: the owner's call, and a release.
 - ✅ MOOT for two of three (2026-09-28): `binaryen-ts/parser/*` is deleted (stage 5), so there is
   no intent left to confirm for those; `wasm/demo_bytes` is still unconfirmed. Was: **Doc
   references mapped on plausibility**: `binaryen-ts/parser/tokenizer`, `parser/wat-parser`

@@ -435,6 +435,17 @@ their own bump — and nothing breaks by their standing still.
   of one `unreachable` lost its trap (the output returned instead); a block whose value sits under
   trailing void statements came out INVALID; a stack value a later instruction takes was discarded.
   What it still refuses, it refuses by name (open-work.md § Flatten).
+- **`parseF32Literal` / `parseF64Literal` (public, `core/literal.ts`) agree with `wat2wasm` bit
+  for bit** (`d732dee98`). Silent before: `0x1.5` parsed as 0, `1_000.5` as 1, values past bit 52
+  and f32 decimals rounded twice, `1e39` came back as f32 infinity, `1.5abc` as 1.5. A finite
+  literal that overflows is now an ERROR, and trailing junk is refused — a behaviour change.
+- **`wat2wasm` explains a limit past its index type** — `(memory 0x1_0000_0000)` reports the
+  validator's "initial pages (4294967296) must be <= (65536)" before the writer's line.
+- **`wasm-objdump` shows what its flags ask for**, as upstream: `-d` alone no longer prints the
+  section headers; `-h -d` prints both; no flag, the headers.
+- **The text-form section's bytes move** in modules where a multi-value producer feeds a fold
+  (S7's prediction now counts what the fold writer writes; `a6193b625`) — 3 of 421 corpus files.
+  The printed text does not change.
 - Not release-note material: binaryen-ts's internal WAT parser is deleted (One front end stage 5);
   it had no public path.
 
