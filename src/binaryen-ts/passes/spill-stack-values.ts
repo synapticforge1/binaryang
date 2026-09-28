@@ -74,6 +74,7 @@ import { deriveTypes, type PopSources, slots } from '../ir/derive-types.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { mapExpression, visitChildren, walkExpression } from '../ir/walk.ts';
+import { collapsePhantomConsumers } from '../ir/phantoms.ts';
 import { varIndex } from '../../wabt-ts/ir/ir.ts';
 
 /** Every sequence of instructions in `e`'s subtree, each with its own stack. */
@@ -181,6 +182,21 @@ export function spillStackValues(module: WasmModule): number {
 
 function rewriteFunction(f: WasmFunction, sources: PopSources): boolean {
   let changed = false;
+  // First, a phantom that a LATER operand's transfer makes dead must not become
+  // an `unreachable` that runs before it — `br 0; i32.add` trapped instead of
+  // branching (`spec/br/br.0.wasm`). Such a consumer never runs; it is taken
+  // apart (`ir/phantoms.ts`). What is left is phantoms in code already dead.
+  // RECORDED with nothing behind it: a bare `pop` statement is never taken as an
+  // operand, so it is not in `sources` at all — and it is not a phantom.
+  const phantom = (e: Expression) =>
+    e.kind === ExpressionKind.Pop && sources.has(e) && sources.get(e) === undefined;
+  let holdsPhantom = false;
+  walkExpression(f.body as unknown as Expression, (e) => {
+    if (phantom(e)) holdsPhantom = true;
+  });
+  if (holdsPhantom) {
+    (f as { body: RegionExpr }).body = collapsePhantomConsumers(f.body as RegionExpr, phantom);
+  }
   for (const region of regionsIn(f.body as unknown as Expression)) {
     if (rewriteRegion(region, f, sources)) changed = true;
   }

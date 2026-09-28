@@ -371,10 +371,13 @@ function _mapChildren(
         size: fn(expr.size),
       };
 
-    // `data.drop` and `table.size` carry no child expressions — only an
-    // immediate — so they are leaves here, listed rather than defaulted so that
-    // a future kind cannot land in a silent catch-all.
+    // `data.drop`, `elem.drop` and `table.size` carry no child expressions —
+    // only an immediate — so they are leaves here, listed rather than defaulted
+    // so that a future kind cannot land in a silent catch-all. 🔧 `elem.drop`
+    // was missing (the visitor had it): every module holding one was REFUSED by
+    // any pass that maps a tree — 22 spec modules could not be optimized.
     case ExpressionKind.DataDrop:
+    case ExpressionKind.ElemDrop:
     case ExpressionKind.TableSize:
       return { ...expr };
 

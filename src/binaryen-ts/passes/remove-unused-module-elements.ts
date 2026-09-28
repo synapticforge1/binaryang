@@ -99,6 +99,10 @@ function _removeUnused(module: WasmModule): void {
 
   // --- Step 2: fixed-point reachability walk ---
   const queue = [...liveFuncs];
+  // A `ref.func` in a global's or a table's initializer is a root too: the
+  // value exists from instantiation, and what reads it is not ours to see.
+  for (const g of module.globals) if (g.init) _collectCallTargets(g.init, liveFuncs, queue);
+  for (const t of module.tables) if (t.init) _collectCallTargets(t.init, liveFuncs, queue);
   while (queue.length > 0) {
     const name = queue.pop()!;
     const fn = funcMap.get(name);
@@ -119,6 +123,19 @@ function _removeUnused(module: WasmModule): void {
     if (importedGlobals.has(global.name) || global.init === undefined) continue;
     _collectGlobalRefs(global.init, liveGlobals);
   }
+
+  // Globals read by the module's other constant expressions. 🔧 Missing: an
+  // element segment at `(global.get $g2)` kept its offset while `$g2` was
+  // removed, and the encoder refused the module ("unresolved global.get
+  // reference") — `spec/global/global.50.wasm`, every level, both routes.
+  for (const seg of module.elements) {
+    if (seg.offset) _collectGlobalRefs(seg.offset, liveGlobals);
+    for (const item of seg.elemExprs) _collectGlobalRefs(item, liveGlobals);
+  }
+  for (const seg of module.dataSegments) {
+    if (seg.offset) _collectGlobalRefs(seg.offset, liveGlobals);
+  }
+  for (const t of module.tables) if (t.init) _collectGlobalRefs(t.init, liveGlobals);
 
   // Always keep globals that are exported
   for (const exp of module.exports) {

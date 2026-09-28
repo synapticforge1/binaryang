@@ -87,7 +87,8 @@ import { deriveTypes, slots } from '../ir/derive-types.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import { None, Unreachable } from '../ir/types.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
-import { mapChildrenShallow, visitChildren, walkExpression } from '../ir/walk.ts';
+import { mapChildrenShallow, walkExpression } from '../ir/walk.ts';
+import { operandsInOrder } from '../ir/phantoms.ts';
 import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 
 /** Whether any construct in `e` keeps block parameters. */
@@ -109,32 +110,6 @@ interface Slots {
 function paramsOf(e: Expression): BlockParams | undefined {
   const p = blockParamsOf(e);
   return p !== undefined && p.types.length > 0 ? p : undefined;
-}
-
-/**
- * `e`'s operands in EVALUATION order — its children other than the sequences
- * it owns. ⚠️ Not `visitChildren`'s order for a branch: that visits a `br_if`'s
- * and a `br_table`'s condition before their values, and wasm pushes the values
- * first. Splitting in that order would move the condition ahead of them.
- */
-function operandsOf(e: Expression): Expression[] {
-  switch (e.kind) {
-    case ExpressionKind.Break:
-      return e.condition === undefined || e.condition === null
-        ? [...e.values]
-        : [...e.values, e.condition];
-    case ExpressionKind.Switch:
-      return [...e.values, e.condition];
-    case ExpressionKind.Block:
-      return [...(e.params?.values ?? [])]; // its children are a sequence, not operands
-    default: {
-      const out: Expression[] = [];
-      visitChildren(e, (c) => {
-        if (c.kind !== ExpressionKind.Region) out.push(c);
-      });
-      return out;
-    }
-  }
 }
 
 /** The one `pop` that stands where `e` stood once `e` is a statement before it. */
@@ -173,7 +148,7 @@ class Lowering {
    */
   private needs(e: Expression): boolean {
     if (paramsOf(e) !== undefined || this.backEdge(e) !== undefined) return true;
-    return operandsOf(e).some((c) => this.needs(c));
+    return operandsInOrder(e).some((c) => this.needs(c));
   }
 
   /** `e`, with every region under it lowered and nothing split. */
@@ -193,7 +168,7 @@ class Lowering {
 
     // Anything else: its operands up to the last one that needs splitting
     // become statements before it, and it takes each from the stack.
-    const ops = operandsOf(e);
+    const ops = operandsInOrder(e);
     let last = -1;
     ops.forEach((c, i) => {
       if (this.needs(c)) last = i;

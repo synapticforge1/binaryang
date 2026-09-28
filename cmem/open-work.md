@@ -40,8 +40,9 @@ naming (no output), portability, baseline **IDENTICAL**, publish dry-run, operat
 exports**, `translate-eh` **70/70 legacy, translated and translated -Oz**, optimize-corpus every
 level. Pick up here, in this order:
 
-1. ✅ **One front end stage 2 is DONE** — R15 merged 2026-09-28 (item 3 below). **Next: Q1**, a silent
-   -O2 miscompile R15's behaviour check surfaced (item 4 below), then Q2 / Q3.
+1. ✅ **One front end stage 2 is DONE** — R15 merged 2026-09-28 (item 3 below), and every defect its
+   behaviour check and a whole-testsuite behaviour check found is fixed (item 4). The optimizer's
+   output now behaves as its input on every spec module it accepts; what it refuses is W5 (item 5).
 2. **NOT the pipeline-convergence proposal** ("passes until the delta over the next two rounds averages
    under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
    practice once the open items are worked through. Do not start it — not even the measurement — while
@@ -240,18 +241,31 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
    (latent; closed-defect table in [divergences.md](divergences.md)). Found and NOT fixed: Q1, Q2, Q3
    below. The `wip/r15-tree-pass` branch is superseded (not merged; its commit message still holds
    the two traps it paid for).
-4. ⬚ **NEXT — Q1: `CoalesceLocals` miscompiles a branch to an `if` label** — a SILENT wrong result at
-   -O2 and up, both routes, almost certainly shipped. Fixture (`effects(1)` must be −14, -O2 gives
-   −2): `(func (export "f") (param i32) (result i32) (local i32) (if (block (result i32)
-   (local.set 1 (i32.const 1)) (local.get 0)) (then (local.set 1 (i32.mul (local.get 1) (i32.const
-   3))) (local.set 1 (i32.sub (local.get 1) (i32.const 5))) (local.set 1 (i32.mul (local.get 1)
-   (i32.const 7))) (br 0)) (else …)) (local.get 1))` — `spec/if/if.wast`'s `effects`. Pass found by
-   running -O2 one pass at a time. Then check the other CFG users for the same gap. Row:
-   [divergences.md](divergences.md) Q1.
-5. ⬚ **Q2: `Inlining` at -O3 cuts a `pop` operand off its multi-result producer** (invalid output,
-   `call.0`, `fac.0`) and **Q3: the decoder drops entry values below a `br_if` back-edge** (route A
-   decode → encode traps; stage 3 deletes that decoder, so Q3 may simply go with it — say so rather
-   than fix it). Rows in [divergences.md](divergences.md).
+4. ✅ **DONE 2026-09-28: Q1–Q3, and everything a WHOLE-TESTSUITE behaviour check found (Q4–Q8).**
+   Q1 was found by R15's behaviour check, which covered only the 8 block-parameter modules; to close
+   the section the same check was run over EVERY spec module with invocations — each `action` /
+   `assert_return` / `assert_trap` replayed against the original, a plain decode → encode, and
+   -O1…-Oz on both routes (`scratchpad/behave-all.ts`: 2,228 modules, 16,020 variants). It found
+   five more defects that change what a module does or leave it refused; all eight are fixed, each
+   pinned by a test and each test inverted (13 mutants, all caught — two only jointly, see below):
+   - Q1 CoalesceLocals / the CFG: a branch to an `if` label read as a return (silent, -O2+).
+   - Q2 Inlining: a stack operand moved into the wrapper block (invalid, -O3).
+   - Q3 the decoder: a multi-value `br_if` held as one stack entry (a round trip TRAPPED).
+   - Q4 a phantom operand evaluated before the `br` that made it dead (trapped; both routes).
+   - Q5 a `call_indirect`'s type index dropped across rec groups (a trap vanished).
+   - Q6 a leading U+FEFF stripped from names (the engine refused the round trip).
+   - Q7 `elem.drop` missing from the tree walker (22 modules could not be optimized).
+   - Q8 RemoveUnusedModuleElements ignored constant-expression uses (the encoder refused).
+   **After, `main` vs this** (29,190 optimizer outputs): INVALID **9 → 0**; refused 1,920 → 1,790;
+   **0 corpus outputs changed**; behaviour now differs from the original NOWHERE except the
+   multiple-tables refusal (164 modules — W5, the encoder's gap, below). Rows:
+   [divergences.md](divergences.md) Q1–Q3 and the closed table (Q4–Q8).
+   🔑 Two guards in the phantom fix exist because a first version broke `fac.0` on route A: a region's
+   statements are not operands, and a bare `pop` statement is not a phantom. Either alone is
+   harmless; together they took a loop body apart — the `fac-ssa` route-A fixture catches the pair.
+5. ⬚ **The multiple-tables refusal (W5) is now the only thing the optimizer does not handle in the
+   spec testsuite** — 164 modules refused, loudly: "element segments and call_indirect are encoded
+   against table index 0". The next section's candidate, for the owner to order.
 - ⬚ **`Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
   after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
   corpus + the spec testsuite), on both routes (`scratchpad/one/flatscope.ts`):

@@ -156,6 +156,7 @@ import {
   makeStructSet,
 } from '../ir/expressions.ts';
 import { None, type Type, ValType } from '../ir/types.ts';
+import { collapsePhantomConsumers } from '../ir/phantoms.ts';
 
 // ---------------------------------------------------------------------------
 // Section IDs
@@ -1623,6 +1624,8 @@ class WasmParser {
     const push = (e: Expression): void => {
       topFrame(frames, r).exprs.push(e);
     };
+    /** The operands `pop` made up for stack-polymorphic code — see `pop`. */
+    const phantoms = new Set<Expression>();
 
     const pop = (): Expression => {
       const exprs = topFrame(frames, r).exprs;
@@ -1689,7 +1692,14 @@ class WasmParser {
       // If the frame is genuinely reachable this input is malformed; an
       // `unreachable`-typed operand then surfaces as a validation failure
       // downstream instead of a silently-wrong `nop`.
-      return makeUnreachable();
+      //
+      // ⚠️ Remembered as a PHANTOM: where a later operand of the same consumer is
+      // the transfer that made the code dead, this would run first and trap
+      // (`br 0; i32.add`) — the consumer is taken apart when the body is sealed
+      // (`collapsePhantomConsumers`).
+      const phantom = makeUnreachable();
+      phantoms.add(phantom);
+      return phantom;
     };
 
     const popN = (n: number): Expression[] => {
@@ -2268,7 +2278,16 @@ class WasmParser {
             break;
           }
           const values = _branchValues(frames, depth, pop);
-          push(makeBreak(resolveLabel(frames, depth), cond, values));
+          const brIf = makeBreak(resolveLabel(frames, depth), cond, values);
+          // Not taken, a `br_if` leaves ALL its values — as a multi-result call
+          // does, so it goes on the stack the same way: a placeholder for each
+          // value but the last. 🔧 It was one entry however many it left, so
+          // `br_if 0 (i32 i64); drop; drop` gave the first `drop` both and the
+          // second a phantom `unreachable` that TRAPPED (`spec/func/func.0.wasm`
+          // "break-br_if-num-num", on a plain decode -> encode).
+          const left = Array.isArray(brIf.type) ? brIf.type : [];
+          if (left.length > 1) pushMultiValueCall(brIf, left as ValueType[]);
+          else push(brIf);
           break;
         }
         case 0x0e: { // br_table
@@ -2735,7 +2754,9 @@ class WasmParser {
 
     if (constExpr && !ended) r.error('unexpected end of constant expression: no `end`');
     const funcFrame = frames[0] ?? { exprs: [], label: undefined };
-    const body = makeRegion(funcFrame.exprs);
+    const body = phantoms.size === 0
+      ? makeRegion(funcFrame.exprs)
+      : collapsePhantomConsumers(makeRegion(funcFrame.exprs), (e) => phantoms.has(e));
 
     return {
       name: ctx.names.func(funcIdx),
