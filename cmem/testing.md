@@ -699,9 +699,26 @@ them a silent -O2 miscompile shipped in 1.5.4). For every spec `module` with inv
 the ORIGINAL bytes are instantiated with inert import stubs and each `invoke` replayed; the same
 replay on a plain decode → encode and on -O1…-Oz, both routes, must give the same outcome — a value
 compared by bits, or a trap. The original run in V8 is the oracle, so the manifests' `expected`
-values are not needed — and ours never decide them. It ran as a scratch script; making it a task is
-[open-work.md](open-work.md)'s item 6. Where it stood when that closed: **0 divergences on all 2,228
-modules** (2026-09-28, after the several-tables fix).
+values are not needed — and ours never decide them.
+
+✅ **Now `deno task spec-behaviour <outDir>`** (2026-09-28; `scripts/check-spec-behaviour.ts`, the
+check in `scripts/spec-behaviour/differential.ts`), over the corpus `deno task spec:prepare` writes.
+On `main` today: **1,342 modules with invocations, 57,808 invocations, 16,062 variants compared, 0
+divergences, in ~6 s**. Its verdict: exit 1 on a DIVERGE (an outcome differs, or the engine refuses
+our bytes) or a module that does not terminate; a variant our pipeline REFUSES (throws — loud, not
+a miscompile) is allowed only for a module pinned by name in `REFUSED_BUDGET`, a ratchet like
+`PHANTOM_BUDGET` — 7 relaxed-SIMD modules on route A until stage 3.
+
+- **Inverted twice**: Q1's miscompile restored → exit 1, with DIVERGEs (`align.106`'s
+  `i32_align_switch` gave 0 for 23 at -O2+ — Q1 reached further than `if.0`) and hangs;
+  the multiple-tables guard restored → exit 1, 161 modules NEWLY refused.
+- ⚠️ **It stops after 3 modules that do not terminate.** The first inversion ran for 20 minutes and
+  12,500 CPU-seconds: a miscompiled loop never ends, `worker.terminate()` cannot interrupt a
+  synchronous wasm loop, and every hang left a spinning thread behind. After the first hang the
+  verdict is already a failure; the report says how many modules were NOT run.
+- Its blind spots: an invocation of a NAMED module (another module's) is skipped; imports are inert
+  stand-ins, so behaviour that depends on a real import is compared only as far as the stand-in
+  goes (the same stand-ins on every side); a trap is compared by class, not message.
 
 ## The 1.5.5 passes — the code lens, summarized
 

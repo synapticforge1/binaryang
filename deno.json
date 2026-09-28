@@ -69,7 +69,8 @@
     "direct": "deno run --allow-read scripts/check-direct-corpus.ts",
     "direct-behaviour": "deno run --allow-read scripts/check-direct-behaviour.ts",
     "translate-eh": "deno run --allow-read --allow-write --allow-run --allow-env scripts/check-translate-eh.ts",
-    "optimize-corpus": "deno run --allow-read scripts/check-optimize-corpus.ts"
+    "optimize-corpus": "deno run --allow-read scripts/check-optimize-corpus.ts",
+    "spec-behaviour": "deno run --allow-read scripts/check-spec-behaviour.ts"
   },
   "fmt": {
     "include": [
