@@ -462,7 +462,21 @@ bumped-and-published `deno.json` with no corresponding run under the `publish.ym
 The protection is **structural, not defensive**: `scripts/release/publish.ts` has no `deno publish`
 call site at all. It stages, commits, tags and pushes; the tag push is what publishes.
 
-## 1.6.1 — a patch from a branch (2026-09-28; ⬚ not released yet)
+## 1.6.1 — a patch from a branch (2026-09-28) — 🚀 PUBLISHED
+
+✅ **Released 2026-09-28** — owner: "Tag from the branch". On `release/1.6.1` (cut from `v1.6.0`):
+`deno task bump` → 1.6.1, committed (`dade0c785`); the preflight guards run by hand
+(`scratchpad/preflight161.ts`: clean tree, tag absent on origin, cold `deno task check`,
+`checkEntry` — all ok); `git tag v1.6.1`; `git push origin release/1.6.1 v1.6.1` — the TAG and the
+branch only, `main` NOT pushed. "Publish to JSR" run 36497043241: success; JSR `1.6.1_meta.json`
+serves `.` → `./main.ts`. Verified from JSR: `deno run -A --min-dep-age 0
+jsr:@jrmarcum/binaryang@1.6.1 --version` prints `binaryang 1.6.1`, `--help` the usage, and a
+command runs (exit 1 on a missing file). Without `--min-dep-age 0` Deno refuses for 24 hours —
+the wall recorded below. `release/1.6.1` (bumped) is merged into `main` (`c0dd3d251`): `main`
+reads **1.6.1**, so auto-tag no-ops when `main` is pushed. ⚠️ The NEXT release is a minor (new
+exports, new passes): type **1.7.0** by hand — `deno task bump` would make 1.6.2.
+
+The record as written before the release:
 
 Owner: the JSR CLI fix ships as **1.6.1**, and a patch carries the fix ALONE — `main` holds 26+
 unreleased commits (new passes, fixes) that belong to the next minor. So the fix was built on

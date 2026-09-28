@@ -427,9 +427,21 @@ their own bump — and nothing breaks by their standing still.
 
 ## After 1.6.0 (on `main`, unpushed)
 
-- **In 1.6.1 (a patch from `release/1.6.1`, cut from `v1.6.0`; ⬚ not yet released): the CLI runs
-  from JSR** — `.` is `main.ts`. CHANGELOG.md § 1.6.1 has the note. The next release after it
-  carries everything below.
+- **1.6.1 SHIPPED 2026-09-28** (a patch from `release/1.6.1`, cut from `v1.6.0`): the CLI runs from
+  JSR — `.` is `main.ts`. CHANGELOG.md § 1.6.1. Everything below is NOT in it; the next release
+  (a minor, **1.7.0** typed by hand) carries it all.
+- **wasmtk's letter of 2026-09-28** (their process: say which of 1–4 the release contains): **(1)**
+  a named heap type in an inline `call_indirect` / `return_call_indirect` signature resolves;
+  **(2)** NEW exports — `allFeatures`, `defaultFeatures`, `Features` from `./wasm-validate` and
+  `./core/wabt-ts`; **(3)** compat/binaryen `Module.validate()` validates (it returned 1 for any
+  module) — a behaviour change; **(4)** `@name` placement checked, branch hints refused when
+  duplicated, outside a function, or on a non-branch (`wasm-validate`) — behaviour changes; and
+  **5b** `(memory (pagesize N) (data …))`. Item 5a (custom-descriptors) is NOT in it.
+- **Branch hints before a folded instruction are written at the instruction** (divergence W16) —
+  the bytes of such a module move; linear hints are unchanged. An inline-data memory now writes
+  its maximum (`(memory m m)`, as the spec and every other encoder) — its bytes move too.
+- `wat2wasm`'s explanation of a module the writer cannot hold runs the validator with every
+  feature on (it blamed a feature for a GC module).
 
 - **`wat2wasm` refuses `function` where `func` is meant** — `(module (function $f))`, an import
   or export of kind `function` (W14; upstream and wasm-tools refuse them too). A fix, and a

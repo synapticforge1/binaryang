@@ -58,11 +58,14 @@ A workspace handoff to wasmtk about 1.6.0 is the workspace session's to write, n
 
 | # | item | reproduced | whose call |
 | - | ---- | ---------- | ---------- |
-| 1 | ⬚ 🔴 a named heap type in an inline `call_indirect` / `return_call_indirect` typeuse is never resolved: `writeHeapType: type "$$t" is not resolved` (the name prefixed twice); `(ref null 0)` encodes. 51 assertions (`return_call_indirect.wast`'s main module) | yes — compat `toBinary` AND `wat2wasm` | a DEFECT: fix |
-| 2 | ⬚ export `allFeatures` / `Features` (from `./wasm-validate` or `./core/wabt-ts`) so `wasmValidate` can be the oracle where V8 refuses on its own limits. 12 assertions | yes — no subpath exports `core/feature.ts` | owner: API shape, a minor |
-| 3 | ⬚ compat/binaryen `Module.validate()` always returns 1 ("a permissive stub") — silent-wrong for ported code | yes — returns 1 on an i64 body in an i32 function | owner: delegate to `wasmValidate`, or throw |
-| 4 | ⬚ malformed `@name` placement (and a malformed / invalid branch hint) accepted. 5 assertions; spec-legal to ignore | yes — `(module (func) (@name "M"))` accepted | owner: validate what we process? |
-| 5 | ⬚ custom-descriptors text (`(ref (exact $t))`, `descriptor`/`describes`), 501; and `(memory (pagesize N) (data …))` fails "expected limit initial value" (2 modules) | yes, both | low; `exact` is the conformance row below |
+| 1 | ✅ a named heap type in an inline `call_indirect` / `return_call_indirect` typeuse was never resolved (`$$t`: the message's `$` before `$t`). FIXED `34c7a6bbf`: `resolveNames` walks the node's own `sig`; `return_call_indirect.wast` text modules 2/3 → 3/3 | yes | done |
+| 2 | ✅ `allFeatures` / `defaultFeatures` / `Features` exported from `./wasm-validate` AND `./core/wabt-ts` (`05d027a19`) — a MINOR | yes | done (owner: "do items 1–5") |
+| 3 | ✅ compat/binaryen `Module.validate()` validates: the one writer → the one reader → the validator, all features; `0` + reasons on stderr (`d9810af06`) | yes | done |
+| 4 | ✅ `@name` placement checked (after a binding id; once on a module; value NOT applied), branch hint duplicate / outside a function (malformed) / non-branch target (invalid, on the binary: `validator/branch-hints.ts`) (`6ab458690`). Found by it: a hint before a FOLDED instruction was written at the expression's first byte — as upstream wabt; now at the instruction, as wasm-tools (divergence W16) | yes | done |
+| 5 | ✅ **5b** `(memory (pagesize N) (data …))` (`b5c337f10`; `custom-page-sizes.wast` 10/12 → 12/12), and found beside it: an inline-data memory wrote NO maximum (the spec's `(memory m m)`) — fixed. ⬚ **5a custom-descriptors** — NOT built, scoped: 14 wasts, 381 modules, 1,029 assertions (157 invalid, 127 malformed, 271 return, 216 trap); `exact` (1,259 uses), `descriptor` / `describes` type clauses, six instructions (`ref.get_desc`, `ref.cast_desc_eq`, `br_on_cast_desc_eq(_fail)`, `struct.new(_default)_desc`) — parser, binary encoding, validation, both IRs. A proposal-sized job (the conformance row below); V8 needs a flag | yes | owner: when |
+
+All merged to `main` (`8fee83e95`), gate green; NOT released — 1.6.1 carried only the CLI fix.
+The next release carries these and must say which of 1–4 it contains (their process).
 
 Found WITH item 1: `d732dee98`'s explanation ran the validator with DEFAULT features, so their
 module got five "enable the functionReferences feature" lines before the real error — fixed the
