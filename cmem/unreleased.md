@@ -240,6 +240,14 @@ their own bump — and nothing breaks by their standing still.
   names and re-encodes them; `ModuleBuilder.addFunction` takes optional `paramNames`.
 - **`WasmModule.customSections`**: every custom section is kept, each with the known section it
   FOLLOWED, and written back into that gap (C3, `4c162c584`).
+- **Fixed: `wasm-opt` emitted INVALID modules for code with block parameters** (R15, 2026-09-28):
+  `spec/fac/fac.0.wasm` and `spec/if/if.0.wasm` at every level, before any pass ran — the lowering
+  (a re-decode) mishandled a back-edge whose values a multi-result call produces and a one-armed
+  parametrised `if`. Shipped in 1.5.4. `lowerBlockParams` is now a tree pass; it no longer refuses a
+  module renamed after decoding, and it REFUSES, loudly, a `br_on_*` or `try_table` catch to a
+  parametrised loop — which the decoder's lowering never handled (only `br`, `br_if` and
+  `br_table`), and which no corpus module has. ⚠️ Known and open, not to be claimed fixed: Q1 (a `CoalesceLocals`
+  miscompile at -O2+) and Q2 (`Inlining` at -O3) — divergences.md.
 
 ## API-visible — wabt-ts and the tools
 

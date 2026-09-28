@@ -27,7 +27,7 @@ import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { spillStackValues } from '../../../src/binaryen-ts/passes/spill-stack-values.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { ExpressionKind, typeOf } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
@@ -50,6 +50,7 @@ const pops = (m: WasmModule) => {
   }
   return n;
 };
+const results = (bytes: Uint8Array) => [0, 7, -3].map((arg) => call(bytes, arg));
 const call = (bytes: Uint8Array, arg: number) => {
   try {
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports;
@@ -120,6 +121,38 @@ describe("a stack-held value survives the passes (R11')", () => {
     new PassRunner(m).run();
     assert(pops(m) > 0, 'the placeholders are still there');
     assertEquals([...encodeWasm(m)], [...bytes], 'byte-identical');
+  });
+});
+
+describe('a CHAIN of values, each taken by the next statement', () => {
+  it('every link is kept — none is deleted with the node it moved into', () => {
+    // 🔧 A producer moved into its consumer was inserted as it STOOD, so when
+    // that consumer was itself moved into the next statement, the next statement
+    // got the original node, whose `pop` still waited for a producer no longer
+    // anywhere: the first link was DELETED. Latent until the block-parameter
+    // lowering (R15) left such chains; `spec/br_on_cast` lost a whole block.
+    // The reader nests adjacent statements itself, so the chain is built by
+    // hand, from the nested form:  local.get 0 · i32.eqz (pop) · return (pop).
+    const bytes = asm(`(module
+      (func (export "f") (param i32) (result i32) (return (i32.eqz (local.get 0)))))`);
+    const m = routeB(bytes);
+    const body = m.functions[0]!.body as unknown as { children: Expression[] };
+    const ret = body.children[0] as Expression & { values: Expression[] };
+    const eqz = ret.values[0] as Expression & { value: Expression };
+    assertEquals([ret.kind, eqz.kind], [ExpressionKind.Return, ExpressionKind.Unary]);
+    const pop = (type: unknown) => ({ kind: ExpressionKind.Pop, type }) as Expression;
+    body.children = [
+      eqz.value,
+      { ...eqz, value: pop(typeOf(eqz.value)) } as Expression,
+      { ...ret, values: [pop(typeOf(eqz))] } as Expression,
+    ];
+    const chained = encodeWasm(m);
+    assertEquals(results(chained), results(bytes), 'the hand-built chain is the same program');
+    assert(pops(m) === 2, 'the fixture holds the chain');
+
+    assert(spillStackValues(m) > 0);
+    assertEquals(pops(m), 0, 'both links were nested');
+    assertEquals(results(encodeWasm(m)), results(bytes), 'valid, and nothing was lost');
   });
 });
 

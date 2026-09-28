@@ -40,8 +40,8 @@ naming (no output), portability, baseline **IDENTICAL**, publish dry-run, operat
 exports**, `translate-eh` **70/70 legacy, translated and translated -Oz**, optimize-corpus every
 level. Pick up here, in this order:
 
-1. **One front end stage 2's LAST item: R15** (item 3 below) — everything else waits on
-   it. Items 1, 1a and 2 are done and merged. ⚠️ R15's attribution was corrected: `br.0` / `nop.0` at -O3 were item 2's, not R15's.
+1. ✅ **One front end stage 2 is DONE** — R15 merged 2026-09-28 (item 3 below). **Next: Q1**, a silent
+   -O2 miscompile R15's behaviour check surfaced (item 4 below), then Q2 / Q3.
 2. **NOT the pipeline-convergence proposal** ("passes until the delta over the next two rounds averages
    under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
    practice once the open items are worked through. Do not start it — not even the measurement — while
@@ -213,25 +213,45 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
    B** — 211 of 286 modules carried one after -Oz, 13,720 bytes, stale (the passes had renumbered what
    it names). Dropped now when a pass has run, `-g` included; the `data: null` placement marker stays.
    Route-B only, so it would have shipped with stage 3.
-3. **NEXT — block-param lowering as a TREE pass (R15)**, replacing `PassRunner`'s encode + decode round
-   trip. ⚠️ Its attribution is now CORRECTED: `br.0` and `nop.0` at -O3 were R11', not R15 (neither
-   module has a block parameter at all — that was checked, not assumed, and the register said
-   otherwise for a day). What R15 owns, diagnosed 2026-09-20 by running the lowering ALONE, with no
-   pass after it:
-   - **`spec/fac/fac.0.wasm`**: "not enough arguments on the stack for local.set" — the loop
-     back-edge rewrite.
-   - **`spec/if/if.0.wasm`**: "start-arity and end-arity of one-armed if must match" — a one-armed
-     parametrised `if` needs an `else` once its parameters become locals, and gets none.
-   Both on BOTH routes, since both go through the decoder's lowering. So the existing lowering is not
-   merely in the wrong place: it is WRONG for 2 of the 8 modules that have block parameters.
-   **Scope of the work**: 8 modules of 3,083, 30 functions, **41 constructs** — 14 `block`, 13 `loop`,
-   13 `if`, 1 `try_table`, with 1–3 parameters each, every one of them in the spec testsuite's own
-   multi-value tests (`scratchpad/one/r15scope.ts`). The three pieces are entry values to locals,
-   a loop back-edge that writes those locals (and a `br_if` that must put them BACK for the
-   fall-through), and a `br_table` mixing a parametrised loop with other targets.
-   ⏳ **A first implementation is on the branch `wip/r15-tree-pass`, and it does NOT work yet** — see
-   that branch's commit message for exactly what fails and the two traps it already paid for. It is
-   not merged; `main` has none of it.
+3. ✅ **DONE 2026-09-28: block-param lowering as a TREE pass (R15)** — `lower-block-params.ts`
+   replaced `PassRunner`'s encode + decode round trip. **Stage 2 is complete.**
+   - **Lowered ALONE** (no pass after it) over the 8 spec modules with block parameters: valid on
+     **8 / 8, both routes** (`main`: 6 / 8 — `fac.0` and `if.0` invalid), and no parameter left
+     (asserted: a no-op lowering produced VALID modules, which is how the wip read as working).
+   - **Optimizer output, `main` vs this**, 2,919 inputs (421 corpus + every spec module V8
+     accepts) × 2 routes × -O1…-Oz = 29,190 outputs: **29,150 identical**; the 40 that moved are all
+     in 4 of those 8 modules; **INVALID 27 → 9, none new**; throws 1,920 → 1,920. The 9 left are
+     pre-existing: `call.0` / `fac.0` at -O3 (Q2) and `names.2` on route A.
+   - **Behaviour** (`scratchpad/r15behave.ts`: every manifest invocation replayed against the
+     original, lowered-alone and -O1…-Oz on both routes, 326 invocations × 96 variants): all agree
+     except Q1 (`if.0`'s `effects`, a pre-existing `CoalesceLocals` miscompile the old invalid output
+     had hidden) and Q2.
+   🔑 **Why the wip failed six of eight, and the design that replaced it**: it rewrote each entry
+   `pop` into a read of its local, and a `pop` is only "already on the stack" — an entry value may be
+   consumed deep in an operand, pass straight through (`if.0`'s arm is `[(pop), (pop)]`: nothing to
+   rewrite), or be carried back by a `br_if` whose values a multi-result call produces INSIDE its
+   condition (`fac.0`). And its wrapper `block` around `local.set`s of `pop`s cannot reach the
+   enclosing stack at all. The tree pass is POSITIONAL instead: entry values into locals before the
+   construct, each region READS them back at its start, `pop`s untouched; a statement holding such a
+   construct or back-edge in an operand is split into statements (bytes unchanged — a `pop` writes
+   nothing); the spill, now run AFTER the lowering, nests what it can again. A mixed `br_table` goes
+   through a trampoline (`multivalue.test.ts` required it — the wip's refusal of it was a regression).
+   Found and fixed on the way: the spill DELETED the first link of a chain of nested producers
+   (latent; closed-defect table in [divergences.md](divergences.md)). Found and NOT fixed: Q1, Q2, Q3
+   below. The `wip/r15-tree-pass` branch is superseded (not merged; its commit message still holds
+   the two traps it paid for).
+4. ⬚ **NEXT — Q1: `CoalesceLocals` miscompiles a branch to an `if` label** — a SILENT wrong result at
+   -O2 and up, both routes, almost certainly shipped. Fixture (`effects(1)` must be −14, -O2 gives
+   −2): `(func (export "f") (param i32) (result i32) (local i32) (if (block (result i32)
+   (local.set 1 (i32.const 1)) (local.get 0)) (then (local.set 1 (i32.mul (local.get 1) (i32.const
+   3))) (local.set 1 (i32.sub (local.get 1) (i32.const 5))) (local.set 1 (i32.mul (local.get 1)
+   (i32.const 7))) (br 0)) (else …)) (local.get 1))` — `spec/if/if.wast`'s `effects`. Pass found by
+   running -O2 one pass at a time. Then check the other CFG users for the same gap. Row:
+   [divergences.md](divergences.md) Q1.
+5. ⬚ **Q2: `Inlining` at -O3 cuts a `pop` operand off its multi-result producer** (invalid output,
+   `call.0`, `fac.0`) and **Q3: the decoder drops entry values below a `br_if` back-edge** (route A
+   decode → encode traps; stage 3 deletes that decoder, so Q3 may simply go with it — say so rather
+   than fix it). Rows in [divergences.md](divergences.md).
 - ⬚ **`Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
   after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
   corpus + the spec testsuite), on both routes (`scratchpad/one/flatscope.ts`):
