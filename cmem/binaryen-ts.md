@@ -102,9 +102,9 @@ listed defect fixed and one live gap, TranslateEH.
   `globalTypeAt`). The "custom/name section documented drop" is also gone: C3 keeps custom sections, N1 P4 reads names.
 - [baseline] Negative sweeps, so nobody re-runs them: all 23 MVP load/store opcodes and all 128 numeric opcodes
   (0x45–0xC4) round-trip byte-identically (fixture per opcode, V8 decides legality, demand byte identity).
-- [trigger] **Multiple tables**: the encoder still refuses >1 table (`checkSingleTable`, elem + `call_indirect`
-  encode against table 0). The day it is lifted, the element and indirect-call encoders must thread the real
-  index; the decoder already resolves `call_indirect`'s table index and throws out of range.
+- ✅ ~~[trigger] **Multiple tables**: the encoder refuses >1 table (`checkSingleTable`)~~ — LIFTED 2026-09-28
+  (writer-inventory W5): the element and indirect-call encoders had long threaded the real index, and the guard
+  was all that was left. `multi_table.test.ts`.
 - [trigger] **Flatten** throws on multi-result calls, EH, and value-carrying branches (it models no tuples). The day
   Asyncify must handle EH or multi-value code, Flatten is the blocker.
 
@@ -176,8 +176,11 @@ listed defect fixed and one live gap, TranslateEH.
   `sealFrame` returns one, `oneOrBlock` is gone, `encodeRegionBody` just emits children, and a `Region` in an operand
   slot throws. The 25-case matrix survives as `tests/binaryen-ts/binary/region_body.test.ts`. Divergences R1/R2.
 - ⟶ S6 7b(i) (`02d77f533`): block parameters are no longer spilled at decode. They stay on the node; `PassRunner.run`
-  calls `lowerBlockParams`, which re-encodes and re-decodes with `{ lowerBlockParams: true }` — that is where the
-  entry spill, `rewriteLoopBranch` (the untaken-`br_if` restore) and the `br_table` trampoline still live. Divergence B1.
+  calls `lowerBlockParams`, which re-encoded and re-decoded with `{ lowerBlockParams: true }` — the entry spill,
+  `rewriteLoopBranch` and the `br_table` trampoline lived there. Divergence B1. ⟶ Since R15 (2026-09-28) it is a
+  TREE pass (`passes/lower-block-params.ts`, positional: locals written before the construct, read back at each
+  region's start); the re-decode was invalid for `fac.0` / `if.0`. The decoder's `{ lowerBlockParams }` option
+  still exists but no pass path uses it.
 - ⟶ S6 6A (`2b5850a8a`): multi-value branch values no longer travel as `tuple.make` — `Break`/`Switch`/`Return` hold
   `values: Expression[]`; `TupleMake` is deleted (divergence V1: do not port it back).
 - ⟶ S6 4: the `(bytes, signed, resultType)` → opcode inversion — `LoadExpr`/`StoreExpr` hold `opcode`, one table in

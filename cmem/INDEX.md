@@ -1,5 +1,9 @@
 # cmem — committed project memory
 
+> **At session start, read `../../cmem/handoffs.md` for letters addressed to this repo.** The workspace
+> session (`../../cmem/INDEX.md`) reviews across the sibling repos and reports there; nothing is ever
+> written into this repo from outside. (owner directive, 2026-09-20)
+
 **All project memory lives here**, because `cmem/` survives a clone. 🔧 Until 2026-09-14 the rule
 was that machine-local memory held what is true of the machine; the owner changed it so there is one
 place to look. Machine-local memory, where it exists, only points here.
