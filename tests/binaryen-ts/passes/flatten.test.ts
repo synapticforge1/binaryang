@@ -456,3 +456,119 @@ Deno.test('flatten preserves semantics — a value if whose arms are several ins
     [[0], [1]],
   );
 });
+
+// ---------------------------------------------------------------------------
+// Value-carrying branches (2026-09-28): upstream Flatten's shape — the value
+// goes into the target's result temp, and the branch goes without it.
+// ---------------------------------------------------------------------------
+
+/** `f(x)`'s result, or `trap` — so a lost trap shows as a difference. */
+const outcome = (bytes: Uint8Array, x: number): number | 'trap' => {
+  try {
+    return callF(bytes, x);
+  } catch (e) {
+    if (e instanceof WebAssembly.RuntimeError) return 'trap';
+    throw e;
+  }
+};
+
+/** Route B's output is valid and computes what the original does, on 0..3. */
+function assertFlattensSame(wat: string): void {
+  const out = flattenRouteB(wat);
+  assert(WebAssembly.validate(out as BufferSource), 'valid');
+  const original = wat2wasm(wat, { textForm: false }).binary;
+  for (const x of [0, 1, 2, 3]) assertEquals(outcome(out, x), outcome(original, x), `f(${x})`);
+}
+
+Deno.test('Flatten: br, br_if and br_table carrying a value', () => {
+  for (
+    const wat of [
+      '(module (func (export "f") (param i32) (result i32) (block (result i32) (br 0 (i32.add (local.get 0) (i32.const 1))))))',
+      // Taken or not; and the value used when NOT taken.
+      '(module (func (export "f") (param i32) (result i32) (block (result i32) (drop (br_if 0 (i32.const 7) (local.get 0))) (i32.const 9))))',
+      '(module (func (export "f") (param i32) (result i32) (block (result i32) (i32.add (br_if 0 (i32.const 7) (local.get 0)) (i32.const 100)))))',
+      '(module (func (export "f") (param i32) (result i32) (i32.add (block (result i32) (block (result i32) (br_table 0 1 (i32.const 5) (local.get 0)))) (i32.const 1))))',
+      // To an `if`'s label.
+      '(module (func (export "f") (param i32) (result i32) (if (result i32) (local.get 0) (then (br 0 (i32.const 3))) (else (i32.const 4)))))',
+      // The condition itself branches to the same block: its write to the temp
+      // must not be clobbered by the outer branch's.
+      '(module (func (export "f") (param i32) (result i32) (block $b (result i32) (drop (br_if $b (i32.const 1) (block (result i32) (drop (br_if $b (i32.const 2) (i32.eq (local.get 0) (i32.const 2)))) (local.get 0)))) (i32.const 3))))',
+    ]
+  ) assertFlattensSame(wat);
+});
+
+Deno.test('Flatten: a value branch to the function frame becomes a return', () => {
+  assertFlattensSame(
+    '(module (func (export "f") (param i32) (result i32) (drop (br_if 0 (i32.const 11) (local.get 0))) (i32.const 22)))',
+  );
+  assertFlattensSame(
+    '(module (func (export "f") (param i32) (result i32) (if (local.get 0) (then (br 1 (i32.const 11)))) (i32.const 22)))',
+  );
+  assertThrows(
+    () =>
+      flattenRouteB(
+        '(module (func (export "f") (param i32) (result i32) (br_table 0 0 (i32.const 1) (local.get 0))))',
+      ),
+    Error,
+    'value-carrying br_table to the function frame',
+  );
+});
+
+Deno.test("Flatten: a block's value may sit under trailing void statements", () => {
+  // 🔧 The block's LAST child was always taken as its value, writing
+  // `local.set $tmp (nop)` — invalid (`spec/nop/nop.0`).
+  assertFlattensSame(
+    '(module (func (export "f") (param i32) (result i32) (block (result i32) local.get 0 nop nop)))',
+  );
+});
+
+Deno.test('Flatten: a value taken from the stack by a later instruction is refused by name', () => {
+  // Stack-form code the reader keeps (`br_if` shows no value: it takes the
+  // `local.get` below it). Flat IR has no stack; discarding it lost an operand.
+  assertThrows(
+    () =>
+      flattenRouteB(
+        '(module (func (export "f") (param i32) (result i32) (block (result i32) local.get 0 nop local.get 0 br_if 0)))',
+      ),
+    Error,
+    'a value left on the stack for a later instruction',
+  );
+  // 🔧 A `br`/`br_table` that shows no value but targets a result block takes
+  // it from the stack: not abandoned. Read as a trap that discards it, the
+  // output was VALID and returned the result temp's zero.
+  for (
+    const wat of [
+      '(module (func (export "f") (param i32) (result i32) (block (result i32) local.get 0 nop br 0)))',
+      '(module (func (export "f") (param i32) (result i32) (block (result i32) local.get 0 nop local.get 0 br_table 0 0)))',
+      '(module (func (export "f") (param i32) (result i32) local.get 0 nop br 0))',
+    ]
+  ) {
+    assertThrows(
+      () => flattenRouteB(wat),
+      Error,
+      'a value left on the stack for a later instruction',
+    );
+  }
+  // A `pop` operand is spilled to a local before Flatten runs: flattened.
+  assertFlattensSame(
+    '(module (func (export "f") (param i32) (result i32) local.get 0 nop i32.eqz unreachable))',
+  );
+  assertFlattensSame(
+    '(module (func (export "f") (param i32) (result i32) local.get 0 nop return))',
+  );
+  // A value ABANDONED under a trap is not taken by anything: flattened.
+  assertFlattensSame(
+    '(module (func (export "f") (param i32) (result i32) local.get 0 i32.eqz local.get 0 i32.eqz unreachable))',
+  );
+});
+
+Deno.test('Flatten: an arm or loop of one `unreachable` still traps', () => {
+  // 🔧 The arm kept only a concrete value; the trivial `unreachable` was
+  // dropped and the arm fell through (`spec/unreachable` "as-if-then").
+  assertFlattensSame(
+    '(module (func (export "f") (param i32) (result i32) (if (result i32) (local.get 0) (then (unreachable)) (else (local.get 0)))))',
+  );
+  assertFlattensSame(
+    '(module (func (export "f") (param i32) (result i32) (if (local.get 0) (then (loop (unreachable)))) (i32.const 5)))',
+  );
+});
