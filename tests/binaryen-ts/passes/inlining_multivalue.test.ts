@@ -18,8 +18,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { makeBlock, makeRegion } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
@@ -29,10 +29,10 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 function inlined(wat: string): { before: Uint8Array; after: Uint8Array } {
   const r = wat2wasm(wat);
   assert(!hasErrors(r.errors), formatErrors(r.errors));
-  const mod = parseWasm(r.binary);
+  const mod = readForPasses(r.binary);
   new PassRunner(mod, { optimizeLevel: 3, shrinkLevel: 0 }).add('Inlining').run();
   assertEquals(mod.functions.length, 1, 'the callee was inlined away');
-  return { before: r.binary, after: encodeWasm(mod) };
+  return { before: r.binary, after: writeWasm(mod) };
 }
 
 function run(bytes: Uint8Array, inputs: number[]): (number | string)[] {
@@ -74,16 +74,16 @@ Deno.test('Inlining a two-result callee whose body is ONE named block: no trappi
   // that falls through.
   const r = wat2wasm(CASES['falls through with two values']!);
   assert(!hasErrors(r.errors), formatErrors(r.errors));
-  const mod = parseWasm(r.binary);
+  const mod = readForPasses(r.binary);
   const callee = mod.functions.find((fn) => fn.sig.results.length === 2)!;
   callee.body = makeRegion(
     [makeBlock(callee.body.children, '$named', [ValType.I32, ValType.I32])],
     [ValType.I32, ValType.I32],
   );
-  const before = encodeWasm(mod);
+  const before = writeWasm(mod);
   new PassRunner(mod, { optimizeLevel: 3, shrinkLevel: 0 }).add('Inlining').run();
   assertEquals(mod.functions.length, 1, 'the callee was inlined away');
-  assertEquals(run(encodeWasm(mod), [0, 2, 7]), run(before, [0, 2, 7]));
+  assertEquals(run(writeWasm(mod), [0, 2, 7]), run(before, [0, 2, 7]));
 });
 
 for (const [name, wat] of Object.entries(CASES)) {

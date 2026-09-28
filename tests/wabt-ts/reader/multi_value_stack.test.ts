@@ -18,7 +18,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { formNodes } from '../../../src/wabt-ts/ir/text-form.ts';
 import type { Expr } from '../../../src/wabt-ts/ir/ir.ts';
 
@@ -52,7 +52,7 @@ describe('binary reader — one stack entry per value', () => {
 
   it("binaryen-ts's decoder builds the same operand shape", () => {
     const m = readBinaryIr(bytes, makeErrorList());
-    const d = parseWasm(bytes);
+    const d = readForPasses(bytes);
     for (const i of [2, 3]) assertEquals(operandKinds(m, i), operandKinds(d, i), `function ${i}`);
     // And the same instruction sequence, which is what the text-form record's
     // positions are indexed by.
@@ -90,7 +90,7 @@ describe('binary reader — one stack entry per value', () => {
 
     it('an unconsumed value is a typed `pop`, in the place it was pushed', () => {
       const m = readBinaryIr(tail, makeErrorList());
-      const d = parseWasm(tail);
+      const d = readForPasses(tail);
       const shape = (x: { functions: readonly { body: { children: readonly Expr[] } }[] }) =>
         x.functions[1]!.body.children.map((e) =>
           `${e.kind}(${JSON.stringify((e as { type?: unknown }).type)})`

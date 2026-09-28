@@ -895,8 +895,8 @@ export class ModuleBuilder {
    *
    * The named function runs at instantiation, before any export is callable,
    * and must take no parameters and return no results. The name is resolved at
-   * encode time — `encodeWasm` throws if it does not match a defined or
-   * imported function.
+   * write time — `writeWasm` throws (`undefined func "…"`) if it does not
+   * match a defined or imported function.
    *
    * @param name - Internal function name, or `null` to remove the start function.
    */
@@ -910,18 +910,15 @@ export class ModuleBuilder {
    * Adds a user-defined heap type (struct, array, or func) to the type section.
    * Returns the 0-based index for use in GC instructions.
    *
-   * A module with any entry here changes how the encoder emits the type
-   * section: it stops deduplicating function signatures collected from the
-   * module and emits `types` verbatim instead. **Every function's own
-   * signature must therefore be declared here as a `{ kind: "func" }` entry**,
-   * or `encodeWasm` throws `unresolved GC function type: () -> (i32)`.
-   * `addFunction` alone is enough with no types declared and not enough with
-   * them:
+   * Declared types are written first, in this order; a function signature
+   * that no declared type spells is appended after them when the module is
+   * written (`writeWasm`), so a `{ kind: "func" }` entry is needed only to fix
+   * WHICH type a function has. (Until 1.6.0 the encoder required every
+   * signature declared here once any type was.)
    *
    * ```ts
    * const t = m.addType({ kind: "struct", fields: [{ type: "i8", mutable: true }] });
-   * m.addType({ kind: "func", params: [], results: [ValType.I32] }); // required
-   * m.addFunction("read", [], [ValType.I32], body);
+   * m.addFunction("read", [], [ValType.I32], body); // its type is appended
    * ```
    *
    * @param def - The struct, array, or function type to declare.

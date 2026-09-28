@@ -25,8 +25,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ModuleBuilder } from '../../src/binaryen-ts/ir/module.ts';
@@ -99,7 +99,7 @@ async function loadRealCorpus(): Promise<CorpusEntry[]> {
   for (const file of files) {
     const buf = await fs.readFile(file);
     try {
-      const mod = parseWasm(new Uint8Array(buf), file);
+      const mod = readForPasses(new Uint8Array(buf), file);
       const numExprs = countExprs(mod);
       // Skip trivial modules: they pollute averages without exercising passes
       if (numExprs < 10) continue;
@@ -260,7 +260,7 @@ async function main(): Promise<void> {
     ]
   ) {
     const mod = buildStressModule(nf, nc);
-    const bytes = encodeWasm(mod);
+    const bytes = writeWasm(mod);
     synth.push({
       name: label,
       mod,
@@ -314,12 +314,12 @@ async function main(): Promise<void> {
     for (const passName of PASS_NAMES) {
       // Clone module per iteration so each pass sees a fresh tree
       const t = timeIt(passName, wl.iters, () => {
-        const fresh = parseWasm(wl.modBytes);
+        const fresh = readForPasses(wl.modBytes);
         runPassOnce(passName, fresh);
       });
       // Subtract parse time so we isolate pass time
       const tParse = timeIt(`parse:${wl.name}`, wl.iters, () => {
-        parseWasm(wl.modBytes);
+        readForPasses(wl.modBytes);
       });
       const passOnlyMs = Math.max(0, t - tParse);
       const nsPerExpr = (passOnlyMs * 1e6) / (wl.iters * wl.numExprs);
@@ -337,12 +337,12 @@ async function main(): Promise<void> {
       );
     }
     // Also time encoder + parser on this module
-    const fresh = parseWasm(wl.modBytes);
+    const fresh = readForPasses(wl.modBytes);
     const tEnc = timeIt('encode', wl.iters, () => {
-      encodeWasm(fresh);
+      writeWasm(fresh);
     });
     const tPar = timeIt('parse', wl.iters, () => {
-      parseWasm(wl.modBytes);
+      readForPasses(wl.modBytes);
     });
     const nsPerExprEnc = (tEnc * 1e6) / (wl.iters * wl.numExprs);
     const nsPerExprPar = (tPar * 1e6) / (wl.iters * wl.numExprs);

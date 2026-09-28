@@ -11,13 +11,13 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
-const re = encodeWasm(parseWasm(orig));
+const re = writeWasm(readForPasses(orig));
 try {
   await WebAssembly.compile(re as BufferSource);
   console.log('OK compiles');

@@ -33,9 +33,9 @@
  * @license MIT
  */
 
-import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { assert, assertEquals } from '@std/assert';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type BreakExpr,
   ExpressionKind,
@@ -48,6 +48,10 @@ import {
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
+import { lowerBlockParams } from '../../../src/binaryen-ts/passes/lower-block-params.ts';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
@@ -152,12 +156,12 @@ Deno.test('multi-result block: fixture is valid and returns both values', async 
 });
 
 Deno.test('multi-result block: survives a bare parse-encode round-trip', async () => {
-  const out = encodeWasm(parseWasm(MULTI_RESULT_BLOCK));
+  const out = writeWasm(readForPasses(MULTI_RESULT_BLOCK));
   assertEquals(await run(out), [1, 2]);
 });
 
 Deno.test('multi-result block: decodes to a tuple-typed block, no nop placeholders', () => {
-  const mod = parseWasm(MULTI_RESULT_BLOCK);
+  const mod = readForPasses(MULTI_RESULT_BLOCK);
   const body = mod.functions[0].body;
   const seen = kinds(body);
   assertEquals(
@@ -173,13 +177,13 @@ Deno.test('multi-result block: decodes to a tuple-typed block, no nop placeholde
 
 Deno.test('multi-value br: carries both values, not none', async () => {
   assertEquals(await run(MULTI_VALUE_BR), [7, 9]);
-  const out = encodeWasm(parseWasm(MULTI_VALUE_BR));
+  const out = writeWasm(readForPasses(MULTI_VALUE_BR));
   assertEquals(await run(out), [7, 9], 'values were dropped across the round-trip');
 });
 
 Deno.test('multi-value br: the branch decodes holding BOTH values in its list', () => {
   // Was "decodes to a tuple.make" — the container S6 decision 6A removed.
-  const br = findKind(parseWasm(MULTI_VALUE_BR).functions[0].body, ExpressionKind.Break) as
+  const br = findKind(readForPasses(MULTI_VALUE_BR).functions[0].body, ExpressionKind.Break) as
     | BreakExpr
     | undefined;
   assert(br, 'no br decoded');
@@ -205,17 +209,17 @@ const MULTI_VALUE_RETURN = Uint8Array.from([
 
 Deno.test('multi-value return: decodes holding EVERY value, none left loose', async () => {
   assertEquals(await run(MULTI_VALUE_RETURN), [1, 2]);
-  const body = parseWasm(MULTI_VALUE_RETURN).functions[0].body;
+  const body = readForPasses(MULTI_VALUE_RETURN).functions[0].body;
   assertEquals(body.children.map((c) => c.kind), [ExpressionKind.Return]);
   const ret = body.children[0] as ReturnExpr;
   assertEquals(ret.values.map((v) => v.kind), [ExpressionKind.Const, ExpressionKind.Const]);
-  assertEquals(await run(encodeWasm(parseWasm(MULTI_VALUE_RETURN))), [1, 2]);
+  assertEquals(await run(writeWasm(readForPasses(MULTI_VALUE_RETURN))), [1, 2]);
 });
 
 Deno.test('multi-result block: round-trip is a fixed point', () => {
-  const first = parseWasm(MULTI_RESULT_BLOCK);
-  const second = parseWasm(encodeWasm(first));
-  const third = parseWasm(encodeWasm(second));
+  const first = readForPasses(MULTI_RESULT_BLOCK);
+  const second = readForPasses(writeWasm(first));
+  const third = readForPasses(writeWasm(second));
   assertEquals(kinds(second.functions[0].body), kinds(first.functions[0].body));
   assertEquals(kinds(third.functions[0].body), kinds(second.functions[0].body));
 });
@@ -225,8 +229,8 @@ Deno.test('multi-result block: round-trip is a fixed point', () => {
  *
  *  - KEPT — the default decode: the parameters stay on the node, so the module
  *    re-encodes BYTE-IDENTICALLY;
- *  - LOWERED at decode (`lowerBlockParams`) — the long-standing spill / loop
- *    rewrite / trampoline, now asked for explicitly;
+ *  - LOWERED alone (`lowerBlockParams`, the tree pass — lowering at DECODE
+ *    went with binaryen-ts's decoder at 1.6.0);
  *  - lowered where OPTIMIZATION starts — `PassRunner` re-decodes that way
  *    before the first pass, then -Oz runs.
  *
@@ -236,13 +240,14 @@ Deno.test('multi-result block: round-trip is a fixed point', () => {
  */
 async function allPaths(bytes: Uint8Array, expected: unknown): Promise<void> {
   assertEquals(await run(bytes), expected, 'the fixture itself');
-  assertEquals(encodeWasm(parseWasm(bytes)), bytes, 'kept: not byte-identical');
-  const lowered = parseWasm(bytes, undefined, { lowerBlockParams: true });
-  assertEquals(await run(encodeWasm(lowered)), expected, 'lowered at decode');
-  const optimized = parseWasm(bytes);
+  assertEquals(writeWasm(readForPasses(bytes)), bytes, 'kept: not byte-identical');
+  const lowered = readForPasses(bytes);
+  lowerBlockParams(lowered);
+  assertEquals(await run(writeWasm(lowered)), expected, 'lowered alone');
+  const optimized = readForPasses(bytes);
   new PassRunner(optimized, { optimizeLevel: 2, shrinkLevel: 2 }).addDefaultOptimizationPasses()
     .run();
-  assertEquals(await run(encodeWasm(optimized)), expected, 'lowered by PassRunner, then -Oz');
+  assertEquals(await run(writeWasm(optimized)), expected, 'lowered by PassRunner, then -Oz');
 }
 
 Deno.test('block WITH INPUTS: entry values reach the body', async () => {
@@ -418,9 +423,9 @@ Deno.test('br_table trampoline: survives the optimizer at every level', async ()
   // reachable. DCE believed the type and deleted every case after the first:
   // -O1, -O2 and -Oz all turned this valid module invalid.
   for (const [optimizeLevel, shrinkLevel] of [[1, 0], [2, 0], [2, 2]] as const) {
-    const m = parseWasm(BR_TABLE_MIXED);
+    const m = readForPasses(BR_TABLE_MIXED);
     new PassRunner(m, { optimizeLevel, shrinkLevel }).addDefaultOptimizationPasses().run();
-    assertEquals(await run(encodeWasm(m)), 0, `-O${optimizeLevel} shrink ${shrinkLevel}`);
+    assertEquals(await run(writeWasm(m)), 0, `-O${optimizeLevel} shrink ${shrinkLevel}`);
   }
 });
 
@@ -428,11 +433,15 @@ Deno.test('br_table trampoline: round-trip converges', () => {
   // The spill/dispatch rewrite legitimately adds local.set/local.get nodes on
   // the FIRST trip. It must not keep growing after that. Lowering asked for on
   // every trip — the default keeps the parameters and would converge trivially.
-  const lower = { lowerBlockParams: true };
-  const g1 = parseWasm(BR_TABLE_MIXED, undefined, lower);
-  const g2 = parseWasm(encodeWasm(g1), undefined, lower);
-  const g3 = parseWasm(encodeWasm(g2), undefined, lower);
-  const g4 = parseWasm(encodeWasm(g3), undefined, lower);
+  const lower = (bytes: Uint8Array) => {
+    const m = readForPasses(bytes);
+    lowerBlockParams(m);
+    return m;
+  };
+  const g1 = lower(BR_TABLE_MIXED);
+  const g2 = lower(writeWasm(g1));
+  const g3 = lower(writeWasm(g2));
+  const g4 = lower(writeWasm(g3));
   assertEquals(kinds(g3.functions[0].body), kinds(g2.functions[0].body));
   assertEquals(kinds(g4.functions[0].body), kinds(g3.functions[0].body));
 });
@@ -446,11 +455,20 @@ const BAD_BLOCK_TYPE_INDEX = Uint8Array.from([
   ...sec(10, vecOf([fnBody([0x00, 0x02, 0x09, 0x41, 0x01, 0x41, 0x02, 0x0b, 0x0b])])),
 ]);
 
-Deno.test('an out-of-range block type index is rejected', () => {
+Deno.test('an out-of-range block type index is kept as written, and invalid', () => {
   // The module declares 2 types; the block names index 9. Silently treating an
   // unresolvable blocktype as void is how the ORIGINAL multi-value defect
   // corrupted modules, so this must stay loud.
-  assertThrows(() => parseWasm(BAD_BLOCK_TYPE_INDEX), WasmBinaryError, 'out of range');
+  //
+  // binaryen-ts's decoder refused it while reading; it was deleted at 1.6.0.
+  // The one reader keeps the index as written — no repair, the same bytes come
+  // back — and the validator is what refuses it, loudly.
+  assertEquals(writeWasm(readForPasses(BAD_BLOCK_TYPE_INDEX)), BAD_BLOCK_TYPE_INDEX);
+  const { errors } = wasmValidate(BAD_BLOCK_TYPE_INDEX, { features: allFeatures() });
+  assert(
+    formatErrors(errors).includes('type index 9 is not a function type'),
+    formatErrors(errors),
+  );
 });
 
 Deno.test('if WITH INPUTS: the two arms do not share expression nodes', () => {
@@ -460,8 +478,9 @@ Deno.test('if WITH INPUTS: the two arms do not share expression nodes', () => {
   // marks a node by identity, as CoalesceLocals does, would then affect both
   // arms at once. Checked on both decodes: kept, each arm starts with its own
   // `Pop`s; lowered, with its own `local.get`s.
-  for (const lowerBlockParams of [false, true]) {
-    const mod = parseWasm(IF_WITH_INPUT, undefined, { lowerBlockParams });
+  for (const lowered of [false, true]) {
+    const mod = readForPasses(IF_WITH_INPUT);
+    if (lowered) lowerBlockParams(mod);
     const seen = new Set<unknown>();
     const shared: string[] = [];
     const walk = (e: unknown): void => {
@@ -478,7 +497,7 @@ Deno.test('if WITH INPUTS: the two arms do not share expression nodes', () => {
       }
     };
     walk(mod.functions[0].body);
-    assertEquals(shared, [], `shared node(s), lowerBlockParams=${lowerBlockParams}`);
+    assertEquals(shared, [], `shared node(s), lowered=${lowered}`);
   }
 });
 
@@ -511,15 +530,15 @@ const BLOCK_TYPE_INDEX_ORDER = Uint8Array.from([
 
 Deno.test('multi-result block: the emitted blocktype index addresses the emitted type section', async () => {
   assertEquals(await run(BLOCK_TYPE_INDEX_ORDER), 1);
-  assertEquals(await run(encodeWasm(parseWasm(BLOCK_TYPE_INDEX_ORDER))), 1);
+  assertEquals(await run(writeWasm(readForPasses(BLOCK_TYPE_INDEX_ORDER))), 1);
 });
 
 Deno.test('multi-result block: type-index ordering survives the full -Oz pipeline', async () => {
-  const mod = parseWasm(BLOCK_TYPE_INDEX_ORDER);
+  const mod = readForPasses(BLOCK_TYPE_INDEX_ORDER);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
     .addDefaultOptimizationPasses()
     .run();
-  assertEquals(await run(encodeWasm(mod)), 1);
+  assertEquals(await run(writeWasm(mod)), 1);
 });
 
 // ---------------------------------------------------------------------------
@@ -559,7 +578,7 @@ Deno.test('type collection reaches a call_indirect carried as a multi-value bran
   b.addExport('f', '$f', ExternalKind.Func);
 
   // Threw `unresolved function type: () -> (i32)` before the fix.
-  const out = encodeWasm(b.build());
+  const out = writeWasm(b.build());
   const buf = new ArrayBuffer(out.byteLength);
   new Uint8Array(buf).set(out);
   await WebAssembly.compile(buf);

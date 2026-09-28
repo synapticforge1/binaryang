@@ -29,7 +29,7 @@ import {
   makePop,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { mapExpression, walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { heapAbstract } from '../../../src/binaryen-ts/ir/gc-types.ts';
@@ -82,7 +82,7 @@ describe('br_on carries its branch values', () => {
       ),
     );
     m.addExport('f', 'f');
-    const bytes = encodeWasm(m.build());
+    const bytes = writeWasm(m.build());
     assert(WebAssembly.validate(bytes as BufferSource), 'the carried value must be on the stack');
     const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
     const f = instance.exports.f as (r: unknown) => number;

@@ -13,8 +13,8 @@
 
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
 import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
 import '../../src/binaryen-ts/passes/index.ts';
@@ -50,7 +50,7 @@ function stubImports(): Record<string, Record<string, unknown>> {
 
 function fibOf(bytes: Uint8Array, n: number): string {
   try {
-    const mod = parseWasm(bytes);
+    const mod = readForPasses(bytes);
     const imports: Record<string, Record<string, unknown>> = {};
     for (const imp of mod.imports) {
       imports[imp.module] ??= {};
@@ -97,20 +97,20 @@ function fibOf(bytes: Uint8Array, n: number): string {
 const N = 7;
 console.log(`# _fib(${N})`);
 console.log(`input (original):        ${fibOf(orig, N)}`);
-console.log(`ours parse->encode:      ${fibOf(encodeWasm(parseWasm(orig)), N)}`);
+console.log(`ours parse->encode:      ${fibOf(writeWasm(readForPasses(orig)), N)}`);
 
 console.log('\n## cumulative:');
 for (let i = 1; i <= OZ.length; i++) {
-  const mod = parseWasm(orig);
+  const mod = readForPasses(orig);
   const runner = new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 });
   for (const n of OZ.slice(0, i)) runner.addPass(createPass(n));
   runner.run();
-  console.log(`+${OZ[i - 1].padEnd(28)} ${fibOf(encodeWasm(mod), N)}`);
+  console.log(`+${OZ[i - 1].padEnd(28)} ${fibOf(writeWasm(mod), N)}`);
 }
 
 console.log('\n## each pass individually (fresh parse):');
 for (const name of [...new Set(OZ)]) {
-  const mod = parseWasm(orig);
+  const mod = readForPasses(orig);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).addPass(createPass(name)).run();
-  console.log(`${name.padEnd(28)} ${fibOf(encodeWasm(mod), N)}`);
+  console.log(`${name.padEnd(28)} ${fibOf(writeWasm(mod), N)}`);
 }

@@ -18,8 +18,8 @@ import { assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { elemFuncNames, importName, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { makeI32Const } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
@@ -30,7 +30,7 @@ function assemble(wat: string): Uint8Array {
   if (hasErrors(r.errors)) throw new Error(formatErrors(r.errors));
   return r.binary;
 }
-const roundTrip = (b: Uint8Array) => encodeWasm(parseWasm(b));
+const roundTrip = (b: Uint8Array) => writeWasm(readForPasses(b));
 /** The body of known section `id`, as hex. */
 function section(bytes: Uint8Array, id: number): string {
   let i = 8;
@@ -90,7 +90,7 @@ describe('M3 — an element segment keeps what the binary said', () => {
   }
 
   it('a ref.null entry is held, and names no function', () => {
-    const mod = parseWasm(
+    const mod = readForPasses(
       assemble('(module (func $f) (elem funcref (ref.func $f) (ref.null func)))'),
     );
     const seg = mod.elements[0]!;
@@ -107,14 +107,14 @@ describe('M3 — an element segment keeps what the binary said', () => {
     // The distinction the spec draws between `(elem … $f)` and
     // `(elem … funcref (ref.func $f))`: conflating them makes an invalid module
     // (a funcref segment against a `(ref func)` table) come back looking valid.
-    const funcIdx = parseWasm(
+    const funcIdx = readForPasses(
       assemble('(module (func $f) (table 1 funcref) (elem (i32.const 0) $f))'),
     );
     assertEquals(funcIdx.elements[0]!.elemType, {
       heapType: { kind: 'abstract', name: 'func' },
       nullable: false,
     });
-    const exprs = parseWasm(
+    const exprs = readForPasses(
       assemble(
         '(module (func $f) (table 1 funcref) (elem (table 0) (i32.const 0) funcref (ref.func $f)))',
       ),
@@ -125,10 +125,10 @@ describe('M3 — an element segment keeps what the binary said', () => {
 
 describe('M3 — a data segment says how it reaches its memory', () => {
   it('active and passive round-trip, and say which they are', () => {
-    const active = parseWasm(assemble('(module (memory 1) (data (i32.const 0) "hi"))'));
+    const active = readForPasses(assemble('(module (memory 1) (data (i32.const 0) "hi"))'));
     assertEquals(active.dataSegments[0]!.kind, 'active');
     assertEquals(active.dataSegments[0]!.memoryVar, varIndex(0));
-    const passive = parseWasm(assemble('(module (memory 1) (data "hi"))'));
+    const passive = readForPasses(assemble('(module (memory 1) (data "hi"))'));
     assertEquals(passive.dataSegments[0]!.kind, 'passive');
   });
 
@@ -138,7 +138,7 @@ describe('M3 — a data segment says how it reaches its memory', () => {
       .addDataSegment('$d', makeI32Const(0), new Uint8Array([1]))
       .build();
     mod.dataSegments[0]!.kind = 'declared';
-    assertThrows(() => encodeWasm(mod), WasmEncodeError, 'never declared');
+    assertThrows(() => writeWasm(mod), WasmEncodeError, 'never declared');
   });
 });
 
@@ -164,7 +164,7 @@ describe('M4 — an import embeds the entity it names', () => {
     // The import SECTION (2): the whole binary also carries a name section,
     // whose own round trip is N1's business, not M4's.
     assertEquals(section(roundTrip(bytes), 2), section(bytes, 2));
-    const imps = parseWasm(bytes).imports;
+    const imps = readForPasses(bytes).imports;
     assertEquals(imps.map((i) => i.kind), [
       ExternalKind.Func,
       ExternalKind.Table,
@@ -183,7 +183,7 @@ describe('M4 — an import embeds the entity it names', () => {
 
   it('importName reads the name from the entity, kind by kind', () => {
     // The names the module itself gives them (its name section).
-    assertEquals(parseWasm(assemble(wat)).imports.map(importName), [
+    assertEquals(readForPasses(assemble(wat)).imports.map(importName), [
       '$f',
       '$t',
       '$mem',

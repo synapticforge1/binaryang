@@ -21,8 +21,8 @@
  * `spec/br/br.0.wasm`: "not enough arguments on the stack for local.set". A block
  * body cannot consume the enclosing frame's stack.
  *
- * binaryen-ts's decoder never had the problem because it spills while decoding
- * (`wasm-parser.ts`'s `pop`): the value goes into a fresh local AT ITS ORIGINAL
+ * binaryen-ts's decoder (deleted at 1.6.0) never had the problem because it
+ * spilled while decoding (`wasm-parser.ts`'s `pop`): the value goes into a fresh local AT ITS ORIGINAL
  * POSITION and the consumer reads that local. This does the same to a finished
  * tree, so route B reaches the passes in the shape they were written for, while
  * the reader's own output stays byte-exact — a `pop` writes nothing, and this runs

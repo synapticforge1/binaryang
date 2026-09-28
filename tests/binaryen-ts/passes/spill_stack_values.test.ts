@@ -24,7 +24,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { spillStackValues } from '../../../src/binaryen-ts/passes/spill-stack-values.ts';
 import { ExpressionKind, typeOf } from '../../../src/binaryen-ts/ir/expressions.ts';
@@ -82,7 +82,7 @@ describe("a stack-held value survives the passes (R11')", () => {
   it('-O3 gives a VALID module that computes the same', () => {
     const m = routeB(bytes);
     new PassRunner(m, { optimizeLevel: 3, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource), 'the optimized module is valid');
     for (const arg of [0, 7, -3]) assertEquals(call(out, arg), call(bytes, arg), `f(${arg})`);
   });
@@ -111,7 +111,7 @@ describe("a stack-held value survives the passes (R11')", () => {
     assert(spillStackValues(m) > 0, 'a function was rewritten');
     assertEquals(pops(m), 0, 'nothing is left depending on the stack');
     // And the rewrite is faithful: the module still computes what it did.
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource));
     for (const arg of [0, 7, -3]) assertEquals(call(out, arg), call(bytes, arg), `f(${arg})`);
   });
@@ -120,7 +120,7 @@ describe("a stack-held value survives the passes (R11')", () => {
     const m = routeB(bytes);
     new PassRunner(m).run();
     assert(pops(m) > 0, 'the placeholders are still there');
-    assertEquals([...encodeWasm(m)], [...bytes], 'byte-identical');
+    assertEquals([...writeWasm(m)], [...bytes], 'byte-identical');
   });
 });
 
@@ -146,13 +146,13 @@ describe('a CHAIN of values, each taken by the next statement', () => {
       { ...eqz, value: pop(typeOf(eqz.value)) } as Expression,
       { ...ret, values: [pop(typeOf(eqz))] } as Expression,
     ];
-    const chained = encodeWasm(m);
+    const chained = writeWasm(m);
     assertEquals(results(chained), results(bytes), 'the hand-built chain is the same program');
     assert(pops(m) === 2, 'the fixture holds the chain');
 
     assert(spillStackValues(m) > 0);
     assertEquals(pops(m), 0, 'both links were nested');
-    assertEquals(results(encodeWasm(m)), results(bytes), 'valid, and nothing was lost');
+    assertEquals(results(writeWasm(m)), results(bytes), 'valid, and nothing was lost');
   });
 });
 
@@ -205,7 +205,7 @@ describe('what the spill must leave alone', () => {
     assert(before > 0, 'the fixture has a placeholder for the pair');
     spillStackValues(m);
     assertEquals(pops(m), before, 'a tuple has no single node to spill');
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource));
     assertEquals(call(out, 0), call(bytes, 0));
   });
@@ -238,7 +238,7 @@ describe('a `pop` with nothing behind it becomes `unreachable`', () => {
       });
     }
     assert(unreachables >= 2, `the phantom values became unreachable (${unreachables})`);
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource), 'and the module is still valid');
   });
 });

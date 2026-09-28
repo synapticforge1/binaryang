@@ -33,7 +33,7 @@ import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { deepCopy, measureSize } from '../../../src/binaryen-ts/passes/inlining.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { nameOf } from '../../../src/wabt-ts/ir/ir.ts';
@@ -1108,7 +1108,7 @@ Deno.test('Inlining: callee that returns via a block-wrapped `return` yields a v
   assert(!hasCall(caller.body, '$callee'), 'the call should have been inlined');
 
   // Must validate AND compute correctly.
-  const compiled = await WebAssembly.compile(encodeWasm(mod) as BufferSource);
+  const compiled = await WebAssembly.compile(writeWasm(mod) as BufferSource);
   const inst = new WebAssembly.Instance(compiled);
   assertEquals((inst.exports.caller as (x: number) => number)(10), 15);
 });

@@ -1467,6 +1467,16 @@ the same bytes (binary order is post-order): every byte test passed that mutant.
 the parsed tree caught it. **How to apply:** when a mutant survives every byte test, ask whether the
 defect is in a stage the bytes cannot see, and assert THAT stage (the tree), not the output.
 
+### Deleting a component deletes the checks it made — run the suite on what remains
+
+Unpublishing binaryen-ts's encoder looked mechanical: every entry point had used the one writer
+for a stage already, with 14,595 outputs identical. Deleting it and running the suite on the one
+writer ALONE found four defects the encoder had been covering (one live on the public API since
+stage 4a — the parity measure could not see it, because it compared READ trees, and the defect
+needed an API-built one) and seven refusals nothing else made. **How to apply:** before calling
+a deletion mechanical, list what the deleted code REFUSED or NORMALIZED, and make sure each has a
+new home; a parity measurement is evidence only about the inputs it fed.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

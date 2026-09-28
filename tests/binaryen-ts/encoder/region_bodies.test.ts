@@ -32,7 +32,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 // wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../nameless_reference.ts.
 import { wabtReference } from '../nameless_reference.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -45,12 +45,12 @@ function bothAgree(wat: string, want: number, arg = 0): void {
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports.f as (x: number) => number)(arg);
   assertEquals(run(ref.binary), want, 'wabt-ts');
-  assertEquals(run(encodeWasm(parseWat(wat))), want, 'binaryen-ts');
+  assertEquals(run(writeWasm(parseWat(wat))), want, 'binaryen-ts');
 }
 
 /** The number of `block` instructions in the encoded body, via disassembly. */
 function blockCount(wat: string): number {
-  const bytes = encodeWasm(parseWat(wat));
+  const bytes = writeWasm(parseWat(wat));
   const ref = wabtReference(wat, { filename: 'c.wat' });
   assert(ref.binary && !hasErrors(ref.errors));
   // Compare against wabt-ts rather than an absolute number: the claim is "no

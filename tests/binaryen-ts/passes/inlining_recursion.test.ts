@@ -17,8 +17,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
@@ -54,17 +54,17 @@ for (
 ) {
   Deno.test(`${label}: a recursive callee survives, and the module still computes the same`, () => {
     const bytes = assemble(WAT);
-    const mod = parseWasm(bytes);
+    const mod = readForPasses(bytes);
     configure(new PassRunner(mod, { optimizeLevel: 3, shrinkLevel: 0 })).run();
     const names = mod.functions.map((fn) => fn.name);
     assert(names.includes('$fact'), `$fact was removed: ${names.join(' ')}`);
-    const out = encodeWasm(mod);
+    const out = writeWasm(mod);
     assertEquals([1, 5, 7].map(f(out)), [1, 5, 7].map(f(bytes)));
   });
 }
 
 Deno.test('Inlining: a callee inlined at every call site is still removed', () => {
-  const mod = parseWasm(assemble(WAT));
+  const mod = readForPasses(assemble(WAT));
   new PassRunner(mod, { optimizeLevel: 3, shrinkLevel: 0 }).add('Inlining').run();
   assertEquals(mod.functions.some((fn) => fn.name === '$double'), false);
 });

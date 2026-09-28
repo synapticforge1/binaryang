@@ -24,8 +24,7 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type BinaryExpr,
   BinaryOp,
@@ -37,7 +36,7 @@ import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
@@ -160,7 +159,7 @@ for (const [lane, op] of CASES) {
     const wat = watFor(lane, op);
     const mod = parseWat(wat);
     assertBinaryShift(nodesWithOpcode(mod, opcode)[0], opcode, 'parseWat');
-    const bytes = encodeWasm(mod);
+    const bytes = writeWasm(mod);
     assertEquals(bytes, wabtReference(wat).binary);
     run(bytes, lane, op);
   });
@@ -168,9 +167,9 @@ for (const [lane, op] of CASES) {
   Deno.test(`K3: ${name} — the decoder builds a binary and re-encodes byte-identically`, () => {
     const ref = wat2wasm(watFor(lane, op));
     assert(!hasErrors(ref.errors), formatErrors(ref.errors));
-    const mod = parseWasm(ref.binary);
+    const mod = readForPasses(ref.binary);
     assertBinaryShift(nodesWithOpcode(mod, opcode)[0], opcode, 'decoder');
-    const bytes = encodeWasm(mod);
+    const bytes = writeWasm(mod);
     assertEquals(bytes, ref.binary);
     run(bytes, lane, op);
   });
@@ -187,7 +186,7 @@ for (const [lane, op] of CASES) {
     synthesizeTypes(module);
     const mod = prepareForPasses(module);
     assertBinaryShift(nodesWithOpcode(mod, opcode)[0], opcode, 'direct');
-    run(encodeWasm(mod), lane, op);
+    run(writeWasm(mod), lane, op);
   });
 
   // The reason K3 went this way. LocalCSE is an allow-list of kinds; as a
@@ -195,13 +194,13 @@ for (const [lane, op] of CASES) {
   Deno.test(`K3: ${name} — LocalCSE reuses a repeated shift, and the result still runs`, () => {
     const ref = wat2wasm(watFor(lane, op, 2));
     assert(!hasErrors(ref.errors), formatErrors(ref.errors));
-    const mod = parseWasm(ref.binary);
+    const mod = readForPasses(ref.binary);
     assertEquals(nodesWithOpcode(mod, opcode).length, 2, 'two shifts before');
     const localsBefore = mod.functions[0]!.locals.length;
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).add('LocalCSE').run();
     assertEquals(mod.functions[0]!.locals.length, localsBefore + 1, 'one CSE local added');
     assertEquals(nodesWithOpcode(mod, opcode).length, 1, 'one shift after');
-    run(encodeWasm(mod), lane, op, 2);
+    run(writeWasm(mod), lane, op, 2);
   });
 }
 

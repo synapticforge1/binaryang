@@ -18,12 +18,12 @@
  * outcome on every variant. So the manifests' `expected` values are never
  * needed, and our code never decides what is right. The variants:
  *
- * - `A round trip` — binaryen-ts's decoder, then its encoder (the published
- *   `parseWasm` / `encodeWasm`, until the bump that unpublishes them), no pass.
- * - `B round trip` — what the tools do (One front end stages 3a and 4): the
- *   wabt-ts reader through `readForPasses`, the wabt-ts writer through
- *   `writeWasm`, no pass.
- * - `A -O1` … `B -Oz` — each route through `PassRunner` at the five levels.
+ * - `round trip` — what the tools do: the one reader through `readForPasses`,
+ *   the one writer through `writeWasm`, no pass.
+ * - `-O1` … `-Oz` — the same through `PassRunner` at the five levels.
+ *
+ * Until 1.6.0 each variant also ran on "route A", binaryen-ts's own decoder and
+ * encoder; both were deleted then (One front end stages 3b and 4b).
  *
  * What a variant can come to:
  *
@@ -46,8 +46,6 @@
  * that failure too.
  */
 
-import { parseWasm } from '../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/index.ts';
 import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { type PassOptions, PassRunner } from '../../src/binaryen-ts/passes/index.ts';
@@ -105,28 +103,16 @@ const LEVELS: [string, PassOptions['optimizeLevel'], PassOptions['shrinkLevel']]
   ['-Oz', 2, 2],
 ];
 
-/** Each route: how bytes are read, and how the module is written back. */
-const ROUTES: Record<
-  'A' | 'B',
-  { read: (b: Uint8Array) => WasmModule; write: (m: WasmModule) => Uint8Array }
-> = {
-  A: { read: (b) => parseWasm(b), write: (m) => encodeWasm(m) },
-  B: { read: (b) => readForPasses(b), write: (m) => writeWasm(m) },
-};
-
 /** Every variant, built lazily so one that throws is refused alone. */
 function variants(bytes: Uint8Array): [string, () => Uint8Array][] {
   const out: [string, () => Uint8Array][] = [];
-  for (const [route, { read, write }] of Object.entries(ROUTES)) {
-    out.push([`${route} round trip`, () => write(read(bytes))]);
-    for (const [level, o, s] of LEVELS) {
-      out.push([`${route} ${level}`, () => {
-        const m = read(bytes);
-        new PassRunner(m, { optimizeLevel: o, shrinkLevel: s }).addDefaultOptimizationPasses()
-          .run();
-        return write(m);
-      }]);
-    }
+  out.push(['round trip', () => writeWasm(readForPasses(bytes))]);
+  for (const [level, o, s] of LEVELS) {
+    out.push([level, () => {
+      const m: WasmModule = readForPasses(bytes);
+      new PassRunner(m, { optimizeLevel: o, shrinkLevel: s }).addDefaultOptimizationPasses().run();
+      return writeWasm(m);
+    }]);
   }
   return out;
 }

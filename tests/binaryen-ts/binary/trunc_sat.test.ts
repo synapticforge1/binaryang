@@ -15,8 +15,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { UnaryOp } from '../../../src/binaryen-ts/ir/expressions.ts';
 
@@ -61,7 +61,7 @@ describe('binaryen-ts decoder — saturating truncation stays saturating', () =>
   const bytes = wat2wasm(SRC, { textForm: false }).binary;
 
   it('each decodes to its own saturating opcode, typed by its result', () => {
-    const m = parseWasm(bytes);
+    const m = readForPasses(bytes);
     const expected = [
       UnaryOp.TruncSatSF32ToI32,
       UnaryOp.TruncSatUF32ToI32,
@@ -81,7 +81,7 @@ describe('binaryen-ts decoder — saturating truncation stays saturating', () =>
   });
 
   it('decode → encode gives the input bytes back', () => {
-    assertEquals([...encodeWasm(parseWasm(bytes))], [...bytes]);
+    assertEquals([...writeWasm(readForPasses(bytes))], [...bytes]);
   });
 
   it('the optimizer keeps the saturating results, at every level', () => {
@@ -91,9 +91,9 @@ describe('binaryen-ts decoder — saturating truncation stays saturating', () =>
     assertEquals(want.flat().includes('TRAP'), false);
     const levels = [[1, 0], [2, 0], [3, 0], [2, 1], [2, 2]] as const;
     for (const [optimizeLevel, shrinkLevel] of levels) {
-      const m = parseWasm(bytes);
+      const m = readForPasses(bytes);
       new PassRunner(m, { optimizeLevel, shrinkLevel }).addDefaultOptimizationPasses().run();
-      assertEquals(results(encodeWasm(m)), want, `-O${optimizeLevel} shrink ${shrinkLevel}`);
+      assertEquals(results(writeWasm(m)), want, `-O${optimizeLevel} shrink ${shrinkLevel}`);
     }
   });
 });

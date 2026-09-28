@@ -18,8 +18,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { makeI32Const, makeThrow } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
@@ -61,7 +61,7 @@ function sectionBody(bytes: Uint8Array, id: number): Uint8Array | null {
 }
 
 Deno.test('tag import: encodes as import kind 0x04 with a reserved attribute byte', () => {
-  const bytes = encodeWasm(moduleWithImportedAndDefinedTag());
+  const bytes = writeWasm(moduleWithImportedAndDefinedTag());
   const imports = sectionBody(bytes, 2);
   assert(imports !== null, 'no import section emitted');
 
@@ -72,8 +72,8 @@ Deno.test('tag import: encodes as import kind 0x04 with a reserved attribute byt
 });
 
 Deno.test('tag import: survives a parse-encode round-trip', () => {
-  const out = encodeWasm(parseWasm(encodeWasm(moduleWithImportedAndDefinedTag())));
-  const mod = parseWasm(out);
+  const out = writeWasm(readForPasses(writeWasm(moduleWithImportedAndDefinedTag())));
+  const mod = readForPasses(out);
 
   const tagImports = mod.imports.filter((i) => i.kind === ExternalKind.Tag);
   assertEquals(tagImports.length, 1);
@@ -83,7 +83,7 @@ Deno.test('tag import: survives a parse-encode round-trip', () => {
 });
 
 Deno.test('tag import: imported tags take the low end of the tag index space', () => {
-  const mod = parseWasm(encodeWasm(moduleWithImportedAndDefinedTag()));
+  const mod = readForPasses(writeWasm(moduleWithImportedAndDefinedTag()));
 
   // The import is $tag0; the defined tag is numbered after it, not from zero.
   assertEquals(
@@ -97,8 +97,8 @@ Deno.test('tag import: a throw of a DEFINED tag still resolves past the import',
   // The teeth: numbering defined tags from zero while an import exists would
   // encode this `throw $tag1` as tag index 0 — the IMPORTED tag. Valid wasm,
   // wrong tag thrown.
-  const bytes = encodeWasm(moduleWithImportedAndDefinedTag());
-  const mod = parseWasm(bytes);
+  const bytes = writeWasm(moduleWithImportedAndDefinedTag());
+  const mod = readForPasses(bytes);
 
   const body = mod.functions[0].body;
   const found: Var[] = [];
@@ -121,8 +121,8 @@ Deno.test('tag import: an imported tag can be re-exported', () => {
     .addExport('reexported', '$tag0', ExternalKind.Tag)
     .build();
 
-  const out = encodeWasm(mod);
-  const parsed = parseWasm(out);
+  const out = writeWasm(mod);
+  const parsed = readForPasses(out);
   const exp = parsed.exports.find((e) => e.name === 'reexported');
   assert(exp !== undefined, 'tag export was dropped');
   assertEquals(exp.kind, ExternalKind.Tag);

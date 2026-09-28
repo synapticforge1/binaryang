@@ -26,8 +26,8 @@ import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 /**
  * The section sequence: known sections by id, custom sections as
@@ -114,7 +114,7 @@ describe('C2 — a custom section survives wasm2wat → wat2wasm, where it stood
     // section, so a decode → encode lost `producers`, `target_features`,
     // `dylink.0` outright. It now restores each one's position, which upstream
     // `wasm-opt` does for `dylink.0` alone (register C6).
-    assert(same(encodeWasm(parseWasm(THREE)), THREE), hex(encodeWasm(parseWasm(THREE))));
+    assert(same(writeWasm(readForPasses(THREE)), THREE), hex(writeWasm(readForPasses(THREE))));
   });
 });
 
@@ -305,8 +305,8 @@ describe('C2 — a `name` section written as an annotation is the name section',
 
   it('binaryen-ts names from the last one as well (it writes one section, as binaryen does)', () => {
     assert(
-      layout(encodeWasm(parseWasm(TWO))).includes('"name"=010401000162'),
-      layout(encodeWasm(parseWasm(TWO))),
+      layout(writeWasm(readForPasses(TWO))).includes('"name"=010401000162'),
+      layout(writeWasm(readForPasses(TWO))),
     );
   });
 });

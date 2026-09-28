@@ -14,8 +14,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type CallExpr,
   type CallIndirectExpr,
@@ -79,7 +79,7 @@ const RETURN_CALL_MODULE = new Uint8Array([
 ]);
 
 Deno.test('Phase 13: parser decodes 0x12 as Call with isReturn=true', () => {
-  const mod = parseWasm(RETURN_CALL_MODULE);
+  const mod = readForPasses(RETURN_CALL_MODULE);
   assertEquals(mod.functions.length, 1);
   const body = mod.functions[0].body;
   // Body is a block containing the return_call as its single child.
@@ -98,7 +98,7 @@ Deno.test('Phase 13: parser distinguishes call vs return_call', () => {
   assert(opcodeOffset > 0, 'could not locate 0x12 in fixture');
   plainCallModule[opcodeOffset] = 0x10;
 
-  const mod = parseWasm(plainCallModule);
+  const mod = readForPasses(plainCallModule);
   const target = unwrapSingle(mod.functions[0].body);
   assertEquals(target.kind, ExpressionKind.Call);
   // ABSENT, not `false` (M8a2): absent is the one spelling of a plain call.
@@ -106,10 +106,10 @@ Deno.test('Phase 13: parser distinguishes call vs return_call', () => {
 });
 
 Deno.test('Phase 13: encoder emits 0x12 for isReturn=true Call', () => {
-  const mod = parseWasm(RETURN_CALL_MODULE);
-  const out = encodeWasm(mod);
+  const mod = readForPasses(RETURN_CALL_MODULE);
+  const out = writeWasm(mod);
   // Re-parse: isReturn must survive the round-trip.
-  const reparsed = parseWasm(out);
+  const reparsed = readForPasses(out);
   const target = unwrapSingle(reparsed.functions[0].body);
   assertEquals((target as CallExpr).isReturn, true);
 });
@@ -118,8 +118,8 @@ Deno.test('Phase 13: WAT (return_call $f) → encode → parse round-trip preser
   const mod = parseWat(`(module
     (func $f
       (return_call $f)))`);
-  const out = encodeWasm(mod);
-  const reparsed = parseWasm(out);
+  const out = writeWasm(mod);
+  const reparsed = readForPasses(out);
   const target = unwrapSingle(reparsed.functions[0].body);
   assertEquals(target.kind, ExpressionKind.Call);
   assertEquals((target as CallExpr).isReturn, true);
@@ -130,8 +130,8 @@ Deno.test('Phase 13: WAT (return_call_indirect ...) with explicit (param ...)/(r
     (table $t 1 funcref)
     (func $f (param i32) (result i32)
       (return_call_indirect (param i32) (result i32) (local.get 0) (i32.const 0))))`);
-  const out = encodeWasm(mod);
-  const reparsed = parseWasm(out);
+  const out = writeWasm(mod);
+  const reparsed = readForPasses(out);
   const target = unwrapSingle(reparsed.functions[0].body);
   assertEquals(target.kind, ExpressionKind.CallIndirect);
   assertEquals((target as CallIndirectExpr).isReturn, true);
@@ -148,8 +148,8 @@ Deno.test('Phase 13 + Phase 1: WAT (return_call_indirect (type $sig) ...) resolv
     (type $sig (func (param i32) (result i32)))
     (func $f (param i32) (result i32)
       (return_call_indirect (type $sig) (local.get 0) (i32.const 0))))`);
-  const out = encodeWasm(mod);
-  const reparsed = parseWasm(out);
+  const out = writeWasm(mod);
+  const reparsed = readForPasses(out);
   const target = unwrapSingle(reparsed.functions[0].body);
   assertEquals(target.kind, ExpressionKind.CallIndirect);
   assertEquals((target as CallIndirectExpr).isReturn, true);

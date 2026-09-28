@@ -19,8 +19,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const CONSTS = [
   'f32.const nan:0x200000', // signalling: quiet bit clear
@@ -48,12 +48,15 @@ describe('binaryen-ts keeps a float constant bit for bit', () => {
 
     it(`${c}: decode -> encode is byte-identical`, () => {
       const bytes = wat2wasm(wat).binary;
-      assertEquals(encodeWasm(parseWasm(bytes)), bytes);
+      assertEquals(writeWasm(readForPasses(bytes)), bytes);
     });
 
     it(`${c}: and the round-tripped module still returns the same bits`, async () => {
       const bytes = wat2wasm(wat).binary;
-      assertEquals(await bitsAtRuntime(encodeWasm(parseWasm(bytes))), await bitsAtRuntime(bytes));
+      assertEquals(
+        await bitsAtRuntime(writeWasm(readForPasses(bytes))),
+        await bitsAtRuntime(bytes),
+      );
     });
   }
 });

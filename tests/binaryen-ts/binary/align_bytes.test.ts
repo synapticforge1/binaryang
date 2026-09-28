@@ -11,8 +11,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import * as binaryen from '../../../src/binaryen-ts/api/binaryen-compat.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { makeDrop, makeI32Const, makeLoad } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
@@ -61,7 +61,7 @@ function loadWithExponent(exponent: number): Uint8Array {
 
 describe('M8a1 — a node holds its alignment in BYTES', () => {
   it('the decoder turns the binary exponent into bytes', () => {
-    const load = soleInstr(parseWasm(loadWithExponent(2)).functions[0]!.body) as {
+    const load = soleInstr(readForPasses(loadWithExponent(2)).functions[0]!.body) as {
       value?: unknown;
     };
     // `drop` wraps the load.
@@ -72,18 +72,24 @@ describe('M8a1 — a node holds its alignment in BYTES', () => {
   it('and the encoder turns it back: a round trip is byte-identical', () => {
     for (const e of [0, 1, 2]) {
       const bytes = loadWithExponent(e);
-      assertEquals(encodeWasm(parseWasm(bytes)), bytes, `exponent ${e}`);
+      assertEquals(writeWasm(readForPasses(bytes)), bytes, `exponent ${e}`);
     }
   });
 
   it('an exponent past 8 is refused, as upstream binaryen refuses it; 8 is not', () => {
-    parseWasm(loadWithExponent(8)); // invalid for i32.load, but of a reasonable size
-    assertThrows(() => parseWasm(loadWithExponent(9)), Error, 'reasonable size');
+    // Refused when WRITTEN since 1.6.0: binaryen-ts's decoder refused it while
+    // reading and went then; the one reader keeps the exponent as written.
+    writeWasm(readForPasses(loadWithExponent(8))); // invalid for i32.load, but of a reasonable size
+    assertThrows(
+      () => writeWasm(readForPasses(loadWithExponent(9))),
+      Error,
+      'not a power of two up to 256',
+    );
   });
 
   it('the encoder refuses an alignment that is not a power of two up to 256', () => {
     const encode = (align: number) =>
-      encodeWasm(
+      writeWasm(
         new ModuleBuilder().addMemory('$m', 1, null)
           .addFunction('f', [], [], makeDrop(makeLoad(Opcode.I32Load, 0n, align, makeI32Const(0))))
           .build(),

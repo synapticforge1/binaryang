@@ -19,8 +19,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import upstream from 'npm:binaryen@^116.0.0';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 const TARGET_REL = 'passes/fannkuch0_dwarf.wasm';
@@ -41,8 +41,8 @@ function emitText(bytes: Uint8Array): string {
 
 const file = path.join(ROOT, TARGET_REL.replace(/\//g, path.sep));
 const original = new Uint8Array(await fs.readFile(file));
-const mod = parseWasm(original);
-const reEncoded = encodeWasm(mod);
+const mod = readForPasses(original);
+const reEncoded = writeWasm(mod);
 
 console.log(`# Diffing WAT of ${TARGET_REL}`);
 console.log(`# original=${original.byteLength}B, re-encoded=${reEncoded.byteLength}B`);

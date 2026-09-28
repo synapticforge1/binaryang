@@ -31,7 +31,6 @@ import {
   walkExpression,
 } from '../../../src/binaryen-ts/ir/walk.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { buildCallResultTypes, FlattenPass } from '../../../src/binaryen-ts/passes/flatten.ts';
 import type { PassOptions } from '../../../src/binaryen-ts/passes/pass.ts';
@@ -60,7 +59,7 @@ const FLATTEN_OPTS: PassOptions = {
 };
 
 function instantiate(mod: WasmModule, imports?: Imports): WebAssembly.Instance {
-  const bytes = encodeWasm(mod);
+  const bytes = writeWasm(mod);
   return new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource), imports);
 }
 

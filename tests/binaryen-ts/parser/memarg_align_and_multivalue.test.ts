@@ -36,7 +36,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 // wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../nameless_reference.ts.
 import { wabtReference } from '../nameless_reference.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -45,7 +45,7 @@ import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 function assertSameBytes(wat: string): Uint8Array {
   const ref = wabtReference(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
-  const got = encodeWasm(parseWat(wat));
+  const got = writeWasm(parseWat(wat));
   // Validity first: a byte diff on an invalid module buries the real message.
   new WebAssembly.Module(got as BufferSource);
   assertEquals(Array.from(got), Array.from(ref.binary));

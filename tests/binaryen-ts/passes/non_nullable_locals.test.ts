@@ -18,8 +18,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import {
   handleNonDefaultableLocals,
@@ -56,7 +56,7 @@ function run(bytes: Uint8Array, inputs: number[]): number[] {
 
 /** The uncovered local indices of function 0 in a one-function module whose body is `body`. */
 function uncovered(locals: string, body: string): number[] {
-  const mod = parseWasm(assemble(`(module ${S}
+  const mod = readForPasses(assemble(`(module ${S}
     (func (param $p i32) (result i32) ${locals} ${body}))`));
   return [...uncoveredNonNullableLocals(mod.functions[0]!)].sort();
 }
@@ -123,7 +123,7 @@ Deno.test('analysis: params and nullable locals are never flagged', () => {
 });
 
 Deno.test('fixup: a function with nothing uncovered is left as the same objects', () => {
-  const mod = parseWasm(
+  const mod = readForPasses(
     assemble(`(module ${S} (func (result i32) ${T} (local.set $t ${NEW}) ${GET_T}))`),
   );
   const fn = mod.functions[0]!;
@@ -139,9 +139,9 @@ const FLATTEN_IF = `(module ${S}
 
 Deno.test('Flatten on an if typed (ref $S) leaves a valid module that computes the same', () => {
   const bytes = assemble(FLATTEN_IF);
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   new PassRunner(mod).add('Flatten').run();
-  const out = encodeWasm(mod);
+  const out = writeWasm(mod);
   assertValid(out);
   assertEquals(run(out, [0, 1]), run(bytes, [0, 1]));
 });
@@ -159,12 +159,12 @@ Deno.test('PassRunner runs the fixup after a pass that declares it, and only the
     requiresNonNullableLocalFixups,
     run() {},
   });
-  const withFlag = parseWasm(assemble(wat));
+  const withFlag = readForPasses(assemble(wat));
   new PassRunner(withFlag).addPass(nothing(true)).run();
-  assertValid(encodeWasm(withFlag));
-  assertEquals(run(encodeWasm(withFlag), [0, 1]), [1, 1]);
+  assertValid(writeWasm(withFlag));
+  assertEquals(run(writeWasm(withFlag), [0, 1]), [1, 1]);
 
-  const withoutFlag = parseWasm(assemble(wat));
+  const withoutFlag = readForPasses(assemble(wat));
   new PassRunner(withoutFlag).addPass(nothing(false)).run();
   assertEquals(uncoveredNonNullableLocals(withoutFlag.functions[0]!).size, 1);
 });

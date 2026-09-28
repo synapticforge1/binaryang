@@ -15,8 +15,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 /** `n` one-page memories, `$m0` … `$m<n-1>`. */
 const memories = (n: number) => Array.from({ length: n }, (_, i) => `(memory $m${i} 1)`).join(' ');
@@ -25,7 +25,7 @@ const memories = (n: number) => Array.from({ length: n }, (_, i) => `(memory $m$
 function roundTrip(wat: string): { original: Uint8Array; back: Uint8Array } {
   const original = wat2wasm(wat).binary;
   assert(original !== undefined && WebAssembly.validate(original as BufferSource), 'valid input');
-  return { original, back: encodeWasm(parseWasm(original)) };
+  return { original, back: writeWasm(readForPasses(original)) };
 }
 
 function exportsOf(bytes: Uint8Array): Record<string, () => number> {

@@ -37,8 +37,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { storeShape } from '../../../src/binaryen-ts/ir/memory-access.ts';
 import type { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
@@ -51,7 +51,7 @@ async function bytesWritten(op: string): Promise<number> {
     (func (export "f") (result i64)
       (${op} (i32.const 0) (${operand}.const -1))
       (i64.load (i32.const 0))))`;
-  const bytes = encodeWasm(parseWat(wat)) as BufferSource;
+  const bytes = writeWasm(parseWat(wat)) as BufferSource;
   const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
   const v = (instance.exports.f as () => bigint)();
   let n = 0;
@@ -83,7 +83,7 @@ function storeWidths(bytes: Uint8Array): number[] {
       else walk(v);
     }
   };
-  for (const f of parseWasm(bytes).functions) walk(f.body);
+  for (const f of readForPasses(bytes).functions) walk(f.body);
   return out;
 }
 
@@ -174,7 +174,7 @@ describe('narrow stores write the width their name says', () => {
         (func (export "f") (result ${result})
           (i64.store (i32.const 0) (i64.const 0x0081828384858687))
           (${op} (i32.const 0))))`;
-      const bytes = encodeWasm(parseWat(wat)) as BufferSource;
+      const bytes = writeWasm(parseWat(wat)) as BufferSource;
       const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
       const got = (instance.exports.f as () => number | bigint)();
       assertEquals(BigInt(got), expected);

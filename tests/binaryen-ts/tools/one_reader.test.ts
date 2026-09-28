@@ -5,10 +5,9 @@
 // `wasm-opt`, `readWat`, the compat API's `readBinary` — reads them with the one
 // reader (wabt-ts's) through `readForPasses`, not binaryen-ts's own decoder.
 //
-// The two readers differ in what they ACCEPT, which is how this is pinned: each
-// fixture is one the decoder (still published as `parseWasm` until the next
-// bump) treats differently, asserted first, so the test cannot pass by the
-// entry points quietly calling it again.
+// The two readers differed in what they ACCEPT, which is how this was pinned:
+// each fixture is one the decoder treated differently. The decoder was deleted
+// at 1.6.0 (stage 3b); the fixtures still pin the reader's behaviour.
 //
 // - relaxed SIMD: the decoder refuses it ("unsupported SIMD opcode"); the reader
 //   reads it — and the optimized module behaves as the original.
@@ -20,9 +19,7 @@ import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { WasmBinaryError } from '../../../src/binaryen-ts/binary/reader.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
 import { readBinary } from '../../../src/binaryen-ts/api/binaryen-compat.ts';
 
@@ -84,11 +81,11 @@ async function viaWasmOpt(bytes: Uint8Array, optimizeLevel: 0 | 2): Promise<Uint
 }
 
 describe('the entry points read with the one reader (One front end stage 3)', () => {
-  it('the premises: the decoder refuses relaxed SIMD and accepts misordered sections', () => {
+  it('the premises: the engine accepts relaxed SIMD and refuses misordered sections', () => {
+    // The decoder's half of the premise (it refused the first, accepted the
+    // second) went with the decoder at 1.6.0; the engine's half stays.
     assert(WebAssembly.validate(RELAXED as BufferSource), 'the engine accepts relaxed SIMD');
-    assertThrows(() => parseWasm(RELAXED), Error, 'unsupported SIMD opcode');
     assert(!WebAssembly.validate(MISORDERED as BufferSource), 'the engine refuses the order');
-    parseWasm(MISORDERED); // accepted — the decoder does not check section order
   });
 
   it('wasm-opt reads relaxed SIMD, and the result behaves as the original', async () => {

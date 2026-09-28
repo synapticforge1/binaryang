@@ -7,8 +7,8 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
@@ -164,7 +164,7 @@ const REF_TEST_MODULE = module(
 // ---------------------------------------------------------------------------
 
 Deno.test('GC parser: struct type definition is decoded', () => {
-  const mod = parseWasm(STRUCT_MODULE);
+  const mod = readForPasses(STRUCT_MODULE);
   assertEquals(mod.types.length, 2);
 
   const structDef = mod.types[0];
@@ -178,7 +178,7 @@ Deno.test('GC parser: struct type definition is decoded', () => {
 });
 
 Deno.test('GC parser: func type in types has RefType result', () => {
-  const mod = parseWasm(STRUCT_MODULE);
+  const mod = readForPasses(STRUCT_MODULE);
   const funcDef = mod.types[1];
   assertEquals(funcDef.kind, 'func');
   if (funcDef.kind !== 'func') return;
@@ -193,7 +193,7 @@ Deno.test('GC parser: func type in types has RefType result', () => {
 });
 
 Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr directly)', () => {
-  const mod = parseWasm(STRUCT_MODULE);
+  const mod = readForPasses(STRUCT_MODULE);
   assertEquals(mod.functions.length, 1);
   // Single-result function body: the body IS the struct.new (no wrapper block)
   const body = soleInstr(mod.functions[0].body);
@@ -207,7 +207,7 @@ Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr dire
 });
 
 Deno.test('GC parser: array type definition is decoded', () => {
-  const mod = parseWasm(ARRAY_MODULE);
+  const mod = readForPasses(ARRAY_MODULE);
   assertEquals(mod.types.length, 2);
 
   const arrayDef = mod.types[0];
@@ -218,7 +218,7 @@ Deno.test('GC parser: array type definition is decoded', () => {
 });
 
 Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init', () => {
-  const mod = parseWasm(ARRAY_MODULE);
+  const mod = readForPasses(ARRAY_MODULE);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.ArrayNew);
   const an = body as { typeVar: Var; init: unknown };
@@ -227,7 +227,7 @@ Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init',
 });
 
 Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
-  const mod = parseWasm(REF_TEST_MODULE);
+  const mod = readForPasses(REF_TEST_MODULE);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
   const rt = body as { heapType: unknown; nullable: boolean };
@@ -240,8 +240,8 @@ Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
 // ---------------------------------------------------------------------------
 
 Deno.test('GC encoder: struct module round-trips through encode+parse', () => {
-  const mod = parseWasm(STRUCT_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(STRUCT_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
 
   assertEquals(mod2.types.length, mod.types.length);
   assertEquals(mod2.types[0].kind, 'struct');
@@ -250,8 +250,8 @@ Deno.test('GC encoder: struct module round-trips through encode+parse', () => {
 });
 
 Deno.test('GC encoder: struct fields preserved after round-trip', () => {
-  const mod = parseWasm(STRUCT_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(STRUCT_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
 
   const s0 = mod2.types[0];
   if (s0.kind !== 'struct') throw new Error('expected struct');
@@ -263,8 +263,8 @@ Deno.test('GC encoder: struct fields preserved after round-trip', () => {
 });
 
 Deno.test('GC encoder: struct.new preserved after round-trip', () => {
-  const mod = parseWasm(STRUCT_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(STRUCT_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
   const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.StructNew);
   const sn = body as { typeVar: Var; operands: unknown[] };
@@ -273,8 +273,8 @@ Deno.test('GC encoder: struct.new preserved after round-trip', () => {
 });
 
 Deno.test('GC encoder: array module round-trips through encode+parse', () => {
-  const mod = parseWasm(ARRAY_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(ARRAY_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
 
   assertEquals(mod2.types.length, 2);
   const a0 = mod2.types[0];
@@ -284,8 +284,8 @@ Deno.test('GC encoder: array module round-trips through encode+parse', () => {
 });
 
 Deno.test('GC encoder: array.new_default preserved after round-trip', () => {
-  const mod = parseWasm(ARRAY_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(ARRAY_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
   const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.ArrayNew);
   const an = body as { init: unknown };
@@ -293,8 +293,8 @@ Deno.test('GC encoder: array.new_default preserved after round-trip', () => {
 });
 
 Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
-  const mod = parseWasm(REF_TEST_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(REF_TEST_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
   const body = soleInstr(mod2.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
   const rt = body as { heapType: unknown; nullable: boolean };
@@ -315,7 +315,7 @@ Deno.test('GC encoder: IR-built struct type encodes and parses', () => {
   const mod = builder.build();
   assertEquals(mod.types.length, 1);
 
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod2 = readForPasses(writeWasm(mod));
   assertEquals(mod2.types.length, 1);
   const s = mod2.types[0];
   if (s.kind !== 'struct') throw new Error('expected struct');
@@ -335,7 +335,7 @@ Deno.test('GC encoder: IR-built array type encodes and parses', () => {
   });
   const mod = builder.build();
 
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod2 = readForPasses(writeWasm(mod));
   assertEquals(mod2.types.length, 1);
   const a = mod2.types[0];
   if (a.kind !== 'array') throw new Error('expected array');

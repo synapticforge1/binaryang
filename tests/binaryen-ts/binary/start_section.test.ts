@@ -18,8 +18,8 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { makeGlobalSet, makeI32Const } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
@@ -111,20 +111,20 @@ Deno.test('start section: the fixture actually runs its start function', async (
 });
 
 Deno.test('start section: survives a bare parse→encode round-trip', async () => {
-  const out = encodeWasm(parseWasm(START_MODULE));
+  const out = writeWasm(readForPasses(START_MODULE));
   assert(hasSection(out, 8), 're-encoded module is missing section 8');
   assertEquals(await readGlobalG(out), 42);
 });
 
 Deno.test('start section: parser records the start function under $func naming', () => {
-  const mod = parseWasm(START_MODULE);
+  const mod = readForPasses(START_MODULE);
   assertEquals(mod.start, varName('$func0'));
 });
 
 Deno.test('start section: a non-exported start function survives full -Oz', async () => {
   // The trap: RemoveUnusedModuleElements seeds liveness from exports and
   // element segments. `$func0` is neither — only `mod.start` keeps it alive.
-  const mod = parseWasm(START_MODULE);
+  const mod = readForPasses(START_MODULE);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
     .addDefaultOptimizationPasses()
     .run();
@@ -135,7 +135,7 @@ Deno.test('start section: a non-exported start function survives full -Oz', asyn
     '-Oz deleted the start function',
   );
 
-  const out = encodeWasm(mod);
+  const out = writeWasm(mod);
   assert(hasSection(out, 8), 'optimized module is missing section 8');
   assertEquals(await readGlobalG(out), 42);
 });
@@ -146,7 +146,7 @@ Deno.test('start section: absent start emits no section 8', () => {
     .addFunction('$f', [], [], makeGlobalSet(varName('$g'), makeI32Const(1)))
     .build();
   assertEquals(mod.start, undefined); // absent, not null (M8b1)
-  assert(!hasSection(encodeWasm(mod), 8));
+  assert(!hasSection(writeWasm(mod), 8));
 });
 
 Deno.test('start section: setStart with an unknown name throws at encode time', () => {
@@ -157,8 +157,8 @@ Deno.test('start section: setStart with an unknown name throws at encode time', 
     .build();
 
   assertThrows(
-    () => encodeWasm(mod),
+    () => writeWasm(mod),
     WasmEncodeError,
-    'unresolved start function reference: "$nope"',
+    'undefined func "$nope"',
   );
 });

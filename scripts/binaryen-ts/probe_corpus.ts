@@ -15,7 +15,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
@@ -73,7 +73,7 @@ for (const file of files) {
     ok: false,
   };
   try {
-    const mod = parseWasm(new Uint8Array(buf), file);
+    const mod = readForPasses(new Uint8Array(buf), file);
     result.ok = true;
     result.numFunctions = mod.functions.length;
     result.numImportedFunctions = mod.imports.filter((i) => i.kind === ExternalKind.Func).length;

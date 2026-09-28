@@ -37,8 +37,8 @@ import {
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { parseArgs, wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
@@ -89,7 +89,7 @@ function buildAddWasm(): Uint8Array {
     .addFunction('add', [ValType.I32, ValType.I32], [ValType.I32], body)
     .addExport('add', 'add')
     .build();
-  return encodeWasm(mod);
+  return writeWasm(mod);
 }
 
 /** Encode a module whose body has dead code after unreachable. */
@@ -105,7 +105,7 @@ function buildDeadCodeWasm(): Uint8Array {
     .addFunction('fn', [], [], body)
     .addExport('fn', 'fn')
     .build();
-  return encodeWasm(mod);
+  return writeWasm(mod);
 }
 
 /** Write bytes to a temp .wasm, call fn, clean up. */
@@ -256,7 +256,7 @@ Deno.test('wasmOpt: output is re-parseable as valid WASM module', async () => {
   const input = buildAddWasm();
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 2 }));
   assertInstanceOf(result, Uint8Array);
-  const mod = parseWasm(result as Uint8Array);
+  const mod = readForPasses(result as Uint8Array);
   assertEquals(mod.functions.length, 1);
   assertEquals(mod.exports.length, 1);
   assertEquals(mod.exports[0].name, 'add');
@@ -265,13 +265,13 @@ Deno.test('wasmOpt: output is re-parseable as valid WASM module', async () => {
 Deno.test('wasmOpt: -O1 applies DCE and removes dead code', async () => {
   const input = buildDeadCodeWasm();
   // Before optimization: body is a region of 3 (unreachable + 2 nops)
-  const inputMod = parseWasm(input);
+  const inputMod = readForPasses(input);
   assertEquals(region(inputMod.functions[0].body).children.length, 3);
 
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 1 }));
   assertInstanceOf(result, Uint8Array);
 
-  const optimized = parseWasm(result as Uint8Array);
+  const optimized = readForPasses(result as Uint8Array);
   // DCE removes the dead nops → Vacuum collapses the single-child unnamed block.
   // After encode + re-parse (single-expr body → no wrapping block), body is unreachable.
   assertEquals(
@@ -287,12 +287,12 @@ Deno.test('wasmOpt: explicit passes override default pass set', async () => {
   const input = buildAddWasm();
   const result = await withTempWasm(input, (path) => wasmOpt(path, { passes: ['Vacuum'] }));
   assertInstanceOf(result, Uint8Array);
-  const mod = parseWasm(result as Uint8Array);
+  const mod = readForPasses(result as Uint8Array);
   assertEquals(mod.functions.length, 1, 'function should still be present after Vacuum pass');
 });
 
 Deno.test('wasmOpt: empty module round-trips cleanly', async () => {
-  const input = encodeWasm({
+  const input = writeWasm({
     functions: [],
     globals: [],
     memories: [],
@@ -371,12 +371,12 @@ Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => 
     .addFunction('fn', [], [ValType.I32], body)
     .addExport('fn', 'fn')
     .build();
-  const input = encodeWasm(mod);
+  const input = writeWasm(mod);
 
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 2 }));
   assertInstanceOf(result, Uint8Array);
 
-  const optimized = parseWasm(result as Uint8Array);
+  const optimized = readForPasses(result as Uint8Array);
   const fnBody = soleInstr(optimized.functions[0].body);
   // If RemoveUnusedNames did NOT run, the body would still be a named block after
   // round-trip. When it does run the name is stripped, the encoder unpacks the

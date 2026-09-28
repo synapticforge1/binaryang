@@ -26,8 +26,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   ExpressionKind,
   makeI32Const,
@@ -81,8 +81,8 @@ function moduleWithLoadOffset(offset: bigint): ReturnType<ModuleBuilder['build']
 describe('memarg offsets survive the full 64-bit range', () => {
   for (const [label, offset] of OFFSETS) {
     it(`load: ${label} (${offset}) round-trips`, () => {
-      const bytes = encodeWasm(moduleWithLoadOffset(offset));
-      const back = parseWasm(bytes);
+      const bytes = writeWasm(moduleWithLoadOffset(offset));
+      const back = readForPasses(bytes);
       const load = findNode(back.functions[0]?.body, ExpressionKind.Load);
       assertEquals(load?.offset, offset, `offset ${offset} did not survive`);
     });
@@ -99,7 +99,7 @@ describe('memarg offsets survive the full 64-bit range', () => {
         makeStore(Opcode.I32Store, offset, 4, makeI32Const(0), makeI32Const(7)),
       )
       .build();
-    const back = parseWasm(encodeWasm(mod));
+    const back = readForPasses(writeWasm(mod));
     const store = findNode(back.functions[0]?.body, ExpressionKind.Store);
     assertEquals(store?.offset, offset);
   });
@@ -108,8 +108,8 @@ describe('memarg offsets survive the full 64-bit range', () => {
     // The teeth. Truncation maps both onto the same LEB, so a round-trip test
     // alone could pass while the bytes were wrong — this compares the encodings
     // directly, which is the property `writeU32` violated.
-    const small = encodeWasm(moduleWithLoadOffset(8n));
-    const large = encodeWasm(moduleWithLoadOffset(0x100000008n));
+    const small = writeWasm(moduleWithLoadOffset(8n));
+    const large = writeWasm(moduleWithLoadOffset(0x100000008n));
     assertEquals(
       small.length === large.length && small.every((b, i) => b === large[i]),
       false,

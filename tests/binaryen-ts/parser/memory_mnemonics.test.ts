@@ -24,7 +24,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { MEMORY_ACCESS_TABLE } from '../../../src/binaryen-ts/ir/memory-access.ts';
 import { ValType, valTypeName } from '../../../src/binaryen-ts/ir/types.ts';
@@ -72,7 +72,7 @@ describe('binaryen-ts WAT parser: memory mnemonics', () => {
     it(`${l.name} parses to its own opcode, and V8 accepts the encoding`, () => {
       const src = `(module (memory 1) (func (drop (${l.name} (i32.const 0)))))`;
       assertEquals(memNode(src).opcode, l.opcode);
-      assertEquals(WebAssembly.validate(encodeWasm(parseWat(src)) as BufferSource), true);
+      assertEquals(WebAssembly.validate(writeWasm(parseWat(src)) as BufferSource), true);
     });
   }
 
@@ -80,7 +80,7 @@ describe('binaryen-ts WAT parser: memory mnemonics', () => {
     it(`${s.name} parses to its own opcode, and V8 accepts the encoding`, () => {
       const src = `(module (memory 1) (func (${s.name} (i32.const 0) ${constOf(s.valueType)})))`;
       assertEquals(memNode(src).opcode, s.opcode);
-      assertEquals(WebAssembly.validate(encodeWasm(parseWat(src)) as BufferSource), true);
+      assertEquals(WebAssembly.validate(writeWasm(parseWat(src)) as BufferSource), true);
     });
   }
 });

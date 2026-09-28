@@ -8,8 +8,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -21,13 +21,13 @@ Deno.test('RemoveUnusedNames: a value loop with no back-edge becomes a block of 
       (i32.add (loop $l (result i32) (drop (local.get 0)) (i32.const 5)) (i32.const 1))))`,
   );
   assert(!hasErrors(r.errors), formatErrors(r.errors));
-  const mod = parseWasm(r.binary);
+  const mod = readForPasses(r.binary);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('RemoveUnusedNames').run();
   const add = mod.functions[0]!.body.children[0]!;
   assert(add.kind === ExpressionKind.Binary);
   assertEquals(add.left.kind, ExpressionKind.Block, 'the loop was replaced');
   assertEquals(add.left.type, 0x7f);
-  const out = encodeWasm(mod);
+  const out = writeWasm(mod);
   const f = new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource)).exports.f as (
     x: number,
   ) => number;

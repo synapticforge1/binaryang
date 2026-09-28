@@ -30,8 +30,8 @@ import { assert, assertEquals } from '@std/assert';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 
@@ -170,7 +170,7 @@ Deno.test({
 
       let mod1: WasmModule;
       try {
-        mod1 = parseWasm(buf, file);
+        mod1 = readForPasses(buf, file);
       } catch {
         // Deliberate: malformed / non-MVP fixtures fail loudly by design.
         rejectedOnInput.push(rel(file));
@@ -179,7 +179,7 @@ Deno.test({
 
       let bytes2: Uint8Array;
       try {
-        bytes2 = encodeWasm(mod1);
+        bytes2 = writeWasm(mod1);
       } catch (e) {
         encodeFail.push(`${rel(file)}: ${(e as Error).message.slice(0, 120)}`);
         continue;
@@ -187,7 +187,7 @@ Deno.test({
 
       let mod2: WasmModule;
       try {
-        mod2 = parseWasm(bytes2, file);
+        mod2 = readForPasses(bytes2, file);
       } catch (e) {
         reparseFail.push(`${rel(file)}: ${(e as Error).message.slice(0, 120)}`);
         continue;
@@ -227,7 +227,7 @@ Deno.test({
       let c = b;
       if (a.exprs !== b.exprs) {
         try {
-          c = summary(parseWasm(encodeWasm(mod2), file));
+          c = summary(readForPasses(writeWasm(mod2), file));
         } catch (e) {
           reparseFail.push(`${rel(file)}: gen3 ${(e as Error).message.slice(0, 100)}`);
           continue;

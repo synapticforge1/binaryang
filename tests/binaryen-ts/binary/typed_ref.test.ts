@@ -26,8 +26,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { makeI32Const, makeRefNull } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
@@ -160,7 +160,7 @@ Deno.test('typed-ref local: the fixture runs', async () => {
 });
 
 Deno.test('typed-ref local: survives a bare parse-encode round-trip', async () => {
-  const out = encodeWasm(parseWasm(TYPED_REF_LOCAL_MODULE));
+  const out = writeWasm(readForPasses(TYPED_REF_LOCAL_MODULE));
   // 0x63 = (ref null ht), 0x00 = heap type index 0. Widening it to anyref
   // (0x6e) is the UP-7 bug and makes the module invalid.
   assertEquals(localDeclBytes(out), [1, 0x63, 0x00]);
@@ -168,7 +168,7 @@ Deno.test('typed-ref local: survives a bare parse-encode round-trip', async () =
 });
 
 Deno.test('typed-ref local: the parser records a RefType, not AnyRef', () => {
-  const mod = parseWasm(TYPED_REF_LOCAL_MODULE);
+  const mod = readForPasses(TYPED_REF_LOCAL_MODULE);
   const local = mod.functions[0].locals[0];
   assert(
     isRefType(local.type),
@@ -193,10 +193,10 @@ Deno.test('typed-ref: ModuleBuilder accepts a concrete ref for a local and a glo
   m.addFunction('read', [], [ValType.I32], makeI32Const(5), [{ type: arrRef }]);
   m.addExport('read', 'read');
 
-  const bytes = encodeWasm(m.build());
+  const bytes = writeWasm(m.build());
   assertEquals(await runRead(bytes), 5);
 
-  const parsed = parseWasm(bytes);
+  const parsed = readForPasses(bytes);
   assert(isRefType(parsed.globals[0].type), 'global lost its concrete ref type');
   assert(isRefType(parsed.functions[0].locals[0].type), 'local lost its concrete ref type');
 });
@@ -227,8 +227,8 @@ Deno.test('typed-ref: two func types differing only in heap type are no longer a
 
   // Encoding resolves each function against its OWN heap type; no throw, and
   // the two must land on different type indices.
-  const bytes = encodeWasm(m.build());
-  const parsed = parseWasm(bytes);
+  const bytes = writeWasm(m.build());
+  const parsed = readForPasses(bytes);
   assertEquals(parsed.functions.length, 2);
 
   const p0 = parsed.functions[0].sig.params[0];
@@ -265,7 +265,7 @@ Deno.test('WAT: (ref $t) is non-nullable', () => {
 });
 
 Deno.test('typed-ref local.get carries the concrete type into the IR', () => {
-  const mod = parseWasm(TYPED_REF_LOCAL_MODULE);
+  const mod = readForPasses(TYPED_REF_LOCAL_MODULE);
   let seen: unknown = null;
   const walk = (e: unknown): void => {
     if (seen || !e || typeof e !== 'object') return;
@@ -296,11 +296,13 @@ Deno.test('makeLocalGet on an out-of-range local index fails loudly', () => {
   }
   let threw = false;
   try {
-    parseWasm(bad);
+    readForPasses(bad);
   } catch (e) {
     threw = true;
+    // The one reader's words (binaryen-ts's decoder, deleted at 1.6.0, said
+    // "out of range"): the typing step finds no such local.
     assert(
-      (e as Error).message.includes('out of range'),
+      (e as Error).message.includes('no local'),
       `unexpected error: ${(e as Error).message}`,
     );
   }

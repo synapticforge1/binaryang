@@ -16,8 +16,8 @@ import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
 
@@ -42,7 +42,7 @@ const WAT = `(module
 
 describe('a throw of an imported tag carries its payload', () => {
   const bytes = assemble(WAT);
-  const m = parseWasm(bytes);
+  const m = readForPasses(bytes);
 
   it("the imported tag's throw has both operands", () => {
     const [t] = find(m.functions[0]!.body, 'throw') as unknown as { operands: Expression[] }[];
@@ -57,7 +57,7 @@ describe('a throw of an imported tag carries its payload', () => {
   });
 
   it('and the module still round-trips byte for byte', () => {
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(out.length === bytes.length && out.every((x, i) => x === bytes[i]));
   });
 });

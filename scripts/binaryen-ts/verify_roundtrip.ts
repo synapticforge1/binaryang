@@ -14,8 +14,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 
@@ -90,7 +90,7 @@ for (const file of files) {
   const buf = await fs.readFile(file);
   let mod1: WasmModule;
   try {
-    mod1 = parseWasm(new Uint8Array(buf), file);
+    mod1 = readForPasses(new Uint8Array(buf), file);
   } catch (e) {
     parseFail.push({
       file: rel(file),
@@ -100,7 +100,7 @@ for (const file of files) {
   }
   let bytes2: Uint8Array;
   try {
-    bytes2 = encodeWasm(mod1);
+    bytes2 = writeWasm(mod1);
   } catch (e) {
     reparseFail.push({
       file: path.relative(ROOT, file).replace(/\\/g, '/'),
@@ -110,7 +110,7 @@ for (const file of files) {
   }
   let mod2: WasmModule;
   try {
-    mod2 = parseWasm(bytes2, file + '::roundtrip');
+    mod2 = readForPasses(bytes2, file + '::roundtrip');
   } catch (e) {
     reparseFail.push({
       file: path.relative(ROOT, file).replace(/\\/g, '/'),
@@ -143,7 +143,7 @@ for (const file of files) {
   let s3 = s2;
   if (s1.exprs !== s2.exprs) {
     try {
-      s3 = summary(parseWasm(encodeWasm(mod2), file));
+      s3 = summary(readForPasses(writeWasm(mod2), file));
     } catch {
       s3 = { ...s2, exprs: -1 };
     }

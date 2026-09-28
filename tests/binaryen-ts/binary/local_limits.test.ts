@@ -11,7 +11,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { MAX_MATERIALIZED_LOCALS } from '../../../src/wabt-ts/reader/binary-reader.ts';
 
 /** Unsigned LEB128. */
@@ -42,31 +42,31 @@ function moduleDeclaring(...counts: number[]): Uint8Array {
 
 describe("binaryen-ts's decoder: a function's declared locals", () => {
   it('a modest count is materialized, one slot per local', () => {
-    assertEquals(parseWasm(moduleDeclaring(3)).functions[0]!.locals.length, 3);
+    assertEquals(readForPasses(moduleDeclaring(3)).functions[0]!.locals.length, 3);
   });
 
   it('exactly the limit is materialized', () => {
     assertEquals(
-      parseWasm(moduleDeclaring(MAX_MATERIALIZED_LOCALS)).functions[0]!.locals.length,
+      readForPasses(moduleDeclaring(MAX_MATERIALIZED_LOCALS)).functions[0]!.locals.length,
       MAX_MATERIALIZED_LOCALS,
     );
   });
 
   it("one past the decoder's limit is refused, not allocated", () => {
     assertThrows(
-      () => parseWasm(moduleDeclaring(MAX_MATERIALIZED_LOCALS + 1)),
+      () => readForPasses(moduleDeclaring(MAX_MATERIALIZED_LOCALS + 1)),
       Error,
       'too many locals',
     );
   });
 
   it('2^32 - 1 locals in ONE group — binary.43 — is refused, not an out-of-memory', () => {
-    assertThrows(() => parseWasm(moduleDeclaring(0xffff_ffff)), Error, 'too many locals');
+    assertThrows(() => readForPasses(moduleDeclaring(0xffff_ffff)), Error, 'too many locals');
   });
 
   it("the spec's cap is on the SUM: two groups of 2^31 overflow where neither does", () => {
     assertThrows(
-      () => parseWasm(moduleDeclaring(0x8000_0000, 0x8000_0000)),
+      () => readForPasses(moduleDeclaring(0x8000_0000, 0x8000_0000)),
       Error,
       'too many locals',
     );

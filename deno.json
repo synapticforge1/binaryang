@@ -11,8 +11,6 @@
     "./compat/binaryen": "./src/binaryen-ts/api/binaryen-compat.ts",
     "./compat/wabt": "./src/wabt-ts/api/wabt-compat.ts",
     "./api": "./src/binaryen-ts/api/index.ts",
-    "./binary": "./src/binaryen-ts/binary/index.ts",
-    "./encoder": "./src/binaryen-ts/encoder/index.ts",
     "./passes": "./src/binaryen-ts/passes/index.ts",
     "./interop": "./src/binaryen-ts/interop/binaryen-js.ts",
     "./wasm": "./src/binaryen-ts/wasm/index.ts",

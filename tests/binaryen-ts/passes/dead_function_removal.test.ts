@@ -16,8 +16,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -40,7 +40,7 @@ function optimize(
 ): WasmModule {
   const r = wat2wasm(WAT);
   assert(!hasErrors(r.errors), formatErrors(r.errors));
-  const mod = parseWasm(r.binary);
+  const mod = readForPasses(r.binary);
   const runner = new PassRunner(mod, level);
   if (only) runner.add(only);
   else runner.addDefaultOptimizationPasses();
@@ -54,7 +54,7 @@ function survivors(mod: WasmModule): string[] {
 }
 
 function runF(mod: WasmModule): number {
-  const inst = new WebAssembly.Instance(new WebAssembly.Module(encodeWasm(mod) as BufferSource));
+  const inst = new WebAssembly.Instance(new WebAssembly.Module(writeWasm(mod) as BufferSource));
   return (inst.exports.f as (x: number) => number)(4);
 }
 

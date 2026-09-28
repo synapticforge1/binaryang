@@ -20,9 +20,8 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { type PassOptions, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 
@@ -33,7 +32,7 @@ const asm = (wat: string) => {
   return r.binary;
 };
 const ROUTES = {
-  A: (b: Uint8Array): WasmModule => parseWasm(b),
+  A: (b: Uint8Array): WasmModule => readForPasses(b),
   B: (b: Uint8Array): WasmModule =>
     prepareForPasses(readBinaryIr(b, makeErrorList(), { readDebugNames: true })) as WasmModule,
 };
@@ -46,7 +45,7 @@ const optimized = (
 ) => {
   const m = load(bytes);
   new PassRunner(m, { optimizeLevel: o, shrinkLevel: s }).addDefaultOptimizationPasses().run();
-  return encodeWasm(m);
+  return writeWasm(m);
 };
 const call = (b: Uint8Array, name: string, ...args: unknown[]) => {
   try {

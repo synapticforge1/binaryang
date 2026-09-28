@@ -17,8 +17,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
@@ -35,11 +35,11 @@ import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /** `-O2` over the module, as `Module.optimize('-O2')` runs it. */
 function optimized(bytes: Uint8Array): Uint8Array {
-  const m = parseWasm(bytes);
+  const m = readForPasses(bytes);
   const r = new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 });
   r.addDefaultOptimizationPasses();
   r.run();
-  return encodeWasm(m);
+  return writeWasm(m);
 }
 
 async function call(bytes: Uint8Array, arg?: number): Promise<unknown> {
@@ -100,7 +100,7 @@ describe('constant folding keeps float bits', () => {
       [{ type: ValType.F64 }],
     );
     m.addExport('f', 'f');
-    const bytes = encodeWasm(m.build());
+    const bytes = writeWasm(m.build());
     assert(Object.is(await call(bytes, -0), -0), 'the fixture itself must yield -0');
     assert(Object.is(await call(optimized(bytes), -0), -0), '-O2 changed -0.0 into 0.0');
   });

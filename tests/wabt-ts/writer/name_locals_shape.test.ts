@@ -25,8 +25,8 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -167,11 +167,14 @@ describe("N6 — a producer's name section keeps its shape", () => {
   });
 
   it('binaryen-ts decode → encode keeps it too', () => {
-    assert(same(encodeWasm(parseWasm(PRODUCER)), PRODUCER), hex(encodeWasm(parseWasm(PRODUCER))));
+    assert(
+      same(writeWasm(readForPasses(PRODUCER)), PRODUCER),
+      hex(writeWasm(readForPasses(PRODUCER))),
+    );
   });
 
   it('the names still arrive — the shape is all that changed', () => {
-    const m = parseWasm(PRODUCER);
+    const m = readForPasses(PRODUCER);
     assertEquals(m.functions.map((f) => f.name), ['$a', '$b']);
     assertEquals(m.functions[1]!.locals[0]!.name, '$p');
   });
@@ -188,7 +191,7 @@ describe('N6 — the other two shapes', () => {
     const noLocals = mk([nameSection([funcNames([[0, 'a']])])]);
     assertEquals(subsections(noLocals), ['1:4']);
     assertEquals(subsections(rewrite(noLocals)), subsections(noLocals));
-    assertEquals(subsections(encodeWasm(parseWasm(noLocals))), subsections(noLocals));
+    assertEquals(subsections(writeWasm(readForPasses(noLocals))), subsections(noLocals));
   });
 
   it('a local subsection that lists NOBODY is not the same as none', () => {
@@ -197,7 +200,7 @@ describe('N6 — the other two shapes', () => {
     const empty = mk([nameSection([funcNames([[0, 'a']]), localNames([])])]);
     assertEquals(subsections(empty), ['1:4', '2:1']);
     assertEquals(subsections(rewrite(empty)), subsections(empty));
-    assertEquals(subsections(encodeWasm(parseWasm(empty))), subsections(empty));
+    assertEquals(subsections(writeWasm(readForPasses(empty))), subsections(empty));
   });
 
   it('with no record — text — every function is listed, as upstream does', () => {
@@ -210,7 +213,7 @@ describe('N6 — the other two shapes', () => {
   it('and that text output still round-trips through both halves', () => {
     const bytes = assemble('(module (import "a" "b" (func)) (func (param $p i32) (local $q i64)))');
     assert(same(rewrite(bytes), bytes), hex(rewrite(bytes)));
-    assert(same(encodeWasm(parseWasm(bytes)), bytes), hex(encodeWasm(parseWasm(bytes))));
+    assert(same(writeWasm(readForPasses(bytes)), bytes), hex(writeWasm(readForPasses(bytes))));
   });
 });
 
@@ -223,7 +226,7 @@ describe('N6 — what the record does NOT do', () => {
     ]);
     assertEquals(localsListed(bytes), [0, 1]);
     assert(same(rewrite(bytes), bytes), hex(rewrite(bytes)));
-    assert(same(encodeWasm(parseWasm(bytes)), bytes), hex(encodeWasm(parseWasm(bytes))));
+    assert(same(writeWasm(readForPasses(bytes)), bytes), hex(writeWasm(readForPasses(bytes))));
   });
 
   it('a name a pass removes leaves the section, listed or not', () => {
@@ -232,9 +235,9 @@ describe('N6 — what the record does NOT do', () => {
     const PRODUCER = mk([
       nameSection([funcNames([[0, 'a'], [1, 'b']]), localNames([[1, [[0, 'p']]]])]),
     ]);
-    const m = parseWasm(PRODUCER);
+    const m = readForPasses(PRODUCER);
     m.functions.splice(0, 1); // drop `$a`
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assertEquals(localsListed(out), [0]); // `$b`, now index 0
   });
 });

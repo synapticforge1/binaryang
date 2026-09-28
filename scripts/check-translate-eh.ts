@@ -38,8 +38,8 @@
  * @license MIT
  */
 
-import { parseWasm } from '../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../src/binaryen-ts/ir/expressions.ts';
 import { walkExpression } from '../src/binaryen-ts/ir/walk.ts';
 import { PassRunner } from '../src/binaryen-ts/passes/index.ts';
@@ -106,18 +106,18 @@ function sameValue(got: unknown, want: SpecValue): boolean {
 }
 
 function translate(legacy: Uint8Array, optimize: boolean): Uint8Array {
-  const mod = parseWasm(legacy);
+  const mod = readForPasses(legacy);
   new PassRunner(mod).add('TranslateToExnref').run();
   if (optimize) {
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).addDefaultOptimizationPasses().run();
   }
-  return encodeWasm(mod);
+  return writeWasm(mod);
 }
 
 /** Problems with a translated module: a surviving legacy node, or a validation error. */
 function inspect(bytes: Uint8Array): string[] {
   const problems: string[] = [];
-  for (const fn of parseWasm(bytes).functions) {
+  for (const fn of readForPasses(bytes).functions) {
     walkExpression(fn.body, (e) => {
       if (e.kind === ExpressionKind.Try || e.kind === ExpressionKind.Rethrow) {
         problems.push(`a ${e.kind} survived in ${fn.name}`);

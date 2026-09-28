@@ -31,7 +31,7 @@ import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 
 const FIXTURE = new URL('./fixtures/direct_path_modules.json', import.meta.url);
@@ -86,11 +86,11 @@ describe("M8e — the bridge's test modules, on the direct path", () => {
   for (const [i, { from, wat }] of MODULES.entries()) {
     it(`#${i} (${from}): wat2wasm's bytes; valid and the same results at -O3`, () => {
       const expected = wat2wasm(wat).binary;
-      assert(same(encodeWasm(prepared(wat)), expected), 'byte-identical to wat2wasm');
+      assert(same(writeWasm(prepared(wat)), expected), 'byte-identical to wat2wasm');
 
       const m = prepared(wat);
       new PassRunner(m, { optimizeLevel: 3, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
-      const optimized = encodeWasm(m);
+      const optimized = writeWasm(m);
       assert(WebAssembly.validate(optimized as BufferSource), 'V8 accepts the -O3 output');
 
       let want: string;

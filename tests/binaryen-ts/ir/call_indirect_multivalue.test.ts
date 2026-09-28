@@ -13,8 +13,8 @@ import { assert, assertEquals } from '@std/assert';
 import { makeCallIndirect, makeI32Const } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 
@@ -51,7 +51,7 @@ describe('a multi-value call_indirect is typed by every result', () => {
   });
 
   it('the decoder builds it that way', () => {
-    assertEquals(types(parseWasm(wat2wasm(WAT).binary)), [[ValType.I64, ValType.I32]]);
+    assertEquals(types(readForPasses(wat2wasm(WAT).binary)), [[ValType.I64, ValType.I32]]);
   });
 
   it('the optimizer still takes it: -O3 is valid and computes the same', async () => {
@@ -60,9 +60,9 @@ describe('a multi-value call_indirect is typed by every result', () => {
       return (instance.exports.f as (x: number) => bigint)(5);
     };
     assert(WebAssembly.validate(wat2wasm(WAT).binary as BufferSource), 'the input is valid');
-    const m = parseWasm(wat2wasm(WAT).binary);
+    const m = readForPasses(wat2wasm(WAT).binary);
     new PassRunner(m, { optimizeLevel: 3, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
-    const optimized = encodeWasm(m);
+    const optimized = writeWasm(m);
     assert(WebAssembly.validate(optimized as BufferSource));
     assertEquals(await run(optimized), await run(wat2wasm(WAT).binary));
     assertEquals(await run(optimized), 10n);

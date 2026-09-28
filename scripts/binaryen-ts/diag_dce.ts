@@ -10,7 +10,7 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
 import '../../src/binaryen-ts/passes/index.ts';
 
@@ -35,13 +35,13 @@ function dump(e: any, depth: number, out: string[]): void {
   }
 }
 
-const before = parseWasm(orig);
+const before = readForPasses(orig);
 const fibBefore = before.functions.find((f) => f.name === '$func5')!;
 const a: string[] = [];
 dump(fibBefore.body, 0, a);
 
 const passName = Deno.args[0] ?? 'DCE';
-const after = parseWasm(orig);
+const after = readForPasses(orig);
 new PassRunner(after, { optimizeLevel: 2, shrinkLevel: 2 }).addPass(createPass(passName)).run();
 const fibAfter = after.functions.find((f) => f.name === '$func5')!;
 const b: string[] = [];

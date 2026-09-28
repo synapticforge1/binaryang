@@ -30,8 +30,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type Expression,
   ExpressionKind,
@@ -75,10 +75,10 @@ async function bothAgree(
   mod: ReturnType<ModuleBuilder['build']>,
   expected: number,
 ): Promise<void> {
-  const direct = encodeWasm(mod);
+  const direct = writeWasm(mod);
   assertEquals(await runRead(direct), expected, 'direct encode');
 
-  const roundTripped = encodeWasm(parseWasm(direct));
+  const roundTripped = writeWasm(readForPasses(direct));
   assertEquals(await runRead(roundTripped), expected, 'after parse->encode');
 }
 
@@ -283,7 +283,7 @@ Deno.test('array.fill: the fixture fills the requested range, not one slot', asy
 });
 
 Deno.test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10', () => {
-  const mod = parseWasm(ARRAY_FILL_MODULE);
+  const mod = readForPasses(ARRAY_FILL_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayFill);
   assert(node !== null, 'array.fill did not decode to an ArrayFill node');
   assertEquals(node!.typeVar, varIndex(0));
@@ -291,7 +291,7 @@ Deno.test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10',
   for (const k of ['ref', 'offset', 'value', 'size']) {
     assert(node![k] !== undefined, `ArrayFill is missing operand "${k}"`);
   }
-  assert(gcSubops(encodeWasm(mod)).includes(0x10), 'encoder did not emit array.fill');
+  assert(gcSubops(writeWasm(mod)).includes(0x10), 'encoder did not emit array.fill');
 });
 
 Deno.test('array.copy: the fixture copies the requested range', async () => {
@@ -299,13 +299,13 @@ Deno.test('array.copy: the fixture copies the requested range', async () => {
 });
 
 Deno.test('array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11', () => {
-  const mod = parseWasm(ARRAY_COPY_MODULE);
+  const mod = readForPasses(ARRAY_COPY_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayCopy);
   assert(node !== null, 'array.copy did not decode to an ArrayCopy node');
   for (const k of ['destRef', 'destOffset', 'srcRef', 'srcOffset', 'size']) {
     assert(node![k] !== undefined, `ArrayCopy is missing operand "${k}"`);
   }
-  assert(gcSubops(encodeWasm(mod)).includes(0x11), 'encoder did not emit array.copy');
+  assert(gcSubops(writeWasm(mod)).includes(0x11), 'encoder did not emit array.copy');
 });
 
 Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref local)', async () => {
@@ -380,7 +380,7 @@ Deno.test('array.copy keeps dest and src type immediates in the right order', ()
   );
   m.addExport('read', 'read');
 
-  const parsed = parseWasm(encodeWasm(m.build()));
+  const parsed = readForPasses(writeWasm(m.build()));
   const node = findNode(parsed.functions[0].body, ExpressionKind.ArrayCopy);
 
   assert(node !== null, 'array.copy did not survive the round-trip');
@@ -434,7 +434,7 @@ Deno.test('ref.as_non_null decodes back to a RefAs node with the right opcode', 
   );
   m.addExport('read', 'read');
 
-  const parsed = parseWasm(encodeWasm(m.build()));
+  const parsed = readForPasses(writeWasm(m.build()));
   // `ref.as` names exactly ONE instruction, so the kind is the operator and
   // there is no discriminant field to assert on. What this pins is that the
   // node survived the round trip — counted, so a node that vanished and one

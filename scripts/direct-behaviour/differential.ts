@@ -41,10 +41,9 @@ import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../src/wabt-ts/ir/resolve-names.ts';
 import { synthesizeTypes } from '../../src/wabt-ts/ir/synthesize-types.ts';
 import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
-import { prepareForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { prepareForPasses, readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { PassRunner } from '../../src/binaryen-ts/passes/index.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/index.ts';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';
@@ -227,14 +226,14 @@ export function check(file: string, wat: string): Row {
     const prepared = prepareForPasses(parsed.module);
     new PassRunner(prepared, { optimizeLevel: 3, shrinkLevel: 0 }).addDefaultOptimizationPasses()
       .run();
-    b = encodeWasm(prepared);
+    b = writeWasm(prepared);
   } catch (e) {
     return { ...row, status: 'DIVERGE', detail: `optimizer path threw: ${(e as Error).message}` };
   }
 
   let mod: WasmModule;
   try {
-    mod = parseWasm(a.binary);
+    mod = readForPasses(a.binary);
   } catch (e) {
     return { ...row, status: 'skip', detail: `cannot read back A: ${(e as Error).message}` };
   }

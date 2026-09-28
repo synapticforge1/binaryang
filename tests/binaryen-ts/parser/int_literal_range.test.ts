@@ -29,11 +29,11 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 async function run(type: 'i32' | 'i64', literal: string): Promise<bigint> {
   const wat = `(module (func (export "f") (result ${type}) (${type}.const ${literal})))`;
-  const bytes = encodeWasm(parseWat(wat)) as BufferSource;
+  const bytes = writeWasm(parseWat(wat)) as BufferSource;
   const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
   return BigInt((instance.exports.f as () => number | bigint)());
 }

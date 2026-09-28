@@ -12,8 +12,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import upstream from 'npm:binaryen@^116.0.0';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 
@@ -46,8 +46,8 @@ for (const rel of targets) {
   console.log('ORIGINAL:');
   console.log(emitText(original));
   console.log();
-  const mod = parseWasm(original);
-  const reBytes = encodeWasm(mod);
+  const mod = readForPasses(original);
+  const reBytes = writeWasm(mod);
   console.log(`RE-ENCODED (${reBytes.byteLength} bytes):`);
   console.log(emitText(reBytes));
 }

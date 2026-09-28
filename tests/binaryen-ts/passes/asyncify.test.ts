@@ -27,8 +27,8 @@ import {
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import {
   ASYNCIFY_DATA,
   ASYNCIFY_GET_STATE,
@@ -226,7 +226,7 @@ Deno.test('Asyncify Stage 1 — synthesizes a memory for a memoryless module (re
     partialInliningIfs: 0,
   });
   assertEquals(m.memories.length, 1, 'asyncify must add a memory when none exists');
-  const bytes = encodeWasm(m);
+  const bytes = writeWasm(m);
   assert(
     WebAssembly.validate(bytes as BufferSource),
     'asyncified memoryless module must validate (loads/stores need a memory)',
@@ -252,7 +252,7 @@ Deno.test('Asyncify Stage 1 — import-globals imports the two globals instead o
     .sort();
   assertEquals(importedGlobals, [ASYNCIFY_DATA, ASYNCIFY_STATE].sort());
   assert(
-    WebAssembly.validate(encodeWasm(m) as BufferSource),
+    WebAssembly.validate(writeWasm(m) as BufferSource),
     'import-globals module must still validate',
   );
 });
@@ -299,7 +299,7 @@ Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control
   assert(exportNames.has('main'), "the module's own export is preserved");
   // The transformed module validates.
   assert(
-    WebAssembly.validate(encodeWasm(m) as BufferSource),
+    WebAssembly.validate(writeWasm(m) as BufferSource),
     'asyncified import-mode module must validate',
   );
 });
@@ -434,11 +434,11 @@ Deno.test('Asyncify Stage 1 — runtime support encodes to valid wasm & round-tr
     partialInliningIfs: 0,
   });
 
-  const bytes = encodeWasm(m);
+  const bytes = writeWasm(m);
   assert(bytes.length > 8);
   assertEquals([...bytes.slice(0, 4)], [0x00, 0x61, 0x73, 0x6d]); // \0asm
 
-  const decoded = parseWasm(bytes);
+  const decoded = readForPasses(bytes);
   // The 2 globals survive (internal names are re-synthesized as $globalN since
   // we emit no name section — assert on count, which was 0 before the pass).
   assertEquals(decoded.globals.length, 2);

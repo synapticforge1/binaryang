@@ -2754,7 +2754,17 @@ export function makeSIMDLoadStoreLane(
 // Internal type inference helpers
 // ---------------------------------------------------------------------------
 
-function inferBinaryType(opcode: BinaryOp): ValType {
+function inferBinaryType(opcode: BinaryOp): Type {
+  // The wide multiplies take two i64s and give TWO (lo, hi) — a tuple, as a
+  // quaternary's is. 🔧 They fell through to the prefix rule below and were
+  // typed a single i64; binaryen-ts's decoder set the tuple itself while
+  // decoding, and the one reader's typing step (`deriveTypes`, through this)
+  // did not, so a `mul_wide` whose two results were consumed apart was refused
+  // at read — "drop consumes 1 value and the stack holds 0" (found deleting
+  // that decoder, 1.6.0; live on `wasm-opt` since One front end stage 3a).
+  if (opcode === BinaryOp.MulWideSInt64 || opcode === BinaryOp.MulWideUInt64) {
+    return [ValType.I64, ValType.I64];
+  }
   // The operator is an OPCODE now, so the name comes from the table.
   // The tests below are unchanged.
   const name = anyOpcodeName(opcode);

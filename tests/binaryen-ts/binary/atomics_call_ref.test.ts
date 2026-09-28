@@ -15,8 +15,8 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type Expression,
   ExpressionKind,
@@ -122,20 +122,20 @@ const FIX: Record<string, { wat: string; kinds: string[]; args: number[]; want: 
 for (const [name, fx] of Object.entries(FIX)) {
   Deno.test(`${name}: decoded to its nodes, and re-encoded byte for byte`, () => {
     const bytes = assemble(fx.wat);
-    const mod = parseWasm(bytes);
+    const mod = readForPasses(bytes);
     const seen = kinds(mod);
     for (const k of fx.kinds) assert(seen.has(k), `${k} decoded (saw ${[...seen].join(', ')})`);
-    assertEquals(encodeWasm(mod), bytes);
+    assertEquals(writeWasm(mod), bytes);
     assertEquals(run(bytes, ...fx.args), fx.want, 'the fixture computes what it says');
   });
 
   Deno.test(`${name}: every -O level validates and computes the same`, () => {
     const bytes = assemble(fx.wat);
     for (const [o, s] of [[1, 0], [2, 0], [3, 0], [2, 1], [2, 2]] as const) {
-      const mod = parseWasm(bytes);
+      const mod = readForPasses(bytes);
       new PassRunner(mod, { optimizeLevel: o, shrinkLevel: s }).addDefaultOptimizationPasses()
         .run();
-      const out = encodeWasm(mod);
+      const out = writeWasm(mod);
       assert(WebAssembly.validate(out as BufferSource), `-O${o}/${s} validates`);
       assertEquals(run(out, ...fx.args), fx.want, `-O${o}/${s}`);
     }
@@ -143,7 +143,7 @@ for (const [name, fx] of Object.entries(FIX)) {
 }
 
 Deno.test('the walkers reach every operand of every atomic, in order', () => {
-  const mod = parseWasm(assemble(FIX.atomics!.wat));
+  const mod = readForPasses(assemble(FIX.atomics!.wat));
   const body = mod.functions[0]!.body;
   const walked: string[] = [];
   walkExpression(body, (e) => {
@@ -175,7 +175,7 @@ Deno.test('the walkers reach every operand of every atomic, in order', () => {
   assertEquals(mapped, walked.length);
 
   // `wait` has three operands, `notify` two: the timeout is the last one pushed.
-  const wait = parseWasm(assemble(FIX.wait!.wat)).functions[0]!.body;
+  const wait = readForPasses(assemble(FIX.wait!.wat)).functions[0]!.body;
   const consts: string[] = [];
   walkExpression(wait, (e) => {
     if (e.kind === ExpressionKind.Const && 'value' in e.value) consts.push(String(e.value.value));
@@ -192,7 +192,7 @@ Deno.test('the walkers reach every operand of every atomic, in order', () => {
 Deno.test("each atomic's type is its instruction's result — i64 for an i64 instruction", () => {
   const types = new Map<string, unknown[]>();
   for (const fx of [FIX.atomics!, FIX.wait!]) {
-    walkExpression(parseWasm(assemble(fx.wat)).functions[0]!.body, (e) => {
+    walkExpression(readForPasses(assemble(fx.wat)).functions[0]!.body, (e) => {
       if (!e.kind.startsWith('atomic.')) return;
       types.set(e.kind, [...(types.get(e.kind) ?? []), e.type]);
     });
@@ -211,7 +211,7 @@ Deno.test("each atomic's type is its instruction's result — i64 for an i64 ins
 Deno.test("call_ref's type is its signature's results — a tuple for several", () => {
   const types: unknown[] = [];
   for (const fx of [FIX.call_ref!, FIX['call_ref, two results']!]) {
-    walkExpression(parseWasm(assemble(fx.wat)).functions.at(-1)!.body, (e) => {
+    walkExpression(readForPasses(assemble(fx.wat)).functions.at(-1)!.body, (e) => {
       if (e.kind === ExpressionKind.CallRef) types.push(e.type);
     });
   }
@@ -231,9 +231,9 @@ Deno.test('LocalCSE: a global read is not reused across a call_ref that writes i
       (call_ref $w (ref.func $bump))
       (local.set 2 (i32.add (global.get $g) (local.get 0)))
       (i32.add (local.get 1) (local.get 2))))`);
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).add('LocalCSE').run();
-  assertEquals([run(bytes, 1), run(encodeWasm(mod), 1)], [44, 44]);
+  assertEquals([run(bytes, 1), run(writeWasm(mod), 1)], [44, 44]);
 });
 
 Deno.test('CoalesceLocals: a throwing call_ref in a try keeps the pre-try value live', () => {
@@ -248,13 +248,13 @@ Deno.test('CoalesceLocals: a throwing call_ref in a try keeps the pre-try value 
       (local.set 0 (i32.const -1))
       (try (do (local.set 0 (call_ref $t (ref.func $mayThrow)))) (catch $e))
       (return (local.get 0))))`);
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).add('CoalesceLocals').run();
-  assertEquals([run(bytes), run(encodeWasm(mod))], [-1, -1]);
+  assertEquals([run(bytes), run(writeWasm(mod))], [-1, -1]);
 });
 
 Deno.test('Asyncify refuses call_ref rather than leaving it uninstrumented', () => {
-  const mod = parseWasm(assemble(FIX.call_ref!.wat));
+  const mod = readForPasses(assemble(FIX.call_ref!.wat));
   assertThrows(
     () => new PassRunner(mod, { optimizeLevel: 0, shrinkLevel: 0 }).add('asyncify').run(),
     Error,
@@ -265,7 +265,7 @@ Deno.test('Asyncify refuses call_ref rather than leaving it uninstrumented', () 
 Deno.test('Flatten refuses a call_ref with several results rather than hoisting a tuple', () => {
   // Built, not decoded: the decoder puts a `pop` beside a multi-value call, and
   // Flatten refuses `pop` first. A pass or builder can make the call itself.
-  const mod = parseWasm(assemble(FIX.call_ref!.wat));
+  const mod = readForPasses(assemble(FIX.call_ref!.wat));
   const f = mod.functions[1]!;
   f.body = mapExpression(
     f.body,
@@ -289,5 +289,5 @@ Deno.test('an unknown 0xfe sub-opcode is still refused, naming it', () => {
   assert(at > 0, 'found the atomic load');
   const broken = bytes.slice();
   broken[at + 1] = 0x7f;
-  assertThrows(() => parseWasm(broken), Error, 'unknown atomic opcode 0xfe 0x7f');
+  assertThrows(() => readForPasses(broken), Error, 'unknown atomic opcode: 0xfe 0x7f');
 });

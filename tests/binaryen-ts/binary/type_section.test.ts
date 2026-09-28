@@ -18,15 +18,14 @@ import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { Packed, storageTypeToString } from '../../../src/binaryen-ts/ir/gc-types.ts';
@@ -53,7 +52,7 @@ function typeSection(bytes: Uint8Array): string {
   }
   return '';
 }
-const roundTrip = (b: Uint8Array) => encodeWasm(parseWasm(b));
+const roundTrip = (b: Uint8Array) => writeWasm(readForPasses(b));
 
 describe('M5a — the type section comes back as it was', () => {
   const cases: [string, string][] = [
@@ -74,7 +73,7 @@ describe('M5a — the type section comes back as it was', () => {
   }
 
   it('the group and the supertypes are in the IR, not just in the bytes', () => {
-    const mod = parseWasm(
+    const mod = readForPasses(
       assemble('(module (rec (type $p (sub (struct))) (type $c (sub $p (struct (field i32))))))'),
     );
     const [p, c] = mod.types;
@@ -89,12 +88,12 @@ describe('M5a — the type section comes back as it was', () => {
   it('an entry with NO sub declaration keeps none', () => {
     // The bare comptype shorthand is not `(sub final)` with no supertypes: it is
     // one byte shorter, and writing one for the other changes the section.
-    const mod = parseWasm(assemble('(module (type $s (struct (field i32))))'));
+    const mod = readForPasses(assemble('(module (type $s (struct (field i32))))'));
     assertEquals(mod.types[0]!.sub, undefined);
   });
 
   it('a function type holds its signature as `sig`', () => {
-    const mod = parseWasm(assemble('(module (type $f (func (param i32) (result i64))))'));
+    const mod = readForPasses(assemble('(module (type $f (func (param i32) (result i64))))'));
     const def = mod.types[0]!;
     assert(def.kind === 'func');
     assertEquals(def.sig.params.length, 1);
@@ -102,7 +101,7 @@ describe('M5a — the type section comes back as it was', () => {
   });
 
   it('an array type holds its element as `field`', () => {
-    const mod = parseWasm(assemble('(module (type $a (array (mut i8))))'));
+    const mod = readForPasses(assemble('(module (type $a (array (mut i8))))'));
     const def = mod.types[0]!;
     assert(def.kind === 'array');
     assertEquals(def.field.mutable, true);
@@ -143,7 +142,7 @@ describe('M5b — the module holds its own type table, and a field its name', ()
   it('a decoded field the section did not name gets a MADE-UP name, never recorded as real', () => {
     // Owner decision 4 (M7c3b b0) — it was `''` (M5a). The made-up name is in no
     // `explicitNames` set, so it is never written; the type's own name is real.
-    const mod = parseWasm(assemble('(module (type $s (struct (field i32))))'));
+    const mod = readForPasses(assemble('(module (type $s (struct (field i32))))'));
     const def = mod.types[0]!;
     assert(def.kind === 'struct');
     assertEquals(def.name, '$s');
@@ -151,18 +150,18 @@ describe('M5b — the module holds its own type table, and a field its name', ()
     assertEquals([...mod.explicitNames!.types], ['$s']);
     assertEquals(mod.explicitNames!.fields.get('$s'), undefined);
     // And it is never written: the round trip is exact.
-    assertEquals(encodeWasm(mod), assemble('(module (type $s (struct (field i32))))'));
+    assertEquals(writeWasm(mod), assemble('(module (type $s (struct (field i32))))'));
   });
 
   it('an unnamed TYPE is made up too, and not written', () => {
     const bytes = assemble('(module (type (struct (field $f i32))))');
-    const mod = parseWasm(bytes);
+    const mod = readForPasses(bytes);
     const def = mod.types[0]!;
     assertEquals(def.name, '$type0');
     assertEquals([...mod.explicitNames!.types], []);
     assert(def.kind === 'struct');
     assertEquals([...mod.explicitNames!.fields.get('$type0')!], ['$f']);
-    assertEquals(encodeWasm(mod), bytes);
+    assertEquals(writeWasm(mod), bytes);
   });
 
   it('the table the module carries is the table written back', () => {
@@ -170,7 +169,7 @@ describe('M5b — the module holds its own type table, and a field its name', ()
     // emits it, in its own order.
     const bytes = assemble('(module (type $unused (func (param f64))) (func))');
     assertEquals(typeSection(roundTrip(bytes)), typeSection(bytes));
-    assertEquals(parseWasm(bytes).types.length, 2);
+    assertEquals(readForPasses(bytes).types.length, 2);
   });
 });
 

@@ -24,8 +24,8 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   BinaryOp,
   type BlockExpr,
@@ -76,8 +76,8 @@ const I32 = 0x7f;
 
 function assembleAndValidate(sections: number[][]): Promise<WebAssembly.Module> {
   const bytes = new Uint8Array([...MAGIC, ...sections.flat()]);
-  const mod = parseWasm(bytes);
-  const reencoded = encodeWasm(mod);
+  const mod = readForPasses(bytes);
+  const reencoded = writeWasm(mod);
   return WebAssembly.compile(reencoded as BufferSource);
 }
 
@@ -120,7 +120,7 @@ Deno.test('regression: call to imported function resolves to correct index after
 
   // Also assert the parsed call targets the import by its unified name.
   const bytes = new Uint8Array([...MAGIC, ...[types, imports, funcs, code].flat()]);
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   const call: CallExpr = soleOf(mod.functions[0].body, ExpressionKind.Call);
   assertEquals(call!.func, varName('$func1'));
   assertEquals(call!.operands.length, 2);
@@ -269,13 +269,13 @@ Deno.test('regression: element segments + call_indirect survive round-trip and e
     ]),
   );
 
-  const mod = parseWasm(
+  const mod = readForPasses(
     new Uint8Array([...MAGIC, ...[types, funcs, table, exports, elem, code].flat()]),
   );
   // The parsed module must retain the element segment.
   assertEquals(mod.elements.length, 1);
 
-  const reencoded = encodeWasm(mod);
+  const reencoded = writeWasm(mod);
   const compiled = await WebAssembly.compile(reencoded as BufferSource);
   const inst = new WebAssembly.Instance(compiled);
   // The indirect call through table[0] must reach $target and return 42.
@@ -310,7 +310,7 @@ Deno.test('regression: LocalCSE preserves a result-typed block that exits via br
   ];
   const code = section(10, vec([[...leb(body.length + 1), 0x00, ...body]]));
 
-  const mod = parseWasm(new Uint8Array([...MAGIC, ...[types, funcs, code].flat()]));
+  const mod = readForPasses(new Uint8Array([...MAGIC, ...[types, funcs, code].flat()]));
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).addPass(createPass('LocalCSE')).run();
 
   // The body's one instruction IS the `(result i32)` block. Its declared type
@@ -320,7 +320,7 @@ Deno.test('regression: LocalCSE preserves a result-typed block that exits via br
   assertEquals(fnBody.type, ValType.I32);
 
   // And the encoded result must validate (this is what threw before the fix).
-  await WebAssembly.compile(encodeWasm(mod) as BufferSource);
+  await WebAssembly.compile(writeWasm(mod) as BufferSource);
 });
 
 Deno.test('regression: CoalesceLocals preserves effective sets when remapping locals', () => {
@@ -360,12 +360,12 @@ Deno.test('regression: CoalesceLocals preserves effective sets when remapping lo
   ];
   const code = section(10, vec([[...leb(body.length), ...body]]));
 
-  const mod = parseWasm(new Uint8Array([...MAGIC, ...[types, funcs, exports, code].flat()]));
+  const mod = readForPasses(new Uint8Array([...MAGIC, ...[types, funcs, exports, code].flat()]));
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 })
     .addPass(createPass('CoalesceLocals'))
     .run();
   const inst = new WebAssembly.Instance(
-    new WebAssembly.Module(encodeWasm(mod) as BufferSource),
+    new WebAssembly.Module(writeWasm(mod) as BufferSource),
   );
   const run = inst.exports.run as (n: number) => number;
   assertEquals(run(0), 42);
@@ -420,12 +420,12 @@ Deno.test('regression: LocalCSE invalidates cache after a child that writes the 
   ];
   const code = section(10, vec([[...leb(body.length), ...body]]));
 
-  const mod = parseWasm(new Uint8Array([...MAGIC, ...[types, funcs, exports, code].flat()]));
+  const mod = readForPasses(new Uint8Array([...MAGIC, ...[types, funcs, exports, code].flat()]));
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 })
     .addPass(createPass('LocalCSE'))
     .run();
   const inst = new WebAssembly.Instance(
-    new WebAssembly.Module(encodeWasm(mod) as BufferSource),
+    new WebAssembly.Module(writeWasm(mod) as BufferSource),
   );
   const run = inst.exports.run as (n: number) => number;
   assertEquals(run(5), 7);
@@ -487,7 +487,7 @@ Deno.test('regression: single-arm (if cond (then BODY)) round-trips without inve
 
   // The round-tripped output must validate AND behave identically to the
   // original on both cond=0 and cond=1.
-  const reEncoded = encodeWasm(parseWasm(orig));
+  const reEncoded = writeWasm(readForPasses(orig));
 
   const origInst = new WebAssembly.Instance(new WebAssembly.Module(orig as BufferSource));
   const rtInst = new WebAssembly.Instance(new WebAssembly.Module(reEncoded as BufferSource));
@@ -553,14 +553,17 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
   ];
   const code = section(10, vec([[...leb(body.length), ...body]]));
 
+  // The tag section comes BEFORE the export section (the spec's order, after
+  // memory); binaryen-ts's decoder, deleted at 1.6.0, read it anywhere, and
+  // the reader refuses it out of order, as the engine does.
   const bytes = new Uint8Array([
     ...MAGIC,
-    ...[types, funcs, exportsSec, tagSec, code].flat(),
+    ...[types, funcs, tagSec, exportsSec, code].flat(),
   ]);
 
   // After parse, both the tag with its signature AND the tag export must
   // survive — the tag must still hold `(param i32 i32)`.
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   assertEquals(mod.tags.length, 1);
   assertEquals(mod.tags[0].sig.params, [ValType.I32, ValType.I32]);
   const tagExport = mod.exports.find((e) => e.kind === ExternalKind.Tag);
@@ -577,8 +580,8 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
   assert(tagExport2, 'tag export must survive RemoveUnusedModuleElements');
 
   // Encode → reparse must preserve everything.
-  const reEncoded = encodeWasm(mod);
-  const mod2 = parseWasm(reEncoded);
+  const reEncoded = writeWasm(mod);
+  const mod2 = readForPasses(reEncoded);
   assertEquals(mod2.tags.length, 1);
   assertEquals(mod2.tags[0].sig.params, [ValType.I32, ValType.I32]);
   const tagExport3 = mod2.exports.find((e) => e.kind === ExternalKind.Tag);
@@ -674,7 +677,7 @@ Deno.test('regression: an UNKNOWN 0xFC sub-opcode still fails loudly, not as a n
   const body = [0x00, 0xfc, 0x7f, 0x0b];
   const code = section(10, vec([[...leb(body.length), ...body]]));
   const bytes = new Uint8Array([...MAGIC, ...types, ...funcs, ...code]);
-  assertThrows(() => parseWasm(bytes), WasmBinaryError);
+  assertThrows(() => readForPasses(bytes), WasmBinaryError);
 });
 
 Deno.test('regression: binary parser rejects an unknown opcode instead of emitting a silent nop', () => {
@@ -685,7 +688,7 @@ Deno.test('regression: binary parser rejects an unknown opcode instead of emitti
   const body = [0x00, 0xff, 0x0b]; // 0 locals; 0xFF (unknown); end
   const code = section(10, vec([[...leb(body.length), ...body]]));
   const bytes = new Uint8Array([...MAGIC, ...types, ...funcs, ...code]);
-  assertThrows(() => parseWasm(bytes), WasmBinaryError, 'unknown opcode');
+  assertThrows(() => readForPasses(bytes), WasmBinaryError, 'unknown opcode');
 });
 
 // ---------------------------------------------------------------------------
@@ -714,7 +717,7 @@ Deno.test('regression: br to the function frame from inside a block keeps its de
   const code = section(10, vec([[...leb(body.length), ...body]]));
   const bytes = new Uint8Array([...MAGIC, ...types, ...funcs, ...globals, ...exportSec, ...code]);
 
-  const reencoded = encodeWasm(parseWasm(bytes));
+  const reencoded = writeWasm(readForPasses(bytes));
   const inst = new WebAssembly.Instance(await WebAssembly.compile(reencoded as BufferSource));
   const f = inst.exports.f as (x: number) => void;
   const g = inst.exports.g as WebAssembly.Global;
@@ -763,7 +766,7 @@ Deno.test('regression: br to an `if` from inside a nested block keeps its depth'
   const bytes = new Uint8Array([...MAGIC, ...types, ...funcs, ...globals, ...exportSec, ...code]);
 
   const inst = new WebAssembly.Instance(
-    await WebAssembly.compile(encodeWasm(parseWasm(bytes)) as BufferSource),
+    await WebAssembly.compile(writeWasm(readForPasses(bytes)) as BufferSource),
   );
   const f = inst.exports.f as (x: number) => void;
   const g = inst.exports.g as WebAssembly.Global;

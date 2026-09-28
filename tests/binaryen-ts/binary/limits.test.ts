@@ -23,11 +23,13 @@ import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/cor
 import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import {
+  prepareForPasses,
+  readForPasses,
+  WasmBinaryError,
+} from '../../../src/binaryen-ts/ir/prepare.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
-import { WasmBinaryError } from '../../../src/binaryen-ts/binary/reader.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { limitsOf, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
@@ -58,7 +60,7 @@ function section(bytes: Uint8Array, id: number): string {
   return '';
 }
 
-const roundTrip = (b: Uint8Array) => encodeWasm(parseWasm(b));
+const roundTrip = (b: Uint8Array) => writeWasm(readForPasses(b));
 
 describe('M2g — a table or memory keeps its limits through decode → encode', () => {
   const cases: [string, string, number][] = [
@@ -76,14 +78,14 @@ describe('M2g — a table or memory keeps its limits through decode → encode',
   }
 
   it('the decoded records say what the binary said', () => {
-    const t = parseWasm(assemble('(module (table i64 1 10 funcref))')).tables[0]!;
+    const t = readForPasses(assemble('(module (table i64 1 10 funcref))')).tables[0]!;
     assertEquals(t.limits, { initial: 1n, max: 10n, isShared: false, is64: true });
-    const m = parseWasm(assemble('(module (memory 1 (pagesize 1)))')).memories[0]!;
+    const m = readForPasses(assemble('(module (memory 1 (pagesize 1)))')).memories[0]!;
     assertEquals(m.limits, { initial: 1n, isShared: false, is64: false, pageSizeLog2: 0 });
-    const withInit = parseWasm(assemble('(module (func $f) (table 2 funcref (ref.func $f)))'))
+    const withInit = readForPasses(assemble('(module (func $f) (table 2 funcref (ref.func $f)))'))
       .tables[0]!;
     assertEquals(withInit.init?.children.map((e) => e.kind), [ExpressionKind.RefFunc]);
-    assertEquals(parseWasm(assemble('(module (table 2 funcref))')).tables[0]!.init, undefined);
+    assertEquals(readForPasses(assemble('(module (table 2 funcref))')).tables[0]!.init, undefined);
   });
 });
 
@@ -101,7 +103,7 @@ describe('M2g — what cannot be held is refused, not dropped', () => {
     assertEquals(bytes[at], 0x00);
     const bad = bytes.slice();
     bad[at] = 0x10;
-    assertThrows(() => parseWasm(bad), WasmBinaryError, 'malformed limits flags: 0x10');
+    assertThrows(() => readForPasses(bad), WasmBinaryError, 'malformed limits flags: 0x10');
   });
 
   it('a page size on a table', () => {
@@ -117,7 +119,7 @@ describe('M2g — what cannot be held is refused, not dropped', () => {
       ...bytes.subarray(at + 2),
     ]);
     bad[bytes.indexOf(0x04, 8) + 1]! += 1;
-    assertThrows(() => parseWasm(bad), WasmBinaryError, 'a table has no page size');
+    assertThrows(() => readForPasses(bad), WasmBinaryError, 'a table has no page size');
   });
 
   // 🔧 These two were REFUSED while the flat import record had nowhere to put a
@@ -126,7 +128,7 @@ describe('M2g — what cannot be held is refused, not dropped', () => {
   it('an imported table64 keeps its 64-bit limits (M4)', () => {
     const bytes = assemble('(module (import "m" "t" (table i64 1 funcref)))');
     assertEquals(section(roundTrip(bytes), 2), section(bytes, 2));
-    const imp = parseWasm(bytes).imports[0]!;
+    const imp = readForPasses(bytes).imports[0]!;
     assert(imp.kind === ExternalKind.Table);
     assertEquals(imp.table.limits, { initial: 1n, isShared: false, is64: true });
   });
@@ -134,7 +136,7 @@ describe('M2g — what cannot be held is refused, not dropped', () => {
   it('an imported memory keeps its custom page size (M4)', () => {
     const bytes = assemble('(module (import "m" "mem" (memory 1 (pagesize 1))))');
     assertEquals(section(roundTrip(bytes), 2), section(bytes, 2));
-    const imp = parseWasm(bytes).imports[0]!;
+    const imp = readForPasses(bytes).imports[0]!;
     assert(imp.kind === ExternalKind.Memory);
     assertEquals(imp.memory.limits.pageSizeLog2, 0);
   });
@@ -146,7 +148,7 @@ describe('M2g — what cannot be held is refused, not dropped', () => {
 
   it('the encoder: a 32-bit size past u32', () => {
     const mod = new ModuleBuilder().addMemory('$m', limitsOf(2n ** 32n)).build();
-    assertThrows(() => encodeWasm(mod), WasmEncodeError, 'does not fit a 32-bit limit');
+    assertThrows(() => writeWasm(mod), WasmEncodeError, 'u32 LEB128 out of range');
   });
 });
 
@@ -168,7 +170,7 @@ describe('M2g — the direct path (the bridge until M8e) carries the record', ()
     resolveNames(module, errs);
     assert(!hasErrors(errs), formatErrors(errs));
     synthesizeTypes(module);
-    return encodeWasm(prepareForPasses(module));
+    return writeWasm(prepareForPasses(module));
   }
 
   for (

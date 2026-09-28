@@ -29,8 +29,8 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type Expression,
   makeBlock,
@@ -52,9 +52,9 @@ function assemble(wat: string): Uint8Array {
 }
 
 function runPass(bytes: Uint8Array, pass: string): Uint8Array {
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add(pass).run();
-  return encodeWasm(mod);
+  return writeWasm(mod);
 }
 
 function call(bytes: Uint8Array, x: number): number | string {
@@ -97,7 +97,7 @@ Deno.test('DCE: the same, with no EH — a void if whose arms both trap', () => 
 Deno.test('decode → encode: a void if with unreachable arms writes no extra byte', () => {
   for (const wat of [LEGACY_TRY, PLAIN_BLOCK]) {
     const bytes = assemble(wat);
-    assertEquals(encodeWasm(parseWasm(bytes)), bytes);
+    assertEquals(writeWasm(readForPasses(bytes)), bytes);
   }
 });
 
@@ -177,12 +177,12 @@ for (const [name, wat] of Object.entries(TEXT_CARRIERS)) {
   Deno.test(`text path: a ${name} carries its declared type, as the decoder's does`, () => {
     const bytes = assemble(wat);
     const fromText = parseWat(wat);
-    const fromBinary = parseWasm(bytes);
+    const fromBinary = readForPasses(bytes);
     const types = carrierTypes(fromText.functions[0]!.body);
     assert(types.length > 0, 'the fixture has carriers');
     assert(!types.includes('unreachable'), `a carrier typed unreachable: ${JSON.stringify(types)}`);
     assertEquals(types, carrierTypes(fromBinary.functions[0]!.body));
-    assertEquals(codeSection(encodeWasm(fromText)), codeSection(bytes));
+    assertEquals(codeSection(writeWasm(fromText)), codeSection(bytes));
   });
 }
 
@@ -233,10 +233,10 @@ const PASS_BUILT: [string, string, string, (bytes: Uint8Array) => unknown][] = [
 
 for (const [pass, name, wat, observe] of PASS_BUILT) {
   Deno.test(`${pass}: ${name} — no construct typed unreachable, and it validates`, () => {
-    const mod = parseWasm(assemble(wat));
+    const mod = readForPasses(assemble(wat));
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add(pass).run();
     assertEquals(unreachableCarriers(mod), []);
-    const out = encodeWasm(mod);
+    const out = writeWasm(mod);
     assert(WebAssembly.validate(out as BufferSource), `${pass} output validates`);
     if (pass === 'StripEH') assertEquals(observe(out), 'trap');
     else assertEquals(observe(out), true);
@@ -254,18 +254,18 @@ Deno.test("StripEH: a try's body block declares the TRY's type, not its body's l
       (i32.const 1))))`);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('StripEH').run();
   assertEquals(unreachableCarriers(mod), []);
-  assertEquals(call(encodeWasm(mod), 1), 'trap');
+  assertEquals(call(writeWasm(mod), 1), 'trap');
 });
 
 Deno.test('encoder: a construct typed unreachable is REFUSED, not written as a void one', () => {
   // Reachable only by building a node around the type (a cast, or JSON): the
   // carriers' `type` is a `BlockResult`. Writing it as `0x40` gave the construct
   // a declaration it never had.
-  const mod = parseWasm(assemble(PLAIN_BLOCK));
+  const mod = readForPasses(assemble(PLAIN_BLOCK));
   const block = mod.functions[0]!.body.children[0]!;
   assertEquals(block.kind, 'block');
   (block as { type?: unknown }).type = 'unreachable';
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'typed `unreachable`');
+  assertThrows(() => writeWasm(mod), WasmEncodeError, 'typed `unreachable`');
 });
 
 Deno.test('makeBlock / makeIf DECLARE — void when not told, whatever the children', () => {

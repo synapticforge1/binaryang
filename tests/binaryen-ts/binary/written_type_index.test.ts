@@ -26,8 +26,8 @@ import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
@@ -60,7 +60,7 @@ function section(b: Uint8Array, want: number): string {
 /** Every node of `kind` in the module's functions. */
 function nodesOfKind(bytes: Uint8Array, kind: ExpressionKind): Expression[] {
   const found: Expression[] = [];
-  for (const fn of parseWasm(bytes).functions) {
+  for (const fn of readForPasses(bytes).functions) {
     walkExpression(fn.body, (e) => {
       if (e.kind === kind) found.push(e);
     });
@@ -80,7 +80,10 @@ describe('7c / T1 — call_indirect keeps the type index it named', () => {
 
   it('decode → encode is byte-identical (it named type 0 before)', () => {
     const bytes = assemble(IDENTICAL_TYPES);
-    assert(same(encodeWasm(parseWasm(bytes)), bytes), section(encodeWasm(parseWasm(bytes)), 10));
+    assert(
+      same(writeWasm(readForPasses(bytes)), bytes),
+      section(writeWasm(readForPasses(bytes)), 10),
+    );
   });
 
   it('the node carries the written index', () => {
@@ -95,7 +98,7 @@ describe('7c / T1 — call_indirect keeps the type index it named', () => {
     const bytes = assemble(
       '(module (type $a (func)) (table 1 funcref) (func (call_indirect (type $a) (i32.const 0))))',
     );
-    assert(same(encodeWasm(parseWasm(bytes)), bytes));
+    assert(same(writeWasm(readForPasses(bytes)), bytes));
   });
 
   it('return_call_indirect keeps it too', () => {
@@ -103,7 +106,10 @@ describe('7c / T1 — call_indirect keeps the type index it named', () => {
       '(module (type $a (func)) (type $b (func)) (table 1 funcref)' +
         ' (func (return_call_indirect (type $b) (i32.const 0))))',
     );
-    assert(same(encodeWasm(parseWasm(bytes)), bytes), section(encodeWasm(parseWasm(bytes)), 10));
+    assert(
+      same(writeWasm(readForPasses(bytes)), bytes),
+      section(writeWasm(readForPasses(bytes)), 10),
+    );
   });
 });
 
@@ -118,19 +124,22 @@ describe('7c — a block header written as a type index keeps that form', () => 
 
   it('decode → encode is byte-identical (it was `02 7f` before)', () => {
     const bytes = assemble(BLOCK_INDEX);
-    assert(same(encodeWasm(parseWasm(bytes)), bytes), section(encodeWasm(parseWasm(bytes)), 10));
+    assert(
+      same(writeWasm(readForPasses(bytes)), bytes),
+      section(writeWasm(readForPasses(bytes)), 10),
+    );
   });
 
   it('a header written INLINE stays inline — the record is per node', () => {
     const bytes = assemble('(module (func (result i32) (block (result i32) (i32.const 1))))');
     assert(section(bytes, 10).includes('02 7f'), section(bytes, 10));
-    assert(same(encodeWasm(parseWasm(bytes)), bytes));
+    assert(same(writeWasm(readForPasses(bytes)), bytes));
   });
 
   it('an empty header stays `0x40`', () => {
     const bytes = assemble('(module (func (block (nop))))');
     assert(section(bytes, 10).includes('02 40'), section(bytes, 10));
-    assert(same(encodeWasm(parseWasm(bytes)), bytes));
+    assert(same(writeWasm(readForPasses(bytes)), bytes));
   });
 
   it('loop, if and try_table keep it as well', () => {
@@ -144,7 +153,7 @@ describe('7c — a block header written as a type index keeps that form', () => 
       ]
     ) {
       const bytes = assemble(wat);
-      assert(same(encodeWasm(parseWasm(bytes)), bytes), `${wat}\n   ${section(bytes, 10)}`);
+      assert(same(writeWasm(readForPasses(bytes)), bytes), `${wat}\n   ${section(bytes, 10)}`);
     }
   });
 });
@@ -170,7 +179,7 @@ describe('7c — a header WITH parameters keeps the index it named, not the firs
       const bytes = assemble(`(module ${TYPES} (func (type $a) ${body}))`);
       assert(section(bytes, 10).includes(header), section(bytes, 10));
       assert(WebAssembly.validate(new Uint8Array(bytes)), 'the fixture itself is valid');
-      const out = encodeWasm(parseWasm(bytes));
+      const out = writeWasm(readForPasses(bytes));
       assert(same(out, bytes), `${section(bytes, 10)}\n   ${section(out, 10)}`);
     });
   }
@@ -186,35 +195,35 @@ describe('7c — the form is FIDELITY ONLY: a pass run drops it', () => {
     ' (block (type $t) (i32.const 1) (i32.add))))';
 
   it('a parametrised header survives optimization as VALID wasm', () => {
-    const m = parseWasm(assemble(PARAMS));
+    const m = readForPasses(assemble(PARAMS));
     new PassRunner(m, { optimizeLevel: 2, debugInfo: false }).addDefaultOptimizationPasses().run();
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource), section(out, 10));
   });
 
   it('and so does one that named an index with no parameters', () => {
-    const m = parseWasm(
+    const m = readForPasses(
       assemble(
         '(module (type $t (func (result i32))) (func (export "f") (result i32)' +
           ' (block (type $t) (i32.const 1))))',
       ),
     );
     new PassRunner(m, { optimizeLevel: 2, debugInfo: false }).addDefaultOptimizationPasses().run();
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource), section(out, 10));
   });
 
   it('with NO pass queued it is still a plain read-and-write: the form stays', () => {
     const bytes = assemble(IDENTICAL_TYPES);
-    const m = parseWasm(bytes);
+    const m = readForPasses(bytes);
     new PassRunner(m, { optimizeLevel: 0, debugInfo: false }).run();
-    assert(same(encodeWasm(m), bytes), section(encodeWasm(m), 10));
+    assert(same(writeWasm(m), bytes), section(writeWasm(m), 10));
   });
 
   it('a queued pass drops it — the node no longer carries an index', () => {
     // EXPORTED, with a runtime table slot: IDENTICAL_TYPES' function is dead code
     // that -O2 removes, which left this test checking nothing at all.
-    const m = parseWasm(assemble(
+    const m = readForPasses(assemble(
       '(module (type $a (func)) (type $b (func)) (table 1 funcref)' +
         ' (func (export "f") (param i32) (call_indirect (type $b) (local.get 0))))',
     ));
@@ -231,7 +240,7 @@ describe('7c — the form is FIDELITY ONLY: a pass run drops it', () => {
   });
 
   it("…and a block's header index too", () => {
-    const m = parseWasm(assemble(
+    const m = readForPasses(assemble(
       '(module (type $t (func (result i32)))' +
         ' (func (export "f") (param i32) (result i32)' +
         ' (i32.add (block (type $t) (local.get 0)) (i32.const 1))))',
@@ -275,7 +284,7 @@ describe("7c / T2 — the type-section ORDER is the decoder's, not derived", () 
   ) {
     it(name, () => {
       const bytes = assemble(wat);
-      assertEquals(section(encodeWasm(parseWasm(bytes)), 1), section(bytes, 1));
+      assertEquals(section(writeWasm(readForPasses(bytes)), 1), section(bytes, 1));
     });
   }
 });

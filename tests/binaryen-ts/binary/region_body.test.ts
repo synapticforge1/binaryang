@@ -30,8 +30,8 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
@@ -221,15 +221,15 @@ for (const [name, body, want] of CASES) {
     // round-trip assertion below would be measuring nothing.
     assertEquals(await run(input), want, 'fixture does not behave as expected');
 
-    assertEquals(await run(encodeWasm(parseWasm(input))), want, 'bare round-trip');
+    assertEquals(await run(writeWasm(readForPasses(input))), want, 'bare round-trip');
 
     // The full pipeline too: `RemoveUnusedNames` is what can turn a real block
     // into an anonymous one, and Vacuum is what collapses containers — both
     // change what the encoder is handed.
-    const opt = parseWasm(input);
+    const opt = readForPasses(input);
     new PassRunner(opt, { optimizeLevel: 2, shrinkLevel: 2 })
       .addDefaultOptimizationPasses()
       .run();
-    assertEquals(await run(encodeWasm(opt)), want, 'full -Oz');
+    assertEquals(await run(writeWasm(opt)), want, 'full -Oz');
   });
 }

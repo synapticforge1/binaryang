@@ -29,9 +29,10 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { spillStackValues } from '../../../src/binaryen-ts/passes/spill-stack-values.ts';
 
 // Hand-assembled module (global $g mut i32 = 100):
 //   (func (export "f") (result i32)
@@ -108,7 +109,7 @@ function nodes(e: Expression, out: Expression[] = []): Expression[] {
 }
 
 Deno.test('decoder does not reorder a stack-held value past a write of its state (spills instead)', () => {
-  const mod = parseWasm(VALUE_ON_STACK);
+  const mod = readForPasses(VALUE_ON_STACK);
   const f = mod.functions[0];
   const all = nodes(f.body);
 
@@ -124,10 +125,16 @@ Deno.test('decoder does not reorder a stack-held value past a write of its state
     'decoder reordered the stack-held global.get into a self-assigning global.set',
   );
 
-  // Instead it must spill the value into a temp local (added beyond the 0 the
-  // binary declared) and restore via local.get.
-  assert(f.locals.length >= 1, 'decoder should have added a spill local for the reordered value');
-  const restoresFromLocal = all.some((n) =>
+  // Instead the value is spilled into a temp local (added beyond the 0 the
+  // binary declared) and restored via local.get. binaryen-ts's decoder did that
+  // while DECODING; it was deleted at 1.6.0, and the one reader keeps the value
+  // on the stack (a `pop`), so a plain read → write stays byte-exact. The spill
+  // is `spillStackValues`, which `PassRunner` runs before the first pass (R11').
+  assertEquals(writeWasm(mod), VALUE_ON_STACK, 'read → write: the bytes as they were');
+  spillStackValues(mod);
+  const spilled = nodes(mod.functions[0].body);
+  assert(f.locals.length >= 1, 'the spill should have added a local for the stack-held value');
+  const restoresFromLocal = spilled.some((n) =>
     (n as { kind: string }).kind === 'global.set' &&
     (n as { value?: { kind?: string } }).value?.kind === 'local.get'
   );
@@ -135,8 +142,8 @@ Deno.test('decoder does not reorder a stack-held value past a write of its state
 });
 
 Deno.test('the spilled decode round-trips and executes correctly (f() === 100)', async () => {
-  const mod = parseWasm(VALUE_ON_STACK);
-  const bytes = encodeWasm(mod);
+  const mod = readForPasses(VALUE_ON_STACK);
+  const bytes = writeWasm(mod);
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});

@@ -39,8 +39,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 import {
@@ -72,11 +72,11 @@ function decodeB64(b64: string): Uint8Array {
 const RAW = decodeB64(FIXTURE_B64);
 
 function optimizeOz(bytes: Uint8Array): Uint8Array {
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
     .addDefaultOptimizationPasses()
     .run();
-  return encodeWasm(mod);
+  return writeWasm(mod);
 }
 
 /** Instantiate a WASI module with deterministic stubs, run `_start`, capture fd_write bytes. */
@@ -181,7 +181,7 @@ Deno.test('LocalCSE: a cached value is not substituted across a write nested in 
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('LocalCSE').run();
 
   assert(mod.functions[0]!.locals.length > localsBefore, 'CSE must have fired (a tee local)');
-  const { instance } = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource);
+  const { instance } = await WebAssembly.instantiate(writeWasm(mod) as BufferSource);
   const f = instance.exports.f as (cond: number, x: number) => number;
   assertEquals(f(1, 5), 112, 'post-if x + 7 must see the modified x');
   assertEquals(f(0, 5), 12, 'when the if does not run, x is unchanged');
@@ -227,7 +227,7 @@ Deno.test('LocalCSE: a cached value is not substituted across a write nested ear
 
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('LocalCSE').run();
 
-  const { instance } = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource);
+  const { instance } = await WebAssembly.instantiate(writeWasm(mod) as BufferSource);
   const f = instance.exports.f as (x: number) => number;
   assertEquals(f(5), 205, 'the second x + 1 must read the value written by the nested tee');
 });

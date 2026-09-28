@@ -23,7 +23,7 @@ import { readBinaryIr } from '../../src/wabt-ts/reader/binary-reader.ts';
 import { makeErrorList } from '../../src/wabt-ts/core/error.ts';
 import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../src/wabt-ts/tools/wasm2wat.ts';
-import { parseWasm } from '../../src/binaryen-ts/binary/index.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { parseWat } from '../../src/binaryen-ts/parser/wat-parser.ts';
 import { SIMDLoadOp } from '../../src/binaryen-ts/ir/expressions.ts';
 
@@ -69,7 +69,7 @@ describe('one node kind per SIMD load, from every front end', () => {
   });
 
   it("binaryen-ts's decoder", () => {
-    assertEquals(kinds(parseWasm(bytes).functions), want);
+    assertEquals(kinds(readForPasses(bytes).functions), want);
   });
 
   it("binaryen-ts's internal WAT parser", () => {

@@ -19,8 +19,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import {
   asRegion,
@@ -75,26 +75,26 @@ describe('decode → encode keeps a body exactly as written', () => {
     const body = [0x00, 0x03, 0x40, 0x0b, 0x0b]; // loop (void) end
     const input = moduleWith(body);
     assertEquals(WebAssembly.validate(input as BufferSource), true);
-    assertEquals(bodyOf(encodeWasm(parseWasm(input))), body);
+    assertEquals(bodyOf(writeWasm(readForPasses(input))), body);
   });
 
   it('an explicit empty else survives', () => {
     const body = [0x00, 0x41, 0x01, 0x04, 0x40, 0x01, 0x05, 0x0b, 0x0b]; // if nop else end
     const input = moduleWith(body);
     assertEquals(WebAssembly.validate(input as BufferSource), true);
-    assertEquals(bodyOf(encodeWasm(parseWasm(input))), body);
+    assertEquals(bodyOf(writeWasm(readForPasses(input))), body);
   });
 
   it('an EMPTY `(else)` in TEXT is no else — as upstream wat2wasm and wabt-ts write it', () => {
     // upstream wat2wasm 1.0.41: `(if (i32.const 1) (then (nop)) (else))` →
     // `41 01 04 40 01 0b` (no 0x05). The binaryen-ts WAT path emitted the else.
-    const out = encodeWasm(parseWat('(module (func (if (i32.const 1) (then (nop)) (else))))'));
+    const out = writeWasm(parseWat('(module (func (if (i32.const 1) (then (nop)) (else))))'));
     assertEquals(bodyOf(out), [0x00, 0x41, 0x01, 0x04, 0x40, 0x01, 0x0b, 0x0b]);
   });
 
   it('an if with no else still has none', () => {
     const body = [0x00, 0x41, 0x01, 0x04, 0x40, 0x01, 0x0b, 0x0b]; // if nop end
-    assertEquals(bodyOf(encodeWasm(parseWasm(moduleWith(body)))), body);
+    assertEquals(bodyOf(writeWasm(readForPasses(moduleWith(body)))), body);
   });
 });
 
@@ -139,9 +139,9 @@ describe('a block the source wrote is a block, never a wrapper', () => {
   ];
   for (const [name, fn, upstream] of CASES) {
     it(name, () => {
-      const viaWat = encodeWasm(parseWat(`(module ${fn})`));
+      const viaWat = writeWasm(parseWat(`(module ${fn})`));
       assertEquals(bodyOf(viaWat), upstream);
-      assertEquals(bodyOf(encodeWasm(parseWasm(viaWat))), upstream);
+      assertEquals(bodyOf(writeWasm(readForPasses(viaWat))), upstream);
     });
   }
 });
@@ -173,6 +173,6 @@ describe('the region helpers', () => {
     const mod = new ModuleBuilder()
       .addFunction('$f', [], [], [makeDrop(makeRegion([makeI32Const(1)]))])
       .build();
-    assertThrows(() => encodeWasm(mod), WasmEncodeError, 'region outside a region slot');
+    assertThrows(() => writeWasm(mod), WasmEncodeError, 'region outside a region slot');
   });
 });

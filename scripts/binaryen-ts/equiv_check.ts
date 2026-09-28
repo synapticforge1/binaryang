@@ -27,7 +27,7 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import * as ours from '../../src/binaryen-ts/api/binaryen-compat.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
@@ -200,7 +200,7 @@ async function checkFile(rel: string): Promise<FileReport> {
   let optimized: Uint8Array;
   let mod: WasmModule;
   try {
-    mod = parseWasm(orig);
+    mod = readForPasses(orig);
     const m = ours.readBinary(orig);
     m.setFeatures(ours.Features.All);
     ours.setShrinkLevel(2);

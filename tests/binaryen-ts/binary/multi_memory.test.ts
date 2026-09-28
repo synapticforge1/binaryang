@@ -33,8 +33,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 
@@ -83,7 +83,7 @@ const LOAD_STORE = `(module (memory $a 1) (memory $b 1)
 
 describe('binaryen-ts — a memarg carrying an explicit memory index', () => {
   it('decodes align and offset correctly, rather than shifted by one field', () => {
-    const mod = parseWasm(assemble(LOAD_STORE));
+    const mod = readForPasses(assemble(LOAD_STORE));
     const nodes = nodesOf(mod.functions[0]?.body);
 
     // Found by DISCRIMINANT. This matched on the field name `'bytes'` — a string
@@ -100,7 +100,7 @@ describe('binaryen-ts — a memarg carrying an explicit memory index', () => {
   });
 
   it('leaves NO phantom instruction behind', () => {
-    const mod = parseWasm(assemble(LOAD_STORE));
+    const mod = readForPasses(assemble(LOAD_STORE));
     const nodes = nodesOf(mod.functions[0]?.body);
     // The stray offset byte used to be consumed as opcode 0x00 = `unreachable`,
     // which also made the enclosing block's type `unreachable`.
@@ -110,7 +110,7 @@ describe('binaryen-ts — a memarg carrying an explicit memory index', () => {
 
   it('re-encodes byte-identically instead of refusing', () => {
     const input = assemble(LOAD_STORE);
-    const out = encodeWasm(parseWasm(input));
+    const out = writeWasm(readForPasses(input));
     assertEquals(Array.from(out), Array.from(input));
     assert(WebAssembly.validate(out as BufferSource), 'and the engine accepts the result');
   });
@@ -146,7 +146,7 @@ describe('binaryen-ts — multi-memory beyond load and store', () => {
   for (const [name, wat] of cases) {
     it(`round-trips ${name}`, () => {
       const input = assemble(wat);
-      const out = encodeWasm(parseWasm(input));
+      const out = writeWasm(readForPasses(input));
       assert(WebAssembly.validate(out as BufferSource), 'the engine must accept the result');
       assertEquals(Array.from(out), Array.from(input));
     });
@@ -161,7 +161,7 @@ describe('binaryen-ts — single-memory output is untouched', () => {
       (func $f (param i32) (result i32)
         (i32.store (i32.const 0) (local.get 0))
         (i32.load (i32.const 0))))`);
-    const out = encodeWasm(parseWasm(input));
+    const out = writeWasm(readForPasses(input));
     assertEquals(Array.from(out), Array.from(input));
   });
 
@@ -169,7 +169,7 @@ describe('binaryen-ts — single-memory output is untouched', () => {
   // memory 0 as an ABSENT field. The unified node is wabt-ts's: `memidx` is always
   // present, so the two sides can be one type. The bytes above did not move.
   it('records memory 0 explicitly, as index 0', () => {
-    const mod = parseWasm(
+    const mod = readForPasses(
       assemble('(module (memory 1) (func $f (result i32) (i32.load (i32.const 0))))'),
     );
     const load = nodesOf(mod.functions[0]?.body).find((n) => n['kind'] === ExpressionKind.Load);

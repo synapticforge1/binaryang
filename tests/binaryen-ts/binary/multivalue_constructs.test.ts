@@ -16,8 +16,8 @@
 
 import { assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 
@@ -42,7 +42,7 @@ for (const [name, construct] of Object.entries(CASES)) {
       new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as (
         x: number,
       ) => number;
-    const bytes = encodeWasm(parseWasm(r.binary));
+    const bytes = writeWasm(readForPasses(r.binary));
     assertEquals([f(bytes)(1), f(bytes)(0)], [f(r.binary)(1), f(r.binary)(0)]);
     assertEquals(bytes, r.binary);
   });

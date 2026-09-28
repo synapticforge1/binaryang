@@ -29,7 +29,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 // wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../nameless_reference.ts.
 import { wabtReference } from '../nameless_reference.ts';
 
@@ -53,7 +53,7 @@ function importsOf(bytes: Uint8Array): string[] {
  */
 function assertAgrees(wat: string) {
   const ref = wabtReference(wat, { filename: 'ref.wat' });
-  const got = encodeWasm(parseWat(wat));
+  const got = writeWasm(parseWat(wat));
   assertEquals(exportsOf(got), exportsOf(ref.binary), 'export sets must agree');
   assertEquals(importsOf(got), importsOf(ref.binary), 'import sets must agree');
 }
@@ -94,7 +94,7 @@ describe('WAT parser — inline exports on every declaration kind', () => {
     // Assert the limits SURVIVED, not merely that an export appeared: reading
     // them from the wrong index is how the export was lost in the first place,
     // and a defaulted `(memory 1)` would still export and still validate.
-    const bin = encodeWasm(parseWat(wat));
+    const bin = writeWasm(parseWat(wat));
     const ref = wabtReference(wat, { filename: 'ref.wat' }).binary;
     assertEquals(bin.length, ref.length, 'limits must match the reference encoding');
   });
@@ -109,7 +109,7 @@ describe('WAT parser — inline exports on every declaration kind', () => {
   });
 
   it('a declaration with no inline export exports nothing', () => {
-    assertEquals(exportsOf(encodeWasm(parseWat(`(module (memory 1) ${FN})`))), []);
+    assertEquals(exportsOf(writeWasm(parseWat(`(module (memory 1) ${FN})`))), []);
   });
 
   // ---------------------------------------------------------------------------
@@ -147,7 +147,7 @@ describe('WAT parser — inline exports on every declaration kind', () => {
 
   it('a declaration WITHOUT an inline import is still a definition', () => {
     const wat = `(module (memory (export "e") 1) ${FN})`;
-    assertEquals(importsOf(encodeWasm(parseWat(wat))), []);
+    assertEquals(importsOf(writeWasm(parseWat(wat))), []);
     assertAgrees(wat);
   });
 
@@ -167,7 +167,7 @@ describe('WAT parser — inline exports on every declaration kind', () => {
       );
       return (inst.exports.f as () => number)();
     };
-    assertEquals(call(encodeWasm(parseWat(wat))), 2);
+    assertEquals(call(writeWasm(parseWat(wat))), 2);
     assertEquals(call(wabtReference(wat, { filename: 'ref.wat' }).binary), 2);
   });
 });

@@ -12,7 +12,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
@@ -53,7 +53,7 @@ function tableGetTypes(m: WasmModule): unknown[] {
 
 describe("table.get is typed by its table's element type", () => {
   it('the decoder: imported, anyref, typed-reference and funcref tables', () => {
-    assertEquals(tableGetTypes(parseWasm(wat2wasm(WAT).binary)), EXPECTED);
+    assertEquals(tableGetTypes(readForPasses(wat2wasm(WAT).binary)), EXPECTED);
   });
 
   it("wasm-opt's text route (readWat -> the decoder): the same four", () => {

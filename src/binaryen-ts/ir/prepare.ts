@@ -23,9 +23,28 @@ import type { Module } from '../../wabt-ts/ir/ir.ts';
 import { nameReferences } from '../../wabt-ts/ir/name-references.ts';
 import { readBinaryIr } from '../../wabt-ts/reader/binary-reader.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../wabt-ts/core/error.ts';
-import { WasmBinaryError } from '../binary/reader.ts';
 import { deriveTypes } from './derive-types.ts';
 import type { WasmModule } from './module.ts';
+
+/**
+ * Thrown when the bytes are not a module the reader can read. It moved here
+ * from binaryen-ts's decoder, deleted at 1.6.0 (One front end stage 3b), with
+ * the contract it had: the message is the reader's diagnostics.
+ */
+export class WasmBinaryError extends Error {
+  /**
+   * @param message - Human-readable description of the failure.
+   * @param offset - Byte offset within the input where it was detected, if
+   *   known; appended to the message in hex.
+   */
+  public readonly offset?: number | undefined;
+
+  constructor(message: string, offset?: number) {
+    super(offset !== undefined ? `${message} (at offset 0x${offset.toString(16)})` : message);
+    this.name = 'WasmBinaryError';
+    this.offset = offset;
+  }
+}
 
 /** Make `m` ready for binaryen-ts's passes and encoder, in place. See the module doc. */
 export function prepareForPasses(m: Module): WasmModule {

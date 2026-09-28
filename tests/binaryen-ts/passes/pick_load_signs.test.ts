@@ -21,7 +21,7 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   BinaryOp,
   makeBinary,
@@ -92,7 +92,7 @@ function run(optimized: boolean): number {
   if (optimized) {
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('PickLoadSigns').run();
   }
-  const bytes = encodeWasm(mod);
+  const bytes = writeWasm(mod);
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const inst = new WebAssembly.Instance(new WebAssembly.Module(buf), {});

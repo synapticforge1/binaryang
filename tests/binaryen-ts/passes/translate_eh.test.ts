@@ -22,8 +22,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
@@ -43,16 +43,16 @@ function assemble(wat: string): Uint8Array {
 }
 
 function translate(legacy: Uint8Array, optimize = false): Uint8Array {
-  const mod = parseWasm(legacy);
+  const mod = readForPasses(legacy);
   new PassRunner(mod).add('TranslateToExnref').run();
   if (optimize) {
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).addDefaultOptimizationPasses().run();
   }
-  return encodeWasm(mod);
+  return writeWasm(mod);
 }
 
 function assertNoLegacy(bytes: Uint8Array): void {
-  for (const fn of parseWasm(bytes).functions) {
+  for (const fn of readForPasses(bytes).functions) {
     walkExpression(fn.body, (e) => {
       assert(
         e.kind !== ExpressionKind.Try && e.kind !== ExpressionKind.Rethrow,
@@ -365,7 +365,7 @@ for (const fx of FIXTURES) {
 
 Deno.test('TranslateToExnref: sibling rethrow targets reuse one exnref local', () => {
   const fx = FIXTURES.find((f) => f.name.startsWith('sibling'))!;
-  const mod = parseWasm(assemble(fx.wat));
+  const mod = readForPasses(assemble(fx.wat));
   const before = mod.functions[0]!.locals.length;
   new PassRunner(mod).add('TranslateToExnref').run();
   assertEquals(mod.functions[0]!.locals.length, before + 1);
@@ -373,7 +373,7 @@ Deno.test('TranslateToExnref: sibling rethrow targets reuse one exnref local', (
 
 Deno.test('TranslateToExnref: nested rethrow targets get one exnref local per depth', () => {
   const fx = FIXTURES.find((f) => f.name.startsWith('rethrow to an OUTER'))!;
-  const mod = parseWasm(assemble(fx.wat));
+  const mod = readForPasses(assemble(fx.wat));
   const before = mod.functions[0]!.locals.length;
   new PassRunner(mod).add('TranslateToExnref').run();
   assertEquals(mod.functions[0]!.locals.length, before + 2);
@@ -384,18 +384,18 @@ Deno.test('TranslateToExnref: a module with no legacy EH is left byte-identical'
     (func (export "f") (param i32) (result i32)
       (block $h (result i32)
         (try_table (result i32) (catch $e $h) (throw $e (local.get 0))))))`);
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   new PassRunner(mod).add('TranslateToExnref').run();
   // A pass RAN, so names follow -g (N1): the control runs a pass that does
   // nothing, so the two differ only in what TranslateToExnref did.
-  const control = parseWasm(bytes);
+  const control = readForPasses(bytes);
   new PassRunner(control).addPass({
     name: 'Nothing',
     description: 'does nothing',
     requiresNonNullableLocalFixups: false,
     run() {},
   }).run();
-  assertEquals(encodeWasm(mod), encodeWasm(control));
+  assertEquals(writeWasm(mod), writeWasm(control));
 });
 
 // A carrier's label is `label: string`, `''` for "no label" (S6 step 5). Both
@@ -407,7 +407,7 @@ Deno.test('TranslateToExnref: a module with no legacy EH is left byte-identical'
 // resolve it. Measured: reverting that one operator left all 1161 tests green.
 Deno.test('TranslateToExnref: a try with NO label still gets a nameable outer block', async () => {
   const fx = FIXTURES[0]!;
-  const mod = parseWasm(assemble(fx.wat));
+  const mod = readForPasses(assemble(fx.wat));
   let stripped = 0;
   for (const fn of mod.functions) {
     walkExpression(fn.body, (e) => {
@@ -421,7 +421,7 @@ Deno.test('TranslateToExnref: a try with NO label still gets a nameable outer bl
   assertEquals(stripped, 1, 'the fixture must contain exactly one try to unlabel');
 
   new PassRunner(mod).add('TranslateToExnref').run();
-  const translated = encodeWasm(mod);
+  const translated = writeWasm(mod);
   assertNoLegacy(translated);
   assertValid(translated);
   assertEquals(outcomes(translated, fx.inputs), fx.expect);
@@ -429,7 +429,7 @@ Deno.test('TranslateToExnref: a try with NO label still gets a nameable outer bl
 });
 
 Deno.test('TranslateToExnref: the upstream kebab name resolves', () => {
-  const mod = parseWasm(assemble(FIXTURES[0]!.wat));
+  const mod = readForPasses(assemble(FIXTURES[0]!.wat));
   new PassRunner(mod).add('translate-to-exnref').run();
-  assertNoLegacy(encodeWasm(mod));
+  assertNoLegacy(writeWasm(mod));
 });

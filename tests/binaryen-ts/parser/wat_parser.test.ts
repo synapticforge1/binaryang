@@ -14,7 +14,7 @@ import {
   type SwitchExpr,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
 import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
 import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
@@ -192,7 +192,7 @@ Deno.test('parseWat — standalone (export ... (func)) encodes + survives Inlini
 
   // (1) Encodes to a binary V8 accepts, and the export is callable.
   const inst0 = new WebAssembly.Instance(
-    await WebAssembly.compile(encodeWasm(mod) as BufferSource),
+    await WebAssembly.compile(writeWasm(mod) as BufferSource),
   );
   assertEquals((inst0.exports.caller as (x: number) => number)(10), 15);
 
@@ -204,7 +204,7 @@ Deno.test('parseWat — standalone (export ... (func)) encodes + survives Inlini
     'exported $caller must survive Inlining',
   );
   const inst1 = new WebAssembly.Instance(
-    await WebAssembly.compile(encodeWasm(mod) as BufferSource),
+    await WebAssembly.compile(writeWasm(mod) as BufferSource),
   );
   assertEquals((inst1.exports.caller as (x: number) => number)(10), 15);
 });
@@ -453,7 +453,7 @@ Deno.test('parseWat — a catch_all handler actually runs', () => {
     (func (export "f") (result i32)
       (try (result i32) (do (throw $e)) (catch_all (i32.const 8)))))`;
   const inst = new WebAssembly.Instance(
-    new WebAssembly.Module(encodeWasm(parseWat(wat)) as BufferSource),
+    new WebAssembly.Module(writeWasm(parseWat(wat)) as BufferSource),
   );
   assertEquals((inst.exports.f as () => number)(), 8);
 });
@@ -560,7 +560,7 @@ Deno.test('parseWat — if whose then-arm returns but else falls through survive
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
     .addDefaultOptimizationPasses()
     .run();
-  const bytes = encodeWasm(mod);
+  const bytes = writeWasm(mod);
   const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes as BufferSource));
   const f = instance.exports.f as (x: number) => number;
   assertEquals(f(0), 42); // else taken, then fall through to 42
@@ -671,7 +671,7 @@ Deno.test('parseWat — (loop (result i32) …) is typed i32 and encodes to vali
   const loop = soleInstr(mod.functions[0].body) as { kind: ExpressionKind; type: unknown };
   assertEquals(loop.kind, ExpressionKind.Loop);
   assertEquals(loop.type, ValType.I32);
-  const inst = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource, {});
+  const inst = await WebAssembly.instantiate(writeWasm(mod) as BufferSource, {});
   assertEquals((inst.instance.exports as { f: () => number }).f(), 5);
 });
 
@@ -688,7 +688,7 @@ Deno.test('PickLoadSigns — does not flip a narrow load feeding a signed compar
       (i32.lt_s (local.get $v) (i32.const 100))))`;
   const mod = parseWat(wat);
   new PassRunner(mod).add('PickLoadSigns').run();
-  const inst = await WebAssembly.instantiate(encodeWasm(mod) as BufferSource, {});
+  const inst = await WebAssembly.instantiate(writeWasm(mod) as BufferSource, {});
   assertEquals((inst.instance.exports as { f: () => number }).f(), 0);
 });
 
@@ -761,7 +761,7 @@ Deno.test('WAT: a nested multi-result block keeps both results', async () => {
   assertEquals(outer.type, [ValType.I32, ValType.I32]);
   assertEquals(outer.children[0].type, [ValType.I32, ValType.I32]);
 
-  const out = encodeWasm(mod);
+  const out = writeWasm(mod);
   const buf = new ArrayBuffer(out.byteLength);
   new Uint8Array(buf).set(out);
   const { instance } = await WebAssembly.instantiate(buf, {});
@@ -789,7 +789,7 @@ Deno.test('WAT: an operand may come from a preceding sibling (stack form)', () =
     `(module (func (export "f") (result i32) (i32.const 1) (i32.const 2) (drop)))`,
   );
   const inst = new WebAssembly.Instance(
-    new WebAssembly.Module(encodeWasm(m) as BufferSource),
+    new WebAssembly.Module(writeWasm(m) as BufferSource),
   );
   // `2` is dropped; `1` is left as the result.
   assertEquals((inst.exports.f as () => number)(), 1);
@@ -810,7 +810,7 @@ Deno.test('WAT: an operand may come from a preceding sibling (stack form)', () =
 // module is still REJECTED, by the validator and by V8, rather than asserting
 // which stage says no.
 Deno.test('WAT: a missing operand with an empty stack is caught by validation', () => {
-  const bytes = encodeWasm(
+  const bytes = writeWasm(
     parseWat(`(module (func (export "f") (result i32) (drop) (i32.const 1)))`),
   );
 

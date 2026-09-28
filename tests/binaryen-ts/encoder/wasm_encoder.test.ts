@@ -9,8 +9,8 @@
  */
 
 import { assert, assertEquals, assertInstanceOf, assertThrows } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { None, Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import {
@@ -133,10 +133,10 @@ const GLOBAL_MODULE = new Uint8Array([
 // Helpers
 // ---------------------------------------------------------------------------
 
-function roundTrip(bytes: Uint8Array): ReturnType<typeof parseWasm> {
-  const mod = parseWasm(bytes);
-  const encoded = encodeWasm(mod);
-  return parseWasm(encoded);
+function roundTrip(bytes: Uint8Array): ReturnType<typeof readForPasses> {
+  const mod = readForPasses(bytes);
+  const encoded = writeWasm(mod);
+  return readForPasses(encoded);
 }
 
 function walkFind(
@@ -184,8 +184,8 @@ function walkFind(
 // ---------------------------------------------------------------------------
 
 Deno.test('encodeWasm: empty module produces valid WASM header', () => {
-  const mod = parseWasm(EMPTY_MODULE);
-  const bytes = encodeWasm(mod);
+  const mod = readForPasses(EMPTY_MODULE);
+  const bytes = writeWasm(mod);
   assertEquals(bytes[0], 0x00);
   assertEquals(bytes[1], 0x61);
   assertEquals(bytes[2], 0x73);
@@ -197,9 +197,9 @@ Deno.test('encodeWasm: empty module produces valid WASM header', () => {
 });
 
 Deno.test('encodeWasm: empty module output is re-parseable', () => {
-  const mod = parseWasm(EMPTY_MODULE);
-  const encoded = encodeWasm(mod);
-  const mod2 = parseWasm(encoded);
+  const mod = readForPasses(EMPTY_MODULE);
+  const encoded = writeWasm(mod);
+  const mod2 = readForPasses(encoded);
   assertEquals(mod2.functions.length, 0);
   assertEquals(mod2.globals.length, 0);
   assertEquals(mod2.imports.length, 0);
@@ -276,8 +276,8 @@ Deno.test('encodeWasm: ModuleBuilder add function round-trips', () => {
     .addExport('add', 'add')
     .build();
 
-  const bytes = encodeWasm(mod);
-  const mod2 = parseWasm(bytes);
+  const bytes = writeWasm(mod);
+  const mod2 = readForPasses(bytes);
 
   assertEquals(mod2.functions.length, 1);
   assertEquals(mod2.functions[0].sig.params, [ValType.I32, ValType.I32]);
@@ -293,7 +293,7 @@ Deno.test('encodeWasm: unresolved call target throws instead of silently encodin
   const mod = new ModuleBuilder()
     .addFunction('caller', [], [], makeCall(varName('does_not_exist'), [], None))
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'unresolved call target');
+  assertThrows(() => writeWasm(mod), WasmEncodeError, 'undefined func');
 });
 
 // 🔧 **Inverted by S6 stage 1, not deleted.** This asserted that an operator
@@ -321,7 +321,7 @@ Deno.test('encodeWasm: an operator is written as the opcode it is', () => {
   const mod = new ModuleBuilder()
     .addFunction('f', [], [ValType.I32], node)
     .build();
-  const bytes = encodeWasm(mod);
+  const bytes = writeWasm(mod);
   assert(bytes.includes(0x45), 'the opcode itself must appear in the output');
   assert(WebAssembly.validate(bytes as BufferSource), 'and the module must be valid');
 });
@@ -352,7 +352,7 @@ Deno.test('encodeWasm: a multi-value (tuple) block result encodes as a type-inde
   const mod = new ModuleBuilder().addFunction('f', [], [ValType.I32, ValType.I32], tupleBlock)
     .build();
 
-  const bytes = encodeWasm(mod);
+  const bytes = writeWasm(mod);
   // The `() -> (i32 i32)` signature must be present in the type section.
   const typeSec = Array.from(bytes.slice(8));
   assertEquals(typeSec[0], 0x01, 'expected a type section first');
@@ -369,7 +369,7 @@ Deno.test('encodeWasm: a multi-value (tuple) block result encodes as a type-inde
 // holds its opcode, so that failure is unrepresentable and the throw is gone.
 // What is left worth pinning is the property itself: types do not choose bytes.
 function memModule(body: Expression): Uint8Array {
-  return encodeWasm(
+  return writeWasm(
     new ModuleBuilder().addMemory('$m', 1, null).addFunction('f', [], [], body).build(),
   );
 }
@@ -412,7 +412,7 @@ Deno.test('encodeWasm: multiple memories encode rather than throw', () => {
     .addMemory('a', 1, null)
     .addMemory('b', 1, null)
     .build();
-  const out = encodeWasm(mod);
+  const out = writeWasm(mod);
   assert(WebAssembly.validate(out as BufferSource), 'the engine must accept two memories');
 });
 
@@ -421,8 +421,8 @@ Deno.test('encodeWasm: memory section round-trips', () => {
     .addMemory('mem0', 1, 4)
     .build();
 
-  const bytes = encodeWasm(mod);
-  const mod2 = parseWasm(bytes);
+  const bytes = writeWasm(mod);
+  const mod2 = readForPasses(bytes);
 
   assertEquals(mod2.memories.length, 1);
   assertEquals(mod2.memories[0].limits, { initial: 1n, max: 4n, isShared: false, is64: false });
@@ -435,8 +435,8 @@ Deno.test('encodeWasm: data segment round-trips', () => {
     .addDataSegment('$data0', makeI32Const(0), data)
     .build();
 
-  const bytes = encodeWasm(mod);
-  const mod2 = parseWasm(bytes);
+  const bytes = writeWasm(mod);
+  const mod2 = readForPasses(bytes);
 
   assertEquals(mod2.dataSegments.length, 1);
   assertEquals(mod2.dataSegments[0].kind, 'active');
@@ -450,8 +450,8 @@ Deno.test('encodeWasm: passive data segment round-trips', () => {
     .addPassiveDataSegment('$data0', data)
     .build();
 
-  const bytes = encodeWasm(mod);
-  const mod2 = parseWasm(bytes);
+  const bytes = writeWasm(mod);
+  const mod2 = readForPasses(bytes);
 
   assertEquals(mod2.dataSegments.length, 1);
   assertEquals(mod2.dataSegments[0].kind, 'passive');
@@ -464,8 +464,8 @@ Deno.test('encodeWasm: i32.const value preserved through encode/parse', () => {
     .addFunction('getVal', [], [ValType.I32], body)
     .build();
 
-  const bytes = encodeWasm(mod);
-  const mod2 = parseWasm(bytes);
+  const bytes = writeWasm(mod);
+  const mod2 = readForPasses(bytes);
 
   const fn = mod2.functions[0];
   const bodyExpr = fn.body;
@@ -481,8 +481,8 @@ Deno.test('encodeWasm: i32.const value preserved through encode/parse', () => {
 });
 
 Deno.test('encodeWasm: output is a Uint8Array', () => {
-  const mod = parseWasm(ADD_MODULE);
-  const bytes = encodeWasm(mod);
+  const mod = readForPasses(ADD_MODULE);
+  const bytes = writeWasm(mod);
   assertInstanceOf(bytes, Uint8Array);
 });
 
@@ -494,7 +494,7 @@ Deno.test('encodeWasm: a None-typed local throws instead of silently encoding as
   const mod = new ModuleBuilder()
     .addFunction('f', [], [], makeI32Const(0), [{ type: None as unknown as ValType }])
     .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'cannot encode value type');
+  assertThrows(() => writeWasm(mod), WasmEncodeError, 'cannot encode value type');
 });
 
 // 🔧 A test here pinned that multiple tables THREW ("element segments and
@@ -528,7 +528,7 @@ Deno.test('encoder: an unknown export kind throws instead of emitting a truncate
   (mod.exports[0] as unknown as { kind: number }).kind = 5;
 
   assertThrows(
-    () => encodeWasm(mod),
+    () => writeWasm(mod),
     WasmEncodeError,
     'unknown export kind',
   );

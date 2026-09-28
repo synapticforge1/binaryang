@@ -29,7 +29,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
@@ -41,7 +41,7 @@ function bothAgree(wat: string, want: number): void {
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports.f as () => number)();
   assertEquals(run(ref.binary), want, 'wabt-ts');
-  assertEquals(run(encodeWasm(parseWat(wat))), want, 'binaryen-ts');
+  assertEquals(run(writeWasm(parseWat(wat))), want, 'binaryen-ts');
 }
 
 /** Two functions returning distinguishable values, and a table with room for both. */

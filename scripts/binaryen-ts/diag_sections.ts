@@ -13,9 +13,8 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
-import { BinaryReader } from '../../src/binaryen-ts/binary/reader.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const SECTION_NAMES: Record<number, string> = {
   0: 'custom',
@@ -35,20 +34,31 @@ const SECTION_NAMES: Record<number, string> = {
 };
 
 function sections(bytes: Uint8Array): { id: number; label: string; size: number }[] {
-  const r = new BinaryReader(bytes);
-  r.skip(8); // magic + version
+  // A section header is an id byte and a u32 LEB size; a custom section's
+  // payload starts with its name (binaryen-ts's `BinaryReader` went with its
+  // decoder at 1.6.0).
+  let p = 8; // magic + version
+  const leb = (): number => {
+    let r = 0, s = 0, b;
+    do {
+      b = bytes[p++]!;
+      r += (b & 0x7f) * 2 ** s;
+      s += 7;
+    } while (b & 0x80);
+    return r;
+  };
   const out: { id: number; label: string; size: number }[] = [];
-  while (!r.eof) {
-    const id = r.readU8();
-    const size = r.readU32();
-    const bodyStart = r.position;
+  while (p < bytes.length) {
+    const id = bytes[p++]!;
+    const size = leb();
+    const bodyStart = p;
     let label = SECTION_NAMES[id] ?? `?${id}`;
     if (id === 0) {
-      const nameLen = r.readU32();
-      label = `custom:${r.readUTF8(nameLen)}`;
+      const nameLen = leb();
+      label = `custom:${new TextDecoder().decode(bytes.subarray(p, p + nameLen))}`;
     }
     out.push({ id, label, size });
-    r.seek(bodyStart + size);
+    p = bodyStart + size;
   }
   return out;
 }
@@ -56,7 +66,7 @@ function sections(bytes: Uint8Array): { id: number; label: string; size: number 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
-const reenc = encodeWasm(parseWasm(orig));
+const reenc = writeWasm(readForPasses(orig));
 
 console.log(`# ${rel}`);
 console.log(`# original ${orig.byteLength} B  →  re-encoded ${reenc.byteLength} B`);

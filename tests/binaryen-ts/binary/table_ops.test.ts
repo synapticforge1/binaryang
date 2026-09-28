@@ -8,8 +8,8 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type Expression,
   ExpressionKind,
@@ -18,24 +18,24 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { elemFuncNames } from '../../../src/binaryen-ts/ir/module.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode + table-index slot', () => {
   // funcref table at index 0; `f` reads element 0 and returns it.
-  // Note: binary form stores tables by numeric index, so the `$t` name from
-  // the WAT source is recovered as the binary parser's default `$tableN`
-  // convention after round-trip. The opcode kind and the index expression are
-  // what matter for the round-trip contract.
+  // Note: binary form stores tables by numeric index, and the reader keeps a
+  // table reference as that index (binaryen-ts's decoder, deleted at 1.6.0,
+  // made up `$tableN`). The opcode kind and the index expression are what
+  // matter for the round-trip contract.
   const mod = parseWat(`(module
     (table $t 1 funcref)
     (func $f (result funcref)
       (table.get $t (i32.const 0))))`);
-  const out = encodeWasm(mod);
-  const reparsed = parseWasm(out);
+  const out = writeWasm(mod);
+  const reparsed = readForPasses(out);
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableGet);
   const g = top as TableGetExpr;
-  assertEquals(g.table, varName('$table0'));
+  assertEquals(g.table, varIndex(0));
   assertEquals(g.index.kind, ExpressionKind.Const);
 });
 
@@ -45,12 +45,12 @@ Deno.test('table.set: WAT → encode → parse round-trip preserves the opcode',
     (table $t 1 externref)
     (func $f
       (table.set $t (i32.const 0) (ref.null extern))))`);
-  const out = encodeWasm(mod);
-  const reparsed = parseWasm(out);
+  const out = writeWasm(mod);
+  const reparsed = readForPasses(out);
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableSet);
   const s = top as TableSetExpr;
-  assertEquals(s.table, varName('$table0'));
+  assertEquals(s.table, varIndex(0));
   assertEquals(s.index.kind, ExpressionKind.Const);
 });
 
@@ -60,12 +60,12 @@ Deno.test('table.get with default table reference (no $name prefix)', () => {
     (table $only 2 funcref)
     (func $f (result funcref)
       (table.get (i32.const 1))))`);
-  const out = encodeWasm(mod);
-  const reparsed = parseWasm(out);
+  const out = writeWasm(mod);
+  const reparsed = readForPasses(out);
   const top = unwrap(reparsed.functions[0].body);
   assertEquals(top.kind, ExpressionKind.TableGet);
   const g = top as TableGetExpr;
-  assertEquals(g.table, varName('$table0'));
+  assertEquals(g.table, varIndex(0));
 });
 
 Deno.test('element segment: flag-4 (expression-form) active funcref segment round-trips and dispatches', async () => {
@@ -204,14 +204,14 @@ Deno.test('element segment: flag-4 (expression-form) active funcref segment roun
     0x0b,
   ]);
 
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   // The segment must survive parsing with both function references intact.
   assertEquals(mod.elements.length, 1);
   assertEquals(elemFuncNames(mod.elements[0]!), ['$func0', '$func1']);
 
   // And re-encoding must produce a binary whose table is actually populated,
   // so the `call_indirect` resolves at runtime instead of trapping.
-  const out = encodeWasm(mod);
+  const out = writeWasm(mod);
   const compiled = await WebAssembly.compile(out as BufferSource);
   const instance = new WebAssembly.Instance(compiled);
   const callA = instance.exports.callA as (x: number) => number;
@@ -242,15 +242,27 @@ const MAGIC = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 // refusing was better than dropping. M3 holds each entry as the constant
 // expression it is, so the entry is kept, and the segment round-trips.
 Deno.test('element segment: a ref.null entry is kept, and re-encodes as itself', () => {
-  // 1 segment, flag 4 (active, expr-list), offset i32.const 0, one `ref.null func`.
+  // 1 segment, flag 4 (active, expr-list), offset i32.const 0, one `ref.null func`
+  // — into table 0, which the module declares: without it the segment names a
+  // table that does not exist, which the reader refuses (binaryen-ts's deleted
+  // decoder read it).
+  const table = [0x01, 0x70, 0x00, 0x01]; // (table 1 funcref)
   const body = [0x01, 0x04, 0x41, 0x00, 0x0b, 0x01, 0xd0, 0x70, 0x0b];
-  const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
-  const mod = parseWasm(bytes);
+  const bytes = new Uint8Array([
+    ...MAGIC,
+    0x04,
+    table.length,
+    ...table,
+    0x09,
+    body.length,
+    ...body,
+  ]);
+  const mod = readForPasses(bytes);
   assertEquals(mod.elements[0]!.elemExprs.map((e) => e.children.map((c) => c.kind)), [[
     'ref.null',
   ]]);
   assertEquals(elemFuncNames(mod.elements[0]!), []);
-  assertEquals(encodeWasm(mod), bytes);
+  assertEquals(writeWasm(mod), bytes);
 });
 
 // 🔧 This asserted that a PASSIVE segment was REJECTED. `ElementSegment.mode`
@@ -264,7 +276,7 @@ Deno.test('element segment: a passive segment is read as passive, not as active'
   // Element section: 1 segment, flag 1 (passive), elemkind 0x00, no entries.
   const body = [0x01, 0x01, 0x00, 0x00];
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   assertEquals(mod.elements.length, 1, 'the segment must survive');
   assertEquals(mod.elements[0]!.kind, 'passive');
   // An active segment would have an offset; a passive one has nowhere to copy to.
@@ -278,7 +290,7 @@ Deno.test('element segment: a declared segment is read as declared', () => {
   // 3 and 7 were unreachable.
   const body = [0x01, 0x03, 0x00, 0x00];
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   assertEquals(mod.elements.length, 1);
   assertEquals(mod.elements[0]!.kind, 'declared');
 });

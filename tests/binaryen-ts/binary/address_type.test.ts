@@ -12,12 +12,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { Module as CompatModule } from '../../../src/binaryen-ts/api/binaryen-compat.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 
@@ -64,7 +63,7 @@ function sizes(m: { functions: { body: unknown }[] }): unknown[] {
 
 describe('size and grow are typed by the address type', () => {
   it('the decoder: an i32 and an i64 memory, an i32 and an i64 table', () => {
-    assertEquals(sizes(parseWasm(wat2wasm(WAT).binary)), EXPECTED);
+    assertEquals(sizes(readForPasses(wat2wasm(WAT).binary)), EXPECTED);
   });
 
   it('deriveTypes, on a text-read tree', () => {
@@ -83,6 +82,6 @@ describe('size and grow are typed by the address type', () => {
 
   it('the decoder refuses a memory the module does not have, as V8 does', () => {
     const { binary } = wat2wasm('(module (func (drop (memory.size))))');
-    assertThrows(() => parseWasm(binary), Error, 'memory index 0 is out of range');
+    assertThrows(() => readForPasses(binary), Error, 'no memory');
   });
 });

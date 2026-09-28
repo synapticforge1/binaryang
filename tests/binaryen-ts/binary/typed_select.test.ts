@@ -22,8 +22,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { ExpressionKind, type SelectExpr } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
@@ -33,7 +32,7 @@ import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 
 /** Every select in the module, in walk order. */
@@ -86,20 +85,20 @@ async function go(bytes: Uint8Array, arg: number): Promise<number> {
 
 describe('typed select', () => {
   it('a reference-typed select round-trips byte-identically and runs the same', async () => {
-    const out = encodeWasm(parseWasm(REF_BYTES));
+    const out = writeWasm(readForPasses(REF_BYTES));
     assertEquals(out, REF_BYTES);
     // cond 1 → the null arm → 1; cond 0 → ref.func → 0
     assertEquals([await go(out, 1), await go(out, 0)], [1, 0]);
   });
 
   it('the WAT path writes a reference-typed select exactly as upstream does', async () => {
-    const out = encodeWasm(parseWat(REF_WAT));
+    const out = writeWasm(parseWat(REF_WAT));
     assertEquals(out, REF_BYTES);
     assertEquals([await go(out, 1), await go(out, 0)], [1, 0]);
   });
 
   it('a numeric typed select round-trips byte-identically (S1: it used to come back untyped)', async () => {
-    const out = encodeWasm(parseWasm(NUM_BYTES));
+    const out = writeWasm(readForPasses(NUM_BYTES));
     assertEquals(out, NUM_BYTES);
     assertEquals([await go(out, 1), await go(out, 0)], [11, 22]);
   });
@@ -107,17 +106,17 @@ describe('typed select', () => {
   it('the WAT path writes a numeric typed select typed, as upstream wat2wasm does', () => {
     const wat = '(module (func (export "go") (param i32) (result i32) ' +
       '(select (result i32) (i32.const 11) (i32.const 22) (local.get 0))))';
-    assertEquals(encodeWasm(parseWat(wat)), NUM_BYTES);
+    assertEquals(writeWasm(parseWat(wat)), NUM_BYTES);
   });
 
   it('an UNTYPED numeric select stays untyped — the other side of the boundary', () => {
-    assertEquals(encodeWasm(parseWasm(UNTYPED_BYTES)), UNTYPED_BYTES);
+    assertEquals(writeWasm(readForPasses(UNTYPED_BYTES)), UNTYPED_BYTES);
   });
 
   it('the declared type is ON THE NODE, not only in `type`', () => {
-    assertEquals(selects(parseWasm(NUM_BYTES))[0]!.resultType, [ValType.I32]);
-    assertEquals(selects(parseWasm(REF_BYTES))[0]!.resultType, [ValType.FuncRef]);
-    assertEquals(selects(parseWasm(UNTYPED_BYTES))[0]!.resultType, []);
+    assertEquals(selects(readForPasses(NUM_BYTES))[0]!.resultType, [ValType.I32]);
+    assertEquals(selects(readForPasses(REF_BYTES))[0]!.resultType, [ValType.FuncRef]);
+    assertEquals(selects(readForPasses(UNTYPED_BYTES))[0]!.resultType, []);
   });
 
   it('the direct path keeps the declared type (the bridge fell back to the ifTrue arm)', () => {

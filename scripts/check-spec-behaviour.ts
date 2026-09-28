@@ -5,7 +5,7 @@
  * @module
  * The spec testsuite's BEHAVIOUR, as a differential: every module's own
  * invocations replayed against the original bytes and against a plain round
- * trip and every optimization level, on both routes. What one module's check
+ * trip and every optimization level. What one module's check
  * does, and why the original is the oracle, is in `spec-behaviour/differential.ts`.
  *
  * Why it exists: on 2026-09-28 this check, then a scratch script, found eight
@@ -35,19 +35,11 @@ import { needsWrapper, type Sig } from './spec-behaviour/v128.ts';
  * fails, and so does a pinned name that no longer refuses, or it could come
  * back unnoticed.
  *
- * 2026-09-28: relaxed SIMD, which binaryen-ts's DECODER does not read (route A,
- * every level) and the wabt-ts reader does. Stage 3 of One front end deletes
- * that decoder, and this list empties.
+ * EMPTY since 1.6.0. Its seven pins were relaxed-SIMD modules that
+ * binaryen-ts's own decoder ("route A") could not read; that decoder was
+ * deleted (One front end stage 3b), and nothing refuses them now.
  */
-const REFUSED_BUDGET: string[] = [
-  'i8x16_relaxed_swizzle/i8x16_relaxed_swizzle.0.wasm',
-  'i16x8_relaxed_q15mulr_s/i16x8_relaxed_q15mulr_s.0.wasm',
-  'relaxed_dot_product/relaxed_dot_product.0.wasm',
-  'relaxed_laneselect/relaxed_laneselect.0.wasm',
-  'relaxed_madd_nmadd/relaxed_madd_nmadd.0.wasm',
-  'relaxed_madd_nmadd/relaxed_madd_nmadd.1.wasm',
-  'relaxed_min_max/relaxed_min_max.0.wasm',
-];
+const REFUSED_BUDGET: string[] = [];
 
 /**
  * Per-module budget: 12 variants, each optimized and run. The whole suite runs
@@ -204,7 +196,7 @@ const invocations = rows.reduce((n, r) => n + r.invocations, 0);
 const compared = rows.reduce((n, r) => n + r.variants, 0);
 
 console.log(
-  "  === the spec testsuite's invocations: original vs round trip and -O1…-Oz, both routes ===",
+  "  === the spec testsuite's invocations: original vs round trip and -O1…-Oz ===",
 );
 console.log(`    modules                  ${String(rows.length).padStart(6)}`);
 console.log(
@@ -248,7 +240,7 @@ if (refused.length > 0) {
   // One cause usually explains many; group before reading.
   const reasons = new Map<string, number>();
   for (const r of refused) {
-    const key = r.replace(/^\S+ /, '').replace(/[AB] (round trip|-O\w): /, '').replace(
+    const key = r.replace(/^\S+ /, '').replace(/^(round trip|-O\w): /, '').replace(
       /0x[0-9a-f]+|\d+/gi,
       'N',
     );

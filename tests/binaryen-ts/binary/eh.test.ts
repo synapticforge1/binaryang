@@ -14,11 +14,12 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm, WasmBinaryError } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind, labelName } from '../../../src/binaryen-ts/ir/expressions.ts';
 import type {
   BlockExpr,
+  Expression,
   ThrowExpr,
   ThrowRefExpr,
   TryTableExpr,
@@ -101,6 +102,15 @@ const THROW_MODULE = module(
 // )
 // ---------------------------------------------------------------------------
 
+/** The first `try_table` anywhere in `body` — under an operand too (the `drop`). */
+function tryTableIn(body: Expression): TryTableExpr | undefined {
+  let found: TryTableExpr | undefined;
+  walkExpression(body, (e) => {
+    if (found === undefined && e.kind === ExpressionKind.TryTable) found = e as TryTableExpr;
+  });
+  return found;
+}
+
 const TRY_TABLE_MODULE = module(
   // Type section: 2 types
   section(
@@ -123,7 +133,7 @@ const TRY_TABLE_MODULE = module(
   section(
     0x0a,
     0x01, // 1 function
-    0x11, // body size = 17
+    0x13, // body size = 19
     0x00, // 0 local groups
     0x02,
     0x7f, // block (result i32)
@@ -138,9 +148,13 @@ const TRY_TABLE_MODULE = module(
     0x08,
     0x00, // throw 0
     0x0b, // end try_table
+    0x1a, // drop
     0x41,
     0x63, // i32.const 99
     0x0b, // end block
+    0x0b, // end function
+    // 🔧 The drop and the function's `end` were missing: binaryen-ts's decoder
+    // (deleted at 1.6.0) read the body anyway; the reader refuses it, as V8 does.
   ),
 );
 
@@ -196,7 +210,7 @@ const THROW_REF_MODULE = module(
 // ---------------------------------------------------------------------------
 
 Deno.test('EH parser: tag section decoded — tag count and params', () => {
-  const mod = parseWasm(THROW_MODULE);
+  const mod = readForPasses(THROW_MODULE);
   assertEquals(mod.tags.length, 1);
   assertEquals(mod.tags[0].sig.params, [ValType.I32]);
 });
@@ -206,7 +220,7 @@ Deno.test('EH parser: tag section decoded — tag count and params', () => {
 // ---------------------------------------------------------------------------
 
 Deno.test('EH parser: throw decoded as ThrowExpr', () => {
-  const mod = parseWasm(THROW_MODULE);
+  const mod = readForPasses(THROW_MODULE);
   assertEquals(mod.functions.length, 1);
   // Function body has [local.get, throw, unreachable] — a region of three
   const body = mod.functions[0].body;
@@ -221,7 +235,7 @@ Deno.test('EH parser: throw decoded as ThrowExpr', () => {
 });
 
 Deno.test('EH parser: throw tag name resolved from tag section', () => {
-  const mod = parseWasm(THROW_MODULE);
+  const mod = readForPasses(THROW_MODULE);
   const tag0 = mod.tags[0].name;
   const body = mod.functions[0].body;
   const throwExpr = region(body).children.find((c) => c.kind === ExpressionKind.Throw) as
@@ -235,23 +249,10 @@ Deno.test('EH parser: throw tag name resolved from tag section', () => {
 // ---------------------------------------------------------------------------
 
 Deno.test('EH parser: try_table decoded as TryTableExpr', () => {
-  const mod = parseWasm(TRY_TABLE_MODULE);
+  const mod = readForPasses(TRY_TABLE_MODULE);
   assertEquals(mod.functions.length, 1);
   // Find the try_table node (nested in a block)
-  const body = mod.functions[0].body;
-  const findTryTable = (
-    e: { kind: unknown; children?: unknown[]; body?: unknown },
-  ): TryTableExpr | undefined => {
-    if (e.kind === ExpressionKind.TryTable) return e as TryTableExpr;
-    if (e.kind === ExpressionKind.Block || e.kind === ExpressionKind.Region) {
-      for (const c of (e.children ?? []) as typeof e[]) {
-        const found = findTryTable(c as { kind: unknown; children?: unknown[]; body?: unknown });
-        if (found) return found;
-      }
-    }
-    return undefined;
-  };
-  const ttExpr = findTryTable(body as { kind: unknown; children?: unknown[]; body?: unknown });
+  const ttExpr = tryTableIn(mod.functions[0].body);
   assertEquals(ttExpr !== undefined, true, 'try_table expression not found');
   assertEquals(ttExpr!.kind, ExpressionKind.TryTable);
   assertEquals(ttExpr!.catches.length, 1);
@@ -267,7 +268,7 @@ Deno.test('EH parser: a catch tag is spelled the same in BOTH try forms', () => 
   // `tag?: Var` — one concept, two shapes in one IR, and the encoder had to
   // wrap the first in `varFromToken()` to resolve what the second passes
   // straight through.
-  const mod = parseWasm(TRY_TABLE_MODULE);
+  const mod = readForPasses(TRY_TABLE_MODULE);
   let seen: unknown;
   walkExpression(mod.functions[0].body, (e) => {
     if (e.kind === ExpressionKind.TryTable) seen = (e as TryTableExpr).catches[0]?.tag;
@@ -279,8 +280,8 @@ Deno.test('EH parser: a catch tag is spelled the same in BOTH try forms', () => 
 
 Deno.test('EH parser: catch_all carries NO tag, and re-encodes as catch_all', () => {
   // catch_all is kind byte 0x02 with no tag index; absence is what says so.
-  const mod = parseWasm(TRY_TABLE_MODULE);
-  const before = encodeWasm(mod);
+  const mod = readForPasses(TRY_TABLE_MODULE);
+  const before = writeWasm(mod);
   let tt: TryTableExpr | undefined;
   walkExpression(mod.functions[0].body, (e) => {
     if (e.kind === ExpressionKind.TryTable) tt = e as TryTableExpr;
@@ -288,22 +289,13 @@ Deno.test('EH parser: catch_all carries NO tag, and re-encodes as catch_all', ()
   assert(tt !== undefined);
   delete tt.catches[0].tag; // now a catch_all
   tt.catches[0].isRef = false;
-  const after = encodeWasm(mod);
+  const after = writeWasm(mod);
   assert(after.length < before.length, 'dropping the tag drops its index byte too');
 });
 
 Deno.test('EH parser: try_table catch clause dest resolves to outer block label', () => {
-  const mod = parseWasm(TRY_TABLE_MODULE);
-  const body = mod.functions[0].body;
-  const findTryTable = (e: { kind: unknown; children?: unknown[] }): TryTableExpr | undefined => {
-    if (e.kind === ExpressionKind.TryTable) return e as TryTableExpr;
-    for (const c of (e.children ?? []) as typeof e[]) {
-      const found = findTryTable(c as { kind: unknown; children?: unknown[] });
-      if (found) return found;
-    }
-    return undefined;
-  };
-  const tt = findTryTable(body as { kind: unknown; children?: unknown[] });
+  const mod = readForPasses(TRY_TABLE_MODULE);
+  const tt = tryTableIn(mod.functions[0].body);
   const dest = tt!.catches[0].target;
   // The dest label is a NAME-form `Var` referring to an outer block (S6 step 5:
   // label references are `Var`s, and a decoded one is always the name form).
@@ -316,13 +308,13 @@ Deno.test('EH parser: try_table catch clause dest resolves to outer block label'
 // ---------------------------------------------------------------------------
 
 Deno.test('EH parser: exnref value type decoded in function params', () => {
-  const mod = parseWasm(THROW_REF_MODULE);
+  const mod = readForPasses(THROW_REF_MODULE);
   assertEquals(mod.functions.length, 1);
   assertEquals(mod.functions[0].sig.params[0], ValType.ExnRef);
 });
 
 Deno.test('EH parser: throw_ref decoded as ThrowRefExpr', () => {
-  const mod = parseWasm(THROW_REF_MODULE);
+  const mod = readForPasses(THROW_REF_MODULE);
   const body = mod.functions[0].body;
   // The body is a region; the throw_ref is one of its instructions
   const trExpr = region(body).children.find((c) => c.kind === ExpressionKind.ThrowRef) as
@@ -338,16 +330,16 @@ Deno.test('EH parser: throw_ref decoded as ThrowRefExpr', () => {
 // ---------------------------------------------------------------------------
 
 Deno.test('EH encoder: throw module round-trips through encode+parse', () => {
-  const mod = parseWasm(THROW_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(THROW_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
   assertEquals(mod2.tags.length, 1);
   assertEquals(mod2.tags[0].sig.params, [ValType.I32]);
   assertEquals(mod2.functions.length, 1);
 });
 
 Deno.test('EH encoder: throw expression preserved after round-trip', () => {
-  const mod = parseWasm(THROW_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(THROW_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
   const body = mod2.functions[0].body;
   const throwExpr = region(body).children.find((c) => c.kind === ExpressionKind.Throw) as
     | ThrowExpr
@@ -358,33 +350,24 @@ Deno.test('EH encoder: throw expression preserved after round-trip', () => {
 });
 
 Deno.test('EH encoder: try_table module round-trips through encode+parse', () => {
-  const mod = parseWasm(TRY_TABLE_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(TRY_TABLE_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
   assertEquals(mod2.tags.length, 1);
   assertEquals(mod2.functions.length, 1);
 });
 
 Deno.test('EH encoder: try_table catch clause preserved after round-trip', () => {
-  const mod = parseWasm(TRY_TABLE_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
-  const body = mod2.functions[0].body;
-  const findTryTable = (e: { kind: unknown; children?: unknown[] }): TryTableExpr | undefined => {
-    if (e.kind === ExpressionKind.TryTable) return e as TryTableExpr;
-    for (const c of (e.children ?? []) as typeof e[]) {
-      const found = findTryTable(c as { kind: unknown; children?: unknown[] });
-      if (found) return found;
-    }
-    return undefined;
-  };
-  const tt = findTryTable(body as { kind: unknown; children?: unknown[] });
+  const mod = readForPasses(TRY_TABLE_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
+  const tt = tryTableIn(mod2.functions[0].body);
   assertEquals(tt !== undefined, true, 'try_table not found after round-trip');
   assertEquals(tt!.catches.length, 1);
   assertEquals(tt!.catches[0].isRef, false);
 });
 
 Deno.test('EH encoder: throw_ref module round-trips through encode+parse', () => {
-  const mod = parseWasm(THROW_REF_MODULE);
-  const mod2 = parseWasm(encodeWasm(mod));
+  const mod = readForPasses(THROW_REF_MODULE);
+  const mod2 = readForPasses(writeWasm(mod));
   assertEquals(mod2.functions.length, 1);
   assertEquals(mod2.functions[0].sig.params[0], ValType.ExnRef);
   const body = mod2.functions[0].body;
@@ -542,7 +525,7 @@ Deno.test('EH encoder: multi-instruction catch handler is not wrapped in a spuri
 
   // The bare round-trip (no passes) must stay valid — the catch handler's
   // tag-param consumers must remain in the catch frame, not a nested block.
-  const reencoded = encodeWasm(parseWasm(TRY_CATCH_MODULE));
+  const reencoded = writeWasm(readForPasses(TRY_CATCH_MODULE));
   const compiled = await WebAssembly.compile(reencoded as BufferSource);
   const inst = new WebAssembly.Instance(compiled);
   // No `$exn` is ever thrown here (a wasm div-by-zero traps, it doesn't throw
@@ -643,16 +626,16 @@ Deno.test('EH optimize: catch binding dead tag params stays valid after full -Oz
 
   // Bare round-trip is valid.
   await WebAssembly.compile(
-    encodeWasm(parseWasm(CATCH_DEAD_BINDS_MODULE)) as BufferSource,
+    writeWasm(readForPasses(CATCH_DEAD_BINDS_MODULE)) as BufferSource,
   );
 
   // The full -Oz pipeline (CoalesceLocals makes the binds dead, Vacuum runs
   // twice) must NOT strip the consumption of the catch's two pushed params.
-  const mod = parseWasm(CATCH_DEAD_BINDS_MODULE);
+  const mod = readForPasses(CATCH_DEAD_BINDS_MODULE);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
     .addDefaultOptimizationPasses()
     .run();
-  await WebAssembly.compile(encodeWasm(mod) as BufferSource);
+  await WebAssembly.compile(writeWasm(mod) as BufferSource);
 });
 
 // ---------------------------------------------------------------------------
@@ -738,7 +721,7 @@ async function runF(bytes: Uint8Array): Promise<unknown> {
 Deno.test('try_table: a catch destination names the ENCLOSING frame, not the try_table', async () => {
   assertEquals(await runF(NESTED_CATCH_TARGET), 7);
 
-  const mod = parseWasm(NESTED_CATCH_TARGET);
+  const mod = readForPasses(NESTED_CATCH_TARGET);
   const blocks: BlockExpr[] = [];
   let tt: TryTableExpr | null = null;
   walkExpression(mod.functions[0].body, (e) => {
@@ -755,7 +738,7 @@ Deno.test('try_table: a catch destination names the ENCLOSING frame, not the try
   // resolving inside the try_table's own frame named the try_table itself.
   assertEquals((tt as TryTableExpr).catches[0].target, varName(outer.label!));
 
-  assertEquals(await runF(encodeWasm(mod)), 7);
+  assertEquals(await runF(writeWasm(mod)), 7);
 });
 
 // ---------------------------------------------------------------------------
@@ -829,15 +812,15 @@ const CATCH_ONLY_LABEL = module(
 
 Deno.test('try_table: a label used only as a catch destination survives -Oz', async () => {
   assertEquals(await runF(CATCH_ONLY_LABEL), 33);
-  assertEquals(await runF(encodeWasm(parseWasm(CATCH_ONLY_LABEL))), 33);
+  assertEquals(await runF(writeWasm(readForPasses(CATCH_ONLY_LABEL))), 33);
 
-  const mod = parseWasm(CATCH_ONLY_LABEL);
+  const mod = readForPasses(CATCH_ONLY_LABEL);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
     .addDefaultOptimizationPasses()
     .run();
   // Without RemoveUnusedNames counting catch destinations this throws
   // `unresolved branch label` at encode time.
-  assertEquals(await runF(encodeWasm(mod)), 33);
+  assertEquals(await runF(writeWasm(mod)), 33);
 });
 
 // ---------------------------------------------------------------------------
@@ -856,11 +839,13 @@ Deno.test('try_table: a label used only as a catch destination survives -Oz', as
 // says to fail loudly rather than invent a program.
 // ---------------------------------------------------------------------------
 
+// The messages are the one reader's (binaryen-ts's decoder, deleted at 1.6.0,
+// said "outside an if" / "outside a try").
 const STRAY_BODY: [name: string, body: number[], msg: string][] = [
-  ['else outside an if', [0x02, 0x40, 0x05, 0x0b], 'else outside an if'],
-  ['catch outside a try', [0x02, 0x40, 0x07, 0x00, 0x0b], 'catch outside a try'],
-  ['catch_all outside a try', [0x02, 0x40, 0x19, 0x0b], 'catch_all outside a try'],
-  ['delegate outside a try', [0x02, 0x40, 0x18, 0x00], 'delegate outside a try'],
+  ['else outside an if', [0x02, 0x40, 0x05, 0x0b], 'else outside if'],
+  ['catch outside a try', [0x02, 0x40, 0x07, 0x00, 0x0b], 'catch outside try'],
+  ['catch_all outside a try', [0x02, 0x40, 0x19, 0x0b], 'catch_all outside try'],
+  ['delegate outside a try', [0x02, 0x40, 0x18, 0x00], 'delegate outside try'],
 ];
 
 for (const [name, inner, msg] of STRAY_BODY) {
@@ -871,7 +856,7 @@ for (const [name, inner, msg] of STRAY_BODY) {
       section(0x0d, 0x01, 0x00, 0x00),
       section(0x0a, 0x01, inner.length + 2, 0x00, ...inner, 0x0b),
     );
-    assertThrows(() => parseWasm(mod), WasmBinaryError, msg);
+    assertThrows(() => readForPasses(mod), WasmBinaryError, msg);
   });
 }
 
@@ -902,7 +887,7 @@ Deno.test("a tag's type keeps its RESULTS as read — the type index is not re-d
     0x00,
     0x00,
   ]);
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   assertEquals(mod.tags[0]!.sig, { params: [], results: [ValType.I32] });
-  assertEquals(encodeWasm(mod), bytes);
+  assertEquals(writeWasm(mod), bytes);
 });
