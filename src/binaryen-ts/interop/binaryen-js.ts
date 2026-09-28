@@ -243,31 +243,57 @@ export class BinaryenInterop {
     flags: string[] = ['-Oz'],
   ): Promise<Uint8Array> {
     const { spawn } = await import('node:child_process');
-    return await new Promise((resolve, reject) => {
-      const proc = spawn('wasm-opt', [...flags, '--output=-', '-'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
+    const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    // The OUTPUT goes to a file, not stdout. 🔧 It was `--output=-`, and on
+    // Windows a process's stdout is text mode: every `0a` byte of the binary
+    // became `0d 0a` (143 of them in a 38 KB module), and every hybrid result
+    // there was invalid. The input stays on stdin — it is text, which
+    // translation leaves meaning-preserving.
+    const dir = mkdtempSync(join(tmpdir(), 'binaryang-wasm-opt-'));
+    const out = join(dir, 'out.wasm');
+    try {
+      return await new Promise((resolve, reject) => {
+        // `--all-features`: the module is ours and already valid, so feature
+        // gating belongs to our side. 🔧 Without it upstream's default feature
+        // set refused 330 of the 421 corpus modules (bulk memory, multi-value,
+        // EH) — unseen while `toWat()` failed before the subprocess ran (K4).
+        // Not quite ALL: see {@link FEATURES}.
+        const proc = spawn('wasm-opt', [...FEATURES, ...flags, '-o', out, '-'], {
+          stdio: ['pipe', 'ignore', 'pipe'],
+        });
+        const stderrChunks: Uint8Array[] = [];
+        proc.stderr.on('data', (c: Uint8Array) => stderrChunks.push(c));
+        proc.on('error', reject);
+        proc.on('close', (code: number | null) => {
+          if (code !== 0) {
+            reject(
+              new Error(
+                `wasm-opt failed (exit ${code}):\n` +
+                  new TextDecoder().decode(_concatU8(stderrChunks)),
+              ),
+            );
+          } else {
+            resolve(new Uint8Array(readFileSync(out)));
+          }
+        });
+        proc.stdin.end(new TextEncoder().encode(wat));
       });
-      const stdoutChunks: Uint8Array[] = [];
-      const stderrChunks: Uint8Array[] = [];
-      proc.stdout.on('data', (c: Uint8Array) => stdoutChunks.push(c));
-      proc.stderr.on('data', (c: Uint8Array) => stderrChunks.push(c));
-      proc.on('error', reject);
-      proc.on('close', (code: number | null) => {
-        if (code !== 0) {
-          reject(
-            new Error(
-              `wasm-opt failed (exit ${code}):\n` +
-                new TextDecoder().decode(_concatU8(stderrChunks)),
-            ),
-          );
-        } else {
-          resolve(_concatU8(stdoutChunks));
-        }
-      });
-      proc.stdin.end(new TextEncoder().encode(wat));
-    });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 }
+
+/**
+ * The features `wasm-opt` runs with in hybrid mode: all of them, less
+ * compact imports. That one is an ENCODING choice binaryen applies to any module
+ * with imports, and an experimental one — V8 refused the result ("Invalid import
+ * kind 127, enable with --experimental-wasm-compact-imports"). The others only
+ * matter where a module already uses them.
+ */
+const FEATURES = ['--all-features', '--disable-compact-imports'];
 
 // ---------------------------------------------------------------------------
 // Helpers

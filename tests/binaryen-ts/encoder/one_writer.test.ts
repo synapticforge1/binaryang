@@ -16,13 +16,14 @@
 //   `v128.bitselect`, and an empty memory section for an imported memory.
 
 import { describe, it } from '@std/testing/bdd';
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm, writeWat } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 
 const asm = (wat: string) => {
@@ -163,6 +164,32 @@ describe('one writer (One front end stage 4): what the comparison found', () => 
     const bytes = asm(`(module (import "M" "mem" (memory 1)) (func (export "f") (result i32)
       (i32.load (i32.const 0))))`);
     bothWriters(bytes, bytes);
+  });
+});
+
+describe('writeWat: text through the one WAT writer (K4)', () => {
+  it('branches to made-up labels and to the function frame print as depths', () => {
+    // Made ready for the passes, every label has a NAME — the unnamed block's
+    // made up — and the WAT writer prints only real labels on their
+    // constructs: `br $l0_0` came out beside a block with no `$l0_0`, and the
+    // function frame, which text cannot name at all, as `br $l0_frame`.
+    const bytes = asm(`(module (func (export "f") (param i32) (result i32)
+      (block (result i32)
+        (br_if 1 (i32.const 7) (local.get 0))
+        (drop)
+        (br 0 (i32.const 8)))))`);
+    const m = readForPasses(bytes);
+    const text = writeWat(m);
+    const r = wat2wasm(text, { textForm: false });
+    assert(!hasErrors(r.errors), `assembles:\n${text}`);
+    assertEquals(hex(r.binary), hex(bytes), 'the same module');
+  });
+
+  it('a global with no initializer is refused, not printed as `(global $g i32)`', () => {
+    const m = readForPasses(asm(`(module (global $g i32 (i32.const 1)))`));
+    delete (m.globals[0] as { init?: unknown }).init;
+    assertThrows(() => writeWat(m), WasmEncodeError, 'it has no initializer');
+    assertThrows(() => writeWasm(m), WasmEncodeError, 'it has no initializer');
   });
 });
 

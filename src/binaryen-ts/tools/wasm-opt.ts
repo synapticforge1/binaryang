@@ -27,7 +27,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
-import { writeWasm } from '../encoder/write-wasm.ts';
+import { writeWasm, writeWat } from '../encoder/write-wasm.ts';
 import { readWat } from './read-wat.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { defaultPassOptions, listPasses, PassRunner, shrinkPassOptions } from '../passes/index.ts';
@@ -267,14 +267,16 @@ function _nativeOptimize(
 // Internal: hybrid binaryen.js optimization
 // ---------------------------------------------------------------------------
 
-async function _hybridOptimize(
+function _hybridOptimize(
   inputBytes: Uint8Array,
   isWat: boolean,
   opts: WasmOptOptions,
 ): Promise<Uint8Array | string> {
-  const wat = isWat
-    ? new TextDecoder().decode(inputBytes)
-    : await _disassembleViaSubprocess(inputBytes);
+  // A binary is disassembled HERE, by the one reader and WAT writer. 🔧 It was
+  // piped to `wasm-opt --emit-text -` on stdin, and on Windows stdin is text
+  // mode: the bytes arrive altered and upstream reports "Section extends beyond
+  // end of input" — every binary input to hybrid mode failed there.
+  const wat = isWat ? new TextDecoder().decode(inputBytes) : writeWat(readForPasses(inputBytes));
 
   return BinaryenInterop.optimizeViaSubprocess(wat, buildSubprocessFlags(opts));
 }
@@ -294,45 +296,6 @@ function buildSubprocessFlags(opts: WasmOptOptions): string[] {
   for (const p of opts.passes) flags.push(`--${p}`);
   if (opts.emitText) flags.push('-S');
   return flags;
-}
-
-async function _disassembleViaSubprocess(wasm: Uint8Array): Promise<string> {
-  const { spawn } = await import('node:child_process');
-  return await new Promise((resolve, reject) => {
-    const proc = spawn('wasm-opt', ['--emit-text', '-'], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    const stdoutChunks: Uint8Array[] = [];
-    const stderrChunks: Uint8Array[] = [];
-    proc.stdout.on('data', (c: Uint8Array) => stdoutChunks.push(c));
-    proc.stderr.on('data', (c: Uint8Array) => stderrChunks.push(c));
-    proc.on('error', reject);
-    proc.on('close', (code: number | null) => {
-      const decoder = new TextDecoder();
-      if (code !== 0) {
-        reject(
-          new Error(
-            `wasm-opt disassemble failed: ${decoder.decode(_concatU8(stderrChunks))}`,
-          ),
-        );
-      } else {
-        resolve(decoder.decode(_concatU8(stdoutChunks)));
-      }
-    });
-    proc.stdin.end(wasm);
-  });
-}
-
-function _concatU8(chunks: Uint8Array[]): Uint8Array {
-  let total = 0;
-  for (const c of chunks) total += c.byteLength;
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    out.set(c, offset);
-    offset += c.byteLength;
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------------------
