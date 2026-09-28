@@ -52,6 +52,23 @@ the ⬚ markers in this file — 29 on 2026-09-28**, by area:
 
 A workspace handoff to wasmtk about 1.6.0 is the workspace session's to write, not this repo's.
 
+📥 **wasmtk's letter, 2026-09-28** (measured on published 1.6.0; their gate 63,986 pass / 0 fail /
+618 skip, 569 of the skips ours). **All five REPRODUCED on `main` the same day**
+(`scratchpad/wasmtk-repro.ts`):
+
+| # | item | reproduced | whose call |
+| - | ---- | ---------- | ---------- |
+| 1 | ⬚ 🔴 a named heap type in an inline `call_indirect` / `return_call_indirect` typeuse is never resolved: `writeHeapType: type "$$t" is not resolved` (the name prefixed twice); `(ref null 0)` encodes. 51 assertions (`return_call_indirect.wast`'s main module) | yes — compat `toBinary` AND `wat2wasm` | a DEFECT: fix |
+| 2 | ⬚ export `allFeatures` / `Features` (from `./wasm-validate` or `./core/wabt-ts`) so `wasmValidate` can be the oracle where V8 refuses on its own limits. 12 assertions | yes — no subpath exports `core/feature.ts` | owner: API shape, a minor |
+| 3 | ⬚ compat/binaryen `Module.validate()` always returns 1 ("a permissive stub") — silent-wrong for ported code | yes — returns 1 on an i64 body in an i32 function | owner: delegate to `wasmValidate`, or throw |
+| 4 | ⬚ malformed `@name` placement (and a malformed / invalid branch hint) accepted. 5 assertions; spec-legal to ignore | yes — `(module (func) (@name "M"))` accepted | owner: validate what we process? |
+| 5 | ⬚ custom-descriptors text (`(ref (exact $t))`, `descriptor`/`describes`), 501; and `(memory (pagesize N) (data …))` fails "expected limit initial value" (2 modules) | yes, both | low; `exact` is the conformance row below |
+
+Found WITH item 1: `d732dee98`'s explanation ran the validator with DEFAULT features, so their
+module got five "enable the functionReferences feature" lines before the real error — fixed the
+same day (`853ed5991`, all features). Their process: they verify a PINNED version, and want the
+changelog to say which of 1–4 a release contains.
+
 ## 🚀 Start the next session here (handoff, 2026-09-28 late — PRE-BUMP ITEMS 1–6 DONE; next is THE BUMP)
 
 **Owner, 2026-09-28: "Lets work through items 1 through 6 then we will update the project memory
