@@ -127,7 +127,7 @@ describe('a multi-value br_if leaves every value (route A)', () => {
 describe('a name is kept as written', () => {
   it('an export named "\\uFEFF" is not stripped to ""', () => {
     // A default TextDecoder strips a leading U+FEFF. `spec/names/names.2.wasm`
-    // exports "﻿" beside "": decoded as two "" exports, and the engine
+    // exports "U+FEFF" beside "": decoded as two "" exports, and the engine
     // refused the round trip ("Duplicate export name").
     const bytes = asm(`(module
       (func (export "") (result i32) (i32.const 1))

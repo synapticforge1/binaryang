@@ -154,7 +154,7 @@ export class BinaryReader {
    * Read a UTF-8 string of exactly `n` bytes.
    *
    * 🔧 `ignoreBOM`: a default decoder STRIPS a leading U+FEFF, and in a name it
-   * is a character like any other. `spec/names/names.2.wasm` exports "﻿"
+   * is a character like any other. `spec/names/names.2.wasm` exports "U+FEFF"
    * beside "": decoded as two "" exports, re-encoded, the engine rejected the
    * module ("Duplicate export name"), on every route through this decoder.
    * wabt-ts's reader has always passed it.
