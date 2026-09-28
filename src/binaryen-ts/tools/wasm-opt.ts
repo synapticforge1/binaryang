@@ -30,7 +30,13 @@ import { readForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../encoder/write-wasm.ts';
 import { readWat } from './read-wat.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
-import { defaultPassOptions, listPasses, PassRunner, shrinkPassOptions } from '../passes/index.ts';
+import {
+  defaultPassOptions,
+  listPasses,
+  optimizeToConvergence,
+  PassRunner,
+  shrinkPassOptions,
+} from '../passes/index.ts';
 import type { PassOptions } from '../passes/pass.ts';
 import { ModuleBuilder } from '../ir/module.ts';
 
@@ -88,6 +94,13 @@ export interface WasmOptOptions {
    * See {@link PassOptions.partialInliningIfs} for full rationale.
    */
   partialInliningIfs: number;
+  /**
+   * Repeat the pass schedule in rounds until another round saves under 0.1%
+   * (averaged over two rounds), keeping the smallest round's output. Upstream
+   * `wasm-opt --converge` / `-c`, with a cheaper stopping rule than its fixed
+   * point. Default `false`. See {@link optimizeToConvergence}.
+   */
+  converge: boolean;
 }
 
 const defaults: WasmOptOptions = {
@@ -102,6 +115,7 @@ const defaults: WasmOptOptions = {
   closedWorld: false,
   passArgs: {},
   partialInliningIfs: 0,
+  converge: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -180,6 +194,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     console.error('  -o <file>            Output file (default: output.wasm)');
     console.error('  -O0 .. -O4           Optimization level');
     console.error('  -Os, -Oz             Size optimization (shrink level 1, 2)');
+    console.error('  -c, --converge       Repeat the passes until a round saves < 0.1%');
     console.error('  -S                   Emit WAT text (hybrid mode only)');
     console.error('  --<pass-name>        Run a specific pass by name');
     console.error('  --pass-arg key=val   Per-pass argument (passname@key=val)');
@@ -249,16 +264,19 @@ function _nativeOptimize(
     partialInliningIfs: opts.partialInliningIfs,
   };
 
-  const runner = new PassRunner(module, passOpts);
-
-  if (opts.passes.length > 0) {
-    for (const name of opts.passes) {
-      runner.add(name);
+  const schedule = (runner: PassRunner): void => {
+    if (opts.passes.length > 0) {
+      for (const name of opts.passes) {
+        runner.add(name);
+      }
+    } else if (opts.optimizeLevel > 0 || opts.shrinkLevel > 0) {
+      runner.addDefaultOptimizationPasses();
     }
-  } else if (opts.optimizeLevel > 0 || opts.shrinkLevel > 0) {
-    runner.addDefaultOptimizationPasses();
-  }
+  };
 
+  if (opts.converge) return optimizeToConvergence(module, passOpts, schedule).bytes;
+  const runner = new PassRunner(module, passOpts);
+  schedule(runner);
   runner.run();
   return writeWasm(module);
 }
@@ -293,6 +311,7 @@ function buildSubprocessFlags(opts: WasmOptOptions): string[] {
   if (opts.debugInfo) flags.push('-g');
   if (opts.closedWorld) flags.push('--closed-world');
   if (opts.partialInliningIfs > 0) flags.push('-pii', String(opts.partialInliningIfs));
+  if (opts.converge) flags.push('--converge');
   for (const p of opts.passes) flags.push(`--${p}`);
   if (opts.emitText) flags.push('-S');
   return flags;
@@ -324,6 +343,7 @@ const RECOGNIZED_LONG_FLAGS = new Set([
   '--validate',
   '--no-validate',
   '--closed-world',
+  '--converge',
   '--pass-arg',
   '--partial-inlining-ifs',
   '--print-all-passes',
@@ -381,6 +401,8 @@ export function parseArgs(args: string[]): ParsedArgs {
       result.options.validate = false;
     } else if (a === '--closed-world') {
       result.options.closedWorld = true;
+    } else if (a === '--converge' || a === '-c') {
+      result.options.converge = true;
     } else if (a === '--pass-arg') {
       const kv = args[++i];
       if (kv) {

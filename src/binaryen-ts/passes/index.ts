@@ -31,6 +31,8 @@ export {
   shrinkPassOptions,
 } from './pass.ts';
 export type { Pass, PassCtor, PassOptions } from './pass.ts';
+export { defaultConvergeOptions, optimizeToConvergence } from './converge.ts';
+export type { ConvergeOptions, ConvergeReport, ConvergeResult, ConvergeStop } from './converge.ts';
 
 // Side-effect imports: register all built-in passes.
 import './dce.ts';
