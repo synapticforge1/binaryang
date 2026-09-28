@@ -70,7 +70,8 @@ const TWINS = `(module
   (tag $e (param i32))
   (tag $f (type $a) (param i32)))`;
 // upstream wat2wasm: import → 1, $d → 1, $e → 0, $f → 0.
-const TWINS_BYTES = '00 61 73 6d 01 00 00 00 01 09 02 60 01 7f 00 60 01 7f 00 02 08 01 01 4d 01 74 ' +
+const TWINS_BYTES =
+  '00 61 73 6d 01 00 00 00 01 09 02 60 01 7f 00 60 01 7f 00 02 08 01 01 4d 01 74 ' +
   '04 00 01 0d 07 03 00 01 00 00 00 00';
 
 /**
@@ -111,7 +112,7 @@ Deno.test('a binary read and written back keeps each tag on its own type', () =>
   }
 });
 
-Deno.test('wasm2wat prints a tag\'s (type N), and the text assembles back', () => {
+Deno.test("wasm2wat prints a tag's (type N), and the text assembles back", () => {
   for (const want of [TWINS_BYTES, REC_BYTES]) {
     const bytes = new Uint8Array(want.split(' ').map((x) => parseInt(x, 16)));
     const text = wasm2wat(bytes).text ?? '';
