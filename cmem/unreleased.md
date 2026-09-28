@@ -254,6 +254,9 @@ their own bump — and nothing breaks by their standing still.
   output: `Inlining` at -O3 with multi-value call operands; `elem.drop` anywhere; a global read only
   by a segment offset. And `parseWasm` alone: a multi-value `br_if` round-tripped into a trap, and a
   name starting with U+FEFF lost that character. (Which of these 1.5.4 shipped was not checked.)
+- **Modules with more than one table are written and optimized** (2026-09-28). `encodeWasm`, and so
+  `wasm-opt` on any such module, threw "multiple tables are not supported"; every table index was
+  already threaded, and only the guard remained.
 
 ## API-visible — wabt-ts and the tools
 
