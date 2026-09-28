@@ -232,7 +232,11 @@ describe('C2 — what is rejected, as wasm-tools rejects it', () => {
         '(module (func (@custom "c" "x") (nop)))',
         'Annotation',
       ],
-      ['misplaced: inside a type field', '(module (type (@custom "c" "x") (func)))', 'Annotation'],
+      [
+        'misplaced: inside a type field',
+        '(module (type (@custom "c" "x") (func)))',
+        'misplaced @custom annotation',
+      ],
     ] as const
   ) {
     it(name, () => {

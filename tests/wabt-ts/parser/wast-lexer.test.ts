@@ -549,7 +549,9 @@ describe('WastLexer — annotation', () => {
   // If a consumer is ever added, the right shape is one token carrying the
   // annotation's full source, not a re-tokenised body.
   it('an annotation produces no tokens at all', () => {
-    const toks = lexTypes('(@name)').filter((t) => t !== TokenType.Eof);
+    // Not `@name`: since 2026-09-28 its placement is checked, so it is a token
+    // (`annotation_placement.test.ts`) — as are `@custom` and `@metadata.code.*`.
+    const toks = lexTypes('(@producers)').filter((t) => t !== TokenType.Eof);
     expect(toks.length).toBe(0);
   });
 
