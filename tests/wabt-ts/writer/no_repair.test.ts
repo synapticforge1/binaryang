@@ -118,6 +118,19 @@ describe('T13 — a limits value is not truncated into range', () => {
     }
   });
 
+  it('explains with EVERY feature on — wat2wasm gates none', () => {
+    // With the default set, a GC type anywhere put "enable the … feature"
+    // lines before the real reason (wasmtk, 2026-09-28).
+    const { errors } = wat2wasm(
+      '(module (type $t (struct)) (global (ref null $t) (ref.null $t)) (memory 0x1_0000_0000))',
+    );
+    assert(
+      errors[0]?.message.includes('initial pages (4294967296) must be <= (65536)'),
+      formatErrors(errors),
+    );
+    assert(!/enable the/.test(formatErrors(errors)), formatErrors(errors));
+  });
+
   it('keeps the sizes that DO fit, exactly', () => {
     // The page bound (65536, or 2^48 for i64) is the validator's rule and is
     // unchanged; this is only about the field holding what the source wrote.
