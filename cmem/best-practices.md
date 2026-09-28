@@ -1445,6 +1445,22 @@ the ORIGINAL), report that number, and treat a rise in it as lost coverage.
 formatting miss reached the gate. **How to apply:** judge a check by its EXIT CODE, as the gate
 does; a tail is for reading, never for deciding.
 
+⚠️ **It recurred THREE more times the same day** (a format miss, then two lint misses, each
+committed after a `| tail -1` check and caught only by the gate), after this lesson was written.
+Writing the lesson did not change the habit; changing the command did: `deno lint >/dev/null &&
+echo ok` (or `; echo "exit $?"`) cannot show a clean last line over a failure. Chains that commit
+must be joined with `&&` AFTER an exit-code check, never `;`.
+
+### A lookup table keyed by user text must not inherit
+
+The stage 5 codemod renamed identifiers through `RENAME[name] ?? name`, a plain object. For the
+identifier `toString`, `RENAME['toString']` found `Object.prototype.toString`, and the codemod
+wrote its source text — `function toString() { [native code] }` — into 46 test files. The type
+checker caught one; the rest were in comments or code paths it could not judge. Reverted whole and
+re-run. **How to apply:** `Object.hasOwn(table, key)` (or a `Map`) for any lookup keyed by text
+from the input; and AUDIT a bulk rewrite by checking every changed line is explained by the
+intended renames alone (one `sed` + `uniq -u` over the diff did it, and found nothing else).
+
 ### Attribute every residual by looking at it
 
 The K4 commit message called the `writeWat` re-assembly residuals "a DataCount section or Q9's tag".

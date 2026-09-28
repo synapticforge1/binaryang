@@ -4590,7 +4590,12 @@ before it:
      (binary.55's DataCount; try_table.1's empty `else`, E2).
    - ⏳ **4b — delete `wasm-encoder.ts` — at the bump**, with the decoder (3b): `encodeWasm` is the
      published `./encoder`, unpublished in that release.
-5. Retire binaryen-ts's internal `parseWat` (already planned).
+5. Retire binaryen-ts's internal `parseWat` (already planned). ✅ **DONE 2026-09-28** (merge
+   `824a4b435`): deleted with its tokenizer and s-expression reader; `readWat` is the only text
+   route. What the parser refused or normalized each got a home — the text route's refusals, the
+   validator (R18), a test that the case now WORKS (stack forms, block parameters, explicit memory
+   indices, `ref.null` holes), and a `ModuleBuilder` test for the one built-tree case it alone
+   produced. Found: W14 (fixed), W15 (DESIGN). **One front end is complete.**
 With one reader, S7's read-back question narrows to parser vs reader.
 
 #### 🛑 Scope — owner, 2026-09-19: the IR, the reader and the encoder; nothing else
