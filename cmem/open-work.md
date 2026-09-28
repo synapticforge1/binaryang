@@ -39,10 +39,18 @@ one reader, one writer: **ONE FRONT END IS COMPLETE.** 46 test files moved to `r
 Not release material on its own (nothing public changed except W14's refusal, a fix) — it rides
 the next release.
 
-**Next session:** the "Start here" block below is DONE through the release, and stage 5 after it.
-What is left is the list further down: the parked pipeline-convergence proposal; the names
-data-type discussion; Flatten's unsupported constructs. A workspace handoff to wasmtk about 1.6.0
-is the workspace session's to write, not this repo's.
+**Next session:** the "Start here" block below is DONE through the release, and stage 5 after it
+(its ⬚ markers were swept 2026-09-28: 8 closed, each saying what closed it). **The open list is
+the ⬚ markers in this file — 29 on 2026-09-28**, by area:
+
+| area | where below | owner's order (2026-09-28) |
+| ---- | ----------- | -------------------------- |
+| the pipeline-convergence proposal; the names data-type list; Flatten's unsupported constructs | "Handoff before the pre-bump items" items 2 and 4; § Flatten | **first** |
+| defects and gaps (≈10) | § "Open defects and gaps", and the found-not-fixed items under "Handoff before…" | **second** |
+| optimizer and IR (≈10) | § "IR convergence — next steps" | then re-evaluate |
+| conformance (2), quality passes 1.5.6 / 1.5.7, repo work (3), wasmtk thread (2) | their sections | then re-evaluate |
+
+A workspace handoff to wasmtk about 1.6.0 is the workspace session's to write, not this repo's.
 
 ## 🚀 Start the next session here (handoff, 2026-09-28 late — PRE-BUMP ITEMS 1–6 DONE; next is THE BUMP)
 
@@ -50,7 +58,7 @@ is the workspace session's to write, not this repo's.
 files and bump and push."** Items 1–6 are merged (`801979ed3`), the gate green on the committed tree
 (every step exit 0). What remains, in order:
 
-1. ⬚ **The bump branch** — its content is fixed below under "Decided (owner, 2026-09-19): option
+1. ✅ **DONE — released as 1.6.0 (2026-09-28).** **The bump branch** — its content is fixed below under "Decided (owner, 2026-09-19): option
    (a)" and the ➕ additions: unpublish `./binary` and `./encoder` from `deno.json` `exports`; delete
    binaryen-ts's decoder (3b) and encoder (4b); move the ~80 test files on `parseWasm` and ~104 on
    `encodeWasm`, and ~35 scripts, onto `readForPasses` / `writeWasm`; drop route A from
@@ -69,7 +77,7 @@ files and bump and push."** Items 1–6 are merged (`801979ed3`), the gate green
    captured by an unnamed block; a declared segment's placeholder table; `mul_wide` typed one
    i64. Fixed in `writeWasm`'s resolve step (`checkForWriting`, `nameTheFrame`) and
    `inferBinaryType`, with the encoder's refusals ported; parity 14,595 / 14,595 unchanged.
-3. ⬚ Then the release flow ([publishing.md](publishing.md) § "The flow"): merge unbumped, gate,
+3. ✅ **DONE (1.6.0, tag `v1.6.0`, `rekorLogId` 2987187551).** Then the release flow ([publishing.md](publishing.md) § "The flow"): merge unbumped, gate,
    bump as its own commit, `deno task release` (it runs the cold type check first — item 1 below).
 
 ### The pre-bump items (owner's list, all DONE 2026-09-28)
@@ -398,7 +406,7 @@ per value) landed in `58fd43576`. Its items, as they closed:
   through the API. A user following upstream's documentation gets an invalid module for ~4.5% of inputs
   and an exception for ~12%. Upstream runs Flatten mainly as a prerequisite of other passes; nothing in
   this port depends on it, which is why nothing caught any of this.
-  ⬚ The decision to take: finish it, or refuse it loudly at the entry point until it is finished. A
+  ✅ DECIDED 2026-09-28 (above: kept, never silently invalid). The decision to take was: finish it, or refuse it loudly at the entry point until it is finished. A
   pass that emits an invalid module silently is the worse of the two.
    (The `Inlining` failures on the reader route at -O3 this line used to list — `dynrt_lib_modc`,
    `Chapter11/vector`, `nop.0`, `br.0` — were fixed by the spill, R11', and Q2.)
@@ -452,12 +460,14 @@ reader + `prepareForPasses` — not the faithful tree alone.
 - ⬚ the fold writer and S7's prediction disagree on **6 of 26,454** functions, so a function whose
   written form equalled the prediction there would print differently. Worth a gate that pins "the
   fold writer's grouping IS the prediction" over the corpus — ir-convergence.md § "One front end".
-- ⬚ ~~binaryen-ts's encoder refuses every module with more than one table~~ ✅ lifted 2026-09-28
+- ✅ ~~binaryen-ts's encoder refuses every module with more than one table~~ ✅ lifted 2026-09-28
   (item 5); its **decoder refuses relaxed SIMD** (8 valid modules,
-  which the reader reads). Both close when stages 3–4 keep one of each.
+  which the reader reads). Both close when stages 3–4 keep one of each. ✅ CLOSED at 1.6.0: that
+  decoder and encoder are deleted (3b, 4b).
 - ✅ `names.2`: binaryen-ts's decode → encode gave a DUPLICATE empty export name — FIXED 2026-09-28
   (Q6): the decoder stripped a leading U+FEFF, so the "﻿" export became a second "".
-- ⬚ route A accepts **1,349 INVALID binaries** the reader refuses (section order, counts, UTF-8,
+- ✅ MOOT since 1.6.0 — route A (binaryen-ts's decoder) is deleted; the reader's checks are the only
+  ones. Was: route A accepts **1,349 INVALID binaries** the reader refuses (section order, counts, UTF-8,
   mutability bytes, DataCount). Keeping the reader's checks is the point of one front end; worth a
   count in the gate once the switch happens.
 
@@ -695,7 +705,9 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 - ✅ **Q9, W12, K4 and the release script's cold type check** — all FIXED 2026-09-28 as pre-bump
   items 1, 2 and 4 (the table at the top of this file); rows in [divergences.md](divergences.md).
-- ⬚ **binaryen-ts's WAT parser has no multi-memory support** (measured 2026-09-15). An explicit
+- ✅ CLOSED 2026-09-28 — that parser is deleted (stage 5), and the text route honours an explicit
+  memory index (`text_route/explicit_memory_index.test.ts`). Was: **binaryen-ts's WAT parser has no
+  multi-memory support** (measured 2026-09-15). An explicit
   memory index on `memory.size`/`grow`/`fill`/`copy` or a load/store is REFUSED — loud, not silent.
   `memory.size` was the silent exception (it ignored `$b` and asked memory 0) until S6 step 5 stage
   B4; `tests/binaryen-ts/parser/explicit_memory_index.test.ts` pins all five as refusals. wabt-ts's
@@ -731,11 +743,16 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   encode; open until reproduced with a case on whatever path was measured.
 - ⬚ **E1 unification** — wabt-ts drops an explicit empty `else` where binaryen-ts keeps it; unify in
   S6.
-- ⬚ **Does the decoder consume-and-discard anywhere else?** The convert pair was a KNOWN opcode
-  deliberately discarded (`push(pop())`), not an unknown one refused — so the fail-loud contract can
-  be violated by a known opcode. Worth an enumeration of the decoder's dispatches; the section,
-  export-kind and import-kind dispatches all carry comments about this shape having bitten before.
-- ⬚ **`assert_return` / `assert_trap` are not run by `deno task spec`** — skipped deliberately so the
+- ⬚ **Does the ONE READER consume-and-discard anywhere?** (Re-pointed 2026-09-28: asked of
+  binaryen-ts's decoder, deleted at 1.6.0; the question holds for wabt-ts's reader, now the only
+  one.) The convert pair was a KNOWN opcode deliberately discarded (`push(pop())`), not an unknown
+  one refused — so the fail-loud contract can be violated by a known opcode. Worth an enumeration
+  of the reader's dispatches; the section, export-kind and import-kind dispatches all carry comments
+  about this shape having bitten before.
+- ✅ COVERED by `deno task spec-behaviour` (in the gate; SIMD too since pre-bump item 6). Left, and
+  optional: nothing in the gate checks the manifests' own EXPECTED values (the SIMD oracle check,
+  24,110 / 24,115, was a scratch probe). Was: **`assert_return` / `assert_trap` are not run by
+  `deno task spec`** — skipped deliberately so the
   first harness measured the must-reject axis. 🔧 2026-09-28: a DIFFERENTIAL invoke harness was
   built in the scratchpad and found Q1–Q8 (now `deno task spec-behaviour`, item 6 above). It compares against
   the original module run in V8, not against the manifests' `expected` values — checking those
@@ -746,7 +763,9 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   `global.set 0`) where upstream prints `call $f` / `global.set $g` from the name section; branch
   LABELS print by name since N8. Folded siblings share a line (`(call 0)) (i32.add`). Text only,
   never bytes ([names.md](names.md)).
-- ⬚ **Doc references mapped on plausibility**: `binaryen-ts/parser/tokenizer`, `parser/wat-parser`
+- ✅ MOOT for two of three (2026-09-28): `binaryen-ts/parser/*` is deleted (stage 5), so there is
+  no intent left to confirm for those; `wasm/demo_bytes` is still unconfirmed. Was: **Doc
+  references mapped on plausibility**: `binaryen-ts/parser/tokenizer`, `parser/wat-parser`
   and `wasm/demo_bytes` named subpaths that never existed and were pointed at `./api` and `./wasm`.
   Someone who knows the intent should confirm (recorded in 1.5.2's scope, summarized in
   [project.md](project.md)).

@@ -339,7 +339,11 @@ Mode 3 generalises the rule: **any shell string carrying prose destined for a fi
 message is single-quoted or delivered by a file** — a double-quoted `-m` is not safe even when a
 quoted heredoc would have been. Hence `git commit -F <file>` in
 [working-rules.md](working-rules.md). And one inline `deno eval "…"` was mangled by shell quoting
-the same week, so: **scripts go in files, always.**
+the same week, so: **scripts go in files, always.** ⚠️ Broken again 2026-09-28 (a memory edit by
+`deno eval "…"`): bash ran every backticked name in the replacement text as a COMMAND (`deno task
+spec` among them, harmlessly) and the file lost those words. Caught by reading the output,
+reverted with `git checkout`, redone from a script file. A probe that only READS may be inline;
+anything that WRITES is a file.
 
 ⚠️ **Two different silent failures in one session came from editing docs by script:** the eaten
 backslash, and a string-replace that silently matched nothing because `deno fmt` had reflowed the
