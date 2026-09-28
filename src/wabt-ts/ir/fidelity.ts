@@ -157,4 +157,17 @@ export class FidelityTable {
   get size(): number {
     return this.#entries.size;
   }
+
+  /**
+   * An independent copy: the same ids and entries, the same next id. Entries
+   * are shared, which is safe because {@link set} REPLACES an entry and never
+   * edits one in place. For writing a module without changing the caller's
+   * (`writeWasm`), where name resolution records into the table.
+   */
+  clone(): FidelityTable {
+    const copy = new FidelityTable();
+    copy.#next = this.#next;
+    for (const [id, entry] of this.#entries) copy.#entries.set(id, entry);
+    return copy;
+  }
 }

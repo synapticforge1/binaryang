@@ -263,6 +263,13 @@ their own bump — and nothing breaks by their standing still.
   `WasmBinaryError` like before; and they READ relaxed SIMD, which the decoder refused. Corpus
   optimizer output is unchanged byte for byte. `parseWasm` itself is unchanged until the bump that
   unpublishes it.
+- **`wasm-opt`, `Module.emitBinary` and `toBinary` write with wabt-ts's binary writer** (One front
+  end stage 4a, 2026-09-28), not binaryen-ts's encoder — byte-identical on all 14,595 outputs
+  measured. Fixed on the way, in the ENCODER (so `encodeWasm` too): relaxed ternary SIMD
+  instructions were written as `v128.bitselect` (silent; not in 1.5.4, whose decoder refused
+  relaxed SIMD), and a module whose only memory is imported gained an empty memory section. In
+  wabt-ts's writer (so `wat2wasm` too, though no corpus output moved): `(ref $T)` locals now merge
+  into one run.
 - **Modules with more than one table are written and optimized** (2026-09-28). `encodeWasm`, and so
   `wasm-opt` on any such module, threw "multiple tables are not supported"; every table index was
   already threaded, and only the guard remained.

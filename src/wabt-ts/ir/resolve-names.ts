@@ -285,7 +285,9 @@ class ResolveContext {
   }
 
   private resolveFunc(func: Func): Result {
-    this.labelStack = [];
+    // The function frame is the outermost label; a tree made ready for the
+    // passes names it (`bodyFrameLabel`), and a branch to it leaves the function.
+    this.labelStack = func.bodyFrameLabel === undefined ? [] : [func.bodyFrameLabel];
     return this.resolveExprList(func.body.children);
   }
 

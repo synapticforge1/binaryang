@@ -4557,6 +4557,36 @@ before it:
      `spec-behaviour`'s route A (its 7 pinned refusals go with it).
 4. **One writer**: wabt-ts's (more byte-exact, writes multiple tables), with a "resolve names +
    synthesize types" step for pass- and API-built modules; then delete `wasm-encoder.ts`.
+   - ✅ **4a DONE 2026-09-28: `wasm-opt`, `Module.emitBinary` and `toBinary` write through
+     `writeWasm`** (`encoder/write-wasm.ts`): a COPY of the module (the caller's keeps its names
+     for the passes), then wabt-ts's `resolveNames` and `synthesizeTypes` — the resolve step,
+     refinement 2 — then `writeBinaryIr`, names only when `hasNameSection`. `optimize-corpus` and
+     `spec-behaviour`'s route B write that way too.
+     **Parity, measured before switching** (2,919 inputs — the 421 corpus and every spec module V8
+     accepts — unoptimized and at -O1 / -O2 / -O3 / -Oz): all **14,595 outputs byte-identical** to
+     `encodeWasm`'s. The first comparison was 2,607 / ~2,080 per level identical, with throws and
+     invalid output; what closed the gap, in the order found:
+     - the wabt-ts path did not know the function frame's LABEL (`bodyFrameLabel`, which
+       `nameReferences` gives every body): the writer and `resolveNames` now put it at the bottom
+       of their scope (inventory W1);
+     - `synthesizeTypes` never assigned an index to a pass-built carrier with several results or
+       parameters ("block type has no type index yet"): a carrier sweep, appended last (W2/W3);
+     - `synthesizeTypes` RE-INTERNED a type the binary had named, and the interner reuses only a
+       singleton rec group — a function's type in a rec group became a different type
+       (`type-rec.3` invalid), a tag's gained a spare type, a `call_indirect` whose index was
+       dropped as form got a new singleton (`type-equivalence.9`): a written type now stays while
+       it matches, and otherwise the FIRST match is used, as the encoder derives (W2);
+     - the writer merged locals by `===`, so `(ref $T)` locals never ran together (W11);
+     - and in the ENCODER: every ternary SIMD op written as `v128.bitselect` (silent, relaxed
+       SIMD), and an empty memory section for an imported memory.
+     `wat2wasm`'s bytes did not move (baseline IDENTICAL at every step). Behaviour: `spec-behaviour`
+     0 divergences. `tests/binaryen-ts/encoder/one_writer.test.ts`: one case per finding, on both
+     writers; 10 mutants, each caught.
+     Found and NOT fixed (register): Q9 — a tag does not keep which identical type it named, and
+     our `wat2wasm` points one at the wrong rec-group member; W12 — the parser refuses
+     `(import … (tag (type $t)))`.
+   - ⏳ **4b — delete `wasm-encoder.ts` — at the bump**, with the decoder (3b): `encodeWasm` is the
+     published `./encoder`, unpublished in that release.
 5. Retire binaryen-ts's internal `parseWat` (already planned).
 With one reader, S7's read-back question narrows to parser vs reader.
 

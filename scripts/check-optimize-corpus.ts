@@ -8,8 +8,9 @@
  *
  * `deno task baseline` pins what wabt-ts writes and `deno task direct` what a
  * text-read tree encodes to (it optimizes too, but a TEXT-read tree; this gate
- * optimizes what `wasm-opt` optimizes: the bytes, through `readForPasses` — since One
- * front end stage 3 the wabt-ts reader; binaryen-ts's decoder until then). Before them neither ever optimized. Corpus checks of the optimizer were
+ * optimizes and WRITES what `wasm-opt` does: `readForPasses` in, `writeWasm` out — the
+ * wabt-ts reader and writer since One front end stages 3a and 4; binaryen-ts's
+ * decoder and encoder until then). Before them neither ever optimized. Corpus checks of the optimizer were
  * one-off hashes of its output — which say whether the output CHANGED, not
  * whether it is a module an engine will load. On 2026-09-14 that let two
  * defects sit unseen: -O3 could not encode three recursive modules at all, and
@@ -30,7 +31,7 @@
  */
 
 import { readForPasses } from '../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../src/binaryen-ts/passes/index.ts';
 import { formatErrors, hasErrors } from '../src/wabt-ts/core/error.ts';
 import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
@@ -61,7 +62,7 @@ for (const name of files) {
     try {
       const mod = readForPasses(r.binary);
       new PassRunner(mod, opts).addDefaultOptimizationPasses().run();
-      const out = encodeWasm(mod);
+      const out = writeWasm(mod);
       bytes.set(tag, (bytes.get(tag) ?? 0) + out.length);
       if (!WebAssembly.validate(out as BufferSource)) {
         let why = 'invalid';

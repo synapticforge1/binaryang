@@ -177,7 +177,12 @@ form", § "An assertion that spans stages is satisfied by the WRONG stage".
 done (2026-09-28): `wasm-opt`, `readWat` and the compat `readBinary` read with the one reader**
 (`readForPasses`); corpus optimizer output unchanged byte for byte. **3b — deleting binaryen-ts's
 decoder — happens IN the bump (owner, 2026-09-28: "wait for the bump")**: the published `parseWasm` IS that decoder, decided to be
-unpublished at the next bump and not before (below). Stage 4 (one writer) can proceed without it.
+unpublished at the next bump and not before (below). **Stage 4a is done too (2026-09-28): `wasm-opt`,
+`emitBinary` and `toBinary` write with the one writer** (`writeWasm`: wabt-ts's, after a resolve step
+on a copy) — 14,595 of 14,595 outputs byte-identical to the encoder's, after two encoder defects
+(one SILENT: relaxed ternary SIMD written as `v128.bitselect`) and four in the wabt-ts path were
+fixed. 4b, deleting the encoder, goes with 3b into the bump. **Next: stage 5** (retire binaryen-ts's
+internal `parseWat`), and two defects stage 4 found — Q9, W12 below.
 Stage 2 moved what
 binaryen-ts's decoder does FOR THE PASSES into `prepareForPasses`; its first piece (one stack entry
 per value) landed in `58fd43576`. Its items, as they closed:
@@ -320,7 +325,7 @@ per value) landed in `58fd43576`. Its items, as they closed:
    (The `Inlining` failures on the reader route at -O3 this line used to list — `dynrt_lib_modc`,
    `Chapter11/vector`, `nop.0`, `br.0` — were fixed by the spill, R11', and Q2.)
 Then stage 3 (switch the entry points ✅ 3a, 2026-09-28; delete binaryen-ts's decoder — 3b, at the
-bump), stage 4 (one writer), stage 5 (retire binaryen-ts's internal `parseWat`).
+bump), stage 4 (one writer ✅ 4a, 2026-09-28; delete the encoder — 4b, at the bump), stage 5 (retire binaryen-ts's internal `parseWat`).
 
 ✅ **Decided (owner, 2026-09-19): option (a) — `./binary` and `./encoder` are UNPUBLISHED at the next
 version bump, and not before every open fix and quality check below is finished.** In the owner's
@@ -358,7 +363,10 @@ delete binaryen-ts's decoder (`binary/wasm-parser.ts`, `names.ts`, `reader.ts` o
 uses them — `WasmBinaryError` moves with `readForPasses`), move the ~70 test files and the
 `scripts/binaryen-ts/` diagnostics off `parseWasm`, drop route A from `spec-behaviour` and empty its
 `REFUSED_BUDGET`. ⚠️ "keep both modules in the tree" above was written before stage 3a; after it
-nothing in `src/` but the published entry point calls the decoder.
+nothing in `src/` but the published entry point calls the decoder. ➕ And (stage 4b) the ENCODER:
+delete `encoder/wasm-encoder.ts` once nothing but the published `encodeWasm` calls it (after stage
+4a nothing in `src/` does); `WasmEncodeError` moves with `writeWasm`; move the ~94 test files and
+the scripts that call `encodeWasm` onto `writeWasm`; `spec-behaviour`'s route A goes entirely.
 ⚠️ Whatever is chosen, `parseWasm`'s published contract is "a tree the passes can run on", which is
 reader + `prepareForPasses` — not the faithful tree alone.
 
@@ -606,6 +614,15 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 ## Open defects and gaps
 
+- ⬚ **Q9 — a tag loses WHICH identical type it named**, and our `wat2wasm` gets it wrong outright:
+  `(rec (type $t1 (func)) (type $t2 (func))) (tag (import "M" "tag") (type $t2))` comes out with a
+  spare singleton `(func)` type and the tag pointing at `$t1` — a different type, so linking
+  against an exporter of a `$t2` tag can fail. `wasm-tools` keeps `$t2` and adds nothing. The fix
+  needs `Tag.typeVar` in the IR (the record has none): set by the parser and the reader, honoured by
+  both writers' `tagTypeIndex`. Found 2026-09-28 (stage 4); divergences.md Q9.
+- ⬚ **W12 — the WAT parser refuses `(import "M" "t" (tag (type $t)))`** (and `(tag $x (type $t))`),
+  which upstream `wat2wasm` and `wasm-tools` accept; inline params and the inline-import form parse.
+  Loud. Found 2026-09-28; divergences.md W12.
 - ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
   feeds it to `wasm-opt` — [divergences.md](divergences.md).
 - ⬚ **`scripts/release/` runs no cold type check before the tag push**, so a stale type cache is

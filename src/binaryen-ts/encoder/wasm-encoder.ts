@@ -683,7 +683,13 @@ class WasmEncoder {
     // it did not have (elem.107; wabt-ts omits it).
     if (this.mod.tables.length > 0) this.writeSection(out, 4, (w) => this.encodeTableSection(w));
     this.writeCustoms(out, 4);
-    if (this.hasMemories()) this.writeSection(out, 5, (w) => this.encodeMemorySection(w));
+    // DEFINED memories only, as for tables above. 🔧 Imported memories counted
+    // too, so a module whose only memory is imported gained an EMPTY memory
+    // section (`05 01 00`) it did not have — 156 spec modules, found comparing
+    // this encoder with wabt-ts's writer (One front end stage 4).
+    if (this.mod.memories.length > 0) {
+      this.writeSection(out, 5, (w) => this.encodeMemorySection(w));
+    }
     this.writeCustoms(out, 5);
     if (this.mod.tags.length > 0) this.writeSection(out, 13, (w) => this.encodeTagSection(w));
     this.writeCustoms(out, 13);
@@ -1165,18 +1171,6 @@ class WasmEncoder {
       this.mod.imports.some((i) => i.kind === ExternalKind.Table);
   }
 
-  private hasMemories(): boolean {
-    return this.mod.memories.length > 0 ||
-      this.mod.imports.some((i) => i.kind === ExternalKind.Memory);
-  }
-
-  /**
-   * Guards against the multi-memory proposal. The encoder hardcodes memory
-   * index 0 for memory exports, data segments, and `memory.*` instructions, and
-   * the parser names every memory `mem0` (so an imported + a defined memory
-   * collide). Rather than silently emit everything against memory 0, fail
-   * loudly when more than one memory is present.
-   */
   /**
    * Write a memarg: alignment exponent, an explicit memory index when the
    * access does not address memory 0, then the offset.
@@ -2766,8 +2760,13 @@ class WasmEncoder {
         this.encodeExpr(w, e.a, labels);
         this.encodeExpr(w, e.b, labels);
         this.encodeExpr(w, e.c, labels);
-        w.writeU8(0xfd);
-        w.writeU32(0x52);
+        // 🔧 This wrote `fd 52` — `v128.bitselect` — for EVERY ternary node, from
+        // when that was the only one. Relaxed SIMD added more (`relaxed_madd`,
+        // `relaxed_laneselect`, `relaxed_dot_i8x16_i7x16_add_s` …), and each came
+        // out as a bitselect: valid, and a different instruction. Unseen while
+        // binaryen-ts's decoder refused relaxed SIMD; `wasm-opt` reaches it since
+        // its entry takes the wabt-ts reader (One front end stage 3a).
+        this.writeOperator(w, e.opcode);
         break;
       }
 

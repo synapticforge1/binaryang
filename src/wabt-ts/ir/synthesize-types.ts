@@ -23,10 +23,19 @@
  */
 
 import { ExternalKind } from '../core/binary.ts';
-import { isRefValueType, recGroups, varIndex } from './ir.ts';
+import { blockTypeOf, isRefValueType, recGroups, UNASSIGNED_TYPE_INDEX, varIndex } from './ir.ts';
 import { ExprVisitor } from './expr-visitor.ts';
 import { Result } from '../core/result.ts';
-import type { FuncSignature, Module, TypeEntry, TypeUse, ValueType, Var } from './ir.ts';
+import type {
+  BlockParams,
+  BlockResult,
+  FuncSignature,
+  Module,
+  TypeEntry,
+  TypeUse,
+  ValueType,
+  Var,
+} from './ir.ts';
 
 const NO_LOC = { filename: '', line: 0, column: 0, offset: 0 };
 
@@ -95,29 +104,74 @@ export function synthesizeTypes(module: Module): void {
   // `typeVar` may be absent on the way in: this pass is what assigns it.
   const pending: { typeUse?: TypeUse; sig: FuncSignature; typeVar?: Var }[] = [];
 
+  /** The item's written type while it still has the item's signature, else the interned one. */
+  const keepOrIntern = (item: { sig: FuncSignature; typeVar?: Var }): Var => {
+    const tv = item.typeVar;
+    if (tv?.kind === 'index') {
+      const entry = module.types[tv.value];
+      if (entry?.kind === 'func' && sigKey(entry.sig) === sigKey(item.sig)) return tv;
+    }
+    return varIndex(ensureTypeFor(item.sig));
+  };
+
+  /**
+   * A tag's type. Both writers write a tag's type as the FIRST function type
+   * with its signature (`tagTypeIndex`), whatever `typeVar` says, so a type is
+   * appended only when none exists. 🔧 It was always interned, and the interner
+   * only reuses a type that is its own rec group — so a tag whose signature was
+   * defined only inside a rec group got an extra, unused singleton type
+   * (`spec/tag/tag.6.wasm`: two types in, three out). That neither writer keeps
+   * WHICH of several matching types a tag named is a separate defect (Q9).
+   */
+  const settleTag = (tag: { sig: FuncSignature }): void => {
+    const t = tag as { sig: FuncSignature; typeVar?: Var };
+    t.typeVar = firstOrIntern(t.sig);
+  };
+
+  /**
+   * The FIRST function type with `sig`, in any rec group, or an interned one
+   * when none exists — the rule binaryen-ts's encoder derives a type by
+   * (`gcFuncTypeIndex`). For what the TEXT never reaches: a tag, and a
+   * `call_indirect` a pass built or whose written index was dropped as form.
+   * 🔧 Interning alone reuses only a type that is its own rec group, so after
+   * `-O1` every `call_indirect` of `spec/type-equivalence/type-equivalence.9.wasm`
+   * — all its types in rec groups — got a NEW singleton type: a different type
+   * for the engine's signature check (One front end stage 4, 2026-09-28).
+   */
+  const firstOrIntern = (sig: FuncSignature): Var => {
+    const key = sigKey(sig);
+    const first = module.types.findIndex((e) => e.kind === 'func' && sigKey(e.sig) === key);
+    return varIndex(first >= 0 ? first : ensureTypeFor(sig));
+  };
+
   const settle = (item: { typeUse?: TypeUse; sig: FuncSignature; typeVar?: Var }): void => {
     if (item.typeUse === 'resolved') return;
     if (item.typeUse !== undefined) {
       pending.push(item);
       return;
     }
-    item.typeVar = varIndex(ensureTypeFor(item.sig));
+    // An item that already NAMES a function type with its own signature keeps
+    // it. A tree the binary reader built carries a `typeVar` and no `typeUse`
+    // (that is text-only), and re-interning replaced a type inside a rec group
+    // with a new singleton — a DIFFERENT type, so `(ref.func $f)` no longer had
+    // the type its global declared and the module was invalid
+    // (`spec/type-rec/type-rec.3.wasm`, One front end stage 4, 2026-09-28). It is
+    // binaryen-ts's encoder's rule too: a written index is used while it still
+    // matches — and one a pass made stale (a changed signature) is re-interned.
+    item.typeVar = keepOrIntern(item);
   };
 
   for (const imp of module.imports) {
     if (imp.kind === ExternalKind.Func) settle(imp.func);
     else if (imp.kind === ExternalKind.Tag) {
-      const idx = ensureTypeFor(imp.tag.sig);
-      // Tags reuse the func-type encoding for their signature.
-      (imp.tag as { typeVar?: ReturnType<typeof varIndex> }).typeVar = varIndex(idx);
+      settleTag(imp.tag);
     }
   }
 
   for (const f of module.functions) settle(f);
 
   for (const tag of module.tags) {
-    const idx = ensureTypeFor(tag.sig);
-    (tag as { typeVar?: ReturnType<typeof varIndex> }).typeVar = varIndex(idx);
+    settleTag(tag);
   }
 
   // Instruction-level type-uses on `call_indirect`, tail-call variant included
@@ -132,6 +186,15 @@ export function synthesizeTypes(module: Module): void {
       const node = e as { typeVar?: Var; sig: FuncSignature };
       const typeUse = module.fidelity.get(e.nodeId)?.typeUse;
       calls.push(node);
+      if (typeUse === undefined) {
+        // No text behind it: a node the binary reader, a pass or the API made.
+        // A written index is kept while it matches; otherwise the first match.
+        const tv = node.typeVar;
+        const entry = tv?.kind === 'index' ? module.types[tv.value] : undefined;
+        if (entry?.kind === 'func' && sigKey(entry.sig) === sigKey(node.sig)) return Result.Ok;
+        node.typeVar = firstOrIntern(node.sig);
+        return Result.Ok;
+      }
       settle({
         ...(typeUse !== undefined ? { typeUse } : {}),
         sig: e.sig,
@@ -194,6 +257,39 @@ export function synthesizeTypes(module: Module): void {
     const entry = module.types[tv.value];
     if (entry === undefined || entry.kind !== 'func') continue;
     call.sig = { params: [...entry.sig.params], results: [...entry.sig.results] };
+  }
+
+  // A block-type carrier whose header cannot be written inline — parameters, or
+  // more than one result — and that names no type yet. The text parser settles
+  // every one of these as it parses (implicit types in text order, W5), so on a
+  // parsed tree this finds nothing and changes nothing. A tree the optimizer or
+  // the API built has them: a pass makes a `(result i32 i32)` block with no
+  // index, and the writer refused it — "block type has no type index yet"
+  // (One front end stage 4, 2026-09-28). Appended LAST, after every type the
+  // module already has, so no existing index moves.
+  const carriers: {
+    type: BlockResult;
+    typeIndex?: number;
+    params?: BlockParams;
+  }[] = [];
+  const note = (e: unknown): Result => {
+    carriers.push(e as (typeof carriers)[number]);
+    return Result.Ok;
+  };
+  const blocks = new ExprVisitor({
+    beginBlockExpr: note,
+    beginLoopExpr: note,
+    beginIfExpr: note,
+    beginTryExpr: note,
+    beginTryTableExpr: note,
+  });
+  for (const f of module.functions) blocks.visitExprList(f.body.children);
+  for (const c of carriers) {
+    if (c.typeIndex !== undefined) continue;
+    const shape = blockTypeOf(c);
+    if (shape.kind !== 'func_type' || shape.typeIdx !== UNASSIGNED_TYPE_INDEX) continue;
+    const results = c.type === 'none' ? [] : Array.isArray(c.type) ? [...c.type] : [c.type];
+    c.typeIndex = ensureTypeFor({ params: [...(c.params?.types ?? [])], results });
   }
 }
 
