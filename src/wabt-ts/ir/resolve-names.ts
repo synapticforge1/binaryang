@@ -364,6 +364,16 @@ class ResolveContext {
           ...e,
           table: this.resolveTableVar(e.table, loc),
           ...(e.typeVar !== undefined ? { typeVar: this.resolveTypeVar(e.typeVar, loc) } : {}),
+          // 🔧 The INLINE signature's value types name heap types too:
+          // `(call_indirect $tab (result (ref null $t)) …)` kept `$t` as a name,
+          // and the writer refused it ("type "$$t" is not resolved"), which is
+          // the whole main module of `return_call_indirect.wast` (wasmtk,
+          // 2026-09-28). `resolveModuleValueTypes` walks declarations only.
+          sig: {
+            ...e.sig,
+            params: e.sig.params.map((vt) => this.resolveValueTypeRef(vt, loc)),
+            results: e.sig.results.map((vt) => this.resolveValueTypeRef(vt, loc)),
+          },
           operands: args,
           callee,
         }];
