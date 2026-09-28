@@ -145,10 +145,8 @@ const FIXTURES: { name: string; wat: string; args: unknown[][]; routes?: string[
           i32.add
         end))`,
     args: [[0]],
-    // ⚠️ Route B only: route A's DECODER loses these entry values before any
-    // lowering — a plain decode -> encode of this module traps on `unreachable`
-    // where the original returns 30 (on `main` too; recorded in open-work.md).
-    routes: ['B'],
+    // 🔧 Route B only until Q3 was fixed: route A's decoder lost these entry
+    // values before any lowering (dead_code_operands.test.ts).
   },
   {
     name: 'an unconditional back-edge',

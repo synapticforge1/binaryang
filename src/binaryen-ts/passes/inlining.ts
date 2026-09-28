@@ -61,6 +61,7 @@ import { elemFuncNames, type Local, type WasmFunction, type WasmModule } from '.
 import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { isRefType, type ValueType } from '../ir/gc-types.ts';
 import { mapExpression, mapWithSequences, type Sequence, walkExpression } from '../ir/walk.ts';
+import { operandsInOrder } from '../ir/phantoms.ts';
 import { optimizeNode } from './optimize-instructions.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { vacuumNode } from './vacuum.ts';
@@ -814,6 +815,11 @@ function inlineCallSite(
 // Walk a function body and inline eligible calls
 // ---------------------------------------------------------------------------
 
+/** Whether `e` holds a `pop` of the stack it is evaluated on (not inside a region of its own). */
+function takesFromStack(e: Expression): boolean {
+  return e.kind === ExpressionKind.Pop || operandsInOrder(e).some(takesFromStack);
+}
+
 /**
  * Walks `fn.body` bottom-up and replaces eligible `Call` nodes.
  *
@@ -835,6 +841,14 @@ function inlineIntoFunction(
     if (requireName(call.func, 'call target') === fn.name) return e; // skip recursive calls
     const callee = inlineable.get(requireName(call.func, 'call target'));
     if (!callee) return e;
+    // 🔧 An operand that takes a value FROM THE STACK — a `pop`, the extra
+    // result of a multi-result call before it — would become a `local.set`
+    // inside the wrapper block, which cannot reach the stack outside it: -O3
+    // emitted "not enough arguments on the stack for local.set" for
+    // `spec/call/call.0.wasm` and `spec/fac/fac.0.wasm` (Q2). The spill makes
+    // every single-result producer explicit first, so what is left is a tuple,
+    // which no local can hold. Such a call is not inlined.
+    if (call.operands.some(takesFromStack)) return e;
 
     changed = true;
     // One ACTION, counted as it happens — upstream's `inlinedUses[name]++`.

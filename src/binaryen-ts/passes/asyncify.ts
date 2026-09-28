@@ -1031,7 +1031,7 @@ export function computeRelevantLocals(
   addedFromList: Set<string>,
 ): Set<number> {
   const relevant = new Set<number>();
-  const cfg = buildCFG(func.body);
+  const cfg = buildCFG(func.body, func.bodyFrameLabel);
   computeLiveness(cfg);
   for (const block of cfg.blocks) {
     if (block.callPoints.length === 0) continue;

@@ -26,6 +26,9 @@ export class WasmBinaryError extends Error {
   }
 }
 
+/** A name's bytes as written — a leading U+FEFF kept (see `readUTF8`). */
+const UTF8 = new TextDecoder('utf-8', { ignoreBOM: true });
+
 /**
  * Cursor-based reader over a `Uint8Array` of WebAssembly binary data.
  *
@@ -147,10 +150,18 @@ export class BinaryReader {
     return out;
   }
 
-  /** Read a UTF-8 string of exactly `n` bytes. */
+  /**
+   * Read a UTF-8 string of exactly `n` bytes.
+   *
+   * 🔧 `ignoreBOM`: a default decoder STRIPS a leading U+FEFF, and in a name it
+   * is a character like any other. `spec/names/names.2.wasm` exports "﻿"
+   * beside "": decoded as two "" exports, re-encoded, the engine rejected the
+   * module ("Duplicate export name"), on every route through this decoder.
+   * wabt-ts's reader has always passed it.
+   */
   readUTF8(n: number): string {
     const bytes = this.readBytes(n);
-    return new TextDecoder().decode(bytes);
+    return UTF8.decode(bytes);
   }
 
   // ---------------------------------------------------------------------------

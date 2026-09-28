@@ -102,10 +102,14 @@ export interface CFG {
  * sets — call {@link computeLiveness} to populate them.
  *
  * @param body - The function body expression.
+ * @param bodyLabel - The function frame's label (`bodyFrameLabel`), if it has
+ *   one: a branch to it is an exit. Any other label no construct declares is
+ *   refused.
  * @returns A CFG with all blocks linked.
  */
-export function buildCFG(body: Expression): CFG {
+export function buildCFG(body: Expression, bodyLabel?: string): CFG {
   const builder = new _CFGBuilder();
+  builder.bodyLabel = bodyLabel;
   builder.current = builder.newBlock();
   const entry = builder.current;
   builder.visit(body);
@@ -184,12 +188,19 @@ class _CFGBuilder {
     this.labelStack.pop();
   }
 
+  /** The function body's own label: a branch to it RETURNS. */
+  bodyLabel: string | undefined;
+
   resolveLabel(name: string): BasicBlock | null {
     for (let i = this.labelStack.length - 1; i >= 0; i--) {
       const entry = this.labelStack[i]!; // bounded by the loop header
       if (entry.name === name) return entry.target;
     }
-    return null; // unknown label — treat as exiting the function
+    if (name === this.bodyLabel || name === '') return null; // the function frame: an exit
+    // ⚠️ It used to return null for ANY label it did not know, reading it as an
+    // exit. That is how a branch to an `if` (Q1) silently became a return; a
+    // new kind with a label would fail the same way. Refuse instead.
+    throw new Error(`cfg: branch to "${name}", which no enclosing construct declares`);
   }
 
   visit(e: Expression): void {
@@ -266,6 +277,14 @@ class _CFGBuilder {
         this.visit(e.condition);
         const pre = this.current;
         const merge = this.newBlock();
+        // 🔧 An `if` is a branch TARGET — `br` to its label leaves it, like a
+        // block's. Upstream binaryen has no labels on `if` (its reader wraps one
+        // in a block), so the port pushed none, and a branch to one resolved as
+        // an unknown label: "exits the function". Every local read after the
+        // `if` then looked dead from that branch, and CoalesceLocals turned the
+        // `local.set` before it into a `drop` — `spec/if/if.0.wasm`'s `effects`
+        // returned −2 instead of −14 at -O2 and up (Q1).
+        if (e.label) this.pushLabel(e.label, merge);
 
         const thenBlock = this.newBlock();
         this.link(pre, thenBlock);
@@ -284,6 +303,7 @@ class _CFGBuilder {
           this.link(pre, merge);
         }
 
+        if (e.label) this.popLabel();
         this.current = merge;
         return;
       }

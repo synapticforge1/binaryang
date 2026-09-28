@@ -25,12 +25,47 @@
  */
 
 import type { WasmModule } from '../ir/module.ts';
-import { dropWrittenTypeIndex } from '../ir/expressions.ts';
+import { dropWrittenTypeIndex, type Expression, ExpressionKind } from '../ir/expressions.ts';
 import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
 import { spillStackValues } from './spill-stack-values.ts';
 import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
 import { FidelityTable } from '../../wabt-ts/ir/fidelity.ts';
+import { recGroups, requireIndex } from '../../wabt-ts/ir/ir.ts';
+
+/**
+ * Whether a node's written type index is only FORM (7c) — droppable because the
+ * index the encoder derives names the SAME type.
+ *
+ * 🔧 For a `call_indirect` it is not always form. The encoder derives the FIRST
+ * function type with the same params and results, and with GC types two such
+ * types can be DIFFERENT types: `(rec (type $f1 (func)) (type (struct)))` and
+ * `(rec (type (struct)) (type $f2 (func)))` are distinct, and a `call_indirect
+ * (type $f2)` to an `$f1` function TRAPS. Dropping the index made it name `$f1`,
+ * and the trap was gone (`spec/type-rec`, `spec/type-subtyping`, every level,
+ * both routes). So the index goes only when both types stand alone in their rec
+ * group and declare the same `sub` — which every type does in a module without
+ * GC types, so nothing changes there.
+ */
+function writtenIndexIsForm(module: WasmModule): (e: Expression) => boolean {
+  const types = module.types;
+  const groupSize = new Map<number, number>();
+  for (const g of recGroups(types)) {
+    for (let i = g.start; i < g.start + Math.max(g.count, 1); i++) groupSize.set(i, g.count);
+  }
+  const alone = (i: number) => (groupSize.get(i) ?? 1) <= 1;
+  const subOf = (i: number) => JSON.stringify(types[i]?.sub ?? null);
+  return (e) => {
+    if (e.kind !== ExpressionKind.CallIndirect || e.typeVar === undefined) return true;
+    const written = requireIndex(e.typeVar, 'call_indirect type');
+    const key = JSON.stringify([e.sig.params, e.sig.results]);
+    const derived = types.findIndex((t) =>
+      t.kind === 'func' && JSON.stringify([t.sig.params, t.sig.results]) === key
+    );
+    if (derived === written) return true;
+    return derived >= 0 && alone(written) && alone(derived) && subOf(written) === subOf(derived);
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Pass interface
@@ -313,8 +348,9 @@ export class PassRunner {
     // something else, so the form goes before the first pass runs. With no pass
     // queued this is still a plain read-and-write, which keeps it.
     if (optimized) {
+      const form = writtenIndexIsForm(this._module);
       for (const fn of this._module.functions) {
-        fn.body = mapExpression(fn.body, dropWrittenTypeIndex);
+        fn.body = mapExpression(fn.body, (e) => form(e) ? dropWrittenTypeIndex(e) : e);
         // Code-metadata annotations describe instructions a pass may move or
         // delete: binaryen-ts strips them in optimization runs (owner,
         // 2026-09-16). Under the same condition as the form above.

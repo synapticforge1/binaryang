@@ -81,7 +81,7 @@ function _coalesceFunction(fn: WasmFunction): void {
   const numParams = fn.sig.params.length;
 
   // 1. CFG + liveness ------------------------------------------------------
-  const cfg = buildCFG(fn.body);
+  const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
   computeLiveness(cfg);
 
   // 2. Per-block effective-set / ends-live-range maps ----------------------

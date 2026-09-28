@@ -44,8 +44,12 @@ export interface ParsedNameSection {
   subsections: ReadonlySet<NameSectionSubsection>;
 }
 
-/** Names must be valid UTF-8; a decoder that substitutes U+FFFD would change them. */
-const UTF8 = new TextDecoder('utf-8', { fatal: true });
+/**
+ * Names must be valid UTF-8; a decoder that substitutes U+FFFD would change
+ * them. And `ignoreBOM`: a default decoder strips a leading U+FEFF, which in a
+ * name is a character like any other (`spec/names/names.2.wasm`).
+ */
+const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 /**
  * Decode a name section's payload (the bytes AFTER the section's own name).
