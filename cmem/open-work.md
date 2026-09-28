@@ -176,7 +176,7 @@ form", § "An assertion that spans stages is satisfied by the WRONG stage".
 [ir-convergence.md](ir-convergence.md) § "One front end". Stages 0, 1 and 2 are done; **stage 3a is
 done (2026-09-28): `wasm-opt`, `readWat` and the compat `readBinary` read with the one reader**
 (`readForPasses`); corpus optimizer output unchanged byte for byte. **3b — deleting binaryen-ts's
-decoder — is the owner's timing call**: the published `parseWasm` IS that decoder, decided to be
+decoder — happens IN the bump (owner, 2026-09-28: "wait for the bump")**: the published `parseWasm` IS that decoder, decided to be
 unpublished at the next bump and not before (below). Stage 4 (one writer) can proceed without it.
 Stage 2 moved what
 binaryen-ts's decoder does FOR THE PASSES into `prepareForPasses`; its first piece (one stack entry
@@ -353,7 +353,12 @@ as deprecated aliases. Consequences of (a) to carry out IN the bump, not before:
 `deno.json`'s `exports`; delete the `parseWasm` example and the two entry-point rows from `README.md`;
 keep both modules in the tree, since `wasm-opt`, `read-wat`, the compat API and `lowerBlockParams` all
 call them; say in `CHANGELOG.md` that the public way to reach the IR is now the compat APIs and the
-tool entry points.
+tool entry points. ➕ **Added 2026-09-28 (owner: stage 3b waits for the bump):** in that same bump,
+delete binaryen-ts's decoder (`binary/wasm-parser.ts`, `names.ts`, `reader.ts` once nothing else
+uses them — `WasmBinaryError` moves with `readForPasses`), move the ~70 test files and the
+`scripts/binaryen-ts/` diagnostics off `parseWasm`, drop route A from `spec-behaviour` and empty its
+`REFUSED_BUDGET`. ⚠️ "keep both modules in the tree" above was written before stage 3a; after it
+nothing in `src/` but the published entry point calls the decoder.
 ⚠️ Whatever is chosen, `parseWasm`'s published contract is "a tree the passes can run on", which is
 reader + `prepareForPasses` — not the faithful tree alone.
 

@@ -4549,7 +4549,7 @@ before it:
      succeed. By design, the entry points now REFUSE the invalid binaries the decoder accepted
      (R2–R5). `tests/binaryen-ts/tools/one_reader.test.ts` pins it both ways, and pointing
      `wasm-opt` or `readBinary` back at `parseWasm` fails it.
-   - ⏳ **3b — delete `wasm-parser.ts` — waits on the owner's timing.** The published `parseWasm`
+   - ⏳ **3b — delete `wasm-parser.ts` — AT THE BUMP (owner, 2026-09-28: "Wait for the bump").** The published `parseWasm`
      (`./binary`) IS that decoder, and the owner decided (2026-09-19) to unpublish `./binary` and
      `./encoder` at the next bump, "not before", with no wrapper. So deleting it now would break
      the published API; deleting it at the bump is the plan as decided. What still calls it:
