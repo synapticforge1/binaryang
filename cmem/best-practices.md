@@ -1384,6 +1384,51 @@ what it saves, and test that directly (here: run the passes and validate the out
 says which item owns a failure, verify the attribution before pricing or skipping the item — a
 register entry is a claim, like any other written result.
 
+## 🆕 Lessons from R15 and Q1–Q8 (2026-09-28)
+
+### A VALID output is not a CORRECT one — run what the spec already asks
+
+Every gate was green and the optimizer was silently changing what modules DO: a set turned into a
+drop at -O2 (Q1), dead code that trapped instead of branching (Q4), a signature trap that vanished
+(Q5). Validity gates cannot see any of it, and `deno task spec` skips `assert_return` by design. One
+differential run — each spec module's own invocations against the original and every variant —
+found eight defects in minutes. **How to apply:** after changing a pass or a front end, run the
+behaviour differential, not only the validators. The original module in V8 is the oracle; no expected
+value has to be derived.
+
+### A no-op passes every test that only asks "is it valid?"
+
+The first R15 attempt lowered NOTHING, and the modules stayed valid (the encoder writes parameters as
+written), so it read as working. **How to apply:** assert the transformation happened ("no parameter
+is left") alongside "valid and the same", and assert on the step ALONE as well as after the passes —
+a pass can repair or hide what the step got wrong.
+
+### A silent default is where a gap hides: make "I don't know this" loud
+
+The CFG read ANY unknown label as a function exit. A branch to an `if` label (upstream has none, so
+the port never saw one) became a return, and liveness was wrong without a sound. The fix was to push
+the label — and to make an unknown label THROW, so the next unhandled labelled kind cannot fail the
+same way. **How to apply:** when porting a pass, find each fallback that turns an unrecognised input
+into a plausible answer ("treat as exit", "treat as none", "skip") and make it refuse instead.
+
+### A stack placeholder means "already on the stack" — work where the stack is explicit
+
+A `pop` has no identity beyond its position: an entry value may be consumed deep in an operand, pass
+through untouched, or be produced INSIDE the condition of the branch that carries it. Rewriting
+individual `pop`s failed six of eight modules; a positional lowering (write the locals, READ THEM BACK
+at the region's start, leave the `pop`s alone) passed all eight. The same fact gave Q4: a phantom
+filled with `unreachable` is right only where the code is already dead before it runs. **How to
+apply:** before rewriting stack-held values in a tree, ask what the linear bytes do at that point;
+a `block` wrapper cannot reach the enclosing stack, so sequences go into the enclosing list.
+
+### A fix made mid-way can itself break something — keep re-running the whole check
+
+The phantom fix, first version, took apart a loop body on route A (`fac.0` went invalid): a region's
+statements were read as operands, and bare `pop` statements as phantoms. Each guard alone is
+harmless; the pair was the defect. Only re-running the full differential after EACH fix showed it.
+**How to apply:** when single mutants of two guards are MISSED, try them together before concluding a
+guard is redundant.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

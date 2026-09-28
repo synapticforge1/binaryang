@@ -22,23 +22,22 @@ that history now lives in its topic files — nothing was dropped:
 | the predecessors' wings (T-ids, UP-n, WT-n, invariants → tests) | [wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md) |
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
-**State, 2026-09-19:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
-ahead, unpushed and unbumped, at 1281 tests / 0 ignored, baseline IDENTICAL, spec 100% on four axes,
-`direct` 544/544 and `direct-behaviour` 1953 calls agreeing (the bridge and its gates were deleted
-2026-09-18), one pack. Re-derive before quoting.
+**State, 2026-09-28:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
+ahead, unpushed and unbumped, at **1300 tests / 0 failed**, baseline IDENTICAL, spec 100% on four
+axes, `direct` 544/544 and `direct-behaviour` 1953 calls agreeing, one pack. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-19 — S7 and its mixed form done; ONE FRONT END stages 0 and 1 done, stage 2 STARTED; two wasmtk leniency reports fixed)
+## Start the next session here (handoff, 2026-09-28 — ONE FRONT END stage 2 DONE; the optimizer behaves as its input across the spec testsuite)
 
-**2026-09-20: One front end stage 2, items 1, 1a and 2 are DONE and merged** (code `0e2a2bd2b`,
-`190ba909e`, the stale-name fix, and `spill-stack-values`) — the operand shape agrees on **49,125 functions of 49,271**, up from 48,770, with
-**0 newly differing** (set diff, both directions), and route B's optimizer output is **never worse than
-route A's** anywhere in 3,075 modules (identical on 2,875, and the two it emitted INVALID at -O3 are
-fixed). What is left of stage 2 is **R15 alone**. The full gate ran green on each committed tree: fmt,
-lint, **1287 tests / 0 failed**,
-naming (no output), portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 ·
-2714 · 711 · 1229, no misses**, `direct` **544/544**, `direct-behaviour` **1953 calls / 651
-exports**, `translate-eh` **70/70 legacy, translated and translated -Oz**, optimize-corpus every
-level. Pick up here, in this order:
+**2026-09-28: stage 2 is COMPLETE** — its last item, R15 (block-parameter lowering as a tree pass,
+merge `196a40c0c`), and then every defect a behaviour check surfaced, Q1–Q8 (merge `a46dab48b`). The
+check that closed it: each spec module's own `action` / `assert_return` / `assert_trap` replayed
+against the original, a plain decode → encode, and -O1…-Oz on both routes. Result: the optimizer's
+output **behaves as its input on every spec module it accepts**, INVALID outputs **0** (was 9 on
+2026-09-20's `main`), and the one thing left is a loud refusal — multiple tables, W5. Full gate green
+on `d91f0e6f3`, the last commit: fmt, lint, **1300 tests / 0 failed**, naming (no output),
+portability, baseline **IDENTICAL**, publish dry-run, operators, spec **no misses**, `direct`
+**544/544**, `direct-behaviour` **1953 calls / 651 exports**, `translate-eh` **70/70** in all three
+worlds, optimize-corpus every level. Pick up here, in this order:
 
 1. ✅ **One front end stage 2 is DONE** — R15 merged 2026-09-28 (item 3 below), and every defect its
    behaviour check and a whole-testsuite behaviour check found is fixed (item 4). The optimizer's
@@ -58,19 +57,18 @@ level. Pick up here, in this order:
    was still running when the session ended and its number was never read. Re-run it — the scratchpad
    is session-scoped and will be gone.
 
-**Where the work stopped.** The last CODE change is the spill (One front end stage 2 item 2), gated
-and merged on 2026-09-20; before it, `ad2dc00bc` / `d59816990`, the wasmtk leniency fixes, and five
-docs-only merges. Clean, nothing pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ several
-stale
-branches from earlier sessions still exist and are merged — `docs/memory-refresh` among them; check
-`git log -1 <branch>` before reusing a name, or a checkout will hand you an old tree).
-The full gate ran on `d59816990` and every step exited 0: fmt, lint, **1281 tests / 0 failed**, naming (no output),
-portability, baseline **IDENTICAL**, publish dry-run, operators, spec **2248 · 2714 · 711 · 1229, no
-misses**, `direct` **544/544 byte-identical to wat2wasm, valid at every level** (421 corpus + 123 fixture, since fix 7), `direct-behaviour` **1953 calls / 651 exports agree at -O3**, `translate-eh`
-**70/70 (and 70/70 at -Oz)**, `optimize-corpus`. Optimizer output: **0 of 2,105** hashes changed by ANY
-stage of item 6; `wat2wasm` output 0 of 421. Fix 4 moved folded `wasm2wat` TEXT for 2 of 421
-(re-baselined in its own commit, `abd8b7e5d`); bytes and linear text unchanged. Fix 5 changed
-parse TREES only: 0 of 2,286 WAT files and 0 of 5,794 round-trip texts moved a byte.
+**Where the work stopped.** The last CODE change is Q1–Q8 (`5b25d7846`, merged `a46dab48b`,
+2026-09-28); before it R15 (`629884084`, merged `196a40c0c`). Clean except `cmem/INDEX.md`'s
+uncommitted workspace pointer (not this repo's session's edit — leave it to the owner), nothing
+pushed, `deno.json` still 1.5.4. **No branch is open** (⚠️ many stale merged branches exist —
+`stage2/r15-tree-lowering`, `fix/q1-q3`, and the SUPERSEDED `wip/r15-tree-pass`, never merged, kept
+for its commit message; check `git log -1 <branch>` before reusing a name). Corpus outputs moved by
+the whole of 2026-09-28: **0** of the 421 corpus modules at any level; the 454 spec outputs that
+moved behave as their input.
+
+⚠️ **The behaviour check is a scratch script, not a gate** — it lived in the session scratchpad
+(`behave-all.ts`) and is gone. Rebuilding it as a task is item 6 below; until then, a change to the
+optimizer or a front end is not checked for BEHAVIOUR on the spec testsuite by anything in the repo.
 
 ✅ **The naming step is clean again (fixed 2026-09-18, owner-approved).** From `138148881`
 (2026-09-11) `check-naming.sh` printed `tests/binaryen-ts/wabt_reference.ts`, a bare `wabt`
@@ -175,10 +173,11 @@ form", § "An assertion that spans stages is satisfied by the WRONG stage".
 
 ### Next, in order
 
-**ONE FRONT END, stage 2** is the work in flight — the owner's plan, confirmed 2026-09-19, in
-[ir-convergence.md](ir-convergence.md) § "One front end". Stages 0 and 1 are done (see the Done
-table). Stage 2 moves what binaryen-ts's decoder does FOR THE PASSES into `prepareForPasses`; its
-first piece (one stack entry per value) landed in `58fd43576`. What is left of it, in order:
+**ONE FRONT END, stage 2 is DONE (2026-09-28)** — the owner's plan, confirmed 2026-09-19, in
+[ir-convergence.md](ir-convergence.md) § "One front end". Stages 0, 1 and 2 are done; **stage 3 is
+next in that plan** (switch the entry points, delete binaryen-ts's decoder). Stage 2 moved what
+binaryen-ts's decoder does FOR THE PASSES into `prepareForPasses`; its first piece (one stack entry
+per value) landed in `58fd43576`. Its items, as they closed:
 1. ✅ **DONE 2026-09-20 (`0e2a2bd2b`, merge below): typed `pop`s at catch entry and for block params
    (R13, R14).** The 6 type differences are settled — **0 differing nodes of 1,291,777** — and
    functions agreeing went 48,770 → 48,780 of 49,271 with no new difference category and not a byte
@@ -266,6 +265,16 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
 5. ⬚ **The multiple-tables refusal (W5) is now the only thing the optimizer does not handle in the
    spec testsuite** — 164 modules refused, loudly: "element segments and call_indirect are encoded
    against table index 0". The next section's candidate, for the owner to order.
+6. ⬚ **Make the spec behaviour check a task in the repo** (`deno task spec-behaviour` or similar),
+   so what closed stage 2 keeps holding. It found eight defects in one run where every existing gate
+   was green; it lived only in the scratchpad. What it did: for every spec `module` command with
+   invocations after it, instantiate the ORIGINAL bytes with inert import stubs, replay each
+   `invoke` (`action`, `assert_return`, `assert_trap`, `assert_exhaustion`), and compare every
+   outcome — value by bits, or trap — against the same replay on a plain decode → encode and on
+   -O1…-Oz, both routes. The original run in V8 is the oracle, so the manifests' `expected` values
+   are not needed. Budget: ~2,228 modules × 16 variants, a few minutes. Expected result today: the
+   164 multiple-tables modules refused (W5), nothing else. Decide with the owner whether it joins
+   the gate (it needs the prepared spec corpus, as `deno task spec` does).
 - ⬚ **`Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
   after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
   corpus + the spec testsuite), on both routes (`scratchpad/one/flatscope.ts`):
@@ -286,7 +295,8 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
   - 45 `Flatten: call to "$x" returns N values; multi…` — an explicit refusal of multi-value calls.
   - 24 `flatten: value-carrying br/br_if is not yet supported by this port`.
   - 24 `mapExpression: unhandled expression kind "elem.drop"` — ⚠️ NOT Flatten's: a gap in the shared
-    walker, so anything that maps a tree over a module with `elem.drop` hits it. Worth its own fix.
+    walker. ✅ FIXED 2026-09-28 (Q7); these 24 now reach Flatten, so re-measure before quoting the
+    table.
   - 14 `flatten: pop is not yet supported by this port` — on BOTH routes, since the `pop`s item 2
     deliberately keeps (entry values, multi-result producers) are still there.
 
@@ -297,8 +307,8 @@ first piece (one stack entry per value) landed in `58fd43576`. What is left of i
   this port depends on it, which is why nothing caught any of this.
   ⬚ The decision to take: finish it, or refuse it loudly at the entry point until it is finished. A
   pass that emits an invalid module silently is the worse of the two.
-   The `Inlining` failures on the reader route at -O3 are the same root: `dynrt_lib_modc`,
-   `Chapter11/vector`, `nop.0`, `br.0`.
+   (The `Inlining` failures on the reader route at -O3 this line used to list — `dynrt_lib_modc`,
+   `Chapter11/vector`, `nop.0`, `br.0` — were fixed by the spill, R11', and Q2.)
 Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (one writer), stage 5
 (retire binaryen-ts's internal `parseWat`).
 
@@ -344,8 +354,8 @@ reader + `prepareForPasses` — not the faithful tree alone.
 - ⬚ binaryen-ts's **encoder refuses every module with more than one table** (178 valid corpus
   modules, which wabt-ts's writer handles); its **decoder refuses relaxed SIMD** (8 valid modules,
   which the reader reads). Both close when stages 3–4 keep one of each.
-- ⬚ `names.2`: binaryen-ts's decode → encode loses an **empty export name** ("Duplicate export name
-  ''"), that route only — it goes with the decoder (stage 3).
+- ✅ `names.2`: binaryen-ts's decode → encode gave a DUPLICATE empty export name — FIXED 2026-09-28
+  (Q6): the decoder stripped a leading U+FEFF, so the "﻿" export became a second "".
 - ⬚ route A accepts **1,349 INVALID binaries** the reader refuses (section order, counts, UTF-8,
   mutability bytes, DataCount). Keeping the reader's checks is the point of one front end; worth a
   count in the gate once the switch happens.
@@ -456,7 +466,9 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   wasm's evaluation order. Fixing it may move `-Oz` bytes, so it wants its own measured commit.
   ⚠️ It was not only theoretical: `deriveTypes` (order-sensitive) used it, and W10b's nesting made
   the spec's invalid `br.6` pass. `deriveTypes` now orders branch operands itself (`cd37142a6`);
-  any OTHER order-sensitive visitor of branches is still exposed.
+  any OTHER order-sensitive visitor of branches is still exposed. Since 2026-09-28
+  `operandsInOrder` (`ir/phantoms.ts`) is the one correct ordering — the block-parameter lowering,
+  the phantom rule and Inlining use it; a fix to the walkers could route through it.
 - ⬚ LocalCSE treats a multi-value `return` as opaque (as it did the `tuple.make`).
 - ⬚ **26 node LITERALS in `src/` bypass their factory** and hand-compute its `type` — 17 in
   binaryen-ts's WAT parser, 5 in inlining, 4 in three other passes (re-counted 2026-09-19, was 43 on
@@ -628,9 +640,11 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   deliberately discarded (`push(pop())`), not an unknown one refused — so the fail-loud contract can
   be violated by a known opcode. Worth an enumeration of the decoder's dispatches; the section,
   export-kind and import-kind dispatches all carry comments about this shape having bitten before.
-- ⬚ **`assert_return` / `assert_trap` are not run** — 55,993 behavioural spec assertions, skipped
-  deliberately so the first harness measured the must-reject axis. Needs an invoke harness; worth
-  doing, second ([testing.md](testing.md)).
+- ⬚ **`assert_return` / `assert_trap` are not run by `deno task spec`** — skipped deliberately so the
+  first harness measured the must-reject axis. 🔧 2026-09-28: a DIFFERENTIAL invoke harness was
+  built in the scratchpad and found Q1–Q8 (item 6 above is making it a task). It compares against
+  the original module run in V8, not against the manifests' `expected` values — checking those
+  directly would also judge the ORIGINAL decode, which the differential cannot.
 - ⬚ **N4** — under `-O2 -g` we keep the local and label names passes leave; upstream drops them.
   Provisional, pending owner action 4.
 - ⬚ **`wasm2wat` cosmetics** (re-probed 2026-09-19) — ENTITY references print by index (`call 0`,
