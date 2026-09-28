@@ -601,3 +601,21 @@ release will need the manual step" was too broad — every DISPATCHED release do
 any release that falls through to dispatch. The record, by path: `push: tags` has succeeded **6 of
 6** across three packages (binaryang 1.5.3 among them) before 1.5.4 added a seventh; the `auto-tag`
 → `workflow_dispatch` path has succeeded **0 of 4**.
+
+## ✅ 1.6.0 — a hand-typed MINOR, released 2026-09-28
+
+**Published from the tag push, unaided — the eighth `push: tags` success.** JSR:
+`binaryang@1.6.0`, `rekorLogId=2987187551`, 647 symbols, not yanked; tag `v1.6.0` at
+`64d22e06f`; CI, Auto-tag and Publish green. What it took, in the documented order:
+
+1. merge unbumped (`e8f59702f`), gate green on the committed tree, push `main` — CI green, the
+   `v1.5.4` tag already existing so auto-tag did nothing;
+2. version typed BY HAND in `deno.json` and `main.ts` (owner: 1.6.0 — `deno task bump` makes
+   patches only; the release unpublished `./binary` and `./encoder`, BREAKING);
+3. `deno task release` — its new cold type check (fresh `DENO_DIR`, `83e10a7ea`) ran first and
+   passed; it committed the bump, tagged, and pushed branch and tag together.
+
+⚠️ **A version is immutable.** Once a release is out, "publish it" can only mean a NEW version.
+Asked the same day to "bump and publish 1.6.0" again, the answer was that it already was — check
+`https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
+arming anything.
