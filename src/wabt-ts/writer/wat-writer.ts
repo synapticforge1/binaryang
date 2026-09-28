@@ -2004,10 +2004,12 @@ class WatWriter extends ModuleContext {
     // stack-sourced operands is expressed by OMITTING it, and the all-stack case
     // is just the whole list omitted rather than a rule of its own.
     //
-    // ⚠️ A SCATTERED mix would still be inexpressible — positional operands
-    // cannot skip a hole in the middle — so that case still declines. It does
-    // not arise from our binary reader, but the guard is cheap and the failure
-    // it prevents is silent wrong bytes.
+    // ⚠️ A SCATTERED mix is inexpressible — positional operands cannot skip a
+    // hole in the middle — so that case declines, and `writeFoldedSiblings`
+    // writes it as its operands then a bare head. Our binary reader DOES make
+    // it: a multi-value producer's earlier values are `pop`s mid-list
+    // (`(call $cmp (call $pair …) (call $pair …))`). S7's prediction counts
+    // those siblings as items of the enclosing fold (`text-form.ts`, `items`).
     const firstUsable = spec.operands.findIndex((op) => usable(op));
     if (firstUsable === -1) return { operands: [], head: spec.head };
     if (!spec.operands.slice(firstUsable).every((op) => usable(op))) return null;
