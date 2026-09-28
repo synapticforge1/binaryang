@@ -22,7 +22,7 @@ import {
   type Expression,
   ExpressionKind,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -115,7 +115,7 @@ Deno.test('Phase 13: encoder emits 0x12 for isReturn=true Call', () => {
 });
 
 Deno.test('Phase 13: WAT (return_call $f) → encode → parse round-trip preserves isReturn', () => {
-  const mod = parseWat(`(module
+  const mod = readWat(`(module
     (func $f
       (return_call $f)))`);
   const out = writeWasm(mod);
@@ -126,7 +126,7 @@ Deno.test('Phase 13: WAT (return_call $f) → encode → parse round-trip preser
 });
 
 Deno.test('Phase 13: WAT (return_call_indirect ...) with explicit (param ...)/(result ...) round-trips', () => {
-  const mod = parseWat(`(module
+  const mod = readWat(`(module
     (table $t 1 funcref)
     (func $f (param i32) (result i32)
       (return_call_indirect (param i32) (result i32) (local.get 0) (i32.const 0))))`);
@@ -143,7 +143,7 @@ Deno.test('Phase 13 + Phase 1: WAT (return_call_indirect (type $sig) ...) resolv
   // makes parseCallIndirect look up the signature via `funcTypeDefs`
   // instead of silently skipping the type reference (which previously left
   // params/results empty and broke encoding).
-  const mod = parseWat(`(module
+  const mod = readWat(`(module
     (table $t 1 funcref)
     (type $sig (func (param i32) (result i32)))
     (func $f (param i32) (result i32)

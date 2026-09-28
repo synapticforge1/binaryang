@@ -36,7 +36,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
@@ -51,7 +51,7 @@ async function bytesWritten(op: string): Promise<number> {
     (func (export "f") (result i64)
       (${op} (i32.const 0) (${operand}.const -1))
       (i64.load (i32.const 0))))`;
-  const bytes = writeWasm(parseWat(wat)) as BufferSource;
+  const bytes = writeWasm(readWat(wat)) as BufferSource;
   const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
   const v = (instance.exports.f as () => bigint)();
   let n = 0;
@@ -174,7 +174,7 @@ describe('narrow stores write the width their name says', () => {
         (func (export "f") (result ${result})
           (i64.store (i32.const 0) (i64.const 0x0081828384858687))
           (${op} (i32.const 0))))`;
-      const bytes = writeWasm(parseWat(wat)) as BufferSource;
+      const bytes = writeWasm(readWat(wat)) as BufferSource;
       const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
       const got = (instance.exports.f as () => number | bigint)();
       assertEquals(BigInt(got), expected);

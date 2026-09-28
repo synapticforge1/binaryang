@@ -22,7 +22,7 @@ import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import { makeBlock, makeBreak, makeI32Const } from '../../src/binaryen-ts/ir/expressions.ts';
 import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { parseWat } from '../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../src/binaryen-ts/tools/read-wat.ts';
 
 async function validates(bytes: Uint8Array): Promise<{ ok: boolean; err?: string }> {
   try {
@@ -88,7 +88,7 @@ const wat = `
   )
 )
 `;
-const watMod = parseWat(wat);
+const watMod = readWat(wat);
 const watBytes = writeWasm(watMod);
 console.log(`  encoded ${watBytes.byteLength} bytes`);
 const v2 = await validates(watBytes);
@@ -124,7 +124,7 @@ const watStacky = `
   )
 )
 `;
-const stackyMod = parseWat(watStacky);
+const stackyMod = readWat(watStacky);
 const stackyBytes = writeWasm(stackyMod);
 console.log(`  encoded ${stackyBytes.byteLength} bytes`);
 const v4 = await validates(stackyBytes);

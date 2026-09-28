@@ -35,17 +35,17 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 // wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../nameless_reference.ts.
-import { wabtReference } from '../nameless_reference.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
 /** binaryen-ts must assemble `wat` to exactly the bytes wabt-ts does. */
 function assertSameBytes(wat: string): Uint8Array {
-  const ref = wabtReference(wat, { filename: 'ref.wat' });
+  const ref = wat2wasm(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
-  const got = writeWasm(parseWat(wat));
+  const got = writeWasm(readWat(wat));
   // Validity first: a byte diff on an invalid module buries the real message.
   new WebAssembly.Module(got as BufferSource);
   assertEquals(Array.from(got), Array.from(ref.binary));
@@ -106,7 +106,7 @@ describe('WAT parser — the node holds BYTES, the binary memarg the EXPONENT (M
     // looking module.
     let threw = false;
     try {
-      parseWat(mem('(drop (i32.load align=3 (i32.const 0)))'));
+      readWat(mem('(drop (i32.load align=3 (i32.const 0)))'));
     } catch {
       threw = true;
     }

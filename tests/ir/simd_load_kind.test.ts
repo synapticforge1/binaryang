@@ -24,7 +24,7 @@ import { makeErrorList } from '../../src/wabt-ts/core/error.ts';
 import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../src/wabt-ts/tools/wasm2wat.ts';
 import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { parseWat } from '../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../src/binaryen-ts/tools/read-wat.ts';
 import { SIMDLoadOp } from '../../src/binaryen-ts/ir/expressions.ts';
 
 // Every SIMD load that is a load of memory into a whole v128 — the lane loads
@@ -73,7 +73,7 @@ describe('one node kind per SIMD load, from every front end', () => {
   });
 
   it("binaryen-ts's internal WAT parser", () => {
-    assertEquals(kinds(parseWat(SRC).functions), want);
+    assertEquals(kinds(readWat(SRC).functions), want);
   });
 
   it("the rule and binaryen-ts's SIMDLoadOp are the same set", () => {

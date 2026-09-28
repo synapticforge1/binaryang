@@ -26,7 +26,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -44,7 +44,7 @@ function bothRead(wat: string, want: number): void {
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports.f as () => number)();
   assertEquals(run(ref.binary), want, 'wabt-ts');
-  assertEquals(run(writeWasm(parseWat(wat))), want, 'binaryen-ts');
+  assertEquals(run(writeWasm(readWat(wat))), want, 'binaryen-ts');
 }
 
 describe('WAT parser — a data string is bytes, not text', () => {

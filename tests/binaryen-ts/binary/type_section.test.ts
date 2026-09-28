@@ -19,7 +19,7 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
@@ -111,7 +111,7 @@ describe('M5a — the type section comes back as it was', () => {
 
 describe('M5b — the module holds its own type table, and a field its name', () => {
   it('a written field name is kept, mutable or not (the parser skipped it)', () => {
-    const mod = parseWat(
+    const mod = readWat(
       '(module (type $s (struct (field $x i32) (field $m (mut i64)) (field f32))))',
     );
     const def = mod.types[0]!;

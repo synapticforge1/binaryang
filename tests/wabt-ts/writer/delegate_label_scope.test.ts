@@ -22,7 +22,38 @@ import { assert, assertEquals } from '@std/assert';
 
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { withoutNameSection } from '../../binaryen-ts/nameless_reference.ts';
+
+/**
+ * `binary` with its `name` custom section cut out, byte for byte, so the hex
+ * below is the instructions' alone. (It lived in binaryen-ts's
+ * `nameless_reference.ts`, retired with `parseWat` in One front end stage 5.)
+ */
+function withoutNameSection(binary: Uint8Array): Uint8Array {
+  const leb = (p: { i: number }): number => {
+    let r = 0;
+    for (let shift = 0;; shift += 7) {
+      const x = binary[p.i++]!;
+      r += (x & 0x7f) * 2 ** shift;
+      if ((x & 0x80) === 0) return r;
+    }
+  };
+  const keep: number[] = [...binary.subarray(0, 8)];
+  const p = { i: 8 };
+  while (p.i < binary.length) {
+    const start = p.i;
+    const id = binary[p.i++]!;
+    const end = leb(p) + p.i;
+    let isName = false;
+    if (id === 0) {
+      const q = { i: p.i };
+      const n = leb(q);
+      isName = new TextDecoder().decode(binary.subarray(q.i, q.i + n)) === 'name';
+    }
+    if (!isName) keep.push(...binary.subarray(start, end));
+    p.i = end;
+  }
+  return new Uint8Array(keep);
+}
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);

@@ -23,7 +23,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -32,7 +32,7 @@ import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 function bothAccept(wat: string) {
   const ref = wat2wasm(wat, { filename: 'ref.wat' });
   assert(ref.binary !== undefined && !hasErrors(ref.errors), 'wabt-ts must accept the fixture');
-  const got = writeWasm(parseWat(wat));
+  const got = writeWasm(readWat(wat));
   assert(WebAssembly.validate(got as BufferSource), 'binaryen-ts output must validate');
   return got;
 }

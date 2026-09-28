@@ -26,9 +26,9 @@
 //     and the tag references.
 
 import { describe, it } from '@std/testing/bdd';
-import { assert, assertEquals } from '@std/assert';
+import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -41,7 +41,7 @@ function bothAgree(wat: string, want: number): void {
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports.f as () => number)();
   assertEquals(run(ref.binary), want, 'wabt-ts');
-  assertEquals(run(writeWasm(parseWat(wat))), want, 'binaryen-ts');
+  assertEquals(run(writeWasm(readWat(wat))), want, 'binaryen-ts');
 }
 
 /** Two functions returning distinguishable values, and a table with room for both. */
@@ -93,17 +93,20 @@ describe('WAT parser — element segments initialise the table', () => {
     );
   });
 
-  // `ref.null` is a legitimate hole, and the IR's `data` is a list of function
-  // names with no way to spell "empty" — so dropping it would shift every later
-  // entry down one and silently rewire the table. Refusing is the contract.
-  it('a ref.null hole is REFUSED rather than silently closed up', () => {
-    let threw = false;
-    try {
-      parseWat(`(module ${TWO} (elem (i32.const 0) funcref (ref.null func) (ref.func $b)))`);
-    } catch {
-      threw = true;
-    }
-    assert(threw, 'a table hole must not be silently dropped');
+  // `ref.null` is a legitimate hole. When the IR's `data` was a list of function
+  // names with no way to spell "empty", dropping it would have shifted every
+  // later entry down one and silently rewired the table, so binaryen-ts's
+  // retired parser REFUSED it. A segment holds its entries as expressions since
+  // M3, and the text route reads it (One front end stage 5): the hole stays at
+  // its index — slot 1 is still `$b`, and slot 0 is empty.
+  it('a ref.null hole is KEPT at its index, not closed up', () => {
+    const wat = `(module ${TWO} (elem (i32.const 0) funcref (ref.null func) (ref.func $b))
+      ${callSlot(1)} (func (export "g") (result i32) (call_indirect (type $t) (i32.const 0))))`;
+    bothAgree(wat, 7);
+    const g = new WebAssembly.Instance(
+      new WebAssembly.Module(writeWasm(readWat(wat)) as BufferSource),
+    ).exports.g as () => number;
+    assertThrows(() => g(), WebAssembly.RuntimeError);
   });
 });
 

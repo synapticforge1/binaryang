@@ -28,12 +28,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat, WatInputError } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 async function run(type: 'i32' | 'i64', literal: string): Promise<bigint> {
   const wat = `(module (func (export "f") (result ${type}) (${type}.const ${literal})))`;
-  const bytes = writeWasm(parseWat(wat)) as BufferSource;
+  const bytes = writeWasm(readWat(wat)) as BufferSource;
   const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
   return BigInt((instance.exports.f as () => number | bigint)());
 }
@@ -71,8 +71,8 @@ describe('integer literals: the range is [-2^(N-1), 2^N)', () => {
   for (const [type, literal] of MALFORMED) {
     it(`${type}.const ${literal} is MALFORMED — rejected, not wrapped`, () => {
       assertThrows(
-        () => parseWat(`(module (func (result ${type}) (${type}.const ${literal})))`),
-        WatParseError,
+        () => readWat(`(module (func (result ${type}) (${type}.const ${literal})))`),
+        WatInputError,
         'out of range',
       );
     });

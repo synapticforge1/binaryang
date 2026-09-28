@@ -20,15 +20,19 @@
 // their own unrelated gaps. The signature is the property this fix is about.
 
 import { describe, it } from '@std/testing/bdd';
-import { assertEquals, assertThrows } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
-import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import type { CallIndirectExpr, Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
 
 /** The first `call_indirect` in the last function of a parsed module. */
 function findCallIndirect(wat: string): CallIndirectExpr {
-  const m = parseWat(wat);
+  const m = readWat(wat);
   const fn = m.functions[m.functions.length - 1]!;
   let found: CallIndirectExpr | undefined;
   const walk = (e: Expression | undefined) => {
@@ -83,25 +87,25 @@ describe('WAT parser — numeric type references', () => {
   // because falling through to the empty inline signature would give the
   // indirect call zero args — a wrong-arity miscompile, which is why the
   // diagnostic exists.
+  // Both refused by binaryen-ts's retired parser. The text route, like our
+  // `wat2wasm`, does not validate: the index is kept as written and the
+  // VALIDATOR refuses the module (divergences.md R18) — loud, and never
+  // repaired into some other type.
+  const refusedByTheValidator = (wat: string) => {
+    const { errors } = wasmValidate(wat2wasm(wat).binary, { features: allFeatures() });
+    assert(hasErrors(errors), `the validator must refuse:\n${wat}`);
+  };
+
   it('an out-of-range index still fails loudly', () => {
-    assertThrows(
-      () => findCallIndirect(`${HEAD}(call_indirect $tbl (type 9) (i32.const 0))${TAIL}`),
-      WatParseError,
-      'unknown type',
-    );
+    refusedByTheValidator(`${HEAD}(call_indirect $tbl (type 9) (i32.const 0))${TAIL}`);
   });
 
   // An index that names a struct is not a function signature, and must not be
   // silently accepted as one.
   it('an index naming a non-func type still fails loudly', () => {
-    assertThrows(
-      () =>
-        findCallIndirect(
-          '(module (type (struct (field i32))) (table $tbl 1 funcref) ' +
-            '(func (export "f") (call_indirect $tbl (type 0) (i32.const 0))))',
-        ),
-      WatParseError,
-      'unknown type',
+    refusedByTheValidator(
+      '(module (type (struct (field i32))) (table $tbl 1 funcref) ' +
+        '(func (export "f") (call_indirect $tbl (type 0) (i32.const 0))))',
     );
   });
 });

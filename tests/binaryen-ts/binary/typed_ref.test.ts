@@ -32,7 +32,7 @@ import { makeI32Const, makeRefNull } from '../../../src/binaryen-ts/ir/expressio
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { isRefType, type RefType } from '../../../src/binaryen-ts/ir/gc-types.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /**
@@ -239,7 +239,7 @@ Deno.test('typed-ref: two func types differing only in heap type are no longer a
 });
 
 Deno.test('WAT: (ref null $t) parses to a real RefType, not anyref', () => {
-  const mod = parseWat(`
+  const mod = readWat(`
     (module
       (type $a (array (mut i32)))
       (type $f (func (result i32)))
@@ -253,7 +253,7 @@ Deno.test('WAT: (ref null $t) parses to a real RefType, not anyref', () => {
 });
 
 Deno.test('WAT: (ref $t) is non-nullable', () => {
-  const mod = parseWat(`
+  const mod = readWat(`
     (module
       (type $a (array (mut i32)))
       (type $f (func (param (ref $a))))

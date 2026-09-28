@@ -16,7 +16,7 @@ import {
   type TableGetExpr,
   type TableSetExpr,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { elemFuncNames } from '../../../src/binaryen-ts/ir/module.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
@@ -26,7 +26,7 @@ Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode +
   // table reference as that index (binaryen-ts's decoder, deleted at 1.6.0,
   // made up `$tableN`). The opcode kind and the index expression are what
   // matter for the round-trip contract.
-  const mod = parseWat(`(module
+  const mod = readWat(`(module
     (table $t 1 funcref)
     (func $f (result funcref)
       (table.get $t (i32.const 0))))`);
@@ -41,7 +41,7 @@ Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode +
 
 Deno.test('table.set: WAT → encode → parse round-trip preserves the opcode', () => {
   // externref table; `f` writes a null ref at index 0.
-  const mod = parseWat(`(module
+  const mod = readWat(`(module
     (table $t 1 externref)
     (func $f
       (table.set $t (i32.const 0) (ref.null extern))))`);
@@ -56,7 +56,7 @@ Deno.test('table.set: WAT → encode → parse round-trip preserves the opcode',
 
 Deno.test('table.get with default table reference (no $name prefix)', () => {
   // Bare `(table.get index)` — default to the first table.
-  const mod = parseWat(`(module
+  const mod = readWat(`(module
     (table $only 2 funcref)
     (func $f (result funcref)
       (table.get (i32.const 1))))`);

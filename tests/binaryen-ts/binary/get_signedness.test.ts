@@ -20,7 +20,7 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
@@ -77,7 +77,7 @@ describe('binaryen-ts — a get keeps which of its three spellings it was', () =
   });
 
   it('parsing text keeps all three', () => {
-    assertEquals(spellings(parseWat(WAT)), EXPECTED);
+    assertEquals(spellings(readWat(WAT)), EXPECTED);
   });
 
   it('and re-encoding is byte-identical', () => {

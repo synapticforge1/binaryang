@@ -26,7 +26,7 @@ import {
   ExpressionKind,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { buildCallResultTypes, flattenFunction } from '../../../src/binaryen-ts/passes/flatten.ts';
 import {
   analyzeModule,
@@ -44,7 +44,7 @@ import { region } from '../region_helpers.ts';
 
 /** Flatten + flow-instrument every instrumented function; return the module. */
 function flowModule(wat: string, passArgs: Record<string, string> = {}): WasmModule {
-  const mod = parseWat(wat);
+  const mod = readWat(wat);
   const opts = parseAsyncifyOptions(passArgs);
   const analysis = analyzeModule(mod, opts);
   const callResultTypes = buildCallResultTypes(mod);
