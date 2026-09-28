@@ -2125,21 +2125,7 @@ export class WastParser {
     // 65536 are) is the validator's call: `(pagesize 3)` is bad text, while
     // `(pagesize 2)` is a well-formed module that is invalid. Answering both
     // here would answer one of them for the wrong reason.
-    let pageSizeLog2: number | undefined;
-    if (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.PageSize) {
-      const psLoc = this.loc();
-      this.drop();
-      this.drop();
-      const n = this.peek() === TokenType.Nat || this.peek() === TokenType.Int
-        ? parseNatText((this.consume() as LiteralToken).literal.text)
-        : null;
-      if (n === null || n <= 0n || (n & (n - 1n)) !== 0n) {
-        this.error(psLoc, `page size must be a power of two: ${n ?? '?'}`);
-      } else {
-        pageSizeLog2 = n.toString(2).length - 1;
-      }
-      this.expect(TokenType.Rpar);
-    }
+    const pageSizeLog2 = this.parsePageSizeOpt();
     if (pageSizeLog2 !== undefined) {
       return max !== undefined
         ? { initial, max, isShared: shared, is64, pageSizeLog2 }
@@ -2148,6 +2134,37 @@ export class WastParser {
     return max !== undefined
       ? { initial, max, isShared: shared, is64 }
       : { initial, isShared: shared, is64 };
+  }
+
+  /** `i64? (pagesize N)? (data` — a memory with its data written inline. */
+  private peekIsInlineMemoryData(): boolean {
+    let k = this.peek() === TokenType.ValueType ? 1 : 0;
+    if (this.peek(k) === TokenType.Lpar && this.peek(k + 1) === TokenType.PageSize) {
+      k += 4; // `(`, `pagesize`, N, `)`
+    }
+    return this.peek(k) === TokenType.Lpar && this.peek(k + 1) === TokenType.Data;
+  }
+
+  /**
+   * An optional `(pagesize N)`, as its log2 — `undefined` when absent or not
+   * a power of two (then reported: malformed, see the note above its caller).
+   */
+  private parsePageSizeOpt(): number | undefined {
+    if (this.peek() !== TokenType.Lpar || this.peek(1) !== TokenType.PageSize) return undefined;
+    const psLoc = this.loc();
+    this.drop();
+    this.drop();
+    const n = this.peek() === TokenType.Nat || this.peek() === TokenType.Int
+      ? parseNatText((this.consume() as LiteralToken).literal.text)
+      : null;
+    let log2: number | undefined;
+    if (n === null || n <= 0n || (n & (n - 1n)) !== 0n) {
+      this.error(psLoc, `page size must be a power of two: ${n ?? '?'}`);
+    } else {
+      log2 = n.toString(2).length - 1;
+    }
+    this.expect(TokenType.Rpar);
+    return log2;
   }
 
   /**
@@ -3111,28 +3128,38 @@ export class WastParser {
         memory,
       };
       module.imports.push(imp);
-    } else if (
-      (this.peek() === TokenType.Lpar && this.peek(1) === TokenType.Data) ||
-      (this.peek() === TokenType.ValueType && this.peek(1) === TokenType.Lpar &&
-        this.peek(2) === TokenType.Data)
-    ) {
-      // Inline data segment, optionally preceded by an index type:
+    } else if (this.peekIsInlineMemoryData()) {
+      // Inline data segment, optionally preceded by an index type and a page
+      // size:
       //   (memory (data "…"))
       //   (memory i64 (data "…"))
+      //   (memory (pagesize 1) (data "…"))
       // The index-type spelling used to fall through to parseLimits, which
       // demanded a numeric initial size and reported "expected limit initial
-      // value".
+      // value" — and so did the page-size one until 2026-09-28 (wasmtk's
+      // letter, item 5: `custom-page-sizes.wast`, 2 modules).
       let is64 = false;
       if (this.peek() === TokenType.ValueType) {
         is64 = (this.peekToken() as TypeToken).valueType === Type.I64;
         this.consume();
       }
+      const pageSizeLog2 = this.parsePageSizeOpt();
       this.drop();
       this.drop();
       const data = this.parseTextList();
       this.expect(TokenType.Rpar);
-      const pages = Math.ceil(data.length / 65536);
-      const limits: Limits = { initial: BigInt(pages), isShared: false, is64 };
+      const pages = BigInt(Math.ceil(data.length / 2 ** (pageSizeLog2 ?? 16)));
+      // The abbreviation IS `(memory m m)`: the maximum equals the minimum.
+      // 🔧 No maximum was written (`01 00 01` where wabt and wasm-tools both
+      // write `01 01 01 01`), so the memory could grow where the spec's
+      // cannot (found 2026-09-28 beside item 5).
+      const limits: Limits = {
+        initial: pages,
+        max: pages,
+        isShared: false,
+        is64,
+        ...(pageSizeLog2 !== undefined ? { pageSizeLog2 } : {}),
+      };
       const memory: Memory = { name, loc, limits };
       module.memories.push(memory);
       // Add data segment at offset 0
