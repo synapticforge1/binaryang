@@ -51,6 +51,7 @@ import {
   type IfExpr,
   type LoopExpr,
   makeBlock,
+  makeBreak,
   makeIf,
   makeLocalGet,
   makeLocalSet,
@@ -58,6 +59,7 @@ import {
   makeNop,
   makeRegion,
   makeReturn,
+  makeSwitch,
   makeUnreachable,
   type RegionExpr,
   type SwitchExpr,
@@ -126,6 +128,13 @@ interface Ctx {
    * needs hoisting into a local.
    */
   callResultTypes: Map<string, Type>;
+  /**
+   * The temp that receives a value-carrying branch's value, by the LABEL of
+   * the block or `if` it targets — the same temp the construct's own
+   * fall-through value is routed into (upstream's `getTempForBreakTarget`).
+   * Registered when the construct is entered; a label names one construct.
+   */
+  branchTemps: Map<string, { temp: number; type: Type }>;
 }
 
 /**
@@ -241,12 +250,13 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
     };
   }
 
-  // Value-carrying branches need break-target temps — not yet supported.
+  // Value-carrying branches: the value goes into the target's temp, and the
+  // branch goes without it (upstream Flatten's shape).
   if (e.kind === ExpressionKind.Break && (e as BreakExpr).values.length > 0) {
-    throw new Error('flatten: value-carrying br/br_if is not yet supported by this port.');
+    return flattenValueBreak(e as BreakExpr, ctx);
   }
   if (e.kind === ExpressionKind.Switch && (e as SwitchExpr).values.length > 0) {
-    throw new Error('flatten: value-carrying br_table is not yet supported by this port.');
+    return flattenValueSwitch(e as SwitchExpr, ctx);
   }
 
   // General case: flatten each child (eval order), collecting their preludes,
@@ -272,6 +282,108 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   }
   // Void statement (store, local.set, drop, void call, br/br_if without value…).
   return { pre: [...childPre, rebuilt], value: makeNop() };
+}
+
+// ---------------------------------------------------------------------------
+// Value-carrying branches
+// ---------------------------------------------------------------------------
+
+/** Is `name` the function frame — a branch to it leaves the function? */
+function isFrame(name: string, ctx: Ctx): boolean {
+  // A prepared tree names the frame (`bodyFrameLabel`); a built one uses `''`.
+  return name === (ctx.func.bodyFrameLabel ?? '') || name === '';
+}
+
+/** The one value a branch carries, flattened — several are a tuple, which no local holds. */
+function branchValue(values: Expression[], what: string, ctx: Ctx): Flat {
+  if (values.length > 1) {
+    throw new Error(
+      `Flatten: a ${what} carrying ${values.length} values cannot route them through one local ` +
+        `(in "${ctx.func.name}"); multi-value branches are not yet supported by this port.`,
+    );
+  }
+  return flattenExpr(values[0]!, ctx);
+}
+
+/** The temp a branch to `name` fills; a target that registered none is refused, not guessed. */
+function targetTemp(name: string, ctx: Ctx): { temp: number; type: Type } {
+  const t = ctx.branchTemps.get(name);
+  if (t === undefined) {
+    throw new Error(`Flatten: a value-carrying branch to "${name}", which yields no value`);
+  }
+  return t;
+}
+
+/**
+ * `br $l (v)` → `local.set $tmp(v); br $l`; `br_if $l (v) (c)` → the same with
+ * the condition, and the value that falls through when it is not taken is
+ * `local.get $tmp`. To the FRAME, the value is the function's result: a `br`
+ * is a `return`, a `br_if` an `if` around one.
+ *
+ * Wasm evaluates the value, then the condition. Both are flattened in that
+ * order, and the target's temp is set only after the condition's prelude, just
+ * before the branch: the condition may itself branch to the same target and
+ * set the temp, and must not clobber the value this branch carries. The value
+ * is a constant or a FRESH temp by then, so reading it late reads what was
+ * computed first.
+ */
+function flattenValueBreak(br: BreakExpr, ctx: Ctx): Flat {
+  const name = requireName(br.target, 'branch target');
+  const v = branchValue(br.values, 'branch', ctx);
+  const cond = br.condition === undefined ? undefined : flattenExpr(br.condition, ctx);
+  const pre = [...v.pre, ...(cond?.pre ?? [])];
+  if (isFrame(name, ctx)) {
+    if (cond === undefined) {
+      return { pre: [...pre, makeReturn([v.value])], value: makeUnreachable() };
+    }
+    const type = typeOf(v.value);
+    const temp = allocTemp(ctx, type);
+    const get = () => makeLocalGet(varIndex(temp), type as ValType);
+    return {
+      pre: [
+        ...pre,
+        makeLocalSet(varIndex(temp), v.value),
+        makeIf(cond.value, makeRegion([makeReturn([get()])]), null),
+      ],
+      value: get(),
+    };
+  }
+  const { temp, type } = targetTemp(name, ctx);
+  pre.push(makeLocalSet(varIndex(temp), v.value));
+  if (cond === undefined) return { pre: [...pre, makeBreak(name)], value: makeUnreachable() };
+  return {
+    pre: [...pre, makeBreak(name, cond.value)],
+    value: makeLocalGet(varIndex(temp), type as ValType),
+  };
+}
+
+/**
+ * `br_table` with a value: the value into the temp of EVERY target it may
+ * take, then the `br_table` without it. A table that may leave the function
+ * with a value is refused — a `return` has no index to switch on.
+ */
+function flattenValueSwitch(sw: SwitchExpr, ctx: Ctx): Flat {
+  const v = branchValue(sw.values, 'br_table', ctx);
+  const cond = flattenExpr(sw.condition, ctx);
+  const names = [
+    ...new Set([...sw.targets, sw.defaultTarget].map((t) => requireName(t, 'target'))),
+  ];
+  if (names.some((n) => isFrame(n, ctx))) {
+    throw new Error(
+      `Flatten: a value-carrying br_table to the function frame (in "${ctx.func.name}") ` +
+        `is not yet supported by this port.`,
+    );
+  }
+  const sets = names.map((n) => makeLocalSet(varIndex(targetTemp(n, ctx).temp), v.value));
+  const bare = makeSwitch(
+    sw.targets.map((t) => requireName(t, 'target')),
+    requireName(
+      sw.defaultTarget,
+      'target',
+    ),
+    cond.value,
+  );
+  return { pre: [...v.pre, ...cond.pre, ...sets, bare], value: makeUnreachable() };
 }
 
 // ---------------------------------------------------------------------------
@@ -311,13 +423,48 @@ function flattenControlFlow(e: Expression, ctx: Ctx): Flat {
 function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
   const concrete = isConcrete(typeOf(block));
   const resultTemp = concrete ? allocTemp(ctx, typeOf(block)) : -1;
+  // A branch to this block carrying a value fills the same temp.
+  if (concrete && block.label) {
+    ctx.branchTemps.set(block.label, { temp: resultTemp, type: typeOf(block) });
+  }
   const list: Expression[] = [];
+  // WHICH child yields the block's value: the last one, unless it is a void
+  // statement — in stack form a value may sit on the stack while void
+  // statements after it run (`(call $v) (i32.const 3) (nop)` yields 3). Then it
+  // is the last child that produces a value, with only void ones after it.
+  // 🔧 This took the LAST child always, and wrote `local.set $tmp (nop)` —
+  // INVALID (`spec/nop/nop.0`, `local_tee.0`; reached once value-carrying
+  // branches stopped refusing those modules first).
+  const kids = block.children;
+  let valueAt = kids.length - 1;
+  if (concrete && kids.length > 0 && callEffectiveType(kids[valueAt]!, ctx) === None) {
+    for (let i = kids.length - 2; i >= 0; i--) {
+      const t = callEffectiveType(kids[i]!, ctx);
+      if (t === None) continue;
+      if (isConcrete(t)) valueAt = i;
+      break;
+    }
+  }
 
   block.children.forEach((child, i) => {
-    const isLast = i === block.children.length - 1;
+    // Any OTHER child that leaves a value: in a valid module something later
+    // takes it implicitly, from the stack (stack-form code the reader keeps —
+    // `(local.get 0) (nop) (br_if 0 (local.get 0))`, whose `br_if` shows no
+    // value). Flat IR routes values through locals, never the stack, and
+    // discarding it — as this did — loses an operand: INVALID output
+    // (`spec/nop/nop.0`). Refused by name; upstream's IR has no such code.
+    if (i !== valueAt || !concrete) {
+      const t = callEffectiveType(child, ctx);
+      if (isConcrete(t) && !abandoned(kids, i, ctx)) {
+        throw new Error(
+          `Flatten: a value left on the stack for a later instruction (stack-form code, in ` +
+            `"${ctx.func.name}") is not yet supported by this port.`,
+        );
+      }
+    }
     const f = flattenExpr(child, ctx);
     list.push(...f.pre);
-    if (isLast && concrete) {
+    if (i === valueAt && concrete) {
       list.push(makeLocalSet(varIndex(resultTemp), f.value));
     } else if (child.type === Unreachable) {
       // A non-last `unreachable` (e.g. a bare `unreachable`, or the value of a
@@ -326,10 +473,10 @@ function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
       // terminates control flow; dropping it lets execution fall through.
       list.push(f.value);
     }
-    // A non-last concrete child (rare, e.g. a dropped value mid-block that
-    // reduced to a local.get) has no effect — discard its trivial value.
-    // Void children: their statement is already in `f.pre` (general case emits
-    // the rebuilt node into pre), so nothing else to push.
+    // (A non-value child that leaves a value was refused above; this comment
+    // used to say such a value "has no effect — discard it", which lost a
+    // stack operand.) Void children: their statement is already in `f.pre`
+    // (general case emits the rebuilt node into pre), so nothing else to push.
   });
 
   const flatBlock = makeBlock(list, block.label);
@@ -338,16 +485,67 @@ function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
     : { pre: [flatBlock], value: makeNop() };
 }
 
+/**
+ * Is the value `kids[i]` leaves ABANDONED — discarded by what follows, taken by
+ * nothing? It is when the next child that is not a void statement is a
+ * stack-polymorphic transfer (typed `unreachable`: `unreachable`, `return`, a
+ * `br`, a `throw`) that takes nothing from the stack. Its side effects stay
+ * (they are in the prelude); only the value, which nothing reads, goes.
+ * `(unary) (unary) (unreachable)` and `(local.tee …) (return (i32.const -1))`
+ * are that shape (`spec/binary-leb128`, `spec/br_if`). (A `pop` operand —
+ * "already on the stack" — never reaches here: the spill before Flatten turns
+ * it into a local, and one it cannot is refused by `rejectUnsupported`.)
+ */
+function abandoned(kids: readonly Expression[], i: number, ctx: Ctx): boolean {
+  for (let j = i + 1; j < kids.length; j++) {
+    const next = kids[j]!;
+    const t = callEffectiveType(next, ctx);
+    // Void statements, and other values that take nothing (a run of leftovers
+    // before the trap, `spec/binary-leb128`), leave this one where it is.
+    if (t === None || isConcrete(t)) continue;
+    return typeOf(next) === Unreachable && !branchTakesFromStack(next, ctx);
+  }
+  return false;
+}
+
+/**
+ * A `br` or `br_table` that shows no value but targets a construct that takes
+ * one: in stack form it takes that value from the stack. 🔧 `abandoned` read
+ * `(block (result i32) local.get 0 nop br 0)`'s `br` as a trap that discards
+ * the value — the output was VALID and returned the result temp's zero.
+ */
+function branchTakesFromStack(e: Expression, ctx: Ctx): boolean {
+  let target: Var;
+  if (e.kind === ExpressionKind.Break && (e as BreakExpr).values.length === 0) {
+    target = (e as BreakExpr).target;
+  } else if (e.kind === ExpressionKind.Switch && (e as SwitchExpr).values.length === 0) {
+    // Every target of a valid `br_table` takes the same arity: one tells.
+    target = (e as SwitchExpr).defaultTarget;
+  } else {
+    return false;
+  }
+  const n = requireName(target, 'branch target');
+  return ctx.branchTemps.has(n) || (isFrame(n, ctx) && ctx.func.sig.results.length > 0);
+}
+
 /** Flatten an `if`: trivial condition + statement arms; value via a temp. */
 function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
   const cond = flattenExpr(iff.condition, ctx);
   const concrete = isConcrete(typeOf(iff));
   const resultTemp = concrete ? allocTemp(ctx, typeOf(iff)) : -1;
+  // After the condition: the `if`'s label covers its arms, not its condition.
+  if (concrete && iff.label) {
+    ctx.branchTemps.set(iff.label, { temp: resultTemp, type: typeOf(iff) });
+  }
 
   const arm = (a: RegionExpr): RegionExpr => {
     const f = flattenExpr(a, ctx);
     const stmts = [...f.pre];
     if (concrete && isConcrete(typeOf(a))) stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
+    // 🔧 An arm of one `unreachable` flattens to that trivial VALUE with an
+    // empty prelude; keeping only concrete values dropped it, and the arm fell
+    // through instead of trapping (`spec/unreachable` "as-if-then").
+    else if (typeOf(f.value) === Unreachable) stmts.push(f.value);
     return makeRegion(stmts);
   };
 
@@ -372,6 +570,10 @@ function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
   const stmts = [...f.pre];
   if (concrete && isConcrete(typeOf(loop.body))) {
     stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
+  } else if (typeOf(f.value) === Unreachable) {
+    // The same trap as an `if` arm's: `(loop (unreachable))` flattens to a
+    // trivial value that nothing else would keep.
+    stmts.push(f.value);
   }
 
   const flatLoop = makeLoop(loop.label, makeRegion(stmts));
@@ -419,7 +621,7 @@ export function flattenFunction(
   func: WasmFunction,
   callResultTypes: Map<string, Type> = new Map(),
 ): void {
-  const ctx: Ctx = { func, callResultTypes };
+  const ctx: Ctx = { func, callResultTypes, branchTemps: new Map() };
   // A value-returning function body yields the return value; route it through a
   // `return` (matching upstream) so the body block ends up void. Guard on the
   // result signature, not `body.type`, since a call-bodied function has
