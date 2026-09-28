@@ -49,7 +49,7 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 > IR, the reader and the encoder — `wat/wasm → reader → ir → features → ir → encoder → wat/wasm` —
 > and nothing else; the features stay separate (§ "One front end", "Scope").
 
-## Where it stands — 2026-09-17
+## Where it stands — 2026-09-28
 
 **The goal is ONE TREE with TWO VERB SETS, not one merged IR.** Fidelity and optimization are two
 PHASES, never both meaningful for the same module — once a pass runs there is no original to be
@@ -65,9 +65,9 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
-| S6 unify the type      | 🚧 steps 1–4 done; Group 2 7/7, Group 3 5/5 (its owner call, `call_indirect`'s `sig`, decided and done 2026-09-14). **Step 5 — delete the bridge — is RUNNING**: its acceptance was already met (`deno task bridge` **421/421**, 2026-09-15, `ed38c084f`), the expression ratchet stands at **76 identical / 5 types / 1 names** (the block family, item 4, and item 5 (5)'s eight ported kinds, 2026-09-16), and the MODULE half is decided — **B, unify, no shim** (owner, 2026-09-15). **Item 6 (the module half) is at M7b**: M1–M7b landed 2026-09-16/17, module ratchet **24 / 7 / 19** (from 46 / 29 / 15), M7c and M8 left |
+| S6 unify the type      | ✅ DONE 2026-09-18: steps 1–5 — the bridge is deleted (M8e); `prepareForPasses` (names M8c, types M8d) makes a wabt-ts tree ready for the passes; the module ratchet is **0 / 0 / 0**; `deno task direct` / `direct-behaviour` hold it — see "Item 6 — the MODULE half" |
 | S7 text-form record    | ✅ DONE 2026-09-19: per function (`899263b7b`), then per INSTRUCTION — a mix stays the same mix (`b366262ce`); on by default (owner: fidelity first on the text path), stripped by the optimizer — see S7    |
-| One front end          | 🚧 RUNNING 2026-09-19 (owner: the reader and the encoder are shared too, scoped to IR + reader + encoder). Stage 0 ✅ `2ca4513f1`, stage 1 ✅ `f60e4e575` + `1ffdcb561`, stage 2 started ✅ `58fd43576`; stages 3–5 open — see "One front end" |
+| One front end          | 🚧 RUNNING (owner, 2026-09-19: the reader and the encoder are shared too). Stages 0 ✅ `2ca4513f1`, 1 ✅ `f60e4e575` + `1ffdcb561`, **2 ✅ DONE 2026-09-28** (last item R15, merge `196a40c0c`; then Q1–Q8, `a46dab48b`, and several tables, `62289da49`); **stage 3 next**, then 4 and 5 — see "One front end" |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
 `open-work.md`'s summary; the detail is under "The measurements this rests on"):
@@ -84,7 +84,7 @@ The grouping decision was taken by worst-condition analysis — the fidelity wor
 unrepresentable instruction) does NOT bind at 0/128; the optimization worst case does, on
 `optimize-instructions.ts` with its 64 operator dispatches.
 
-**Next:** S6 step 5. (K3 and `call_indirect`'s `sig` were both decided and merged 2026-09-14.) The
+**Next:** One front end stage 3 (switch the entry points, delete binaryen-ts's decoder) — [open-work.md](open-work.md) has the order. The
 increments as they landed on `main` are in "Merge log" at the end of this file.
 
 ## The finding
@@ -1844,7 +1844,7 @@ is the form, so one field on the node is both. The side table is for form that i
 🔑 **7b(i) lowers by RE-DECODING.** Placed `Pop`s do not say which parameter they are; the decoder's
 stack does. So `lowerBlockParams` encodes the module and decodes it with the long-standing lowering,
 swapping in only the parametrised functions' bodies, and refuses (loudly) a module whose names no
-longer match its own bytes.
+longer match its own bytes. ⟶ Superseded by R15 (2026-09-28): a tree pass, positional — see § "One front end", stage 2.
 
 ⚠️ **The owner corrected a false rationale mid-step**: I had the binaryen-ts WAT parser refusing
 block params because it "reads folded form only". Every linear instruction has a folded form (add
@@ -4333,7 +4333,7 @@ sections kept by B only; 3 globals' `defaultInit`.
 
 **Writers.** From the input bytes, byte-identical output: wabt-ts's writer on B's tree **3,977 /
 4,115**, binaryen-ts's encoder on A's tree 3,619 (on B's tree 3,650). binaryen-ts's encoder REFUSES
-**178** valid modules — more than one table (`checkSingleTable`), which wabt-ts's writes.
+**178** valid modules — more than one table (`checkSingleTable`), which wabt-ts's writes. ✅ Guard lifted 2026-09-28 (writer-inventory W5).
 
 **The optimizer** (valid, read by both; A and B each through `PassRunner`, both encoded by
 binaryen-ts's encoder, name section aside; 192 refused by both — the multi-table encoder):
@@ -4666,7 +4666,7 @@ RA = wabt-ts `reader/binary-reader.ts`; RB = binaryen-ts `binary/wasm-parser.ts`
 **Who calls the binaryen-ts reader and writer** (`src/`): `tools/wasm-opt.ts` (binary → optimizer
 → bytes; with no passes a plain decode → encode), `tools/read-wat.ts` (WAT → `wat2wasm` → decoder),
 `api/binaryen-compat.ts` (`emitBinary`, `readBinary`), `api/index.ts` (`toBinary`),
-`passes/lower-block-params.ts` (the encode + decode round trip), and the published `./binary` and
+(`passes/lower-block-params.ts` did, by an encode + decode round trip, until R15 made it a tree pass), and the published `./binary` and
 `./encoder` entry points. Tests: `parseWasm` in ~70 files, `encodeWasm` in ~94; scripts ~24 / ~20.
 
 **Hardest to unify, in order**: (1) operand reconstruction — RB rebuilds the stack for the passes

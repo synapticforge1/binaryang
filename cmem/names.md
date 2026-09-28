@@ -90,10 +90,11 @@ What each component does, found by reading and confirmed by the probes:
 - **Uniqueness.** Name-section names are arbitrary UTF-8 and may repeat; binaryen-ts needs them
   unique as keys. Upstream binaryen uniquifies. Whether the ORIGINAL spelling must still be
   re-emitted (fidelity) is an owner question below.
-- **Block-parameter lowering (7b(i))** re-decodes `encodeWasm(module)` and refuses a module whose
-  names no longer match its bytes. Once the decoder reads real names, the encoder must write them —
-  at least in that re-encode — or every named module with block parameters fails. **Decoder and
-  encoder land together.**
+- **Block-parameter lowering (7b(i))** re-decoded `encodeWasm(module)` and refused a module whose
+  names no longer matched its bytes. Once the decoder read real names, the encoder had to write
+  them — at least in that re-encode — or every named module with block parameters failed. **Decoder
+  and encoder landed together.** ⟶ Since R15 (2026-09-28) the lowering is a tree pass and never
+  re-derives a name: a renamed module lowers like any other (`lower_block_params.test.ts`).
 - **Identifiers in text.** A name from a foreign binary may not be a valid WAT identifier; the WAT
   writer must spell it so the text re-reads (probe upstream `wasm2wat` on odd names first).
 - **The baseline moves.** Our `wat2wasm` output gains a name section in every corpus module (~+20%,
@@ -149,7 +150,8 @@ keep passing, which is why P5's row names the file.)
 - **`PassRunner` applies the two-phase rule**: after a run with at least one pass, names are dropped
   unless `debugInfo`. With no pass it is still a plain read-and-write and they stay (the owner's
   rule; upstream `wasm-opt` strips them even then). The block-parameter lowering at the start of a
-  run re-encodes and re-decodes, and now gets the names back — which is what coupled P4 to P5.
+  run re-encoded and re-decoded, and got the names back — which is what coupled P4 to P5 (a tree
+  pass since R15, 2026-09-28, so the coupling is gone).
 - **`-O2 -g` differs from upstream** (register N4): we keep the local and label names the passes
   leave; upstream drops every local name, params included, and writes no labels. What optimization
   may do with names was the owner's future discussion — now priced at `-Oz`, § "Names under

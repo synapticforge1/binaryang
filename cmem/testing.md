@@ -693,8 +693,15 @@ makes the harness report both.
 ### ⬚ Not yet covered
 
 `assert_return` / `assert_trap` — 55,993 behavioural assertions, skipped deliberately so the first
-pass measured the axis nothing else measures. Running them needs an invoke harness, and an engine
-already covers that ground; worth doing, but second. Tracked in [open-work.md](open-work.md).
+pass measured the axis nothing else measures. 🔧 **2026-09-28: they were run, as a DIFFERENTIAL, and
+it found eight defects every gate had passed** (Q1–Q8 in [divergences.md](divergences.md), among
+them a silent -O2 miscompile shipped in 1.5.4). For every spec `module` with invocations after it,
+the ORIGINAL bytes are instantiated with inert import stubs and each `invoke` replayed; the same
+replay on a plain decode → encode and on -O1…-Oz, both routes, must give the same outcome — a value
+compared by bits, or a trap. The original run in V8 is the oracle, so the manifests' `expected`
+values are not needed — and ours never decide them. It ran as a scratch script; making it a task is
+[open-work.md](open-work.md)'s item 6. Where it stood when that closed: **0 divergences on all 2,228
+modules** (2026-09-28, after the several-tables fix).
 
 ## The 1.5.5 passes — the code lens, summarized
 
