@@ -70,7 +70,7 @@
  * @license MIT
  */
 
-import { parseWasm } from '../binary/wasm-parser.ts';
+import { readForPasses } from '../ir/prepare.ts';
 import { encodeWasm } from '../encoder/wasm-encoder.ts';
 import {
   asRegion,
@@ -1528,7 +1528,7 @@ export class Module {
 
 /** Parses `.wasm` bytes into a {@link Module}. */
 export function readBinary(bytes: Uint8Array): Module {
-  return new Module(parseWasm(bytes));
+  return new Module(readForPasses(bytes));
 }
 
 /** Per-export descriptor returned by {@link getExportInfo}. */

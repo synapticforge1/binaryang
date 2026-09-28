@@ -6,35 +6,36 @@
  * The route by which EXTERNAL WAT reaches binaryen-ts:
  *
  * ```
- * WAT → wabt-ts parser → wabt-ts binary writer → bytes → binaryen-ts binary decoder
+ * WAT → wabt-ts parser → wabt-ts binary writer → bytes → wabt-ts binary reader → prepareForPasses
  * ```
  *
  * Owner decision, 2026-09-10 (divergence W4): this is the pipeline binaryang
- * converges on anyway — one text front end, one decoder — so external text
+ * converges on anyway — one text front end, one reader — so external text
  * takes it now rather than going through binaryen-ts's own WAT parser.
+ * 🔧 The bytes went to binaryen-ts's own DECODER until One front end stage 3
+ * (2026-09-28); now they take the one reader every binary entry point shares
+ * (`readForPasses`).
  *
  * Why it reads what that parser cannot. binaryen-ts's parser implements a
  * folded subset: it cannot take several operands from the stack (`(i32.add)`,
  * `(select)`), an `if` / `br_if` condition from the stack, block parameters,
  * or bare linear form. wabt-ts's parser reads the whole text format — byte for
  * byte with upstream wat2wasm on every parenthesised form probed — and by the
- * time binaryen-ts sees the module it is BYTES, which its decoder already
- * reconstructs by simulating the operand stack exactly.
+ * time binaryen-ts sees the module it is BYTES, which the reader reconstructs by
+ * simulating the operand stack exactly.
  *
  * 🔧 Supersedes `parseWatAnyForm` (C10, `ab90d7beb`), which tried the folded
  * parser first and fell back to wabt-ts + the BRIDGE. The bridge mistranslates
  * 20 of the 421 corpus modules (C10a) and is deleted in S6 step 5; bytes need
  * no translation. Nothing called it any more.
  *
- * ⚠️ What does not survive the hop yet: WAT NAMES — divergence N1, in progress
- * (cmem/names.md). wabt-ts's writer now puts them in the bytes (P2), but the
- * decoder skips the name section until P4, so `$foo` comes back as a
- * generated name.
+ * Names survive the hop: wabt-ts's writer puts them in the bytes and the
+ * reader reads them back (N1).
  */
 
 import { wat2wasm } from '../../wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../wabt-ts/core/error.ts';
-import { parseWasm } from '../binary/wasm-parser.ts';
+import { readForPasses } from '../ir/prepare.ts';
 import type { WasmModule } from '../ir/module.ts';
 
 /** WAT the text front end could not read; `message` carries its diagnostics, with positions. */
@@ -54,5 +55,5 @@ export class WatInputError extends Error {
 export function readWat(source: string, filename = '<input>'): WasmModule {
   const { binary, errors } = wat2wasm(source, { filename });
   if (hasErrors(errors)) throw new WatInputError(formatErrors(errors));
-  return parseWasm(binary, filename);
+  return readForPasses(binary, filename);
 }

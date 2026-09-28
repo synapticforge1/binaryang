@@ -256,6 +256,13 @@ their own bump — and nothing breaks by their standing still.
   name starting with U+FEFF lost that character. (Which of these 1.5.4 shipped was not checked.)
   🗓️ Owner, 2026-09-28: wasmtk updates only to a release that carries these fixes — "we are going
   to fix the -O2 issue before we update to it in wasmtk"; no letter to them.
+- **`wasm-opt`, `readWat` and the compat `readBinary` read binaries with wabt-ts's reader** (One
+  front end stage 3a, 2026-09-28), not binaryen-ts's own decoder. User-visible: they now REFUSE
+  invalid binaries the decoder accepted (sections out of order, count mismatches, bad UTF-8 in a
+  name, a mutability byte other than 0 / 1, DataCount errors) — with the reader's diagnostics, as a
+  `WasmBinaryError` like before; and they READ relaxed SIMD, which the decoder refused. Corpus
+  optimizer output is unchanged byte for byte. `parseWasm` itself is unchanged until the bump that
+  unpublishes it.
 - **Modules with more than one table are written and optimized** (2026-09-28). `encodeWasm`, and so
   `wasm-opt` on any such module, threw "multiple tables are not supported"; every table index was
   already threaded, and only the guard remained.

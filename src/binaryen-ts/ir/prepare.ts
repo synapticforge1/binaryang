@@ -21,6 +21,9 @@
 
 import type { Module } from '../../wabt-ts/ir/ir.ts';
 import { nameReferences } from '../../wabt-ts/ir/name-references.ts';
+import { readBinaryIr } from '../../wabt-ts/reader/binary-reader.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../wabt-ts/core/error.ts';
+import { WasmBinaryError } from '../binary/reader.ts';
 import { deriveTypes } from './derive-types.ts';
 import type { WasmModule } from './module.ts';
 
@@ -29,4 +32,26 @@ export function prepareForPasses(m: Module): WasmModule {
   nameReferences(m);
   deriveTypes(m);
   return m;
+}
+
+/**
+ * A binary, read for binaryen-ts: the ONE reader (wabt-ts's), then
+ * {@link prepareForPasses} — every entry point that hands bytes to the
+ * optimizer or the compat API goes through here (One front end, stage 3).
+ *
+ * It replaced binaryen-ts's own decoder (`parseWasm`) at those entry points.
+ * Consequences, measured when it did: this reader REFUSES the invalid binaries
+ * that decoder accepted (section order, counts, UTF-8, mutability bytes,
+ * DataCount — inventory R2–R5), reads relaxed SIMD, which that decoder did not
+ * (R17), and keeps a name section it cannot hold exactly as raw bytes (R8).
+ *
+ * @throws {WasmBinaryError} with the reader's diagnostics when the bytes are
+ *   not a module it can read — the error `parseWasm` threw, so callers keep
+ *   their contract.
+ */
+export function readForPasses(bytes: Uint8Array, filename = '<input>'): WasmModule {
+  const errors = makeErrorList();
+  const m = readBinaryIr(bytes, errors, { filename, readDebugNames: true });
+  if (hasErrors(errors)) throw new WasmBinaryError(formatErrors(errors).trim());
+  return prepareForPasses(m);
 }
