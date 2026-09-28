@@ -39,10 +39,19 @@ files and bump and push."** Items 1–6 are merged (`801979ed3`), the gate green
    `encodeWasm`, and ~35 scripts, onto `readForPasses` / `writeWasm`; drop route A from
    `spec-behaviour` (its `ROUTES`) and empty `REFUSED_BUDGET` (the 7 relaxed-SIMD pins are route A's);
    README (the `parseWasm` example, the two entry-point rows) and CHANGELOG.
-2. ⬚ **The version number is the OWNER's to choose** — NOT a patch: the release removes two
+2. ✅ **The version is 1.6.0 (owner, 2026-09-28)** — a hand-typed MINOR: the release removes two
    published subpaths and [unreleased.md](unreleased.md) lists several BREAKING IR changes; the
-   repo's precedent for removed exports is a hand-typed MINOR ([publishing.md](publishing.md) §
-   "`bump` has no minor mode"), so 1.6.0 is the proposal. Ask before running `deno task bump`.
+   repo's precedent for removed exports ([publishing.md](publishing.md) § "`bump` has no minor
+   mode"). `deno task bump` would make 1.5.5 — type it in `deno.json` AND `main.ts` by hand.
+
+   **The bump branch (`bump/one-front-end-3b-4b`) found more than it deleted** — owner, asked
+   whether to finish or release without deleting: "Finish it all first". Deleting the encoder
+   removed its fail-loud checks, and the suite on the one writer alone found four defects the
+   encoder had been covering, one of them LIVE since stage 4a (divergences.md, closed table,
+   "found deleting the encoder / decoder"): API-built GC `get` written `get_u`; a frame branch
+   captured by an unnamed block; a declared segment's placeholder table; `mul_wide` typed one
+   i64. Fixed in `writeWasm`'s resolve step (`checkForWriting`, `nameTheFrame`) and
+   `inferBinaryType`, with the encoder's refusals ported; parity 14,595 / 14,595 unchanged.
 3. ⬚ Then the release flow ([publishing.md](publishing.md) § "The flow"): merge unbumped, gate,
    bump as its own commit, `deno task release` (it runs the cold type check first — item 1 below).
 

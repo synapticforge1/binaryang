@@ -418,7 +418,21 @@ their own bump — and nothing breaks by their standing still.
 - **LocalCSE follows upstream's `isRelevant`** (`5b0cf25c6`): -Oz −3.9% over the corpus, 0 of 421
   modules larger.
 
+## ⚠️ 1.6.0 — the release these notes are for (owner, 2026-09-28)
+
+- ⚠️ **BREAKING: `./binary` (`parseWasm`) and `./encoder` (`encodeWasm`) are removed**, and the
+  code behind them deleted (One front end 3b, 4b). The public way to the IR: the compat APIs
+  (`readBinary`, `emitBinary`), `toBinary`, and the tool entry points. CHANGELOG.md § 1.6.0.
+- `WasmEncodeError` is the one error `writeWasm` throws (the writer's own `Error` / `RangeError` /
+  `TypeError` were thrown bare).
+
 ## Correctness fixes that were silent before
+
+- **An API-built GC `get` on a non-packed field came out `get_u`** (invalid) from `toBinary` /
+  `emitBinary` since the one writer took over (stage 4a); **a `br` to the function frame** in an
+  API-built tree was refused; **`(elem declare …)`** built by the API could not be written; **a
+  `mul_wide` whose two results were consumed apart** was refused at read, `wasm-opt` included —
+  all four found by deleting the decoder and encoder, 2026-09-28.
 
 - **A tag named its type's first identical twin** (Q9): of `(rec (type $t1 (func)) (type $t2
   (func)))`, a tag of type `$t2` was written as `$t1` — a different type — and `wat2wasm` added a
