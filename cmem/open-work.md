@@ -31,10 +31,18 @@ DIVERGE and no refusals (57,808 invocations, 24,151 through v128), `direct` 544/
 through their bump, and it is BREAKING for anything importing the two removed subpaths or the IR
 shapes in CHANGELOG.md (wasmtk uses `/compat/*` only). Re-derive before quoting.
 
-**Next session:** the "Start here" block below is DONE through the release; what is left is the
-list further down (stage 5 — retire binaryen-ts's internal `parseWat`; the parked
-pipeline-convergence proposal; the names data-type discussion; Flatten's unsupported constructs).
-A workspace handoff to wasmtk about 1.6.0 is the workspace session's to write, not this repo's.
+✅ **One front end stage 5 is DONE (2026-09-28, merge `824a4b435`, NOT pushed): binaryen-ts's WAT
+parser is deleted** — `src/binaryen-ts/parser/`, 4,750 lines, no public path. One text front end,
+one reader, one writer: **ONE FRONT END IS COMPLETE.** 46 test files moved to `readWat`;
+`tests/binaryen-ts/parser/` is `tests/binaryen-ts/text_route/`. Found on the way: W14 (FIXED,
+`function` taken for `func`), W15 (DESIGN, recorded). Gate green on the committed tree; 1,286 tests.
+Not release material on its own (nothing public changed except W14's refusal, a fix) — it rides
+the next release.
+
+**Next session:** the "Start here" block below is DONE through the release, and stage 5 after it.
+What is left is the list further down: the parked pipeline-convergence proposal; the names
+data-type discussion; Flatten's unsupported constructs. A workspace handoff to wasmtk about 1.6.0
+is the workspace session's to write, not this repo's.
 
 ## 🚀 Start the next session here (handoff, 2026-09-28 late — PRE-BUMP ITEMS 1–6 DONE; next is THE BUMP)
 

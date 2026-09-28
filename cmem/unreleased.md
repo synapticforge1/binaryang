@@ -1,11 +1,10 @@
 # Unreleased on `main` — what the next release note must say
 
-**`deno.json` reads 1.5.4 and is deliberately NOT bumped.** The version line arms a release
-([publishing.md](publishing.md)), so the bump happens when the owner decides to ship, not while work
-runs. Everything below is merged to `main`, unpushed, and green as of 2026-09-28 (`801979ed3`):
-**1,328 tests / 0 failed, baseline IDENTICAL, spec 100% on four axes, spec-behaviour 0 DIVERGE,
-`direct` 544/544.** Re-derive before quoting. The bump's own breaking change — `./binary` and
-`./encoder` unpublished — is in [open-work.md](open-work.md) § "Start the next session here".
+🚀 **1.6.0 SHIPPED 2026-09-28** — everything in this file down to and including § "1.6.0" is IN it
+(its public summary: CHANGELOG.md § 1.6.0). **Only § "After 1.6.0" is unreleased.** The next
+release's note starts there; fold the shipped sections away when it is written. `deno.json` reads
+1.6.0; the version line arms a release ([publishing.md](publishing.md)), so the next bump is the
+owner's decision, not a side effect of work. Re-derive numbers before quoting.
 
 Gathered 2026-09-14 from `open-work.md` and from machine-local memory, where half of it was the only
 copy. ⚠️ **Several of these are API-VISIBLE changes to a PUBLISHED package** — the next version is
@@ -425,6 +424,14 @@ their own bump — and nothing breaks by their standing still.
   (`readBinary`, `emitBinary`), `toBinary`, and the tool entry points. CHANGELOG.md § 1.6.0.
 - `WasmEncodeError` is the one error `writeWasm` throws (the writer's own `Error` / `RangeError` /
   `TypeError` were thrown bare).
+
+## After 1.6.0 (on `main`, unpushed)
+
+- **`wat2wasm` refuses `function` where `func` is meant** — `(module (function $f))`, an import
+  or export of kind `function` (W14; upstream and wasm-tools refuse them too). A fix, and a
+  behaviour change for anyone who relied on the leniency.
+- Not release-note material: binaryen-ts's internal WAT parser is deleted (One front end stage 5);
+  it had no public path.
 
 ## Correctness fixes that were silent before
 
