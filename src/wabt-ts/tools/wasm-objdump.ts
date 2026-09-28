@@ -11,10 +11,10 @@
  * decoded `module.*` arrays rather than `SectionMeta.count` (the reader
  * does not currently populate the meta-count field).
  *
- * CLI form (via `import.meta.main`):
+ * CLI form, through the package root's dispatcher (`main.ts`):
  *
  * ```sh
- * deno run -A jsr:@jrmarcum/binaryang/wasm-objdump input.wasm
+ * deno run -A jsr:@jrmarcum/binaryang wasm-objdump input.wasm
  * ```
  *
  * Library usage:

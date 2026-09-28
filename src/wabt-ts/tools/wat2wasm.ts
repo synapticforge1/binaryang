@@ -10,7 +10,7 @@
  * errors are accumulated in the `errors` array rather than thrown so callers
  * can pretty-print or aggregate them.
  *
- * Also runs as a CLI when imported with `import.meta.main`:
+ * CLI form, through the package root's dispatcher (`main.ts`):
  *
  * ```sh
  * deno run -A jsr:@jrmarcum/binaryang wat2wasm input.wat -o output.wasm

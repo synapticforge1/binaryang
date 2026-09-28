@@ -10,10 +10,10 @@
  * single pass produces every diagnostic; `result` is the combined
  * `Result.Ok` / `Result.Error`.
  *
- * CLI form (via `import.meta.main`):
+ * CLI form, through the package root's dispatcher (`main.ts`):
  *
  * ```sh
- * deno run -A jsr:@jrmarcum/binaryang/wasm-validate input.wasm
+ * deno run -A jsr:@jrmarcum/binaryang wasm-validate input.wasm
  * ```
  *
  * Library usage:

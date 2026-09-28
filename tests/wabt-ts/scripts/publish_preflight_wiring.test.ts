@@ -109,6 +109,18 @@ describe('T13.44 — the release preflight stays wired in', () => {
     expect(PUBLISH.slice(at, firstMutation!.at)).toContain('Deno.exit(1)');
   });
 
+  // The entry check (1.6.1): through 1.6.0 the package root was not the CLI,
+  // and nothing ran the entry a user runs. Before any git mutation, and refuse.
+  it('checks the package root is the CLI, before mutating anything', () => {
+    expect(PUBLISH).toContain("from './entry-check.ts'");
+    const at = PUBLISH.indexOf('await checkEntry(');
+    expect(at).toBeGreaterThan(-1);
+    const firstMutation = gitCalls(PUBLISH).find((c) => !READ_ONLY.has(c.sub));
+    expect(firstMutation).toBeDefined();
+    expect(at).toBeLessThan(firstMutation!.at);
+    expect(PUBLISH.slice(at, firstMutation!.at)).toContain('Deno.exit(1)');
+  });
+
   // The property that made `publish.ts` untestable in the first place. If the
   // guard module ever gains a side effect, importing it from a test starts
   // doing something, and the next person moves the logic back inline.

@@ -14,7 +14,7 @@
  * **Hybrid path** (`--hybrid`): delegates to the upstream `wasm-opt` subprocess
  * for cases not yet covered by the TypeScript pass set.
  *
- * **CLI usage** (runs on Deno, Node 18+, and Bun):
+ * **CLI usage**, through the package root's dispatcher (Deno, Node 22.18+, Bun):
  * ```sh
  * deno run -A jsr:@jrmarcum/binaryang wasm-opt input.wasm -o output.wasm -O2
  * node main.ts wasm-opt input.wasm -o output.wasm -O2
@@ -180,7 +180,7 @@ export async function wasmOpt(
  * Parses CLI args and runs `wasm-opt`.
  * Defaults to `process.argv.slice(2)` when invoked as a CLI script.
  *
- * Works on Deno, Node 18+, and Bun via `node:` standard-library imports.
+ * Works on Deno, Node 22.18+, and Bun via `node:` standard-library imports.
  *
  * @example
  * ```sh
@@ -469,11 +469,10 @@ export { ModuleBuilder };
 // CLI entrypoint
 // ---------------------------------------------------------------------------
 //
-// For CLI use, invoke via the top-level `main.ts` dispatcher (Deno, Node
-// 22.18+, Bun). Like every tool here this module has no `if (import.meta.main)`
-// block: `main.ts` is the one entry (it calls its dispatcher unconditionally),
-// and each tool exports `main(args)`, registered in its COMMANDS table. (This
-// said the block was omitted because `import.meta.main` was "not yet
-// universal across Node versions"; the reason is the single entry, not
-// portability — the 22.18 floor has it.) Callers that need standalone
-// execution can import `main` and call it.
+// For CLI use, invoke the package root, `main.ts` (Deno, Node 22.18+, Bun):
+// it is the ONE entry, and runs its dispatcher under `import.meta.main`. No
+// tool module self-executes; each exports `main(args)`, registered in the
+// root's COMMANDS table. (This said the check was omitted because
+// `import.meta.main` was "not yet universal across Node versions"; the 22.18
+// floor has it, and the root uses it since 1.6.1.) Callers that need standalone
+// execution can import `main` from this module and call it directly.
