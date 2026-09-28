@@ -61,7 +61,7 @@ import {
 } from '../ir/expressions.ts';
 import { ModuleBuilder, type WasmModule } from '../ir/module.ts';
 import { None, typeToString, ValType } from '../ir/types.ts';
-import { encodeWasm } from '../encoder/wasm-encoder.ts';
+import { writeWasm } from '../encoder/write-wasm.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
 import { requireIndex, requireName, varIndex } from '../../wabt-ts/ir/ir.ts';
@@ -205,7 +205,7 @@ export class Module {
    * @returns Binary WASM bytes.
    */
   toBinary(): Uint8Array {
-    return encodeWasm(this._inner);
+    return writeWasm(this._inner);
   }
 }
 
@@ -439,7 +439,7 @@ function exprToWat(expr: Expression, _indent: number): string {
       // or describes a DIFFERENT program — and `Module.optimize(..., hybridMode)`
       // feeds this WAT straight to the `wasm-opt` subprocess, so the placeholder
       // would silently miscompile. Fail loudly; use `Module.emitBinary()` /
-      // `encodeWasm` (the native path) for full-fidelity output.
+      // `Module.toBinary()` (the native path) for full-fidelity output.
       throw new Error(
         `serializeToWat: unsupported expression kind "${expr.kind}" ` +
           `(the WAT serializer is partial; use the binary encoder for full output)`,

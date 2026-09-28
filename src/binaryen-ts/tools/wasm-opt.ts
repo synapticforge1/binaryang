@@ -8,7 +8,7 @@
  * writes an optimized `.wasm` binary.
  *
  * **Native path** (default): `.wasm` → {@link readForPasses} (the wabt-ts reader,
- * then `prepareForPasses`) → {@link PassRunner} → {@link encodeWasm} → `.wasm`.
+ * then `prepareForPasses`) → {@link PassRunner} → {@link writeWasm} (wabt-ts's writer) → `.wasm`.
  * Pure TypeScript; no subprocess required.
  *
  * **Hybrid path** (`--hybrid`): delegates to the upstream `wasm-opt` subprocess
@@ -27,7 +27,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
-import { encodeWasm } from '../encoder/index.ts';
+import { writeWasm } from '../encoder/write-wasm.ts';
 import { readWat } from './read-wat.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { defaultPassOptions, listPasses, PassRunner, shrinkPassOptions } from '../passes/index.ts';
@@ -260,7 +260,7 @@ function _nativeOptimize(
   }
 
   runner.run();
-  return encodeWasm(module);
+  return writeWasm(module);
 }
 
 // ---------------------------------------------------------------------------

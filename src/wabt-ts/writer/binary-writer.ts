@@ -468,8 +468,17 @@ class BodyWriter implements ExprVisitorDelegate {
     this.fidelity = fidelity;
   }
 
-  /** Start a function body: label indices count from 0 in each one. */
-  beginFunctionBody(): void {
+  /**
+   * Start a function body: label indices count from 0 in each one.
+   *
+   * `frameLabel` is the function frame's own label (`bodyFrameLabel`), the
+   * OUTERMOST scope: a branch to it leaves the function. A tree read from text
+   * never names it — its branches say `br N` — but one made ready for the
+   * passes does (`nameReferences` names every target), and so does anything a
+   * pass builds from it. It is in scope, never a real label: it has no index in
+   * the name section, which lists only labels a construct carries.
+   */
+  beginFunctionBody(frameLabel?: string): void {
     this.labelNames = [];
     this.labelCount = 0;
     // The scope stack is balanced by construction — every carrier pushes in its
@@ -483,6 +492,16 @@ class BodyWriter implements ExprVisitorDelegate {
           `(${this.labelScope.length} left: ${this.labelScope.join(', ')})`,
       );
     }
+    if (frameLabel !== undefined) this.labelScope.push(frameLabel);
+  }
+
+  /** End a function body: the frame's label leaves scope. */
+  endFunctionBody(frameLabel?: string): void {
+    if (frameLabel === undefined) return;
+    if (this.labelScope[this.labelScope.length - 1] !== frameLabel) {
+      throw new Error(`binary writer: label scope not balanced at the end of the function frame`);
+    }
+    this.labelScope.pop();
   }
 
   private noteLabel(label: string): void {
@@ -1566,7 +1585,12 @@ class BinaryWriter {
     // which the type section already gave (M6c).
     for (const local of func.locals.slice(func.sig.params.length)) {
       const last = coalesced[coalesced.length - 1];
-      if (last !== undefined && last.type === local.type) last.count += 1;
+      // By VALUE (inventory W11): a reference type is an object, and two
+      // `(ref $T)` locals held as separate objects compared `===` never merged —
+      // `2 | (1,(ref $T)) (1,(ref $T))` where `1 | (2,(ref $T))` is 3 bytes
+      // shorter (`spec/array_init_elem/array_init_elem.5.wasm`, found making this
+      // writer the optimizer's, One front end stage 4). binaryen-ts's merged them.
+      if (last !== undefined && valueTypeEquals(last.type, local.type)) last.count += 1;
       else coalesced.push({ type: local.type, count: 1 });
     }
     s.writeU32Leb(coalesced.length);
@@ -1576,8 +1600,9 @@ class BinaryWriter {
     }
 
     // Body
-    this.bodyWriter.beginFunctionBody();
+    this.bodyWriter.beginFunctionBody(func.bodyFrameLabel);
     this.visitor.visitExprList(func.body.children);
+    this.bodyWriter.endFunctionBody(func.bodyFrameLabel);
     // Only REAL labels (owner decision 4; M7c3b b1b).
     const record = this.m.explicitNames;
     const realLabels = this.bodyWriter.labelNames.filter(([, n]) =>

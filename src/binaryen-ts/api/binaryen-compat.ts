@@ -71,7 +71,7 @@
  */
 
 import { readForPasses } from '../ir/prepare.ts';
-import { encodeWasm } from '../encoder/wasm-encoder.ts';
+import { writeWasm } from '../encoder/write-wasm.ts';
 import {
   asRegion,
   BinaryOp,
@@ -1518,7 +1518,7 @@ export class Module {
 
   /** Serializes the module to a `.wasm` byte stream. */
   emitBinary(): Uint8Array {
-    return encodeWasm(this._inner);
+    return writeWasm(this._inner);
   }
 }
 
