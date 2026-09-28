@@ -167,7 +167,10 @@ describe("N6 — a producer's name section keeps its shape", () => {
   });
 
   it('binaryen-ts decode → encode keeps it too', () => {
-    assert(same(writeWasm(readForPasses(PRODUCER)), PRODUCER), hex(writeWasm(readForPasses(PRODUCER))));
+    assert(
+      same(writeWasm(readForPasses(PRODUCER)), PRODUCER),
+      hex(writeWasm(readForPasses(PRODUCER))),
+    );
   });
 
   it('the names still arrive — the shape is all that changed', () => {
