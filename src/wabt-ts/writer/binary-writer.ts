@@ -115,6 +115,7 @@ import {
 } from '../core/opcode.ts';
 import {
   BinarySection,
+  CUSTOM_SECTION_NAME_CODE_METADATA,
   CUSTOM_SECTION_NAME_NAME,
   ExternalKind,
   LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG,
@@ -1161,8 +1162,42 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
 
-  // --- Metadata (skip — no binary representation) ---
-  onCodeMetadataExpr(_e: CodeMetadataExpr): Result {
+  // --- Code metadata (W8) ---
+
+  /**
+   * The function body being written — its index in the function space and
+   * where its bytes start (after the size, before the locals) — or `undefined`
+   * outside one. Set by `BinaryWriter.writeFuncBody`.
+   */
+  codeBody: { funcIndex: number; start: number } | undefined;
+
+  /**
+   * `metadata.code.NAME` entries by NAME, in the order each name first
+   * appears; per name, one group per function in index order, its entries in
+   * instruction order — upstream `wat2wasm --enable-code-metadata`'s sections.
+   */
+  readonly codeMetadata = new Map<
+    string,
+    { funcIndex: number; entries: { offset: number; data: Uint8Array }[] }[]
+  >();
+
+  /**
+   * An annotation writes no instruction: it records where the NEXT one
+   * starts, relative to the body (upstream's offset, measured). 🔧 This was a
+   * no-op — `wat2wasm` dropped every hint without a word.
+   */
+  onCodeMetadataExpr(e: CodeMetadataExpr): Result {
+    const body = this.codeBody;
+    if (body === undefined) {
+      throw new Error(`binary writer: code_metadata "${e.name}" outside a function body`);
+    }
+    let groups = this.codeMetadata.get(e.name);
+    if (groups === undefined) this.codeMetadata.set(e.name, groups = []);
+    let group = groups[groups.length - 1];
+    if (group?.funcIndex !== body.funcIndex) {
+      groups.push(group = { funcIndex: body.funcIndex, entries: [] });
+    }
+    group.entries.push({ offset: this.s.offset - body.start, data: e.data });
     return Result.Ok;
   }
 }
@@ -1601,7 +1636,9 @@ class BinaryWriter {
 
     // Body
     this.bodyWriter.beginFunctionBody(func.bodyFrameLabel);
+    this.bodyWriter.codeBody = { funcIndex, start };
     this.visitor.visitExprList(func.body.children);
+    this.bodyWriter.codeBody = undefined;
     this.bodyWriter.endFunctionBody(func.bodyFrameLabel);
     // Only REAL labels (owner decision 4; M7c3b b1b).
     const record = this.m.explicitNames;
@@ -1620,10 +1657,55 @@ class BinaryWriter {
     const { m, s } = this;
     if (m.functions.length === 0) return;
     const firstDefined = m.imports.filter((i) => i.kind === ExternalKind.Func).length;
+    const codeStart = s.offset;
     s.writeSection(BinarySection.Code, () => {
       s.writeU32Leb(m.functions.length);
       m.functions.forEach((f, i) => this.writeFuncBody(f, firstDefined + i));
     });
+    this.writeCodeMetadataSections(codeStart);
+  }
+
+  /**
+   * The `metadata.code.NAME` sections the annotations recorded (W8), IMMEDIATELY
+   * BEFORE the code section, as upstream places them: each is
+   * `vec(func_idx, vec(offset, len, data))`. An offset is only known once the
+   * code is written, so the code section is cut off, these go out, and it goes
+   * back after them — its bytes do not depend on where it stands.
+   *
+   * A raw custom section of the same name — one the reader kept, or an
+   * `(@custom "metadata.code.…")` — beside the annotations would make TWO
+   * sections for one name, and which the engine honours is anyone's guess:
+   * refused.
+   */
+  private writeCodeMetadataSections(codeStart: number): void {
+    const { m, s } = this;
+    const recorded = this.bodyWriter.codeMetadata;
+    if (recorded.size === 0) return;
+    for (const name of recorded.keys()) {
+      const full = CUSTOM_SECTION_NAME_CODE_METADATA + name;
+      if (m.customSections.some((c) => c.name === full)) {
+        throw new Error(
+          `binary writer: "${full}" is both a custom section and code-metadata annotations`,
+        );
+      }
+    }
+    const code = s.cutFrom(codeStart);
+    for (const [name, groups] of recorded) {
+      s.writeSection(BinarySection.Custom, () => {
+        s.writeName(CUSTOM_SECTION_NAME_CODE_METADATA + name);
+        s.writeU32Leb(groups.length);
+        for (const { funcIndex, entries } of groups) {
+          s.writeU32Leb(funcIndex);
+          s.writeU32Leb(entries.length);
+          for (const { offset, data } of entries) {
+            s.writeU32Leb(offset);
+            s.writeU32Leb(data.length);
+            s.writeBytes(data);
+          }
+        }
+      });
+    }
+    s.writeBytes(code);
   }
 
   // ---------------------------------------------------------------------------

@@ -150,7 +150,7 @@ import {
   varName,
 } from '../ir/ir.ts';
 import { makeTypeInterner } from '../ir/synthesize-types.ts';
-import { BinarySection } from '../core/binary.ts';
+import { BinarySection, CUSTOM_SECTION_NAME_CODE_METADATA } from '../core/binary.ts';
 import { placementAnchor } from '../core/custom-placement.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
@@ -522,9 +522,11 @@ function isInstr(tt: TokenType, next: TokenType): boolean {
   return false;
 }
 
-function isModuleField(tt0: TokenType, tt1: TokenType): boolean {
-  // `(@custom …)` — the lexer emits `LparAnn` for that annotation only (C2).
-  if (tt0 === TokenType.LparAnn) return true;
+/** `ann` is the text of an `LparAnn` first token: the annotation's id. */
+function isModuleField(tt0: TokenType, tt1: TokenType, ann?: string): boolean {
+  // `(@custom …)` (C2). The lexer also emits `LparAnn` for
+  // `(@metadata.code.…`, which is an instruction-list item, not a field.
+  if (tt0 === TokenType.LparAnn) return ann === 'custom';
   if (tt0 !== TokenType.Lpar) return false;
   switch (tt1) {
     case TokenType.Func:
@@ -1354,7 +1356,8 @@ export class WastParser {
   }
 
   private peekIsModuleField(): boolean {
-    return isModuleField(this.peek(), this.peek(1));
+    const t = this.peekToken();
+    return isModuleField(t.tokenType, this.peek(1), 'text' in t ? t.text : undefined);
   }
 
   // -------------------------------------------------------------------------
@@ -2549,7 +2552,8 @@ export class WastParser {
       if (tt === TokenType.Rpar) {
         if (depth === 0) return;
         depth--;
-      } else if (tt === TokenType.Lpar) {
+      } else if (tt === TokenType.Lpar || tt === TokenType.LparAnn) {
+        // `(@metadata.code.…` opens a group its `)` closes (W8).
         depth++;
       }
       this.drop();
@@ -3550,9 +3554,44 @@ export class WastParser {
 
   /** Parse a list of instructions into `outExprs`, handling both forms. */
   private parseInstrList(ctx: ExprCtx): Result {
-    while (this.peekIsInstr()) {
-      if (this.parseOneInstr(ctx) !== Result.Ok) break;
+    while (true) {
+      if (this.peekIsInstr()) {
+        if (this.parseOneInstr(ctx) !== Result.Ok) break;
+      } else if (this.peekIsCodeMetadata()) {
+        if (this.parseCodeMetadataAnnotation(ctx) !== Result.Ok) break;
+      } else {
+        break;
+      }
     }
+    return Result.Ok;
+  }
+
+  private peekIsCodeMetadata(): boolean {
+    const t = this.peekToken();
+    return t.tokenType === TokenType.LparAnn && 'text' in t &&
+      t.text.startsWith(CUSTOM_SECTION_NAME_CODE_METADATA);
+  }
+
+  /**
+   * `(@metadata.code.NAME datastring)` — a hint on the NEXT instruction (W8,
+   * upstream's `ParseCodeMetadataAnnotation`), written by the binary writer as
+   * a `metadata.code.NAME` section. 🔧 The lexer skipped it like any unknown
+   * annotation, so the hint vanished without a word.
+   *
+   * It is committed as a STATEMENT: values already on the operand stack are
+   * committed before it, and the instruction after it takes them as `pop`s
+   * ("already on the stack"). So the node stands immediately before the first
+   * byte of the instruction it annotates — `local.get 0 (@…) if` keeps its
+   * offset on the `if`, not on the `local.get` a folded tree would write first.
+   */
+  private parseCodeMetadataAnnotation(ctx: ExprCtx): Result {
+    const tok = this.consume() as { text: string; loc: Location };
+    const name = tok.text.slice(CUSTOM_SECTION_NAME_CODE_METADATA.length);
+    // Exactly ONE string, as upstream reads it (a second is "expected )").
+    if (this.peek() !== TokenType.Text) return this.expect(TokenType.Text);
+    const data = decodeStringToken((this.consume() as StringToken).text);
+    if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
+    pushStmt(ctx, { kind: 'code_metadata', name, data, loc: tok.loc });
     return Result.Ok;
   }
 
