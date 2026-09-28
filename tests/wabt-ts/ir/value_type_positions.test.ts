@@ -113,12 +113,23 @@ describe('the text parser rejects a packed keyword in a value position', () => {
     });
   }
 
-  it('and through the bare `ref` form, which reads a type keyword of its own', () => {
-    // ⚠️ `(local ref i32)` itself is ACCEPTED here and by nothing upstream — a
-    // separate, older leniency (divergence W7), left as it was.
-    const { errors } = parseWatModule('(module (func (local ref i8)))');
-    assert(formatErrors(errors).includes('expected ref kind, got i8'), formatErrors(errors));
-  });
+  // W7: a bare `ref …`, `func` or `extern` is no value type in any text
+  // format (upstream: "unexpected token ref"). `(local ref i32)` compiled to an
+  // i32 local, and `(local func)` to a funcref one.
+  for (
+    const wat of [
+      '(module (func (local ref i32)))',
+      '(module (func (local ref i8)))',
+      '(module (func (param ref null func)))',
+      '(module (func (local func)))',
+      '(module (func (result extern) unreachable))',
+    ]
+  ) {
+    it(`and a bare reference keyword: ${wat}`, () => {
+      const { errors } = parseWatModule(wat);
+      assert(formatErrors(errors).includes('expected value type, got '), formatErrors(errors));
+    });
+  }
 
   it('fields still take packed types: text, then the binary reader, then the writer', () => {
     const r = wat2wasm(

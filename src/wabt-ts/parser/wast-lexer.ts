@@ -975,6 +975,15 @@ export class WastLexer {
             // read as a module field. Anywhere else it is then an unexpected
             // token, as upstream wat2wasm and wasm-tools both treat it.
             if (this.matchAnnotationWord('custom')) return this.textToken(TokenType.LparAnn, 2);
+            // `(@metadata.code.NAME "data")` — a code-metadata annotation on the
+            // next instruction, which the parser builds as a `code_metadata`
+            // node and the binary writer emits as a `metadata.code.NAME` section
+            // (W8, upstream wabt's `ParseCodeMetadataAnnotation`). 🔧 It was
+            // skipped like any unknown annotation: the hint silently vanished.
+            if (this.matchStr('metadata.code.')) {
+              while (isIdChar(this.peek())) this.read();
+              return this.textToken(TokenType.LparAnn, 2);
+            }
             // Any other annotation `(@id …)`. The spec makes annotations
             // TRANSPARENT: a tool that does not understand one skips it. Their
             // bodies are deliberately hostile — arbitrary reserved characters

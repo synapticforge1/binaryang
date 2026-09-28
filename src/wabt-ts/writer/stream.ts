@@ -161,4 +161,14 @@ export class MemoryStream {
   toUint8Array(): Uint8Array {
     return this._buf.slice(0, this._pos);
   }
+
+  /** The bytes from `from` on, cut off the stream: it ends at `from` again. */
+  cutFrom(from: number): Uint8Array {
+    if (from < 0 || from > this._pos) {
+      throw new RangeError(`cutFrom(${from}) outside 0..${this._pos}`);
+    }
+    const tail = this._buf.slice(from, this._pos);
+    this._pos = from;
+    return tail;
+  }
 }

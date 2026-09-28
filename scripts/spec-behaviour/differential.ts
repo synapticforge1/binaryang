@@ -33,6 +33,12 @@
  *   refusal is not a miscompile; the driver counts them against a pinned
  *   budget instead.
  *
+ * An export with a `v128` in its signature, which the JS API cannot call, is
+ * called through a wrapper appended to the bytes — the original's and each
+ * variant's alike — that carries each vector as two `i64` lanes (`v128.ts`).
+ * Before that, every SIMD invocation threw a TypeError on both sides and
+ * "agreed" unrun. What the JS API still cannot call is counted as `blind`.
+ *
  * Imports are satisfied by inert stand-ins (the `spectest` names as the suite
  * defines them, anything else by its kind), the SAME ones for the original and
  * every variant, so a module whose behaviour depends on them is still compared
@@ -46,12 +52,13 @@ import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { type PassOptions, PassRunner } from '../../src/binaryen-ts/passes/index.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
+import { type Sig, v128Lanes, withV128Wrappers, wrapperName } from './v128.ts';
 
 /** One `invoke` from a manifest: an export, its arguments as the manifest spells them. */
 export interface Invoke {
   line: number;
   field: string;
-  args: { type: string; value: unknown }[];
+  args: { type: string; value: unknown; lane_type?: string }[];
 }
 
 /** A module and the invocations that follow it in its manifest. */
@@ -60,6 +67,11 @@ export interface SpecInput {
   name: string;
   path: string;
   invokes: Invoke[];
+  /**
+   * The signature of each invoked export that has a `v128` in it, as the
+   * manifest shows it (`v128.ts`): each gets a wrapper the JS API can call.
+   */
+  v128?: [string, Sig][];
 }
 
 export type Status = 'agree' | 'DIVERGE' | 'timeout';
@@ -68,6 +80,15 @@ export interface Row {
   name: string;
   status: Status;
   invocations: number;
+  /** Invocations made through a `v128` wrapper (`v128.ts`). */
+  v128: number;
+  /**
+   * Invocations the JS API could not make even so — a `TypeError` on the
+   * ORIGINAL (a `v128` export whose signature the manifest does not show, a
+   * reference type JS cannot pass). They agree on every variant by
+   * construction, so they are counted, not compared.
+   */
+  blind: number;
   /** Variants compared in full. */
   variants: number;
   /** Variants our pipeline refused, with why. */
@@ -203,10 +224,12 @@ function show(x: unknown): string {
  * its message: which trap an optimized module reaches first may legitimately
  * differ; that it traps, or overflows the stack, may not.
  */
-function outcomes(bytes: Uint8Array, invokes: Invoke[]): string[] {
+function outcomes(bytes: Uint8Array, invokes: Invoke[], v128: Map<string, Sig>): string[] {
   let exports: WebAssembly.Exports;
   try {
-    const mod = new WebAssembly.Module(bytes as BufferSource);
+    // The wrappers go onto the bytes as they are: the original's and each
+    // variant's alike, after the variant was made (`v128.ts`).
+    const mod = new WebAssembly.Module(withV128Wrappers(bytes, v128) as BufferSource);
     exports = new WebAssembly.Instance(mod, importsFor(mod)).exports;
   } catch (e) {
     const err = e as Error;
@@ -214,10 +237,15 @@ function outcomes(bytes: Uint8Array, invokes: Invoke[]): string[] {
     return [`${kind}: ${err.message.replace(/@\+\d+/g, '')}`];
   }
   return invokes.map(({ line, field, args }) => {
-    const f = exports[field];
+    // Through its wrapper, where it has one: each vector as two i64 lanes.
+    const wrapped = exports[wrapperName(field)];
+    const f = typeof wrapped === 'function' ? wrapped : exports[field];
     if (typeof f !== 'function') return `${line} ${field}: not a function export`;
+    const values = typeof wrapped === 'function'
+      ? args.flatMap((a) => a.type === 'v128' ? v128Lanes(a) : [arg(a)])
+      : args.map(arg);
     try {
-      return `${line} ${field} = ${show((f as (...a: unknown[]) => unknown)(...args.map(arg)))}`;
+      return `${line} ${field} = ${show((f as (...a: unknown[]) => unknown)(...values))}`;
     } catch (e) {
       const kind = e instanceof RangeError ? 'exhaustion' : (e as Error).constructor.name;
       return `${line} ${field} ! ${kind}`;
@@ -228,11 +256,14 @@ function outcomes(bytes: Uint8Array, invokes: Invoke[]): string[] {
 /** Compares every variant of `input` with the original. */
 export function check(input: SpecInput): Row {
   const bytes = Deno.readFileSync(input.path);
-  const want = outcomes(bytes, input.invokes);
+  const v128 = new Map(input.v128 ?? []);
+  const want = outcomes(bytes, input.invokes, v128);
   const row: Row = {
     name: input.name,
     status: 'agree',
     invocations: input.invokes.length,
+    v128: input.invokes.filter((i) => v128.has(i.field)).length,
+    blind: want.filter((w) => w.endsWith(' ! TypeError')).length,
     variants: 0,
     refused: [],
     detail: [],
@@ -246,7 +277,7 @@ export function check(input: SpecInput): Row {
       continue;
     }
     row.variants++;
-    const got = outcomes(out, input.invokes);
+    const got = outcomes(out, input.invokes, v128);
     const k = want.findIndex((w, i) => got[i] !== w);
     if (k >= 0 || got.length !== want.length) {
       const at = k >= 0 ? k : Math.min(want.length, got.length);

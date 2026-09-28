@@ -2084,7 +2084,7 @@ export class SharedValidator {
 
   onCatch(loc: Location, tagIdx: number, isCatchAll: boolean): Result {
     this.currentLoc = loc;
-    if (isCatchAll) return this.tc.onCatch([]);
+    if (isCatchAll) return this.tc.onCatch([], true);
     const tt = this.checkTagIndex(tagIdx, loc);
     if (!tt) return Result.Error;
     return this.tc.onCatch(tt.params);

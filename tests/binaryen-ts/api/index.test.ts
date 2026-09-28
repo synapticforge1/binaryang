@@ -6,35 +6,58 @@
  * @license MIT
  */
 
-import { assert, assertThrows } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 import { createModule } from '../../../src/binaryen-ts/api/index.ts';
 import {
   asRegion,
+  BinaryOp,
+  makeBinary,
   makeBlock,
   makeF64Const,
   makeI32Const,
   makeI64Const,
+  makeLocalGet,
   makeLoop,
   makeNop,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // register built-in passes
 
-Deno.test('toWat: unsupported expression kind throws instead of a silent (;; TODO ;) placeholder', () => {
-  // The WAT serializer handles only a subset of expression kinds; `Loop` is not
-  // among them. It used to emit a `(;; TODO ;)` comment — which, fed to the
-  // hybrid optimizer subprocess, would silently optimize a different program.
-  // It must now fail loudly.
+Deno.test('toWat writes every kind, and the text assembles to the same module (K4)', () => {
+  // 🔧 `toWat` had its own partial serializer: it printed a `binary` as its
+  // numeric opcode (`(106 …)` for `i32.add`), threw on `loop` and most kinds,
+  // and `optimize(…, hybrid)` fed its text to upstream `wasm-opt`. It is the
+  // wabt-ts WAT writer now (`writeWat`), which `wasm2wat` uses. A label the API
+  // names without its `$` (`makeLoop('l', …)`) prints as `$l`, not `$""`.
   const mod = createModule(() => {});
   mod.ir.functions.push({
     name: '$f',
-    sig: { params: [], results: [] },
+    sig: { params: [ValType.I32], results: [ValType.I32] },
     locals: [],
-    body: asRegion(makeLoop('l', makeNop(), None)),
+    body: asRegion(
+      makeBlock(
+        [
+          makeLoop('l', makeNop(), None),
+          makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1)),
+        ],
+        null,
+        ValType.I32,
+      ),
+    ),
   });
-  assertThrows(() => mod.toWat(), Error, 'unsupported expression kind');
+  mod.ir.exports.push({ name: 'f', var: varName('$f'), kind: ExternalKind.Func });
+  const wat = mod.toWat();
+  assert(wat.includes('i32.add') && wat.includes('(loop $l'), wat);
+  const r = wat2wasm(wat);
+  assert(!hasErrors(r.errors), `assembles:\n${wat}`);
+  const f = new WebAssembly.Instance(new WebAssembly.Module(r.binary as BufferSource)).exports
+    .f as (x: number) => number;
+  assertEquals(f(41), 42);
 });
 
 Deno.test('Module.optimize honors the -O level (was hardcoded to 2)', async () => {
@@ -61,7 +84,14 @@ Deno.test('toWat: an export prints its kind KEYWORD, not the byte that represent
   // serializer interpolated it -- `(${exp.kind} ...)` -- which compiles either
   // way and would print `(0 $f)`. Before M2e it printed `(function $f)`, which
   // is not WAT either: the keyword is `func`.
+  // The entities exist now: the writer resolves every reference, and exporting
+  // names the module does not have is refused (as the encoder refused it).
   const mod = createModule(() => {});
+  Object.assign(
+    mod.ir,
+    readWat(`(module (func $func) (table $table 1 funcref) (memory $memory 1)
+      (global $global i32 (i32.const 0)) (tag $tag))`),
+  );
   const kinds: [ExternalKind, string][] = [
     [ExternalKind.Func, 'func'],
     [ExternalKind.Table, 'table'],
@@ -71,14 +101,22 @@ Deno.test('toWat: an export prints its kind KEYWORD, not the byte that represent
   ];
   for (const [kind, kw] of kinds) mod.ir.exports.push({ name: kw, var: varName(`$${kw}`), kind });
   const wat = mod.toWat();
+  // The writer prints an export INLINE on its entity — `(func $func (export
+  // "func") …)` — so each keyword appears as the entity's own; and the text
+  // assembles to a module that exports each with that kind.
   for (const [, kw] of kinds) {
-    const want = `(export "${kw}" (${kw} $${kw}))`;
-    assert(
-      wat.includes(want),
-      `expected ${want} in:
-${wat}`,
-    );
+    assert(wat.includes(`(${kw} $${kw} (export "${kw}")`), `expected ${kw} in:\n${wat}`);
   }
+  const r = wat2wasm(wat);
+  assert(!hasErrors(r.errors), `assembles:\n${wat}`);
+  const exported = WebAssembly.Module.exports(new WebAssembly.Module(r.binary as BufferSource));
+  assertEquals(
+    exported.map((e) => [e.name, e.kind]),
+    [['func', 'function'], ['table', 'table'], ['memory', 'memory'], ['global', 'global'], [
+      'tag',
+      'tag',
+    ]],
+  );
 });
 
 Deno.test('toWat: value types print as their NAMES, not as the bytes that represent them', () => {
@@ -103,7 +141,9 @@ Deno.test('toWat: value types print as their NAMES, not as the bytes that repres
   });
   const wat = mod.toWat();
   for (
-    const want of ['(param $p0 i32)', '(result i64)', '(mut f64)', '(local $x f32)', '(result i64)']
+    // `(param i32)`, no `$p0`: the old serializer made that name up, and the
+    // writer prints only names the module has.
+    const want of ['(param i32)', '(result i64)', '(mut f64)', '(local $x f32)', '(result i64)']
   ) {
     assert(wat.includes(want), `expected ${want} in:\n${wat}`);
   }

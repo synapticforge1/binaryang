@@ -101,7 +101,7 @@ import {
   valueTypeEquals,
   valueTypeName,
 } from '../ir/ir.ts';
-import type { Custom, HeapTypeRef, StorageType, TableCatch, TypeEntry } from '../ir/ir.ts';
+import type { Custom, HeapTypeRef, StorageType, TableCatch, Tag, TypeEntry } from '../ir/ir.ts';
 import { type AbstractHeap, heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import {
@@ -115,6 +115,7 @@ import {
 } from '../core/opcode.ts';
 import {
   BinarySection,
+  CUSTOM_SECTION_NAME_CODE_METADATA,
   CUSTOM_SECTION_NAME_NAME,
   ExternalKind,
   LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG,
@@ -1161,8 +1162,42 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
 
-  // --- Metadata (skip — no binary representation) ---
-  onCodeMetadataExpr(_e: CodeMetadataExpr): Result {
+  // --- Code metadata (W8) ---
+
+  /**
+   * The function body being written — its index in the function space and
+   * where its bytes start (after the size, before the locals) — or `undefined`
+   * outside one. Set by `BinaryWriter.writeFuncBody`.
+   */
+  codeBody: { funcIndex: number; start: number } | undefined;
+
+  /**
+   * `metadata.code.NAME` entries by NAME, in the order each name first
+   * appears; per name, one group per function in index order, its entries in
+   * instruction order — upstream `wat2wasm --enable-code-metadata`'s sections.
+   */
+  readonly codeMetadata = new Map<
+    string,
+    { funcIndex: number; entries: { offset: number; data: Uint8Array }[] }[]
+  >();
+
+  /**
+   * An annotation writes no instruction: it records where the NEXT one
+   * starts, relative to the body (upstream's offset, measured). 🔧 This was a
+   * no-op — `wat2wasm` dropped every hint without a word.
+   */
+  onCodeMetadataExpr(e: CodeMetadataExpr): Result {
+    const body = this.codeBody;
+    if (body === undefined) {
+      throw new Error(`binary writer: code_metadata "${e.name}" outside a function body`);
+    }
+    let groups = this.codeMetadata.get(e.name);
+    if (groups === undefined) this.codeMetadata.set(e.name, groups = []);
+    let group = groups[groups.length - 1];
+    if (group?.funcIndex !== body.funcIndex) {
+      groups.push(group = { funcIndex: body.funcIndex, entries: [] });
+    }
+    group.entries.push({ offset: this.s.offset - body.start, data: e.data });
     return Result.Ok;
   }
 }
@@ -1285,7 +1320,7 @@ class BinaryWriter {
             break;
           case ExternalKind.Tag:
             s.writeU8(0x00); // attribute = exception (only valid value)
-            s.writeU32Leb(this.tagTypeIndex(imp.tag.sig.params));
+            s.writeU32Leb(this.tagTypeIndex(imp.tag));
             break;
         }
       }
@@ -1358,24 +1393,27 @@ class BinaryWriter {
       s.writeU32Leb(m.tags.length);
       for (const tag of m.tags) {
         s.writeU8(0x00); // attribute = exception
-        s.writeU32Leb(this.tagTypeIndex(tag.sig.params));
+        s.writeU32Leb(this.tagTypeIndex(tag));
       }
     });
   }
 
   /**
-   * Resolve the type-section index whose `(func (param …) (result))` signature
-   * matches a tag's signature. Tags always have zero results in the exception
-   * model, so a tag's type is the func type with the same params and no
-   * results.
+   * A tag's type index: its `typeVar` — WHICH of several identical types it
+   * has (Q9), settled by `synthesizeTypes`. 🔧 This re-derived it from the
+   * signature, so of `(rec (type $t1 (func)) (type $t2 (func)))` a tag of type
+   * `$t2` was written as `$t1`, a different type.
    *
-   * Throws (fail-loud) when no matching type exists rather than silently
-   * emitting index 0 — an unresolved tag type index corrupts the binary
-   * (a decoder reads the wrong/short signature). The `synthesizeTypes` pass
-   * (run by `wat2wasm`/`compat`) and binary-read modules both guarantee a
-   * matching entry; a module reaching the writer without one is malformed.
+   * A tag with none (one built without it) takes the type-section index whose
+   * `(func (param …) (result))` signature matches. Tags always have zero
+   * results in the exception model, so a tag's type is the func type with the
+   * same params and no results. Throws (fail-loud) when no matching type
+   * exists rather than silently emitting index 0 — an unresolved tag type
+   * index corrupts the binary (a decoder reads the wrong/short signature).
    */
-  private tagTypeIndex(params: readonly ValueType[]): number {
+  private tagTypeIndex(tag: Tag): number {
+    if (tag.typeVar !== undefined) return varIndexValue(tag.typeVar, `tag ${tag.name} type`);
+    const params = tag.sig.params;
     const idx = this.m.types.findIndex(
       (t) =>
         t.kind === 'func' &&
@@ -1601,7 +1639,9 @@ class BinaryWriter {
 
     // Body
     this.bodyWriter.beginFunctionBody(func.bodyFrameLabel);
+    this.bodyWriter.codeBody = { funcIndex, start };
     this.visitor.visitExprList(func.body.children);
+    this.bodyWriter.codeBody = undefined;
     this.bodyWriter.endFunctionBody(func.bodyFrameLabel);
     // Only REAL labels (owner decision 4; M7c3b b1b).
     const record = this.m.explicitNames;
@@ -1620,10 +1660,55 @@ class BinaryWriter {
     const { m, s } = this;
     if (m.functions.length === 0) return;
     const firstDefined = m.imports.filter((i) => i.kind === ExternalKind.Func).length;
+    const codeStart = s.offset;
     s.writeSection(BinarySection.Code, () => {
       s.writeU32Leb(m.functions.length);
       m.functions.forEach((f, i) => this.writeFuncBody(f, firstDefined + i));
     });
+    this.writeCodeMetadataSections(codeStart);
+  }
+
+  /**
+   * The `metadata.code.NAME` sections the annotations recorded (W8), IMMEDIATELY
+   * BEFORE the code section, as upstream places them: each is
+   * `vec(func_idx, vec(offset, len, data))`. An offset is only known once the
+   * code is written, so the code section is cut off, these go out, and it goes
+   * back after them — its bytes do not depend on where it stands.
+   *
+   * A raw custom section of the same name — one the reader kept, or an
+   * `(@custom "metadata.code.…")` — beside the annotations would make TWO
+   * sections for one name, and which the engine honours is anyone's guess:
+   * refused.
+   */
+  private writeCodeMetadataSections(codeStart: number): void {
+    const { m, s } = this;
+    const recorded = this.bodyWriter.codeMetadata;
+    if (recorded.size === 0) return;
+    for (const name of recorded.keys()) {
+      const full = CUSTOM_SECTION_NAME_CODE_METADATA + name;
+      if (m.customSections.some((c) => c.name === full)) {
+        throw new Error(
+          `binary writer: "${full}" is both a custom section and code-metadata annotations`,
+        );
+      }
+    }
+    const code = s.cutFrom(codeStart);
+    for (const [name, groups] of recorded) {
+      s.writeSection(BinarySection.Custom, () => {
+        s.writeName(CUSTOM_SECTION_NAME_CODE_METADATA + name);
+        s.writeU32Leb(groups.length);
+        for (const { funcIndex, entries } of groups) {
+          s.writeU32Leb(funcIndex);
+          s.writeU32Leb(entries.length);
+          for (const { offset, data } of entries) {
+            s.writeU32Leb(offset);
+            s.writeU32Leb(data.length);
+            s.writeBytes(data);
+          }
+        }
+      });
+    }
+    s.writeBytes(code);
   }
 
   // ---------------------------------------------------------------------------

@@ -100,7 +100,7 @@ Deno.test('a defined global with no initializer is refused by the encoder', () =
 Deno.test('a defined global with no initializer is refused by toWat', () => {
   const mod = createModule(() => {});
   mod.ir.globals.push(withoutInit().globals[0]!);
-  assertThrows(() => mod.toWat(), Error, 'global $$g has no initializer');
+  assertThrows(() => mod.toWat(), Error, 'global $g: it has no initializer');
 });
 
 for (const pass of ['vacuum', 'optimize-instructions', 'remove-unused-module-elements']) {

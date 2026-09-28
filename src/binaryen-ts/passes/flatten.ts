@@ -180,8 +180,22 @@ function callEffectiveType(e: Expression, ctx: Ctx): Type {
   return typeOf(e);
 }
 
-/** Allocate a fresh local of `type` and return its index. */
+/**
+ * Allocate a fresh local of `type` and return its index.
+ *
+ * A TUPLE — a multi-value block, `if`, `loop` or function body — has no local
+ * to hold it, as a multi-result call has none (`callEffectiveType`). 🔧 One was
+ * allocated anyway: a local no value type can spell, which the writer's
+ * resolver met as an internal crash ("Cannot read properties of undefined") on
+ * 47 of 2,919 modules. Refused here, by name.
+ */
 function allocTemp(ctx: Ctx, type: Type): number {
+  if (Array.isArray(type)) {
+    throw new Error(
+      `Flatten: a ${type.length}-value result cannot be hoisted into a single local ` +
+        `(in "${ctx.func.name}"); multi-value blocks and bodies are not yet supported by this port.`,
+    );
+  }
   const idx = ctx.func.locals.length;
   ctx.func.locals.push({ type: type as ValType });
   return idx;
@@ -421,6 +435,19 @@ export function flattenFunction(
   const list = [...f.pre];
   // If the source was void and produced a trailing non-nop value, keep it.
   if (!bodyIsValue && f.value.kind !== ExpressionKind.Nop) list.push(f.value);
+  // A function with results whose body never falls through (it ends in a
+  // `return`, a `br` to the frame, a trap) was flattened as a VOID statement:
+  // the body now ends on a void block, and the wasm validator sees `[]` fall
+  // through where the signature wants values. Binaryen types that block
+  // `unreachable` and its writer emits an `unreachable` after it; this tree has
+  // to say so itself. Never executed — nothing reaches the end.
+  // 🔧 131 of 2,919 modules came out INVALID, silently ("expected 1 elements
+  // on the stack for fallthru"), from `(func (result i32) … return)`.
+  if (
+    !bodyIsValue && func.sig.results.length > 0 && typeOf(list.at(-1) ?? makeNop()) !== Unreachable
+  ) {
+    list.push(makeUnreachable());
+  }
   func.body = makeRegion(list);
 }
 

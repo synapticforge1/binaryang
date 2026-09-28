@@ -75,9 +75,14 @@ describe('T10.7 — a tag type is matched structurally, not by identity', () => 
     // the binary, because a decoder would read the wrong signature. Strip the
     // type section to reach it, and check the message is legible now: it used
     // to render every typed reference as "[object Object]".
+    //
+    // Since Q9 the parser gives every tag its `typeVar`, which the writer
+    // writes as it stands; the signature is matched only for a tag built
+    // WITHOUT one — so that is the tag this builds.
     const { module, errors } = parseWatModule(TYPED_REF_TAG);
     assert(!hasErrors(errors), formatErrors(errors));
-    const stripped = { ...module, types: [] } as typeof module;
+    const tags = module.tags.map(({ typeVar: _, ...tag }) => tag);
+    const stripped = { ...module, types: [], tags } as typeof module;
     const err = assertThrows(
       () => writeBinaryIr(stripped),
       Error,

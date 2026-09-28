@@ -150,7 +150,7 @@ import {
   varName,
 } from '../ir/ir.ts';
 import { makeTypeInterner } from '../ir/synthesize-types.ts';
-import { BinarySection } from '../core/binary.ts';
+import { BinarySection, CUSTOM_SECTION_NAME_CODE_METADATA } from '../core/binary.ts';
 import { placementAnchor } from '../core/custom-placement.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
@@ -161,7 +161,6 @@ import {
   type LiteralToken,
   LiteralType,
   type OpcodeToken,
-  type RefKindToken,
   type StringToken,
   type Token,
   TokenType,
@@ -522,9 +521,11 @@ function isInstr(tt: TokenType, next: TokenType): boolean {
   return false;
 }
 
-function isModuleField(tt0: TokenType, tt1: TokenType): boolean {
-  // `(@custom …)` — the lexer emits `LparAnn` for that annotation only (C2).
-  if (tt0 === TokenType.LparAnn) return true;
+/** `ann` is the text of an `LparAnn` first token: the annotation's id. */
+function isModuleField(tt0: TokenType, tt1: TokenType, ann?: string): boolean {
+  // `(@custom …)` (C2). The lexer also emits `LparAnn` for
+  // `(@metadata.code.…`, which is an instruction-list item, not a field.
+  if (tt0 === TokenType.LparAnn) return ann === 'custom';
   if (tt0 !== TokenType.Lpar) return false;
   switch (tt1) {
     case TokenType.Func:
@@ -1354,7 +1355,8 @@ export class WastParser {
   }
 
   private peekIsModuleField(): boolean {
-    return isModuleField(this.peek(), this.peek(1));
+    const t = this.peekToken();
+    return isModuleField(t.tokenType, this.peek(1), 'text' in t ? t.text : undefined);
   }
 
   // -------------------------------------------------------------------------
@@ -1857,18 +1859,10 @@ export class WastParser {
       }
       return tok.valueType;
     }
-    if (tt === TokenType.Func) {
-      // func ref kind used as value type in some contexts
-      const tok = this.consume() as RefKindToken;
-      return tok.refType;
-    }
-    if (tt === TokenType.Extern) {
-      const tok = this.consume() as RefKindToken;
-      return tok.refType;
-    }
-    if (tt === TokenType.Ref) {
-      return this.parseRefType();
-    }
+    // 🔧 W7: a bare `func`, `extern` or `ref null? K` was taken for a value
+    // type — `(local ref i32)` compiled to an i32 local. No text format spells
+    // one that way (upstream: "unexpected token ref"; wasm-tools the same):
+    // a reference type is a `…ref` keyword or `(ref null? H)`, below.
     // GC typed-reference parenthesized form: `(ref $T)` or `(ref null $T)`.
     // `(ref H)` / `(ref null H)`. An ABSTRACT heap type collapses to its
     // matching nullable reference Type (one wire byte); a CONCRETE `$T` or
@@ -1892,40 +1886,6 @@ export class WastParser {
       return { heapType: ht, nullable };
     }
     this.error(this.loc(), `expected value type, got ${tokenName(tt)}`);
-    return null;
-  }
-
-  /** Parse a ref type: `ref null? funcref/externref/...` */
-  private parseRefType(): ValueType | null {
-    // consume 'ref'
-    this.drop();
-    // The flat `Type` enum can't carry nullability, so `(ref func)` and
-    // `(ref null func)` coarsen to the same code (the typed-ref-IR-loose
-    // limitation). Consume the optional `null` keyword either way — the old
-    // `isNull ? Type.FuncRef : Type.FuncRef` ternaries implied it was honored.
-    this.match(TokenType.Null);
-    const tt = this.peek();
-    if (tt === TokenType.Func) {
-      this.drop();
-      return Type.FuncRef;
-    }
-    if (tt === TokenType.Extern) {
-      this.drop();
-      return Type.ExternRef;
-    }
-    if (tt === TokenType.Exn) {
-      this.drop();
-      return Type.ExnRef;
-    }
-    if (tt === TokenType.ValueType) {
-      const tok = this.consume() as TypeToken;
-      if (!isValType(tok.valueType)) {
-        this.error(tok.loc, `expected ref kind, got ${typeName(tok.valueType)}`);
-        return null;
-      }
-      return tok.valueType;
-    }
-    this.error(this.loc(), 'expected ref kind');
     return null;
   }
 
@@ -2549,7 +2509,8 @@ export class WastParser {
       if (tt === TokenType.Rpar) {
         if (depth === 0) return;
         depth--;
-      } else if (tt === TokenType.Lpar) {
+      } else if (tt === TokenType.Lpar || tt === TokenType.LparAnn) {
+        // `(@metadata.code.…` opens a group its `)` closes (W8).
         depth++;
       }
       this.drop();
@@ -2866,8 +2827,10 @@ export class WastParser {
     } else if (tt === TokenType.Tag) {
       this.drop();
       const name = this.parseBindVarOpt();
-      const { sig } = this.parseFuncSignature();
-      const tag: Tag = { name, loc, sig };
+      // 🔧 W12: `(type $t)` was not read here, only inline params — so
+      // `(import "M" "t" (tag (type $t)))`, which upstream wasm2wat itself
+      // prints, was refused.
+      const tag: Tag = { name, loc, ...this.parseTagTypeUse(module) };
       imp = { kind: ExternalKind.Tag, module: moduleName, field: fieldName, tag };
       module.imports.push(imp);
     } else {
@@ -3499,6 +3462,27 @@ export class WastParser {
     return Result.Ok;
   }
 
+  /**
+   * A tag's type-use: `(type $t)?` then inline `(param …)*`, in a tag field and
+   * in an import descriptor alike. A tag may name its signature instead of
+   * spelling it: adopt the referenced type's, as a function's type-use does; a
+   * forward reference is left to synthesizeTypes. The var is KEPT (Q9) —
+   * which of several identical types was named — for resolveNames to resolve
+   * and synthesizeTypes to keep while its signature matches.
+   */
+  private parseTagTypeUse(module: Module): { typeVar?: Var; sig: FuncSignature } {
+    const typeVar = this.parseTypeUseOpt();
+    const { sig } = this.parseFuncSignature();
+    if (typeVar !== null && sig.params.length === 0 && sig.results.length === 0) {
+      const entry = this.lookupFuncTypeEntry(module, typeVar);
+      if (entry !== null) {
+        sig.params.push(...entry.params);
+        sig.results.push(...entry.results);
+      }
+    }
+    return typeVar !== null ? { typeVar, sig } : { sig };
+  }
+
   private parseTagModuleField(module: Module): Result {
     const loc = this.loc();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
@@ -3513,20 +3497,7 @@ export class WastParser {
     }
 
     const inlineImp = this.parseInlineImport();
-    // A tag may name its signature with `(type $t)` instead of spelling it
-    // inline: `(tag (export "e") (type $t))`. Adopt the referenced type's
-    // signature, exactly as a function's type-use does; a forward reference
-    // is left to synthesizeTypes.
-    const typeVar = this.parseTypeUseOpt();
-    const { sig } = this.parseFuncSignature();
-    if (typeVar !== null && sig.params.length === 0 && sig.results.length === 0) {
-      const entry = this.lookupFuncTypeEntry(module, typeVar);
-      if (entry !== null) {
-        sig.params.push(...entry.params);
-        sig.results.push(...entry.results);
-      }
-    }
-    const tag: Tag = { name, loc, sig };
+    const tag: Tag = { name, loc, ...this.parseTagTypeUse(module) };
 
     if (inlineImp !== null) {
       const imp: Import = {
@@ -3550,9 +3521,44 @@ export class WastParser {
 
   /** Parse a list of instructions into `outExprs`, handling both forms. */
   private parseInstrList(ctx: ExprCtx): Result {
-    while (this.peekIsInstr()) {
-      if (this.parseOneInstr(ctx) !== Result.Ok) break;
+    while (true) {
+      if (this.peekIsInstr()) {
+        if (this.parseOneInstr(ctx) !== Result.Ok) break;
+      } else if (this.peekIsCodeMetadata()) {
+        if (this.parseCodeMetadataAnnotation(ctx) !== Result.Ok) break;
+      } else {
+        break;
+      }
     }
+    return Result.Ok;
+  }
+
+  private peekIsCodeMetadata(): boolean {
+    const t = this.peekToken();
+    return t.tokenType === TokenType.LparAnn && 'text' in t &&
+      t.text.startsWith(CUSTOM_SECTION_NAME_CODE_METADATA);
+  }
+
+  /**
+   * `(@metadata.code.NAME datastring)` — a hint on the NEXT instruction (W8,
+   * upstream's `ParseCodeMetadataAnnotation`), written by the binary writer as
+   * a `metadata.code.NAME` section. 🔧 The lexer skipped it like any unknown
+   * annotation, so the hint vanished without a word.
+   *
+   * It is committed as a STATEMENT: values already on the operand stack are
+   * committed before it, and the instruction after it takes them as `pop`s
+   * ("already on the stack"). So the node stands immediately before the first
+   * byte of the instruction it annotates — `local.get 0 (@…) if` keeps its
+   * offset on the `if`, not on the `local.get` a folded tree would write first.
+   */
+  private parseCodeMetadataAnnotation(ctx: ExprCtx): Result {
+    const tok = this.consume() as { text: string; loc: Location };
+    const name = tok.text.slice(CUSTOM_SECTION_NAME_CODE_METADATA.length);
+    // Exactly ONE string, as upstream reads it (a second is "expected )").
+    if (this.peek() !== TokenType.Text) return this.expect(TokenType.Text);
+    const data = decodeStringToken((this.consume() as StringToken).text);
+    if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
+    pushStmt(ctx, { kind: 'code_metadata', name, data, loc: tok.loc });
     return Result.Ok;
   }
 
@@ -5780,6 +5786,13 @@ export class WastParser {
       return Result.Ok;
     };
     blockSigs.clear();
+    // Only a tag that named NO type has an implicit one (Q9). 🔧 Every tag's
+    // signature was interned, so `(rec (type $t1 (func)) (type $t2 (func)))
+    // (tag (type 0))` gained a spare singleton `(func)` — the interner reuses
+    // only a type that is its own rec group.
+    const implicitTag = (tag: Tag): void => {
+      if (tag.typeVar === undefined) tag.typeVar = varIndex(intern(tag.sig));
+    };
     const walker = new ExprVisitor({
       beginBlockExpr: block,
       beginLoopExpr: block,
@@ -5797,21 +5810,21 @@ export class WastParser {
       if (imp.kind === ExternalKind.Func && imp.func.typeUse === undefined) {
         imp.func.typeVar = varIndex(intern(imp.func.sig));
       } else if (imp.kind === ExternalKind.Tag) {
-        intern(imp.tag.sig);
+        implicitTag(imp.tag);
       }
     }
     // Functions and tags interleave in the text; their source offsets say how.
     // (`sort` is stable, so items without a location keep their array order.)
-    const defs: ({ offset: number; func: Func } | { offset: number; sig: FuncSignature })[] = [
+    const defs: ({ offset: number; func: Func } | { offset: number; tag: Tag })[] = [
       ...module.functions.map((func) => ({ offset: locOf(func).offset, func })),
-      ...module.tags.map((tag) => ({ offset: locOf(tag).offset, sig: tag.sig })),
+      ...module.tags.map((tag) => ({ offset: locOf(tag).offset, tag })),
     ].sort((a, b) => a.offset - b.offset);
     for (const d of defs) {
       if ('func' in d) {
         if (d.func.typeUse === undefined) d.func.typeVar = varIndex(intern(d.func.sig));
         walker.visitExprList(d.func.body.children);
       } else {
-        intern(d.sig);
+        implicitTag(d.tag);
       }
     }
     // A carrier no function body holds — none should exist — keeps

@@ -94,6 +94,21 @@ describe('T13.44 — the release preflight stays wired in', () => {
     expect(lsRemote!.at).toBeLessThan(firstMutation!.at);
   });
 
+  // The cold type check (2026-09-28): publish.yml checks with no cache, so a
+  // stale local cache used to pass what CI then failed — after the tag was
+  // public (binaryen-ts v1.2.4). It must run in a FRESH `DENO_DIR` (`--reload`
+  // does not re-resolve a pinned version), before any git mutation, and refuse.
+  it('runs a cold type check, in a fresh DENO_DIR, before mutating anything', () => {
+    const at = PUBLISH.indexOf("args: ['task', 'check']");
+    expect(at).toBeGreaterThan(-1);
+    expect(PUBLISH).toContain('env: { DENO_DIR: coldDir }');
+    expect(PUBLISH).toContain('Deno.makeTempDir(');
+    const firstMutation = gitCalls(PUBLISH).find((c) => !READ_ONLY.has(c.sub));
+    expect(firstMutation).toBeDefined();
+    expect(at).toBeLessThan(firstMutation!.at);
+    expect(PUBLISH.slice(at, firstMutation!.at)).toContain('Deno.exit(1)');
+  });
+
   // The property that made `publish.ts` untestable in the first place. If the
   // guard module ever gains a side effect, importing it from a test starts
   // doing something, and the next person moves the logic back inline.

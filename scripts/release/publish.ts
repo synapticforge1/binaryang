@@ -115,6 +115,34 @@ if (remoteTag.trim() !== '') {
   Deno.exit(1);
 }
 
+// 0c. GUARD: a COLD type check, before anything is committed or tagged.
+//
+// `publish.yml` type-checks with no cache; a local check does not. Editing file
+// A does not re-check file B when B's types depend on A, so a stale local cache
+// passes what CI fails — and CI fails AFTER the tag is public. That shipped
+// binaryen-ts v1.2.4 broken: an orphaned tag, no JSR publish, a burned version.
+// `--reload` is not enough: it does not invalidate a resolved dependency
+// VERSION, and only a fresh `DENO_DIR` proves the whole chain (cmem
+// best-practices.md). So the same `deno task check` publish.yml runs, in an
+// empty `DENO_DIR`.
+const coldDir = await Deno.makeTempDir({ prefix: 'binaryang-release-check-' });
+try {
+  console.log(`$ DENO_DIR=${coldDir} deno task check   (cold, as publish.yml runs it)`);
+  const cold = await new Deno.Command('deno', {
+    args: ['task', 'check'],
+    env: { DENO_DIR: coldDir },
+    stdout: 'inherit',
+    stderr: 'inherit',
+  }).output();
+  if (cold.code !== 0) {
+    console.error(`\nRefusing to release ${tag}: the cold type check failed.`);
+    console.error('  publish.yml would fail the same way, after the tag was public.');
+    Deno.exit(1);
+  }
+} finally {
+  await Deno.remove(coldDir, { recursive: true }).catch(() => {});
+}
+
 // 1. Stage the bump -- RELEASE_FILES, the only files a release touches. Not
 //    `deno.json` alone: the bump also rewrites main.ts's VERSION literal, and
 //    staging one of the two would tag a CLI reporting the old version.

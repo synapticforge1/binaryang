@@ -14,6 +14,8 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
 import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import {
   type CodeMetadataExpr,
   type Expression,
@@ -85,6 +87,32 @@ Deno.test('a PassRunner with nothing queued keeps it — only an optimization ru
   const mod = annotated();
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).run();
   assertEquals(annotations(mod), 2);
+});
+
+// W8: a binary's `metadata.code.*` sections are kept RAW by the reader. Their
+// offsets point into the bodies a pass rewrites, so an optimization run drops
+// them as it drops the annotations; a plain read-and-write keeps them.
+Deno.test('an optimization run drops a raw metadata.code section; a plain write keeps it', () => {
+  const r = wat2wasm(`(module (func (export "f") (param i32) (result i32)
+    local.get 0
+    (@metadata.code.branch_hint "\\01")
+    if (result i32) i32.const 1 else i32.const 2 end)
+    (@custom "producers" "\\00"))`);
+  assert(!hasErrors(r.errors), formatErrors(r.errors));
+  // The `name` section's place (M2f) is not what this is about.
+  const customs = (m: { customSections: { name: string }[] }) =>
+    m.customSections.map((c) => c.name).filter((n) => n !== 'name');
+
+  const kept = readForPasses(r.binary);
+  assertEquals(customs(kept), ['metadata.code.branch_hint', 'producers']);
+  new PassRunner(kept, { optimizeLevel: 2, shrinkLevel: 0 }).run();
+  assertEquals(customs(kept), ['metadata.code.branch_hint', 'producers'], 'nothing queued');
+
+  const optimized = readForPasses(r.binary);
+  new PassRunner(optimized, { optimizeLevel: 2, shrinkLevel: 0 }).add('Vacuum').run();
+  assertEquals(customs(optimized), ['producers'], 'only the stale one goes');
+  const out = writeWasm(optimized);
+  assertEquals([call(out, 1), call(out, 0)], [1, 2]);
 });
 
 Deno.test('one outside a statement list is refused, not dropped', () => {

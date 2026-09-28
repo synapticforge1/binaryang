@@ -27,6 +27,8 @@ self.onmessage = (ev: MessageEvent<{ inputs: SpecInput[] }>) => {
         name: input.name,
         status: 'DIVERGE',
         invocations: input.invokes.length,
+        v128: 0,
+        blind: 0,
         variants: 0,
         refused: [],
         detail: [`unexpected: ${(e as Error).message}`],

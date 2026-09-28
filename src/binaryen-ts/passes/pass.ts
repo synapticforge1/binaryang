@@ -30,6 +30,7 @@ import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
 import { spillStackValues } from './spill-stack-values.ts';
 import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
+import { CUSTOM_SECTION_NAME_CODE_METADATA } from '../../wabt-ts/core/binary.ts';
 import { FidelityTable } from '../../wabt-ts/ir/fidelity.ts';
 import { recGroups, requireIndex } from '../../wabt-ts/ir/ir.ts';
 
@@ -387,8 +388,14 @@ export class PassRunner {
       // problem because it re-generates rather than keeping bytes (R8'), so this
       // only appears on the reader route and would have shipped with stage 3
       // (One front end, found measuring stage 2 item 2, 2026-09-20).
+      //
+      // A raw `metadata.code.*` section is stale the same way: its entries are
+      // byte offsets into function bodies the passes rewrote. Code metadata is
+      // stripped in optimization runs (owner, 2026-09-16) — as annotations
+      // above, and as the sections the reader keeps raw here (W8).
       this._module.customSections = this._module.customSections.filter((c) =>
-        c.name !== 'name' || c.data === null
+        (c.name !== 'name' || c.data === null) &&
+        !c.name.startsWith(CUSTOM_SECTION_NAME_CODE_METADATA)
       );
     }
   }

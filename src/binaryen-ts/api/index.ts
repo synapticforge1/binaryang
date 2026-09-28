@@ -38,10 +38,7 @@
 
 import {
   type BinaryOp,
-  blockParamsOf,
   type Expression,
-  ExpressionKind,
-  literalFloat,
   makeBinary,
   makeBlock,
   makeDrop,
@@ -60,13 +57,11 @@ import {
   type UnaryOp,
 } from '../ir/expressions.ts';
 import { ModuleBuilder, type WasmModule } from '../ir/module.ts';
-import { None, typeToString, ValType } from '../ir/types.ts';
-import { writeWasm } from '../encoder/write-wasm.ts';
+import { ValType } from '../ir/types.ts';
+import { writeWasm, writeWat } from '../encoder/write-wasm.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
-import { requireIndex, requireName, varIndex } from '../../wabt-ts/ir/ir.ts';
-import { externalKindKeyword } from '../../wabt-ts/core/binary.ts';
-import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+import { varIndex } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Expression builder (fluent helper passed to function body closures)
@@ -197,7 +192,7 @@ export class Module {
    * @returns WAT text as a string.
    */
   toWat(): string {
-    return serializeToWat(this._inner);
+    return writeWat(this._inner);
   }
 
   /**
@@ -272,177 +267,3 @@ export type {
   WasmModule,
 } from '../ir/module.ts';
 export type { Type } from '../ir/types.ts';
-
-// ---------------------------------------------------------------------------
-// WAT serialization (stub — full impl is phase 2)
-// ---------------------------------------------------------------------------
-
-/**
- * Serializes a {@link WasmModule} to WAT text.
- *
- * @internal Stub — full implementation is planned for Phase 2.
- */
-function serializeToWat(mod: WasmModule): string {
-  const lines: string[] = ['(module'];
-
-  for (const imp of mod.imports) {
-    if (imp.kind === ExternalKind.Func) {
-      const params = imp.func.sig.params.map((t) => `(param ${typeToString(t)})`).join(' ');
-      const results = imp.func.sig.results.map((t) => `(result ${typeToString(t)})`).join(' ');
-      const sig = [params, results].filter(Boolean).join(' ');
-      lines.push(
-        `  (import "${imp.module}" "${imp.field}" (func $${imp.func.name}${sig ? ' ' + sig : ''}))`,
-      );
-    }
-  }
-
-  for (const mem of mod.memories) {
-    const { limits } = mem;
-    const maxStr = limits.max !== undefined ? ` ${limits.max}` : '';
-    lines.push(
-      `  (memory $${mem.name} ${limits.is64 ? 'i64 ' : ''}${limits.initial}${maxStr}${
-        limits.isShared ? ' shared' : ''
-      })`,
-    );
-  }
-
-  for (const g of mod.globals) {
-    const ty = typeToString(g.type);
-    const mut = g.mutable ? `(mut ${ty})` : ty;
-    if (g.init === undefined) {
-      throw new Error(`serializeToWat: global $${g.name} has no initializer`);
-    }
-    lines.push(`  (global $${g.name} ${mut} ${exprToWat(g.init, 2)})`);
-  }
-
-  for (const fn of mod.functions) {
-    const params = fn.sig.params.map((t, i) => `(param $p${i} ${typeToString(t)})`).join(' ');
-    const results = fn.sig.results.map((t) => `(result ${typeToString(t)})`).join(' ');
-    const header = [params, results].filter(Boolean).join(' ');
-    lines.push(`  (func $${fn.name}${header ? ' ' + header : ''}`);
-    const extraLocals = fn.locals.slice(fn.sig.params.length);
-    for (const loc of extraLocals) {
-      lines.push(`    (local ${loc.name ?? ''} ${typeToString(loc.type)})`);
-    }
-    lines.push(`    ${exprToWat(fn.body, 4)}`);
-    lines.push('  )');
-  }
-
-  for (const exp of mod.exports) {
-    lines.push(
-      `  (export "${exp.name}" (${externalKindKeyword(exp.kind)} ${
-        requireName(exp.var, 'export')
-      }))`,
-    );
-  }
-
-  lines.push(')');
-  return lines.join('\n');
-}
-
-/**
- * Refuses a construct that keeps block PARAMETERS (S6 decision 7b(i)): this
- * serializer writes folded WAT, which has no way to say "take these values from
- * the enclosing stack", and printing the block without them would describe a
- * different program — one `hybridMode` would hand straight to `wasm-opt`.
- * @internal
- */
-function requireNoParams(expr: Expression): void {
-  if (blockParamsOf(expr) !== undefined) {
-    throw new Error(
-      `serializeToWat: a ${expr.kind} with block parameters cannot be written as folded WAT ` +
-        `(use the binary encoder, or optimize first — PassRunner lowers them)`,
-    );
-  }
-}
-
-/**
- * Renders a single expression to WAT text (recursive, depth-first).
- * @internal
- */
-function exprToWat(expr: Expression, _indent: number): string {
-  switch (expr.kind) {
-    case ExpressionKind.Nop:
-      return '(nop)';
-    case ExpressionKind.Unreachable:
-      return '(unreachable)';
-    case ExpressionKind.Const: {
-      const v = expr.value;
-      // On the arm's TYPE (S6 step 5, stage C1): `'i32' in v` still compiles
-      // against the bits form and is always false.
-      switch (v.type) {
-        case ValType.I32:
-          return `(i32.const ${v.value})`;
-        case ValType.I64:
-          return `(i64.const ${v.value})`;
-        case ValType.F32:
-          return `(f32.const ${literalFloat(v)})`;
-        case ValType.F64:
-          return `(f64.const ${literalFloat(v)})`;
-        default:
-          // This fell through to `(f64.const 0)`: a v128 constant printed as a
-          // different instruction with a different value. Refuse, as the
-          // serializer does for every kind it cannot write.
-          throw new Error('serializeToWat: unsupported expression kind "v128.const"');
-      }
-    }
-    case ExpressionKind.LocalGet:
-      return `(local.get ${requireIndex(expr.var, 'local.get')})`;
-    case ExpressionKind.LocalSet:
-      return `(local.set ${requireIndex(expr.var, 'local.set')} ${exprToWat(expr.value, _indent)})`;
-    case ExpressionKind.LocalTee:
-      return `(local.tee ${requireIndex(expr.var, 'local.tee')} ${exprToWat(expr.value, _indent)})`;
-    case ExpressionKind.GlobalGet:
-      return `(global.get $${requireName(expr.var, 'global.get')})`;
-    case ExpressionKind.GlobalSet:
-      return `(global.set $${requireName(expr.var, 'global.set')} ${
-        exprToWat(expr.value, _indent)
-      })`;
-    case ExpressionKind.Binary:
-      return `(${expr.opcode} ${exprToWat(expr.left, _indent)} ${exprToWat(expr.right, _indent)})`;
-    case ExpressionKind.Unary:
-      return `(${expr.opcode} ${exprToWat(expr.value, _indent)})`;
-    case ExpressionKind.Return:
-      return `(return${expr.values.map((v) => ` ${exprToWat(v, _indent)}`).join('')})`;
-    case ExpressionKind.Drop:
-      return `(drop ${exprToWat(expr.value, _indent)})`;
-    case ExpressionKind.Block: {
-      requireNoParams(expr);
-      const label = expr.label ? ` $${expr.label}` : '';
-      const result = expr.type !== None && expr.type !== undefined
-        ? ` (result ${typeToString(expr.type)})`
-        : '';
-      const body = expr.children.map((c) => `  ${exprToWat(c, _indent + 2)}`).join('\n');
-      return `(block${label}${result}\n${body}\n)`;
-    }
-    case ExpressionKind.Region:
-      // A region is its instructions in sequence — exactly what a function body
-      // or an `(then …)` holds in WAT. It printed as a `(block …)` while it was a
-      // synthetic wrapper, which described a nesting the module does not have.
-      return expr.children.map((c) => exprToWat(c, _indent)).join(`\n${' '.repeat(_indent)}`);
-    case ExpressionKind.If: {
-      requireNoParams(expr);
-      const result = expr.type !== None && expr.type !== undefined
-        ? ` (result ${typeToString(expr.type)})`
-        : '';
-      const then = `(then ${exprToWat(expr.ifTrue, _indent)})`;
-      const else_ = expr.ifFalse ? ` (else ${exprToWat(expr.ifFalse, _indent)})` : '';
-      return `(if${result} ${exprToWat(expr.condition, _indent)} ${then}${else_})`;
-    }
-    case ExpressionKind.Call: {
-      const args = expr.operands.map((a) => exprToWat(a, _indent)).join(' ');
-      return `(call $${requireName(expr.func, 'call')}${args ? ' ' + args : ''})`;
-    }
-    default:
-      // This serializer only covers a subset of expression kinds. Emitting a
-      // `(;; TODO ;)` comment placeholder silently produced WAT that is invalid
-      // or describes a DIFFERENT program — and `Module.optimize(..., hybridMode)`
-      // feeds this WAT straight to the `wasm-opt` subprocess, so the placeholder
-      // would silently miscompile. Fail loudly; use `Module.emitBinary()` /
-      // `Module.toBinary()` (the native path) for full-fidelity output.
-      throw new Error(
-        `serializeToWat: unsupported expression kind "${expr.kind}" ` +
-          `(the WAT serializer is partial; use the binary encoder for full output)`,
-      );
-  }
-}
