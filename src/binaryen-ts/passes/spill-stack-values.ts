@@ -243,12 +243,23 @@ function rewriteRegion(
   }
   if (replacement.size === 0) return false;
 
+  // A producer moved into its consumer is rewritten TOO: it may be the consumer
+  // of the statement before it. 🔧 It was inserted as it stood, so in a chain —
+  // `block`, `array.get (pop)`, `return (pop)` — the `return` got the ORIGINAL
+  // `array.get`, whose `pop` still waited for a `block` that was no longer
+  // anywhere: the block was deleted and the module invalid, or, where the types
+  // allowed it, silently wrong. Found by the block-parameter lowering (R15),
+  // which leaves such chains wherever it splits a statement.
+  const resolve = (n: Expression): Expression => {
+    const r = replacement.get(n);
+    return r === undefined ? n : mapExpression(r, resolve);
+  };
   const rebuilt: Expression[] = [];
   for (const [j, child] of children.entries()) {
     if (nested.has(j)) continue; // moved into its consumer
     const local = spilled.get(j);
     const held = local === undefined ? child : makeLocalSet(varIndex(local), child);
-    rebuilt.push(mapExpression(held, (n) => replacement.get(n) ?? n));
+    rebuilt.push(mapExpression(held, resolve));
   }
   (holder as { children: Expression[] }).children = rebuilt;
   return true;

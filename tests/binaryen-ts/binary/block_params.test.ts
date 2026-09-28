@@ -15,7 +15,7 @@
 // paths for those constructs.
 
 import { describe, it } from '@std/testing/bdd';
-import { assert, assertEquals, assertThrows } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 
 import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
 import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
@@ -33,7 +33,6 @@ import {
   hasBlockParams,
   lowerBlockParams,
 } from '../../../src/binaryen-ts/passes/lower-block-params.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
 /**
@@ -144,15 +143,21 @@ describe('kept: what the node holds', () => {
 });
 
 describe('lowerBlockParams — where optimization starts', () => {
-  it('lowers to EXACTLY what decode-time lowering gives', () => {
-    for (const bytes of [BLOCK, TRY_TABLE, LEGACY_TRY, LOOP_BACKEDGE]) {
+  it('lowers every carrier, and the module computes what it did', async () => {
+    // 🔧 This asserted the lowering's bytes EQUAL decode-time lowering's, when
+    // the lowering was a re-decode. It is a tree pass now (R15), and decode-time
+    // lowering was wrong for two spec modules, so it is no longer the reference:
+    // behaviour is. The shapes it got wrong: lower_block_params.test.ts.
+    for (
+      const [bytes, expected] of [[BLOCK, 7], [TRY_TABLE, 7], [LEGACY_TRY, 7], [
+        LOOP_BACKEDGE,
+        0,
+      ]] as const
+    ) {
       const m = parseWasm(bytes);
       assertEquals(lowerBlockParams(m), 1);
       assertEquals(hasBlockParams(m.functions[0]!.body), false);
-      assertEquals(
-        encodeWasm(m),
-        encodeWasm(parseWasm(bytes, undefined, { lowerBlockParams: true })),
-      );
+      assertEquals(await run(encodeWasm(m)), expected);
     }
   });
 
@@ -169,16 +174,7 @@ describe('lowerBlockParams — where optimization starts', () => {
     assert(m.functions[0]!.body === body, 'the body object was replaced');
   });
 
-  it('refuses, loudly, a module renamed after decoding', () => {
-    // The re-decoded bodies name entities as the decoder does, by index; a
-    // renamed module would get bodies calling names it no longer has.
-    // Renamed consistently — the export follows — so the module still encodes.
-    const m = parseWasm(BLOCK);
-    const old = m.functions[0]!.name;
-    m.functions[0]!.name = '$renamed';
-    for (const e of m.exports) {
-      if (e.var.kind === 'name' && e.var.name === old) e.var = varName('$renamed');
-    }
-    assertThrows(() => lowerBlockParams(m), Error, 'names no longer match');
-  });
+  // 🔧 A test here asserted that a module renamed after decoding was REFUSED:
+  // the re-decoded bodies named entities by index. A tree pass never re-derives
+  // a name, so that module now lowers — asserted in lower_block_params.test.ts.
 });

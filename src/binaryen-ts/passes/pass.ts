@@ -293,9 +293,11 @@ export class PassRunner {
    */
   run(): void {
     // Block parameters exist only for fidelity; no pass here was written for
-    // them (S6 decision 7b(i)). Lower them before the first pass sees the tree.
-    // (The lowering re-encodes and re-decodes, so it relies on the encoder
-    // writing the module's names — N1 P5.)
+    // them (S6 decision 7b(i)). Lower them before the first pass sees the tree
+    // — and before the spill below: the lowering leaves each entry value where
+    // the stack had it, read from its local at the start of the region, and a
+    // later `pop` takes it; the spill is what makes that connection explicit.
+    lowerBlockParams(this._module);
     const optimized = this._queue.length > 0;
     // A value the wabt-ts reader left on the operand stack is reachable only
     // THROUGH the stack, and a pass that introduces a block boundary between it
@@ -305,7 +307,6 @@ export class PassRunner {
     // byte-exact. binaryen-ts's decoder does the same thing while decoding, so a
     // tree that came from it has nothing here to find.
     if (optimized) spillStackValues(this._module);
-    lowerBlockParams(this._module);
     // As-written type indices are FORM (S6 decision 7c) — which of several
     // identical types a `call_indirect` named, and whether a block header was
     // written as an index. A pass may retype either, leaving the index naming
