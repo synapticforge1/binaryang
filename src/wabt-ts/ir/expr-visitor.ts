@@ -221,7 +221,8 @@ export interface ExprVisitorDelegate {
   onAtomicNotifyExpr?(e: AtomicNotifyExpr): Result;
   onAtomicFenceExpr?(e: AtomicFenceExpr): Result;
 
-  onCodeMetadataExpr?(e: CodeMetadataExpr): Result;
+  /** `target`: the instruction it annotates — the next in its list, if any. */
+  onCodeMetadataExpr?(e: CodeMetadataExpr, target?: Expr): Result;
 }
 
 // ---------------------------------------------------------------------------
@@ -252,8 +253,14 @@ export class ExprVisitor {
   }
 
   visitExprList(exprs: Expr[]): Result {
-    for (const expr of exprs) {
-      const r = this.visitExpr(expr);
+    for (let i = 0; i < exprs.length; i++) {
+      const expr = exprs[i]!;
+      // A code-metadata annotation belongs to the NEXT instruction in its list;
+      // the delegate is told which, since in folded form that instruction's own
+      // opcode comes after its operands' (see `onCodeMetadataExpr`).
+      const r = expr.kind === 'code_metadata'
+        ? this.d.onCodeMetadataExpr?.(expr, exprs[i + 1]) ?? Result.Ok
+        : this.visitExpr(expr);
       if (r === Result.Error) return Result.Error;
     }
     return Result.Ok;

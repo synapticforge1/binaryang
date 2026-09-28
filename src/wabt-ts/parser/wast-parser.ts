@@ -1345,6 +1345,17 @@ export class WastParser {
 
   private expect(tt: TokenType): Result {
     if (this.match(tt)) return Result.Ok;
+    // An annotation the grammar does not take HERE says so by name — it was
+    // "expected ), got Annotation" (wasmtk, 2026-09-28, item 4).
+    const t = this.peekToken();
+    if (t.tokenType === TokenType.LparAnn && 'text' in t) {
+      this.reportUnexpected(
+        t.text.startsWith(CUSTOM_SECTION_NAME_CODE_METADATA)
+          ? `@${t.text} annotation: not in a function (it belongs before an instruction)`
+          : `misplaced @${t.text} annotation`,
+      );
+      return Result.Error;
+    }
     this.reportUnexpected(
       `expected ${tokenName(tt)}, got ${tokenName(this.peek())}`,
     );
@@ -1734,10 +1745,32 @@ export class WastParser {
   }
 
   parseBindVarOpt(): string {
-    if (this.peek() === TokenType.Var) {
-      return this.varTokenText(this.consume() as StringToken);
-    }
-    return '';
+    const name = this.peek() === TokenType.Var
+      ? this.varTokenText(this.consume() as StringToken)
+      : '';
+    this.parseNameAnnotationOpt();
+    return name;
+  }
+
+  /** Is the next token `(@name`? */
+  private peekIsNameAnnotation(): boolean {
+    const t = this.peekToken();
+    return t.tokenType === TokenType.LparAnn && 'text' in t && t.text === 'name';
+  }
+
+  /**
+   * An optional `(@name "…")` — the name-section annotation, which belongs
+   * right after a BINDING id (or where one would be): a module, a field, a
+   * param, a local, a label. Anywhere else it is misplaced, and malformed
+   * (`custom/name_annot.wast`; wasmtk, 2026-09-28, item 4). Its value is a
+   * well-formed name and is NOT applied: annotations are optional to process,
+   * and upstream wabt ignores `@name` entirely.
+   */
+  private parseNameAnnotationOpt(): void {
+    if (!this.peekIsNameAnnotation()) return;
+    this.drop(); // `(@name`
+    if (this.parseQuotedText() === null) return;
+    this.expect(TokenType.Rpar);
   }
 
   /** Parse an optional `(type $name)` type annotation. Returns the var or null. */
@@ -1807,6 +1840,7 @@ export class WastParser {
     while (this.matchLpar(TokenType.Param)) {
       if (this.peek() === TokenType.Var) {
         const name = this.varTokenText(this.consume() as StringToken);
+        this.parseNameAnnotationOpt();
         const t = this.parseValueType();
         if (t === null) {
           this.expect(TokenType.Rpar);
@@ -1816,6 +1850,7 @@ export class WastParser {
         bindings.set(name, paramTypes.length);
         paramTypes.push(t);
       } else {
+        this.parseNameAnnotationOpt();
         while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
           const t = this.parseValueType();
           if (t === null) break;
@@ -2242,6 +2277,9 @@ export class WastParser {
     const module = makeModule();
     if (this.matchLpar(TokenType.Module)) {
       module.name = this.parseBindVarOpt();
+      if (this.peekIsNameAnnotation()) {
+        this.error(this.loc(), '@name annotation: multiple module');
+      }
       this.parseModuleFieldList(module);
       this.expect(TokenType.Rpar);
     } else if (this.peekIsModuleField()) {
@@ -2950,6 +2988,7 @@ export class WastParser {
         if (this.peek() === TokenType.Var) {
           const nameTok = this.consume() as StringToken;
           const localName = this.varTokenText(nameTok);
+          this.parseNameAnnotationOpt();
           const t = this.parseValueType();
           if (t !== null) {
             // `nameTok.text` includes the leading `$` to match the param
@@ -2961,6 +3000,7 @@ export class WastParser {
             declared.push({ type: t, name: localName });
           }
         } else {
+          this.parseNameAnnotationOpt();
           while (this.peek() !== TokenType.Rpar && this.peek() !== TokenType.Eof) {
             const t = this.parseValueType();
             if (t !== null) {
@@ -3562,8 +3602,45 @@ export class WastParser {
     if (this.peek() !== TokenType.Text) return this.expect(TokenType.Text);
     const data = decodeStringToken((this.consume() as StringToken).text);
     if (this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
-    pushStmt(ctx, { kind: 'code_metadata', name, data, loc: tok.loc });
+    // Two of one kind on one instruction: malformed (`custom/branch_hint.wast`;
+    // wasmtk, 2026-09-28, item 4). Nothing between them was committed, so the
+    // first is the last statement still.
+    const last = ctx.stmts.at(-1);
+    if (last?.kind === 'code_metadata' && last.name === name && ctx.stack.length === 0) {
+      this.error(
+        tok.loc,
+        `@${CUSTOM_SECTION_NAME_CODE_METADATA}${name} annotation: duplicate annotation`,
+      );
+      return Result.Error;
+    }
+    pushStmt(ctx, {
+      kind: 'code_metadata',
+      name,
+      data,
+      loc: tok.loc,
+      ...(this.nextInstrIsFolded() ? { onHead: true as const } : {}),
+    });
     return Result.Ok;
+  }
+
+  /**
+   * Is the instruction an annotation stands before FOLDED — `(if …)`, not
+   * `if`? Further code-metadata annotations on the same instruction are
+   * stepped over (three tokens each: `(@…`, the string, `)`).
+   */
+  private nextInstrIsFolded(): boolean {
+    let k = 0;
+    for (;;) {
+      const t = this.peekToken(k);
+      if (
+        t.tokenType !== TokenType.LparAnn || !('text' in t) ||
+        !t.text.startsWith(CUSTOM_SECTION_NAME_CODE_METADATA)
+      ) {
+        break;
+      }
+      k += 3;
+    }
+    return this.peek(k) === TokenType.Lpar && isInstr(this.peek(k), this.peek(k + 1));
   }
 
   /** Convenience: parse instructions into a flat expr array (flushes stack). */

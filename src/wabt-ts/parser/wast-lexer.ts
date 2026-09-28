@@ -975,6 +975,10 @@ export class WastLexer {
             // read as a module field. Anywhere else it is then an unexpected
             // token, as upstream wat2wasm and wasm-tools both treat it.
             if (this.matchAnnotationWord('custom')) return this.textToken(TokenType.LparAnn, 2);
+            // `(@name "…")` — the name-section annotation. Its PLACEMENT is
+            // checked (right after a binding id: a module, field, param, local
+            // or label); its value is not applied (wasmtk, 2026-09-28, item 4).
+            if (this.matchAnnotationWord('name')) return this.textToken(TokenType.LparAnn, 2);
             // `(@metadata.code.NAME "data")` — a code-metadata annotation on the
             // next instruction, which the parser builds as a `code_metadata`
             // node and the binary writer emits as a `metadata.code.NAME` section
