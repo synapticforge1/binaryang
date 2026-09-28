@@ -497,13 +497,10 @@ Deno.test('encodeWasm: a None-typed local throws instead of silently encoding as
   assertThrows(() => encodeWasm(mod), WasmEncodeError, 'cannot encode value type');
 });
 
-Deno.test('encodeWasm: multiple tables throw (element segments + call_indirect encode against table 0)', () => {
-  const mod = new ModuleBuilder()
-    .addTable('a', ValType.FuncRef, 1, null)
-    .addTable('b', ValType.FuncRef, 1, null)
-    .build();
-  assertThrows(() => encodeWasm(mod), WasmEncodeError, 'multiple tables');
-});
+// 🔧 A test here pinned that multiple tables THREW ("element segments and
+// call_indirect encode against table 0"). Both were fixed long before the guard
+// was lifted (W5, 2026-09-28); what several tables must do now is pinned in
+// `multi_table.test.ts`.
 
 // ---------------------------------------------------------------------------
 // An export kind the encoder does not know must not fall out of the switch.

@@ -646,7 +646,12 @@ class WasmEncoder {
   }
 
   encode(): Uint8Array {
-    this.checkSingleTable();
+    // 🔧 Multiple tables were REFUSED here (`checkSingleTable`, W5): element
+    // segments were written as kind 0 and the decoder read `call_indirect`
+    // against table 0. Both were fixed since — segments take flag 2 / 6 with
+    // their table, the decoder keeps the index, and every table instruction
+    // resolves its own — but the guard stayed, refusing 164 spec modules and
+    // every optimization of them.
     this.buildIndices();
     this.collectTypes();
 
@@ -1228,25 +1233,6 @@ class WasmEncoder {
     w.writeU64(offset);
   }
 
-  /**
-   * Fail loudly on multiple tables. Element segments are always encoded as
-   * kind-0 (implicit table 0) by `encodeElementSection`, and the binary parser
-   * decodes `call_indirect`/`return_call_indirect` against table 0 — so a
-   * segment or indirect call targeting a second table would be silently
-   * misencoded against table 0 (wrong dispatch / uninitialized table). Mirrors
-   * the memory guard that used to sit beside it. Remove once the element section and indirect-call
-   * encoders thread the real table index.
-   */
-  private checkSingleTable(): void {
-    const importedTables = this.mod.imports.filter((i) => i.kind === ExternalKind.Table).length;
-    if (importedTables + this.mod.tables.length > 1) {
-      throw new WasmEncodeError(
-        'multiple tables are not supported: element segments and call_indirect are ' +
-          'encoded against table index 0',
-      );
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Section encoders
   // ---------------------------------------------------------------------------
@@ -1795,14 +1781,9 @@ class WasmEncoder {
   }
 
   /**
-   * The index of a table, by name.
-   *
-   * ⚠️ Multiple tables are refused elsewhere in this encoder (element segments
-   * and `call_indirect` are written against table 0), so this resolves to 0 for
-   * the single table and fails loudly for a name that does not match it. It is
-   * written as a lookup rather than a hardcoded 0 so that lifting the
-   * single-table limit is a change in one place, and so a typo'd table name
-   * cannot quietly become table 0.
+   * The index of a table, by name — imported tables first, as the index space
+   * counts them — failing loudly for a name no table has, so a typo'd table
+   * name cannot quietly become table 0.
    */
   private tableRefIndex(v: Var): number {
     if (v.kind === 'index') return v.value;

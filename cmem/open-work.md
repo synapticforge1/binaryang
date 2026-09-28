@@ -33,7 +33,7 @@ merge `196a40c0c`), and then every defect a behaviour check surfaced, Q1–Q8 (m
 check that closed it: each spec module's own `action` / `assert_return` / `assert_trap` replayed
 against the original, a plain decode → encode, and -O1…-Oz on both routes. Result: the optimizer's
 output **behaves as its input on every spec module it accepts**, INVALID outputs **0** (was 9 on
-2026-09-20's `main`), and the one thing left is a loud refusal — multiple tables, W5. Full gate green
+2026-09-20's `main`), and multiple tables are no longer refused (item 5); what is left is relaxed SIMD on route A. Full gate green
 on `d91f0e6f3`, the last commit: fmt, lint, **1300 tests / 0 failed**, naming (no output),
 portability, baseline **IDENTICAL**, publish dry-run, operators, spec **no misses**, `direct`
 **544/544**, `direct-behaviour` **1953 calls / 651 exports**, `translate-eh` **70/70** in all three
@@ -41,7 +41,7 @@ worlds, optimize-corpus every level. Pick up here, in this order:
 
 1. ✅ **One front end stage 2 is DONE** — R15 merged 2026-09-28 (item 3 below), and every defect its
    behaviour check and a whole-testsuite behaviour check found is fixed (item 4). The optimizer's
-   output now behaves as its input on every spec module it accepts; what it refuses is W5 (item 5).
+   output now behaves as its input on every spec module it accepts; since item 5 it refuses only relaxed SIMD on route A (stage 3 closes it).
 2. **NOT the pipeline-convergence proposal** ("passes until the delta over the next two rounds averages
    under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
    practice once the open items are worked through. Do not start it — not even the measurement — while
@@ -257,14 +257,22 @@ per value) landed in `58fd43576`. Its items, as they closed:
    - Q8 RemoveUnusedModuleElements ignored constant-expression uses (the encoder refused).
    **After, `main` vs this** (29,190 optimizer outputs): INVALID **9 → 0**; refused 1,920 → 1,790;
    **0 corpus outputs changed**; behaviour now differs from the original NOWHERE except the
-   multiple-tables refusal (164 modules — W5, the encoder's gap, below). Rows:
+   multiple-tables refusal (164 modules — since fixed, item 5). Rows:
    [divergences.md](divergences.md) Q1–Q3 and the closed table (Q4–Q8).
    🔑 Two guards in the phantom fix exist because a first version broke `fac.0` on route A: a region's
    statements are not operands, and a bare `pop` statement is not a phantom. Either alone is
    harmless; together they took a loop body apart — the `fac-ssa` route-A fixture catches the pair.
-5. ⬚ **The multiple-tables refusal (W5) is now the only thing the optimizer does not handle in the
-   spec testsuite** — 164 modules refused, loudly: "element segments and call_indirect are encoded
-   against table index 0". The next section's candidate, for the owner to order.
+5. ✅ **DONE 2026-09-28: several tables (writer-inventory W5 in ir-convergence.md — not
+   divergences.md's W5, which is implicit type order).** binaryen-ts's encoder refused every module
+   with more than one table (`checkSingleTable`), though both reasons it gave had long been fixed:
+   segments take flag 2 / 6 with their table, the decoder keeps `call_indirect`'s index, and every
+   table instruction resolves its own. The guard is gone. Measured, `main` vs this: refused **1,790
+   → 40**, 175 spec modules now optimize, INVALID 0 → 0, **0 corpus outputs changed**, and the spec
+   behaviour differential shows **0 divergences on all 2,228 modules**. `multi_table.test.ts`
+   (every table-indexed form against a table that is not table 0, an imported table first; both
+   inversions — segments or `call_indirect` forced to table 0 — fail every variant). The 40 left are
+   all relaxed SIMD on route A (8 modules × 5 levels): binaryen-ts's DECODER refuses those opcodes
+   and the reader does not — it closes with stage 3.
 6. ⬚ **Make the spec behaviour check a task in the repo** (`deno task spec-behaviour` or similar),
    so what closed stage 2 keeps holding. It found eight defects in one run where every existing gate
    was green; it lived only in the scratchpad. What it did: for every spec `module` command with
@@ -273,7 +281,7 @@ per value) landed in `58fd43576`. Its items, as they closed:
    outcome — value by bits, or trap — against the same replay on a plain decode → encode and on
    -O1…-Oz, both routes. The original run in V8 is the oracle, so the manifests' `expected` values
    are not needed. Budget: ~2,228 modules × 16 variants, a few minutes. Expected result today: the
-   164 multiple-tables modules refused (W5), nothing else. Decide with the owner whether it joins
+   no divergence and 40 refused outputs, all relaxed SIMD on route A (after item 5). Decide with the owner whether it joins
    the gate (it needs the prepared spec corpus, as `deno task spec` does).
 - ⬚ **`Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
   after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
@@ -286,7 +294,7 @@ per value) landed in `58fd43576`. Its items, as they closed:
   | threw                   | 352               | 352              |
 
   The classes, largest first — only the second is Flatten emitting something WRONG; the rest refuse:
-  - 150 `multiple tables are not supported` — the ENCODER's gap (W5), not Flatten's; it is what the
+  - 150 `multiple tables are not supported` — the ENCODER's gap, not Flatten's (✅ lifted 2026-09-28, item 5); it is what the
     harness hit when writing the result out.
   - **132 `expected N elements on the stack for fallthru` — the silent one.** This is the class the
     `return` fixture is in: Flatten rebuilds a body whose fall-through arity it then contradicts.
@@ -351,8 +359,8 @@ reader + `prepareForPasses` — not the faithful tree alone.
 - ⬚ the fold writer and S7's prediction disagree on **6 of 26,454** functions, so a function whose
   written form equalled the prediction there would print differently. Worth a gate that pins "the
   fold writer's grouping IS the prediction" over the corpus — ir-convergence.md § "One front end".
-- ⬚ binaryen-ts's **encoder refuses every module with more than one table** (178 valid corpus
-  modules, which wabt-ts's writer handles); its **decoder refuses relaxed SIMD** (8 valid modules,
+- ⬚ ~~binaryen-ts's encoder refuses every module with more than one table~~ ✅ lifted 2026-09-28
+  (item 5); its **decoder refuses relaxed SIMD** (8 valid modules,
   which the reader reads). Both close when stages 3–4 keep one of each.
 - ✅ `names.2`: binaryen-ts's decode → encode gave a DUPLICATE empty export name — FIXED 2026-09-28
   (Q6): the decoder stripped a leading U+FEFF, so the "﻿" export became a second "".
@@ -604,10 +612,8 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   B4; `tests/binaryen-ts/parser/explicit_memory_index.test.ts` pins all five as refusals. wabt-ts's
   parser and both binary paths handle multi-memory. A capability gap in one front door, not a
   defect.
-- ⬚ **Multiple tables are refused at encode** (`checkSingleTable`, `wasm-encoder.ts` ~1151; elem and
-  `call_indirect` encode against table 0). A loud gap, not a silent one — the decoder already
-  resolves `call_indirect`'s table index. The day it is lifted, both encoders must thread the real
-  index.
+- ✅ **Multiple tables were refused at encode** — lifted 2026-09-28 (item 5 of the handoff above).
+  Both encoders already threaded the real index; the guard was all that was left.
 - ⬚ **`scripts/wabt-ts/engine-check.ts` self-tests only the reject direction** (~195–219: a
   known-INVALID module must be refused). No must-ACCEPT module guards an engine that refuses
   everything — the exact failure its Wasmer comment describes (`--enable-all` made every module read
