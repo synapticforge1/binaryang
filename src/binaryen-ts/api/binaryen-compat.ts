@@ -126,6 +126,10 @@ import {
 } from '../../wabt-ts/ir/ir.ts';
 import { Opcode } from '../../wabt-ts/core/opcode.ts';
 import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../wabt-ts/core/error.ts';
+import { allFeatures } from '../../wabt-ts/core/feature.ts';
+import { readBinaryIr } from '../../wabt-ts/reader/binary-reader.ts';
+import { validateModule } from '../../wabt-ts/validator/validator.ts';
 
 // ---------------------------------------------------------------------------
 // Pass registry
@@ -1498,12 +1502,32 @@ export class Module {
   }
 
   /**
-   * Validates the module. binaryen-ts's encoder is strict about structure, so
-   * this is currently a permissive stub — it returns `1` (upstream's "valid"
-   * sentinel) for any module that has been constructed via this API. Full
-   * structural validation lives in wabt-ts (`wasm-validate`).
+   * Validates the module: `1` when valid, `0` when not, as upstream's
+   * `BinaryenModuleValidate`, printing the reasons to stderr as upstream does.
+   * The module is written by the one writer and read back by the one reader
+   * into the wabt-ts validator, with every feature on (this class accepts the
+   * full feature set; see {@link features}). A module the writer cannot
+   * represent is invalid too.
+   *
+   * 🔧 This was a stub that returned `1` for ANY module: code ported from
+   * binaryen.js that rejects on `validate() === 0` got a silent pass (wasmtk,
+   * 2026-09-28, item 3).
    */
   validate(): number {
+    let bytes: Uint8Array;
+    try {
+      bytes = writeWasm(this._inner);
+    } catch (e) {
+      console.error(`[wasm-validator error] the module cannot be written: ${(e as Error).message}`);
+      return 0;
+    }
+    const errors = makeErrorList();
+    const read = readBinaryIr(bytes, errors, {});
+    if (!hasErrors(errors)) validateModule(read, errors, { features: allFeatures() });
+    if (hasErrors(errors)) {
+      console.error(`[wasm-validator error] ${formatErrors(errors)}`);
+      return 0;
+    }
     return 1;
   }
 

@@ -36,6 +36,7 @@ import type {
   DataDropExpr,
   DropExpr,
   ElemDropExpr,
+  Expr,
   ExternConvertExpr,
   Func,
   GlobalGetExpr,
@@ -1181,16 +1182,56 @@ class BodyWriter implements ExprVisitorDelegate {
     { funcIndex: number; entries: { offset: number; data: Uint8Array }[] }[]
   >();
 
+  /** Annotations waiting for their instruction's own opcode (see {@link onCodeMetadataExpr}). */
+  readonly pendingMetadata: { target: Expr; e: CodeMetadataExpr }[] = [];
+
   /**
-   * An annotation writes no instruction: it records where the NEXT one
-   * starts, relative to the body (upstream's offset, measured). 🔧 This was a
-   * no-op — `wat2wasm` dropped every hint without a word.
+   * An annotation writes no instruction: it records the offset of the
+   * instruction it annotates, relative to the body (after its size, so
+   * counting the locals — upstream's convention).
+   *
+   * Written before a LINEAR instruction, that is the first instruction written
+   * after the annotation — `local.get 0 (@…) if` annotates the `if`, as
+   * upstream writes it. Written before a FOLDED one ({@link
+   * CodeMetadataExpr.onHead}), it is that instruction's OWN opcode, which comes
+   * after its operands: `(@metadata.code.branch_hint "\01") (if (local.get 0)
+   * …)` annotates the `if`, the next item in the list (`target`). Either way
+   * the offset is taken when the right callback runs ({@link BinaryWriter}'s
+   * visitor calls {@link takePendingMetadata} before every callback).
+   *
+   * 🔧 A folded annotation was recorded at its own position — the first byte
+   * of the folded expression, its condition's `local.get`. Upstream wabt 1.0.41
+   * does the same; wasm-tools puts it on the `if` (measured 2026-09-28: offsets
+   * 3 / 7 where wabt wrote 1 / 5), and branch-hint validation, which now runs,
+   * rejects wabt's. Before that it was a no-op: `wat2wasm` dropped every hint.
    */
-  onCodeMetadataExpr(e: CodeMetadataExpr): Result {
-    const body = this.codeBody;
-    if (body === undefined) {
+  onCodeMetadataExpr(e: CodeMetadataExpr, target?: Expr): Result {
+    if (this.codeBody === undefined) {
       throw new Error(`binary writer: code_metadata "${e.name}" outside a function body`);
     }
+    if (target === undefined) this.recordMetadata(e); // nothing follows: here
+    else this.pendingMetadata.push({ target, e });
+    return Result.Ok;
+  }
+
+  /**
+   * Record every annotation waiting for `node`, at the current offset: a
+   * linear one at the FIRST callback after it (nothing was written in
+   * between), a folded one at its target's own.
+   */
+  takePendingMetadata(node: unknown): void {
+    if (this.pendingMetadata.length === 0) return;
+    for (let i = 0; i < this.pendingMetadata.length;) {
+      const p = this.pendingMetadata[i]!;
+      if (p.e.onHead !== true || p.target === node) {
+        this.recordMetadata(this.pendingMetadata[i]!.e);
+        this.pendingMetadata.splice(i, 1);
+      } else i++;
+    }
+  }
+
+  private recordMetadata(e: CodeMetadataExpr): void {
+    const body = this.codeBody!;
     let groups = this.codeMetadata.get(e.name);
     if (groups === undefined) this.codeMetadata.set(e.name, groups = []);
     let group = groups[groups.length - 1];
@@ -1198,8 +1239,25 @@ class BodyWriter implements ExprVisitorDelegate {
       groups.push(group = { funcIndex: body.funcIndex, entries: [] });
     }
     group.entries.push({ offset: this.s.offset - body.start, data: e.data });
-    return Result.Ok;
   }
+}
+
+/**
+ * `w` as the visitor's delegate, taking any code-metadata annotation that
+ * waits for a node when that node's FIRST callback runs — before it writes a
+ * byte of its own. Every callback, so no instruction kind can be missed.
+ */
+function withMetadataTargets(w: BodyWriter): ExprVisitorDelegate {
+  return new Proxy(w, {
+    get(target, prop, receiver) {
+      const v = Reflect.get(target, prop, receiver);
+      if (typeof v !== 'function' || prop === 'onCodeMetadataExpr') return v;
+      return (...args: unknown[]) => {
+        target.takePendingMetadata(args[0]);
+        return v.apply(target, args);
+      };
+    },
+  }) as ExprVisitorDelegate;
 }
 
 /**
@@ -1250,7 +1308,7 @@ class BinaryWriter {
     this.writeTextForm = writeTextForm;
     this.s = new MemoryStream(4096);
     this.bodyWriter = new BodyWriter(this.s, m.fidelity);
-    this.visitor = new ExprVisitor(this.bodyWriter);
+    this.visitor = new ExprVisitor(withMetadataTargets(this.bodyWriter));
   }
 
   // Emit a constant-expression sequence (init expr) followed by End.

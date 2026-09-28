@@ -123,8 +123,14 @@ const NAMES = `(module
     (@metadata.code.zzz "c")
     (block (@metadata.code.aaa "d") (br_if 0 (local.get 0))))
   (func $d (@metadata.code.aaa "e")))`;
+// ONE entry is not upstream wabt's: `(block (@metadata.code.aaa "d") (br_if 0
+// (local.get 0)))` annotates the FOLDED `br_if`, whose own opcode is at 5 — the
+// `local.get` it folds around comes first, at 3. Upstream wabt 1.0.41 writes 3
+// (the expression's first byte); wasm-tools writes 5 (measured 2026-09-28 on a
+// branch_hint of this shape), and branch-hint validation needs it. The `…0105…`
+// below was `…0103…` (divergence W16).
 const NAMES_LAYOUT = '1 3 "metadata.code.zzz"=02000201017a0301790201010163 ' +
-  '"metadata.code.aaa"=030002020361310203016202010301640301010165 ' +
+  '"metadata.code.aaa"=030002020361310203016202010501640301010165 ' +
   '"metadata.code.mmm"=0101010100 10';
 
 /**
@@ -140,7 +146,7 @@ const IMPORTS = `(module
     call $h))`;
 const IMPORTS_LAYOUT = '1 2 3 "metadata.code.inline"=01020107017f 10';
 
-Deno.test('wat2wasm writes each hint as upstream does', () => {
+Deno.test('wat2wasm writes each hint as upstream does (a folded one: as wasm-tools)', () => {
   assertEquals(layout(assemble(BRANCHES)), BRANCHES_LAYOUT);
   assertEquals(layout(assemble(NAMES)), NAMES_LAYOUT);
   assertEquals(layout(assemble(IMPORTS)), IMPORTS_LAYOUT);

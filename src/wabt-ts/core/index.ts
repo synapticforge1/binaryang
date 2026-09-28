@@ -20,3 +20,5 @@
 
 export * from './result.ts';
 export * from './error.ts';
+// The feature sets the validator and `wasmValidate` take (wasmtk, 2026-09-28).
+export * from './feature.ts';

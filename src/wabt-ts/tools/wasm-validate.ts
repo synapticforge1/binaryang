@@ -35,6 +35,9 @@ import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { validateModule } from '../validator/validator.ts';
 import type { ValidateOptions } from '../validator/shared-validator.ts';
+import { checkBranchHints } from '../validator/branch-hints.ts';
+import { countImports } from '../ir/ir.ts';
+import { ExternalKind } from '../core/binary.ts';
 import { defaultFeatures } from '../core/feature.ts';
 import type { Features } from '../core/feature.ts';
 import { combineResults, Result } from '../core/result.ts';
@@ -46,6 +49,13 @@ import process from 'node:process';
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
+
+// The feature sets `WasmValidateOptions.features` takes. 🔧 The option named
+// `allFeatures` and nothing exported it: a caller could pass only a feature set
+// it wrote by hand — the drift wasmtk refused to take on (their letter of
+// 2026-09-28, item 2). Also exported from `./core/wabt-ts`.
+export { allFeatures, defaultFeatures } from '../core/feature.ts';
+export type { Features } from '../core/feature.ts';
 
 /** Options for {@link wasmValidate}. */
 export interface WasmValidateOptions {
@@ -88,8 +98,15 @@ export function wasmValidate(
   const valOpts: ValidateOptions = {};
   if (opts.features !== undefined) valOpts.features = opts.features;
   const valResult = validateModule(module, errors, valOpts);
+  // Code metadata the reader keeps raw: a branch hint must point at a branch.
+  let hintResult = Result.Ok;
+  if (readResult === Result.Ok) {
+    const before = errors.length;
+    checkBranchHints(binary, countImports(module, ExternalKind.Func), errors);
+    if (errors.length > before) hintResult = Result.Error;
+  }
 
-  return { errors, result: combineResults(readResult, valResult) };
+  return { errors, result: combineResults(combineResults(readResult, valResult), hintResult) };
 }
 
 // ---------------------------------------------------------------------------

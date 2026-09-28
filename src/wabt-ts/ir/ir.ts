@@ -1689,6 +1689,13 @@ export interface CodeMetadataExpr {
   readonly kind: 'code_metadata';
   readonly name: string;
   readonly data: Uint8Array;
+  /**
+   * The annotation was written before a FOLDED instruction — `(@… ) (if (local.get
+   * 0) …)` — so it annotates that instruction's OWN opcode, which the binary
+   * writes after its operands. Absent: before a linear instruction, which is the
+   * first one written after it (`local.get 0 (@…) if` annotates the `if`).
+   */
+  readonly onHead?: true;
   readonly type?: ExprType;
   readonly loc?: Location;
 }
