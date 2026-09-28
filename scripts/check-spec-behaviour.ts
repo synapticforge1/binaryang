@@ -26,6 +26,7 @@
  */
 
 import type { Invoke, Row, SpecInput } from './spec-behaviour/differential.ts';
+import { needsWrapper, type Sig } from './spec-behaviour/v128.ts';
 
 /**
  * The modules our pipeline may refuse (some variant threw), pinned by NAME — a
@@ -90,6 +91,10 @@ function collect(root: string): SpecInput[] {
       const file = c.filename as string | undefined;
       if (c.type !== 'module' || !file?.endsWith('.wasm')) continue;
       const invokes: Invoke[] = [];
+      // Each export's signature as the manifest shows it: its arguments'
+      // types, and an `assert_return`'s expected types — borrowed by an
+      // invocation of the same export that shows no results (`assert_trap`).
+      const sigs = new Map<string, Sig>();
       for (const later of cmds.slice(i + 1)) {
         if (later.type === 'module') break;
         const a = later.action as
@@ -98,9 +103,22 @@ function collect(root: string): SpecInput[] {
         // An invocation of a NAMED module is another module's; skip it.
         if (a?.type !== 'invoke' || a.module !== undefined) continue;
         invokes.push({ line: later.line as number, field: a.field, args: a.args });
+        const expected = later.expected as { type: string }[] | undefined;
+        if (later.type === 'assert_return' && expected !== undefined && !sigs.has(a.field)) {
+          sigs.set(a.field, {
+            params: a.args.map((x) => x.type),
+            results: expected.map((x) => x.type),
+          });
+        }
       }
       if (invokes.length > 0) {
-        inputs.push({ name: `${d}/${file}`, path: `${root}/${d}/${file}`, invokes });
+        const v128 = [...sigs].filter(([, sig]) => needsWrapper(sig));
+        inputs.push({
+          name: `${d}/${file}`,
+          path: `${root}/${d}/${file}`,
+          invokes,
+          ...(v128.length > 0 ? { v128 } : {}),
+        });
       }
     }
   }
@@ -128,6 +146,8 @@ function drain(queue: SpecInput[]): Promise<SpecInput[]> {
           name: stuck.name,
           status: 'timeout',
           invocations: stuck.invokes.length,
+          v128: 0,
+          blind: 0,
           variants: 0,
           refused: [],
           detail: [`no result in ${BUDGET_MS / 1000}s — the original or a variant did not return`],
@@ -148,6 +168,8 @@ function drain(queue: SpecInput[]): Promise<SpecInput[]> {
         name: cur?.name ?? '<unknown>',
         status: 'DIVERGE',
         invocations: cur?.invokes.length ?? 0,
+        v128: 0,
+        blind: 0,
         variants: 0,
         refused: [],
         detail: [`worker error: ${ev.message}`],
@@ -189,6 +211,16 @@ console.log(
   `    invocations              ${
     String(invocations).padStart(6)
   }   (each replayed on every variant)`,
+);
+console.log(
+  `      of them through v128   ${
+    String(rows.reduce((n, r) => n + r.v128, 0)).padStart(6)
+  }   (each vector as two i64 lanes — spec-behaviour/v128.ts)`,
+);
+console.log(
+  `      blind                  ${
+    String(rows.reduce((n, r) => n + r.blind, 0)).padStart(6)
+  }   (the JS API could not make the call on the original: counted, not compared)`,
 );
 console.log(`    variants compared        ${String(compared).padStart(6)}`);
 console.log(
