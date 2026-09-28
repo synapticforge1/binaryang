@@ -33,8 +33,8 @@
  * @license MIT
  */
 
-import { assert, assertEquals, assertThrows } from '@std/assert';
-import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { assert, assertEquals } from '@std/assert';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type BreakExpr,
