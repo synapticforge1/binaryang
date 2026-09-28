@@ -37,6 +37,11 @@ import { buildCallResultTypes, FlattenPass } from '../../../src/binaryen-ts/pass
 import type { PassOptions } from '../../../src/binaryen-ts/passes/pass.ts';
 import { ModuleBuilder, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -379,6 +384,64 @@ Deno.test('Flatten: an `if` keeps its label, so a `br` to the `if` still resolve
        (local.get 0)))`,
     'f',
     [[0], [1]],
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Item 5 (2026-09-28): what `wasm-opt --flatten` did over 2,919 modules —
+// through the reader and the one writer, the route that survives the bump.
+// ---------------------------------------------------------------------------
+
+/** `wat` → wat2wasm → readForPasses → Flatten → writeWasm. */
+function flattenRouteB(wat: string): Uint8Array {
+  const r = wat2wasm(wat, { textForm: false });
+  assert(!hasErrors(r.errors), formatErrors(r.errors));
+  const m = readForPasses(r.binary);
+  new PassRunner(m, { optimizeLevel: 0, shrinkLevel: 0 }).add('Flatten').run();
+  return writeWasm(m);
+}
+
+const callF = (bytes: Uint8Array, ...args: number[]) =>
+  (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as (
+    ...a: number[]
+  ) => number)(...args);
+
+Deno.test('Flatten: a result-typed body that never falls through stays valid', () => {
+  // 🔧 A body ending in `return` was flattened as a VOID statement, and the
+  // function then ended on a void block: "expected 1 elements on the stack for
+  // fallthru" — 131 of 2,919 modules came out INVALID, silently. The shapes of
+  // `spec/comments/comments.4` (values left under a `return`) and
+  // `spec/memory_fill/memory_fill.3` (a loop, then `return`).
+  for (
+    const wat of [
+      `(module (func (export "f") (param i32) (result i32)
+        i32.const 1
+        local.get 0
+        i32.const 2
+        i32.add
+        return))`,
+      `(module (func (export "f") (param i32) (result i32)
+        (loop $l
+          (br_if $l (i32.lt_u (local.tee 0 (i32.add (local.get 0) (i32.const 1))) (i32.const 5))))
+        (return (local.get 0))))`,
+    ]
+  ) {
+    const out = flattenRouteB(wat);
+    assert(WebAssembly.validate(out as BufferSource), 'valid');
+    const original = wat2wasm(wat).binary;
+    for (const x of [0, 3, 9]) assertEquals(callF(out, x), callF(original, x), `f(${x})`);
+  }
+});
+
+Deno.test('Flatten: a multi-value body is refused by name, not a crash in the writer', () => {
+  // 🔧 A tuple temp was allocated — a local no value type can spell — and the
+  // one writer's resolver met it as "Cannot read properties of undefined" (47
+  // modules). `spec/array_new_data/array_new_data.2`'s shape.
+  assertThrows(
+    () =>
+      flattenRouteB('(module (func (export "f") (result i32 i32) (i32.const 1) (i32.const 2)))'),
+    Error,
+    'a 2-value result cannot be hoisted into a single local',
   );
 });
 
