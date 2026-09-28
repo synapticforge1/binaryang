@@ -161,7 +161,6 @@ import {
   type LiteralToken,
   LiteralType,
   type OpcodeToken,
-  type RefKindToken,
   type StringToken,
   type Token,
   TokenType,
@@ -1860,18 +1859,10 @@ export class WastParser {
       }
       return tok.valueType;
     }
-    if (tt === TokenType.Func) {
-      // func ref kind used as value type in some contexts
-      const tok = this.consume() as RefKindToken;
-      return tok.refType;
-    }
-    if (tt === TokenType.Extern) {
-      const tok = this.consume() as RefKindToken;
-      return tok.refType;
-    }
-    if (tt === TokenType.Ref) {
-      return this.parseRefType();
-    }
+    // 🔧 W7: a bare `func`, `extern` or `ref null? K` was taken for a value
+    // type — `(local ref i32)` compiled to an i32 local. No text format spells
+    // one that way (upstream: "unexpected token ref"; wasm-tools the same):
+    // a reference type is a `…ref` keyword or `(ref null? H)`, below.
     // GC typed-reference parenthesized form: `(ref $T)` or `(ref null $T)`.
     // `(ref H)` / `(ref null H)`. An ABSTRACT heap type collapses to its
     // matching nullable reference Type (one wire byte); a CONCRETE `$T` or
@@ -1895,40 +1886,6 @@ export class WastParser {
       return { heapType: ht, nullable };
     }
     this.error(this.loc(), `expected value type, got ${tokenName(tt)}`);
-    return null;
-  }
-
-  /** Parse a ref type: `ref null? funcref/externref/...` */
-  private parseRefType(): ValueType | null {
-    // consume 'ref'
-    this.drop();
-    // The flat `Type` enum can't carry nullability, so `(ref func)` and
-    // `(ref null func)` coarsen to the same code (the typed-ref-IR-loose
-    // limitation). Consume the optional `null` keyword either way — the old
-    // `isNull ? Type.FuncRef : Type.FuncRef` ternaries implied it was honored.
-    this.match(TokenType.Null);
-    const tt = this.peek();
-    if (tt === TokenType.Func) {
-      this.drop();
-      return Type.FuncRef;
-    }
-    if (tt === TokenType.Extern) {
-      this.drop();
-      return Type.ExternRef;
-    }
-    if (tt === TokenType.Exn) {
-      this.drop();
-      return Type.ExnRef;
-    }
-    if (tt === TokenType.ValueType) {
-      const tok = this.consume() as TypeToken;
-      if (!isValType(tok.valueType)) {
-        this.error(tok.loc, `expected ref kind, got ${typeName(tok.valueType)}`);
-        return null;
-      }
-      return tok.valueType;
-    }
-    this.error(this.loc(), 'expected ref kind');
     return null;
   }
 

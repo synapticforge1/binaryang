@@ -864,6 +864,8 @@ interface TCLabel {
   resultTypes: ValueType[];
   typeStackLimit: number;
   unreachable: boolean;
+  /** A legacy `try` whose `catch_all` has been seen: it is the LAST clause. */
+  caughtAll?: boolean;
 }
 
 function brTypes(label: TCLabel): ValueType[] {
@@ -1964,14 +1966,24 @@ export class TypeChecker {
     return r;
   }
 
-  onCatch(sig: ValueType[]): Result {
+  /**
+   * A legacy `catch` / `catch_all` clause. The grammar is `try … catch* catch_all? end`:
+   * nothing follows a `catch_all`. 🔧 A `catch` (or a second `catch_all`) after
+   * one validated clean, as it does in upstream wabt; V8 refuses it ("catch
+   * after catch-all") and so does wasm-tools.
+   */
+  onCatch(sig: ValueType[], isCatchAll = false): Result {
     const label = this.topLabel();
     if (!label) return Result.Error;
     let r = Result.Ok;
     if (label.labelType !== LabelType.Try && label.labelType !== LabelType.Catch) {
       this.printError('catch outside of try block');
       r = Result.Error;
+    } else if (label.caughtAll) {
+      this.printError(`${isCatchAll ? 'catch_all' : 'catch'} after catch_all`);
+      r = Result.Error;
     } else {
+      if (isCatchAll) label.caughtAll = true;
       r = combineResults(r, this.popAndCheckSignature(label.resultTypes, 'try block'));
       r = combineResults(r, this.checkTypeStackEnd('try block'));
       this.resetTypeStackToLabel(label);
