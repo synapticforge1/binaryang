@@ -49,9 +49,11 @@
 import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
+  type MinifyMap,
   optimizeToConvergence,
   type PassOptions,
   PassRunner,
+  takeMinifyMap,
 } from '../../src/binaryen-ts/passes/index.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { type Sig, v128Lanes, withV128Wrappers, wrapperName } from './v128.ts';
@@ -107,9 +109,16 @@ const LEVELS: [string, PassOptions['optimizeLevel'], PassOptions['shrinkLevel']]
   ['-Oz', 2, 2],
 ];
 
+/**
+ * A variant's bytes, and — for one that renamed the interface — the map the
+ * HOST applies: it supplies its imports under the new names and calls the
+ * exports by them.
+ */
+type Made = Uint8Array | { bytes: Uint8Array; map: MinifyMap };
+
 /** Every variant, built lazily so one that throws is refused alone. */
-function variants(bytes: Uint8Array): [string, () => Uint8Array][] {
-  const out: [string, () => Uint8Array][] = [];
+function variants(bytes: Uint8Array): [string, () => Made][] {
+  const out: [string, () => Made][] = [];
   out.push(['round trip', () => writeWasm(readForPasses(bytes))]);
   for (const [level, o, s] of LEVELS) {
     out.push([level, () => {
@@ -126,7 +135,30 @@ function variants(bytes: Uint8Array): [string, () => Uint8Array][] {
       { optimizeLevel: 2, shrinkLevel: 2 },
       (r) => r.addDefaultOptimizationPasses(),
     ).bytes]);
+  // `wasm-opt --minify-imports-and-exports-and-modules`, run THROUGH its map:
+  // every import and export renamed, every module `a`. The map is the
+  // contract, and this is its round trip (cmem/names.md § 1a).
+  out.push(['minify through its map', () => {
+    const m: WasmModule = readForPasses(bytes);
+    new PassRunner(m, {}).add('MinifyImportsAndExportsAndModules').run();
+    const map = takeMinifyMap(m);
+    if (map === undefined) throw new Error('the minify pass produced no map');
+    return { bytes: writeWasm(m), map };
+  }]);
   return out;
+}
+
+/** The names a host uses for `map`'s module: export old → new, import new → old. */
+function renaming(map: MinifyMap | undefined) {
+  const exports = new Map(map?.exports ?? []);
+  const imports = new Map(
+    (map?.imports ?? []).map(([m, f, n]) => [`${map!.module ?? m}\0${n}`, [m, f] as const]),
+  );
+  return {
+    exportName: (field: string) => exports.get(field) ?? field,
+    original: (module: string, field: string) =>
+      imports.get(`${module}\0${field}`) ?? [module, field] as const,
+  };
 }
 
 /** The testsuite's `spectest` module, as `spec/interpreter` defines it. */
@@ -149,13 +181,20 @@ function spectest(name: string): unknown {
   }
 }
 
-/** Inert stand-ins for every import — the same for the original and each variant. */
-function importsFor(mod: WebAssembly.Module): WebAssembly.Imports {
+/**
+ * Inert stand-ins for every import — the same for the original and each
+ * variant. A renamed import gets the stand-in of the name it had (`original`).
+ */
+function importsFor(
+  mod: WebAssembly.Module,
+  original: (module: string, field: string) => readonly [string, string] = (m, f) => [m, f],
+): WebAssembly.Imports {
   const out: Record<string, Record<string, unknown>> = {};
   for (const imp of WebAssembly.Module.imports(mod)) {
     const ns = (out[imp.module] ??= {});
-    if (imp.module === 'spectest') {
-      ns[imp.name] = spectest(imp.name);
+    const [was, wasName] = original(imp.module, imp.name);
+    if (was === 'spectest') {
+      ns[imp.name] = spectest(wasName);
       continue;
     }
     switch (imp.kind) {
@@ -222,22 +261,33 @@ function show(x: unknown): string {
  * its message: which trap an optimized module reaches first may legitimately
  * differ; that it traps, or overflows the stack, may not.
  */
-function outcomes(bytes: Uint8Array, invokes: Invoke[], v128: Map<string, Sig>): string[] {
+function outcomes(
+  bytes: Uint8Array,
+  invokes: Invoke[],
+  v128: Map<string, Sig>,
+  map?: MinifyMap,
+): string[] {
+  const { exportName, original } = renaming(map);
   let exports: WebAssembly.Exports;
   try {
     // The wrappers go onto the bytes as they are: the original's and each
-    // variant's alike, after the variant was made (`v128.ts`).
-    const mod = new WebAssembly.Module(withV128Wrappers(bytes, v128) as BufferSource);
-    exports = new WebAssembly.Instance(mod, importsFor(mod)).exports;
+    // variant's alike, after the variant was made (`v128.ts`) — keyed by the
+    // name each export has in THESE bytes.
+    const sigs = new Map([...v128].map(([field, sig]) => [exportName(field), sig]));
+    const mod = new WebAssembly.Module(withV128Wrappers(bytes, sigs) as BufferSource);
+    exports = new WebAssembly.Instance(mod, importsFor(mod, original)).exports;
   } catch (e) {
     const err = e as Error;
     const kind = err instanceof WebAssembly.CompileError ? 'INVALID' : 'instantiation fails';
-    return [`${kind}: ${err.message.replace(/@\+\d+/g, '')}`];
+    // An import is named in the message; a renamed one has other names, and the
+    // failure is the same one — so it is compared by its position alone.
+    const msg = err.message.replace(/@\+\d+/g, '').replace(/(Import #\d+) "[^"]*" "[^"]*"/g, '$1');
+    return [`${kind}: ${msg}`];
   }
   return invokes.map(({ line, field, args }) => {
     // Through its wrapper, where it has one: each vector as two i64 lanes.
-    const wrapped = exports[wrapperName(field)];
-    const f = typeof wrapped === 'function' ? wrapped : exports[field];
+    const wrapped = exports[wrapperName(exportName(field))];
+    const f = typeof wrapped === 'function' ? wrapped : exports[exportName(field)];
     if (typeof f !== 'function') return `${line} ${field}: not a function export`;
     const values = typeof wrapped === 'function'
       ? args.flatMap((a) => a.type === 'v128' ? v128Lanes(a) : [arg(a)])
@@ -267,15 +317,17 @@ export function check(input: SpecInput): Row {
     detail: [],
   };
   for (const [variant, make] of variants(bytes)) {
-    let out: Uint8Array;
+    let made: Made;
     try {
-      out = make();
+      made = make();
     } catch (e) {
       row.refused.push(`${variant}: ${(e as Error).message.split('\n')[0]!.slice(0, 100)}`);
       continue;
     }
     row.variants++;
-    const got = outcomes(out, input.invokes, v128);
+    const got = made instanceof Uint8Array
+      ? outcomes(made, input.invokes, v128)
+      : outcomes(made.bytes, input.invokes, v128, made.map);
     const k = want.findIndex((w, i) => got[i] !== w);
     if (k >= 0 || got.length !== want.length) {
       const at = k >= 0 ? k : Math.min(want.length, got.length);

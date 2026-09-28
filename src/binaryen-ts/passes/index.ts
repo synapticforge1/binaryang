@@ -33,6 +33,13 @@ export {
 export type { Pass, PassCtor, PassOptions } from './pass.ts';
 export { defaultConvergeOptions, optimizeToConvergence } from './converge.ts';
 export type { ConvergeOptions, ConvergeReport, ConvergeResult, ConvergeStop } from './converge.ts';
+export {
+  formatMinifyMap,
+  MINIFIED_MODULE,
+  minifyImportsAndExports,
+  takeMinifyMap,
+} from './minify-imports-and-exports.ts';
+export type { MinifyMap, MinifyOptions } from './minify-imports-and-exports.ts';
 
 // Side-effect imports: register all built-in passes.
 import './dce.ts';
@@ -50,3 +57,4 @@ import './strip-eh.ts';
 import './translate-eh.ts';
 import './flatten.ts';
 import './asyncify.ts';
+import './minify-imports-and-exports.ts';

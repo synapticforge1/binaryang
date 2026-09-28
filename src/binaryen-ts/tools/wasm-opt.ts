@@ -32,10 +32,13 @@ import { readWat } from './read-wat.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import {
   defaultPassOptions,
+  formatMinifyMap,
   listPasses,
+  type MinifyMap,
   optimizeToConvergence,
   PassRunner,
   shrinkPassOptions,
+  takeMinifyMap,
 } from '../passes/index.ts';
 import type { PassOptions } from '../passes/pass.ts';
 import { ModuleBuilder } from '../ir/module.ts';
@@ -101,6 +104,12 @@ export interface WasmOptOptions {
    * point. Default `false`. See {@link optimizeToConvergence}.
    */
   converge: boolean;
+  /**
+   * Receives the old → new map when a minify pass ran (`--minify-imports`,
+   * `--minify-imports-and-exports`, `…-and-modules`) — the names the HOST
+   * must apply. The CLI prints it to stdout, as upstream does.
+   */
+  onMinifyMap?: (map: MinifyMap) => void;
 }
 
 const defaults: WasmOptOptions = {
@@ -207,8 +216,16 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   // A failure is a DIAGNOSTIC, not a stack trace: nothing above this catches,
   // so an unparseable input surfaced as an uncaught exception.
   let result: Uint8Array | string;
+  // The minify map goes to stdout, as upstream prints it — to stderr when
+  // stdout carries the module itself (`-o -`).
+  const toStdout = (parsed.options.output ?? 'output.wasm') !== '-';
+  const onMinifyMap = (map: MinifyMap) => {
+    const text = formatMinifyMap(map);
+    if (toStdout) process.stdout.write(text);
+    else process.stderr.write(text);
+  };
   try {
-    result = await wasmOpt(parsed.input, parsed.options);
+    result = await wasmOpt(parsed.input, { ...parsed.options, onMinifyMap });
   } catch (e) {
     console.error(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
     process.exit(1);
@@ -274,11 +291,18 @@ function _nativeOptimize(
     }
   };
 
-  if (opts.converge) return optimizeToConvergence(module, passOpts, schedule).bytes;
-  const runner = new PassRunner(module, passOpts);
-  schedule(runner);
-  runner.run();
-  return writeWasm(module);
+  let bytes: Uint8Array;
+  if (opts.converge) {
+    bytes = optimizeToConvergence(module, passOpts, schedule).bytes;
+  } else {
+    const runner = new PassRunner(module, passOpts);
+    schedule(runner);
+    runner.run();
+    bytes = writeWasm(module);
+  }
+  const map = takeMinifyMap(module);
+  if (map !== undefined) opts.onMinifyMap?.(map);
+  return bytes;
 }
 
 // ---------------------------------------------------------------------------
