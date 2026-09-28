@@ -98,6 +98,26 @@ describe('T13 — a limits value is not truncated into range', () => {
     assert(/cannot encode module/.test(formatErrors(errors)), formatErrors(errors));
   });
 
+  it('says WHY first — the validator refuses what the writer cannot hold', () => {
+    // The limit is well-formed (it fits the u64 spelling) and INVALID; it was
+    // reported only as "u32 LEB128 out of range" (wasmtk, 2026-09-19). The
+    // validator's diagnostic — upstream's wording — now comes first. Not
+    // MALFORMED: `malformed_text.test.ts` pins that.
+    for (
+      const [src, why] of [
+        ['(module (memory 0x1_0000_0000))', 'initial pages (4294967296) must be <= (65536)'],
+        ['(module (memory 0 0x1_0000_0000))', 'max pages (4294967296) must be <= (65536)'],
+        [
+          '(module (table 0x1_0000_0000 funcref))',
+          'initial elems (4294967296) must be <= (4294967295)',
+        ],
+      ] as const
+    ) {
+      const { errors } = wat2wasm(src);
+      assert(errors[0]?.message.includes(why), `${src}\n${formatErrors(errors)}`);
+    }
+  });
+
   it('keeps the sizes that DO fit, exactly', () => {
     // The page bound (65536, or 2^48 for i64) is the validator's rule and is
     // unchanged; this is only about the field holding what the source wrote.

@@ -1514,7 +1514,7 @@ export class WastLexer {
     if (this.readNum()) {
       if (this.matchChar(0x2e)) { // '.'
         tt = TokenType.Float;
-        if (isDigit(this.peek()) && !this.readNum()) return this.getReservedToken();
+        this.readNum(); // the fraction's digits are optional: `1.` is a float
       }
       if (this.matchChar(0x65) || this.matchChar(0x45)) { // 'e' or 'E'
         tt = TokenType.Float;

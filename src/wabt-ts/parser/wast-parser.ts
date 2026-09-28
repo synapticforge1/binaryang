@@ -15,7 +15,12 @@ import type { Location, WabtError } from '../core/error.ts';
 import { addError, ErrorLevel, unknownLocation } from '../core/error.ts';
 import { Result } from '../core/result.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
-import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
+import {
+  decimalToBits,
+  decodeStringToken,
+  hexFloatToBits,
+  STRICT_NAME_DECODER,
+} from '../core/literal.ts';
 import { GcOpcode, naturalAlignForOpcode, Opcode, PREFIX_SIMD } from '../core/opcode.ts';
 import {
   heapTypeNameToType,
@@ -6471,185 +6476,6 @@ function f32ValueToBits(v: number): number {
 function f64ValueToBits(v: number): bigint {
   F64_VIEW.setFloat64(0, v, true);
   return F64_VIEW.getBigUint64(0, true);
-}
-
-// JavaScript's parseFloat() does NOT understand WAT hex-float notation
-// (`0x1.921fb54442d18p+2`): it parses the leading "0", stops at "x", and returns 0.
-// The `p` exponent is OPTIONAL in the WAT grammar:
-//   hexfloat ::= '0x' hexnum '.'? hexfrac? (('p'|'P') sign? num)?
-// Requiring it rejected every exponent-less hex float — `0x1.5` and the
-// `0x0123456789ABCDEF.` form (trailing dot, no fraction digits) that the SIMD
-// testsuite files use throughout.
-const HEX_FLOAT_PARSE_RE =
-  /^([+-]?)0[xX]([0-9a-fA-F]*)(?:\.([0-9a-fA-F]*))?(?:[pP]([+-]?[0-9]+))?$/;
-
-// Parse a WAT hex-float string directly to the IEEE-754 bit pattern of the
-// target format (`mantBits` fraction bits, `expBits` exponent bits), rounding
-// to nearest with ties to even.
-//
-// The earlier implementation reconstructed a JS `number` via
-// `(int + frac) * 2^exp` and then let `Math.fround` / the f64 store round it.
-// A JS double keeps only 52 fraction bits, so any mantissa bit past bit 52 of
-// the literal was silently dropped BEFORE the format rounding ran. A value
-// sitting just above an f32/f64 rounding midpoint (`0x1.00000100000000001p-50`)
-// therefore collapsed onto the midpoint and then rounded the wrong way (to
-// even, i.e. down) instead of up. This reconstructs the exact significand with
-// BigInt and carries a sticky bit over every discarded low bit, so the final
-// round-to-nearest-even sees the true value.
-function hexFloatToBits(s: string, mantBits: number, expBits: number): bigint | null {
-  const m = HEX_FLOAT_PARSE_RE.exec(s);
-  if (!m) return null;
-  const [, sign, intPart, fracPart, expStr] = m;
-
-  const signShift = BigInt(mantBits + expBits);
-  const signBit = (sign === '-' ? 1n : 0n) << signShift;
-  const bias = (1n << BigInt(expBits - 1)) - 1n;
-  const allOnesExp = (1n << BigInt(expBits)) - 1n;
-  const mantMask = (1n << BigInt(mantBits)) - 1n;
-
-  // Concatenate integer and fraction hex digits into one exact big integer.
-  // `mant` is that integer; its least-significant bit has binary weight
-  // 2^(exp - 4*fracLen).
-  const fracLen = fracPart?.length ?? 0;
-  const hexDigits = (intPart ?? '') + (fracPart ?? '');
-  // With the exponent optional the pattern would otherwise match `0x.`.
-  if (hexDigits.length === 0) return null;
-  const mant = hexDigits.length > 0 ? BigInt('0x' + hexDigits) : 0n;
-  // An absent `p` exponent means 2^0.
-  const lowExp = (expStr === undefined ? 0 : parseInt(expStr, 10)) - 4 * fracLen;
-
-  if (mant === 0n) return signBit; // signed zero
-
-  // Unbiased exponent of the leading (most-significant set) bit.
-  const msb = mant.toString(2).length - 1;
-  let biased = BigInt(msb + lowExp) + bias;
-
-  // Round `mant` (msb+1 significant bits) down to the target width, choosing
-  // the drop count so the result has (mantBits+1) significant bits for a
-  // normal number, or fewer for a subnormal.
-  const subnormal = biased <= 0n;
-  const dropBits = subnormal ? (1 - Number(bias) - mantBits) - lowExp : msb - mantBits;
-
-  let keep: bigint;
-  if (dropBits > 0) {
-    const d = BigInt(dropBits);
-    keep = mant >> d;
-    const roundBit = (mant >> (d - 1n)) & 1n;
-    const sticky = (mant & ((1n << (d - 1n)) - 1n)) !== 0n;
-    // Round half to even: round up on a set round bit only when the discarded
-    // remainder is nonzero (past the halfway point) or the kept LSB is odd.
-    if (roundBit === 1n && (sticky || (keep & 1n) === 1n)) keep += 1n;
-  } else {
-    keep = mant << BigInt(-dropBits);
-  }
-
-  if (subnormal) {
-    // `keep` counts subnormal ULPs. A round-up that reaches 2^mantBits carries
-    // cleanly into the exponent field, yielding the smallest normal — so the
-    // raw low bits ARE the exp+fraction encoding.
-    return signBit | keep;
-  }
-
-  // Rounding a normal can overflow the significand to (mantBits+2) bits
-  // (1.11…1 → 10.0…0); renormalize by bumping the exponent.
-  if (keep > (mantMask | (1n << BigInt(mantBits)))) {
-    keep >>= 1n;
-    biased += 1n;
-  }
-
-  if (biased >= allOnesExp) return signBit | (allOnesExp << BigInt(mantBits)); // overflow → inf
-
-  return signBit | (biased << BigInt(mantBits)) | (keep & mantMask);
-}
-
-const DEC_FLOAT_PARSE_RE = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/;
-
-// Compare the positive rational `num/den` against `2^e` (e may be negative)
-// without ever shifting a BigInt by a negative amount. Returns -1 / 0 / 1.
-function cmpRationalPow2(num: bigint, den: bigint, e: number): number {
-  let a = num;
-  let b = den;
-  if (e >= 0) b = den << BigInt(e);
-  else a = num << BigInt(-e);
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-// round(num/den * 2^s) with ties to even, for a positive rational and any
-// integer shift `s`.
-function roundScaledRational(num: bigint, den: bigint, s: number): bigint {
-  let n = num;
-  let d = den;
-  if (s >= 0) n = num << BigInt(s);
-  else d = den << BigInt(-s);
-  let q = n / d;
-  const twiceR = (n % d) * 2n;
-  if (twiceR > d) q += 1n;
-  else if (twiceR === d && (q & 1n) === 1n) q += 1n; // tie → even
-  return q;
-}
-
-// Parse a DECIMAL float string directly to the IEEE-754 bit pattern of the
-// target format, rounding to nearest with ties to even in a SINGLE step.
-//
-// `f32ValueToBits(parseFloat(text))` double-rounds: `parseFloat` first rounds
-// the decimal to an f64, then the store rounds that f64 to f32. Inputs crafted
-// to sit at an f32 midpoint (e.g. `8.8817847263968443574e-16`) round the wrong
-// way under double rounding — the intermediate f64 lands exactly on an f32
-// midpoint and ties-to-even sends it to a different neighbor than a correct
-// single rounding of the original decimal would. (f64 is unaffected: JS
-// `parseFloat` is a correctly-rounded decimal→f64, and storing that exact f64
-// adds no second rounding — so only the f32 path needs this.) This evaluates
-// the decimal as an exact BigInt rational `num/den` and rounds it once.
-function decimalToBits(s: string, mantBits: number, expBits: number): bigint | null {
-  const m = DEC_FLOAT_PARSE_RE.exec(s);
-  if (!m) return null;
-  const [, sign, intDigits, fracDigits, expStr] = m;
-
-  const signBit = (sign === '-' ? 1n : 0n) << BigInt(mantBits + expBits);
-  const bias = (1n << BigInt(expBits - 1)) - 1n;
-  const allOnesExp = (1n << BigInt(expBits)) - 1n;
-  const mantMask = (1n << BigInt(mantBits)) - 1n;
-
-  const digits = (intDigits ?? '') + (fracDigits ?? '');
-  if (digits.length === 0) return null; // not a number (e.g. bare exponent)
-  const d = BigInt(digits);
-  if (d === 0n) return signBit; // signed zero
-
-  // value = d * 10^powTen  =  num / den (positive).
-  const powTen = (expStr ? parseInt(expStr, 10) : 0) - (fracDigits?.length ?? 0);
-  let num = d;
-  let den = 1n;
-  if (powTen >= 0) num *= 10n ** BigInt(powTen);
-  else den = 10n ** BigInt(-powTen);
-
-  // e = floor(log2(value)). Seed from the bit-length difference (within 1 of
-  // the answer) then correct with exact comparisons.
-  let e = num.toString(2).length - den.toString(2).length;
-  while (cmpRationalPow2(num, den, e) < 0) e -= 1;
-  while (cmpRationalPow2(num, den, e + 1) >= 0) e += 1;
-
-  let biased = BigInt(e) + bias;
-
-  if (biased <= 0n) {
-    // Subnormal: round at the fixed subnormal grid (LSB weight
-    // 2^(1 - bias - mantBits)). A round-up to 2^mantBits carries cleanly into
-    // the exponent field, yielding the smallest normal.
-    const q = roundScaledRational(num, den, mantBits + Number(bias) - 1);
-    return signBit | q;
-  }
-
-  if (biased >= allOnesExp) return signBit | (allOnesExp << BigInt(mantBits)); // overflow → inf
-
-  // Normal: keep (mantBits+1) significant bits. Rounding can carry the
-  // significand to 2^(mantBits+1); renormalize by bumping the exponent.
-  let q = roundScaledRational(num, den, mantBits - e);
-  if (q > (mantMask | (1n << BigInt(mantBits)))) {
-    q >>= 1n;
-    biased += 1n;
-  }
-  if (biased >= allOnesExp) return signBit | (allOnesExp << BigInt(mantBits)); // rounded up → inf
-
-  return signBit | (biased << BigInt(mantBits)) | (q & mantMask);
 }
 
 /**

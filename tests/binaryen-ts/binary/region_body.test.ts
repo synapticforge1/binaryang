@@ -23,8 +23,13 @@
  *
  * Hence a matrix rather than four more one-off fixtures: every construct that
  * owns a region, with a body that falls through and a body that exits via `br`.
- * Three of these thirteen fail if `encodeRegionBody` is reverted to
+ * Three of these thirteen failed if `encodeRegionBody` was reverted to
  * `encodeExpr` at either site.
+ *
+ * That decoder and encoder are deleted (1.6.0). The IR has a `region` kind
+ * now, so nothing packs a body into a block to unpack; the matrix runs the
+ * one reader and the one writer (`readForPasses` → `writeWasm`), bare and at
+ * `-Oz`, and still pins that every region round-trips at its own depth.
  *
  * @license MIT
  */
@@ -148,9 +153,9 @@ const CASES: [name: string, body: number[], want: number][] = [
     7,
   ],
 
-  // `loop` and `try_table` containers are STAMPED with the declared result type
-  // by `sealFrame`, so they encode as correctly-typed blocks and are
-  // deliberately not unpacked. Pinned so that stays true.
+  // `loop` and `try_table` bodies with a declared result type. (They were
+  // STAMPED with it by the deleted decoder's `sealFrame`; the reader types
+  // them from the header now.) Pinned so a result-typed body still holds.
   [
     'loop i32, multi-instruction, brs to the enclosing block',
     [0x02, I32, 0x03, I32, NOP, ...C7, 0x0c, 0x01, END, END],

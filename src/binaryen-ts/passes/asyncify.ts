@@ -273,10 +273,11 @@ export function synthesizeRuntimeSupport(
     );
   }
 
-  // Multiple memories: loads/stores in this IR carry no memory index, so the pass
-  // can only ever target memory 0. Reject rather than silently instrumenting the
+  // Multiple memories: the loads/stores this pass BUILDS (its state and data
+  // accesses) target memory 0 — the IR carries a `memidx`, but the pass's
+  // builders do not set one. Reject rather than silently instrumenting the
   // wrong memory (upstream fatals unless asyncify-memory@name selects one — which
-  // this port does not yet thread through the load/store builders).
+  // this port does not yet thread through those builders).
   const memoryCount = memories.length;
   if (memoryCount > 1) {
     throw new Error(
@@ -549,12 +550,11 @@ export function analyzeModule(
   // Naming an import is a hard error (upstream: "use the imports list for imports");
   // a name matching nothing is a warning rather than a silent no-opcode.
   //
-  // LIMITATION: list entries are matched against the module's INTERNAL function
-  // names (`func.name`). For a binary-parsed module the reader currently discards
-  // the name section and assigns synthetic `$funcN` names, so real-symbol lists
-  // (`--asyncify-onlylist@main`) won't match and will warn here. Lists are fully
-  // functional against ModuleBuilder / named-WAT modules; wiring asyncify to
-  // binary-parsed input (not yet done in wasmtk) requires name-section retention.
+  // List entries are matched against the module's INTERNAL function names
+  // (`func.name`). A binary keeps them when it has a name section — the reader
+  // reads it (N1 P4) — so `--asyncify-onlylist@main` matches `$main`; a binary
+  // WITHOUT one (stripped, or `-Oz` output) has synthetic names only, and a
+  // real-symbol list warns here.
   const definedNames = new Set(module.functions.map((f) => f.name));
   const importFnNames = new Set(
     module.imports.filter((i) => i.kind === ExternalKind.Func).map((i) => i.func.name),

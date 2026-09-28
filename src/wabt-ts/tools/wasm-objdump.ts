@@ -278,7 +278,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   args = args.slice();
   const inputs: string[] = [];
   let details = false;
-  let headers = true;
+  let headers: boolean | undefined;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -290,9 +290,13 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       inputs.push(arg);
     }
   }
+  // Show what was asked for, as upstream does: `-d` alone is the details
+  // alone, `-h -d` both, and no flag the headers. (`headers` started `true`
+  // here, so `-h` re-set a default and could never mean anything.)
+  headers ??= !details;
 
   if (inputs.length === 0) {
-    console.error('usage: wasm-objdump [-d] <input.wasm> [...]');
+    console.error('usage: wasm-objdump [-h] [-d] <input.wasm> [...]');
     process.exit(1);
   }
 
