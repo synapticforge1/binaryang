@@ -2,10 +2,10 @@
 
 **`deno.json` reads 1.5.4 and is deliberately NOT bumped.** The version line arms a release
 ([publishing.md](publishing.md)), so the bump happens when the owner decides to ship, not while work
-runs. Everything below is merged to `main`, unpushed, and green as of 2026-09-19: **1265 tests / 0
-ignored, baseline IDENTICAL, spec 100% on four axes, `direct` 544/544 (the bridge's gates were
-deleted with it, 2026-09-18).** Re-derive
-before quoting.
+runs. Everything below is merged to `main`, unpushed, and green as of 2026-09-28 (`801979ed3`):
+**1,328 tests / 0 failed, baseline IDENTICAL, spec 100% on four axes, spec-behaviour 0 DIVERGE,
+`direct` 544/544.** Re-derive before quoting. The bump's own breaking change — `./binary` and
+`./encoder` unpublished — is in [open-work.md](open-work.md) § "Start the next session here".
 
 Gathered 2026-09-14 from `open-work.md` and from machine-local memory, where half of it was the only
 copy. ⚠️ **Several of these are API-VISIBLE changes to a PUBLISHED package** — the next version is
@@ -276,6 +276,21 @@ their own bump — and nothing breaks by their standing still.
 
 ## API-visible — wabt-ts and the tools
 
+- **`Tag.typeVar`** (2026-09-28, Q9) — which of several identical function types a tag has, like
+  `Func.typeVar`. Set by the reader and the parser; honoured by every writer and the validator.
+- **`wasm2wat` prints a tag's type use**: `(tag $e (type 2) (param i32 i32))`, as upstream
+  `wasm2wat` prints it (21 corpus texts moved; no bytes).
+- **`wat2wasm` accepts `(import "M" "t" (tag (type $t)))`** (W12) and writes
+  **`(@metadata.code.NAME "…")` as a `metadata.code.NAME` section** (W8), as upstream does with
+  `--enable-annotations --enable-code-metadata`.
+- **Refused now** (were accepted): a bare `ref …` / `func` / `extern` value type — `(local ref i32)`
+  compiled to an i32 local (W7); and, in the VALIDATOR, a `catch` or second `catch_all` after a
+  legacy `catch_all` (V8 refuses it; upstream wabt accepts it — divergences.md W13); a tag naming a
+  type that does not exist.
+- **`Module.toWat()` prints valid WAT** (K4) — it had its own serializer that printed numeric
+  opcodes; it is now the one WAT writer. **Hybrid mode** (`optimize(…, true)`, `wasm-opt --hybrid`)
+  works for the first time: four independent defects, one of them Windows text-mode stdio.
+
 - ⚠️ **BREAKING: the module's collections are `functions` / `elements` / `customSections`**
   (binaryen-ts's names; S6 step 5 item 6 (M7a)) — they were `funcs` / `elemSegments` / `customs`.
 - ⚠️ **BREAKING: `Module.numFuncImports` and its four siblings are gone** (S6 step 5 item 6 (M7b)).
@@ -404,6 +419,15 @@ their own bump — and nothing breaks by their standing still.
   modules larger.
 
 ## Correctness fixes that were silent before
+
+- **A tag named its type's first identical twin** (Q9): of `(rec (type $t1 (func)) (type $t2
+  (func)))`, a tag of type `$t2` was written as `$t1` — a different type — and `wat2wasm` added a
+  spare type beside it.
+- **`wasm-opt --flatten` emitted INVALID modules for 131 of 2,919 inputs**, silently (a result-typed
+  body ending in `return`), and crashed on 47 more (a multi-value body); now valid or refused by name,
+  and behaviour-preserving on the whole spec suite (2026-09-28).
+- **Code-metadata annotations vanished in `wat2wasm`** (W8); raw `metadata.code.*` sections now go
+  when a pass runs, since their offsets would be stale.
 
 - **The WAT parser's TREE for linear-form branches and indirect calls** (found by M8d, 2026-09-18).
   Visible to anyone reading `parseWatModule`'s tree, not in any bytes (wabt-ts outputs 0 of 2,888
@@ -569,6 +593,12 @@ six other `0xFC` ops; an element-segment stub had silently emptied every functio
 anonymous-function name collision turned `(call 1)` into infinite recursion.
 
 ## Not release-note material, but true of `main`
+
+- **`deno task release` type-checks cold** (a fresh `DENO_DIR`) before it commits or tags
+  (2026-09-28, `83e10a7ea`) — a stale local type cache used to be caught only by `publish.yml`,
+  after the tag was public.
+- **`deno task spec-behaviour` runs SIMD invocations** through v128 wrappers (24,151 were skipped
+  unseen) and counts what JS still cannot call (`blind`).
 
 - **The bridge is gone** (S6 step 5, M8e, 2026-09-18). `src/bridge` was internal (no `exports` subpath),
   so nothing published changes. `prepareForPasses` (`src/binaryen-ts/ir/prepare.ts`, also internal)

@@ -22,11 +22,47 @@ that history now lives in its topic files — nothing was dropped:
 | the predecessors' wings (T-ids, UP-n, WT-n, invariants → tests) | [wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md) |
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
-**State, 2026-09-28:** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`). `main` is
-ahead, unpushed and unbumped, at **1300 tests / 0 failed**, baseline IDENTICAL, spec 100% on four
-axes, `direct` 544/544 and `direct-behaviour` 1953 calls agreeing, one pack. Re-derive before quoting.
+**State, 2026-09-28 (late):** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`).
+`main` is ahead, unpushed and unbumped, at **1,328 tests / 0 failed**, baseline IDENTICAL, spec 100%
+on four axes, spec-behaviour 0 DIVERGE (57,808 invocations, 24,151 of them through v128), `direct`
+544/544, `direct-behaviour` 1953 calls agreeing. Re-derive before quoting.
 
-## Start the next session here (handoff, 2026-09-28 — ONE FRONT END stage 2 DONE; the optimizer behaves as its input across the spec testsuite)
+## 🚀 Start the next session here (handoff, 2026-09-28 late — PRE-BUMP ITEMS 1–6 DONE; next is THE BUMP)
+
+**Owner, 2026-09-28: "Lets work through items 1 through 6 then we will update the project memory
+files and bump and push."** Items 1–6 are merged (`801979ed3`), the gate green on the committed tree
+(every step exit 0). What remains, in order:
+
+1. ⬚ **The bump branch** — its content is fixed below under "Decided (owner, 2026-09-19): option
+   (a)" and the ➕ additions: unpublish `./binary` and `./encoder` from `deno.json` `exports`; delete
+   binaryen-ts's decoder (3b) and encoder (4b); move the ~80 test files on `parseWasm` and ~104 on
+   `encodeWasm`, and ~35 scripts, onto `readForPasses` / `writeWasm`; drop route A from
+   `spec-behaviour` (its `ROUTES`) and empty `REFUSED_BUDGET` (the 7 relaxed-SIMD pins are route A's);
+   README (the `parseWasm` example, the two entry-point rows) and CHANGELOG.
+2. ⬚ **The version number is the OWNER's to choose** — NOT a patch: the release removes two
+   published subpaths and [unreleased.md](unreleased.md) lists several BREAKING IR changes; the
+   repo's precedent for removed exports is a hand-typed MINOR ([publishing.md](publishing.md) §
+   "`bump` has no minor mode"), so 1.6.0 is the proposal. Ask before running `deno task bump`.
+3. ⬚ Then the release flow ([publishing.md](publishing.md) § "The flow"): merge unbumped, gate,
+   bump as its own commit, `deno task release` (it runs the cold type check first — item 1 below).
+
+### The pre-bump items (owner's list, all DONE 2026-09-28)
+
+| # | item | commit | result |
+| - | ---- | ------ | ------ |
+| 1 | the release script type-checks COLD (fresh `DENO_DIR`) before any git mutation | `83e10a7ea` | `publish_preflight_wiring.test.ts` |
+| 2 | K4 `toWat()` / hybrid mode; W8 code metadata | `8eb633a95`, `815a59244` | divergences.md K4, W8 |
+| 3 | validator: nothing after `catch_all` (W13); W7 bare `ref` | `cdbe4aaeb` | divergences.md W7, W13 |
+| 4 | Q9 a tag keeps its type; W12 tag imports name their type | `d5d059a45` | divergences.md Q9, W12; re-baselined (21 texts, no bytes) |
+| 5 | the Flatten decision: KEPT — never silently invalid now | `6107691db` | below, "Flatten" |
+| 6 | spec-behaviour runs SIMD (v128 wrappers) | `cd7071629` | [testing.md](testing.md) § "Not yet covered" |
+
+Every fix pinned by tests and inverted: 12 + 6 + 14 + 3 + 6 (+ 2 planted SIMD miscompiles) mutants,
+all caught — three only after a test was ADDED for them (W8's operand-stack hint writes the same
+bytes, so a tree-shape test; Q9's inline-tag intern, reached by no text; the encoder's defined-tag
+site, absent from the fixture).
+
+## Handoff before the pre-bump items (2026-09-28 — ONE FRONT END stage 2 DONE; the optimizer behaves as its input across the spec testsuite)
 
 **2026-09-28: stage 2 is COMPLETE** — its last item, R15 (block-parameter lowering as a tree pass,
 merge `196a40c0c`), and then every defect a behaviour check surfaced, Q1–Q8 (merge `a46dab48b`). The
@@ -182,7 +218,7 @@ unpublished at the next bump and not before (below). **Stage 4a is done too (202
 on a copy) — 14,595 of 14,595 outputs byte-identical to the encoder's, after two encoder defects
 (one SILENT: relaxed ternary SIMD written as `v128.bitselect`) and four in the wabt-ts path were
 fixed. 4b, deleting the encoder, goes with 3b into the bump. **Next: stage 5** (retire binaryen-ts's
-internal `parseWat`), and two defects stage 4 found — Q9, W12 below.
+internal `parseWat`). The two defects stage 4 found, Q9 and W12, are FIXED (pre-bump item 4).
 Stage 2 moved what
 binaryen-ts's decoder does FOR THE PASSES into `prepareForPasses`; its first piece (one stack entry
 per value) landed in `58fd43576`. Its items, as they closed:
@@ -287,10 +323,26 @@ per value) landed in `58fd43576`. Its items, as they closed:
    relaxed-SIMD modules (a by-name ratchet). Today: 1,342 modules, 57,808 invocations, 0
    divergences, ~6 s. Inverted twice (Q1 restored; the tables guard restored), each exit 1.
    Record: [testing.md](testing.md) § "Not yet covered" (now covered).
-   🗓️ **OWNER: should it join the gate?** It needs the prepared spec corpus, as `deno task spec`
-   does, so it would be a project step like `spec`, not a CI step. Recommended: yes — it is the one
-   check that sees a VALID module computing the wrong thing, and it costs seconds.
-- ⬚ **`Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
+   ✅ **In the gate (owner, 2026-09-28: "Yes")** — [working-rules.md](working-rules.md). Since
+   pre-bump item 6 it also RUNS the SIMD invocations it used to skip unseen (24,151).
+- ✅ **`Flatten` — DECIDED 2026-09-28 (pre-bump item 5, `6107691db`): KEPT, and it is now never
+  silently invalid.** Re-measured first over 2,919 modules, reader → one writer:
+
+  | outcome | before | after |
+  | ------- | ------ | ----- |
+  | valid | 2,609 | **2,740** |
+  | INVALID (silent) | 131 | **0** |
+  | threw | 179 (47 an internal crash) | 179, **each naming what is unsupported** |
+
+  The 131 were one defect: a result-typed function whose body never falls through (ends in
+  `return`) was flattened as a VOID statement, so the body ended on a void block — binaryen types
+  that block `unreachable` and its writer emits an `unreachable` after it; the tree now says so. The
+  47 crashes were a TUPLE temp (a multi-value block or body) meeting the writer's resolver; now
+  refused in `allocTemp`. Behaviour on the spec suite's own invocations (a one-variant copy of the
+  harness): 57,808 invocations over 1,283 compared modules, **0 DIVERGE**. What it still refuses is
+  open work, not a defect: value-carrying `br` / `br_if` / `br_table`, multi-value results, `try` /
+  `try_table` / `pop`, `br_on`. The record as scoped on 2026-09-20 follows.
+- **(history) `Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
   after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
   corpus + the spec testsuite), on both routes (`scratchpad/one/flatscope.ts`):
 
@@ -400,9 +452,9 @@ parser-leniency reports, both reproduced on `main` and FIXED (`d59816990`): limi
 check, and a legacy `try`'s clause structure was unchecked. Their runner had one catch around
 "assemble the module", so an ENCODER error satisfied an `assert_malformed`; splitting the stages
 flipped two assertions to skip. Left open by that report:
-- ⬚ **the validator accepts a `catch` after `catch_all`** in a legacy `try` (V8: "catch after
-  catch-all"). Upstream wabt parses that text too, so it is INVALID, not malformed — the parser is
-  right to accept it and our validator should reject it. Cheap, and it belongs with the EH checks.
+- ✅ ~~**the validator accepts a `catch` after `catch_all`**~~ — FIXED 2026-09-28 (pre-bump item 3,
+  `cdbe4aaeb`): refused by the type checker, a second `catch_all` too; divergences.md W13 (upstream
+  wabt accepts it, V8 and wasm-tools refuse it).
 - ⬚ **a limit that overflows its OWN index type fails in the writer, not the validator**:
   `(memory 0x1_0000_0000)` is well-formed (2^32 fits the u64 spelling) and invalid, but we report
   "cannot encode module: u32 LEB128 out of range" instead of a validation error. Same shape as the
@@ -420,7 +472,8 @@ flipped two assertions to skip. Left open by that report:
   than `funcref`** until the element model carries it — M3 left this deliberately
 - the text format has no spelling for where the `name` section sat (M2f); `wasm2wat` → `wat2wasm` puts it last
 - the WAT writer does not print an empty `(offset)` / `(item)` (M2a)
-- the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8**
+- ✅ ~~the raw `metadata.code.*` section's stale offsets after optimization (item 5 (6a)); **W8**~~
+  — FIXED 2026-09-28 (`815a59244`): an optimization run drops them; W8 closed with it
 - Asyncify refuses `call_ref` (K1)
 
 **Working method that keeps paying** (the rules in [working-rules.md](working-rules.md) /
@@ -478,8 +531,8 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   on by default, stripped by the optimizer — [ir-convergence.md](ir-convergence.md) § "S7".
 - ✅ **K1 — atomics and `call_ref` in binaryen-ts** — ported 2026-09-16 (S6 step 5 item 5 (5)).
   Left from it: Asyncify refuses `call_ref` (upstream instruments it as an indirect call).
-- ⬚ **W8 — wabt-ts drops `(@metadata.code.*)` text annotations** (DEFECT, silent). The `code_metadata`
-  node exists and nothing builds it; the binary section round-trips raw. wabt-ts-only (owner, K2).
+- ✅ **W8 — wabt-ts dropped `(@metadata.code.*)` text annotations** — FIXED 2026-09-28
+  (`815a59244`, pre-bump item 2); divergences.md W8.
 
 ### Follow-ups kept deliberately behaviour-neutral
 
@@ -614,22 +667,8 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
 
 ## Open defects and gaps
 
-- ⬚ **Q9 — a tag loses WHICH identical type it named**, and our `wat2wasm` gets it wrong outright:
-  `(rec (type $t1 (func)) (type $t2 (func))) (tag (import "M" "tag") (type $t2))` comes out with a
-  spare singleton `(func)` type and the tag pointing at `$t1` — a different type, so linking
-  against an exporter of a `$t2` tag can fail. `wasm-tools` keeps `$t2` and adds nothing. The fix
-  needs `Tag.typeVar` in the IR (the record has none): set by the parser and the reader, honoured by
-  both writers' `tagTypeIndex`. Found 2026-09-28 (stage 4); divergences.md Q9.
-- ⬚ **W12 — the WAT parser refuses `(import "M" "t" (tag (type $t)))`** (and `(tag $x (type $t))`),
-  which upstream `wat2wasm` and `wasm-tools` accept; inline params and the inline-import form parse.
-  Loud. Found 2026-09-28; divergences.md W12.
-- ⬚ **K4 — `Module.toWat()` prints invalid WAT** (public `./api`), and `optimize(…, hybridMode)`
-  feeds it to `wasm-opt` — [divergences.md](divergences.md).
-- ⬚ **`scripts/release/` runs no cold type check before the tag push**, so a stale type cache is
-  caught only by `publish.yml` after the tag is public — and it wants a fresh `DENO_DIR`, not
-  `--reload` ([binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/publishing.md`). Release tooling, so
-  the owner's call. (Its neighbour, the bump-then-release refusal, was fixed under owner decision 6
-  — [publishing.md](publishing.md) § "The flow".)
+- ✅ **Q9, W12, K4 and the release script's cold type check** — all FIXED 2026-09-28 as pre-bump
+  items 1, 2 and 4 (the table at the top of this file); rows in [divergences.md](divergences.md).
 - ⬚ **binaryen-ts's WAT parser has no multi-memory support** (measured 2026-09-15). An explicit
   memory index on `memory.size`/`grow`/`fill`/`copy` or a load/store is REFUSED — loud, not silent.
   `memory.size` was the silent exception (it ignored `$b` and asked memory 0) until S6 step 5 stage
