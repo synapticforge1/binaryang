@@ -427,6 +427,10 @@ their own bump — and nothing breaks by their standing still.
 
 ## After 1.6.0 (on `main`, unpushed)
 
+- **In 1.6.1 (a patch from `release/1.6.1`, cut from `v1.6.0`; ⬚ not yet released): the CLI runs
+  from JSR** — `.` is `main.ts`. CHANGELOG.md § 1.6.1 has the note. The next release after it
+  carries everything below.
+
 - **`wat2wasm` refuses `function` where `func` is meant** — `(module (function $f))`, an import
   or export of kind `function` (W14; upstream and wasm-tools refuse them too). A fix, and a
   behaviour change for anyone who relied on the leniency.

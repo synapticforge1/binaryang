@@ -868,7 +868,14 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   re-assemble to the first, WRONG BYTES silently — so it needs upstream's dedup rule first; (c) it
   moves the text of every corpus module with names (a text re-baseline, and a CHANGELOG line, like
   folded-by-default was).
-- ⬚ **The CLI is unreachable from JSR** (found 2026-09-28 fixing a stale comment): README's
+- ✅ FIXED 2026-09-28 — owner: "Option 1. 1.6.1. Release preflight" (`b5035ff5f` on
+  `release/1.6.1`, cut from `v1.6.0`; merged to `main` `9e911a5f2`, unbumped): `.` → `main.ts`,
+  whose dispatcher runs under `import.meta.main` and which re-exports `src/index.ts` (no library
+  import breaks — the root exported nothing); the tools' JSDoc name the root's form; release
+  preflight 0d (`scripts/release/entry-check.ts`) runs the root as a user does and refuses.
+  ⬚ **1.6.1 itself is NOT released** — see [publishing.md](publishing.md) § "1.6.1 — a patch
+  from a branch": `deno task release` pushes LOCAL `main`, which holds unreleased work. Was:
+  **The CLI is unreachable from JSR** (found 2026-09-28 fixing a stale comment): README's
   `deno run -A jsr:@jrmarcum/binaryang <command>` runs the `.` export, `src/index.ts`, which has no
   dispatcher — measured on the PUBLISHED 1.6.0: `--help` prints nothing and exits **0**, as does
   `wasm-validate /nonexistent.wasm`. The per-tool forms in the tools' JSDoc

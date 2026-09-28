@@ -462,6 +462,27 @@ bumped-and-published `deno.json` with no corresponding run under the `publish.ym
 The protection is **structural, not defensive**: `scripts/release/publish.ts` has no `deno publish`
 call site at all. It stages, commits, tags and pushes; the tag push is what publishes.
 
+## 1.6.1 — a patch from a branch (2026-09-28; ⬚ not released yet)
+
+Owner: the JSR CLI fix ships as **1.6.1**, and a patch carries the fix ALONE — `main` holds 26+
+unreleased commits (new passes, fixes) that belong to the next minor. So the fix was built on
+`release/1.6.1`, cut from the `v1.6.0` tag, gated there (all steps exit 0), and merged into `main`
+UNBUMPED.
+
+⚠️ **`deno task release` cannot ship it as it stands**: its last step is `git push origin main
+vX.Y.Z`, which pushes LOCAL `main` — the unreleased work — to origin. A tag publishes from any
+branch (`publish.yml` keys on `push: tags`), so the branch path is: on `release/1.6.1`, `deno task
+bump` (1.6.1 in `deno.json` AND `main.ts`), commit, run the preflight guards by hand (the cold
+`deno task check` in a fresh `DENO_DIR`, and `checkEntry`), `git tag v1.6.1`, push the TAG (and the
+branch). Then merge `release/1.6.1` into `main`: `main` reads 1.6.1, the tag exists, and auto-tag
+no-ops on the next push of `main`. Needs the owner's go — it is the irreversible step.
+
+**Release preflight 0d (new in this fix): `checkEntry`** — runs the `.` export as a user does:
+`--help`, `--version` (must print the version being released), `wasm-validate` on a valid and on
+a missing file (0 and 1: a no-op entry exits 0 both times), and an `import` that must run nothing.
+Through 1.6.0 no check ran the entry a user runs, which is how the CLI stayed unreachable from JSR
+for every published binaryang version.
+
 ## The flow
 
 ```sh
