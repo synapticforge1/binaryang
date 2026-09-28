@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.1
+
+A patch release: **the CLI runs from JSR.**
+
+- `deno run -A jsr:@jrmarcum/binaryang <command>`, as the README documents it, printed nothing and
+  exited 0 on every published version. The package root (`.`) was a module with no dispatcher. It is
+  `main.ts` now — the CLI — and it runs its dispatcher only as the program's entry, so importing the
+  root runs nothing. The root still exports nothing a library needs; every library subpath is
+  unchanged.
+- The tools' docs showed per-tool commands (`jsr:@jrmarcum/binaryang/wasm-validate …`) that also did
+  nothing. They show the root's form now: `deno run -A jsr:@jrmarcum/binaryang wasm-validate …`.
+- The release preflight now runs the package root as a user does — `--help`, `--version`, a
+  command, and an import — and refuses to release if it is not the CLI.
+
+It carries none of the work on `main` since 1.6.0 (new passes, fixes): that is the next release.
+It contains none of the items in wasmtk's letter of 2026-09-28.
+
 ## 1.6.0
 
 A minor release with **breaking changes**: the two IRs converged into one, and binaryen-ts's own

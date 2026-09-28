@@ -10,10 +10,10 @@
  * By default it strips ALL custom sections; pass `opts.sections` to restrict
  * to specific section names.
  *
- * CLI form (via `import.meta.main`):
+ * CLI form, through the package root's dispatcher (`main.ts`):
  *
  * ```sh
- * deno run -A jsr:@jrmarcum/binaryang/wasm-strip input.wasm -o stripped.wasm
+ * deno run -A jsr:@jrmarcum/binaryang wasm-strip input.wasm -o stripped.wasm
  * ```
  *
  * Library usage:

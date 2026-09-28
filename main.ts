@@ -1,48 +1,18 @@
 /**
- * @module binaryen-ts
- *
- * `binaryen-ts` — A TypeScript / WebAssembly port of the Binaryen compiler
- * infrastructure, designed for use with Deno and the
- * [wasmtk](https://jsr.io/@jrmarcum/wasmtk) ecosystem.
- *
- * ## What is binaryen-ts?
- *
- * [Binaryen](https://github.com/WebAssembly/binaryen) is the WebAssembly
- * compiler infrastructure behind `wasm-opt`, Emscripten, and `wasmtk`. This
- * project is a TypeScript rewrite and ergonomic wrapper that:
- *
- * - Provides a **TypeScript-native IR** (intermediate representation) for
- *   building and analyzing WASM modules with full type safety.
- * - Implements **optimization passes** in TypeScript, with performance-critical
- *   ones compiled to WASM via `wasic`.
- * - Runs in **hybrid mode** — delegating complex pass pipelines to the upstream
- *   `binaryen.js` WASM binary while exposing a native TypeScript API surface.
- * - Integrates natively with the `wasmtk` CLI for polyglot WASM development.
- *
- * ## Quick start
- *
- * ```ts
- * import { createModule, BinaryOp, ValType } from "@jrmarcum/binaryang/api";
- * import { writeFile } from "node:fs/promises";
- *
- * const mod = createModule((b, e) => {
- *   b.addFunction("add", [ValType.I32, ValType.I32], [ValType.I32],
- *     e.return(e.binary(BinaryOp.AddI32, e.localGet(0), e.localGet(1)))
- *   );
- *   b.addExport("add", "add");
- * });
- *
- * const wasm = await mod.optimize("-Oz", true); // hybrid mode via wasm-opt
- * await writeFile("add.wasm", wasm);
- * ```
+ * @module
+ * binaryang — the merged WebAssembly toolchain: a TypeScript port of Binaryen
+ * and of WABT in one package, replacing `@jrmarcum/binaryen-ts` and
+ * `@jrmarcum/wabt-ts`. This root is the CLI; the libraries are its subpaths.
  *
  * ## CLI
  *
- * Runs on Deno, Node 22.18+, and Bun 1.4+. Examples:
+ * Runs on Deno, Node 22.18+, and Bun 1.4+:
  *
  * ```sh
- * # Deno (no install — runs directly from JSR)
- * deno run -A jsr:@jrmarcum/binaryang wasm-opt input.wasm -o out.wasm -Oz
+ * # Deno — no install, straight from JSR
+ * deno run -A jsr:@jrmarcum/binaryang --help
+ * deno run -A jsr:@jrmarcum/binaryang wat2wasm add.wat -o add.wasm
+ * deno run -A jsr:@jrmarcum/binaryang wasm-opt add.wasm -o add.min.wasm -Oz
  *
  * # Node (after `npx jsr add @jrmarcum/binaryang`)
  * node --experimental-transform-types node_modules/@jrmarcum/binaryang/main.ts wasm-opt input.wasm
@@ -51,32 +21,29 @@
  * bun node_modules/@jrmarcum/binaryang/main.ts wasm-opt input.wasm
  * ```
  *
- * Node needs `--experimental-transform-types`, NOT `--experimental-strip-types`.
- * Strip-only mode erases types without generating code, so it rejects both
- * TypeScript `enum` (33 of them here, including the opcode tables) and parameter
- * properties. The predecessor projects documented the strip flag and their CLI
- * therefore never ran on Node at all — verified against binaryen-ts 1.5.0.
+ * Node needs `--experimental-transform-types`, NOT `--experimental-strip-types`:
+ * strip-only mode rejects TypeScript `enum` (the opcode tables) and parameter
+ * properties.
  *
- * ## Architecture
+ * The dispatcher runs only when this module is the program's entry
+ * (`import.meta.main` — the reason Node's floor is 22.18). 🔧 Until 1.6.1 the
+ * root was `src/index.ts`, which has no dispatcher, so the command above
+ * printed nothing and exited 0; and this file ran its dispatcher on IMPORT.
  *
- * ```
- * binaryang/
- * ├── main.ts                     this CLI entry: `binaryang <tool>`
- * ├── src/binaryen-ts/
- * │   ├── ir/                     IR types and module builder   (@jrmarcum/binaryang/ir/binaryen-ts)
- * │   ├── passes/                 optimization pass registry    (@jrmarcum/binaryang/passes)
- * │   ├── api/                    high-level API + compat facade (@jrmarcum/binaryang/api, /compat/binaryen)
- * │   ├── interop/                upstream binaryen.js bridge   (@jrmarcum/binaryang/interop)
- * │   └── tools/                  wasm-opt                      (@jrmarcum/binaryang/tools/wasm-opt)
- * ├── src/wabt-ts/
- * │   ├── ir/ core/               IR and core vocabulary        (@jrmarcum/binaryang/ir/wabt-ts, /core/wabt-ts)
- * │   ├── api/                    compat facade                 (@jrmarcum/binaryang/compat/wabt)
- * │   └── tools/                  wat2wasm, wasm2wat, wasm-validate, wasm-objdump, wasm-strip, wasm2ts
- * └── src/cli/                    shared cross-runtime CLI helpers
+ * ## The libraries
  *
- * Upstream C++ is cited by its upstream path (`WebAssembly/binaryen/src/…`, `WebAssembly/wabt`);
- * it is not part of this repository.
- * ```
+ * | subpath | what |
+ * | ------- | ---- |
+ * | `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` | the two IRs, each explicitly named |
+ * | `./compat/binaryen`, `./compat/wabt` | the two upstream API shapes |
+ * | `./api`, `./passes`, `./wasm`, `./interop` | the Binaryen side: building, optimizing |
+ * | `./wat2wasm`, `./wasm2wat`, `./wasm-validate`, `./wasm-objdump`, `./wasm-strip`, `./tools/wasm-opt` | each tool as a library function (`wat2wasm(text)`, …) |
+ *
+ * The root itself exports only what both halves genuinely share — today
+ * nothing (`src/index.ts`, re-exported below, says why).
+ *
+ * Upstream C++ is cited by its upstream path (`WebAssembly/binaryen/src/…`,
+ * `WebAssembly/wabt`); it is not part of this repository.
  *
  * @license MIT
  */
@@ -89,6 +56,8 @@ import { main as wasmValidateMain } from './src/wabt-ts/tools/wasm-validate.ts';
 import { main as wasmObjdumpMain } from './src/wabt-ts/tools/wasm-objdump.ts';
 import { main as wasmStripMain } from './src/wabt-ts/tools/wasm-strip.ts';
 import { main as wasm2tsMain } from './src/wabt-ts/tools/wasm2ts.ts';
+
+export * from './src/index.ts';
 
 // ---------------------------------------------------------------------------
 // CLI dispatch
@@ -190,4 +159,6 @@ DOCS:
 `);
 }
 
-await main();
+// Only as the program's entry: an `import` of the package root must not run
+// the CLI (it would read the importer's argv and could `process.exit`).
+if (import.meta.main) await main();

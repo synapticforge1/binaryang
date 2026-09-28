@@ -9,7 +9,7 @@
  * On decode error the text is empty and `result === Result.Error`; the
  * decoder accumulates errors rather than throwing.
  *
- * CLI form (via `import.meta.main`):
+ * CLI form, through the package root's dispatcher (`main.ts`):
  *
  * ```sh
  * deno run -A jsr:@jrmarcum/binaryang wasm2wat input.wasm > output.wat

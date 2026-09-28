@@ -4,7 +4,7 @@
   "license": "MIT",
   "minimumDependencyAge": "0",
   "exports": {
-    ".": "./src/index.ts",
+    ".": "./main.ts",
     "./ir/binaryen-ts": "./src/binaryen-ts/ir/index.ts",
     "./ir/wabt-ts": "./src/wabt-ts/ir/index.ts",
     "./core/wabt-ts": "./src/wabt-ts/core/index.ts",

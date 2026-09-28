@@ -34,6 +34,7 @@
 
 import { readCurrentVersion } from './version.ts';
 import { RELEASE_FILES, releaseBlockers } from './release-guard.ts';
+import { checkEntry } from './entry-check.ts';
 
 async function run(cmd: string[]): Promise<void> {
   console.log(`$ ${cmd.join(' ')}`);
@@ -141,6 +142,20 @@ try {
   }
 } finally {
   await Deno.remove(coldDir, { recursive: true }).catch(() => {});
+}
+
+// 0d. GUARD: the published ROOT is the CLI, run as a user runs it.
+//
+// Through 1.6.0 the root was a module with no dispatcher: the README's
+// `deno run -A jsr:@jrmarcum/binaryang <command>` printed nothing and exited 0
+// on every published version, and no check ran the entry a user runs
+// (`entry-check.ts` has the record).
+console.log('$ checkEntry — the `.` export: --help, --version, a command, an import');
+const entryProblems = await checkEntry(Deno.cwd());
+if (entryProblems.length > 0) {
+  console.error(`\nRefusing to release ${tag}: the package root is not a working CLI.`);
+  for (const p of entryProblems) console.error(`  ${p}`);
+  Deno.exit(1);
 }
 
 // 1. Stage the bump -- RELEASE_FILES, the only files a release touches. Not
