@@ -345,6 +345,12 @@ spec` among them, harmlessly) and the file lost those words. Caught by reading t
 reverted with `git checkout`, redone from a script file. A probe that only READS may be inline;
 anything that WRITES is a file.
 
+⚠️ **`deno fmt` is for what `fmt.include` names — never `cmem/`** (2026-09-28): `deno fmt` given
+three cmem paths by name reflowed them whole (815 lines in, 714 out), burying a 76-line edit. The
+gate's `fmt --check` never looks at cmem/, so nothing would have caught it; the diff's size did.
+Undone WITHOUT discarding work: the formatted copies backed up first, the files written back from
+`HEAD`, the edits re-applied. Check `git diff --stat` after any tool that writes docs.
+
 ⚠️ **Two different silent failures in one session came from editing docs by script:** the eaten
 backslash, and a string-replace that silently matched nothing because `deno fmt` had reflowed the
 target paragraph between reading and writing. **Both were caught by re-reading the file, never by

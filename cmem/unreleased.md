@@ -430,6 +430,11 @@ their own bump — and nothing breaks by their standing still.
 - **`wat2wasm` refuses `function` where `func` is meant** — `(module (function $f))`, an import
   or export of kind `function` (W14; upstream and wasm-tools refuse them too). A fix, and a
   behaviour change for anyone who relied on the leniency.
+- **`Flatten` (`wasm-opt --flatten`, `add('Flatten')`) takes value-carrying `br` / `br_if` /
+  `br_table`** (merge `51be28b2e`), which it refused. Fixed with it, each silent before: an `if` arm
+  of one `unreachable` lost its trap (the output returned instead); a block whose value sits under
+  trailing void statements came out INVALID; a stack value a later instruction takes was discarded.
+  What it still refuses, it refuses by name (open-work.md § Flatten).
 - Not release-note material: binaryen-ts's internal WAT parser is deleted (One front end stage 5);
   it had no public path.
 

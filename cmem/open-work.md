@@ -45,7 +45,7 @@ the ⬚ markers in this file — 29 on 2026-09-28**, by area:
 
 | area | where below | owner's order (2026-09-28) |
 | ---- | ----------- | -------------------------- |
-| the pipeline-convergence proposal; the names data-type list; Flatten's unsupported constructs | "Handoff before the pre-bump items" items 2 and 4; § Flatten | **first** |
+| the pipeline-convergence proposal; the names data-type list; Flatten's unsupported constructs | "Handoff before the pre-bump items" items 2 and 4; § Flatten | **first** — ✅ worked 2026-09-28: convergence MEASURED (owner decides), names § 1a written, Flatten's value branches merged (`51be28b2e`); what is left of each is below, marked |
 | defects and gaps (≈10) | § "Open defects and gaps", and the found-not-fixed items under "Handoff before…" | **second** |
 | optimizer and IR (≈10) | § "IR convergence — next steps" | then re-evaluate |
 | conformance (2), quality passes 1.5.6 / 1.5.7, repo work (3), wasmtk thread (2) | their sections | then re-evaluate |
@@ -116,6 +116,15 @@ worlds, optimize-corpus every level. Pick up here, in this order:
    under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
    practice once the open items are worked through. Do not start it — not even the measurement — while
    anything above it is open.
+   ✅ **MEASURED 2026-09-28** (owner: "start on the 3"; `scratchpad/converge.ts`, re-derive before
+   quoting): the whole `-Oz` pipeline repeated over 2,919 modules (corpus + spec). Round 1 →
+   1,266,410 bytes; round 2 saves **0.012%** (20 modules shrink), round 3 **0.002%** (3), round 4
+   ≈ 0 (1). **No round grew any module**, so "the delta over the next TWO rounds" and "the next
+   round" stop at the same place. The largest single gain is 24 bytes (`simd_const.387`, 11%), and
+   every gain is on a spec module — none of the 421 corpus modules moved.
+   ⬚ **Recommendation, for the owner to decide: do not build it.** Its whole prize is ~150 bytes over
+   the suite; the `-Oz` COVERAGE gap below (missing passes, 60.3 KB) is ~400× larger. If wanted
+   anyway, upstream's shape is an opt-in `--converge` flag, not a change to `-O`.
 3. The `-Oz` size record is fresh and complete: [names.md](names.md) §§ "Names under optimization,
    priced" and "Does optimization RENAME things to shrink them?". Do not re-measure it; four new
    items in this file's optimizer list draw on it.
@@ -123,6 +132,11 @@ worlds, optimize-corpus every level. Pick up here, in this order:
    carry names, with what would need renaming and what references each, then discuss how to minify
    without creating errors — upstream's way or a better-for-size way, measured either way. Scoped in the
    optimizer list below, under the `MinifyImportsAndExports` item; start from [names.md](names.md) § 1.
+   ✅ **The list is written, 2026-09-28: [names.md](names.md) § 1a.** Measured: the twelve
+   name-section kinds cost **0** bytes at `-Oz`; the whole prize is the INTERFACE (export names,
+   import fields, import modules) — a ceiling of **29,668 bytes, 3.24%** of the corpus' `-Oz`
+   output — and its error surface is the host, outside every gate. ⬚ The DISCUSSION (upstream's
+   opt-in map, or better) is the owner's; the numbers are in § 1a.
 5. ⚠️ **Unfinished measurement**: `scratchpad/names/types.ts` (Type-section bytes, ours vs upstream)
    was still running when the session ended and its number was never read. Re-run it — the scratchpad
    is session-scoped and will be gone.
@@ -376,6 +390,32 @@ per value) landed in `58fd43576`. Its items, as they closed:
   harness): 57,808 invocations over 1,283 compared modules, **0 DIVERGE**. What it still refuses is
   open work, not a defect: value-carrying `br` / `br_if` / `br_table`, multi-value results, `try` /
   `try_table` / `pop`, `br_on`. The record as scoped on 2026-09-20 follows.
+- ✅ **`Flatten` takes value-carrying `br` / `br_if` / `br_table` (2026-09-28, `4421bf62a`, merged
+  `51be28b2e`)** — upstream's shape: the value into the target's result temp, the branch without it;
+  to the function frame, a `return`. Over 2,919 modules: **2,754 valid** (was 2,740), **0 invalid**;
+  spec behaviour of Flatten alone **0 DIVERGE** over 1,299 variants; 12 mutants, all caught. Three
+  latent defects surfaced once those modules got further, each fixed and pinned: a block's value
+  under trailing void statements (`local.set $tmp (nop)`, INVALID — `spec/nop/nop.0`); a value left
+  on the stack for a later instruction silently DISCARDED; an arm of one `unreachable` losing its
+  trap (`spec/unreachable` "as-if-then" returned 0). And one found by probing, in no corpus module: a
+  value-less `br` to a result block (stack form) read as a trap that discards the value — VALID
+  output returning 0. What it still refuses, by name:
+
+  | count | refusal | upstream `--flatten` |
+  | ----- | ------- | -------------------- |
+  | 129 | multi-value (a block, body or call with N results) | handles it (tuple locals) |
+  | 11 | `br_on_*` | **refuses too** ("Unsupported instruction for Flatten: BrOn") |
+  | 10 | a value left on the stack for a later instruction (stack-form code the reader keeps) | has no such IR |
+  | 9 | `try_table` | **refuses too** (crash, "unexpected expr type") |
+  | 4 | `pop` (legacy `try` / `catch`) | handles it |
+  | 2 | a value `br_table` to the function frame | handles it |
+
+  - ⬚ **multi-value (129)** needs an owner DESIGN decision first: this IR has no tuple kind (V1, S6
+    6A), so a temp that holds N values is N locals — a change to what Flatten's `{pre, value}` means.
+  - ⬚ legacy `try` / `pop` (4) — upstream handles it; the next Flatten step if it is wanted.
+  - ⬚ stack-form values (10) and frame `br_table` (2) — conservative refusals; the first needs the
+    reader's stack-form values spilled the way `pop`s are.
+  - `try_table` and `br_on` — parity with upstream, which refuses both: not open.
 - **(history) `Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
   after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
   corpus + the spec testsuite), on both routes (`scratchpad/one/flatscope.ts`):

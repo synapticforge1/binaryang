@@ -41,6 +41,36 @@ acceptance), and the scope's first estimate of "~43,000" was 63,930.
 |  10 | field    | 0 (GC only)                                                | `Field.name`                                           | `explicitNames.fields`, by `TypeDef`     |
 |  11 | tag      | 21 (21)                                                    | `Tag.name`                                             | `WasmTag.name`                           |
 
+⚠️ The two IR columns above are the pre-merge picture (2026-09-11). There is ONE IR now, and the
+local names live in `Func.locals` (every slot, params first, each with its name — M6c), not
+`Func.localNames`.
+
+### 1a. The data types that carry a name — what a minifier would face (owner's list, 2026-09-28)
+
+Asked for by the owner (2026-09-19) as the prerequisite to any minification: every kind of thing
+that carries a name, whether that name costs BYTES, what REFERENCES it (what must move in
+lock-step), and what would PROVE a rename broke nothing. Measured, not assumed:
+
+| name | bytes in a `-Oz` module? | referenced by (must move with it) | a rename is proven by |
+| ---- | ------------------------ | --------------------------------- | --------------------- |
+| the twelve name-section kinds above (module, function, local, label, type, table, memory, global, elem, data, field, tag) | **none** — every reference in a binary is an INDEX; the names live in the `name` section, which `-Oz` does not write (0 of 421) | inside the module only: the entity's `name`, `explicitNames` (which names are REAL, decision 4), the name-section and WAT writers; a label's branch targets | the round trip (`wat2wasm` → `wasm2wat` keeps every name, 63,930/63,930) and behaviour (`direct-behaviour`) — renaming saves nothing, so there is nothing to prove |
+| **export name** | **yes** — 8,888 bytes over the corpus | OUTSIDE: every host that calls or reads it BY NAME (the export section maps a string to a kind and an INDEX; nothing inside refers to the string) | the host's side: a rename is correct only if every caller is updated from the old→new map. `direct-behaviour` calls exports by name (1953 calls / 651 exports), the natural oracle for a map; the `wat_input.test.ts` export-name pin guards the default |
+| **import `field` name** | **yes** — 7,822 bytes | OUTSIDE: every host that SUPPLIES it under that name | the same map, applied to the host's import object |
+| **import `module` name** | **yes** — 18,296 bytes, the largest: it repeats per import ENTRY (20 WASI imports write `wasi_snapshot_preview1` 20 times) | OUTSIDE: every host, per namespace | the same map; one string per namespace to update |
+
+**The ceiling — the most ANY renaming could save** (every export and import field the shortest
+unused name, every import module one byte), over the 421 corpus modules at `-Oz` (915,103 bytes):
+**29,668 bytes, 3.24%** (interface strings in all: 35,006, 3.83%). For small modules that talk to a
+host it is half the file — up to 52.9% (`40_ExternalReturnValue`, 176 of 333 bytes). Measured
+2026-09-28 (`scratchpad/iface.ts`, re-derive before quoting).
+
+What the list says, before any build: **the whole prize is the interface**, which the owner fenced
+off ("an exported name must absolutely be preserved, or we have name mangling"). So a minifier here
+is OPT-IN only, with a map the host applies — upstream's `--minify-imports-and-exports` shape — and
+its error surface is entirely outside the module, where our byte gates cannot see (the renamed bytes
+are self-consistent). Internal names can be renamed freely and collect nothing. The discussion the
+owner asked for — upstream's way or better, measured — has its numbers now.
+
 ## 2. What upstream keeps (probed, wabt 1.0.41 / binaryen 132)
 
 | tool                             | kinds written                                                                                       |
