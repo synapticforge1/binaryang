@@ -446,6 +446,18 @@ their own bump — and nothing breaks by their standing still.
 - **The text-form section's bytes move** in modules where a multi-value producer feeds a fold
   (S7's prediction now counts what the fold writer writes; `a6193b625`) — 3 of 421 corpus files.
   The printed text does not change.
+- **NEW: `wasm-opt --converge` / `-c`, `optimizeToConvergence`** (`./passes`) — the pass schedule
+  in rounds until one saves under 0.1% (over two rounds), a fixed point or a cycle; the smallest
+  round is kept. Opt-in, as upstream's; default bytes do not move.
+- **NEW: `--minify-imports`, `--minify-imports-and-exports`, `--minify-imports-and-exports-and-modules`**
+  — upstream's three passes, maps identical to `wasm-opt` 132's. Opt-in: a renamed interface is a
+  CONTRACT change the host applies from the map (printed to stdout, as upstream;
+  `minifyImportsAndExports` / `formatMinifyMap` / `takeMinifyMap` in `./passes`). Up to −3.24% on
+  the corpus after `-Oz`.
+- **`Flatten` is complete**: multi-value (N temps), stack-form code, legacy `try`, a value
+  `br_table` leaving the function. It refuses only `br_on_*` and `try_table`, as upstream does.
+  ⚠️ API: `flattenFunction` gains an optional `tagParams` argument (`buildTagParams`), and a
+  multi-result call no longer throws.
 - Not release-note material: binaryen-ts's internal WAT parser is deleted (One front end stage 5);
   it had no public path.
 

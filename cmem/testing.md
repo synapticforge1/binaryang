@@ -709,6 +709,16 @@ our bytes) or a module that does not terminate; a variant our pipeline REFUSES (
 a miscompile) is allowed only for a module pinned by name in `REFUSED_BUDGET`, a ratchet like
 `PHANTOM_BUDGET` — 7 relaxed-SIMD modules on route A until stage 3.
 
+**Variants since 2026-09-28 (9 per module):** round trip; -O1, -O2, -O3, -Os, -Oz; `-Oz --converge`;
+`--flatten` alone; and "minify through its map" — `…-and-modules` minification where the HOST
+supplies its imports and calls its exports by the map's new names (spectest imports get the values
+of the names they had), so a wrong map over self-consistent bytes DIVERGEs (two mutants, caught).
+An instantiation failure is compared with the import's names removed from the message. Measured
+2026-09-28: 12,061 variants, 0 DIVERGE. `REFUSED_BUDGET` is keyed by **(module, variant)** —
+`'<module> <variant>'` — and holds the 17 `--flatten` refusals of `br_on_*` / `try_table`
+(upstream's Flatten refuses both); a pin can no longer hide another variant refusing the same
+module. Inverted: one pin removed → exit 1.
+
 - **Inverted twice**: Q1's miscompile restored → exit 1, with DIVERGEs (`align.106`'s
   `i32_align_switch` gave 0 for 23 at -O2+ — Q1 reached further than `if.0`) and hangs;
   the multiple-tables guard restored → exit 1, 161 modules NEWLY refused.

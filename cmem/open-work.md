@@ -139,9 +139,14 @@ worlds, optimize-corpus every level. Pick up here, in this order:
    ≈ 0 (1). **No round grew any module**, so "the delta over the next TWO rounds" and "the next
    round" stop at the same place. The largest single gain is 24 bytes (`simd_const.387`, 11%), and
    every gain is on a spec module — none of the 421 corpus modules moved.
-   ⬚ **Recommendation, for the owner to decide: do not build it.** Its whole prize is ~150 bytes over
-   the suite; the `-Oz` COVERAGE gap below (missing passes, 60.3 KB) is ~400× larger. If wanted
-   anyway, upstream's shape is an opt-in `--converge` flag, not a change to `-O`.
+   (Recommended not to build: ~150 bytes over the suite against a 60.3 KB coverage gap.)
+   ✅ **BUILT — owner, 2026-09-28: "build the pipeline convergence"** (merge `25717c474`):
+   `optimizeToConvergence` (`passes/converge.ts`, exported from `./passes`) and `wasm-opt
+   --converge` / `-c`, OPT-IN as upstream's. Rounds of the same schedule, each ENCODED; stops at
+   an average gain under 0.1% over two rounds (the owner's rule), a fixed point, a cycle (bytes
+   repeating an older round), or 20 rounds; the SMALLEST round wins, never larger than round 1.
+   Over 2,919 modules: 0 invalid, 4 s, −176 bytes (0.014%) below one `-Oz`, every module at a
+   fixed point (2,898 after 2 rounds). In the gate as spec-behaviour's `-Oz --converge` variant.
 3. The `-Oz` size record is fresh and complete: [names.md](names.md) §§ "Names under optimization,
    priced" and "Does optimization RENAME things to shrink them?". Do not re-measure it; four new
    items in this file's optimizer list draw on it.
@@ -152,8 +157,16 @@ worlds, optimize-corpus every level. Pick up here, in this order:
    ✅ **The list is written, 2026-09-28: [names.md](names.md) § 1a.** Measured: the twelve
    name-section kinds cost **0** bytes at `-Oz`; the whole prize is the INTERFACE (export names,
    import fields, import modules) — a ceiling of **29,668 bytes, 3.24%** of the corpus' `-Oz`
-   output — and its error surface is the host, outside every gate. ⬚ The DISCUSSION (upstream's
-   opt-in map, or better) is the owner's; the numbers are in § 1a.
+   output — and its error surface is the host, outside every gate.
+   ✅ **BUILT — owner, 2026-09-28: "perform the Names data-type list items as noted in the names.md
+   file"** (merge `26d4ca11e`): upstream's three passes, `MinifyImports`,
+   `MinifyImportsAndExports`, `MinifyImportsAndExportsAndModules` (`passes/minify-imports-and-exports.ts`),
+   OPT-IN, with the map — byte-identical to `wasm-opt` 132's on three probes (up to 4,000
+   exports). The map round trip names.md asked for is in the gate: spec-behaviour's "minify through
+   its map" variant — the host supplies imports and calls exports by the NEW names; a wrong map
+   over self-consistent bytes is caught (two mutants). Corpus after `-Oz`: −6,203 / −13,002 /
+   **−29,674 bytes (3.24%)** — the ceiling § 1a measured. `wasm-opt` prints the map to stdout as
+   upstream; `onMinifyMap` / `takeMinifyMap` for the API; two runs compose (so `--converge` too).
 5. ⚠️ **Unfinished measurement**: `scratchpad/names/types.ts` (Type-section bytes, ours vs upstream)
    was still running when the session ended and its number was never read. Re-run it — the scratchpad
    is session-scoped and will be gone.
@@ -427,12 +440,25 @@ per value) landed in `58fd43576`. Its items, as they closed:
   | 4 | `pop` (legacy `try` / `catch`) | handles it |
   | 2 | a value `br_table` to the function frame | handles it |
 
-  - ⬚ **multi-value (129)** needs an owner DESIGN decision first: this IR has no tuple kind (V1, S6
-    6A), so a temp that holds N values is N locals — a change to what Flatten's `{pre, value}` means.
-  - ⬚ legacy `try` / `pop` (4) — upstream handles it; the next Flatten step if it is wanted.
-  - ⬚ stack-form values (10) and frame `br_table` (2) — conservative refusals; the first needs the
-    reader's stack-form values spilled the way `pop`s are.
-  - `try_table` and `br_on` — parity with upstream, which refuses both: not open.
+- ✅ **`Flatten` COMPLETE — owner, 2026-09-28: "perform the flatten"** (`de5374681`, merged
+  `7689ea5b7`). Everything upstream's Flatten flattens, this one does; it refuses exactly what
+  upstream refuses. Over 2,919 modules: **2,896 valid** (was 2,754), **0 invalid**, 23 refused —
+  13 `br_on_*`, 10 `try_table`, both upstream's refusals too. The table above is closed:
+  - **multi-value** (129): an N-value result lives in N temps (`values` beside `value` in `Flat`) —
+    the design the owner's "perform" settled; no tuple kind was added (V1, S6 6A stand).
+  - **stack form** (10) and every `pop`: each frame MODELS its operand stack — the values its
+    statements left, each in a fresh temp or a constant. A `pop` takes from it, a value-less branch
+    to a value-taking target takes from it, a frame's result is its top; after what never falls
+    through it is polymorphic. One rule places every `pop`: operands first (a producer fills its
+    slot with its LAST value, leaves the rest), then the pops take the top (`spec/fac` "fac-ssa").
+  - **legacy `try`** (4): handlers entered with the tag's payload captured first.
+  - **value `br_table` to the frame** (2): to a block around the body, whose end returns the temps.
+  - Found on the way, each pinned: `(call_ref $t (unreachable))` never falls through though typed
+    void; a value computed after a transfer is dead, not a statement; a trapping `br_table` index
+    makes a missing value dead.
+  **Flatten is in the gate now**: spec-behaviour's `--flatten` variant (12,061 variants, 0 DIVERGE);
+  its 17 refusals pinned in `REFUSED_BUDGET`, which is keyed by (module, variant) since, so a pin
+  cannot hide another variant refusing the same module. 28 tests, 14 mutants caught.
 - **(history) `Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
   after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
   corpus + the spec testsuite), on both routes (`scratchpad/one/flatscope.ts`):
@@ -660,7 +686,8 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   **3,943 functions kept to upstream's 2,663**. Scheduling Inlining at `-O2` / `-Oz` is the cheapest
   probe, since the pass exists; ⚠️ it must wait for One front end stage 2, because `Inlining` is one of
   the passes the block-param round trip currently breaks (above).
-- ⬚ **No `MinifyImportsAndExports` pass** — the ONLY name-based size lever there is, since every other
+- ✅ BUILT 2026-09-28 (merge `26d4ca11e`; see "Handoff before the pre-bump items" item 4). Was:
+  **No `MinifyImportsAndExports` pass** — the ONLY name-based size lever there is, since every other
   name is an index ([names.md](names.md) § "Does optimization RENAME things to shrink them?"). Upstream's
   `--minify-imports-and-exports` rewrites the interface strings to `a`, `b`, `c`… and prints the old→new
   map as JSON; on the probe module it was **139 → 106 bytes, −24%**. ⚠️ Opt-in ONLY, never in `-Oz`:
@@ -711,15 +738,15 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
     there is nothing behind it to collect; do not spend pass time on it.
   So the ENTIRE prize is the interface strings — the two kinds the owner fenced off — and the fattest is
   usually the import `module` string, because it repeats PER IMPORT ENTRY (twenty WASI imports carry
-  `"wasi_snapshot_preview1"` twenty times, 440 bytes). ⬚ **First step next session, and it is cheap — a
-  section scan with no optimizer in it: total interface-string bytes over the corpus, which is the
-  CEILING for every minification idea here.** Decide whether the pass is worth building against that
-  number, not against the 106-byte probe.
+  `"wasi_snapshot_preview1"` twenty times, 440 bytes). ✅ The ceiling scan was done (29,668 bytes,
+  names.md § 1a) and the pass built against it (−29,674 at `-Oz`).
 - ⬚ **Our `RemoveUnusedModuleElements` does not prune unused TYPES** — on the probe module, after the
   uncalled function was correctly removed, ours kept **2 type entries to upstream's 1** (4 bytes there).
   ⚠️ UNMEASURED over the corpus: the run that would have priced it was still going when the session
   ended (`scratchpad/names/types.ts` adds the Type-section total to `size.ts`; re-run it).
-- 📝 **PARKED by the owner, 2026-09-19, deliberately: "We can note it now and test it later in practice
+- ✅ BUILT 2026-09-28 as `wasm-opt --converge` (merge `25717c474`; "Handoff before the pre-bump
+  items" item 2). The design note, kept for its reasoning:
+  📝 **PARKED by the owner, 2026-09-19, deliberately: "We can note it now and test it later in practice
   once we have worked through our open items."** So this entry is a NOTE, not a task — no loop, no flag
   and no measurement until the items above it are closed. It is written out in full because the design
   reasoning is the perishable part; the build is cheap once the numbers exist. Should the pipeline
