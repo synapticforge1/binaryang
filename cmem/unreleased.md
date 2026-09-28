@@ -246,8 +246,14 @@ their own bump — and nothing breaks by their standing still.
   parametrised `if`. Shipped in 1.5.4. `lowerBlockParams` is now a tree pass; it no longer refuses a
   module renamed after decoding, and it REFUSES, loudly, a `br_on_*` or `try_table` catch to a
   parametrised loop — which the decoder's lowering never handled (only `br`, `br_if` and
-  `br_table`), and which no corpus module has. ⚠️ Known and open, not to be claimed fixed: Q1 (a `CoalesceLocals`
-  miscompile at -O2+) and Q2 (`Inlining` at -O3) — divergences.md.
+  `br_table`), and which no corpus module has.
+- **Fixed: `wasm-opt` changed what modules DO** (Q1–Q8, 2026-09-28; found by replaying the whole spec
+  testsuite's invocations against every level). Silent wrong results: a `local.set` before a branch
+  to an `if` label turned into a `drop` at -O2+ (CoalesceLocals); dead code after a `br` trapped
+  instead of branching; a `call_indirect` across rec groups stopped trapping. Refused or invalid
+  output: `Inlining` at -O3 with multi-value call operands; `elem.drop` anywhere; a global read only
+  by a segment offset. And `parseWasm` alone: a multi-value `br_if` round-tripped into a trap, and a
+  name starting with U+FEFF lost that character. (Which of these 1.5.4 shipped was not checked.)
 
 ## API-visible — wabt-ts and the tools
 
