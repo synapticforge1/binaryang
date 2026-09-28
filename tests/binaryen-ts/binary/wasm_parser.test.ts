@@ -302,7 +302,8 @@ Deno.test('call_indirect keeps its table index instead of assuming table 0', () 
   // The table index was read and DISCARDED, so every indirect call decoded
   // against table 0. The element-segment and `table.get`/`table.set` decoders
   // were already index-aware; this one was not, and the encoder's
-  // single-table guard is the only reason it never reached bytes.
+  // single-table guard was the only reason it never reached bytes. (That guard
+  // is gone since W5, 2026-09-28 — `multi_table.test.ts`.)
   //
   // Two tables; func 0 does `call_indirect (type 0) 1`.
   const mod = Uint8Array.from([
