@@ -66,9 +66,8 @@ for its commit message; check `git log -1 <branch>` before reusing a name). Corp
 the whole of 2026-09-28: **0** of the 421 corpus modules at any level; the 454 spec outputs that
 moved behave as their input.
 
-⚠️ **The behaviour check is a scratch script, not a gate** — it lived in the session scratchpad
-(`behave-all.ts`) and is gone. Rebuilding it as a task is item 6 below; until then, a change to the
-optimizer or a front end is not checked for BEHAVIOUR on the spec testsuite by anything in the repo.
+✅ **The behaviour check is `deno task spec-behaviour <outDir>`** (item 6 below) — run it after any
+change to the optimizer or a front end. Whether it joins the gate is the owner's call (item 6).
 
 ✅ **The naming step is clean again (fixed 2026-09-18, owner-approved).** From `138148881`
 (2026-09-11) `check-naming.sh` printed `tests/binaryen-ts/wabt_reference.ts`, a bare `wabt`
@@ -273,16 +272,15 @@ per value) landed in `58fd43576`. Its items, as they closed:
    inversions — segments or `call_indirect` forced to table 0 — fail every variant). The 40 left are
    all relaxed SIMD on route A (8 modules × 5 levels): binaryen-ts's DECODER refuses those opcodes
    and the reader does not — it closes with stage 3.
-6. ⬚ **Make the spec behaviour check a task in the repo** (`deno task spec-behaviour` or similar),
-   so what closed stage 2 keeps holding. It found eight defects in one run where every existing gate
-   was green; it lived only in the scratchpad. What it did: for every spec `module` command with
-   invocations after it, instantiate the ORIGINAL bytes with inert import stubs, replay each
-   `invoke` (`action`, `assert_return`, `assert_trap`, `assert_exhaustion`), and compare every
-   outcome — value by bits, or trap — against the same replay on a plain decode → encode and on
-   -O1…-Oz, both routes. The original run in V8 is the oracle, so the manifests' `expected` values
-   are not needed. Budget: ~2,228 modules × 16 variants, a few minutes. Expected result today: the
-   no divergence and 40 refused outputs, all relaxed SIMD on route A (after item 5). Decide with the owner whether it joins
-   the gate (it needs the prepared spec corpus, as `deno task spec` does).
+6. ✅ **DONE 2026-09-28: `deno task spec-behaviour <outDir>`** — the behaviour differential that
+   found Q1–Q8, as a task in the repo: every spec module's invocations on the original vs a round
+   trip and -O1…-Oz, both routes; exit 1 on a divergence or a hang; refusals only for the 7 pinned
+   relaxed-SIMD modules (a by-name ratchet). Today: 1,342 modules, 57,808 invocations, 0
+   divergences, ~6 s. Inverted twice (Q1 restored; the tables guard restored), each exit 1.
+   Record: [testing.md](testing.md) § "Not yet covered" (now covered).
+   🗓️ **OWNER: should it join the gate?** It needs the prepared spec corpus, as `deno task spec`
+   does, so it would be a project step like `spec`, not a CI step. Recommended: yes — it is the one
+   check that sees a VALID module computing the wrong thing, and it costs seconds.
 - ⬚ **`Flatten` is substantially unfinished, and one of its failures is SILENT** — scoped 2026-09-20
   after finding it while building item 2. Measured with `--flatten` alone over **2,925 modules** (the
   corpus + the spec testsuite), on both routes (`scratchpad/one/flatscope.ts`):
@@ -648,7 +646,7 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   export-kind and import-kind dispatches all carry comments about this shape having bitten before.
 - ⬚ **`assert_return` / `assert_trap` are not run by `deno task spec`** — skipped deliberately so the
   first harness measured the must-reject axis. 🔧 2026-09-28: a DIFFERENTIAL invoke harness was
-  built in the scratchpad and found Q1–Q8 (item 6 above is making it a task). It compares against
+  built in the scratchpad and found Q1–Q8 (now `deno task spec-behaviour`, item 6 above). It compares against
   the original module run in V8, not against the manifests' `expected` values — checking those
   directly would also judge the ORIGINAL decode, which the differential cannot.
 - ⬚ **N4** — under `-O2 -g` we keep the local and label names passes leave; upstream drops them.
