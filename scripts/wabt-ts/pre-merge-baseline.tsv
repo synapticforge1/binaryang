@@ -1,5 +1,5 @@
 # wabt-ts corpus output baseline
-# files=421 totalBytes=1967697
+# files=421 totalBytes=1967703
 # columns: file <tab> wasmBytes <tab> sha256-16(wasm) <tab> sha256-16(wasm2wat FOLDED) <tab> sha256-16(wasm2wat LINEAR)
 10b_DynamicArrayOperations.wat	4577	9b1669cbfff9fc08	8d07a161ab78f12c	07bc56cd91bd9ad7
 10b_DynamicArrays.wat	6336	a9e894ff21de6176	abdd7b73bdee2cf8	720deb84785b5f9b
@@ -118,7 +118,7 @@
 1_print.wat	270	9ec2864b11dc5565	c155870dc3d8f50a	6930d87f9c0a7c69
 1_reading-files.wat	5186	bd076fbcf7cb5bb4	9fe2d632905687f7	46c7d3126f40a3ea
 1_recursion.wat	4230	727c1d52c91a13fd	82868b22ed284715	e97072dc49ae8f87
-1_regular-expressions.wat	6062	788b4617dc7fba4b	9a8cfe837ed6a515	10f8c6462c041952
+1_regular-expressions.wat	6064	025de61f21d0a268	9a8cfe837ed6a515	10f8c6462c041952
 1_select.wat	1966	8363645ec2795d68	438780f548850145	7cd10f81fb1c63af
 1_sha1-hashes.wat	1720	e27b26523f3f9d03	d55a8a437c145ef0	852ad3b67d3d026d
 1_sha256-hashes.wat	1747	d6821395f8d6e48d	3d520c1ce57e58ff	2dc66666bee3b717
@@ -167,14 +167,14 @@
 27_ConsoleLogStringCompare.wat	6397	3c4d95de65845070	baf931340785432b	3ef3108fd79f31e4
 27_StringMethodAssignFromArrayElem.wat	5428	b9bc6846c05f422d	767bbc9702b812fe	49c061d6bacd9528
 27_StringMethods.wat	11682	10a12a0e4539908e	1c0e3e579963a998	bde2998ca95a83e0
-27_StringSplitAndForOf.wat	9190	2fcabf4c7b54a481	34476f230a40027b	035e3df150cc3e2b
+27_StringSplitAndForOf.wat	9190	952572ac71e5f492	34476f230a40027b	035e3df150cc3e2b
 27_StringTrimPadReplace.wat	6080	ac11c08bf3d73d1c	4d412d7e95337a96	d97a52b189bffca6
 27_base64-encoding.wat	7471	fb6dc0dd64819b80	80ebdfea805a3148	f7e833b80cb27cc6
 27_file-paths.wat	6806	56053578be3dcd2a	ac64132b542bc5c3	5ddce440b2472b3a
 27_line-filters.wat	4969	4cdef8f91059bbc5	389cba02d839fa82	0f2ccaae6d2113bc
 27_number-parsing.wat	9638	4ef6509030a6197c	52c77e13b0d797e5	b7801c110cf26302
 27_string-formatting.wat	21248	8a6e2349116c8003	05e5644aa61d85da	fd3a053220ba3d07
-27_string-functions.wat	9834	de42af8cc7a1e5fe	6c4d311cc10cdd70	e8697dff8ad8fe13
+27_string-functions.wat	9838	41f4c949c517b026	6c4d311cc10cdd70	e8697dff8ad8fe13
 27_tcp-server.wat	4997	7b04012234164476	bfaa6dedde979f8e	6e59d90866615e07
 27_text-templates.wat	6572	5bf67e08b35a3550	52683e80bf30a6ca	aed220357340a9e4
 27_url-parsing.wat	7714	56f51558d4fbc6c8	bc8686331d360b96	df56557eba02dac0

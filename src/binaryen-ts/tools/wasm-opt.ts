@@ -423,9 +423,11 @@ export { ModuleBuilder };
 // CLI entrypoint
 // ---------------------------------------------------------------------------
 //
-// For CLI use, invoke via the top-level `main.ts` dispatcher (works on Deno,
-// Node 18+, and Bun). The `if (import.meta.main)` check used in Deno-only
-// builds is intentionally omitted here for cross-runtime portability —
-// `import.meta.main` is not yet universal across Node versions binaryen-ts
-// supports. Callers that need standalone execution can import `main` from
-// this module and call it directly.
+// For CLI use, invoke via the top-level `main.ts` dispatcher (Deno, Node
+// 22.18+, Bun). Like every tool here this module has no `if (import.meta.main)`
+// block: `main.ts` is the one entry (it calls its dispatcher unconditionally),
+// and each tool exports `main(args)`, registered in its COMMANDS table. (This
+// said the block was omitted because `import.meta.main` was "not yet
+// universal across Node versions"; the reason is the single entry, not
+// portability — the 22.18 floor has it.) Callers that need standalone
+// execution can import `main` and call it.

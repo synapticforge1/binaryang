@@ -184,6 +184,22 @@ const KNOWN_BAD = Uint8Array.from(
   ).replace(/\s/g, '').match(/../g)!.map((h) => parseInt(h, 16)),
 );
 
+/**
+ * KNOWN_BAD's one-byte correction, which every engine MUST accept. The
+ * reject check alone passes an engine that rejects EVERYTHING — the failure
+ * the Wasmer note above describes (`--enable-all` read every module as
+ * rejected), and then every "reject" below would be the harness, not the
+ * module.
+ */
+const KNOWN_GOOD = Uint8Array.from(
+  (
+    '0061736d 01000000' + // magic + version
+    '01 05 01 60 00 01 7f' + // type:  () -> i32
+    '03 02 01 00' + // func:  one function, type 0
+    '0a 06 01 04 00 41 01 0b' // code:  i32.const 1; end
+  ).replace(/\s/g, '').match(/../g)!.map((h) => parseInt(h, 16)),
+);
+
 async function main(): Promise<void> {
   const dir = Deno.args[0];
   if (dir === undefined) {
@@ -194,6 +210,8 @@ async function main(): Promise<void> {
   const scratch = Deno.makeTempDirSync({ prefix: 'engine-check-' });
   const badPath = join(scratch, 'known-bad.wasm');
   Deno.writeFileSync(badPath, KNOWN_BAD);
+  const goodPath = join(scratch, 'known-good.wasm');
+  Deno.writeFileSync(goodPath, KNOWN_GOOD);
 
   const active: Array<readonly [string, Engine, string]> = [];
   for (const entry of ENGINES) {
@@ -207,6 +225,15 @@ async function main(): Promise<void> {
       console.error(
         `ABORT: ${name} ACCEPTED the known-invalid self-test module. ` +
           `The harness cannot detect a rejection, so any result would be meaningless.`,
+      );
+      Deno.exit(1);
+    }
+    const g = await fn(KNOWN_GOOD, goodPath, scratch);
+    if (g === null || !g.accepted) {
+      console.error(
+        `ABORT: ${name} REJECTED the known-valid self-test module` +
+          `${g === null ? '' : ` (${g.reason})`}. ` +
+          `The harness cannot detect an acceptance, so any result would be meaningless.`,
       );
       Deno.exit(1);
     }

@@ -37,6 +37,7 @@ import { parseWatModule } from '../parser/wast-parser.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
 import { resolveNames } from '../ir/resolve-names.ts';
 import { synthesizeTypes } from '../ir/synthesize-types.ts';
+import { validateModule } from '../validator/validator.ts';
 import { Result } from '../core/result.ts';
 import { addError, formatErrors, hasErrors, unknownLocation } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
@@ -109,6 +110,16 @@ export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}
   try {
     binary = writeBinaryIr(module, { writeTextForm: opts.textForm ?? true });
   } catch (e) {
+    // What the writer cannot represent is usually what the validator refuses:
+    // `(memory 0x1_0000_0000)` is well-formed and INVALID (2^32 pages), and
+    // was reported only as "u32 LEB128 out of range". This tool does not
+    // validate a module it CAN write; one it cannot, the validator explains
+    // first — upstream's diagnostic, with the writer's after it.
+    try {
+      validateModule(module, errors);
+    } catch {
+      // The validator's own trouble with an unwritable module adds nothing.
+    }
     addError(
       errors,
       unknownLocation(),

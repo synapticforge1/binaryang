@@ -2869,10 +2869,9 @@ export class BinaryReader {
     }
     // Default: binary (2 pops, 1 push) — add/sub/mul/div/min/max/pmin/pmax,
     // all compares, and/or/xor/andnot, narrow, shifts (vec + i32 count),
-    // q15mulr, avgr, extmul, dot. (Relaxed-SIMD ops 0x100+ also land here as
-    // binary; the genuinely-ternary relaxed madd/laneselect are not yet
-    // distinguishable because the `(prefix<<8)|sub` opcode encoding collides
-    // for sub-opcodes >= 0x100 — see opcode.ts. Tracked as a known limitation.)
+    // q15mulr, avgr, extmul, dot — and the relaxed-SIMD binaries (swizzle,
+    // min/max, q15mulr, dot). The relaxed TERNARIES (madd/nmadd, laneselect,
+    // dot_add) are taken as ternary above, the relaxed truncs as unary.
     const right = stack.pop() ?? operandPlaceholder(loc);
     const left = stack.pop() ?? operandPlaceholder(loc);
     stack.push({ kind: 'binary', opcode: opcode as Opcode, left, right, loc });

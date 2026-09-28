@@ -24,9 +24,10 @@
 //
 // ## Why this file has two halves
 //
-// `deno task test` runs `deno test --allow-read`, so a subprocess test cannot
-// run in the normal gate — and a test that always skips protects nothing.
-// Broadening the whole suite to `-A` for one file is the wrong trade, so:
+// `deno task test` ran `deno test --allow-read` when this was written, so a
+// subprocess test could not run in the normal gate — and a test that always
+// skips protects nothing. (It grants `--allow-run` now, so both halves run in
+// the gate; the split stays, for a run without that permission.) So:
 //
 //   1. a SOURCE gate that needs only `--allow-read` and therefore always runs —
 //      no `import.meta.main` block may call `Deno.readFile` / `writeFile` /

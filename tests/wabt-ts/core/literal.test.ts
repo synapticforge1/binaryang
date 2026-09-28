@@ -219,6 +219,33 @@ describe('parseF64Literal', () => {
   });
 });
 
+describe('parseF32Literal / parseF64Literal agree with wat2wasm bit for bit', () => {
+  // 🔧 These went through `(int + frac) * 2^exp` in a JS double and a regex
+  // that REQUIRED the `p` exponent. Every expected value below is what
+  // `wat2wasm` writes for `(f32.const …)` / `(f64.const …)` (2026-09-28).
+  const CASES: [lit: string, f32: number | null, f64: bigint | null][] = [
+    ['0x1.5', 0x3fa80000, 0x3ff5000000000000n], // no `p`: was 0
+    ['1_000.5', 0x447a2000, 0x408f440000000000n], // separators: was 1.0
+    ['0x1_0.8p0', 0x41840000, 0x4030800000000000n], // was 0
+    // Just above an f32 rounding midpoint: one rounding, not two.
+    ['0x1.00000100000000001p-50', 0x26800001, 0x3cd0000010000000n],
+    ['8.8817847263968443574e-16', 0x26800001, 0x3cd0000010000000n],
+    // A finite literal that overflows is out of range, not infinity.
+    ['0x0.0001p1030', null, 0x7f50000000000000n],
+    ['1e39', null, 0x48078287f49c4a1dn],
+    ['1e400', null, null],
+    ['1.5abc', null, null], // trailing junk: was 1.5
+  ];
+  for (const [lit, f32, f64] of CASES) {
+    it(`"${lit}"`, () => {
+      const [r32, b32] = parseF32Literal(lit);
+      assertEquals(r32 === Result.Ok ? b32 >>> 0 : null, f32, 'f32');
+      const [r64, b64] = parseF64Literal(lit);
+      assertEquals(r64 === Result.Ok ? b64 : null, f64, 'f64');
+    });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // F32 literal printing
 // ---------------------------------------------------------------------------

@@ -145,7 +145,7 @@ function canonicalForm(e: Expr): Form {
     case 'try_table':
       return 1;
     case 'if':
-      return 1 + [...(e.params?.values ?? []), e.condition].filter((x) => x.kind !== 'pop').length;
+      return 1 + sumItems([...(e.params?.values ?? []), e.condition]);
     default: {
       // What the fold writer actually nests (`foldSpec`): a PREFIX of `pop`s is
       // expressible by omitting it, so the items are every operand from the
@@ -156,13 +156,57 @@ function canonicalForm(e: Expr): Form {
       // while pops form a prefix. Multi-value producers put one mid-list (One
       // front end, stage 2), and the prediction then disagreed with the writer
       // on 4 corpus files, so their recorded forms could not be reproduced.
-      const ops: Expr[] = [];
-      new ExprVisitor({}).visitShallow(e, (op) => ops.push(op));
+      const ops = operandsOf(e);
       const first = ops.findIndex((op) => op.kind !== 'pop');
-      if (first === -1) return 1;
-      return ops.slice(first).some((op) => op.kind === 'pop') ? 1 : 1 + (ops.length - first);
+      if (first === -1 || scattered(ops, first)) return 1;
+      return 1 + sumItems(ops.slice(first));
     }
   }
+}
+
+/** A plain instruction's operands, in evaluation order. */
+function operandsOf(e: Expr): Expr[] {
+  const ops: Expr[] = [];
+  new ExprVisitor({}).visitShallow(e, (op) => ops.push(op));
+  return ops;
+}
+
+/** Is a `pop` among the operands after the first real one? */
+function scattered(ops: readonly Expr[], first: number): boolean {
+  return ops.slice(first).some((op) => op.kind === 'pop');
+}
+
+/**
+ * How many ITEMS `e` writes at the paren level it sits in — what a fold around
+ * it counts. One, unless the fold writer spreads it: a node with scattered
+ * `pop`s is its operands' items then its bare head, and a block, loop or `try`
+ * has its entry values written as siblings before it. A `pop` writes nothing.
+ * 🔧 This counted each operand as ONE item, so a fold around a spread operand
+ * was predicted smaller than written (`(i32.ne (call $a …) (call $a …) (call
+ * $cmp) (i32.const 0))`, `$cmp` taking two 2-value results): 6 of 26,896
+ * corpus functions, whose forms were then recorded instead of predicted.
+ */
+function items(e: Expr): number {
+  switch (e.kind) {
+    case 'pop':
+      return 0;
+    case 'block':
+    case 'loop':
+    case 'try':
+    case 'try_table':
+      return sumItems(e.params?.values ?? []) + 1;
+    case 'if':
+      return 1;
+    default: {
+      const ops = operandsOf(e);
+      const first = ops.findIndex((op) => op.kind !== 'pop');
+      return first !== -1 && scattered(ops, first) ? sumItems(ops) + 1 : 1;
+    }
+  }
+}
+
+function sumItems(es: readonly Expr[]): number {
+  return es.reduce((n, x) => n + items(x), 0);
 }
 
 /** Each instruction's written form for `f`, in binary order, or `undefined` — predicted. */

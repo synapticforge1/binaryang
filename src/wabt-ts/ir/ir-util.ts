@@ -76,8 +76,10 @@ interface BlockArity {
 
 /**
  * Per-module helper that tracks the current function + label stack and
- * answers per-expression arity queries. Built once per IR walk; reused
- * across validator, binary writer, and bridge.
+ * answers per-expression arity queries. Built once per IR walk. Its one
+ * production user is the WAT writer, which extends it; `getExprArity` has no
+ * production caller (tests pin it). (This said "reused across validator,
+ * binary writer, and bridge" — neither uses it, and the bridge is deleted.)
  */
 export class ModuleContext {
   readonly module: Module;
@@ -88,7 +90,7 @@ export class ModuleContext {
   // Flat index → signature maps built once at construction. They replace the
   // O(imports) linear scans previously done on every getFuncSig/getTagArity
   // call, which mattered because getExprArity calls them for every expression
-  // during validator and writer walks. Imports come first (in declaration
+  // it is asked about. Imports come first (in declaration
   // order, matching the index space), then defined funcs/tags.
   private readonly funcSigsByIndex: FuncSignature[];
   private readonly tagArityByIndex: number[];
