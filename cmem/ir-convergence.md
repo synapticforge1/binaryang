@@ -4520,9 +4520,14 @@ before it:
      included (the names the module still has are in the IR); the `data: null` PLACEMENT marker stays.
      Route-B only — A regenerates rather than keeping bytes (R8') — so it would have shipped with
      stage 3.
-   - ⬚ LEFT: block-param lowering as a tree pass (R15) — which is what breaks `fac.0` / `if.0`, and
-     `Inlining` on route B at -O3, where B still emits **INVALID output for `br.0` and `nop.0`**. That
-     is the only remaining place either route is wrong, so it is stage 2's real blocker. Residual tree
+   - ✅ DONE 2026-09-28: block-param lowering as a TREE pass (R15) — **stage 2 is complete**. Lowered
+     alone, the 8 spec modules with block parameters are valid on both routes (`main`: 6 / 8); over
+     29,190 optimizer outputs 29,150 are unchanged, and INVALID went 27 → 9, none new. It is
+     POSITIONAL — entry values into locals, each region reads them back, `pop`s untouched, a
+     statement split where it holds such a construct in an operand — for why, and for the three
+     pre-existing defects its behaviour check surfaced (Q1–Q3), see [open-work.md](open-work.md)
+     item 3. (`br.0` / `nop.0` at -O3 were R11', fixed by the spill — the line that stood here
+     attributed them to R15.) Residual tree
      differences: **146 functions of 49,271** (R11's 138 plus 8 one-offs: 2 `drop`/`br`,
      `local.get`/`br_on`, `local.get`/`pop`, `pop`/`br`, `if`/`pop`, a `throw` operand, an
      `unreachable` value).
@@ -4635,7 +4640,7 @@ RA = wabt-ts `reader/binary-reader.ts`; RB = binaryen-ts `binary/wasm-parser.ts`
 | R12 | multi-value results: RB pushes N−1 typed `pop`s beneath a multi-result call / block / if / loop / try / try_table; RA pushes one entry (and pairs a neighbour — open-work.md) ✓                                                                                         | RB                             | (b)   |
 | R13 | catch entry: RB seeds one typed `pop` per tag parameter; RA none                                                                                                                                                                                                          | RB                             | (b)   |
 | R14 | block params, default: both keep `params` on the node; RB also seeds typed `pop`s in the region                                                                                                                                                                           | RB extra                       | (b)   |
-| R15 | `lowerBlockParams`: spills params to locals, rewrites branches to loops, a `br_table` trampoline for mixed targets; suppresses the written `typeIndex` — reached by `PassRunner` through an encode + DECODE round trip (`passes/lower-block-params.ts`)                     | RB                             | (b)   |
+| R15 | `lowerBlockParams`: spills params to locals, rewrites branches to loops, a `br_table` trampoline for mixed targets; suppresses the written `typeIndex` — reached by `PassRunner` through an encode + DECODE round trip (`passes/lower-block-params.ts`). ✅ A tree pass since 2026-09-28 | RB                             | (b)   |
 | R16 | the text-form section: RA applies it to its own tree; RB re-reads the bytes with RA to predict — RB already depends on RA                                                                                                                                                  | both                           | (c)   |
 | R17 | relaxed SIMD: RA reads it, RB refuses ✓ (8 valid spec modules); RA may decode ANY unknown 0xFD sub-opcode as a binary op without error (unsure); RA refuses compact imports explicitly                                                                                     | RA                             | (a)   |
 | R18 | scalar SATURATING truncation (0xFC 0x00–0x07): RB decoded it as the TRAPPING opcodes — a miscompile ✓ (4 of 4 corpus modules); RA keeps it. ✅ FIXED `2ca4513f1` (stage 0)                                                                                                 | both now                       | (a)   |
