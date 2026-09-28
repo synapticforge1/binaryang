@@ -715,7 +715,7 @@ fatigue.
 | 9  | defect 5 is **wider** than described; the deps unblock; `.gitattributes`       | ✅ **closed by them** — they renamed `binaryen` → `binaryen-backend`, widened `.gitattributes`, and closed defect 5 with a conditional                                         |
 | 10 | correcting § 9 (they are on **1.5.3**); the convert pair priced by building it | ⬚ **awaiting their answer on one question** — though they have SHIPPED against 1.5.3 as 2.0.2, so the `br_on_cast` queue entry is most likely stale rather than a live failure |
 | 11 | adopting their conditional-not-clearance form and their alias invariant        | ⬚ outbound                                                                                                                                                                     |
-| 13 | the optimized-behaviour defects fixed on `main` (Q1–Q8, several tables) — Q1 silent at -O2+ in 1.5.4 | ⬚ **DRAFTED 2026-09-28, not sent** — the owner sends it ([handoffs.md](handoffs.md) § 13)                                                                              |
+| 13 | the optimized-behaviour defects fixed on `main` (Q1–Q8, several tables) — Q1 silent at -O2+ in 1.5.4 | 🚫 **not needed** (owner, 2026-09-28: the fix ships before wasmtk updates) ([handoffs.md](handoffs.md) § 13)                                                                              |
 
 ⚠️ **The one open question is in § 10 and it matters:** their queue still lists `br_on_cast` as
 unstarted, but all four `br_on_*` forms shipped in 1.5.3, which they are on. Either that entry

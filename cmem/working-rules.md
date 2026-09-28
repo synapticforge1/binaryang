@@ -32,12 +32,21 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 `deno fmt --check` · `deno lint` · `deno task ci` · `sh scripts/check-naming.sh` ·
 `sh scripts/check-portability.sh` · `deno task baseline` · `deno publish --dry-run --allow-dirty`
 
-then the project's own: `deno task operators` · `deno task spec <corpus>` · `deno task direct` ·
-`deno task direct-behaviour` · `deno task translate-eh <testsuite-main>/legacy <outDir>` ·
-`deno task optimize-corpus`. (`direct` / `direct-behaviour` replaced `bridge` /
-`bridge-behaviour` when M8e deleted the bridge, 2026-09-18; this list named the old tasks until
-2026-09-19.) Expect `direct` **544 / 544** and `direct-behaviour` **1953 calls / 651 exports, 0
-DIVERGE** — the 421 corpus modules plus `prepare.test.ts`'s 123 (post-M8 fix 7).
+then the project's own: `deno task operators` · `deno task spec <corpus>` ·
+`deno task spec-behaviour <corpus>` · `deno task direct` · `deno task direct-behaviour` ·
+`deno task translate-eh <testsuite-main>/legacy <outDir>` · `deno task optimize-corpus`.
+(`direct` / `direct-behaviour` replaced `bridge` / `bridge-behaviour` when M8e deleted the bridge,
+2026-09-18; this list named the old tasks until 2026-09-19.) Expect `direct` **544 / 544** and
+`direct-behaviour` **1953 calls / 651 exports, 0 DIVERGE** — the 421 corpus modules plus
+`prepare.test.ts`'s 123 (post-M8 fix 7).
+
+- **`deno task spec-behaviour <corpus>` joined the gate 2026-09-28 (owner: "Yes").** It replays the
+  spec testsuite's own invocations on the original and on every variant we make (round trip,
+  -O1…-Oz, both routes); it is the one step that sees a VALID module computing the wrong thing, and
+  found eight defects with every other step green (Q1–Q8). Same prepared corpus as `spec`. Expect
+  **1,342 modules, 57,808 invocations, 0 DIVERGE**, refusals only for the modules pinned in its
+  `REFUSED_BUDGET` (7, relaxed SIMD, until stage 3). A pinned module that stops being refused FAILS
+  the step until it is unpinned — that is the ratchet, not a regression.
 
 - ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
   (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes
