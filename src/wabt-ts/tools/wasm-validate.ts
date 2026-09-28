@@ -47,6 +47,13 @@ import process from 'node:process';
 // Public API
 // ---------------------------------------------------------------------------
 
+// The feature sets `WasmValidateOptions.features` takes. 🔧 The option named
+// `allFeatures` and nothing exported it: a caller could pass only a feature set
+// it wrote by hand — the drift wasmtk refused to take on (their letter of
+// 2026-09-28, item 2). Also exported from `./core/wabt-ts`.
+export { allFeatures, defaultFeatures } from '../core/feature.ts';
+export type { Features } from '../core/feature.ts';
+
 /** Options for {@link wasmValidate}. */
 export interface WasmValidateOptions {
   /** Source filename shown in error messages. Default: `'<input>'`. */
