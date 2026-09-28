@@ -22,10 +22,19 @@ that history now lives in its topic files — nothing was dropped:
 | the predecessors' wings (T-ids, UP-n, WT-n, invariants → tests) | [wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md) |
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
-**State, 2026-09-28 (late):** `binaryang@1.5.4` published (score 100, `rekorLogId=2692137018`).
-`main` is ahead, unpushed and unbumped, at **1,328 tests / 0 failed**, baseline IDENTICAL, spec 100%
-on four axes, spec-behaviour 0 DIVERGE (57,808 invocations, 24,151 of them through v128), `direct`
-544/544, `direct-behaviour` 1953 calls agreeing. Re-derive before quoting.
+**State, 2026-09-28 (release):** 🚀 **`binaryang@1.6.0` PUBLISHED** (tag `v1.6.0`, commit
+`64d22e06f`; JSR `rekorLogId=2987187551`, 647 symbols; CI, Auto-tag and Publish all green). One
+front end stages 3b and 4b are in it: `./binary` and `./encoder` are gone. `main` = the release,
+pushed: **1,315 tests / 0 failed**, baseline IDENTICAL, spec 100% on four axes, spec-behaviour 0
+DIVERGE and no refusals (57,808 invocations, 24,151 through v128), `direct` 544/544,
+`direct-behaviour` 1953 calls. ⚠️ wasmtk pins binaryang exactly (1.5.3) — 1.6.0 reaches it only
+through their bump, and it is BREAKING for anything importing the two removed subpaths or the IR
+shapes in CHANGELOG.md (wasmtk uses `/compat/*` only). Re-derive before quoting.
+
+**Next session:** the "Start here" block below is DONE through the release; what is left is the
+list further down (stage 5 — retire binaryen-ts's internal `parseWat`; the parked
+pipeline-convergence proposal; the names data-type discussion; Flatten's unsupported constructs).
+A workspace handoff to wasmtk about 1.6.0 is the workspace session's to write, not this repo's.
 
 ## 🚀 Start the next session here (handoff, 2026-09-28 late — PRE-BUMP ITEMS 1–6 DONE; next is THE BUMP)
 
