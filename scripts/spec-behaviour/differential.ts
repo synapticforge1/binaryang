@@ -135,6 +135,13 @@ function variants(bytes: Uint8Array): [string, () => Made][] {
       { optimizeLevel: 2, shrinkLevel: 2 },
       (r) => r.addDefaultOptimizationPasses(),
     ).bytes]);
+  // `wasm-opt --flatten` alone: Flat IR computes what the input computes.
+  // It refuses `br_on_*` and `try_table` as upstream does (REFUSED_BUDGET).
+  out.push(['--flatten', () => {
+    const m: WasmModule = readForPasses(bytes);
+    new PassRunner(m, { optimizeLevel: 0, shrinkLevel: 0 }).add('Flatten').run();
+    return writeWasm(m);
+  }]);
   // `wasm-opt --minify-imports-and-exports-and-modules`, run THROUGH its map:
   // every import and export renamed, every module `a`. The map is the
   // contract, and this is its round trip (cmem/names.md § 1a).

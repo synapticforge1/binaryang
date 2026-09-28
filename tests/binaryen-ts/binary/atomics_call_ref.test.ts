@@ -17,12 +17,7 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import {
-  type Expression,
-  ExpressionKind,
-  makeCallRef,
-  makeDrop,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
+import { type Expression, ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { mapExpression, walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
@@ -262,23 +257,26 @@ Deno.test('Asyncify refuses call_ref rather than leaving it uninstrumented', () 
   );
 });
 
-Deno.test('Flatten refuses a call_ref with several results rather than hoisting a tuple', () => {
-  // Built, not decoded: the decoder puts a `pop` beside a multi-value call, and
-  // Flatten refuses `pop` first. A pass or builder can make the call itself.
-  const mod = readForPasses(assemble(FIX.call_ref!.wat));
-  const f = mod.functions[1]!;
-  f.body = mapExpression(
-    f.body,
-    (e) =>
-      e.kind === ExpressionKind.CallRef
-        ? makeDrop(makeCallRef(e.sigType, e.callee, e.operands, [ValType.I32, ValType.I32]))
-        : e,
-  );
-  assertThrows(
-    () => new PassRunner(mod, { optimizeLevel: 0, shrinkLevel: 0 }).add('Flatten').run(),
-    Error,
-    'call_ref returns 2 values',
-  );
+Deno.test('Flatten takes a call_ref with several results: N temps, not a tuple', () => {
+  // It refused one (2026-09 — "call_ref returns 2 values"): this IR has no
+  // tuple kind. Flatten keeps an N-value result in N temps now (2026-09-28),
+  // captured off the stack as wasm leaves it.
+  const wat = `(module
+    (type $p (func (param i32) (result i32 i32)))
+    (func $pair (type $p) (local.get 0) (i32.add (local.get 0) (i32.const 10)))
+    (elem declare func $pair)
+    (func (export "f") (param i32) (result i32)
+      (i32.sub (call_ref $p (local.get 0) (ref.func $pair)))))`;
+  const bytes = assemble(wat);
+  const mod = readForPasses(bytes);
+  new PassRunner(mod, { optimizeLevel: 0, shrinkLevel: 0 }).add('Flatten').run();
+  const out = writeWasm(mod);
+  assert(WebAssembly.validate(out as BufferSource), 'valid');
+  const f = (b: Uint8Array) =>
+    new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as (
+      x: number,
+    ) => number;
+  for (const x of [0, 3, 7]) assertEquals(f(out)(x), f(bytes)(x), `f(${x})`);
 });
 
 Deno.test('an unknown 0xfe sub-opcode is still refused, naming it', () => {

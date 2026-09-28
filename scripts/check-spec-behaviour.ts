@@ -35,11 +35,31 @@ import { needsWrapper, type Sig } from './spec-behaviour/v128.ts';
  * fails, and so does a pinned name that no longer refuses, or it could come
  * back unnoticed.
  *
- * EMPTY since 1.6.0. Its seven pins were relaxed-SIMD modules that
- * binaryen-ts's own decoder ("route A") could not read; that decoder was
- * deleted (One front end stage 3b), and nothing refuses them now.
+ * Each pin is `<module> <variant>`. It was EMPTY at 1.6.0 (seven
+ * relaxed-SIMD pins went with binaryen-ts's decoder, One front end stage 3b).
+ * Since 2026-09-28 it holds `--flatten`'s refusals of `br_on_*` and
+ * `try_table` — which upstream's Flatten refuses too (`throw` / `throw_ref`
+ * / `instance` modules carry `try_table`) — and nothing else.
  */
-const REFUSED_BUDGET: string[] = [];
+const REFUSED_BUDGET: string[] = [
+  'br_on_cast_fail/br_on_cast_fail.0.wasm --flatten',
+  'br_on_cast_fail/br_on_cast_fail.1.wasm --flatten',
+  'br_on_cast/br_on_cast.0.wasm --flatten',
+  'br_on_cast/br_on_cast.1.wasm --flatten',
+  'br_on_non_null/br_on_non_null.0.wasm --flatten',
+  'br_on_non_null/br_on_non_null.2.wasm --flatten',
+  'br_on_null/br_on_null.0.wasm --flatten',
+  'br_on_null/br_on_null.2.wasm --flatten',
+  'instance/instance.1.wasm --flatten',
+  'instance/instance.2.wasm --flatten',
+  'instance/instance.4.wasm --flatten',
+  'throw_ref/throw_ref.0.wasm --flatten',
+  'throw/throw.0.wasm --flatten',
+  'try_table/try_table.1.wasm --flatten',
+  'try_table/try_table.2.wasm --flatten',
+  'try_table/try_table.13.wasm --flatten',
+  'try_table/try_table.16.wasm --flatten',
+];
 
 /**
  * Per-module budget: 12 variants, each optimized and run. The whole suite runs
@@ -228,12 +248,17 @@ if (stoppedEarly > 0) {
       `${MAX_TIMEOUTS} hangs; the counts above cover only what ran`,
   );
 }
-const refusedModules = [...new Set(rows.filter((r) => r.refused.length > 0).map((r) => r.name))];
+// Pinned per (module, VARIANT): a module one variant is allowed to refuse must
+// not hide another variant starting to refuse it too.
+const refusedModules = [
+  ...new Set(
+    rows.flatMap((r) => r.refused.map((why) => `${r.name} ${why.slice(0, why.indexOf(': '))}`)),
+  ),
+];
 console.log(
   `    refused variants         ${
     String(refused.length).padStart(6)
-  }   in ${refusedModules.length} ` +
-    `modules (${REFUSED_BUDGET.length} pinned)`,
+  }   (${REFUSED_BUDGET.length} pinned, by module and variant)`,
 );
 
 if (refused.length > 0) {
@@ -264,17 +289,19 @@ let failed = diverged.length > 0 || timedOut.length > 0;
 const added = refusedModules.filter((m) => !REFUSED_BUDGET.includes(m));
 // A pin can only be RETIRED by a run that reached it.
 const ran = new Set(rows.map((r) => r.name));
-const retired = REFUSED_BUDGET.filter((m) => ran.has(m) && !refusedModules.includes(m));
+const retired = REFUSED_BUDGET.filter((m) =>
+  ran.has(m.slice(0, m.indexOf(' '))) && !refusedModules.includes(m)
+);
 if (added.length > 0) {
   console.log(
-    `\n  ✗ ${added.length} module(s) NEWLY refused — fix, or pin in REFUSED_BUDGET with why:`,
+    `\n  ✗ ${added.length} (module, variant) pair(s) NEWLY refused — fix, or pin in REFUSED_BUDGET with why:`,
   );
   for (const m of added) console.log(`    '${m}',`);
   failed = true;
 }
 if (retired.length > 0) {
   console.log(
-    `\n  ✗ ${retired.length} pinned module(s) no longer refused — remove them from REFUSED_BUDGET:`,
+    `\n  ✗ ${retired.length} pinned pair(s) no longer refused — remove them from REFUSED_BUDGET:`,
   );
   for (const m of retired) console.log(`    '${m}',`);
   failed = true;

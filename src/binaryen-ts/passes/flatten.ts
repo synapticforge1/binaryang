@@ -6,8 +6,8 @@
  *  - every side-effecting or value-producing subexpression is hoisted into its
  *    own `local.set $tmp (...)` statement, and used via `local.get $tmp`;
  *  - operands are therefore always *trivial* (a `local.get` or a constant);
- *  - control-flow structures (`block` / `if` / `loop`) are statements whose
- *    value, if any, flows out through a temp local; their conditions are
+ *  - control-flow structures (`block` / `if` / `loop` / `try`) are statements
+ *    whose value, if any, flows out through temp locals; their conditions are
  *    trivial.
  *
  * This mirrors upstream Binaryen's `WebAssembly/binaryen/src/passes/Flatten.cpp`. It is a
@@ -24,28 +24,43 @@
  * expression (or `nop` for a void `e`). Preludes bubble up to the nearest
  * enclosing statement position exactly as they do upstream.
  *
- * Because Flat IR intentionally introduces many temp locals (later cleaned up
- * by `simplify-locals` / `coalesce-locals`), this pass does not attempt to
- * match upstream's exact temp numbering; it produces behaviorally-equivalent,
- * invariant-satisfying Flat IR.
+ * ## Multi-value, and the operand stack (2026-09-28)
  *
- * ## Not yet supported
+ * Upstream holds a multi-value result in a TUPLE local. This IR has no tuple
+ * kind (V1, S6 6A), so an N-value result lives in N ordinary temps: `values`
+ * beside `value` in {@link Flat}. A producer's values are captured off the
+ * real stack as wasm leaves them — `(call $pair) (local.set $t1) (local.set
+ * $t0)`, each `local.set` taking a `pop` ("already on the stack").
  *
- * Exception handling (`try` / `try_table` / `pop`), the legacy `br_on`,
- * multivalue/tuple results, and value-carrying branches (`br`/`br_if`/`br_table`
- * with a value) throw rather than being silently mishandled. The driving use
- * case — TinyGo goroutine code (loops / ifs / calls / locals, no EH/tuples) —
- * is fully covered.
+ * The reader keeps stack form where a tree cannot say it: a multi-value
+ * producer's EARLIER values are `pop`s just before it in its consumer's operand
+ * list; a value a statement leaves may be taken by a later instruction (a
+ * value-less `br` to a value-taking block, a trailing `nop` after a block's
+ * value). So each stack FRAME — a block, an arm, a loop or `try` body, a catch,
+ * the function — keeps a model of the operand stack: the values its statements
+ * left and nothing has taken yet, each already in a fresh temp or a constant
+ * ({@link Ctx.stack}). A `pop` takes from it, a value-less branch to a
+ * value-taking target takes from it, and a frame's result is what sits on top
+ * at its end. After an instruction typed `unreachable` the stack is
+ * polymorphic: what was on it is abandoned, and a `pop` with nothing under it
+ * reads `unreachable`.
+ *
+ * ## Not supported, as upstream
+ *
+ * `try_table` and `br_on_*` are refused by name — upstream refuses both too
+ * (`--flatten` crashes on `try_table`, "Unsupported instruction for Flatten:
+ * BrOn"). A block, loop, `if` or `try` with PARAMETERS is refused: the runner
+ * lowers them before any pass runs, so one here was built by hand.
  *
  * @license MIT
  */
 
 import {
-  asStatement,
   type BlockExpr,
   type BreakExpr,
   type CallExpr,
   type CallIndirectExpr,
+  type Catch,
   type Expression,
   ExpressionKind,
   type IfExpr,
@@ -57,12 +72,14 @@ import {
   makeLocalSet,
   makeLoop,
   makeNop,
+  makePop,
   makeRegion,
   makeReturn,
   makeSwitch,
   makeUnreachable,
   type RegionExpr,
   type SwitchExpr,
+  type TryExpr,
   typeOf,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
@@ -70,16 +87,17 @@ import { None, type Type, Unreachable, type ValType } from '../ir/types.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import { mapChildrenShallow } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { blockResult, requireName, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { requireName, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Type helpers
 // ---------------------------------------------------------------------------
 
-/** A concrete (single-value) type — produces a value that can be stored in a local. */
-function isConcrete(t: Type): boolean {
-  return t !== None && t !== Unreachable;
+/** The value types a type stands for: none for `none` / `unreachable`, N for a tuple. */
+function valTypes(t: Type): ValType[] {
+  if (t === None || t === Unreachable || t === undefined) return [];
+  return Array.isArray(t) ? (t as ValType[]) : [t as ValType];
 }
 
 /** Expressions that are trivial operands: keep them inline, no preludes. */
@@ -101,23 +119,34 @@ function isControlFlow(e: Expression): boolean {
   return e.kind === ExpressionKind.Block ||
     e.kind === ExpressionKind.Region ||
     e.kind === ExpressionKind.If ||
-    e.kind === ExpressionKind.Loop;
+    e.kind === ExpressionKind.Loop ||
+    e.kind === ExpressionKind.Try;
 }
 
-/** Kinds this port does not yet flatten — fail loud rather than mishandle. */
+/** Kinds this port does not flatten — upstream refuses both too. */
 function rejectUnsupported(e: Expression): void {
   switch (e.kind) {
-    case ExpressionKind.Try:
     case ExpressionKind.TryTable:
-    case ExpressionKind.Pop:
     case ExpressionKind.BrOn:
-      throw new Error(`flatten: ${e.kind} is not yet supported by this port.`);
+      throw new Error(`flatten: ${e.kind} is not supported (upstream's Flatten refuses it too).`);
+  }
+  const params = (e as { params?: { values: unknown[] } }).params;
+  if (params !== undefined && params.values.length > 0) {
+    throw new Error(
+      `flatten: a ${e.kind} with parameters (the runner lowers them before any pass; this one was built by hand).`,
+    );
   }
 }
 
 // ---------------------------------------------------------------------------
 // Flatten context (per function)
 // ---------------------------------------------------------------------------
+
+/** The temps a construct's value — and every branch that carries one to it — fills. */
+interface Temps {
+  temps: number[];
+  types: ValType[];
+}
 
 interface Ctx {
   func: WasmFunction;
@@ -128,28 +157,37 @@ interface Ctx {
    * needs hoisting into a local.
    */
   callResultTypes: Map<string, Type>;
+  /** A tag's parameter types, by name — a legacy `catch`'s payload. */
+  tagParams: Map<string, ValType[]>;
   /**
-   * The temp that receives a value-carrying branch's value, by the LABEL of
-   * the block or `if` it targets — the same temp the construct's own
-   * fall-through value is routed into (upstream's `getTempForBreakTarget`).
-   * Registered when the construct is entered; a label names one construct.
+   * The temps a value-carrying branch fills, by the LABEL of the construct it
+   * targets — the same temps the construct's own fall-through value is routed
+   * into (upstream's `getTempForBreakTarget`). Registered when the construct is
+   * entered; a label names one construct.
    */
-  branchTemps: Map<string, { temp: number; type: Type }>;
+  branchTemps: Map<string, Temps>;
+  /**
+   * The function's results as a branch TARGET: a `br_table` that may leave the
+   * function with values branches to a block wrapped around the body instead,
+   * `frame.label`, and the body's end returns these temps. Made on first use.
+   */
+  frame: (Temps & { label: string }) | null;
+  /**
+   * This frame's model of the operand stack: values its statements left that
+   * nothing has taken yet, deepest first — each a fresh temp's `local.get` or a
+   * constant, so reading it late reads what was computed early.
+   */
+  stack: Expression[];
+  /** An instruction typed `unreachable` ran in this frame: the stack is polymorphic. */
+  polymorphic: boolean;
 }
 
 /**
- * The effective result type of a (possibly type-`none`) call node.
- *
- * Flatten hoists a value-producing expression into ONE temporary local, so a
- * multi-result call has no representation here — a single local cannot hold N
- * values, and taking `results[0]` (as this did) would silently drop the rest
- * and leave the operand stack short. Multi-result calls are decodable now, so
- * this has to fail loudly rather than mis-hoist.
- *
- * An unresolvable direct-call target is likewise an error, not `none`:
- * `buildCallResultTypes` registers every import and defined function, so a miss
- * means a dangling target. Typing it `none` silently discarded the call's
- * value — the same defect the WAT parser's `inferFuncResultType` stub caused.
+ * The effective result type of a (possibly type-`none`) call node — a tuple
+ * for a multi-result call. An unresolvable direct-call target is an error, not
+ * `none`: `buildCallResultTypes` registers every import and defined function, so
+ * a miss means a dangling target, and typing it `none` silently discarded the
+ * call's value.
  */
 function callEffectiveType(e: Expression, ctx: Ctx): Type {
   if (e.kind === ExpressionKind.Call) {
@@ -158,57 +196,28 @@ function callEffectiveType(e: Expression, ctx: Ctx): Type {
     if (t === undefined) {
       throw new Error(`Flatten: unresolved call target "${target}"`);
     }
-    if (Array.isArray(t) && t.length > 1) {
-      throw new Error(
-        `Flatten: call to "${target}" returns ${t.length} values; ` +
-          `multi-result calls cannot be hoisted into a single local`,
-      );
-    }
     return t;
   }
   if (e.kind === ExpressionKind.CallIndirect) {
     const r = (e as CallIndirectExpr).sig.results;
-    if (r.length > 1) {
-      throw new Error(
-        `Flatten: call_indirect returns ${r.length} values; ` +
-          `multi-result calls cannot be hoisted into a single local`,
-      );
-    }
-    return r[0] ?? None;
-  }
-  if (e.kind === ExpressionKind.CallRef) {
-    const t = typeOf(e);
-    if (Array.isArray(t) && t.length > 1) {
-      throw new Error(
-        `Flatten: call_ref returns ${t.length} values; ` +
-          `multi-result calls cannot be hoisted into a single local`,
-      );
-    }
-    return t;
+    return r.length === 0 ? None : r.length === 1 ? r[0]! : (r as Type);
   }
   return typeOf(e);
 }
 
-/**
- * Allocate a fresh local of `type` and return its index.
- *
- * A TUPLE — a multi-value block, `if`, `loop` or function body — has no local
- * to hold it, as a multi-result call has none (`callEffectiveType`). 🔧 One was
- * allocated anyway: a local no value type can spell, which the writer's
- * resolver met as an internal crash ("Cannot read properties of undefined") on
- * 47 of 2,919 modules. Refused here, by name.
- */
-function allocTemp(ctx: Ctx, type: Type): number {
-  if (Array.isArray(type)) {
-    throw new Error(
-      `Flatten: a ${type.length}-value result cannot be hoisted into a single local ` +
-        `(in "${ctx.func.name}"); multi-value blocks and bodies are not yet supported by this port.`,
-    );
-  }
-  const idx = ctx.func.locals.length;
-  ctx.func.locals.push({ type: type as ValType });
-  return idx;
+/** Allocate a fresh local of each type; their indices. */
+function allocTemps(ctx: Ctx, types: readonly ValType[]): number[] {
+  return types.map((type) => {
+    const idx = ctx.func.locals.length;
+    ctx.func.locals.push({ type });
+    return idx;
+  });
 }
+
+const getsOf = (t: Temps): Expression[] =>
+  t.temps.map((i, k) => makeLocalGet(varIndex(i), t.types[k]!));
+const setsOf = (t: Temps, values: readonly Expression[]): Expression[] =>
+  t.temps.map((i, k) => makeLocalSet(varIndex(i), values[k]!));
 
 /** The result of flattening one expression. */
 interface Flat {
@@ -216,6 +225,63 @@ interface Flat {
   pre: Expression[];
   /** A trivial value expression (or `nop` when the source was void). */
   value: Expression;
+  /** For an N-value result: its N trivial values, in stack order (`value` is `nop`). */
+  values?: Expression[];
+}
+
+/** The trivial values a flattened expression leaves: none, one, or N. */
+function valuesOf(f: Flat): Expression[] {
+  if (f.values !== undefined) return f.values;
+  const k = f.value.kind;
+  return k === ExpressionKind.Nop || k === ExpressionKind.Unreachable ? [] : [f.value];
+}
+
+/**
+ * Capture the N values a statement leaves on the REAL stack into N fresh
+ * temps: the statement, then `local.set` of each, deepest last (each takes a
+ * `pop`, which the writer writes as nothing).
+ */
+function capture(
+  stmt: Expression,
+  types: readonly ValType[],
+  ctx: Ctx,
+): { pre: Expression[]; values: Expression[] } {
+  const t: Temps = { temps: allocTemps(ctx, types), types: [...types] };
+  const sets: Expression[] = [];
+  for (let k = types.length - 1; k >= 0; k--) {
+    sets.push(makeLocalSet(varIndex(t.temps[k]!), makePop(types[k]!)));
+  }
+  return { pre: [stmt, ...sets], values: getsOf(t) };
+}
+
+/**
+ * Take `n` values off this frame's stack, deepest first. Short of them in a
+ * polymorphic stretch (dead code), what is missing reads `unreachable`; short
+ * of them in live code the tree does not say where they come from — refused.
+ */
+function take(n: number, ctx: Ctx, what: string): Expression[] {
+  if (n === 0) return [];
+  if (ctx.stack.length >= n) return ctx.stack.splice(ctx.stack.length - n, n);
+  if (ctx.polymorphic) {
+    const have = ctx.stack.splice(0);
+    return [...Array(n - have.length).fill(null).map(() => makeUnreachable()), ...have];
+  }
+  throw new Error(
+    `Flatten: ${what} takes ${n} value(s) from the stack and ${ctx.stack.length} are there (in "${ctx.func.name}")`,
+  );
+}
+
+/** Run `fn` in a fresh stack frame, seeded with `seed`; the outer frame is restored after. */
+function inFrame<T>(ctx: Ctx, seed: Expression[], fn: () => T): T {
+  const [stack, polymorphic] = [ctx.stack, ctx.polymorphic];
+  ctx.stack = [...seed];
+  ctx.polymorphic = false;
+  try {
+    return fn();
+  } finally {
+    ctx.stack = stack;
+    ctx.polymorphic = polymorphic;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -228,6 +294,9 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   // Constants / nop / unreachable are already trivial.
   if (isTrivial(e)) return { pre: [], value: e };
 
+  // A value already on the stack: this frame's model has it.
+  if (e.kind === ExpressionKind.Pop) return { pre: [], value: take(1, ctx, 'a `pop`')[0]! };
+
   if (isControlFlow(e)) return flattenControlFlow(e, ctx);
 
   // local.tee is disallowed in Flat IR: rewrite to a set (prelude) + get.
@@ -238,50 +307,91 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   // that nothing else writes, mirroring the general-case hoist below.
   if (e.kind === ExpressionKind.LocalTee) {
     const tee = e as { var: Var; value: Expression; type: Type };
-    const inner = flattenExpr(tee.value, ctx);
-    const temp = allocTemp(ctx, tee.type);
+    const inner = flattenOperands([tee.value], ctx);
+    const [temp] = allocTemps(ctx, [tee.type as ValType]);
     return {
       pre: [
         ...inner.pre,
-        makeLocalSet(varIndex(temp), inner.value),
-        makeLocalSet(tee.var, makeLocalGet(varIndex(temp), tee.type as ValType)),
+        makeLocalSet(varIndex(temp!), inner.values[0]!),
+        makeLocalSet(tee.var, makeLocalGet(varIndex(temp!), tee.type as ValType)),
       ],
-      value: makeLocalGet(varIndex(temp), tee.type as ValType),
+      value: makeLocalGet(varIndex(temp!), tee.type as ValType),
     };
   }
 
-  // Value-carrying branches: the value goes into the target's temp, and the
-  // branch goes without it (upstream Flatten's shape).
-  if (e.kind === ExpressionKind.Break && (e as BreakExpr).values.length > 0) {
+  // Branches that carry values — written with them, or taking them from the
+  // stack: the values go into the target's temps, and the branch goes without.
+  if (e.kind === ExpressionKind.Break && carriesValues(e as BreakExpr, ctx)) {
     return flattenValueBreak(e as BreakExpr, ctx);
   }
-  if (e.kind === ExpressionKind.Switch && (e as SwitchExpr).values.length > 0) {
+  if (e.kind === ExpressionKind.Switch && carriesValues(e as SwitchExpr, ctx)) {
     return flattenValueSwitch(e as SwitchExpr, ctx);
   }
 
-  // General case: flatten each child (eval order), collecting their preludes,
+  // General case: flatten the operands (eval order), collecting their preludes,
   // then reduce the rebuilt node according to its type.
-  const childPre: Expression[] = [];
-  const rebuilt = mapChildrenShallow(e, (child) => {
-    const f = flattenExpr(child, ctx);
-    childPre.push(...f.pre);
-    return f.value;
-  });
+  const ops: Expression[] = [];
+  mapChildrenShallow(e, (c) => (ops.push(c), c));
+  const flat = flattenOperands(ops, ctx, `the operands of a \`${e.kind}\``);
+  let i = 0;
+  const rebuilt = mapChildrenShallow(e, () => flat.values[i++]!);
 
   if (rebuilt.type === Unreachable) {
-    return { pre: [...childPre, rebuilt], value: makeUnreachable() };
+    return { pre: [...flat.pre, rebuilt], value: makeUnreachable() };
   }
   // Calls carry `type === none` from the parser; resolve their true result type.
-  const effType = callEffectiveType(rebuilt, ctx);
-  if (isConcrete(effType)) {
-    const temp = allocTemp(ctx, effType);
+  const types = valTypes(callEffectiveType(rebuilt, ctx));
+  if (types.length === 1) {
+    const [temp] = allocTemps(ctx, types);
     return {
-      pre: [...childPre, makeLocalSet(varIndex(temp), rebuilt)],
-      value: makeLocalGet(varIndex(temp), effType as ValType),
+      pre: [...flat.pre, makeLocalSet(varIndex(temp!), rebuilt)],
+      value: makeLocalGet(varIndex(temp!), types[0]!),
     };
   }
+  if (types.length > 1) {
+    const c = capture(rebuilt, types, ctx);
+    return { pre: [...flat.pre, ...c.pre], value: makeNop(), values: c.values };
+  }
   // Void statement (store, local.set, drop, void call, br/br_if without value…).
-  return { pre: [...childPre, rebuilt], value: makeNop() };
+  return { pre: [...flat.pre, rebuilt], value: makeNop() };
+}
+
+/**
+ * An operand LIST, in evaluation order: one trivial value per slot. A `pop`
+ * slot is a value already on the stack. The operands run first — a
+ * multi-value producer fills its own slot with its LAST value and leaves the
+ * earlier ones on the frame's stack, in the order wasm leaves them — and then
+ * the `pop` slots take the stack's top, deepest slot first. That one rule
+ * covers every `pop` the reader makes: a producer's earlier values just
+ * before it (the reader gives one stack entry per VALUE), a value an earlier
+ * statement left, and a value a producer nested in a LATER sibling leaves under
+ * that sibling's result — in `(call $pick1 (pop) (i64.mul (pop) (call $pick1
+ * …)))` the outer `pop` is what the inner `$pick1` leaves under the product
+ * (`spec/fac` "fac-ssa"). Stack order is slot order, so reading it once every
+ * operand has run assigns each `pop` its value.
+ */
+function flattenOperands(
+  ops: readonly Expression[],
+  ctx: Ctx,
+  what = 'an operand list',
+): { pre: Expression[]; values: Expression[] } {
+  const values: Expression[] = new Array(ops.length);
+  const pre: Expression[] = [];
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i]!;
+    if (op.kind === ExpressionKind.Pop) continue;
+    const f = flattenExpr(op, ctx);
+    pre.push(...f.pre);
+    if (f.values === undefined) {
+      values[i] = f.value;
+      continue;
+    }
+    values[i] = f.values[f.values.length - 1]!;
+    ctx.stack.push(...f.values.slice(0, -1));
+  }
+  const pops = ops.flatMap((op, j) => op.kind === ExpressionKind.Pop ? [j] : []);
+  take(pops.length, ctx, what).forEach((v, k) => values[pops[k]!] = v);
+  return { pre, values };
 }
 
 // ---------------------------------------------------------------------------
@@ -294,19 +404,22 @@ function isFrame(name: string, ctx: Ctx): boolean {
   return name === (ctx.func.bodyFrameLabel ?? '') || name === '';
 }
 
-/** The one value a branch carries, flattened — several are a tuple, which no local holds. */
-function branchValue(values: Expression[], what: string, ctx: Ctx): Flat {
-  if (values.length > 1) {
-    throw new Error(
-      `Flatten: a ${what} carrying ${values.length} values cannot route them through one local ` +
-        `(in "${ctx.func.name}"); multi-value branches are not yet supported by this port.`,
-    );
-  }
-  return flattenExpr(values[0]!, ctx);
+/** How many values a branch to `name` carries: the target's arity. */
+function arityOf(name: string, ctx: Ctx): number {
+  if (isFrame(name, ctx)) return ctx.func.sig.results.length;
+  return ctx.branchTemps.get(name)?.types.length ?? 0;
 }
 
-/** The temp a branch to `name` fills; a target that registered none is refused, not guessed. */
-function targetTemp(name: string, ctx: Ctx): { temp: number; type: Type } {
+/** Does this branch carry values — written, or taken from the stack? */
+function carriesValues(br: BreakExpr | SwitchExpr, ctx: Ctx): boolean {
+  if (br.values.length > 0) return true;
+  const target = br.kind === ExpressionKind.Break ? br.target : br.defaultTarget;
+  // Every target of a valid `br_table` takes the same arity: one tells.
+  return arityOf(requireName(target, 'branch target'), ctx) > 0;
+}
+
+/** The temps a branch to `name` fills; a target that registered none is refused, not guessed. */
+function targetTemps(name: string, ctx: Ctx): Temps {
   const t = ctx.branchTemps.get(name);
   if (t === undefined) {
     throw new Error(`Flatten: a value-carrying branch to "${name}", which yields no value`);
@@ -314,75 +427,96 @@ function targetTemp(name: string, ctx: Ctx): { temp: number; type: Type } {
   return t;
 }
 
+/** The function frame as a branch target: its result temps, made on first use. */
+function frameTarget(ctx: Ctx): Temps & { label: string } {
+  if (ctx.frame === null) {
+    const types = ctx.func.sig.results as ValType[];
+    ctx.frame = { temps: allocTemps(ctx, types), types: [...types], label: '$flatten$frame' };
+  }
+  return ctx.frame;
+}
+
+/** A branch's values: its written operands, or — none written — the stack's top. */
+function branchValues(
+  br: BreakExpr | SwitchExpr,
+  n: number,
+  ctx: Ctx,
+): { pre: Expression[]; values: Expression[] } {
+  if (br.values.length > 0) return flattenOperands(br.values, ctx);
+  // An index or condition that never falls through made the stack polymorphic
+  // BEFORE the values were taken — `(br_table 0 0 (unreachable))` to a result
+  // block: a value missing there is dead code.
+  const cond = br.condition;
+  const polymorphic = ctx.polymorphic;
+  if (cond !== undefined && neverFallsThrough(cond, ctx)) ctx.polymorphic = true;
+  try {
+    return { pre: [], values: take(n, ctx, `a value-less \`${br.kind}\``) };
+  } finally {
+    ctx.polymorphic = polymorphic;
+  }
+}
+
 /**
- * `br $l (v)` → `local.set $tmp(v); br $l`; `br_if $l (v) (c)` → the same with
- * the condition, and the value that falls through when it is not taken is
- * `local.get $tmp`. To the FRAME, the value is the function's result: a `br`
+ * `br $l (v…)` → `local.set $tmp…(v…); br $l`; `br_if $l (v…) (c)` → the same
+ * with the condition, and the values that fall through when it is not taken
+ * are the temps. To the FRAME, the values are the function's results: a `br`
  * is a `return`, a `br_if` an `if` around one.
  *
- * Wasm evaluates the value, then the condition. Both are flattened in that
- * order, and the target's temp is set only after the condition's prelude, just
- * before the branch: the condition may itself branch to the same target and
- * set the temp, and must not clobber the value this branch carries. The value
- * is a constant or a FRESH temp by then, so reading it late reads what was
+ * Wasm evaluates the values, then the condition. Both are flattened in that
+ * order, and the target's temps are set only after the condition's prelude,
+ * just before the branch: the condition may itself branch to the same target
+ * and set the temps, and must not clobber the values this branch carries. They
+ * are constants or FRESH temps by then, so reading them late reads what was
  * computed first.
  */
 function flattenValueBreak(br: BreakExpr, ctx: Ctx): Flat {
   const name = requireName(br.target, 'branch target');
-  const v = branchValue(br.values, 'branch', ctx);
-  const cond = br.condition === undefined ? undefined : flattenExpr(br.condition, ctx);
+  const v = branchValues(br, arityOf(name, ctx), ctx);
+  const cond = br.condition === undefined ? undefined : flattenOperands([br.condition], ctx);
   const pre = [...v.pre, ...(cond?.pre ?? [])];
+  const fallThrough = (values: Expression[]): Flat =>
+    values.length === 1 ? { pre, value: values[0]! } : { pre, value: makeNop(), values };
   if (isFrame(name, ctx)) {
     if (cond === undefined) {
-      return { pre: [...pre, makeReturn([v.value])], value: makeUnreachable() };
+      return { pre: [...pre, makeReturn(v.values)], value: makeUnreachable() };
     }
-    const type = typeOf(v.value);
-    const temp = allocTemp(ctx, type);
-    const get = () => makeLocalGet(varIndex(temp), type as ValType);
-    return {
-      pre: [
-        ...pre,
-        makeLocalSet(varIndex(temp), v.value),
-        makeIf(cond.value, makeRegion([makeReturn([get()])]), null),
-      ],
-      value: get(),
+    const t: Temps = {
+      temps: allocTemps(ctx, v.values.map((x) => typeOf(x) as ValType)),
+      types: v.values.map((x) => typeOf(x) as ValType),
     };
+    pre.push(
+      ...setsOf(t, v.values),
+      makeIf(cond.values[0]!, makeRegion([makeReturn(getsOf(t))]), null),
+    );
+    return fallThrough(getsOf(t));
   }
-  const { temp, type } = targetTemp(name, ctx);
-  pre.push(makeLocalSet(varIndex(temp), v.value));
+  const t = targetTemps(name, ctx);
+  pre.push(...setsOf(t, v.values));
   if (cond === undefined) return { pre: [...pre, makeBreak(name)], value: makeUnreachable() };
-  return {
-    pre: [...pre, makeBreak(name, cond.value)],
-    value: makeLocalGet(varIndex(temp), type as ValType),
-  };
+  pre.push(makeBreak(name, cond.values[0]!));
+  return fallThrough(getsOf(t));
 }
 
 /**
- * `br_table` with a value: the value into the temp of EVERY target it may
- * take, then the `br_table` without it. A table that may leave the function
- * with a value is refused — a `return` has no index to switch on.
+ * `br_table` with values: the values into the temps of EVERY target it may
+ * take, then the `br_table` without them. A target that leaves the FUNCTION
+ * is redirected to a block around the body ({@link frameTarget}) whose temps
+ * the body's end returns — a `return` has no index to switch on.
  */
 function flattenValueSwitch(sw: SwitchExpr, ctx: Ctx): Flat {
-  const v = branchValue(sw.values, 'br_table', ctx);
-  const cond = flattenExpr(sw.condition, ctx);
-  const names = [
-    ...new Set([...sw.targets, sw.defaultTarget].map((t) => requireName(t, 'target'))),
-  ];
-  if (names.some((n) => isFrame(n, ctx))) {
-    throw new Error(
-      `Flatten: a value-carrying br_table to the function frame (in "${ctx.func.name}") ` +
-        `is not yet supported by this port.`,
-    );
-  }
-  const sets = names.map((n) => makeLocalSet(varIndex(targetTemp(n, ctx).temp), v.value));
-  const bare = makeSwitch(
-    sw.targets.map((t) => requireName(t, 'target')),
-    requireName(
-      sw.defaultTarget,
-      'target',
-    ),
-    cond.value,
+  const retarget = (t: Var): string => {
+    const name = requireName(t, 'target');
+    return isFrame(name, ctx) ? frameTarget(ctx).label : name;
+  };
+  const targets = sw.targets.map(retarget);
+  const defaultTarget = retarget(sw.defaultTarget);
+  const n = arityOf(requireName(sw.defaultTarget, 'target'), ctx);
+  const v = branchValues(sw, n, ctx);
+  const cond = flattenOperands([sw.condition], ctx);
+  const sets = [...new Set([...targets, defaultTarget])].flatMap((name) =>
+    setsOf(name === ctx.frame?.label ? ctx.frame : targetTemps(name, ctx), v.values)
   );
+  const bare = makeSwitch(targets, defaultTarget, cond.values[0]!);
   return { pre: [...v.pre, ...cond.pre, ...sets, bare], value: makeUnreachable() };
 }
 
@@ -393,194 +527,175 @@ function flattenValueSwitch(sw: SwitchExpr, ctx: Ctx): Flat {
 function flattenControlFlow(e: Expression, ctx: Ctx): Flat {
   switch (e.kind) {
     case ExpressionKind.Block:
-      return flattenBlock(e as BlockExpr, ctx);
-    // A region flattens as its one instruction, or as an unnamed block of
-    // several (`asStatement`) — the shapes upstream's parser hands its Flatten,
-    // and the ones this port's parsers produced before regions were a kind, so
-    // the Flat IR that asyncify mirrors against `wasm-opt` is unchanged.
-    // A block of several declares the region's contents' type — `None` when
-    // they never fall through, which is what such a block declares.
+      return flattenBlockLike((e as BlockExpr).children, typeOf(e), (e as BlockExpr).label, ctx);
+    // A region in operand position flattens as an unnamed block of its
+    // contents' type — `None` when they never fall through.
     case ExpressionKind.Region:
-      return flattenExpr(
-        asStatement(e, e.type === undefined || e.type === Unreachable ? None : e.type),
-        ctx,
-      );
+      return flattenBlockLike((e as RegionExpr).children, typeOf(e), '', ctx);
     case ExpressionKind.If:
       return flattenIf(e as IfExpr, ctx);
     case ExpressionKind.Loop:
       return flattenLoop(e as LoopExpr, ctx);
+    case ExpressionKind.Try:
+      return flattenTry(e as TryExpr, ctx);
     default:
       throw new Error(`flatten: unexpected control-flow kind ${e.kind}`);
   }
 }
 
 /**
- * Flatten a block. Non-last children are statements: their preludes and (void)
- * bodies are appended in order. If the block is concrete, the last child's
- * value is routed into a result temp and the block becomes a void statement;
- * the block's value flows out via `local.get $temp`.
+ * A SEQUENCE in its own stack frame (`seed`: the values the format puts on the
+ * stack at its entry). Each statement's preludes and body in order; a
+ * statement that leaves values pushes them onto the frame's stack, where a
+ * later `pop` or value-less branch takes them. The sequence's result is the
+ * top `types.length` values at its end — `null` when the end is unreachable
+ * (after a transfer or trap nothing falls through, and nothing is set).
  */
-function flattenBlock(block: BlockExpr, ctx: Ctx): Flat {
-  const concrete = isConcrete(typeOf(block));
-  const resultTemp = concrete ? allocTemp(ctx, typeOf(block)) : -1;
-  // A branch to this block carrying a value fills the same temp.
-  if (concrete && block.label) {
-    ctx.branchTemps.set(block.label, { temp: resultTemp, type: typeOf(block) });
-  }
-  const list: Expression[] = [];
-  // WHICH child yields the block's value: the last one, unless it is a void
-  // statement — in stack form a value may sit on the stack while void
-  // statements after it run (`(call $v) (i32.const 3) (nop)` yields 3). Then it
-  // is the last child that produces a value, with only void ones after it.
-  // 🔧 This took the LAST child always, and wrote `local.set $tmp (nop)` —
-  // INVALID (`spec/nop/nop.0`, `local_tee.0`; reached once value-carrying
-  // branches stopped refusing those modules first).
-  const kids = block.children;
-  let valueAt = kids.length - 1;
-  if (concrete && kids.length > 0 && callEffectiveType(kids[valueAt]!, ctx) === None) {
-    for (let i = kids.length - 2; i >= 0; i--) {
-      const t = callEffectiveType(kids[i]!, ctx);
-      if (t === None) continue;
-      if (isConcrete(t)) valueAt = i;
-      break;
-    }
-  }
-
-  block.children.forEach((child, i) => {
-    // Any OTHER child that leaves a value: in a valid module something later
-    // takes it implicitly, from the stack (stack-form code the reader keeps —
-    // `(local.get 0) (nop) (br_if 0 (local.get 0))`, whose `br_if` shows no
-    // value). Flat IR routes values through locals, never the stack, and
-    // discarding it — as this did — loses an operand: INVALID output
-    // (`spec/nop/nop.0`). Refused by name; upstream's IR has no such code.
-    if (i !== valueAt || !concrete) {
-      const t = callEffectiveType(child, ctx);
-      if (isConcrete(t) && !abandoned(kids, i, ctx)) {
-        throw new Error(
-          `Flatten: a value left on the stack for a later instruction (stack-form code, in ` +
-            `"${ctx.func.name}") is not yet supported by this port.`,
-        );
+function flattenSeq(
+  children: readonly Expression[],
+  types: readonly ValType[],
+  ctx: Ctx,
+  seed: Expression[] = [],
+): { stmts: Expression[]; results: Expression[] | null } {
+  return inFrame(ctx, seed, () => {
+    const stmts: Expression[] = [];
+    for (const child of children) {
+      // A `pop` directly in a sequence is not an instruction: it marks a stack
+      // slot whose value STAYS — a multi-value producer's earlier value (the
+      // producer pushes all of them), or a value left for the result. The
+      // model already holds it.
+      if (child.kind === ExpressionKind.Pop) continue;
+      const f = flattenExpr(child, ctx);
+      stmts.push(...f.pre);
+      if (neverFallsThrough(child, ctx)) {
+        // A transfer or trap: keep it as a statement (a trivial `unreachable`
+        // has no prelude, and would vanish), and what the stack held is
+        // abandoned — nothing after it here is reached.
+        // Only the trap itself: a value computed after the transfer (`(i32.xor
+        // (br 0 …) …)` leaves the xor's `local.get`) is dead, and as a
+        // statement would leave a value at a void end.
+        if (
+          f.value.kind === ExpressionKind.Unreachable &&
+          !f.pre.some((s) => typeOf(s) === Unreachable)
+        ) {
+          stmts.push(f.value);
+        }
+        ctx.stack = [];
+        ctx.polymorphic = true;
+        continue;
       }
+      ctx.stack.push(...valuesOf(f));
     }
-    const f = flattenExpr(child, ctx);
-    list.push(...f.pre);
-    if (i === valueAt && concrete) {
-      list.push(makeLocalSet(varIndex(resultTemp), f.value));
-    } else if (child.type === Unreachable) {
-      // A non-last `unreachable` (e.g. a bare `unreachable`, or the value of a
-      // call to a noreturn fn) is trivial with an empty prelude, so it would
-      // otherwise vanish. Keep it as a statement — it carries the trap and
-      // terminates control flow; dropping it lets execution fall through.
-      list.push(f.value);
-    }
-    // (A non-value child that leaves a value was refused above; this comment
-    // used to say such a value "has no effect — discard it", which lost a
-    // stack operand.) Void children: their statement is already in `f.pre`
-    // (general case emits the rebuilt node into pre), so nothing else to push.
+    if (ctx.polymorphic && ctx.stack.length < types.length) return { stmts, results: null };
+    return { stmts, results: take(types.length, ctx, 'the end of a sequence') };
   });
-
-  const flatBlock = makeBlock(list, block.label);
-  return concrete
-    ? { pre: [flatBlock], value: makeLocalGet(varIndex(resultTemp), block.type as ValType) }
-    : { pre: [flatBlock], value: makeNop() };
 }
 
 /**
- * Is the value `kids[i]` leaves ABANDONED — discarded by what follows, taken by
- * nothing? It is when the next child that is not a void statement is a
- * stack-polymorphic transfer (typed `unreachable`: `unreachable`, `return`, a
- * `br`, a `throw`) that takes nothing from the stack. Its side effects stay
- * (they are in the prelude); only the value, which nothing reads, goes.
- * `(unary) (unary) (unreachable)` and `(local.tee …) (return (i32.const -1))`
- * are that shape (`spec/binary-leb128`, `spec/br_if`). (A `pop` operand —
- * "already on the stack" — never reaches here: the spill before Flatten turns
- * it into a local, and one it cannot is refused by `rejectUnsupported`.)
+ * Does control never leave `e` forward? Typed `unreachable`, or a plain
+ * instruction with an operand that never falls through — `(call_ref $t
+ * (unreachable))` is typed by its signature, and the stack after it is
+ * polymorphic all the same. A block, `if`, loop or `try` ends where its type
+ * says, whatever its contents did.
  */
-function abandoned(kids: readonly Expression[], i: number, ctx: Ctx): boolean {
-  for (let j = i + 1; j < kids.length; j++) {
-    const next = kids[j]!;
-    const t = callEffectiveType(next, ctx);
-    // Void statements, and other values that take nothing (a run of leftovers
-    // before the trap, `spec/binary-leb128`), leave this one where it is.
-    if (t === None || isConcrete(t)) continue;
-    return typeOf(next) === Unreachable && !branchTakesFromStack(next, ctx);
-  }
-  return false;
+function neverFallsThrough(e: Expression, ctx: Ctx): boolean {
+  if (callEffectiveType(e, ctx) === Unreachable) return true;
+  if (isControlFlow(e)) return false;
+  let never = false;
+  mapChildrenShallow(e, (c) => {
+    never ||= c.kind !== ExpressionKind.Pop && neverFallsThrough(c, ctx);
+    return c;
+  });
+  return never;
 }
 
-/**
- * A `br` or `br_table` that shows no value but targets a construct that takes
- * one: in stack form it takes that value from the stack. 🔧 `abandoned` read
- * `(block (result i32) local.get 0 nop br 0)`'s `br` as a trap that discards
- * the value — the output was VALID and returned the result temp's zero.
- */
-function branchTakesFromStack(e: Expression, ctx: Ctx): boolean {
-  let target: Var;
-  if (e.kind === ExpressionKind.Break && (e as BreakExpr).values.length === 0) {
-    target = (e as BreakExpr).target;
-  } else if (e.kind === ExpressionKind.Switch && (e as SwitchExpr).values.length === 0) {
-    // Every target of a valid `br_table` takes the same arity: one tells.
-    target = (e as SwitchExpr).defaultTarget;
-  } else {
-    return false;
-  }
-  const n = requireName(target, 'branch target');
-  return ctx.branchTemps.has(n) || (isFrame(n, ctx) && ctx.func.sig.results.length > 0);
+/** A frame's result into its temps, and the construct's value(s) out of them. */
+function resultFlat(pre: Expression[], t: Temps): Flat {
+  const gets = getsOf(t);
+  if (gets.length === 0) return { pre, value: makeNop() };
+  if (gets.length === 1) return { pre, value: gets[0]! };
+  return { pre, value: makeNop(), values: gets };
 }
 
-/** Flatten an `if`: trivial condition + statement arms; value via a temp. */
+/** A block (or a region in operand position): its value through temps; a branch to its label fills the same ones. */
+function flattenBlockLike(
+  children: readonly Expression[],
+  type: Type,
+  label: string,
+  ctx: Ctx,
+): Flat {
+  const types = valTypes(type);
+  const t: Temps = { temps: allocTemps(ctx, types), types };
+  if (types.length > 0 && label) ctx.branchTemps.set(label, t);
+  const seq = flattenSeq(children, types, ctx);
+  const list = [...seq.stmts, ...(seq.results === null ? [] : setsOf(t, seq.results))];
+  return resultFlat([makeBlock(list, label || null)], t);
+}
+
+/** Flatten an `if`: a trivial condition, statement arms; values through temps. */
 function flattenIf(iff: IfExpr, ctx: Ctx): Flat {
-  const cond = flattenExpr(iff.condition, ctx);
-  const concrete = isConcrete(typeOf(iff));
-  const resultTemp = concrete ? allocTemp(ctx, typeOf(iff)) : -1;
+  const cond = flattenOperands([iff.condition], ctx);
+  const types = valTypes(typeOf(iff));
+  const t: Temps = { temps: allocTemps(ctx, types), types };
   // After the condition: the `if`'s label covers its arms, not its condition.
-  if (concrete && iff.label) {
-    ctx.branchTemps.set(iff.label, { temp: resultTemp, type: typeOf(iff) });
-  }
+  if (types.length > 0 && iff.label) ctx.branchTemps.set(iff.label, t);
 
   const arm = (a: RegionExpr): RegionExpr => {
-    const f = flattenExpr(a, ctx);
-    const stmts = [...f.pre];
-    if (concrete && isConcrete(typeOf(a))) stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
-    // 🔧 An arm of one `unreachable` flattens to that trivial VALUE with an
-    // empty prelude; keeping only concrete values dropped it, and the arm fell
-    // through instead of trapping (`spec/unreachable` "as-if-then").
-    else if (typeOf(f.value) === Unreachable) stmts.push(f.value);
-    return makeRegion(stmts);
+    const seq = flattenSeq(a.children, types, ctx);
+    return makeRegion([...seq.stmts, ...(seq.results === null ? [] : setsOf(t, seq.results))]);
   };
-
   const ifTrue = arm(iff.ifTrue);
   const ifFalse = iff.ifFalse ? arm(iff.ifFalse) : null;
   // 🔧 Through `makeIf`, carrying the `if`'s LABEL. This was a literal without
   // the label, so a `br` inside that targeted the `if` itself lost its target
   // and the encoder threw "unresolved branch label" on a valid input.
-  const flatIf = makeIf(cond.value, ifTrue, ifFalse, iff.label);
-
-  return concrete
-    ? { pre: [...cond.pre, flatIf], value: makeLocalGet(varIndex(resultTemp), iff.type as ValType) }
-    : { pre: [...cond.pre, flatIf], value: makeNop() };
+  const flatIf = makeIf(cond.values[0]!, ifTrue, ifFalse, iff.label);
+  return resultFlat([...cond.pre, flatIf], t);
 }
 
-/** Flatten a `loop`: body becomes a statement block; value via a temp. */
+/** Flatten a `loop`: the body a statement sequence; values through temps. */
 function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
-  const concrete = isConcrete(typeOf(loop));
-  const resultTemp = concrete ? allocTemp(ctx, typeOf(loop)) : -1;
+  const types = valTypes(typeOf(loop));
+  const t: Temps = { temps: allocTemps(ctx, types), types };
+  const seq = flattenSeq(loop.body.children, types, ctx);
+  const body = [...seq.stmts, ...(seq.results === null ? [] : setsOf(t, seq.results))];
+  return resultFlat([makeLoop(loop.label, makeRegion(body))], t);
+}
 
-  const f = flattenExpr(loop.body, ctx);
-  const stmts = [...f.pre];
-  if (concrete && isConcrete(typeOf(loop.body))) {
-    stmts.push(makeLocalSet(varIndex(resultTemp), f.value));
-  } else if (typeOf(f.value) === Unreachable) {
-    // The same trap as an `if` arm's: `(loop (unreachable))` flattens to a
-    // trivial value that nothing else would keep.
-    stmts.push(f.value);
-  }
-
-  const flatLoop = makeLoop(loop.label, makeRegion(stmts));
-
-  return concrete
-    ? { pre: [flatLoop], value: makeLocalGet(varIndex(resultTemp), loop.type as ValType) }
-    : { pre: [flatLoop], value: makeNop() };
+/**
+ * Flatten a legacy `try`: the body and each handler statement sequences;
+ * values through temps, as a block's. A `catch $tag` handler is ENTERED with
+ * the tag's payload on the stack: it is captured first — `local.set` of each
+ * value, deepest last, taking a `pop` — and the handler's own `pop`s read the
+ * temps. Upstream keeps the `pop` first in the handler the same way.
+ */
+function flattenTry(tr: TryExpr, ctx: Ctx): Flat {
+  const types = valTypes(typeOf(tr));
+  const t: Temps = { temps: allocTemps(ctx, types), types };
+  if (types.length > 0 && tr.label) ctx.branchTemps.set(tr.label, t);
+  const region = (
+    children: readonly Expression[],
+    entry: Expression[] = [],
+    seed: Expression[] = [],
+  ) => {
+    const seq = flattenSeq(children, types, ctx, seed);
+    return makeRegion([
+      ...entry,
+      ...seq.stmts,
+      ...(seq.results === null ? [] : setsOf(t, seq.results)),
+    ]);
+  };
+  const catches = tr.catches.map((c): Catch => {
+    if (c.isRef) throw new Error('flatten: a legacy catch_ref is not supported');
+    const payload = c.tag === undefined ? [] : ctx.tagParams.get(requireName(c.tag, 'catch tag'));
+    if (payload === undefined) {
+      throw new Error(`Flatten: unresolved catch tag "${requireName(c.tag!, 'catch tag')}"`);
+    }
+    const cap = payload.length === 0 ? { pre: [], values: [] } : capture(makeNop(), payload, ctx);
+    return { ...c, body: region(c.body.children, cap.pre.slice(1), cap.values) };
+  });
+  const flatTry: TryExpr = { ...tr, type: None, body: region(tr.body.children), catches };
+  return resultFlat([flatTry], t);
 }
 
 // ---------------------------------------------------------------------------
@@ -591,13 +706,10 @@ function flattenLoop(loop: LoopExpr, ctx: Ctx): Flat {
  * Build the direct-call result-type map (`funcName → result type`) a module
  * needs for flattening — imports and defined functions. Pass it to
  * {@link flattenFunction}; the {@link FlattenPass} builds it automatically.
+ * A multi-result signature is kept WHOLE, as a tuple.
  */
 export function buildCallResultTypes(module: WasmModule): Map<string, Type> {
   const map = new Map<string, Type>();
-  // Record the FULL result list, not `results[0]`. Collapsing a multi-result
-  // signature to its first component made a 2-result call look like a plain
-  // i32 call, which `callEffectiveType` would then hoist into one local —
-  // dropping the second value. Keeping the tuple lets that function reject it.
   const resultType = (results: ValueType[] | undefined): Type => {
     if (results === undefined || results.length === 0) return None;
     return results.length === 1 ? results[0]! : (results as Type);
@@ -611,43 +723,56 @@ export function buildCallResultTypes(module: WasmModule): Map<string, Type> {
   return map;
 }
 
+/** Each tag's parameter types, by name — imports and defined tags. */
+export function buildTagParams(module: WasmModule): Map<string, ValType[]> {
+  const map = new Map<string, ValType[]>();
+  for (const imp of module.imports) {
+    if (imp.kind === ExternalKind.Tag) map.set(imp.tag.name, imp.tag.sig.params as ValType[]);
+  }
+  for (const tag of module.tags) map.set(tag.name, tag.sig.params as ValType[]);
+  return map;
+}
+
 /**
  * Flatten a single function body in place. `callResultTypes` maps direct-call
  * targets to their result type (see {@link buildCallResultTypes}); when omitted
  * calls are treated as void (correct only for modules with no value-returning
- * calls).
+ * calls). `tagParams` gives a legacy `catch`'s payload types
+ * ({@link buildTagParams}).
  */
 export function flattenFunction(
   func: WasmFunction,
   callResultTypes: Map<string, Type> = new Map(),
+  tagParams: Map<string, ValType[]> = new Map(),
 ): void {
-  const ctx: Ctx = { func, callResultTypes, branchTemps: new Map() };
-  // A value-returning function body yields the return value; route it through a
-  // `return` (matching upstream) so the body block ends up void. Guard on the
-  // result signature, not `body.type`, since a call-bodied function has
-  // `body.type === none` from the parser.
-  const bodyIsValue = func.sig.results.length > 0 && func.body.type !== Unreachable;
-  // Unwrapped, not placed as is: `return` takes an OPERAND, which a region
-  // cannot be — and `makeReturn(region)` type-checks, since a region is an
-  // Expression.
-  const body = asStatement(func.body, bodyIsValue ? blockResult(func.sig.results) : None);
-  const source = bodyIsValue ? makeReturn([body]) : body;
-
-  const f = flattenExpr(source, ctx);
-  const list = [...f.pre];
-  // If the source was void and produced a trailing non-nop value, keep it.
-  if (!bodyIsValue && f.value.kind !== ExpressionKind.Nop) list.push(f.value);
+  const ctx: Ctx = {
+    func,
+    callResultTypes,
+    tagParams,
+    branchTemps: new Map(),
+    frame: null,
+    stack: [],
+    polymorphic: false,
+  };
+  const results = func.sig.results as ValType[];
+  // The body's value is the function's result; route it through a `return`
+  // (matching upstream), so the body ends as a statement.
+  const seq = flattenSeq(func.body.children, results, ctx);
+  let list = seq.stmts;
+  if (seq.results !== null && results.length > 0) list.push(makeReturn(seq.results));
+  // A branch that may leave the function with values went to a block around
+  // the body instead: its end returns the frame's temps.
+  if (ctx.frame !== null) {
+    list = [makeBlock(list, ctx.frame.label), makeReturn(getsOf(ctx.frame))];
+  }
   // A function with results whose body never falls through (it ends in a
-  // `return`, a `br` to the frame, a trap) was flattened as a VOID statement:
-  // the body now ends on a void block, and the wasm validator sees `[]` fall
-  // through where the signature wants values. Binaryen types that block
-  // `unreachable` and its writer emits an `unreachable` after it; this tree has
-  // to say so itself. Never executed — nothing reaches the end.
+  // `return`, a `br` to the frame, a trap) must end on something typed
+  // `unreachable`, or the validator sees `[]` fall through where the signature
+  // wants values. Binaryen types such a body `unreachable` and its writer emits
+  // an `unreachable` after it; this tree has to say so itself. Never executed.
   // 🔧 131 of 2,919 modules came out INVALID, silently ("expected 1 elements
   // on the stack for fallthru"), from `(func (result i32) … return)`.
-  if (
-    !bodyIsValue && func.sig.results.length > 0 && typeOf(list.at(-1) ?? makeNop()) !== Unreachable
-  ) {
+  if (results.length > 0 && typeOf(list.at(-1) ?? makeNop()) !== Unreachable) {
     list.push(makeUnreachable());
   }
   func.body = makeRegion(list);
@@ -664,8 +789,9 @@ export class FlattenPass implements Pass {
 
   run(module: WasmModule, _options: PassOptions): void {
     const callResultTypes = buildCallResultTypes(module);
+    const tagParams = buildTagParams(module);
     for (const func of module.functions) {
-      flattenFunction(func, callResultTypes);
+      flattenFunction(func, callResultTypes, tagParams);
     }
   }
 }
