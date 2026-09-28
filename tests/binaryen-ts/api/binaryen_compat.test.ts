@@ -9,7 +9,7 @@
  * @license MIT
  */
 
-import { assertEquals, assertNotEquals, assertThrows } from '@std/assert';
+import { assert, assertEquals, assertNotEquals, assertThrows } from '@std/assert';
 import * as binaryen from '../../../src/binaryen-ts/api/binaryen-compat.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { type CallIndirectExpr, ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
@@ -480,4 +480,22 @@ Deno.test('validate() and dispose() exist for upstream parity', () => {
   const mod = new binaryen.Module();
   assertEquals(mod.validate(), 1);
   mod.dispose();
+});
+
+Deno.test('validate() answers 0 for an invalid module, as upstream', () => {
+  // 🔧 It was a stub returning 1 for ANY module: ported binaryen.js code that
+  // rejects on `validate() === 0` got a silent pass (wasmtk, 2026-09-28).
+  assertEquals(binaryen.readBinary(ADD_MODULE).validate(), 1, 'a valid module');
+  const mod = new binaryen.Module();
+  // An `i64` body in a function that returns `i32`.
+  mod.addFunction('f', binaryen.none, binaryen.i32, [], mod.i64.const(1));
+  const errors: string[] = [];
+  const log = console.error;
+  console.error = (...a: unknown[]) => void errors.push(a.join(' '));
+  try {
+    assertEquals(mod.validate(), 0);
+  } finally {
+    console.error = log;
+  }
+  assert(errors.some((e) => e.includes('type mismatch')), `the reason is printed: ${errors}`);
 });
