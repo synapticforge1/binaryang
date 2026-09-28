@@ -26,7 +26,7 @@ import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import '../../../src/binaryen-ts/passes/index.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { region, soleInstr, soleOf } from '../region_helpers.ts';
+import { region, soleInstr } from '../region_helpers.ts';
 import { type ConstExpr, literalFloat } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
 
