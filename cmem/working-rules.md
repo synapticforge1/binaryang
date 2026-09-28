@@ -45,9 +45,10 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` ·
   -O1…-Oz, both routes); it is the one step that sees a VALID module computing the wrong thing, and
   found eight defects with every other step green (Q1–Q8). Same prepared corpus as `spec`. Expect
   **1,342 modules, 57,808 invocations (24,151 through v128 wrappers, 53 blind), 0 DIVERGE** — a
-  rising `blind` count is a coverage loss worth reading — refusals only for the modules pinned in its
-  `REFUSED_BUDGET` (7, relaxed SIMD, until stage 3). A pinned module that stops being refused FAILS
-  the step until it is unpinned — that is the ratchet, not a regression.
+  rising `blind` count is a coverage loss worth reading — and NO refusals: `REFUSED_BUDGET` is empty
+  since 1.6.0 (its 7 relaxed-SIMD pins were binaryen-ts's decoder's, deleted then, and the variants
+  are the one route's round trip and -O1…-Oz). A module that starts being refused FAILS the step
+  until it is fixed or pinned with why — that is the ratchet, not a regression.
 
 - ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
   (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes
