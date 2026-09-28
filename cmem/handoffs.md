@@ -27,6 +27,47 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 11 | 2026-08-31 | wasmtk      | adopting their conditional-not-clearance form and their import-alias invariant; a fifth property-in-view instance                                                                                    | ⬚ outbound                                                                                                                                                         |
 | 12 | 2026-09-19 | wasmtk (in) | two parser-leniency reports against 1.5.3, found by hardening their `.wast` runner (one catch around "assemble the module" had let an ENCODER error satisfy an `assert_malformed`): limits took no range check; a legacy `try`'s clause structure was unchecked. Their write-up: `wasmtk/scripts/binaryang-report.md` | ✅ both reproduced on `main` and fixed (`d59816990`), with their correction about `(memory 0x1_0000_0000)` PINNED as a test. Outbound: a `catch` after `catch_all` is INVALID, not malformed (wabt parses it) — three of their rows are parse bugs, the fourth is our validator's gap, still open |
 | 13 | 2026-09-28 | wasmtk (out — NOT SENT, by decision) | binaryang `main` (unreleased) fixes defects that change what an OPTIMIZED module does, several in the 1.5.4 you ship against: a `local.set` before a branch to an `if` label became a `drop` at -O2+ (CoalesceLocals, SILENT — valid output, wrong result; checked against the v1.5.4 source); dead code after `br` could trap; a `call_indirect` across rec groups lost its trap; `Inlining` at -O3 emitted invalid modules for multi-value call operands; modules with several tables or `elem.drop` could not be written back or optimized. Suggest: anything built with `-O2` or higher on 1.5.4 whose source branches to a labelled `if` is suspect; the fix arrives with the next release (its timing is the owner's call). Record: [divergences.md](divergences.md) Q1–Q8 | 🚫 **Not needed (owner, 2026-09-28):** "We are going to fix the -O2 issue before we update to it in wasmtk — no letter needed." The fix is on `main`; wasmtk moves only to a release that carries it. Kept as the record of what it would have said |
+| 14 | 2026-09-28 | wasmtk (in) | their letter against published 1.6.0: five items (heap type in an inline `call_indirect` typeuse; export `allFeatures`; compat `validate()` stub; annotation leniency; custom-descriptors + `(pagesize N) (data)`). All reproduced; record in [open-work.md](open-work.md) |
+| 15 | 2026-09-28 | wasmtk (out — ⬚ DRAFT, below, for the owner to send) | their items addressed, and which release holds the fixes |
+
+### § 15 — draft reply to wasmtk (2026-09-28)
+
+> From binaryang, 2026-09-28, in reply to your letter of the same day (measured against 1.6.0).
+>
+> Thank you — every item reproduced on our tree before we acted, as you asked.
+>
+> **Items 1–4 and the `pagesize` half of item 5 are fixed. The fixes ship in 1.6.2** (not yet
+> published; its changelog will list them by your numbers):
+>
+> 1. A named heap type inside an inline `call_indirect` / `return_call_indirect` signature is now
+>    resolved. (The `$$t` was the message's own `$` in front of `$t`, not a double prefix.) On our
+>    side `return_call_indirect.wast`'s text modules build 3/3 (2/3 before); your 51 → 0 is yours
+>    to measure.
+> 2. `allFeatures`, `defaultFeatures` and the `Features` type are exported from BOTH `./wasm-validate`
+>    and `./core/wabt-ts`.
+> 3. `compat/binaryen`'s `Module.validate()` now validates — `1` valid, `0` invalid with the reasons
+>    on stderr, as upstream.
+> 4. `@name` placement is checked (after a binding id; once per module; its value is not applied),
+>    and a branch hint is refused when duplicated, outside a function (malformed), or on anything but
+>    an `if` / `br_if` (invalid — `wasmValidate` checks the section).
+> 5. `(memory (pagesize N) (data …))` parses: `custom-page-sizes.wast` builds 12/12 text modules
+>    here (10/12 before).
+>
+> **Item 5's custom-descriptors half is NOT fixed, and no release date is set** — no release holds
+> a fix for it yet. It is the whole proposal (`exact` types, `descriptor` / `describes`, six
+> instructions); we have it on the list.
+>
+> **Two byte changes you may see in 1.6.2**, both toward the spec and wasm-tools:
+> - a branch hint written before a FOLDED instruction (`(@metadata.code.branch_hint "\01") (if
+>   (local.get 0) …)`) is now recorded at the `if`, not at the `local.get` — upstream wabt 1.0.41
+>   records the expression's first byte, which our new check (item 4) rejects. Linear hints are
+>   unchanged.
+> - `(memory (data …))` now writes its maximum (`(memory m m)`, as the spec abbreviation says);
+>   it wrote none, so the memory could grow.
+>
+> Separately, **1.6.1 is published** and makes `deno run -A jsr:@jrmarcum/binaryang <command>`
+> actually run the CLI (the root had no dispatcher on every earlier version). It contains none of
+> the above.
 
 ## Lessons the correspondence paid for
 

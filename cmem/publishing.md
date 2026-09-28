@@ -473,8 +473,8 @@ serves `.` → `./main.ts`. Verified from JSR: `deno run -A --min-dep-age 0
 jsr:@jrmarcum/binaryang@1.6.1 --version` prints `binaryang 1.6.1`, `--help` the usage, and a
 command runs (exit 1 on a missing file). Without `--min-dep-age 0` Deno refuses for 24 hours —
 the wall recorded below. `release/1.6.1` (bumped) is merged into `main` (`c0dd3d251`): `main`
-reads **1.6.1**, so auto-tag no-ops when `main` is pushed. ⚠️ The NEXT release is a minor (new
-exports, new passes): type **1.7.0** by hand — `deno task bump` would make 1.6.2.
+reads **1.6.1**, so auto-tag no-ops when `main` is pushed. The NEXT release is **1.6.2** (owner,
+2026-09-28 — despite the new exports and passes; `deno task bump` makes it).
 
 The record as written before the release:
 

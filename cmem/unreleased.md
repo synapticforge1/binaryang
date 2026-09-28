@@ -428,8 +428,8 @@ their own bump — and nothing breaks by their standing still.
 ## After 1.6.0 (on `main`, unpushed)
 
 - **1.6.1 SHIPPED 2026-09-28** (a patch from `release/1.6.1`, cut from `v1.6.0`): the CLI runs from
-  JSR — `.` is `main.ts`. CHANGELOG.md § 1.6.1. Everything below is NOT in it; the next release
-  (a minor, **1.7.0** typed by hand) carries it all.
+  JSR — `.` is `main.ts`. CHANGELOG.md § 1.6.1. Everything below is NOT in it; the next release,
+  **1.6.2** (owner, 2026-09-28), carries it all.
 - **wasmtk's letter of 2026-09-28** (their process: say which of 1–4 the release contains): **(1)**
   a named heap type in an inline `call_indirect` / `return_call_indirect` signature resolves;
   **(2)** NEW exports — `allFeatures`, `defaultFeatures`, `Features` from `./wasm-validate` and
