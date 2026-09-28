@@ -23,7 +23,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const hex = (s: string) => new Uint8Array(s.trim().split(/\s+/).map((b) => parseInt(b, 16)));
 
@@ -60,7 +60,7 @@ const CASES: [string, string, string][] = [
 describe('type uses, written as upstream wat2wasm writes them', () => {
   for (const [name, src, upstream] of CASES) {
     it(name, () => {
-      assertEquals(encodeWasm(parseWat(src)), hex(upstream));
+      assertEquals(writeWasm(parseWat(src)), hex(upstream));
     });
   }
 });

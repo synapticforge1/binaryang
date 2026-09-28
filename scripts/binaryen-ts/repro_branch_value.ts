@@ -20,9 +20,9 @@
 import { ModuleBuilder } from '../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import { makeBlock, makeBreak, makeI32Const } from '../../src/binaryen-ts/ir/expressions.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { parseWat } from '../../src/binaryen-ts/parser/wat-parser.ts';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
 
 async function validates(bytes: Uint8Array): Promise<{ ok: boolean; err?: string }> {
   try {
@@ -54,7 +54,7 @@ const mod = new ModuleBuilder()
   .addExport('test', 'test')
   .build();
 
-const bytes = encodeWasm(mod);
+const bytes = writeWasm(mod);
 console.log(`  encoded ${bytes.byteLength} bytes`);
 const v1 = await validates(bytes);
 console.log(`  validates? ${v1.ok ? 'YES' : 'NO'} ${v1.err?.slice(0, 200) ?? ''}`);
@@ -66,8 +66,8 @@ console.log(`  validates? ${v1.ok ? 'YES' : 'NO'} ${v1.err?.slice(0, 200) ?? ''}
 
 console.log();
 console.log('## (a2) BINARY round-trip of the validated bytes from (a)');
-const reMod = parseWasm(bytes);
-const reBytes = encodeWasm(reMod);
+const reMod = readForPasses(bytes);
+const reBytes = writeWasm(reMod);
 console.log(`  re-encoded ${reBytes.byteLength} bytes`);
 const v1b = await validates(reBytes);
 console.log(`  validates? ${v1b.ok ? 'YES' : 'NO'} ${v1b.err?.slice(0, 200) ?? ''}`);
@@ -89,7 +89,7 @@ const wat = `
 )
 `;
 const watMod = parseWat(wat);
-const watBytes = encodeWasm(watMod);
+const watBytes = writeWasm(watMod);
 console.log(`  encoded ${watBytes.byteLength} bytes`);
 const v2 = await validates(watBytes);
 console.log(`  validates? ${v2.ok ? 'YES' : 'NO'} ${v2.err?.slice(0, 200) ?? ''}`);
@@ -101,8 +101,8 @@ console.log(`  validates? ${v2.ok ? 'YES' : 'NO'} ${v2.err?.slice(0, 200) ?? ''}
 console.log();
 console.log('## (c) WAT → encode → binary-parse → re-encode (full round-trip)');
 
-const rebornMod = parseWasm(watBytes);
-const rebornBytes = encodeWasm(rebornMod);
+const rebornMod = readForPasses(watBytes);
+const rebornBytes = writeWasm(rebornMod);
 console.log(`  re-encoded ${rebornBytes.byteLength} bytes`);
 const v3 = await validates(rebornBytes);
 console.log(`  validates? ${v3.ok ? 'YES' : 'NO'} ${v3.err?.slice(0, 200) ?? ''}`);
@@ -125,15 +125,15 @@ const watStacky = `
 )
 `;
 const stackyMod = parseWat(watStacky);
-const stackyBytes = encodeWasm(stackyMod);
+const stackyBytes = writeWasm(stackyMod);
 console.log(`  encoded ${stackyBytes.byteLength} bytes`);
 const v4 = await validates(stackyBytes);
 console.log(`  validates? ${v4.ok ? 'YES' : 'NO'} ${v4.err?.slice(0, 200) ?? ''}`);
 
 console.log();
 console.log('## (e) stacky form (d) → encode → binary-parse → re-encode');
-const stackyReborn = parseWasm(stackyBytes);
-const stackyRebornBytes = encodeWasm(stackyReborn);
+const stackyReborn = readForPasses(stackyBytes);
+const stackyRebornBytes = writeWasm(stackyReborn);
 const v5 = await validates(stackyRebornBytes);
 console.log(`  re-encoded ${stackyRebornBytes.byteLength} bytes`);
 console.log(`  validates? ${v5.ok ? 'YES' : 'NO'} ${v5.err?.slice(0, 200) ?? ''}`);

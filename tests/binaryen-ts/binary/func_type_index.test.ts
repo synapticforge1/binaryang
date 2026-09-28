@@ -13,8 +13,8 @@ import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 
@@ -48,19 +48,19 @@ describe('M8b4 — a function keeps the type index it was read with', () => {
   it('the SECOND of two identical types survives decode -> encode', () => {
     const bytes = assemble('(module (type $a (func)) (type $b (func)) (func (type $b)))');
     assertEquals(funcTypeIndices(bytes), [1]);
-    const mod = parseWasm(bytes);
+    const mod = readForPasses(bytes);
     assertEquals(mod.functions[0]!.typeVar, varIndex(1));
-    assertEquals(encodeWasm(mod), bytes);
+    assertEquals(writeWasm(mod), bytes);
   });
 
   it('a stale typeVar is not written: the index follows the signature', () => {
-    const mod = parseWasm(
+    const mod = readForPasses(
       assemble('(module (type $a (func)) (type $b (func (param i32))) (func (type $a)))'),
     );
     // A pass gives the function a new signature and leaves typeVar behind.
     mod.functions[0]!.sig = { params: [ValType.I32], results: [] };
     mod.functions[0]!.locals = [{ type: ValType.I32 }];
     assertEquals(mod.functions[0]!.typeVar, varIndex(0));
-    assertEquals(funcTypeIndices(encodeWasm(mod)), [1]);
+    assertEquals(funcTypeIndices(writeWasm(mod)), [1]);
   });
 });

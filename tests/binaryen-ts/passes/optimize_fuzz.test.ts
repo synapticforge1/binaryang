@@ -34,8 +34,8 @@
  */
 
 import { assert } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { createPass, PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // register all built-in passes
 import {
@@ -274,11 +274,11 @@ const PASS_NAMES = [
 
 /** Re-run only the first `n` -Oz passes on the unoptimized binary, re-encode. */
 function ozPrefix(bytes: Uint8Array, n: number): Uint8Array {
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   const runner = new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 });
   for (const p of PASS_NAMES.slice(0, n)) runner.addPass(createPass(p.replace('(2)', '')));
   runner.run();
-  return encodeWasm(mod);
+  return writeWasm(mod);
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +290,7 @@ Deno.test('optimize fuzz: full -Oz preserves validity + behavior on random i32 f
   for (let i = 0; i < ITERS; i++) {
     const seed = BASE + i;
     const { mod, nParams, ir } = buildModule(seed);
-    const unopt = encodeWasm(mod);
+    const unopt = writeWasm(mod);
 
     // The generator must always produce valid wasm — a failure here is a bug in
     // the encoder or generator, not the optimizer.
@@ -304,10 +304,10 @@ Deno.test('optimize fuzz: full -Oz preserves validity + behavior on random i32 f
     }
 
     // Full -Oz via parse → passes → encode (exercises the binary parser too).
-    const optMod = parseWasm(unopt);
+    const optMod = readForPasses(unopt);
     new PassRunner(optMod, { optimizeLevel: 2, shrinkLevel: 2 }).addDefaultOptimizationPasses()
       .run();
-    const opt = encodeWasm(optMod);
+    const opt = writeWasm(optMod);
 
     let optInst: WebAssembly.Instance;
     try {

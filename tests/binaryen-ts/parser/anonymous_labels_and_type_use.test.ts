@@ -37,7 +37,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -51,7 +51,7 @@ function bothAgree(wat: string, want: number, arg = 0): void {
   const ref = wat2wasm(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the source');
   assertEquals(call(ref.binary, arg), want, 'wabt-ts');
-  assertEquals(call(encodeWasm(parseWat(wat)), arg), want, 'binaryen-ts');
+  assertEquals(call(writeWasm(parseWat(wat)), arg), want, 'binaryen-ts');
 }
 
 describe('WAT parser — an anonymous block keeps a resolvable label', () => {
@@ -110,7 +110,7 @@ describe('WAT parser — an anonymous block keeps a resolvable label', () => {
     const first = wat2wasm(src, { filename: 's.wat' });
     assert(first.binary && !hasErrors(first.errors));
     const folded = wasm2wat(first.binary, { fold: true }).text;
-    assertEquals(call(encodeWasm(parseWat(folded))), 7);
+    assertEquals(call(writeWasm(parseWat(folded))), 7);
   });
 });
 
@@ -131,7 +131,7 @@ describe('WAT parser — a type use names the signature', () => {
       (func (export "f") (result i32) (call $p (i32.const 1) (i32.const 2)) (i32.const 5)))`;
 
   it('an import naming BOTH (type N) and (param ...) keeps its params', () => {
-    const text = wasm2wat(encodeWasm(parseWat(bothForms)), { fold: false }).text;
+    const text = wasm2wat(writeWasm(parseWat(bothForms)), { fold: false }).text;
     const imp = text.split('\n').find((l) => l.includes('"print"')) ?? '';
     assert(/i32 i32/.test(imp), `import lost its signature: ${imp}`);
   });
@@ -142,7 +142,7 @@ describe('WAT parser — a type use names the signature', () => {
       (type (func (result i32)))
       (import "env" "id" (func $id (type 0)))
       (func (export "f") (result i32) (call $id (i32.const 4))))`;
-    const text = wasm2wat(encodeWasm(parseWat(wat)), { fold: false }).text;
+    const text = wasm2wat(writeWasm(parseWat(wat)), { fold: false }).text;
     const imp = text.split('\n').find((l) => l.includes('"id"')) ?? '';
     assert(/i32/.test(imp), `import lost its signature: ${imp}`);
   });
@@ -151,7 +151,7 @@ describe('WAT parser — a type use names the signature', () => {
     const wat = `(module
       (import "env" "print" (func $p (param i32)))
       (func (export "f") (result i32) (call $p (i32.const 1)) (i32.const 6)))`;
-    const text = wasm2wat(encodeWasm(parseWat(wat)), { fold: false }).text;
+    const text = wasm2wat(writeWasm(parseWat(wat)), { fold: false }).text;
     const imp = text.split('\n').find((l) => l.includes('"print"')) ?? '';
     assert(/i32/.test(imp), `import lost its signature: ${imp}`);
   });

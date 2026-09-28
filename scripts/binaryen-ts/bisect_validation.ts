@@ -16,8 +16,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { createPass, type PassOptions } from '../../src/binaryen-ts/passes/pass.ts';
 import '../../src/binaryen-ts/passes/index.ts';
 
@@ -71,8 +71,8 @@ console.log();
 
 // Step 2: parse + encode (no passes) — pure round-trip
 {
-  const mod = parseWasm(inputBytes);
-  const out = encodeWasm(mod);
+  const mod = readForPasses(inputBytes);
+  const out = writeWasm(mod);
   const v = await validates(out);
   console.log(
     `parse+encode (no passes): ${v.ok ? 'YES' : 'NO'} bytes=${out.byteLength} ${v.err ?? ''}`,
@@ -82,7 +82,7 @@ console.log();
 console.log();
 console.log('## Each pass applied individually after parse:');
 for (const passName of PASSES) {
-  const mod = parseWasm(inputBytes);
+  const mod = readForPasses(inputBytes);
   const pass = createPass(passName);
   try {
     pass.run(mod, OPTS);
@@ -94,7 +94,7 @@ for (const passName of PASSES) {
   }
   let out: Uint8Array;
   try {
-    out = encodeWasm(mod);
+    out = writeWasm(mod);
   } catch (e) {
     console.log(
       `${passName.padEnd(28)} ENCODE-CRASH  ${

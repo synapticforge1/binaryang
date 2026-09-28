@@ -21,8 +21,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 
 const LEVELS = [[1, 0], [2, 0], [3, 0], [2, 1], [2, 2]] as const;
@@ -31,9 +31,9 @@ function optimized(wat: string, optimizeLevel: 0 | 1 | 2 | 3, shrinkLevel: 0 | 1
   const bytes = wat2wasm(wat, { textForm: false }).binary;
   assert(bytes.length > 0, 'assembles');
   new WebAssembly.Module(bytes as BufferSource); // the INPUT is valid
-  const m = parseWasm(bytes);
+  const m = readForPasses(bytes);
   new PassRunner(m, { optimizeLevel, shrinkLevel }).addDefaultOptimizationPasses().run();
-  return encodeWasm(m);
+  return writeWasm(m);
 }
 
 /** The output at every level, each compiled — the assertion is validity. */
@@ -141,7 +141,7 @@ describe('dead-code removal keeps the output valid', () => {
     const plain = wat2wasm(wat, { textForm: false }).binary;
     const out = optimized(wat, 2, 0);
     assert(out.length < plain.length, `expected the tail to go: ${out.length} vs ${plain.length}`);
-    const m = parseWasm(out);
+    const m = readForPasses(out);
     assertEquals(m.functions[0]!.body.children.length, 1, 'one child: the return');
   });
 });

@@ -15,9 +15,8 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 
@@ -28,7 +27,7 @@ const asm = (wat: string) => {
   return r.binary;
 };
 const ROUTES = {
-  A: (b: Uint8Array): WasmModule => parseWasm(b),
+  A: (b: Uint8Array): WasmModule => readForPasses(b),
   B: (b: Uint8Array): WasmModule =>
     prepareForPasses(readBinaryIr(b, makeErrorList(), { readDebugNames: true })) as WasmModule,
 };
@@ -44,14 +43,14 @@ const call = (b: Uint8Array, ...args: unknown[]) => {
 /** The module unchanged, and after -O2, on each route. */
 const variants = (bytes: Uint8Array) =>
   Object.entries(ROUTES).flatMap(([route, load]) => [
-    [`${route} decode -> encode`, encodeWasm(load(bytes))] as const,
+    [`${route} decode -> encode`, writeWasm(load(bytes))] as const,
     [
       `${route} -O2`,
       (() => {
         const m = load(bytes);
         new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses()
           .run();
-        return encodeWasm(m);
+        return writeWasm(m);
       })(),
     ] as const,
   ]);
@@ -80,8 +79,8 @@ describe('a phantom operand never runs before the transfer that made it dead', (
     // The bare-`unreachable` case is left alone: upstream decodes it as
     // `(i32.add (unreachable) (unreachable))` and a round trip is a fixed point.
     const bytes = asm(`(module (func (export "f") (result i32) (i32.add (unreachable))))`);
-    const once = encodeWasm(parseWasm(bytes));
-    assertEquals([...encodeWasm(parseWasm(once))], [...once], 'a fixed point');
+    const once = writeWasm(readForPasses(bytes));
+    assertEquals([...writeWasm(readForPasses(once))], [...once], 'a fixed point');
     assert(call(once).startsWith('RuntimeError'));
   });
 });
@@ -95,7 +94,7 @@ describe('a multi-value br_if leaves every value (route A)', () => {
       (func (export "f") (param i32) (result i32 i64)
         (drop (drop (br_if 0 (i32.const 50) (i64.const 51) (local.get 0))))
         (i32.const 51) (i64.const 52)))`);
-    assertEquals([...encodeWasm(parseWasm(bytes))], [...bytes]);
+    assertEquals([...writeWasm(readForPasses(bytes))], [...bytes]);
     for (const arg of [0, 1]) {
       for (const [name, out] of variants(bytes)) {
         assertEquals(call(out, arg), call(bytes, arg), `${name}, f(${arg})`);
@@ -119,7 +118,7 @@ describe('a multi-value br_if leaves every value (route A)', () => {
           drop
           i32.add
         end))`);
-    assertEquals([...encodeWasm(parseWasm(bytes))], [...bytes]);
+    assertEquals([...writeWasm(readForPasses(bytes))], [...bytes]);
     for (const [name, out] of variants(bytes)) assertEquals(call(out, 0), '30', name);
   });
 });

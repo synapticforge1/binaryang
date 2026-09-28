@@ -16,8 +16,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type Expression,
   ExpressionKind,
@@ -42,10 +42,10 @@ function rewrite(funcs: string) {
        ${funcs})`,
   );
   assert(!hasErrors(r.errors), formatErrors(r.errors));
-  const mod = parseWasm(r.binary);
+  const mod = readForPasses(r.binary);
   const f = mod.functions[1]!; // after $side
   f.body = mapWithSequences(f.body, trapOnSecondLocal);
-  const out = encodeWasm(mod);
+  const out = writeWasm(mod);
   assert(WebAssembly.validate(out as BufferSource), 'the rewritten module validates');
   const inst = new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource));
   const run = inst.exports.f as (a: number, b: number) => number;

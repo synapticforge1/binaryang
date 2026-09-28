@@ -22,8 +22,7 @@ import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../src/wabt-ts/reader/binary-reader.ts';
 import { makeErrorList } from '../../src/wabt-ts/core/error.ts';
 import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
-import { parseWasm } from '../../src/binaryen-ts/binary/index.ts';
-import { prepareForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { prepareForPasses, readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
 
 const asm = (wat: string) => {
@@ -32,7 +31,7 @@ const asm = (wat: string) => {
   return r.binary;
 };
 const routes = (bytes: Uint8Array) => ({
-  A: parseWasm(bytes),
+  A: readForPasses(bytes),
   B: prepareForPasses(readBinaryIr(bytes, makeErrorList(), { readDebugNames: true })),
 });
 

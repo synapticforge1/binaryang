@@ -17,8 +17,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type BlockExpr,
   type BreakExpr,
@@ -106,28 +106,27 @@ describe('kept: a parametrised construct re-encodes as written', () => {
   ) {
     it(name, async () => {
       assertEquals(await run(bytes), expected, 'the fixture itself');
-      const kept = encodeWasm(parseWasm(bytes));
+      const kept = writeWasm(readForPasses(bytes));
       assertEquals(kept, bytes);
-      // The other two paths, for the constructs multivalue.test.ts lacks.
-      const lowered = encodeWasm(parseWasm(bytes, undefined, { lowerBlockParams: true }));
-      assertEquals(await run(lowered), expected, 'lowered at decode');
-      const m = parseWasm(bytes);
+      // The other path, for the constructs multivalue.test.ts lacks. (Lowering
+      // at DECODE went with binaryen-ts's decoder at 1.6.0.)
+      const m = readForPasses(bytes);
       new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 2 }).addDefaultOptimizationPasses().run();
-      assertEquals(await run(encodeWasm(m)), expected, 'lowered by PassRunner, then -Oz');
+      assertEquals(await run(writeWasm(m)), expected, 'lowered by PassRunner, then -Oz');
     });
   }
 });
 
 describe('kept: what the node holds', () => {
   it("the entry values are the construct's params; its body starts with a Pop", () => {
-    const block = first<BlockExpr>(parseWasm(BLOCK).functions[0]!.body, ExpressionKind.Block);
+    const block = first<BlockExpr>(readForPasses(BLOCK).functions[0]!.body, ExpressionKind.Block);
     assertEquals(block.params?.types, [ValType.I32]);
     assertEquals(block.params?.values.map((v) => v.kind), [ExpressionKind.Const]);
     assertEquals(block.children.map((c) => c.kind), [ExpressionKind.Pop]);
   });
 
   it('a back-edge to a parametrised loop CARRIES the parameter; no locals are added', () => {
-    const mod = parseWasm(LOOP_BACKEDGE);
+    const mod = readForPasses(LOOP_BACKEDGE);
     const loop = first<LoopExpr>(mod.functions[0]!.body, ExpressionKind.Loop);
     assertEquals(loop.params?.types, [ValType.I32]);
     const br = first<BreakExpr>(loop.body, ExpressionKind.Break);
@@ -135,8 +134,10 @@ describe('kept: what the node holds', () => {
     assertEquals(mod.functions[0]!.locals.length, 1, 'only the declared local');
   });
 
-  it('lowered at decode, the same module has NO params and spills to a local', () => {
-    const mod = parseWasm(LOOP_BACKEDGE, undefined, { lowerBlockParams: true });
+  it('lowered, the same module has NO params and spills to a local', () => {
+    // Was lowering at decode, gone with the decoder (1.6.0); the tree pass now.
+    const mod = readForPasses(LOOP_BACKEDGE);
+    lowerBlockParams(mod);
     assertEquals(hasBlockParams(mod.functions[0]!.body), false);
     assert(mod.functions[0]!.locals.length > 1, 'a spill local was added');
   });
@@ -154,21 +155,21 @@ describe('lowerBlockParams — where optimization starts', () => {
         0,
       ]] as const
     ) {
-      const m = parseWasm(bytes);
+      const m = readForPasses(bytes);
       assertEquals(lowerBlockParams(m), 1);
       assertEquals(hasBlockParams(m.functions[0]!.body), false);
-      assertEquals(await run(encodeWasm(m)), expected);
+      assertEquals(await run(writeWasm(m)), expected);
     }
   });
 
   it('PassRunner.run lowers even with an empty queue — no pass ever sees params', () => {
-    const m = parseWasm(BLOCK);
+    const m = readForPasses(BLOCK);
     new PassRunner(m).run();
     assertEquals(hasBlockParams(m.functions[0]!.body), false);
   });
 
   it('leaves a module with no params untouched', () => {
-    const m = parseWasm(moduleWith([0x00, 0x41, 0x07, 0x0b]));
+    const m = readForPasses(moduleWith([0x00, 0x41, 0x07, 0x0b]));
     const body = m.functions[0]!.body;
     assertEquals(lowerBlockParams(m), 0);
     assert(m.functions[0]!.body === body, 'the body object was replaced');

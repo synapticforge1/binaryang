@@ -12,7 +12,7 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { ExpressionKind } from '../../src/binaryen-ts/ir/expressions.ts';
 import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
 import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
@@ -20,10 +20,10 @@ import { requireIndex, type Var } from '../../src/wabt-ts/ir/ir.ts';
 import '../../src/binaryen-ts/passes/index.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
-const before = parseWasm(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));
+const before = readForPasses(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));
 const fibBefore = before.functions.find((f) => f.name === '$func5')!;
 
-const after = parseWasm(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));
+const after = readForPasses(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));
 new PassRunner(after, { optimizeLevel: 2, shrinkLevel: 2 }).addPass(createPass('CoalesceLocals'))
   .run();
 const fibAfter = after.functions.find((f) => f.name === '$func5')!;

@@ -13,8 +13,8 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
 import '../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
 
@@ -46,15 +46,15 @@ async function compiles(bytes: Uint8Array): Promise<string> {
 }
 
 console.log(`# bisect ${rel}`);
-console.log(`baseline parse->encode: ${await compiles(encodeWasm(parseWasm(orig)))}`);
+console.log(`baseline parse->encode: ${await compiles(writeWasm(readForPasses(orig)))}`);
 console.log();
 
 console.log('## each pass individually (parse -> pass -> encode):');
 for (const name of [...new Set(OZ)]) {
-  const mod = parseWasm(orig);
+  const mod = readForPasses(orig);
   try {
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).addPass(createPass(name)).run();
-    console.log(`  ${name.padEnd(28)} ${await compiles(encodeWasm(mod))}`);
+    console.log(`  ${name.padEnd(28)} ${await compiles(writeWasm(mod))}`);
   } catch (e) {
     console.log(`  ${name.padEnd(28)} THREW: ${(e as Error).message.slice(0, 80)}`);
   }
@@ -64,13 +64,13 @@ console.log();
 console.log('## cumulative -Oz prefix:');
 for (let i = 1; i <= OZ.length; i++) {
   const prefix = OZ.slice(0, i);
-  const mod = parseWasm(orig);
+  const mod = readForPasses(orig);
   const runner = new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 });
   for (const n of prefix) runner.addPass(createPass(n));
   let res: string;
   try {
     runner.run();
-    res = await compiles(encodeWasm(mod));
+    res = await compiles(writeWasm(mod));
   } catch (e) {
     res = 'THREW: ' + (e as Error).message.slice(0, 80);
   }

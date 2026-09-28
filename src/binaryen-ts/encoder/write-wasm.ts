@@ -25,7 +25,8 @@
  * over 2,919 inputs (the 421-module corpus and every spec module V8 accepts),
  * unoptimized and at -O1 / -O2 / -O3 / -Oz, all 14,595 outputs byte-identical
  * to `encodeWasm`'s — after the four defects the comparison found were fixed on
- * both sides (cmem/ir-convergence.md, One front end, stage 4).
+ * both sides (cmem/ir-convergence.md, One front end, stage 4). That encoder was
+ * deleted at 1.6.0 (stage 4b); this is the only binary writer.
  */
 
 import { resolveNames } from '../../wabt-ts/ir/resolve-names.ts';
@@ -37,8 +38,23 @@ import { FidelityTable } from '../../wabt-ts/ir/fidelity.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { type Expression, ExpressionKind, type RegionExpr } from '../ir/expressions.ts';
 import { mapChildrenShallow } from '../ir/walk.ts';
-import { type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
-import { WasmEncodeError } from './wasm-encoder.ts';
+import { requireIndex, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
+import { Type } from '../../wabt-ts/core/types.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
+import { None, Unreachable } from '../ir/types.ts';
+
+/**
+ * Thrown when a module cannot be written: a reference that names nothing, a
+ * defined global with no initializer. It moved here from binaryen-ts's encoder,
+ * deleted at 1.6.0 (One front end stage 4b).
+ */
+export class WasmEncodeError extends Error {
+  /** @param message - What could not be written. The `name` is always `"WasmEncodeError"`. */
+  constructor(message: string) {
+    super(message);
+    this.name = 'WasmEncodeError';
+  }
+}
 
 /**
  * `m` as `.wasm` bytes. The module is not changed.
@@ -46,11 +62,12 @@ import { WasmEncodeError } from './wasm-encoder.ts';
  * Names are written when the module has them to write (`hasNameSection`) —
  * the encoder's rule: a pass run without `debugInfo` clears it.
  *
- * @throws {WasmEncodeError} when a reference names nothing the module has.
+ * @throws {WasmEncodeError} when a reference names nothing the module has, or
+ *   the module holds something the binary cannot spell (`checkForWriting`).
  */
 export function writeWasm(m: WasmModule): Uint8Array {
   const copy = resolvedCopy(m);
-  return writeBinaryIr(copy, { writeDebugNames: copy.hasNameSection });
+  return writing(() => writeBinaryIr(copy, { writeDebugNames: copy.hasNameSection }));
 }
 
 /**
@@ -70,7 +87,7 @@ export function writeWat(m: WasmModule): string {
   labelsToDepths(copy);
   // With every target a depth, the writer prints the NAME of a label that has
   // a real one (`namedLabelTargets`) and the depth of one that does not.
-  return writeWatModule(copy, { namedLabelTargets: true });
+  return writing(() => writeWatModule(copy, { namedLabelTargets: true }));
 }
 
 /**
@@ -159,6 +176,226 @@ function labelsToDepths(m: WasmModule): void {
   }
 }
 
+/** The frame's name where a tree gave it none: no `$`-name or `''` can equal it. */
+const FRAME = '\u0000frame';
+
+/**
+ * A function with no frame label: its branches to the FRAME are named `''` —
+ * binaryen-ts's rule (the API, its WAT parser; the encoder read
+ * `bodyFrameLabel ?? ''`). An UNNAMED construct also has the label `''`, and
+ * is never a branch target, so a `''` reference means the frame and nothing
+ * else. `resolveNames` resolves a name to its innermost binder, so the frame
+ * gets a name no construct has, and every `''` target is pointed at it.
+ *
+ * 🔧 When the encoder was deleted (1.6.0) this rule went with it: a `br` to the
+ * frame was "undefined label". Seeding the frame as `''` instead made an
+ * unnamed block between the branch and the frame CAPTURE it — valid wasm that
+ * exits the block, not the function (`function_frame_label.test.ts`).
+ */
+function nameTheFrame(f: WasmModule['functions'][number]): void {
+  if (f.bodyFrameLabel !== undefined) return;
+  f.bodyFrameLabel = FRAME;
+  const to = (v: Var): Var => v.kind === 'name' && v.name === '' ? { ...v, name: FRAME } : v;
+  const visit = (e: Expression): Expression => {
+    const mapped = mapChildrenShallow(e, visit);
+    switch (mapped.kind) {
+      case ExpressionKind.Break:
+      case ExpressionKind.BrOn:
+        return { ...mapped, target: to(mapped.target) } as Expression;
+      case ExpressionKind.Switch:
+        return {
+          ...mapped,
+          targets: mapped.targets.map(to),
+          defaultTarget: to(mapped.defaultTarget),
+        } as Expression;
+      case ExpressionKind.TryTable:
+        return {
+          ...mapped,
+          catches: mapped.catches.map((c) => ({ ...c, target: to(c.target) })),
+        } as Expression;
+      case ExpressionKind.Try:
+        return mapped.delegate === undefined
+          ? mapped
+          : { ...mapped, delegate: to(mapped.delegate) } as Expression;
+      default:
+        return mapped;
+    }
+  };
+  f.body = visit(f.body) as RegionExpr;
+}
+
+/** The storage types that make a `struct.get` / `array.get` signed or unsigned. */
+const isPacked = (t: unknown): boolean => t === Type.I8 || t === Type.I16;
+
+/**
+ * What binaryen-ts's encoder refused or normalized and the wabt-ts writer
+ * would write as it stands — done here, on the copy, before the writer (One
+ * front end stage 4b, 1.6.0, when that encoder was deleted). A tree the READER
+ * made never trips these; one a pass or the API built can:
+ *
+ * - `signed` on a `struct.get` / `array.get` means something only for a
+ *   PACKED field, as in binaryen. 🔧 The writer honoured it literally, so an
+ *   API-built `get` on an i32 field with `signed: false` came out `get_u`,
+ *   which the engine refuses — live on `toBinary` / `emitBinary` since stage
+ *   4a. It is dropped here where the field is not packed.
+ * - a `get`'s type index out of range or of the wrong kind, and a field index
+ *   out of range, are refused (the writer wrote the index as it stood);
+ * - a value type the binary cannot spell (`none`, `unreachable`) on a local,
+ *   param or result is refused;
+ * - a block / loop / if / try / try_table typed `unreachable` is refused — a
+ *   construct DECLARES its results, and writing it void gives it a
+ *   declaration it does not have;
+ * - a region anywhere but a region slot is refused — writing its children
+ *   inline would change what the surrounding code consumes;
+ * - a branch DEPTH past the labels that enclose it is refused;
+ * - an alignment that is not a power of two up to 256 (exponent 8, the bound
+ *   upstream binaryen reads) is refused.
+ */
+function checkForWriting(m: WasmModule): void {
+  const fail = (msg: string): never => {
+    throw new WasmEncodeError(msg);
+  };
+  const valueType = (t: unknown, where: string) => {
+    if (t === None || t === Unreachable) fail(`cannot encode value type: ${t} (${where})`);
+  };
+  const typeEntry = (v: Var, family: 'struct' | 'array') => {
+    const i = requireIndex(v, `${family}.get type`);
+    const def = m.types[i];
+    if (def === undefined) {
+      return fail(
+        `${family}.get: type index ${i} is out of range (module declares ${m.types.length} types)`,
+      );
+    }
+    if (def.kind !== family) {
+      return fail(`${family}.get: type index ${i} is a "${def.kind}" type, not a ${family}`);
+    }
+    return def;
+  };
+  for (const exp of m.exports) {
+    if (!(exp.kind in ExternalKind) || typeof exp.kind !== 'number') {
+      fail(`cannot encode export "${exp.name}": unknown export kind ${String(exp.kind)}`);
+    }
+  }
+  for (const s of m.dataSegments) {
+    if (s.kind !== 'active' && s.kind !== 'passive') {
+      fail(
+        `cannot encode data segment ${s.name}: a data segment is active or passive, never ${s.kind}`,
+      );
+    }
+  }
+  for (const f of m.functions) {
+    f.sig.params.forEach((t) => valueType(t, `a param of ${f.name}`));
+    f.sig.results.forEach((t) => valueType(t, `a result of ${f.name}`));
+    f.locals.forEach((l) => valueType(l.type, `a local of ${f.name}`));
+    let depth = 1; // the function frame
+    const visit = (e: Expression): Expression => {
+      const n = e as Expression & Record<string, unknown>;
+      const align = n.align;
+      if (typeof align === 'number') {
+        const exponent = Math.log2(align);
+        if (!Number.isInteger(exponent) || exponent < 0 || exponent > 8) {
+          fail(`cannot encode alignment ${align}: not a power of two up to 256 (exponent 8)`);
+        }
+      }
+      const target = (v: Var) => {
+        if (v.kind === 'index' && v.value >= depth) {
+          fail(`branch depth ${v.value} is outside the ${depth} enclosing labels`);
+        }
+      };
+      switch (e.kind) {
+        case ExpressionKind.Block:
+        case ExpressionKind.Loop:
+        case ExpressionKind.If:
+        case ExpressionKind.Try:
+        case ExpressionKind.TryTable: {
+          if (n.type === Unreachable) {
+            fail(
+              'a block / loop / if / try / try_table typed `unreachable`: a construct declares ' +
+                'its results (none, a value type, or several) — give it the type it stands for',
+            );
+          }
+          // A construct's label covers its regions (a block: its children),
+          // not its operands, delegate or catch targets.
+          const slots = new Set<Expression>(
+            e.kind === ExpressionKind.Loop
+              ? [e.body]
+              : e.kind === ExpressionKind.If
+              ? [e.ifTrue, ...(e.ifFalse ? [e.ifFalse] : [])]
+              : e.kind === ExpressionKind.Try
+              ? [e.body, ...e.catches.map((c) => c.body)]
+              : e.kind === ExpressionKind.TryTable
+              ? [e.body]
+              : [],
+          );
+          if (e.kind === ExpressionKind.TryTable) e.catches.forEach((c) => target(c.target));
+          if (e.kind === ExpressionKind.Try && e.delegate !== undefined) target(e.delegate);
+          if (e.kind === ExpressionKind.Block) {
+            const params = e.params?.values.map(visit);
+            depth++;
+            const children = e.children.map(visit);
+            depth--;
+            return {
+              ...e,
+              children,
+              ...(params ? { params: { ...e.params!, values: params } } : {}),
+            } as Expression;
+          }
+          return mapChildrenShallow(e, (c) => {
+            if (!slots.has(c)) return visit(c);
+            depth++;
+            const r = { ...c, children: (c as RegionExpr).children.map(visit) } as Expression;
+            depth--;
+            return r;
+          });
+        }
+        case ExpressionKind.Region:
+          return fail('a region outside a region slot');
+        case ExpressionKind.Break:
+        case ExpressionKind.BrOn:
+          target(n.target as Var);
+          return mapChildrenShallow(e, visit);
+        case ExpressionKind.Switch:
+          e.targets.forEach(target);
+          target(e.defaultTarget);
+          return mapChildrenShallow(e, visit);
+        case ExpressionKind.StructGet: {
+          const def = typeEntry(e.typeVar, 'struct');
+          const field = def.kind === 'struct'
+            ? def.fields[requireIndex(e.fieldVar, 'field')]
+            : undefined;
+          if (field === undefined) {
+            const count = def.kind === 'struct' ? def.fields.length : 0;
+            fail(
+              `struct.get: field index ${
+                requireIndex(e.fieldVar, 'field')
+              } is out of range for type ${requireIndex(e.typeVar, 'type')} (${count} fields)`,
+            );
+          }
+          const mapped = mapChildrenShallow(e, visit) as typeof e;
+          if (e.signed === undefined || isPacked(field!.type)) return mapped;
+          const { signed: _, ...plain } = mapped;
+          return plain as Expression;
+        }
+        case ExpressionKind.ArrayGet: {
+          const def = typeEntry(e.typeVar, 'array');
+          const mapped = mapChildrenShallow(e, visit) as typeof e;
+          if (e.signed === undefined || (def.kind === 'array' && isPacked(def.field.type))) {
+            return mapped;
+          }
+          const { signed: _, ...plain } = mapped;
+          return plain as Expression;
+        }
+        default:
+          return mapChildrenShallow(e, visit);
+      }
+    };
+    f.body = {
+      ...f.body,
+      children: f.body.children.map(visit),
+    } as RegionExpr;
+  }
+}
+
 /** A copy of `m` with references resolved to indices and every type use named. */
 function resolvedCopy(m: WasmModule): WasmModule {
   // A DEFINED global must have its initializer: the format has no spelling for
@@ -172,14 +409,39 @@ function resolvedCopy(m: WasmModule): WasmModule {
     }
   }
   const copy = copyModule(m);
+  for (const f of copy.functions) nameTheFrame(f);
+  // A passive or declared segment has no table or memory: the binary spells
+  // none, and the encoder never read one. binaryen-ts's WAT parser and the API
+  // leave a placeholder there (`$table0` in a module with no table), which the
+  // resolve step then refused — `(elem declare func $f)` could not be written
+  // (1.6.0, found when the encoder went). It is not written; make it inert.
+  for (const s of copy.elements) if (s.kind !== 'active') s.tableVar = varIndex(0);
+  for (const s of copy.dataSegments) if (s.kind !== 'active') s.memoryVar = varIndex(0);
   const errors = makeErrorList();
   resolveNames(copy, errors);
   if (hasErrors(errors)) {
     throw new WasmEncodeError(`cannot write the module: ${formatErrors(errors).trim()}`);
   }
   synthesizeTypes(copy);
+  checkForWriting(copy);
   if (copy.explicitNames === undefined) sigilEntityNames(copy);
   return copy;
+}
+
+/**
+ * `write(copy)`, with anything the writer throws reported as a
+ * {@link WasmEncodeError} — the one error `writeWasm` / `writeWat` throw, as
+ * binaryen-ts's encoder threw only that. The writer's own refusals (a custom
+ * section with no payload, a size past its field, an unknown export kind)
+ * came out as a bare `Error`, `RangeError` or `TypeError`.
+ */
+function writing<T>(write: () => T): T {
+  try {
+    return write();
+  } catch (e) {
+    if (e instanceof WasmEncodeError) throw e;
+    throw new WasmEncodeError(`cannot write the module: ${(e as Error).message ?? String(e)}`);
+  }
 }
 
 /**

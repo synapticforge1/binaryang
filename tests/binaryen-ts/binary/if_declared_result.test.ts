@@ -27,8 +27,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 
@@ -36,7 +36,7 @@ import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 function binaryRoundTrip(wat: string): Uint8Array {
   const ref = wat2wasm(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
-  const out = encodeWasm(parseWasm(ref.binary));
+  const out = writeWasm(readForPasses(ref.binary));
   // Throws with the engine's own diagnostic if the declared type was lost.
   new WebAssembly.Module(out as BufferSource);
   return out;

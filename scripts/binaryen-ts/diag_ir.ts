@@ -11,13 +11,13 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const fnIdx = parseInt(Deno.args[1] ?? '0', 10);
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
-const mod = parseWasm(orig);
+const mod = readForPasses(orig);
 const fn = mod.functions[fnIdx];
 console.log(
   `# ${rel} defined-fn #${fnIdx}: ${fn.name} params=${JSON.stringify(fn.sig.params)} results=${

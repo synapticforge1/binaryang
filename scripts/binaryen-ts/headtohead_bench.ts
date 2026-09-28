@@ -42,7 +42,6 @@ import upstream from 'npm:binaryen@^116.0.0';
 
 // Our TypeScript implementation via the compat facade
 import * as ours from '../../src/binaryen-ts/api/binaryen-compat.ts';
-import { BinaryReader } from '../../src/binaryen-ts/binary/reader.ts';
 
 /**
  * Byte size of the `code` section (id 10) of a wasm binary, and the total bytes
@@ -54,17 +53,22 @@ import { BinaryReader } from '../../src/binaryen-ts/binary/reader.ts';
  * the total-size gap.
  */
 function sectionSizes(bytes: Uint8Array): { code: number; customBytes: number } {
-  const r = new BinaryReader(bytes);
-  r.skip(8); // magic + version
+  // Section headers: an id byte, a u32 LEB size (binaryen-ts's `BinaryReader`
+  // went with its decoder at 1.6.0).
+  let p = 8; // magic + version
   let code = 0;
   let customBytes = 0;
-  while (!r.eof) {
-    const id = r.readU8();
-    const size = r.readU32();
-    const bodyStart = r.position;
+  while (p < bytes.length) {
+    const id = bytes[p++]!;
+    let size = 0, s = 0, b;
+    do {
+      b = bytes[p++]!;
+      size += (b & 0x7f) * 2 ** s;
+      s += 7;
+    } while (b & 0x80);
     if (id === 10) code = size;
     else if (id === 0) customBytes += size;
-    r.seek(bodyStart + size);
+    p += size;
   }
   return { code, customBytes };
 }

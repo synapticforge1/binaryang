@@ -24,8 +24,8 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   makeArrayGet,
   makeArrayNewFixed,
@@ -61,7 +61,7 @@ function structModule(storage: StorageType, value: number, signed: boolean): Uin
     ),
   );
   m.addExport('read', 'read');
-  return encodeWasm(m.build());
+  return writeWasm(m.build());
 }
 
 /** A one-element mutable array holding `value`, read back via array.get. */
@@ -89,7 +89,7 @@ function arrayModule(storage: StorageType, value: number, signed: boolean): Uint
     ),
   );
   m.addExport('read', 'read');
-  return encodeWasm(m.build());
+  return writeWasm(m.build());
 }
 
 async function runRead(bytes: Uint8Array): Promise<number> {
@@ -161,7 +161,7 @@ Deno.test('struct.get_u survives a bare parse-encode round-trip', async () => {
   assert(patched, 'failed to construct the struct.get_u fixture');
   assertEquals(await runRead(input), 200);
 
-  const out = encodeWasm(parseWasm(input));
+  const out = writeWasm(readForPasses(input));
   assertEquals(firstSubop(out, STRUCT_GETS), 0x04);
   assertEquals(await runRead(out), 200);
 });
@@ -179,7 +179,7 @@ Deno.test('array.get_u survives a bare parse-encode round-trip', async () => {
   assert(patched, 'failed to construct the array.get_u fixture');
   assertEquals(await runRead(input), 200);
 
-  const out = encodeWasm(parseWasm(input));
+  const out = writeWasm(readForPasses(input));
   assertEquals(firstSubop(out, ARRAY_GETS), 0x0d);
   assertEquals(await runRead(out), 200);
 });
@@ -205,7 +205,7 @@ Deno.test('encoder throws on an out-of-range struct.get type index', () => {
     ),
   );
   m.addExport('read', 'read');
-  assertThrows(() => encodeWasm(m.build()), WasmEncodeError, 'out of range');
+  assertThrows(() => writeWasm(m.build()), WasmEncodeError, 'out of range');
 });
 
 Deno.test('encoder throws on an out-of-range struct.get field index', () => {
@@ -229,7 +229,7 @@ Deno.test('encoder throws on an out-of-range struct.get field index', () => {
     ),
   );
   m.addExport('read', 'read');
-  assertThrows(() => encodeWasm(m.build()), WasmEncodeError, 'field index 7 is out of range');
+  assertThrows(() => writeWasm(m.build()), WasmEncodeError, 'field index 7 is out of range');
 });
 
 // --- WAT front door -------------------------------------------------------
@@ -262,7 +262,7 @@ Deno.test('WAT: struct.get on a packed field is rejected', () => {
 
 Deno.test('WAT: struct.get_u on a packed field is accepted', () => {
   const mod = parseWat(packedWat('struct.get_u'));
-  assertEquals(firstSubop(encodeWasm(mod), STRUCT_GETS), 0x04);
+  assertEquals(firstSubop(writeWasm(mod), STRUCT_GETS), 0x04);
 });
 
 Deno.test('WAT: struct.get_s on a non-packed field is rejected', () => {

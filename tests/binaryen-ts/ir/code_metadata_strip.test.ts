@@ -6,14 +6,13 @@
 // It is wabt-ts's node to BUILD — the text form of a `metadata.code.*` section,
 // which binaryen-ts reads and writes raw (divergence K2). With one node union a
 // tree reaching binaryen-ts may hold one, and the owner decided what happens
-// (2026-09-16): binaryen-ts STRIPS it in its optimization runs. A plain encode
-// REFUSES it — it has no instruction bytes, and writing nothing is how the
-// annotation is silently lost (W8).
+// (2026-09-16): binaryen-ts STRIPS it in its optimization runs. A plain write
+// keeps it: since W8 the one writer (`writeWasm`, wabt-ts's) writes it as its
+// `metadata.code.*` section. (binaryen-ts's own encoder refused it, rather than
+// write nothing; it was deleted at 1.6.0.)
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import {
@@ -43,7 +42,7 @@ function annotated(): WasmModule {
     (block (nop))
     (if (result i32) (local.get 0) (then (i32.const 1)) (else (i32.const 2)))))`);
   assert(!hasErrors(r.errors), formatErrors(r.errors));
-  const mod = parseWasm(r.binary);
+  const mod = readForPasses(r.binary);
   const fn = mod.functions[0]!;
   const [block, iff] = fn.body.children as [Expression, Expression];
   assert(block.kind === ExpressionKind.Block);
@@ -75,12 +74,15 @@ Deno.test('an optimization run strips every annotation, at any depth, before its
   assertEquals(annotations(mod), 2, 'the fixture holds two');
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).add('Vacuum').run();
   assertEquals(annotations(mod), 0);
-  const out = encodeWasm(mod);
+  const out = writeWasm(mod);
   assertEquals([call(out, 1), call(out, 0)], [1, 2]);
+  assert(!new TextDecoder().decode(out).includes('metadata.code.'), 'no section either');
 });
 
-Deno.test('a plain encode refuses one, rather than writing nothing for it', () => {
-  assertThrows(() => encodeWasm(annotated()), WasmEncodeError, 'cannot encode code_metadata');
+Deno.test('a plain write keeps them, as their metadata.code section — not nothing', () => {
+  const out = writeWasm(annotated());
+  assert(new TextDecoder().decode(out).includes('metadata.code.branch_hint'));
+  assertEquals([call(out, 1), call(out, 0)], [1, 2]);
 });
 
 Deno.test('a PassRunner with nothing queued keeps it — only an optimization run strips', () => {

@@ -26,9 +26,8 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import {
   hasBlockParams,
@@ -44,7 +43,7 @@ const asm = (wat: string) => {
   return r.binary;
 };
 const ROUTES = {
-  A: (bytes: Uint8Array): WasmModule => parseWasm(bytes),
+  A: (bytes: Uint8Array): WasmModule => readForPasses(bytes),
   B: (bytes: Uint8Array): WasmModule =>
     prepareForPasses(readBinaryIr(bytes, makeErrorList(), { readDebugNames: true })) as WasmModule,
 };
@@ -218,12 +217,12 @@ describe('lowerBlockParams: each shape, lowered alone and at -O2, on both routes
         assert(anyParams(m), 'the fixture keeps a block parameter — it discriminates');
         assert(lowerBlockParams(m) > 0, 'a function was lowered');
         assertEquals(anyParams(m), false, 'no parameter is left');
-        assertEquals(results(encodeWasm(m), args), want, 'lowered alone: valid, and the same');
+        assertEquals(results(writeWasm(m), args), want, 'lowered alone: valid, and the same');
 
         const o = load(bytes);
         new PassRunner(o, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses()
           .run();
-        assertEquals(results(encodeWasm(o), args), want, '-O2: valid, and the same');
+        assertEquals(results(writeWasm(o), args), want, '-O2: valid, and the same');
       });
     }
   }
@@ -250,7 +249,7 @@ describe('lowerBlockParams: a tree pass, not a round trip', () => {
     // longer had.
     // Renamed consistently — the export follows — so the module still encodes.
     const bytes = asm(FIXTURES[1]!.wat);
-    const m = parseWasm(bytes);
+    const m = readForPasses(bytes);
     const f = m.functions[0]!;
     const old = f.name;
     f.name = '$renamed';
@@ -259,6 +258,6 @@ describe('lowerBlockParams: a tree pass, not a round trip', () => {
     }
     assert(lowerBlockParams(m) > 0);
     assertEquals(anyParams(m), false);
-    assertEquals(results(encodeWasm(m), FIXTURES[1]!.args), results(bytes, FIXTURES[1]!.args));
+    assertEquals(results(writeWasm(m), FIXTURES[1]!.args), results(bytes, FIXTURES[1]!.args));
   });
 });

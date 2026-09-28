@@ -51,7 +51,7 @@ import {
 import { AbstractHeapType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { heapAbstract, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
@@ -1185,7 +1185,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('CoalesceLocals').run();
 
   const inst = new WebAssembly.Instance(
-    await WebAssembly.compile(encodeWasm(mod) as BufferSource),
+    await WebAssembly.compile(writeWasm(mod) as BufferSource),
   );
   const dispatch = inst.exports.dispatch as (obj: number) => number;
   // obj=0 → $t=0 → index mem[0]=1 → $f1(0)=0

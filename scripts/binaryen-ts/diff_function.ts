@@ -14,9 +14,49 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
-import { BinaryReader } from '../../src/binaryen-ts/binary/reader.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
+
+/**
+ * The few cursor reads this script needs. binaryen-ts's `BinaryReader` went
+ * with its decoder at 1.6.0; this keeps its method names so the walk below
+ * reads as it did.
+ */
+class BinaryReader {
+  position = 0;
+  constructor(private readonly bytes: Uint8Array) {}
+  get eof(): boolean {
+    return this.position >= this.bytes.length;
+  }
+  skip(n: number): void {
+    this.position += n;
+  }
+  seek(p: number): void {
+    this.position = p;
+  }
+  readU8(): number {
+    return this.bytes[this.position++]!;
+  }
+  readU32(): number {
+    let r = 0, s = 0, b;
+    do {
+      b = this.readU8();
+      r += (b & 0x7f) * 2 ** s;
+      s += 7;
+    } while (b & 0x80);
+    return r;
+  }
+  /** A signed LEB, as `readI32` read it; the value is only skipped here. */
+  readI32(): number {
+    let r = 0, s = 0, b;
+    do {
+      b = this.readU8();
+      r |= (b & 0x7f) << s;
+      s += 7;
+    } while (b & 0x80);
+    return s < 32 && (b & 0x40) ? r | (-1 << s) : r;
+  }
+}
 
 const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 const TARGET_REL = 'passes/fannkuch0_dwarf.wasm';
@@ -119,8 +159,8 @@ function hexdump(bytes: Uint8Array, start: number, len: number, label: string): 
 
 const file = path.join(ROOT, TARGET_REL.replace(/\//g, path.sep));
 const original = new Uint8Array(await fs.readFile(file));
-const mod = parseWasm(original);
-const reEncoded = encodeWasm(mod);
+const mod = readForPasses(original);
+const reEncoded = writeWasm(mod);
 
 console.log(`# Diffing function #${TARGET_FN_INDEX} of ${TARGET_REL}`);
 console.log(`# Original: ${original.byteLength} bytes`);

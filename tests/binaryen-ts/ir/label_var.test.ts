@@ -30,8 +30,8 @@ import {
   makeRethrow,
   makeSwitch,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
@@ -49,7 +49,7 @@ describe('label references are Vars, and a pass only ever sees names', () => {
   it('a decoded branch target is name-form -- even where the binary held only a depth', () => {
     const bytes = wat2wasm(`(module (func (block (block (br 1)))))`).binary;
     const kinds: string[] = [];
-    walkExpression(parseWasm(bytes).functions[0]!.body, (e) => {
+    walkExpression(readForPasses(bytes).functions[0]!.body, (e) => {
       if (e.kind === ExpressionKind.Break) kinds.push((e as BreakExpr).target.kind);
     });
     assertEquals(kinds, ['name']);
@@ -72,7 +72,7 @@ describe('label references are Vars, and a pass only ever sees names', () => {
         [],
         makeBlock([makeBlock([node], '$inner')], '$outer'),
       );
-      return encodeWasm(m.build());
+      return writeWasm(m.build());
     };
     const byName = build('name');
     assert(WebAssembly.validate(byName as BufferSource));
@@ -82,6 +82,6 @@ describe('label references are Vars, and a pass only ever sees names', () => {
   it('and refuses a depth deeper than the labels that enclose it', () => {
     const m = new ModuleBuilder();
     m.addFunction('f', [], [], asRegion([{ ...makeBreak('$x'), target: varIndex(9) }]));
-    assertThrows(() => encodeWasm(m.build()), Error, 'outside');
+    assertThrows(() => writeWasm(m.build()), Error, 'outside');
   });
 });

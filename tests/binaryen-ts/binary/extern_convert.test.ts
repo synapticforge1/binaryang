@@ -17,8 +17,8 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 
 const WAT = `(module
@@ -41,7 +41,7 @@ describe('the extern conversions', () => {
   });
 
   it('decode → encode keeps both opcodes: byte-identical, valid, and runs', async () => {
-    const out = encodeWasm(parseWasm(input));
+    const out = writeWasm(readForPasses(input));
     assertEquals(out, input);
     const token = { tag: 'host object' };
     const exports = await instance(out);
@@ -50,7 +50,7 @@ describe('the extern conversions', () => {
   });
 
   it('the binaryen-ts WAT path writes the same module', async () => {
-    const out = encodeWasm(parseWat(WAT));
+    const out = writeWasm(parseWat(WAT));
     assertEquals(WebAssembly.validate(out as BufferSource), true);
     const token = { tag: 'host object' };
     assertEquals((await instance(out)).roundTrip!(token), token);

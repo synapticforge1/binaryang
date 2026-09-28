@@ -27,8 +27,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   asRegion,
   makeI32Const,
@@ -88,11 +88,11 @@ describe('try catch clauses are records, not parallel arrays', () => {
     // what the encoder's guard existed to reject. There is no way to express it
     // now — the clause IS the pairing — so this pins the pairing survives a
     // round trip rather than that a mismatch is rejected.
-    const bytes = encodeWasm(tryModule([
+    const bytes = writeWasm(tryModule([
       tryCatch(varName('$e'), makeNop()),
       tryCatchAll(makeNop()),
     ]));
-    const back = parseWasm(bytes);
+    const back = readForPasses(bytes);
     const t = soleInstr(back.functions[0]!.body) as TryExpr;
     const kinds = t.catches.map((c) => (c.tag === undefined ? 'all' : 'tagged'));
     assertEquals(kinds, ['tagged', 'all']);
@@ -102,16 +102,16 @@ describe('try catch clauses are records, not parallel arrays', () => {
     // The bridge threw "catch_ref / catch_all_ref not yet supported" because
     // the IR had no slot for the flag. The clause carries `isRef` now, and the
     // ONLY difference it makes to the encoding is the opcode.
-    const plain = encodeWasm(tryModule([tryCatch(varName('$e'), makeNop())]));
-    const ref = encodeWasm(tryModule([
+    const plain = writeWasm(tryModule([tryCatch(varName('$e'), makeNop())]));
+    const ref = writeWasm(tryModule([
       { tag: varName('$e'), isRef: true, body: asRegion(makeNop()) },
     ]));
     assertEquals(byteDiff(plain, ref), [[byteDiff(plain, ref)[0]![0], 0x07, 0x08]]);
   });
 
   it('catch_all_ref changes exactly one byte: 0x19 becomes 0x18', () => {
-    const plain = encodeWasm(tryModule([tryCatchAll(makeNop())]));
-    const ref = encodeWasm(tryModule([{ isRef: true, body: asRegion(makeNop()) }]));
+    const plain = writeWasm(tryModule([tryCatchAll(makeNop())]));
+    const ref = writeWasm(tryModule([{ isRef: true, body: asRegion(makeNop()) }]));
     assertEquals(byteDiff(plain, ref), [[byteDiff(plain, ref)[0]![0], 0x19, 0x18]]);
   });
 
@@ -122,8 +122,8 @@ describe('try catch clauses are records, not parallel arrays', () => {
       tryCatchAll(makeNop()),
     ];
     const diff = byteDiff(
-      encodeWasm(tryModule(clauses(false))),
-      encodeWasm(tryModule(clauses(true))),
+      writeWasm(tryModule(clauses(false))),
+      writeWasm(tryModule(clauses(true))),
     );
     assertEquals(diff.length, 1, 'a per-clause flag must not disturb its neighbours');
     assertEquals([diff[0]![1], diff[0]![2]], [0x07, 0x08]);

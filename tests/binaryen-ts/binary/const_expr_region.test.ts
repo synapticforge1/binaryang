@@ -10,12 +10,14 @@
 // the decoder reads one too — with the function-body decoder, up to the `end`
 // (it read ONE instruction from a fixed set, and refused the rest).
 
-import { assertEquals, assertThrows } from '@std/assert';
+import { assertEquals, assertStringIncludes, assertThrows } from '@std/assert';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
 
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { createModule } from '../../../src/binaryen-ts/api/index.ts';
-import { WasmBinaryError } from '../../../src/binaryen-ts/binary/reader.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
@@ -49,29 +51,29 @@ Deno.test('the encoder writes every instruction a constant expression holds, the
     .addGlobal('$g', ValType.I32, false, makeRegion([makeI32Const(1), makeI32Const(2)]))
     .build();
   // 1 global: i32 (7f), immutable (00), `i32.const 1 i32.const 2 end`
-  assertEquals(section(encodeWasm(mod), 6), '01 7f 00 41 01 41 02 0b');
+  assertEquals(section(writeWasm(mod), 6), '01 7f 00 41 01 41 02 0b');
 });
 
 Deno.test('a global init and an active offset decode as one-instruction regions', () => {
-  const bytes = encodeWasm(
+  const bytes = writeWasm(
     new ModuleBuilder()
       .addMemory('$m', 1)
       .addGlobal('$g', ValType.I32, false, makeI32Const(7))
       .addDataSegment('$d', makeI32Const(3), new Uint8Array([1]))
       .build(),
   );
-  const mod = parseWasm(bytes);
+  const mod = readForPasses(bytes);
   assertEquals(mod.globals[0]!.init!.children.map((e) => e.kind), ['const']);
   assertEquals(mod.dataSegments[0]!.offset?.children.map((e) => e.kind), ['const']);
-  assertEquals(encodeWasm(mod), bytes);
+  assertEquals(writeWasm(mod), bytes);
 });
 
 Deno.test('a passive data segment has NO offset field (it was null)', () => {
-  const bytes = encodeWasm(
+  const bytes = writeWasm(
     new ModuleBuilder().addMemory('$m', 1).addPassiveDataSegment('$p', new Uint8Array([9]))
       .build(),
   );
-  const seg = parseWasm(bytes).dataSegments[0]!;
+  const seg = readForPasses(bytes).dataSegments[0]!;
   assertEquals(seg.kind, 'passive');
   assertEquals('offset' in seg, false);
 });
@@ -91,7 +93,7 @@ function withoutInit() {
 
 Deno.test('a defined global with no initializer is refused by the encoder', () => {
   assertThrows(
-    () => encodeWasm(withoutInit()),
+    () => writeWasm(withoutInit()),
     WasmEncodeError,
     'global $g: it has no initializer',
   );
@@ -130,10 +132,10 @@ for (
 ) {
   Deno.test(`a constant expression of several instructions decodes (${label})`, () => {
     const bytes = wat2wasm(wat).binary;
-    const mod = parseWasm(bytes);
+    const mod = readForPasses(bytes);
     const init = mod.globals[0]?.init ?? mod.tables[0]?.init;
     assertEquals(init?.children.map((e) => e.kind), [...kinds]);
-    assertEquals(encodeWasm(mod), bytes);
+    assertEquals(writeWasm(mod), bytes);
   });
 }
 
@@ -144,21 +146,27 @@ Deno.test('a constant expression with no end is refused', () => {
   const at = bytes.indexOf(0x41, 8); // i32.const
   const cut = new Uint8Array([...bytes.subarray(0, at + 2)]);
   cut[at - 4] = cut.length - (at - 3); // the global section's size: to the end of the input
-  assertThrows(() => parseWasm(cut), WasmBinaryError, 'no `end`');
+  assertThrows(() => readForPasses(cut), WasmBinaryError, 'unexpected end');
 });
 
 /** `\0asm` version 1, then the given sections' bytes. */
 const moduleOf = (...sections: number[][]) =>
   new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, ...sections.flat()]);
 
-Deno.test('a constant expression that consumes a value from beneath a statement is refused', () => {
+Deno.test('a constant expression that consumes a value from beneath a statement: kept, and invalid', () => {
   // `i32.const 1` `nop` `i32.const 2` `i32.add`: the add's left operand sits under
   // the `nop`. A function body spills it to a local; a constant expression has
   // no locals to spill into, and only an invalid one can need it.
+  //
+  // binaryen-ts's decoder refused it while reading; it was deleted at 1.6.0.
+  // The one reader reads what it can HOLD and repairs nothing — the same bytes
+  // come back — and the validator is what refuses it.
   const expr = [0x41, 0x01, 0x01, 0x41, 0x02, 0x6a, 0x0b];
   const global = [0x01, 0x7f, 0x00, ...expr];
   const bytes = moduleOf([0x06, global.length, ...global]);
-  assertThrows(() => parseWasm(bytes), WasmBinaryError, 'consumed from beneath a statement');
+  assertEquals(writeWasm(readForPasses(bytes)), bytes, 'not repaired');
+  const { errors } = wasmValidate(bytes, { features: allFeatures() });
+  assertStringIncludes(formatErrors(errors), 'constant expression required');
 });
 
 Deno.test('an element segment elemkind other than funcref (0x00) is refused', () => {
@@ -168,7 +176,7 @@ Deno.test('an element segment elemkind other than funcref (0x00) is refused', ()
   assertEquals([bytes[at - 1], bytes[at]], [0x01, 0x00]);
   const bad = bytes.slice();
   bad[at] = 0x01;
-  assertThrows(() => parseWasm(bad), WasmBinaryError, 'elemkind 0x1');
+  assertThrows(() => readForPasses(bad), WasmBinaryError, 'malformed element kind: 0x1');
 });
 
 Deno.test('an element-segment entry is a constant expression, of any length (M3)', () => {
@@ -181,7 +189,7 @@ Deno.test('an element-segment entry is a constant expression, of any length (M3)
   assertEquals([bytes[end - 2], bytes[end - 1]], [0xd2, 0x00]);
   const longer = new Uint8Array([...bytes.subarray(0, end), 0x01, ...bytes.subarray(end)]);
   longer[sec + 1]! += 1;
-  const mod = parseWasm(longer);
+  const mod = readForPasses(longer);
   assertEquals(mod.elements[0]!.elemExprs[0]!.children.map((e) => e.kind), ['ref.func', 'nop']);
-  assertEquals(encodeWasm(mod), longer);
+  assertEquals(writeWasm(mod), longer);
 });

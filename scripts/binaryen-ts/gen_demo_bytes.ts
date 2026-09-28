@@ -17,7 +17,7 @@
  */
 
 import { parseWat } from '../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const WAT_PATH = new URL('../../src/binaryen-ts/wasm/demo.wat', import.meta.url);
 const WASM_PATH = new URL('../../src/binaryen-ts/wasm/demo.wasm', import.meta.url);
@@ -25,7 +25,7 @@ const BYTES_TS_PATH = new URL('../../src/binaryen-ts/wasm/demo_bytes.ts', import
 
 const wat = await Deno.readTextFile(WAT_PATH);
 const mod = parseWat(wat, 'demo.wat');
-const bytes = encodeWasm(mod);
+const bytes = writeWasm(mod);
 
 await Deno.writeFile(WASM_PATH, bytes);
 

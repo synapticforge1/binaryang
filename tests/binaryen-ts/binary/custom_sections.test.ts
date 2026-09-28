@@ -22,8 +22,8 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm, WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 
@@ -97,11 +97,11 @@ describe('C3 — a custom section survives decode → encode, where it stood', (
   });
 
   it('decode → encode is byte-identical', () => {
-    assert(same(encodeWasm(parseWasm(THREE)), THREE), hex(encodeWasm(parseWasm(THREE))));
+    assert(same(writeWasm(readForPasses(THREE)), THREE), hex(writeWasm(readForPasses(THREE))));
   });
 
   it('the module carries them, with the section each one followed', () => {
-    const m = parseWasm(THREE);
+    const m = readForPasses(THREE);
     assertEquals(
       m.customSections?.map((c) => `${c.name}@${c.precedingSection}`),
       ['first@null', 'after-type@1', 'last@10'],
@@ -111,7 +111,7 @@ describe('C3 — a custom section survives decode → encode, where it stood', (
   it('`dylink.0` stays FIRST — the one position upstream also keeps', () => {
     // A loader reads it before instantiating; appended, it is useless.
     const bytes = mk([custom('dylink.0', [0, 0, 0, 0, 0])], [], []);
-    assertEquals(layout(encodeWasm(parseWasm(bytes))), '"dylink.0" 1 3 7 10');
+    assertEquals(layout(writeWasm(readForPasses(bytes))), '"dylink.0" 1 3 7 10');
   });
 
   it("clang's layout — DWARF, then the name section, then producers — keeps its order", () => {
@@ -126,8 +126,8 @@ describe('C3 — a custom section survives decode → encode, where it stood', (
     ]);
     assertEquals(layout(withDwarf), '1 3 7 10 ".debug_info" "name" "producers"');
     assert(
-      same(encodeWasm(parseWasm(withDwarf)), withDwarf),
-      layout(encodeWasm(parseWasm(withDwarf))),
+      same(writeWasm(readForPasses(withDwarf)), withDwarf),
+      layout(writeWasm(readForPasses(withDwarf))),
     );
   });
 
@@ -135,17 +135,17 @@ describe('C3 — a custom section survives decode → encode, where it stood', (
     // Hand-built, so there is no `name` section either — `wat2wasm` writes one
     // for every module now (N1), and its place is a custom entry.
     const bytes = mk([], [], []);
-    assertEquals(parseWasm(bytes).customSections, []); // [], not absent (M8b5)
-    assert(same(encodeWasm(parseWasm(bytes)), bytes), layout(encodeWasm(parseWasm(bytes))));
+    assertEquals(readForPasses(bytes).customSections, []); // [], not absent (M8b5)
+    assert(same(writeWasm(readForPasses(bytes)), bytes), layout(writeWasm(readForPasses(bytes))));
   });
 
   it("a wat2wasm binary carries just the name section's place", () => {
     const bytes = assemble('(module (func $f (export "x")))');
     assertEquals(
-      parseWasm(bytes).customSections?.map((c) => `${c.name}@${c.precedingSection}:${c.data}`),
+      readForPasses(bytes).customSections?.map((c) => `${c.name}@${c.precedingSection}:${c.data}`),
       ['name@10:null'],
     );
-    assert(same(encodeWasm(parseWasm(bytes)), bytes));
+    assert(same(writeWasm(readForPasses(bytes)), bytes));
   });
 
   // S6 step 5 item 6 (M2f): wabt-ts's convention — a custom with no recorded
@@ -155,7 +155,7 @@ describe('C3 — a custom section survives decode → encode, where it stood', (
     b.addFunction('$f', [], [], []);
     const mod = b.build();
     mod.customSections = [{ name: 'handmade', data: new Uint8Array([1]) }];
-    assertEquals(layout(encodeWasm(mod)), '1 3 10 "handmade"');
+    assertEquals(layout(writeWasm(mod)), '1 3 10 "handmade"');
   });
 
   it('a payload-less custom that is not the name section is refused', () => {
@@ -164,16 +164,16 @@ describe('C3 — a custom section survives decode → encode, where it stood', (
     const mod = b.build();
     mod.customSections = [{ name: 'producers', data: null, precedingSection: null }];
     assertThrows(
-      () => encodeWasm(mod),
+      () => writeWasm(mod),
       WasmEncodeError,
-      'custom section "producers": it has no payload',
+      'custom section "producers" has no payload',
     );
   });
 
   it('a module built through the API has none, and still writes no section', () => {
     const b = new ModuleBuilder();
     b.addFunction('$f', [], [], []);
-    const out = encodeWasm(b.build());
+    const out = writeWasm(b.build());
     assertEquals(layout(out), '1 3 10');
   });
 });
@@ -201,23 +201,24 @@ describe('C3 — the `name` section is regenerated AT ITS PLACE', () => {
   it('a custom after the name section stays after it', () => {
     const bytes = mk([], [], [nameSec('a'), custom('producers', [0])]);
     assertEquals(layout(bytes), '1 3 7 10 "name" "producers"');
-    assertEquals(layout(encodeWasm(parseWasm(bytes))), '1 3 7 10 "name" "producers"');
+    assertEquals(layout(writeWasm(readForPasses(bytes))), '1 3 7 10 "name" "producers"');
   });
 
-  it("two name sections: one is written, at the LAST one's place", () => {
-    // The names come from the last (`findNameSection`), as upstream binaryen,
-    // wabt and wasm-tools all read them; binaryen writes one section back.
+  // Two name sections. The names come from the LAST, as upstream binaryen, wabt
+  // and wasm-tools all read them. A plain read and write keeps BOTH, each at its
+  // place — the one reader's rule (divergences.md N5: wabt-ts keeps every name
+  // section as bytes). binaryen-ts's decoder, deleted at 1.6.0, wrote one back,
+  // as binaryen does.
+  it('two name sections: a plain read and write keeps both, each where it stood', () => {
     const bytes = mk([], [], [nameSec('a'), custom('producers', [0]), nameSec('b')]);
-    const out = encodeWasm(parseWasm(bytes));
-    assertEquals(layout(out), '1 3 7 10 "producers" "name"');
-    assert(new TextDecoder().decode(out).includes('b'), hex(out));
+    const out = writeWasm(readForPasses(bytes));
+    assertEquals(layout(out), '1 3 7 10 "name" "producers" "name"');
+    assertEquals(out, bytes);
   });
 
-  it('and the surviving name section really is the last one, not the first', () => {
+  it("and the names in the tree are the LAST section's, not the first", () => {
     const bytes = mk([], [], [nameSec('a'), nameSec('b')]);
-    const out = encodeWasm(parseWasm(bytes));
-    assertEquals(layout(out), '1 3 7 10 "name"');
-    assertEquals(parseWasm(out).functions[0]!.name, '$b');
+    assertEquals(readForPasses(bytes).functions[0]!.name, '$b');
   });
 });
 
@@ -231,11 +232,11 @@ describe('C3 — passes keep them, as upstream keeps them', () => {
   );
 
   const run = (debugInfo: boolean, passes: boolean): Uint8Array => {
-    const m = parseWasm(PROBE);
+    const m = readForPasses(PROBE);
     const runner = new PassRunner(m, { optimizeLevel: 2, debugInfo });
     if (passes) runner.addDefaultOptimizationPasses();
     runner.run();
-    return encodeWasm(m);
+    return writeWasm(m);
   };
 
   it('optimized without -g: the names go, the custom sections stay', () => {
@@ -254,13 +255,13 @@ describe('C3 — passes keep them, as upstream keeps them', () => {
     // producer omits the functions that have no local names, and we do not).
     const out = run(false, false);
     assertEquals(layout(out), '"dylink.0" 1 3 7 10 "name" "producers"');
-    assertEquals(parseWasm(out).functions[0]!.name, '$f');
+    assertEquals(readForPasses(out).functions[0]!.name, '$f');
   });
 
   it('the custom sections themselves come back byte for byte', () => {
     const noNames = mk([custom('dylink.0', [0, 0, 0, 0, 0])], [], [custom('producers', [0])]);
-    const m = parseWasm(noNames);
+    const m = readForPasses(noNames);
     new PassRunner(m, { optimizeLevel: 2, debugInfo: false }).run();
-    assert(same(encodeWasm(m), noNames), layout(encodeWasm(m)));
+    assert(same(writeWasm(m), noNames), layout(writeWasm(m)));
   });
 });

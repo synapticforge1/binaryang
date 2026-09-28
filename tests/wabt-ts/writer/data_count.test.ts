@@ -22,8 +22,8 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 
 /** Section ids in order, custom sections left out. */
@@ -137,7 +137,7 @@ describe('a binary round trip keeps the DataCount the binary had — and adds no
     });
 
     it(`binaryen-ts decode → encode, ${label}`, () => {
-      assert(same(encodeWasm(parseWasm(bytes)), bytes));
+      assert(same(writeWasm(readForPasses(bytes)), bytes));
     });
   }
 });
@@ -145,7 +145,7 @@ describe('a binary round trip keeps the DataCount the binary had — and adds no
 describe("binaryen-ts's encoder follows the same rule", () => {
   it('a data segment alone: none', () => {
     assert(
-      !sectionIds(encodeWasm(parseWat('(module (memory 1) (data (i32.const 0) "x"))'))).includes(
+      !sectionIds(writeWasm(parseWat('(module (memory 1) (data (i32.const 0) "x"))'))).includes(
         12,
       ),
     );
@@ -153,7 +153,7 @@ describe("binaryen-ts's encoder follows the same rule", () => {
 
   it('a data.drop: written, before the code section', () => {
     const ids = sectionIds(
-      encodeWasm(parseWat('(module (memory 1) (data "x") (func (data.drop 0)))')),
+      writeWasm(parseWat('(module (memory 1) (data "x") (func (data.drop 0)))')),
     );
     assert(ids.indexOf(12) >= 0 && ids.indexOf(12) < ids.indexOf(10), ids.join(' '));
   });

@@ -17,8 +17,8 @@
 import * as fs from 'node:fs/promises';
 
 import upstream from 'npm:binaryen@^116.0.0';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0] ?? 'fib-dbg.wasm';
@@ -34,8 +34,8 @@ function emitText(bytes: Uint8Array): string {
 }
 
 const original = new Uint8Array(await fs.readFile(ROOT + rel));
-const mod = parseWasm(original);
-const reEncoded = encodeWasm(mod);
+const mod = readForPasses(original);
+const reEncoded = writeWasm(mod);
 
 console.log(`# ${rel}: original=${original.byteLength}B re-encoded=${reEncoded.byteLength}B`);
 

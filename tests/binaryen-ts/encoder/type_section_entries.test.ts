@@ -30,7 +30,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 // wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../nameless_reference.ts.
 import { wabtReference } from '../nameless_reference.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
@@ -59,7 +59,7 @@ function typeLines(bytes: Uint8Array): string[] {
 function assertSameTypes(wat: string): void {
   const ref = wabtReference(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
-  const got = encodeWasm(parseWat(wat));
+  const got = writeWasm(parseWat(wat));
   new WebAssembly.Module(got as BufferSource); // validity before comparison
   assertEquals(typeLines(got).sort(), typeLines(ref.binary).sort());
 }
@@ -98,7 +98,7 @@ describe('encoder — no orphan type-section entries', () => {
     const wat = `(module (func (export "f") (result i32 i32)
       (block (result i32 i32) (i32.const 1) (i32.const 2))))`;
     assertSameTypes(wat);
-    const got = encodeWasm(parseWat(wat));
+    const got = writeWasm(parseWat(wat));
     assert(
       typeLines(got).some((l) => /result i32 i32/.test(l)),
       'the block header needs an addressable type',

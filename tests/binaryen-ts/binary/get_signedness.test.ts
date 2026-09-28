@@ -18,9 +18,9 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
@@ -73,7 +73,7 @@ describe('binaryen-ts — a get keeps which of its three spellings it was', () =
   });
 
   it('decoding binary keeps all three', () => {
-    assertEquals(spellings(parseWasm(bytes)), EXPECTED);
+    assertEquals(spellings(readForPasses(bytes)), EXPECTED);
   });
 
   it('parsing text keeps all three', () => {
@@ -81,6 +81,6 @@ describe('binaryen-ts — a get keeps which of its three spellings it was', () =
   });
 
   it('and re-encoding is byte-identical', () => {
-    assertEquals(encodeWasm(parseWasm(bytes)), bytes);
+    assertEquals(writeWasm(readForPasses(bytes)), bytes);
   });
 });

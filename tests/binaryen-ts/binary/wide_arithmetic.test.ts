@@ -34,8 +34,9 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { type Var, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
@@ -82,13 +83,13 @@ describe('S5 — wide arithmetic round-trips through binaryen-ts', () => {
     it(`${name} re-encodes byte-identically`, () => {
       const input = assemble(wat);
       // The whole module used to be refused here.
-      const out = encodeWasm(parseWasm(input));
+      const out = writeWasm(readForPasses(input));
       assertEquals(Array.from(out), Array.from(input));
     });
   }
 
   it('add128 decodes as a four-operand node, not a mis-shaped one', () => {
-    const mod = parseWasm(assemble(FOUR_OPERAND('i64.add128')));
+    const mod = readForPasses(assemble(FOUR_OPERAND('i64.add128')));
     const quad = nodesOf(mod.functions[0]?.body)
       .find((n) => n['kind'] === ExpressionKind.Quaternary);
     assert(quad, 'a quaternary node must be present');
@@ -101,7 +102,7 @@ describe('S5 — wide arithmetic round-trips through binaryen-ts', () => {
   });
 
   it('the pair produces TWO results, so the node type is a tuple', () => {
-    const mod = parseWasm(assemble(FOUR_OPERAND('i64.add128')));
+    const mod = readForPasses(assemble(FOUR_OPERAND('i64.add128')));
     const quad = nodesOf(mod.functions[0]?.body)
       .find((n) => n['kind'] === ExpressionKind.Quaternary);
     assert(quad, 'a quaternary node must be present');
@@ -110,12 +111,31 @@ describe('S5 — wide arithmetic round-trips through binaryen-ts', () => {
   });
 
   it('mul_wide stays BINARY — two operands, two results', () => {
-    const mod = parseWasm(assemble(TWO_OPERAND('i64.mul_wide_s')));
+    const mod = readForPasses(assemble(TWO_OPERAND('i64.mul_wide_s')));
     const bin = nodesOf(mod.functions[0]?.body)
       .find((n) => n['opcode'] === ((0xfc << 16) | 21)); // i64.mul_wide_s;
     assert(bin, 'a binary node must carry the wide multiply');
     assertEquals(bin['kind'], ExpressionKind.Binary);
     assert(Array.isArray(bin['type']), 'two results means a tuple type');
     assertEquals((bin['type'] as unknown[]).length, 2);
+  });
+
+  it('mul_wide whose two results are consumed APART reads, and optimizes', () => {
+    // 🔧 Typed a single i64 by the one reader's typing step, a `drop` of the
+    // high half then found "the stack holds 0" and the module was REFUSED at
+    // read — by `wasm-opt` too, since it reads with that reader (One front end
+    // stage 3a). binaryen-ts's decoder typed it itself, so this surfaced only
+    // when it was deleted (1.6.0). Behaviour at -O1…-O3 measured identical to
+    // the original under V8's --experimental-wasm-wide_arithmetic; the suite
+    // runs without that flag, so this pins reading and writing.
+    const bytes = assemble(`(module
+      (func (export "g") (param i64 i64) (result i64)
+        (i64.mul_wide_u (local.get 0) (local.get 1)) (drop))
+      (func (export "h") (param i64 i64) (result i64) (local i64)
+        (i64.mul_wide_u (local.get 0) (local.get 1)) (local.set 2) (drop) (local.get 2)))`);
+    assertEquals(writeWasm(readForPasses(bytes)), bytes, 'a plain read and write');
+    const m = readForPasses(bytes);
+    new PassRunner(m, { optimizeLevel: 2 }).addDefaultOptimizationPasses().run();
+    assert(writeWasm(m).length > 8, 'optimized and written');
   });
 });

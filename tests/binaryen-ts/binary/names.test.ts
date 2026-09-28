@@ -21,8 +21,8 @@ import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import {
@@ -100,7 +100,7 @@ const PROBE = `(module $mod
   (func $init))`;
 
 describe('P4 — the decoder names every entity from the name section', () => {
-  const m = parseWasm(assemble(PROBE));
+  const m = readForPasses(assemble(PROBE));
 
   it('functions, imported and defined; globals, memories, tables, segments', () => {
     assertEquals(m.imports.map(importName), ['$log', '$oops']);
@@ -165,7 +165,7 @@ describe('P4 — the decoder names every entity from the name section', () => {
 
 describe('P4 — what the section does not name', () => {
   it('an unnamed entity keeps the name the decoder always gave it', () => {
-    const m = parseWasm(
+    const m = readForPasses(
       assemble('(module (func (export "a")) (func $b) (memory 1) (global i32 (i32.const 0)))'),
     );
     assertEquals(m.functions.map((f) => f.name), ['$func0', '$b']);
@@ -176,25 +176,25 @@ describe('P4 — what the section does not name', () => {
 
   it('…unless the section already uses that name for something else', () => {
     // func 1 is REALLY named `func0`; the unnamed func 0 must not collide with it.
-    const m = parseWasm(assemble('(module (func (export "a")) (func $func0))'));
+    const m = readForPasses(assemble('(module (func (export "a")) (func $func0))'));
     assertEquals(m.functions.map((f) => f.name), ['$func0.1', '$func0']);
   });
 
   it('a duplicate name is disambiguated, as upstream wabt does', () => {
     // wat2wasm cannot write two `$dup`s, so the section is built by hand.
-    const m = parseWasm(withFuncNames(2, ['dup', 'dup']));
+    const m = readForPasses(withFuncNames(2, ['dup', 'dup']));
     assertEquals(m.functions.map((f) => f.name), ['$dup', '$dup.1']);
   });
 
   it('a binary with NO name section decodes as before and gains none', () => {
     const bare = withFuncNames(2, null);
-    const m = parseWasm(bare);
+    const m = readForPasses(bare);
     // The section is its own fact; the record is still set, and says the
     // made-up names are not real (M7c3b b1a).
     assertEquals(m.hasNameSection, false);
     assertEquals([...m.explicitNames!.functions], []);
     assertEquals(m.functions.map((f) => f.name), ['$func0', '$func1']);
-    assert(same(encodeWasm(m), bare));
+    assert(same(writeWasm(m), bare));
   });
 });
 
@@ -236,7 +236,7 @@ function withFuncNames(n: number, names: string[] | null): Uint8Array {
 describe('P5 — the encoder writes the names back', () => {
   it('decode → encode is byte-identical on a named module: every kind, labels too', () => {
     const bytes = assemble(PROBE);
-    assert(same(encodeWasm(parseWasm(bytes)), bytes));
+    assert(same(writeWasm(readForPasses(bytes)), bytes));
   });
 
   it('…and GC type and field names', () => {
@@ -244,25 +244,25 @@ describe('P5 — the encoder writes the names back', () => {
       (type $point (struct (field $x i32) (field i32) (field $z f64)))
       (type $vec (array (mut i32)))
       (func $mk (result (ref $point)) (struct.new $point (i32.const 1) (i32.const 2) (f64.const 3))))`);
-    const m = parseWasm(bytes);
+    const m = readForPasses(bytes);
     assertEquals([...m.explicitNames!.types.values()], ['$point', '$vec']);
-    assert(same(encodeWasm(m), bytes));
+    assert(same(writeWasm(m), bytes));
   });
 
   it('never writes a made-up name', () => {
     const bytes = assemble('(module (func (export "a")) (func $b))');
-    const back = encodeWasm(parseWasm(bytes));
+    const back = writeWasm(readForPasses(bytes));
     assert(same(back, bytes)); // `$func0` would have been written as "func0"
   });
 });
 
 describe('P5 — names follow -g once a pass has run', () => {
   const run = (debugInfo: boolean, passes: boolean) => {
-    const m = parseWasm(assemble(PROBE));
+    const m = readForPasses(assemble(PROBE));
     const runner = new PassRunner(m, { optimizeLevel: 2, debugInfo });
     if (passes) runner.addDefaultOptimizationPasses();
     runner.run();
-    return encodeWasm(m);
+    return writeWasm(m);
   };
 
   it('optimized without -g: no name section, as upstream', () => {
@@ -278,12 +278,12 @@ describe('P5 — names follow -g once a pass has run', () => {
   });
 
   it("block-parameter lowering works on a named module — it re-decodes the encoder's output", () => {
-    const m = parseWasm(assemble(`(module
+    const m = readForPasses(assemble(`(module
       (func $f (export "f") (param $a i32) (result i32)
         (local.get $a)
         (block $b (param i32) (result i32) (i32.const 1) (i32.add))))`));
     new PassRunner(m, { optimizeLevel: 2, debugInfo: true }).addDefaultOptimizationPasses().run();
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource));
     assertEquals(m.functions[0]!.name, '$f');
   });
@@ -299,7 +299,7 @@ describe('P6 — `$foo` through the text route', () => {
 
 describe('found alongside: imported memories named by index', () => {
   it('an imported and a defined memory get different names, and exports stay put', () => {
-    const m = parseWasm(assemble(`(module
+    const m = readForPasses(assemble(`(module
       (import "env" "m" (memory 1))
       (memory 1)
       (export "a" (memory 0)) (export "b" (memory 1)))`));
@@ -318,7 +318,7 @@ describe('M7c3b b1a — the section is one fact, which names are real another', 
     const m = new ModuleBuilder().addFunction('$helper', [], [], makeRegion([])).build();
     assertEquals(m.explicitNames, undefined);
     m.hasNameSection = true;
-    const back = parseWasm(encodeWasm(m));
+    const back = readForPasses(writeWasm(m));
     assertEquals(back.hasNameSection, true);
     assertEquals([...back.explicitNames!.functions], ['$helper']);
   });
@@ -327,15 +327,15 @@ describe('M7c3b b1a — the section is one fact, which names are real another', 
     const body = makeRegion([makeBlock([makeNop()], '$l')]);
     const m = new ModuleBuilder().addFunction('$f', [], [], body).build();
     m.hasNameSection = true;
-    const back = parseWasm(encodeWasm(m));
+    const back = readForPasses(writeWasm(m));
     assertEquals([...back.explicitNames!.labels.get('$f')!], ['$l']);
   });
 
   it('clearing the section drops it though the record is still there', () => {
-    const named = parseWasm(assemble('(module (func $helper))'));
+    const named = readForPasses(assemble('(module (func $helper))'));
     assert(named.hasNameSection);
     named.hasNameSection = false;
-    const back = parseWasm(encodeWasm(named));
+    const back = readForPasses(writeWasm(named));
     assertEquals(back.hasNameSection, false);
     assertEquals(back.functions.map((f) => f.name), ['$func0']);
   });

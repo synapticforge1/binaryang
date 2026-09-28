@@ -46,8 +46,8 @@ import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { Result } from '../../../src/wabt-ts/core/index.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 
 const FIXTURE = `
@@ -107,18 +107,18 @@ describe('-Oz and try_table: a store live across a catch edge', () => {
 
   it('CoalesceLocals alone keeps the pre-try store', () => {
     const { binary } = wat2wasm(FIXTURE, { filename: 'try_table_oz.wat' });
-    const mod = parseWasm(binary);
+    const mod = readForPasses(binary);
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('CoalesceLocals').run();
-    assertEquals(exitCode(encodeWasm(mod)), 42, 'CoalesceLocals dropped a live store');
+    assertEquals(exitCode(writeWasm(mod)), 42, 'CoalesceLocals dropped a live store');
   });
 
   it('the full -Oz pipeline keeps it, and still optimises', () => {
     const { binary } = wat2wasm(FIXTURE, { filename: 'try_table_oz.wat' });
-    const mod = parseWasm(binary);
+    const mod = readForPasses(binary);
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
       .addDefaultOptimizationPasses()
       .run();
-    const out = encodeWasm(mod);
+    const out = writeWasm(mod);
     assertEquals(exitCode(out), 42, '-Oz miscompiled try_table');
     // Guard against "fixed" by disabling optimisation: the module must still shrink.
     assert(

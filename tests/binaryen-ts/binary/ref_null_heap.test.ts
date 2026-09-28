@@ -30,8 +30,8 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import {
   type Expression,
   ExpressionKind,
@@ -149,7 +149,7 @@ function kinds(root: unknown, out: string[] = []): string[] {
 }
 
 Deno.test('ref.null preserves non-func, non-extern heap types byte-for-byte', async () => {
-  const out = encodeWasm(parseWasm(REF_NULL_HEAP_MODULE));
+  const out = writeWasm(readForPasses(REF_NULL_HEAP_MODULE));
   assertEquals(
     Array.from(section(out, 6)),
     Array.from(section(REF_NULL_HEAP_MODULE, 6)),
@@ -162,7 +162,7 @@ Deno.test('ref.null preserves non-func, non-extern heap types byte-for-byte', as
 });
 
 Deno.test('ref.null of `none` decodes to nullref, not externref', () => {
-  const mod = parseWasm(REF_NULL_HEAP_MODULE);
+  const mod = readForPasses(REF_NULL_HEAP_MODULE);
   assertEquals(mod.globals.length, 2);
   assertEquals(mod.globals[0].init!.type, ValType.NullExternRef); // ref.null noextern
   assertEquals(mod.globals[1].init!.type, ValType.NullRef); //       ref.null none
@@ -187,34 +187,41 @@ Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', 
   const refT: RefType = { heapType: varIndex(target), nullable: true };
   m.addGlobal('$g', refT, true, makeRefNull(refT));
 
-  const parsed = parseWasm(encodeWasm(m.build()));
+  const parsed = readForPasses(writeWasm(m.build()));
   const initType = parsed.globals[0].init!.type;
   assert(isRefType(initType), `ref.null decoded as ${JSON.stringify(initType)}`);
   assertEquals((initType as RefType).heapType, varIndex(target));
 });
 
 Deno.test('a phantom pop in stack-polymorphic code yields unreachable, not nop', () => {
-  const mod = parseWasm(UNREACHABLE_POPS_MODULE);
+  const mod = readForPasses(UNREACHABLE_POPS_MODULE);
   const seen = kinds(mod.functions[0].body);
   assertEquals(
     seen.filter((k) => k === ExpressionKind.Nop).length,
     0,
     `a nop was synthesized as an operand: ${seen.join(', ')}`,
   );
-  // Matches upstream's own decode: (i32.add (unreachable) (unreachable)).
+  // Upstream's decode is `(i32.add (unreachable) (unreachable))`, and so was
+  // binaryen-ts's decoder's (deleted at 1.6.0). The one reader holds a missing
+  // operand as a `pop` PLACEHOLDER — "already on the stack", writing nothing —
+  // beside the written `unreachable` (One front end stage 2; before a pass runs,
+  // a phantom is collapsed, Q4). Either way the add's operands are
+  // placeholders, never a made-up value.
+  const add = seen.indexOf(ExpressionKind.Binary);
+  assert(add >= 0, `no add: ${seen.join(', ')}`);
   assertEquals(
-    seen.filter((k) => k === ExpressionKind.Unreachable).length,
-    2,
-    `expected two unreachable operands, got: ${seen.join(', ')}`,
+    seen.slice(add + 1).filter((k) => k !== ExpressionKind.Pop && k !== ExpressionKind.Unreachable),
+    [],
+    `the add's operands are placeholders: ${seen.join(', ')}`,
   );
 });
 
 Deno.test('stack-polymorphic decode is a round-trip fixed point', () => {
   // Previously each trip added a spurious `nop` opcode, so the expression
   // count grew without bound.
-  const first = parseWasm(UNREACHABLE_POPS_MODULE);
-  const second = parseWasm(encodeWasm(first));
-  const third = parseWasm(encodeWasm(second));
+  const first = readForPasses(UNREACHABLE_POPS_MODULE);
+  const second = readForPasses(writeWasm(first));
+  const third = readForPasses(writeWasm(second));
 
   const a = kinds(first.functions[0].body);
   const b = kinds(second.functions[0].body);
@@ -248,7 +255,7 @@ const SHORTHANDS: [ValType, AbstractHeapType, number][] = [
 function globalSection(type: ValType, node: Expression): number[] {
   const m = new ModuleBuilder();
   m.addGlobal('$g', type, true, node);
-  return Array.from(section(encodeWasm(m.build()), 6));
+  return Array.from(section(writeWasm(m.build()), 6));
 }
 
 Deno.test('makeRefNull sets refType, and the heap byte written is that heap type', () => {

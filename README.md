@@ -83,10 +83,10 @@ console.log((exports.add as (a: number, b: number) => number)(19, 23)); // 42
 ### Read a module's structure
 
 ```ts
-import { parseWasm } from '@jrmarcum/binaryang/binary';
+import { readBinary } from '@jrmarcum/binaryang/compat/binaryen';
 
-const mod = parseWasm(bytes);
-console.log(mod.functions.length, mod.exports.length);
+const mod = readBinary(bytes); // the upstream binaryen.js shape
+console.log(mod.getNumExports(), mod._inner.functions.length); // `_inner` is the Binaryen IR
 ```
 
 ## Command line
@@ -137,7 +137,6 @@ bun node_modules/@jrmarcum/binaryang/main.ts wat2wasm add.wat
 | `@jrmarcum/binaryang/ir/wabt-ts`             | the WABT IR                                                             |
 | `@jrmarcum/binaryang/ir/binaryen-ts`         | the Binaryen IR and module builder                                      |
 | `@jrmarcum/binaryang/api`                    | high-level builder API                                                  |
-| `@jrmarcum/binaryang/binary` · `/encoder`    | decode and encode WASM binaries                                         |
 | `@jrmarcum/binaryang/passes`                 | optimisation pass registry and runner                                   |
 | `@jrmarcum/binaryang/wasm` · `/wasm-runtime` | WASM helpers and a small runtime                                        |
 | `@jrmarcum/binaryang/tools/wasm-opt`         | `wasm-opt` as a library                                                 |

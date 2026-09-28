@@ -24,7 +24,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 
 const SRC = `(module
@@ -90,7 +90,7 @@ describe('a raw-kept name section follows the same rule as the applied names', (
     const m = read(bytes);
     new PassRunner(m).run(); // empty queue: read-and-write, the owner's rule
     assertEquals(rawNames(m).length, 2, 'kept');
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource), 'and written back out valid');
   });
 
@@ -98,7 +98,7 @@ describe('a raw-kept name section follows the same rule as the applied names', (
     const m = read(bytes);
     new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 2 }).addDefaultOptimizationPasses().run();
     assertEquals(rawNames(m).length, 0, 'the stale bytes are dropped');
-    const out = encodeWasm(m);
+    const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource), 'the optimized module is valid');
     // Nothing in the output claims to be a name section either.
     let found = 0, p = 8;
@@ -125,6 +125,6 @@ describe('a raw-kept name section follows the same rule as the applied names', (
       .addDefaultOptimizationPasses().run();
     assertEquals(rawNames(m).length, 0, 'the raw copy goes under -g too — it is stale either way');
     assert(m.hasNameSection, 'the IR still carries the names it kept');
-    assert(WebAssembly.validate(encodeWasm(m) as BufferSource));
+    assert(WebAssembly.validate(writeWasm(m) as BufferSource));
   });
 });

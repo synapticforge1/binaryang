@@ -5,8 +5,10 @@
 // writer (wabt-ts's) through `writeWasm` — `wasm-opt`, `Module.emitBinary`,
 // `toBinary`. Before switching, the two writers were compared over 2,919 inputs
 // unoptimized and at four levels; each fixture here is one of the differences
-// that comparison found, and each is asserted on BOTH writers, since four of
-// them were defects — two in each:
+// that comparison found, and each was asserted on BOTH writers, since four of
+// them were defects — two in each. binaryen-ts's encoder was deleted at 1.6.0
+// (stage 4b), so each is now asserted on the one writer: valid unoptimized and
+// at -O1, and the plain round trip gives the input back byte for byte:
 //
 // - wabt-ts's path could not write a branch to the function's own frame label,
 //   a block a pass made with several results, or a module whose types sit in
@@ -21,9 +23,11 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
-import { writeWasm, writeWat } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import { WasmEncodeError } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import {
+  WasmEncodeError,
+  writeWasm,
+  writeWat,
+} from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 
 const asm = (wat: string) => {
@@ -33,16 +37,14 @@ const asm = (wat: string) => {
   return r.binary;
 };
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
-/** Both writers, unoptimized and at -O1: byte-identical, valid, and equal to `want` when given. */
-function bothWriters(bytes: Uint8Array, want?: Uint8Array) {
+/** The one writer, unoptimized and at -O1: valid, and unoptimized the input exactly. */
+function bothWriters(bytes: Uint8Array, want: Uint8Array = bytes) {
   for (const level of [0, 1] as const) {
     const m = readForPasses(bytes);
     if (level > 0) new PassRunner(m, { optimizeLevel: 1 }).addDefaultOptimizationPasses().run();
-    const enc = encodeWasm(m);
     const wab = writeWasm(m);
-    assertEquals(hex(wab), hex(enc), `level ${level}: the writers agree`);
     assert(WebAssembly.validate(wab as BufferSource), `level ${level}: valid`);
-    if (want !== undefined && level === 0) assertEquals(hex(wab), hex(want), 'the input, exactly');
+    if (level === 0) assertEquals(hex(wab), hex(want), 'the input, exactly');
   }
 }
 
@@ -107,7 +109,6 @@ describe('one writer (One front end stage 4): what the comparison found', () => 
     const m = readForPasses(bytes);
     new PassRunner(m, { optimizeLevel: 1 }).addDefaultOptimizationPasses().run();
     const out = writeWasm(m);
-    assertEquals(hex(out), hex(encodeWasm(m)));
     const run = (b: Uint8Array) => {
       try {
         (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.run as () =>
@@ -132,7 +133,7 @@ describe('one writer (One front end stage 4): what the comparison found', () => 
     const bytes = asm(`(module (func (export "f") (param v128 v128 v128) (result v128)
       (i32x4.relaxed_dot_i8x16_i7x16_add_s (local.get 0) (local.get 1) (local.get 2))))`);
     bothWriters(bytes, bytes);
-    assert(!hex(encodeWasm(readForPasses(bytes))).includes('fd 52'), 'no bitselect');
+    assert(!hex(writeWasm(readForPasses(bytes))).includes('fd 52'), 'no bitselect');
   });
 
   it('an imported memory writes no memory section', () => {

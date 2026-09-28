@@ -28,7 +28,7 @@ import { resolveNames } from '../src/wabt-ts/ir/resolve-names.ts';
 import { synthesizeTypes } from '../src/wabt-ts/ir/synthesize-types.ts';
 import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
 import { prepareForPasses } from '../src/binaryen-ts/ir/prepare.ts';
-import { encodeWasm } from '../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../src/binaryen-ts/passes/index.ts';
 import { directInputs } from './direct-inputs.ts';
 
@@ -72,7 +72,7 @@ let identical = 0;
 for (const { name: file, wat } of inputs) {
   const expected = wat2wasm(wat, { filename: file }).binary;
   try {
-    const bytes = encodeWasm(prepared(wat));
+    const bytes = writeWasm(prepared(wat));
     if (same(bytes, expected)) {
       identical++;
     } else {
@@ -87,7 +87,7 @@ for (const { name: file, wat } of inputs) {
     try {
       const m = prepared(wat);
       new PassRunner(m, opts).addDefaultOptimizationPasses().run();
-      const why = rejection(encodeWasm(m));
+      const why = rejection(writeWasm(m));
       if (why !== null) failures.push({ file, where: tag, detail: why });
     } catch (e) {
       failures.push({ file, where: tag, detail: `threw: ${(e as Error).message}` });

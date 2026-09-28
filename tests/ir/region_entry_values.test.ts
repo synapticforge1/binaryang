@@ -30,8 +30,7 @@ import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../src/wabt-ts/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../src/wabt-ts/writer/binary-writer.ts';
 import { hasErrors, makeErrorList } from '../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../src/binaryen-ts/binary/index.ts';
-import { prepareForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { prepareForPasses, readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 
 const asm = (wat: string) => {
   const r = wat2wasm(wat, { textForm: false });
@@ -40,7 +39,7 @@ const asm = (wat: string) => {
   return r.binary;
 };
 const routes = (bytes: Uint8Array) => ({
-  A: parseWasm(bytes),
+  A: readForPasses(bytes),
   B: prepareForPasses(readBinaryIr(bytes, makeErrorList(), { readDebugNames: true })),
 });
 /** Every node of a region as `kind(type)` — the shape both routes must share. */

@@ -29,8 +29,8 @@ import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -147,7 +147,7 @@ describe("binaryen-ts's encoder writes a typed-ref result inline too", () => {
     const bytes = assemble(
       '(module (type $s (struct)) (func (result (ref null $s)) (block (result (ref null $s)) (ref.null $s))))',
     );
-    const back = encodeWasm(parseWasm(bytes));
+    const back = writeWasm(readForPasses(bytes));
     assert(back.length === bytes.length && back.every((x, i) => x === bytes[i]));
   });
 });

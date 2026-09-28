@@ -12,16 +12,16 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { parseWasm } from '../../src/binaryen-ts/binary/wasm-parser.ts';
-import { encodeWasm } from '../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
 import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
 import type { Expression } from '../../src/binaryen-ts/ir/expressions.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
-const mod1 = parseWasm(orig);
-const mod2 = parseWasm(encodeWasm(mod1));
+const mod1 = readForPasses(orig);
+const mod2 = readForPasses(writeWasm(mod1));
 
 function count(e: Expression | null): number {
   if (!e) return 0;

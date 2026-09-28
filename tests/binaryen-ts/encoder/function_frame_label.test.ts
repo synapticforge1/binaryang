@@ -29,7 +29,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/wasm-encoder.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 /** `br` to the function frame, carrying 1. */
 const exitFunctionWith1 = () => makeBreak('', null, [makeI32Const(1)]);
@@ -41,7 +41,7 @@ function run(inner: Expression): number {
     .addFunction('$f', [], [ValType.I32], body)
     .addExport('f', '$f')
     .build();
-  const bytes = encodeWasm(mod);
+  const bytes = writeWasm(mod);
   const inst = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource), {});
   return (inst.exports.f as () => number)();
 }

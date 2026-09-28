@@ -23,8 +23,8 @@ import { wasmStrip } from '../../../src/wabt-ts/tools/wasm-strip.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWasm } from '../../../src/binaryen-ts/binary/index.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import {
   decodeTextForm,
@@ -249,7 +249,7 @@ describe('S7 — naming a form forces it', () => {
 describe('S7 — binaryen-ts: kept without passes, dropped by the optimizer', () => {
   it('decode → encode keeps it', () => {
     const bytes = asm(MIXED_FILE);
-    assert(eq(encodeWasm(parseWasm(bytes)), bytes));
+    assert(eq(writeWasm(readForPasses(bytes)), bytes));
   });
 
   // The section is predicted from the wabt-ts READER's tree, and binaryen-ts's
@@ -278,20 +278,20 @@ describe('S7 — binaryen-ts: kept without passes, dropped by the optimizer', ()
     // there to be kept.
     const plain = asm(src, { textForm: false });
     const reader = readBinaryIr(plain, makeErrorList()).functions[3]!;
-    const decoded = parseWasm(plain).functions[3]!;
+    const decoded = readForPasses(plain).functions[3]!;
     assertEquals(
       formNodes(decoded.body.children).canonical,
       formNodes(reader.body.children).canonical,
     );
     assertEquals(decodeTextForm(trailingRecord(bytes)!)!.map((e) => e.index), [3]);
 
-    assert(eq(encodeWasm(parseWasm(bytes)), bytes));
+    assert(eq(writeWasm(readForPasses(bytes)), bytes));
   });
 
   it('an optimized module carries none', () => {
-    const m = parseWasm(asm(MIXED_FILE));
+    const m = readForPasses(asm(MIXED_FILE));
     new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
-    assertEquals(trailingRecord(encodeWasm(m)), null);
+    assertEquals(trailingRecord(writeWasm(m)), null);
   });
 });
 
@@ -322,7 +322,7 @@ describe('S7 — a record that does not fit is kept raw and ignored', () => {
       const text = wasm2wat(bytes).text;
       assert(bodyOf(text, '$lin').includes('(i32.add'), `ignored → predicted:\n${text}`);
       // Kept as raw bytes: every reader, every writer, same bytes back.
-      assert(eq(encodeWasm(parseWasm(bytes)), bytes), 'binaryen-ts keeps it raw');
+      assert(eq(writeWasm(readForPasses(bytes)), bytes), 'binaryen-ts keeps it raw');
       assert(text.includes(`(@custom "${TEXT_FORM_SECTION}"`), 'wabt-ts keeps it raw');
     });
   }

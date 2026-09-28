@@ -24,7 +24,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
-import { encodeWasm } from '../../../src/binaryen-ts/encoder/index.ts';
+import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 // wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../nameless_reference.ts.
 import { wabtReference } from '../nameless_reference.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
@@ -33,7 +33,7 @@ import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 function bothAgree(wat: string, want: number): void {
   const ref = wabtReference(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
-  const got = encodeWasm(parseWat(wat));
+  const got = writeWasm(parseWat(wat));
   const run = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports.f as () => number)();
@@ -106,7 +106,7 @@ describe('encoder — bulk memory needs the data count section', () => {
   it('the data count section (12) precedes the code section (10)', () => {
     const wat = MEM +
       '(func (export "f") (result i32) (memory.init $d (i32.const 0) (i32.const 0) (i32.const 2)) (i32.const 1)))';
-    const ids = sectionIds(encodeWasm(parseWat(wat)));
+    const ids = sectionIds(writeWasm(parseWat(wat)));
     const dc = ids.indexOf(12), code = ids.indexOf(10);
     assert(dc >= 0, 'a data count section must be emitted');
     assert(code >= 0, 'a code section must be emitted');
@@ -115,7 +115,7 @@ describe('encoder — bulk memory needs the data count section', () => {
 
   it('a module with no data segments gets no data count section', () => {
     const ids = sectionIds(
-      encodeWasm(parseWat('(module (memory 1) (func (export "f") (result i32) (i32.const 1)))')),
+      writeWasm(parseWat('(module (memory 1) (func (export "f") (result i32) (i32.const 1)))')),
     );
     assert(!ids.includes(12), 'no data segments means no data count section');
   });
@@ -172,7 +172,7 @@ describe('parser — every element segment mode is representable', () => {
   const run = (wat: string) => {
     const ref = wabtReference(wat, { filename: 'ref.wat' });
     assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
-    const got = encodeWasm(parseWat(wat));
+    const got = writeWasm(parseWat(wat));
     assertEquals(Array.from(got), Array.from(ref.binary), 'bytes must match wabt-ts');
     return (bytes: Uint8Array) =>
       (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
@@ -190,11 +190,11 @@ describe('parser — every element segment mode is representable', () => {
       (func (export "f") (result i32)
         (table.init $p (i32.const 0) (i32.const 0) (i32.const 1))
         (call_indirect (type $t) (i32.const 0))))`;
-    assertEquals(run(wat)(encodeWasm(parseWat(wat))), 42);
+    assertEquals(run(wat)(writeWasm(parseWat(wat))), 42);
 
     const untouched = `(module ${TBL} (elem $p func $a)
       (func (export "f") (result i32) (call_indirect (type $t) (i32.const 0))))`;
-    const bytes = encodeWasm(parseWat(untouched));
+    const bytes = writeWasm(parseWat(untouched));
     let trapped = false;
     try {
       (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
@@ -211,19 +211,19 @@ describe('parser — every element segment mode is representable', () => {
         (table.init $p (i32.const 1) (i32.const 0) (i32.const 1))
         (elem.drop $p)
         (call_indirect (type $t) (i32.const 1))))`;
-    assertEquals(run(wat)(encodeWasm(parseWat(wat))), 7);
+    assertEquals(run(wat)(writeWasm(parseWat(wat))), 7);
   });
 
   it('a declarative segment makes ref.func legal without filling the table', () => {
     const wat = `(module (table 1 funcref) (func $a (result i32) (i32.const 5))
       (elem declare func $a)
       (func (export "f") (result i32) (drop (ref.func $a)) (i32.const 9)))`;
-    assertEquals(run(wat)(encodeWasm(parseWat(wat))), 9);
+    assertEquals(run(wat)(writeWasm(parseWat(wat))), 9);
   });
 
   it('an ACTIVE segment is unaffected', () => {
     const wat = `(module ${TBL} (elem (i32.const 0) $a)
       (func (export "f") (result i32) (call_indirect (type $t) (i32.const 0))))`;
-    assertEquals(run(wat)(encodeWasm(parseWat(wat))), 42);
+    assertEquals(run(wat)(writeWasm(parseWat(wat))), 42);
   });
 });
