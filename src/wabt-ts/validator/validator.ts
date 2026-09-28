@@ -102,6 +102,7 @@ import type {
   TableInitExpr,
   TableSetExpr,
   TableSizeExpr,
+  Tag,
   TernaryExpr,
   ThrowExpr,
   ThrowRefExpr,
@@ -419,12 +420,7 @@ class ModuleValidator implements ExprVisitorDelegate {
           // A tag's type is the func type with the same params and no results.
           // Resolve it the same way as a defined tag rather than assuming
           // index 0 (which silently mis-typed any non-first tag signature).
-          this.acc(
-            this.sv.onTag(
-              locOf(imp.tag),
-              this.resolveTagSig(imp.tag.sig.params, imp.tag.sig.results),
-            ),
-          );
+          this.acc(this.sv.onTag(locOf(imp.tag), this.tagTypeIndex(imp.tag)));
           break;
       }
     }
@@ -470,10 +466,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
 
     // Tags
-    for (const tag of m.tags) {
-      const sigIdx = this.resolveTagSig(tag.sig.params, tag.sig.results);
-      this.acc(this.sv.onTag(locOf(tag), sigIdx));
-    }
+    for (const tag of m.tags) this.acc(this.sv.onTag(locOf(tag), this.tagTypeIndex(tag)));
 
     // Exports
     for (const exp of m.exports) {
@@ -649,7 +642,16 @@ class ModuleValidator implements ExprVisitorDelegate {
     this.acc(visitor.visitExprList(exprs));
   }
 
-  private resolveTagSig(params: ValueType[], results: ValueType[]): number {
+  /**
+   * The type a tag HAS — its `typeVar` (Q9) — checked by `onTag` for range,
+   * kind and results. 🔧 It was re-derived from the signature, as the writers
+   * did, so a tag naming a type that does not exist (`(tag (type 42))`, V8:
+   * invalid) validated against whichever type matched its empty signature.
+   * A tag with none (one built without it) takes the first match.
+   */
+  private tagTypeIndex(tag: Tag): number {
+    if (tag.typeVar !== undefined) return varIdx(tag.typeVar);
+    const { params, results } = tag.sig;
     for (const [i, te] of this.module.types.entries()) {
       if (
         te.kind === 'func' &&

@@ -2158,6 +2158,18 @@ export interface Memory {
 export interface Tag {
   name: string;
   loc?: Location;
+  /**
+   * Type-section reference — WHICH of several identical function types the
+   * tag has, as {@link Func.typeVar} is for a function (Q9). Set by the reader,
+   * by the parser for `(type $t)`, and by `synthesizeTypes` for an inline
+   * signature (the first function type with it). Absent on a tag built without
+   * one; the writers then take the first function type with its signature.
+   *
+   * 🔧 There was none: both writers wrote the FIRST type with the tag's
+   * signature, so in `(rec (type $t1 (func)) (type $t2 (func)))` a tag of
+   * type `$t2` came out as `$t1` — a different type.
+   */
+  typeVar?: Var;
   sig: FuncSignature;
 }
 

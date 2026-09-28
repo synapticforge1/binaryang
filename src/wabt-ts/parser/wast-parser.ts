@@ -2827,8 +2827,10 @@ export class WastParser {
     } else if (tt === TokenType.Tag) {
       this.drop();
       const name = this.parseBindVarOpt();
-      const { sig } = this.parseFuncSignature();
-      const tag: Tag = { name, loc, sig };
+      // 🔧 W12: `(type $t)` was not read here, only inline params — so
+      // `(import "M" "t" (tag (type $t)))`, which upstream wasm2wat itself
+      // prints, was refused.
+      const tag: Tag = { name, loc, ...this.parseTagTypeUse(module) };
       imp = { kind: ExternalKind.Tag, module: moduleName, field: fieldName, tag };
       module.imports.push(imp);
     } else {
@@ -3460,6 +3462,27 @@ export class WastParser {
     return Result.Ok;
   }
 
+  /**
+   * A tag's type-use: `(type $t)?` then inline `(param …)*`, in a tag field and
+   * in an import descriptor alike. A tag may name its signature instead of
+   * spelling it: adopt the referenced type's, as a function's type-use does; a
+   * forward reference is left to synthesizeTypes. The var is KEPT (Q9) —
+   * which of several identical types was named — for resolveNames to resolve
+   * and synthesizeTypes to keep while its signature matches.
+   */
+  private parseTagTypeUse(module: Module): { typeVar?: Var; sig: FuncSignature } {
+    const typeVar = this.parseTypeUseOpt();
+    const { sig } = this.parseFuncSignature();
+    if (typeVar !== null && sig.params.length === 0 && sig.results.length === 0) {
+      const entry = this.lookupFuncTypeEntry(module, typeVar);
+      if (entry !== null) {
+        sig.params.push(...entry.params);
+        sig.results.push(...entry.results);
+      }
+    }
+    return typeVar !== null ? { typeVar, sig } : { sig };
+  }
+
   private parseTagModuleField(module: Module): Result {
     const loc = this.loc();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
@@ -3474,20 +3497,7 @@ export class WastParser {
     }
 
     const inlineImp = this.parseInlineImport();
-    // A tag may name its signature with `(type $t)` instead of spelling it
-    // inline: `(tag (export "e") (type $t))`. Adopt the referenced type's
-    // signature, exactly as a function's type-use does; a forward reference
-    // is left to synthesizeTypes.
-    const typeVar = this.parseTypeUseOpt();
-    const { sig } = this.parseFuncSignature();
-    if (typeVar !== null && sig.params.length === 0 && sig.results.length === 0) {
-      const entry = this.lookupFuncTypeEntry(module, typeVar);
-      if (entry !== null) {
-        sig.params.push(...entry.params);
-        sig.results.push(...entry.results);
-      }
-    }
-    const tag: Tag = { name, loc, sig };
+    const tag: Tag = { name, loc, ...this.parseTagTypeUse(module) };
 
     if (inlineImp !== null) {
       const imp: Import = {
@@ -5776,6 +5786,13 @@ export class WastParser {
       return Result.Ok;
     };
     blockSigs.clear();
+    // Only a tag that named NO type has an implicit one (Q9). 🔧 Every tag's
+    // signature was interned, so `(rec (type $t1 (func)) (type $t2 (func)))
+    // (tag (type 0))` gained a spare singleton `(func)` — the interner reuses
+    // only a type that is its own rec group.
+    const implicitTag = (tag: Tag): void => {
+      if (tag.typeVar === undefined) tag.typeVar = varIndex(intern(tag.sig));
+    };
     const walker = new ExprVisitor({
       beginBlockExpr: block,
       beginLoopExpr: block,
@@ -5793,21 +5810,21 @@ export class WastParser {
       if (imp.kind === ExternalKind.Func && imp.func.typeUse === undefined) {
         imp.func.typeVar = varIndex(intern(imp.func.sig));
       } else if (imp.kind === ExternalKind.Tag) {
-        intern(imp.tag.sig);
+        implicitTag(imp.tag);
       }
     }
     // Functions and tags interleave in the text; their source offsets say how.
     // (`sort` is stable, so items without a location keep their array order.)
-    const defs: ({ offset: number; func: Func } | { offset: number; sig: FuncSignature })[] = [
+    const defs: ({ offset: number; func: Func } | { offset: number; tag: Tag })[] = [
       ...module.functions.map((func) => ({ offset: locOf(func).offset, func })),
-      ...module.tags.map((tag) => ({ offset: locOf(tag).offset, sig: tag.sig })),
+      ...module.tags.map((tag) => ({ offset: locOf(tag).offset, tag })),
     ].sort((a, b) => a.offset - b.offset);
     for (const d of defs) {
       if ('func' in d) {
         if (d.func.typeUse === undefined) d.func.typeVar = varIndex(intern(d.func.sig));
         walker.visitExprList(d.func.body.children);
       } else {
-        intern(d.sig);
+        implicitTag(d.tag);
       }
     }
     // A carrier no function body holds — none should exist — keeps

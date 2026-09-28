@@ -2615,6 +2615,14 @@ class WatWriter extends ModuleContext {
     this.writeNameOrIndex(this.shown((r) => r.tags, tag.name), this.tagIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Tag, this.tagIdx);
     this.tagIdx++;
+    // Its `(type N)` then its signature, as upstream wasm2wat prints a tag and
+    // as a function's type-use is printed: of several identical types, the
+    // signature alone does not say which (Q9).
+    if (tag.typeVar?.kind === 'index') {
+      this.openSpace('type');
+      this.writeVar(tag.typeVar, NC.None);
+      this.closeSpace();
+    }
     this.writeFuncSig(tag.sig);
     this.closeNewline();
   }

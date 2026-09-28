@@ -31,6 +31,7 @@ import type {
   BlockResult,
   FuncSignature,
   Module,
+  Tag,
   TypeEntry,
   TypeUse,
   ValueType,
@@ -115,17 +116,46 @@ export function synthesizeTypes(module: Module): void {
   };
 
   /**
-   * A tag's type. Both writers write a tag's type as the FIRST function type
-   * with its signature (`tagTypeIndex`), whatever `typeVar` says, so a type is
-   * appended only when none exists. 🔧 It was always interned, and the interner
-   * only reuses a type that is its own rec group — so a tag whose signature was
-   * defined only inside a rec group got an extra, unused singleton type
-   * (`spec/tag/tag.6.wasm`: two types in, three out). That neither writer keeps
-   * WHICH of several matching types a tag named is a separate defect (Q9).
+   * A tag's type (Q9). The type it NAMED — `(type $t)`, or the index a binary
+   * gave — is kept while that type has the tag's signature: of several
+   * identical types, it is the one the tag has. A forward reference, with no
+   * signature adopted at parse time, takes the type's now. A dangling index is
+   * KEPT, for the validator to report — the T13 rule: repairing it into some
+   * other type would make an invalid module valid. An index a pass made stale
+   * (a changed signature) takes the FIRST function type with the signature,
+   * binaryen-ts's rule.
+   *
+   * With NO type named — an inline `(param …)` — the signature is INTERNED: an
+   * inline type use abbreviates only a type that is its own rec group, and
+   * appends one when there is none (the GC text format; `wasm-tools` measured:
+   * beside `(rec (type $t1 (func)) (type $t2 (func)))`, `(tag $e)` gets a new
+   * singleton `(func)`, not `$t1`).
+   *
+   * 🔧 The written type was never kept: both writers wrote the first match, so
+   * `(rec (type $t1 (func)) (type $t2 (func))) (tag (type $t2))` came out as
+   * `$t1` — a different type. And with no `typeVar` to keep, a tag READ from a
+   * binary was re-interned, so one whose type was a rec-group member got an
+   * extra singleton type (`spec/tag/tag.6.wasm`: two types in, three out).
    */
-  const settleTag = (tag: { sig: FuncSignature }): void => {
-    const t = tag as { sig: FuncSignature; typeVar?: Var };
-    t.typeVar = firstOrIntern(t.sig);
+  const settleTag = (tag: Tag): void => {
+    const tv = tag.typeVar;
+    if (tv === undefined) {
+      tag.typeVar = varIndex(ensureTypeFor(tag.sig));
+      return;
+    }
+    if (tv.kind === 'index') {
+      const entry = module.types[tv.value];
+      if (entry === undefined) return;
+      if (entry.kind === 'func') {
+        if (sigKey(entry.sig) === sigKey(tag.sig)) return;
+        if (tag.sig.params.length === 0 && tag.sig.results.length === 0) {
+          tag.sig.params.push(...entry.sig.params);
+          tag.sig.results.push(...entry.sig.results);
+          return;
+        }
+      }
+    }
+    tag.typeVar = firstOrIntern(tag.sig);
   };
 
   /**

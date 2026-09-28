@@ -101,7 +101,7 @@ import {
   valueTypeEquals,
   valueTypeName,
 } from '../ir/ir.ts';
-import type { Custom, HeapTypeRef, StorageType, TableCatch, TypeEntry } from '../ir/ir.ts';
+import type { Custom, HeapTypeRef, StorageType, TableCatch, Tag, TypeEntry } from '../ir/ir.ts';
 import { type AbstractHeap, heapTypeNameToType, Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import {
@@ -1320,7 +1320,7 @@ class BinaryWriter {
             break;
           case ExternalKind.Tag:
             s.writeU8(0x00); // attribute = exception (only valid value)
-            s.writeU32Leb(this.tagTypeIndex(imp.tag.sig.params));
+            s.writeU32Leb(this.tagTypeIndex(imp.tag));
             break;
         }
       }
@@ -1393,24 +1393,27 @@ class BinaryWriter {
       s.writeU32Leb(m.tags.length);
       for (const tag of m.tags) {
         s.writeU8(0x00); // attribute = exception
-        s.writeU32Leb(this.tagTypeIndex(tag.sig.params));
+        s.writeU32Leb(this.tagTypeIndex(tag));
       }
     });
   }
 
   /**
-   * Resolve the type-section index whose `(func (param …) (result))` signature
-   * matches a tag's signature. Tags always have zero results in the exception
-   * model, so a tag's type is the func type with the same params and no
-   * results.
+   * A tag's type index: its `typeVar` — WHICH of several identical types it
+   * has (Q9), settled by `synthesizeTypes`. 🔧 This re-derived it from the
+   * signature, so of `(rec (type $t1 (func)) (type $t2 (func)))` a tag of type
+   * `$t2` was written as `$t1`, a different type.
    *
-   * Throws (fail-loud) when no matching type exists rather than silently
-   * emitting index 0 — an unresolved tag type index corrupts the binary
-   * (a decoder reads the wrong/short signature). The `synthesizeTypes` pass
-   * (run by `wat2wasm`/`compat`) and binary-read modules both guarantee a
-   * matching entry; a module reaching the writer without one is malformed.
+   * A tag with none (one built without it) takes the type-section index whose
+   * `(func (param …) (result))` signature matches. Tags always have zero
+   * results in the exception model, so a tag's type is the func type with the
+   * same params and no results. Throws (fail-loud) when no matching type
+   * exists rather than silently emitting index 0 — an unresolved tag type
+   * index corrupts the binary (a decoder reads the wrong/short signature).
    */
-  private tagTypeIndex(params: readonly ValueType[]): number {
+  private tagTypeIndex(tag: Tag): number {
+    if (tag.typeVar !== undefined) return varIndexValue(tag.typeVar, `tag ${tag.name} type`);
+    const params = tag.sig.params;
     const idx = this.m.types.findIndex(
       (t) =>
         t.kind === 'func' &&

@@ -75,48 +75,23 @@ describe('one writer (One front end stage 4): what the comparison found', () => 
     bothWriters(bytes, bytes);
   });
 
-  it("a tag's type inside a rec group adds no type", () => {
-    // `spec/tag/tag.6.wasm`'s shape, hand-assembled: a two-type rec group
-    // `(rec (func) (func))` and an imported tag naming type 1. ⚠️ NOT from text:
-    // our `wat2wasm` gets this source wrong itself — it adds a singleton type
-    // and points the tag at type 0 (divergences.md Q9) — and its parser refuses
-    // `(import "M" "tag" (tag (type $t2)))` outright (W12).
-    const bytes = new Uint8Array([
-      0x00,
-      0x61,
-      0x73,
-      0x6d,
-      0x01,
-      0x00,
-      0x00,
-      0x00,
-      0x01,
-      0x09,
-      0x01,
-      0x4e,
-      0x02,
-      0x60,
-      0x00,
-      0x00,
-      0x60,
-      0x00,
-      0x00, // (rec (func) (func))
-      0x02,
-      0x0a,
-      0x01,
-      0x01,
-      0x4d,
-      0x03,
-      0x74,
-      0x61,
-      0x67,
-      0x04,
-      0x00,
-      0x01, // "M" "tag" (tag (type 1))
-    ]);
-    assert(WebAssembly.validate(bytes as BufferSource), 'the engine accepts the fixture');
-    const out = writeWasm(readForPasses(bytes));
-    assertEquals(out.length, bytes.length, 'no extra type in the type section');
+  it("a tag's type inside a rec group adds no type, and stays that type", () => {
+    // `spec/tag/tag.6.wasm`'s shape: a two-type rec group and an imported tag
+    // naming its SECOND member. It was hand-assembled while our `wat2wasm` got
+    // this source wrong (Q9: a spare singleton type, the tag on type 0) and
+    // refused the import form (W12); both are fixed, and the bytes are
+    // wasm-tools' for the same text.
+    const bytes = asm(`(module
+      (rec (type $t1 (func)) (type $t2 (func)))
+      (import "M" "tag" (tag (type $t2)))
+      (tag (type $t2)))`);
+    // (rec (func) (func)), "M" "tag" (tag (type 1)), then a defined (tag (type 1)).
+    assertEquals(
+      hex(bytes.subarray(0, 36)),
+      '00 61 73 6d 01 00 00 00 01 09 01 4e 02 60 00 00 60 00 00 ' +
+        '02 0a 01 01 4d 03 74 61 67 04 00 01 0d 03 01 00 01',
+    );
+    bothWriters(bytes, bytes);
   });
 
   it('a call_indirect whose type is in a rec group keeps that type after -O1', () => {

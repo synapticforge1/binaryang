@@ -266,7 +266,13 @@ class ResolveContext {
         this.resolveTypeUse(imp.func, locOf(imp.func));
       } else if (imp.kind === ExternalKind.Global) imp.global.type = vt(imp.global.type);
       else if (imp.kind === ExternalKind.Table) imp.table.elemType = vt(imp.table.elemType);
-      else if (imp.kind === ExternalKind.Tag) sig(imp.tag.sig);
+      else if (imp.kind === ExternalKind.Tag) {
+        sig(imp.tag.sig);
+        // `(tag (type $t))` names a type (Q9), as a function's type-use does.
+        if (imp.tag.typeVar !== undefined) {
+          imp.tag.typeVar = this.resolveTypeVar(imp.tag.typeVar, locOf(imp.tag));
+        }
+      }
     }
     for (const f of this.module.functions) {
       sig(f.sig);
@@ -278,7 +284,10 @@ class ResolveContext {
       this.resolveTypeUse(f, locOf(f));
       for (const l of f.locals) l.type = vt(l.type);
     }
-    for (const t of this.module.tags) sig(t.sig);
+    for (const t of this.module.tags) {
+      sig(t.sig);
+      if (t.typeVar !== undefined) t.typeVar = this.resolveTypeVar(t.typeVar, locOf(t));
+    }
     for (const g of this.module.globals) g.type = vt(g.type);
     for (const t of this.module.tables) t.elemType = vt(t.elemType);
     for (const seg of this.module.elements) seg.elemType = vt(seg.elemType);

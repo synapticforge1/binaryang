@@ -1337,11 +1337,13 @@ class WasmEncoder {
    * is gone.
    */
   /**
-   * The type index to write for a function: the one it was READ with (`typeVar`,
-   * M8b4) while that still names a function type with its signature, else the
-   * index derived from the signature.
+   * The type index to write for a function — or a tag (Q9): the one it was
+   * READ with (`typeVar`, M8b4) while that still names a function type with its
+   * signature, else the index derived from the signature. 🔧 A tag's was always
+   * derived, so of two identical rec-group types a tag of the second was
+   * written as the first — a different type.
    */
-  private funcTypeIndexFor(fn: WasmFunction): number {
+  private funcTypeIndexFor(fn: Pick<WasmFunction, 'sig' | 'typeVar'>): number {
     const { params, results } = fn.sig;
     const tv = fn.typeVar;
     if (tv !== undefined && tv.kind === 'index' && this.types.length > 0) {
@@ -1403,11 +1405,7 @@ class WasmEncoder {
           // Same GC-mode split as the defined-tag section: with heap types
           // present the emitted type section IS `mod.types`, so an index
           // into the deduped `this.derivedTypes` would point at the wrong slot.
-          const { params, results } = imp.tag.sig;
-          const idx = this.types.length > 0
-            ? this.gcFuncTypeIndex(params, results)
-            : this.getTypeIndex(params, results);
-          w.writeU32(idx);
+          w.writeU32(this.funcTypeIndexFor(imp.tag));
           break;
         }
       }
@@ -1606,10 +1604,7 @@ class WasmEncoder {
       // the one site that didn't. (Surfaced by the wasmtk team's bug report
       // as "tag's type-index re-pointed to a different entry in the type
       // section after `RemoveUnusedModuleElements`".)
-      const idx = this.types.length > 0
-        ? this.gcFuncTypeIndex(tag.sig.params, tag.sig.results)
-        : this.getTypeIndex(tag.sig.params, tag.sig.results);
-      w.writeU32(idx);
+      w.writeU32(this.funcTypeIndexFor(tag));
     }
   }
 

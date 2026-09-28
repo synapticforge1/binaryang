@@ -1163,7 +1163,8 @@ export class BinaryReader {
           if (!this.readTagAttribute()) break;
           const sigIdx = this.readU32Leb();
           const sig = getTypeSig(m, sigIdx);
-          const tag: Tag = { name: '', loc, sig };
+          // Which type, not only its signature (Q9).
+          const tag: Tag = { name: '', loc, typeVar: varIndex(sigIdx), sig };
           m.imports.push({ kind: ExternalKind.Tag, module: module_, field, tag });
           break;
         }
@@ -1383,7 +1384,7 @@ export class BinaryReader {
       if (!this.readTagAttribute()) return;
       const sigIdx = this.readU32Leb();
       const sig = getTypeSig(m, sigIdx);
-      m.tags.push({ name: '', loc, sig });
+      m.tags.push({ name: '', loc, typeVar: varIndex(sigIdx), sig });
     }
   }
 
