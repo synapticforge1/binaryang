@@ -38,6 +38,7 @@ import { writeBinaryIr } from '../writer/binary-writer.ts';
 import { resolveNames } from '../ir/resolve-names.ts';
 import { synthesizeTypes } from '../ir/synthesize-types.ts';
 import { validateModule } from '../validator/validator.ts';
+import { allFeatures } from '../core/feature.ts';
 import { Result } from '../core/result.ts';
 import { addError, formatErrors, hasErrors, unknownLocation } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
@@ -114,9 +115,13 @@ export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}
     // `(memory 0x1_0000_0000)` is well-formed and INVALID (2^32 pages), and
     // was reported only as "u32 LEB128 out of range". This tool does not
     // validate a module it CAN write; one it cannot, the validator explains
-    // first — upstream's diagnostic, with the writer's after it.
+    // first — upstream's diagnostic, with the writer's after it. With EVERY
+    // feature on: this tool gates none, and the default set blamed a feature
+    // for a module the writer failed on for another reason (a GC type in a
+    // `call_indirect` typeuse: five "enable the functionReferences feature"
+    // lines before the real one — wasmtk, 2026-09-28).
     try {
-      validateModule(module, errors);
+      validateModule(module, errors, { features: allFeatures() });
     } catch {
       // The validator's own trouble with an unwritable module adds nothing.
     }
