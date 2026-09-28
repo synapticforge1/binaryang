@@ -31,7 +31,7 @@ import {
   walkExpression,
 } from '../../../src/binaryen-ts/ir/walk.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { buildCallResultTypes, FlattenPass } from '../../../src/binaryen-ts/passes/flatten.ts';
 import type { PassOptions } from '../../../src/binaryen-ts/passes/pass.ts';
 import { ModuleBuilder, type WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
@@ -70,8 +70,8 @@ function assertEquivalent(
   argSets: number[][],
   imports?: Imports,
 ): void {
-  const original = instantiate(parseWat(wat), imports);
-  const flatMod = parseWat(wat);
+  const original = instantiate(readWat(wat), imports);
+  const flatMod = readWat(wat);
   new FlattenPass().run(flatMod, {
     optimizeLevel: 0,
     shrinkLevel: 0,
@@ -139,7 +139,7 @@ function assertFlat(mod: WasmModule): void {
 }
 
 function flattenParsed(wat: string): WasmModule {
-  const mod = parseWat(wat);
+  const mod = readWat(wat);
   new FlattenPass().run(mod, {
     optimizeLevel: 0,
     shrinkLevel: 0,

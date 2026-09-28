@@ -47,7 +47,7 @@ import {
   makeRefAsNonNull,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
@@ -460,7 +460,7 @@ Deno.test('ref.as_non_null decodes back to a RefAs node with the right opcode', 
 // instruction gets pinned here so the same gap cannot reopen.
 
 Deno.test('WAT: the five new GC instructions parse, none fall through to nop', () => {
-  const mod = parseWat(`
+  const mod = readWat(`
     (module
       (type $a (array (mut i32)))
       (type $f (func))

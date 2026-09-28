@@ -17,7 +17,7 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import {
   analyzeModule,
   parseAsyncifyOptions,
@@ -40,7 +40,7 @@ async function haveWasmOpt(): Promise<boolean> {
 
 /** Our analyzer's instrument set for `wat` under `passArgs` (names sans `$`). */
 function ourInstrumentSet(wat: string, passArgs: Record<string, string>): Set<string> {
-  const mod = parseWat(wat);
+  const mod = readWat(wat);
   const { instrumentedFuncs } = analyzeModule(mod, parseAsyncifyOptions(passArgs));
   return new Set([...instrumentedFuncs].map((n) => (n.startsWith('$') ? n.slice(1) : n)));
 }
@@ -174,7 +174,7 @@ Deno.test('resolveAsyncifyImports — in-wasm asyncify.* import mode: topMost ex
     (func $park (call $su (i32.const 0)))
     (func $worker (call $park))
     (func $main (call $worker)))`;
-  const mod = parseWat(wat);
+  const mod = readWat(wat);
   const importMode = resolveAsyncifyImports(mod);
   assert(importMode, 'should detect the in-wasm asyncify-import mode');
   assert(
@@ -188,7 +188,7 @@ Deno.test('resolveAsyncifyImports — in-wasm asyncify.* import mode: topMost ex
 });
 
 Deno.test('resolveAsyncifyImports — returns false and no-ops when there are no asyncify imports', () => {
-  const mod = parseWat(TRANSITIVE);
+  const mod = readWat(TRANSITIVE);
   assert(!resolveAsyncifyImports(mod), 'no asyncify imports → host-driven mode');
 });
 

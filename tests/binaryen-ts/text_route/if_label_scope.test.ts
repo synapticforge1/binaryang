@@ -23,7 +23,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 
@@ -34,7 +34,7 @@ function bothAgree(wat: string): number {
     return (inst.exports.f as (x: number) => number)(1);
   };
   const reference = run(wat2wasm(wat, { filename: 'ref.wat' }).binary);
-  const got = run(writeWasm(parseWat(wat)));
+  const got = run(writeWasm(readWat(wat)));
   assertEquals(got, reference, 'binaryen-ts must agree with wabt-ts');
   return got;
 }

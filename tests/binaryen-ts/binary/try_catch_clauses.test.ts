@@ -41,7 +41,7 @@ import {
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { soleInstr } from '../region_helpers.ts';
 
 /**
@@ -71,9 +71,9 @@ function tryModule(catches: TryExpr['catches']): ReturnType<ModuleBuilder['build
 
 describe('try catch clauses are records, not parallel arrays', () => {
   it('a catch_all clause has NO tag — absence is the representation', () => {
-    const mod = parseWat(`(module
+    const mod = readWat(`(module
       (tag $e)
-      (func $f (try $t (nop) (catch $e) (catch_all (nop)))))`);
+      (func $f (try $t (do (nop)) (catch $e) (catch_all (nop)))))`);
     const t = soleInstr(mod.functions[0].body) as TryExpr;
     assertEquals(t.catches.length, 2);
     assertEquals(t.catches[0]!.tag, varName('$e'));

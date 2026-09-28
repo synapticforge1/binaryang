@@ -34,7 +34,7 @@ import {
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
@@ -43,7 +43,6 @@ import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wabtReference } from '../nameless_reference.ts';
 
 type Lane = 'i8x16' | 'i16x8' | 'i32x4' | 'i64x2';
 type Op = 'shl' | 'shr_s' | 'shr_u';
@@ -157,10 +156,10 @@ for (const [lane, op] of CASES) {
 
   Deno.test(`K3: ${name} — parseWat builds a binary, encodes as wabt-ts does, and runs`, () => {
     const wat = watFor(lane, op);
-    const mod = parseWat(wat);
+    const mod = readWat(wat);
     assertBinaryShift(nodesWithOpcode(mod, opcode)[0], opcode, 'parseWat');
     const bytes = writeWasm(mod);
-    assertEquals(bytes, wabtReference(wat).binary);
+    assertEquals(bytes, wat2wasm(wat).binary);
     run(bytes, lane, op);
   });
 

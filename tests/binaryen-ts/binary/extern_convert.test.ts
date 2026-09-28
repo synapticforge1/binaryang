@@ -19,7 +19,7 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 
 const WAT = `(module
   (func (export "roundTrip") (param externref) (result externref)
@@ -50,7 +50,7 @@ describe('the extern conversions', () => {
   });
 
   it('the binaryen-ts WAT path writes the same module', async () => {
-    const out = writeWasm(parseWat(WAT));
+    const out = writeWasm(readWat(WAT));
     assertEquals(WebAssembly.validate(out as BufferSource), true);
     const token = { tag: 'host object' };
     assertEquals((await instance(out)).roundTrip!(token), token);

@@ -23,7 +23,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { ExpressionKind, type SelectExpr } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
@@ -59,6 +59,27 @@ function prepared(wat: string): WasmModule {
 
 const hex = (s: string) => new Uint8Array(s.trim().split(/\s+/).map((b) => parseInt(b, 16)));
 
+/**
+ * `b` without its custom sections. The text route keeps names, which upstream's
+ * bytes below were assembled without; the select's encoding is what is compared.
+ */
+function known(b: Uint8Array): Uint8Array {
+  const out: number[] = [...b.subarray(0, 8)];
+  for (let i = 8; i < b.length;) {
+    const at = i;
+    const id = b[i++]!;
+    let size = 0;
+    for (let s = 0;; s += 7) {
+      const x = b[i++]!;
+      size += (x & 0x7f) * 2 ** s;
+      if ((x & 0x80) === 0) break;
+    }
+    i += size;
+    if (id !== 0) out.push(...b.subarray(at, i));
+  }
+  return new Uint8Array(out);
+}
+
 // (module (func $f) (elem declare func $f)
 //   (func (export "go") (param i32) (result i32)
 //     (ref.is_null (select (result funcref) (ref.null func) (ref.func $f) (local.get 0)))))
@@ -92,8 +113,8 @@ describe('typed select', () => {
   });
 
   it('the WAT path writes a reference-typed select exactly as upstream does', async () => {
-    const out = writeWasm(parseWat(REF_WAT));
-    assertEquals(out, REF_BYTES);
+    const out = writeWasm(readWat(REF_WAT));
+    assertEquals(known(out), REF_BYTES);
     assertEquals([await go(out, 1), await go(out, 0)], [1, 0]);
   });
 
@@ -106,7 +127,7 @@ describe('typed select', () => {
   it('the WAT path writes a numeric typed select typed, as upstream wat2wasm does', () => {
     const wat = '(module (func (export "go") (param i32) (result i32) ' +
       '(select (result i32) (i32.const 11) (i32.const 22) (local.get 0))))';
-    assertEquals(writeWasm(parseWat(wat)), NUM_BYTES);
+    assertEquals(known(writeWasm(readWat(wat))), NUM_BYTES);
   });
 
   it('an UNTYPED numeric select stays untyped — the other side of the boundary', () => {

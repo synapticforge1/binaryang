@@ -24,7 +24,7 @@ import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 
 /** Section ids in order, custom sections left out. */
 function sectionIds(b: Uint8Array): number[] {
@@ -145,7 +145,7 @@ describe('a binary round trip keeps the DataCount the binary had — and adds no
 describe("binaryen-ts's encoder follows the same rule", () => {
   it('a data segment alone: none', () => {
     assert(
-      !sectionIds(writeWasm(parseWat('(module (memory 1) (data (i32.const 0) "x"))'))).includes(
+      !sectionIds(writeWasm(readWat('(module (memory 1) (data (i32.const 0) "x"))'))).includes(
         12,
       ),
     );
@@ -153,7 +153,7 @@ describe("binaryen-ts's encoder follows the same rule", () => {
 
   it('a data.drop: written, before the code section', () => {
     const ids = sectionIds(
-      writeWasm(parseWat('(module (memory 1) (data "x") (func (data.drop 0)))')),
+      writeWasm(readWat('(module (memory 1) (data "x") (func (data.drop 0)))')),
     );
     assert(ids.indexOf(12) >= 0 && ids.indexOf(12) < ids.indexOf(10), ids.join(' '));
   });

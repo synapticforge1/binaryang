@@ -22,7 +22,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat, WatInputError } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 const hex = (s: string) => new Uint8Array(s.trim().split(/\s+/).map((b) => parseInt(b, 16)));
@@ -40,15 +40,20 @@ const CASES: [string, string, string][] = [
     '(module (type $a (func (param i32) (result i32))) (func (type $a) (local.get 0)))',
     '00 61 73 6d 01 00 00 00 01 06 01 60 01 7f 01 7f 03 02 01 00 0a 06 01 04 00 20 00 0b',
   ],
+  // These two are wasm-tools' bytes, not upstream wabt's (divergence W15): a
+  // header written `(type $t)` stays the type INDEX (`02 00`), as written;
+  // upstream wat2wasm inlines a `[] -> [t]` type as its value type (`02 7f`).
+  // binaryen-ts's retired parser gave upstream's; the text route keeps what was
+  // written, the same rule as T1.
   [
     '(block (type $t))',
     '(module (type $t (func (result i32))) (func (result i32) (block (type $t) (i32.const 1))))',
-    '00 61 73 6d 01 00 00 00 01 05 01 60 00 01 7f 03 02 01 00 0a 09 01 07 00 02 7f 41 01 0b 0b',
+    '00 61 73 6d 01 00 00 00 01 05 01 60 00 01 7f 03 02 01 00 0a 09 01 07 00 02 00 41 01 0b 0b',
   ],
   [
     '(if (type $t)) and (loop (type $t))',
     '(module (type $t (func (result i32))) (func (result i32) (if (type $t) (i32.const 1) (then (i32.const 2)) (else (loop (type $t) (i32.const 3))))))',
-    '00 61 73 6d 01 00 00 00 01 05 01 60 00 01 7f 03 02 01 00 0a 11 01 0f 00 41 01 04 7f 41 02 05 03 7f 41 03 0b 0b 0b',
+    '00 61 73 6d 01 00 00 00 01 05 01 60 00 01 7f 03 02 01 00 0a 11 01 0f 00 41 01 04 00 41 02 05 03 00 41 03 0b 0b 0b',
   ],
   [
     'a type declared AFTER a use keeps its index; the implicit one follows',
@@ -57,10 +62,32 @@ const CASES: [string, string, string][] = [
   ],
 ];
 
+/**
+ * `b` without its custom sections. The text route keeps names (and the text
+ * form), which upstream's bytes here were assembled without; the type section
+ * and every index are what these cases are about.
+ */
+function known(b: Uint8Array): Uint8Array {
+  const out: number[] = [...b.subarray(0, 8)];
+  for (let i = 8; i < b.length;) {
+    const at = i;
+    const id = b[i++]!;
+    let size = 0;
+    for (let s = 0;; s += 7) {
+      const x = b[i++]!;
+      size += (x & 0x7f) * 2 ** s;
+      if ((x & 0x80) === 0) break;
+    }
+    i += size;
+    if (id !== 0) out.push(...b.subarray(at, i));
+  }
+  return new Uint8Array(out);
+}
+
 describe('type uses, written as upstream wat2wasm writes them', () => {
   for (const [name, src, upstream] of CASES) {
     it(name, () => {
-      assertEquals(writeWasm(parseWat(src)), hex(upstream));
+      assertEquals(known(writeWasm(readWat(src))), hex(upstream));
     });
   }
 });
@@ -68,22 +95,22 @@ describe('type uses, written as upstream wat2wasm writes them', () => {
 describe('type uses that must be refused', () => {
   it('a type use and an inline signature that disagree (upstream rejects too)', () => {
     assertThrows(
-      () => parseWat('(module (type $a (func (param i32))) (func (type $a) (param f32)))'),
-      WatParseError,
+      () => readWat('(module (type $a (func (param i32))) (func (type $a) (param f32)))'),
+      WatInputError,
       'does not match',
     );
   });
+});
 
-  it('block parameters — not yet read by this parser (divergence W4), loudly', () => {
-    // The node holds them since S6 decision 7b(i) and the binary decoder keeps
-    // them; upstream wat2wasm reads this folded spelling. Refused, never dropped.
-    assertThrows(
-      () =>
-        parseWat(
-          '(module (func (result i32) (i32.const 1) (block (param i32) (result i32) (i32.const 2) (i32.add))))',
-        ),
-      WatParseError,
-      'block parameters',
+describe('type uses the text route reads (One front end stage 5)', () => {
+  it('block parameters — read, and the entry value is the parameter', () => {
+    // binaryen-ts's retired parser could not read them (divergence W4) and
+    // refused them, loudly. The text route reads the whole format: 1 + 2.
+    const mod = readWat(
+      '(module (func (export "f") (result i32) (i32.const 1) (block (param i32) (result i32) (i32.const 2) (i32.add))))',
     );
+    const f = new WebAssembly.Instance(new WebAssembly.Module(writeWasm(mod) as BufferSource))
+      .exports.f as () => number;
+    assertEquals(f(), 3);
   });
 });

@@ -21,7 +21,7 @@ import { assertEquals, assertThrows } from '@std/assert';
 
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import {
   asRegion,
   asStatement,
@@ -88,7 +88,7 @@ describe('decode → encode keeps a body exactly as written', () => {
   it('an EMPTY `(else)` in TEXT is no else — as upstream wat2wasm and wabt-ts write it', () => {
     // upstream wat2wasm 1.0.41: `(if (i32.const 1) (then (nop)) (else))` →
     // `41 01 04 40 01 0b` (no 0x05). The binaryen-ts WAT path emitted the else.
-    const out = writeWasm(parseWat('(module (func (if (i32.const 1) (then (nop)) (else))))'));
+    const out = writeWasm(readWat('(module (func (if (i32.const 1) (then (nop)) (else))))'));
     assertEquals(bodyOf(out), [0x00, 0x41, 0x01, 0x04, 0x40, 0x01, 0x0b, 0x0b]);
   });
 
@@ -139,7 +139,7 @@ describe('a block the source wrote is a block, never a wrapper', () => {
   ];
   for (const [name, fn, upstream] of CASES) {
     it(name, () => {
-      const viaWat = writeWasm(parseWat(`(module ${fn})`));
+      const viaWat = writeWasm(readWat(`(module ${fn})`));
       assertEquals(bodyOf(viaWat), upstream);
       assertEquals(bodyOf(writeWasm(readForPasses(viaWat))), upstream);
     });

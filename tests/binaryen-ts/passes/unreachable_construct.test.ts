@@ -40,7 +40,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
@@ -176,7 +176,7 @@ function codeSection(bytes: Uint8Array): Uint8Array {
 for (const [name, wat] of Object.entries(TEXT_CARRIERS)) {
   Deno.test(`text path: a ${name} carries its declared type, as the decoder's does`, () => {
     const bytes = assemble(wat);
-    const fromText = parseWat(wat);
+    const fromText = readWat(wat);
     const fromBinary = readForPasses(bytes);
     const types = carrierTypes(fromText.functions[0]!.body);
     assert(types.length > 0, 'the fixture has carriers');
@@ -248,7 +248,7 @@ Deno.test("StripEH: a try's body block declares the TRY's type, not its body's l
   // (`unreachable` here); the decoder's region already carries the declared one,
   // so a binary fixture cannot tell the two apart. An operand, so the block is
   // not the function's only statement (a sole unnamed block dissolves).
-  const mod = parseWat(`(module (tag $e) (func (export "f") (param i32) (result i32)
+  const mod = readWat(`(module (tag $e) (func (export "f") (param i32) (result i32)
     (i32.add
       (try (result i32) (do (drop (local.get 0)) (throw $e)) (catch $e (i32.const 3)))
       (i32.const 1))))`);

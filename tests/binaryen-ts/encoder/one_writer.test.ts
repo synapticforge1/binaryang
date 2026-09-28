@@ -29,6 +29,10 @@ import {
   writeWat,
 } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { elemFuncEntry, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
+import { makeDrop, makeRefFunc } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { AbstractHeapType } from '../../../src/binaryen-ts/ir/gc-types.ts';
+import { heapAbstract, varName } from '../../../src/wabt-ts/ir/ir.ts';
 
 const asm = (wat: string) => {
   const r = wat2wasm(wat, { textForm: false });
@@ -140,6 +144,25 @@ describe('one writer (One front end stage 4): what the comparison found', () => 
     const bytes = asm(`(module (import "M" "mem" (memory 1)) (func (export "f") (result i32)
       (i32.load (i32.const 0))))`);
     bothWriters(bytes, bytes);
+  });
+});
+
+describe('writeWasm on a tree the API BUILT', () => {
+  it('a declared segment naming a table the module does not have is written', () => {
+    // A passive or declared segment spells no table in the binary, and the API
+    // takes whatever `tableVar` the caller gives. The resolve step refused a
+    // placeholder naming nothing (found 1.6.0, then through binaryen-ts's WAT
+    // parser, retired in stage 5 — so the case is built here, as the API would).
+    const b = new ModuleBuilder();
+    b.addFunction('$f', [], [], makeDrop(makeRefFunc(varName('$f'))));
+    b.addElement({
+      name: '$e',
+      kind: 'declared',
+      tableVar: varName('$table0'),
+      elemType: { heapType: heapAbstract(AbstractHeapType.Func), nullable: false },
+      elemExprs: [elemFuncEntry('$f')],
+    });
+    assert(WebAssembly.validate(writeWasm(b.build()) as BufferSource));
   });
 });
 

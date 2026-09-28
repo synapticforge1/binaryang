@@ -22,7 +22,7 @@
 import { assert, assertEquals } from '@std/assert';
 
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { buildCallResultTypes, flattenFunction } from '../../../src/binaryen-ts/passes/flatten.ts';
 import {
   analyzeModule,
@@ -190,7 +190,7 @@ const LOOP_GET = `(module
     (local.get $acc)))`;
 
 Deno.test('asyncify e2e — suspend/resume across an async call (x + get())', () => {
-  const bytes = writeWasm(asyncify(parseWat(ADD_GET)));
+  const bytes = writeWasm(asyncify(readWat(ADD_GET)));
   // compute(10) with get() → 42 must yield 52 across the unwind/rewind.
   assertEquals(driveOnce(bytes, 'compute', [10], 'get', 42), 52);
 });
@@ -209,7 +209,7 @@ Deno.test('asyncify e2e — locals survive a rewind (single suspend in a loop)',
   // it continues. Our single-shot driver resumes once, so the loop runs to
   // completion after the first suspend (get() returns 7 on rewind and on every
   // subsequent normal call).
-  const bytes = writeWasm(asyncify(parseWat(LOOP_GET)));
+  const bytes = writeWasm(asyncify(readWat(LOOP_GET)));
   // After resume, get() returns 7 each of the 3 iterations → 21.
   assertEquals(driveOnce(bytes, 'sum', [3], 'get', 7), 21);
 });
@@ -225,7 +225,7 @@ Deno.test('asyncify e2e — loop case matches wasm-opt --asyncify', () => {
 
 Deno.test('asyncify — registered as a pass, runnable via PassRunner (lowercase name)', () => {
   assert(listPasses().includes('Asyncify'), 'Asyncify should be a registered pass');
-  const mod = parseWat(ADD_GET);
+  const mod = readWat(ADD_GET);
   // Resolve the upstream-style lowercase flag name case-insensitively.
   new PassRunner(mod).add('asyncify').run();
   assertEquals(driveOnce(writeWasm(mod), 'compute', [10], 'get', 42), 52);

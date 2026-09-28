@@ -16,8 +16,11 @@
  * (2026-09-28); now they take the one reader every binary entry point shares
  * (`readForPasses`).
  *
- * Why it reads what that parser cannot. binaryen-ts's parser implements a
- * folded subset: it cannot take several operands from the stack (`(i32.add)`,
+ * That parser was deleted in One front end stage 5 (2026-09-28): this is the
+ * only way text reaches binaryen-ts.
+ *
+ * Why it reads what that parser could not. binaryen-ts's parser implemented a
+ * folded subset: it could not take several operands from the stack (`(i32.add)`,
  * `(select)`), an `if` / `br_if` condition from the stack, block parameters,
  * or bare linear form. wabt-ts's parser reads the whole text format — byte for
  * byte with upstream wat2wasm on every parenthesised form probed — and by the

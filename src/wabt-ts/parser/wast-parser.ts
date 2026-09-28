@@ -528,8 +528,9 @@ function isModuleField(tt0: TokenType, tt1: TokenType, ann?: string): boolean {
   if (tt0 === TokenType.LparAnn) return ann === 'custom';
   if (tt0 !== TokenType.Lpar) return false;
   switch (tt1) {
+    // `Function` is NOT here (W14): `function` is a section name, for a custom
+    // section's placement — `(func …)` is the only spelling of a function.
     case TokenType.Func:
-    case TokenType.Function:
     case TokenType.Type:
     case TokenType.Rec:
     case TokenType.Import:
@@ -2530,7 +2531,6 @@ export class WastParser {
       case TokenType.Export:
         return this.parseExportModuleField(module);
       case TokenType.Func:
-      case TokenType.Function:
         return this.parseFuncModuleField(module);
       case TokenType.Global:
         return this.parseGlobalModuleField(module);
@@ -2783,7 +2783,7 @@ export class WastParser {
     const tt = this.peek();
     let imp: Import;
 
-    if (tt === TokenType.Func || tt === TokenType.Function) {
+    if (tt === TokenType.Func) {
       this.drop();
       const name = this.parseBindVarOpt();
       const typeVar = this.parseTypeUseOpt();
@@ -2852,7 +2852,6 @@ export class WastParser {
     let kind: ExternalKind;
     switch (tt) {
       case TokenType.Func:
-      case TokenType.Function:
         kind = ExternalKind.Func;
         break;
       case TokenType.Table:
@@ -2882,7 +2881,7 @@ export class WastParser {
   private parseFuncModuleField(module: Module): Result {
     const loc = this.loc();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
-    if (this.peek() !== TokenType.Func && this.peek() !== TokenType.Function) {
+    if (this.peek() !== TokenType.Func) {
       this.error(this.loc(), 'expected func');
       return Result.Error;
     }
@@ -6353,7 +6352,7 @@ function tokenName(tt: TokenType): string {
     case TokenType.Module:
       return 'module';
     case TokenType.Function:
-      return 'func';
+      return 'function'; // the section name (W14), never `func`
     case TokenType.Type:
       return 'type';
     case TokenType.Import:

@@ -25,7 +25,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat, WatInputError } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import {
   AbstractHeapType,
   heapAbstract,
@@ -54,7 +54,7 @@ const NOT_WAT = ['ext', 'noext'];
 describe('binaryen-ts — abstract heap-type keywords', () => {
   for (const [keyword, heap] of SPEC_KEYWORDS) {
     it(`parses (ref null ${keyword}) and prints it back unchanged`, () => {
-      parseWat(`(module (func $f (param (ref null ${keyword}))))`);
+      readWat(`(module (func $f (param (ref null ${keyword}))))`);
       // The printed form is the property that broke: the enum's VALUE is the
       // keyword, so a wrong value is invalid output rather than a wrong label.
       assertEquals(
@@ -67,9 +67,9 @@ describe('binaryen-ts — abstract heap-type keywords', () => {
   for (const bad of NOT_WAT) {
     it(`rejects "${bad}", which is binaryen's internal name and not WAT`, () => {
       assertThrows(
-        () => parseWat(`(module (func $f (param (ref null ${bad}))))`),
-        WatParseError,
-        'unknown heap type',
+        () => readWat(`(module (func $f (param (ref null ${bad}))))`),
+        WatInputError,
+        'expected heap type',
       );
     });
   }

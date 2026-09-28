@@ -16,7 +16,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import {
@@ -89,12 +89,12 @@ const CASES: [string, string, number[]][] = [
 describe('every carried value survives — bytes as upstream wat2wasm writes them', () => {
   for (const [name, fn, upstream] of CASES) {
     it(`WAT path: ${name}`, () => {
-      const out = writeWasm(parseWat(`(module ${fn})`));
+      const out = writeWasm(readWat(`(module ${fn})`));
       assertEquals(WebAssembly.validate(out as BufferSource), true);
       assertEquals(codeSection(out), upstream);
     });
     it(`binary round trip: ${name}`, () => {
-      const once = writeWasm(parseWat(`(module ${fn})`));
+      const once = writeWasm(readWat(`(module ${fn})`));
       assertEquals(codeSection(writeWasm(readForPasses(once))), upstream);
     });
   }
@@ -124,8 +124,8 @@ describe('the node holds its values as a LIST — on both parse paths (S6 decisi
   };
   for (const [name, fn] of CASES) {
     const kind = KIND[name]!;
-    const viaWat = parseWat(`(module ${fn})`);
-    const viaBinary = readForPasses(writeWasm(parseWat(`(module ${fn})`)));
+    const viaWat = readWat(`(module ${fn})`);
+    const viaBinary = readForPasses(writeWasm(readWat(`(module ${fn})`)));
     const paths = [['WAT', viaWat], ['binary', viaBinary]] as const;
     for (const [path, mod] of paths) {
       it(`${path}: ${name}`, () => {
@@ -165,9 +165,9 @@ describe("a br_if carrying values has THEIR type — the WAT path agrees with th
   ];
   for (const [name, fn, expected] of SHAPES) {
     it(name, () => {
-      const viaWat = findKind(parseWat(`(module ${fn})`).functions[0]!.body, ExpressionKind.Break);
+      const viaWat = findKind(readWat(`(module ${fn})`).functions[0]!.body, ExpressionKind.Break);
       const viaBin = findKind(
-        readForPasses(writeWasm(parseWat(`(module ${fn})`))).functions[0]!.body,
+        readForPasses(writeWasm(readWat(`(module ${fn})`))).functions[0]!.body,
         ExpressionKind.Break,
       );
       assertEquals(viaWat?.type, expected);

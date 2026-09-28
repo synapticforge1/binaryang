@@ -24,7 +24,7 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 /** `$sub3(a,b,c) = a - b - c`, folded, so every argument slot is observable. */
@@ -44,7 +44,7 @@ function bothAgree(wat: string, want: number): void {
   const ref = wat2wasm(wat, { filename: 'ref.wat' });
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must accept the source');
   assertEquals(run(ref.binary), want, 'wabt-ts');
-  assertEquals(run(writeWasm(parseWat(wat))), want, 'binaryen-ts');
+  assertEquals(run(writeWasm(readWat(wat))), want, 'binaryen-ts');
 }
 
 describe('folded output — operands partly sourced from the stack', () => {
@@ -84,7 +84,7 @@ describe('folded output — operands partly sourced from the stack', () => {
     const bin = wat2wasm(src, { filename: 's.wat' });
     assert(bin.binary && !hasErrors(bin.errors));
     const folded = wasm2wat(bin.binary, { fold: true }).text;
-    assertEquals(run(writeWasm(parseWat(folded))), 13, 're-read folded output');
+    assertEquals(run(writeWasm(readWat(folded))), 13, 're-read folded output');
   });
 });
 

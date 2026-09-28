@@ -36,7 +36,11 @@ import {
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { Packed, type StorageType } from '../../../src/binaryen-ts/ir/gc-types.ts';
-import { parseWat, WatParseError } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 
 /** A one-field mutable struct holding `value`, read back via struct.get. */
@@ -253,29 +257,33 @@ function packedWat(opcode: string): string {
 }
 
 Deno.test('WAT: struct.get on a packed field is rejected', () => {
+  // Refused on the way in by the typing step after the reader — the text route
+  // since One front end stage 5 (binaryen-ts's retired parser refused it itself).
   assertThrows(
-    () => parseWat(packedWat('struct.get')),
-    WatParseError,
-    'use struct.get_s or struct.get_u',
+    () => readWat(packedWat('struct.get')),
+    Error,
+    'reads a packed field without a sign',
   );
 });
 
 Deno.test('WAT: struct.get_u on a packed field is accepted', () => {
-  const mod = parseWat(packedWat('struct.get_u'));
+  const mod = readWat(packedWat('struct.get_u'));
   assertEquals(firstSubop(writeWasm(mod), STRUCT_GETS), 0x04);
 });
 
-Deno.test('WAT: struct.get_s on a non-packed field is rejected', () => {
-  assertThrows(
-    () =>
-      parseWat(`
-        (module
-          (type $s (struct (field (mut i32))))
-          (type $f (func (result i32)))
-          (func (export "read") (result i32)
-            (struct.get_s $s 0 (struct.new $s (i32.const 200)))))
-      `),
-    WatParseError,
-    'use struct.get',
-  );
+Deno.test('WAT: struct.get_s on a non-packed field is invalid — the validator refuses it', () => {
+  // binaryen-ts's retired parser refused it. On the text route since One front
+  // end stage 5 — which, like our `wat2wasm`, does not validate — the text is
+  // read (divergences.md R18) and the VALIDATOR is what refuses it. Written
+  // back, a sign on a non-packed field is dropped, as binaryen's writer does
+  // (`checkForWriting`): the writer never emits `get_s` for one.
+  const wat = `
+    (module
+      (type $s (struct (field (mut i32))))
+      (type $f (func (result i32)))
+      (func (export "read") (result i32)
+        (struct.get_s $s 0 (struct.new $s (i32.const 200)))))`;
+  const { errors } = wasmValidate(wat2wasm(wat).binary, { features: allFeatures() });
+  assert(hasErrors(errors), 'the validator must refuse struct.get_s on a non-packed field');
+  assertEquals(firstSubop(writeWasm(readWat(wat)), STRUCT_GETS), 0x02, 'written a plain get');
 });

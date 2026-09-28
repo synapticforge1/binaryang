@@ -14,7 +14,6 @@ import { assertEquals, assertThrows } from '@std/assert';
 
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
@@ -61,14 +60,16 @@ describe("table.get is typed by its table's element type", () => {
   });
 
   it("binaryen-ts's own WAT parser: the same four", () => {
-    assertEquals(tableGetTypes(parseWat(WAT)), EXPECTED);
+    assertEquals(tableGetTypes(readWat(WAT)), EXPECTED);
   });
 
-  it("binaryen-ts's WAT parser: an out-of-range table index is refused, not typed funcref", () => {
+  it('the text route: an out-of-range table index is refused, not typed funcref', () => {
+    // By the typing step after the reader (binaryen-ts's retired parser said
+    // "table.get: unknown table").
     assertThrows(
-      () => parseWat('(module (func (drop (table.get 3 (i32.const 0)))))'),
+      () => readWat('(module (func (drop (table.get 3 (i32.const 0)))))'),
       Error,
-      'table.get: unknown table',
+      'no table',
     );
   });
 });

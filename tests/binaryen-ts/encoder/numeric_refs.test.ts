@@ -23,12 +23,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { parseWat } from '../../../src/binaryen-ts/parser/wat-parser.ts';
+import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
 
 /** Export set as `name:kind`, sorted. */
 function exportsOf(wat: string): string[] {
-  const m = new WebAssembly.Module(writeWasm(parseWat(wat)) as BufferSource);
+  const m = new WebAssembly.Module(writeWasm(readWat(wat)) as BufferSource);
   return WebAssembly.Module.exports(m).map((e) => `${e.name}:${e.kind}`).sort();
 }
 
@@ -64,7 +64,7 @@ describe('encoder — numeric entity references resolve as indices', () => {
       (export "byName" (func $f))
       (export "byIndex" (func 1)))`;
     const inst = new WebAssembly.Instance(
-      new WebAssembly.Module(writeWasm(parseWat(wat)) as BufferSource),
+      new WebAssembly.Module(writeWasm(readWat(wat)) as BufferSource),
     );
     assertEquals((inst.exports.byName as () => number)(), 11);
     assertEquals((inst.exports.byIndex as () => number)(), 22, 'index 1 must be $g, not $f');
@@ -73,7 +73,7 @@ describe('encoder — numeric entity references resolve as indices', () => {
   // The guarantee the numeric path must not erode.
   it('a dangling NAMED reference still throws', () => {
     assertThrows(
-      () => writeWasm(parseWat(`(module ${FN} (export "e" (func $nope)))`)),
+      () => writeWasm(readWat(`(module ${FN} (export "e" (func $nope)))`)),
       Error,
       'undefined',
     );

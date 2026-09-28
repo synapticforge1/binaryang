@@ -271,8 +271,8 @@ Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control
     (func $park (call $su (global.get $buf)))
     (func $worker (result i32) (call $park) (i32.const 42))
     (func $main (export "main") (result i32) (call $worker)))`;
-  const { parseWat } = await import('../../../src/binaryen-ts/parser/wat-parser.ts');
-  const m = parseWat(wat);
+  const { readWat } = await import('../../../src/binaryen-ts/tools/read-wat.ts');
+  const m = readWat(wat);
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,
     shrinkLevel: 0,
