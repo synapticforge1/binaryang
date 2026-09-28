@@ -1429,6 +1429,44 @@ harmless; the pair was the defect. Only re-running the full differential after E
 **How to apply:** when single mutants of two guards are MISSED, try them together before concluding a
 guard is redundant.
 
+## 🆕 Lessons from the pre-bump items (2026-09-28, late)
+
+### A check that cannot make the call agrees by construction — count what it cannot see
+
+The behaviour differential compared 57,808 invocations, and 24,151 of them — every SIMD one — threw
+a TypeError on the original and on every variant, because JS cannot pass a `v128`. Equal outcomes,
+so "agree": a planted SIMD miscompile passed with 0 DIVERGE. **How to apply:** when a check compares
+outcomes, count the outcomes that are the harness failing to run the thing (the same exception on
+the ORIGINAL), report that number, and treat a rise in it as lost coverage.
+
+### Read the whole output of a check, not its last line
+
+`deno fmt --check … | tail -1` printed the file count — the error was on the line above — and a
+formatting miss reached the gate. **How to apply:** judge a check by its EXIT CODE, as the gate
+does; a tail is for reading, never for deciding.
+
+### Attribute every residual by looking at it
+
+The K4 commit message called the `writeWat` re-assembly residuals "a DataCount section or Q9's tag".
+After Q9 was fixed one was left that was neither — an empty `else` the text cannot spell (E2).
+**How to apply:** before a message names the cause of a residual, open each one; a count that
+"mostly" fits a story is not an attribution.
+
+### A defect's record says where it SHOWED, not where it LIVES
+
+Q9's row blamed the writers and `synthesizeTypes`; the spare type came from the PARSER's
+implicit-type pass, found only when the fixed writers still produced it. W12's row said
+`(tag $x (type $t))` was refused; measured, it always parsed. **How to apply:** reproduce from the
+record's example and trace the bytes to their origin before editing the component the record names
+(the corollary of "a task's premise is not evidence").
+
+### Identical bytes can hide a wrong tree — test the stage that is wrong
+
+A code-metadata hint left on the OPERAND stack became an operand of `i32.add` in the tree, yet wrote
+the same bytes (binary order is post-order): every byte test passed that mutant. Only an assertion on
+the parsed tree caught it. **How to apply:** when a mutant survives every byte test, ask whether the
+defect is in a stage the bytes cannot see, and assert THAT stage (the tree), not the output.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

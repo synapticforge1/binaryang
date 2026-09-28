@@ -703,8 +703,8 @@ values are not needed — and ours never decide them.
 
 ✅ **Now `deno task spec-behaviour <outDir>`** (2026-09-28; `scripts/check-spec-behaviour.ts`, the
 check in `scripts/spec-behaviour/differential.ts`), over the corpus `deno task spec:prepare` writes.
-On `main` today: **1,342 modules with invocations, 57,808 invocations, 16,062 variants compared, 0
-divergences, in ~6 s**. Its verdict: exit 1 on a DIVERGE (an outcome differs, or the engine refuses
+On `main` today (2026-09-28 late): **1,342 modules with invocations, 57,808 invocations (24,151
+through v128, 53 blind), 16,062 variants compared, 0 divergences, in ~8 s**. Its verdict: exit 1 on a DIVERGE (an outcome differs, or the engine refuses
 our bytes) or a module that does not terminate; a variant our pipeline REFUSES (throws — loud, not
 a miscompile) is allowed only for a module pinned by name in `REFUSED_BUDGET`, a ratchet like
 `PHANTOM_BUDGET` — 7 relaxed-SIMD modules on route A until stage 3.
@@ -719,6 +719,23 @@ a miscompile) is allowed only for a module pinned by name in `REFUSED_BUDGET`, a
 - Its blind spots: an invocation of a NAMED module (another module's) is skipped; imports are inert
   stand-ins, so behaviour that depends on a real import is compared only as far as the stand-in
   goes (the same stand-ins on every side); a trap is compared by class, not message.
+- 🔧 **v128 — the blind spot nobody had listed (closed 2026-09-28, pre-bump item 6, `cd7071629`).**
+  The JS API cannot pass or receive a `v128`, so every SIMD invocation threw a TypeError on the
+  original AND on every variant — and "agreed" without running: **24,151 of the 57,808**. A writer
+  miscompile planted on purpose (`replace_lane` writing lane `^ 1`; `i8x16.shuffle` reversed) passed
+  with 0 DIVERGE. Now `scripts/spec-behaviour/v128.ts` appends a wrapper per such export — each
+  vector as two `i64` lanes, rebuilt with `i64x2.splat` / `replace_lane`, split with
+  `extract_lane` — to the BYTES, the original's and each variant's alike, after the variant is made;
+  hand-written, so the toolchain under test builds none of it, and nothing is renumbered. The same
+  two miscompiles now fail (5 and 4 modules). The signature is the manifest's (arguments; an
+  `assert_return`'s expected types, borrowed by an `assert_trap` of the same export).
+  - **The wrappers were checked against an oracle that owes nothing to our code**: the ORIGINAL,
+    through them, against the manifests' own expected lanes — **24,110 of 24,115** match. The 5
+    others pass a signalling-NaN f32/f64 SCALAR, whose payload a JS number cannot carry — the
+    existing scalar path's limit (same on every side), not the wrapper's.
+  - What JS still cannot call is now COUNTED as **`blind`: 53** (a TypeError on the original),
+    reported in the summary rather than agreeing unseen.
+  - `spec_behaviour_v128.test.ts`; 6 mutants of the index arithmetic, all caught.
 
 ## The 1.5.5 passes — the code lens, summarized
 

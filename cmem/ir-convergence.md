@@ -4584,7 +4584,10 @@ before it:
      writers; 10 mutants, each caught.
      Found and NOT fixed (register): Q9 — a tag does not keep which identical type it named, and
      our `wat2wasm` points one at the wrong rec-group member; W12 — the parser refuses
-     `(import … (tag (type $t)))`.
+     `(import … (tag (type $t)))`. ✅ Both FIXED 2026-09-28 (`d5d059a45`): `Tag.typeVar`, the
+     IR field this register said was missing, now carried end to end — divergences.md Q9, W12.
+     Writer parity after it: 14,595 / 14,595. `writeWat` re-assembly residuals at O0: 5 → 2
+     (binary.55's DataCount; try_table.1's empty `else`, E2).
    - ⏳ **4b — delete `wasm-encoder.ts` — at the bump**, with the decoder (3b): `encodeWasm` is the
      published `./encoder`, unpublished in that release.
 5. Retire binaryen-ts's internal `parseWat` (already planned).
