@@ -35,9 +35,15 @@ describe('M8b5 — the one module carries as-written metadata; optimizing clears
   it('a run with no pass keeps it', () => {
     const m = withMetadata();
     const table = m.fidelity;
+    // 🔧 This asserted exactly 1 entry — the one pushed above — because `readWat`
+    // went through binaryen-ts's decoder, which records no sections. Since One
+    // front end stage 3 it takes the wabt-ts reader, which records its own; what
+    // the test is about is that a plain run KEEPS them.
+    const before = [...m.sectionMeta];
+    assert(before.length > 1, 'the reader recorded sections, and the pushed one is there');
     new PassRunner(m).run();
     assert(m.fidelity === table, 'the side table must survive a plain read and write');
-    assertEquals(m.sectionMeta.length, 1);
+    assertEquals(m.sectionMeta, before);
   });
 
   it('a run with a pass clears it', () => {

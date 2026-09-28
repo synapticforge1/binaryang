@@ -7,8 +7,9 @@
  * It reads a `.wasm` binary (or `.wat` text), applies optimization passes, and
  * writes an optimized `.wasm` binary.
  *
- * **Native path** (default): `.wasm` → {@link parseWasm} → {@link PassRunner} →
- * {@link encodeWasm} → `.wasm`. Pure TypeScript; no subprocess required.
+ * **Native path** (default): `.wasm` → {@link readForPasses} (the wabt-ts reader,
+ * then `prepareForPasses`) → {@link PassRunner} → {@link encodeWasm} → `.wasm`.
+ * Pure TypeScript; no subprocess required.
  *
  * **Hybrid path** (`--hybrid`): delegates to the upstream `wasm-opt` subprocess
  * for cases not yet covered by the TypeScript pass set.
@@ -25,7 +26,7 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
-import { parseWasm } from '../binary/index.ts';
+import { readForPasses } from '../ir/prepare.ts';
 import { encodeWasm } from '../encoder/index.ts';
 import { readWat } from './read-wat.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
@@ -232,10 +233,12 @@ function _nativeOptimize(
     );
   }
 
-  // External WAT goes through wabt-ts to bytes, then the decoder — the one text
+  // External WAT goes through wabt-ts to bytes, then the one reader — the one text
   // route (see `read-wat.ts`). binaryen-ts's own WAT parser reads only a folded
   // subset; it rejected the linear text our own `wasm2wat` writes.
-  const module = isWat ? readWat(new TextDecoder().decode(inputBytes)) : parseWasm(inputBytes);
+  // A binary takes the same reader (One front end, stage 3: binaryen-ts's own
+  // decoder is no longer an entry point).
+  const module = isWat ? readWat(new TextDecoder().decode(inputBytes)) : readForPasses(inputBytes);
 
   const passOpts: PassOptions = {
     optimizeLevel: opts.optimizeLevel,

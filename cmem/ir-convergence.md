@@ -4539,6 +4539,22 @@ before it:
 3. **Switch the entry points** (`wasm-opt`, `read-wat`, the compat API, `lowerBlockParams`) to B,
    keep `parseWasm` as a thin published wrapper if the owner wants the API kept; then delete
    `wasm-parser.ts`.
+   - ✅ **3a DONE 2026-09-28: every entry point reads with the one reader.** `readForPasses`
+     (`ir/prepare.ts`: `readBinaryIr` → `prepareForPasses`, throwing `WasmBinaryError` with the
+     reader's diagnostics, as `parseWasm` threw) is called by `wasm-opt`, `readWat` and the compat
+     `readBinary`; `lowerBlockParams` stopped needing the decoder at R15. `optimize-corpus` gates
+     that route now. Measured: **every corpus optimizer output identical** (2,105 of 2,105, and the
+     five level totals to the byte); on the spec modules 35 outputs in 7 modules differ in bytes and
+     behave as their originals (`spec-behaviour`); 40 relaxed-SIMD outputs the decoder refused now
+     succeed. By design, the entry points now REFUSE the invalid binaries the decoder accepted
+     (R2–R5). `tests/binaryen-ts/tools/one_reader.test.ts` pins it both ways, and pointing
+     `wasm-opt` or `readBinary` back at `parseWasm` fails it.
+   - ⏳ **3b — delete `wasm-parser.ts` — AT THE BUMP (owner, 2026-09-28: "Wait for the bump").** The published `parseWasm`
+     (`./binary`) IS that decoder, and the owner decided (2026-09-19) to unpublish `./binary` and
+     `./encoder` at the next bump, "not before", with no wrapper. So deleting it now would break
+     the published API; deleting it at the bump is the plan as decided. What still calls it:
+     the published entry point, ~70 test files, the `scripts/binaryen-ts/` diagnostics, and
+     `spec-behaviour`'s route A (its 7 pinned refusals go with it).
 4. **One writer**: wabt-ts's (more byte-exact, writes multiple tables), with a "resolve names +
    synthesize types" step for pass- and API-built modules; then delete `wasm-encoder.ts`.
 5. Retire binaryen-ts's internal `parseWat` (already planned).

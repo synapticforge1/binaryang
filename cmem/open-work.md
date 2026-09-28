@@ -41,7 +41,7 @@ worlds, optimize-corpus every level. Pick up here, in this order:
 
 1. ✅ **One front end stage 2 is DONE** — R15 merged 2026-09-28 (item 3 below), and every defect its
    behaviour check and a whole-testsuite behaviour check found is fixed (item 4). The optimizer's
-   output now behaves as its input on every spec module it accepts; since item 5 it refuses only relaxed SIMD on route A (stage 3 closes it).
+   output now behaves as its input on every spec module it accepts; since item 5 it refuses only relaxed SIMD, and only on route A — which no entry point takes since stage 3a.
 2. **NOT the pipeline-convergence proposal** ("passes until the delta over the next two rounds averages
    under 0.1%"). Answered in chat and recorded below, then **parked by the owner**: noted now, tested in
    practice once the open items are worked through. Do not start it — not even the measurement — while
@@ -173,8 +173,12 @@ form", § "An assertion that spans stages is satisfied by the WRONG stage".
 ### Next, in order
 
 **ONE FRONT END, stage 2 is DONE (2026-09-28)** — the owner's plan, confirmed 2026-09-19, in
-[ir-convergence.md](ir-convergence.md) § "One front end". Stages 0, 1 and 2 are done; **stage 3 is
-next in that plan** (switch the entry points, delete binaryen-ts's decoder). Stage 2 moved what
+[ir-convergence.md](ir-convergence.md) § "One front end". Stages 0, 1 and 2 are done; **stage 3a is
+done (2026-09-28): `wasm-opt`, `readWat` and the compat `readBinary` read with the one reader**
+(`readForPasses`); corpus optimizer output unchanged byte for byte. **3b — deleting binaryen-ts's
+decoder — happens IN the bump (owner, 2026-09-28: "wait for the bump")**: the published `parseWasm` IS that decoder, decided to be
+unpublished at the next bump and not before (below). Stage 4 (one writer) can proceed without it.
+Stage 2 moved what
 binaryen-ts's decoder does FOR THE PASSES into `prepareForPasses`; its first piece (one stack entry
 per value) landed in `58fd43576`. Its items, as they closed:
 1. ✅ **DONE 2026-09-20 (`0e2a2bd2b`, merge below): typed `pop`s at catch entry and for block params
@@ -315,8 +319,8 @@ per value) landed in `58fd43576`. Its items, as they closed:
   pass that emits an invalid module silently is the worse of the two.
    (The `Inlining` failures on the reader route at -O3 this line used to list — `dynrt_lib_modc`,
    `Chapter11/vector`, `nop.0`, `br.0` — were fixed by the spill, R11', and Q2.)
-Then stage 3 (switch the entry points, delete binaryen-ts's decoder), stage 4 (one writer), stage 5
-(retire binaryen-ts's internal `parseWat`).
+Then stage 3 (switch the entry points ✅ 3a, 2026-09-28; delete binaryen-ts's decoder — 3b, at the
+bump), stage 4 (one writer), stage 5 (retire binaryen-ts's internal `parseWat`).
 
 ✅ **Decided (owner, 2026-09-19): option (a) — `./binary` and `./encoder` are UNPUBLISHED at the next
 version bump, and not before every open fix and quality check below is finished.** In the owner's
@@ -349,7 +353,12 @@ as deprecated aliases. Consequences of (a) to carry out IN the bump, not before:
 `deno.json`'s `exports`; delete the `parseWasm` example and the two entry-point rows from `README.md`;
 keep both modules in the tree, since `wasm-opt`, `read-wat`, the compat API and `lowerBlockParams` all
 call them; say in `CHANGELOG.md` that the public way to reach the IR is now the compat APIs and the
-tool entry points.
+tool entry points. ➕ **Added 2026-09-28 (owner: stage 3b waits for the bump):** in that same bump,
+delete binaryen-ts's decoder (`binary/wasm-parser.ts`, `names.ts`, `reader.ts` once nothing else
+uses them — `WasmBinaryError` moves with `readForPasses`), move the ~70 test files and the
+`scripts/binaryen-ts/` diagnostics off `parseWasm`, drop route A from `spec-behaviour` and empty its
+`REFUSED_BUDGET`. ⚠️ "keep both modules in the tree" above was written before stage 3a; after it
+nothing in `src/` but the published entry point calls the decoder.
 ⚠️ Whatever is chosen, `parseWasm`'s published contract is "a tree the passes can run on", which is
 reader + `prepareForPasses` — not the faithful tree alone.
 

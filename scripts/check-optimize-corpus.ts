@@ -8,7 +8,8 @@
  *
  * `deno task baseline` pins what wabt-ts writes and `deno task direct` what a
  * text-read tree encodes to (it optimizes too, but a TEXT-read tree; this gate
- * optimizes the decoder's). Before them neither ever optimized. Corpus checks of the optimizer were
+ * optimizes what `wasm-opt` optimizes: the bytes, through `readForPasses` — since One
+ * front end stage 3 the wabt-ts reader; binaryen-ts's decoder until then). Before them neither ever optimized. Corpus checks of the optimizer were
  * one-off hashes of its output — which say whether the output CHANGED, not
  * whether it is a module an engine will load. On 2026-09-14 that let two
  * defects sit unseen: -O3 could not encode three recursive modules at all, and
@@ -28,7 +29,7 @@
  * @license MIT
  */
 
-import { parseWasm } from '../src/binaryen-ts/binary/index.ts';
+import { readForPasses } from '../src/binaryen-ts/ir/prepare.ts';
 import { encodeWasm } from '../src/binaryen-ts/encoder/index.ts';
 import { PassRunner } from '../src/binaryen-ts/passes/index.ts';
 import { formatErrors, hasErrors } from '../src/wabt-ts/core/error.ts';
@@ -58,7 +59,7 @@ for (const name of files) {
   }
   for (const [tag, opts] of LEVELS) {
     try {
-      const mod = parseWasm(r.binary);
+      const mod = readForPasses(r.binary);
       new PassRunner(mod, opts).addDefaultOptimizationPasses().run();
       const out = encodeWasm(mod);
       bytes.set(tag, (bytes.get(tag) ?? 0) + out.length);
