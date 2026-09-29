@@ -29,7 +29,7 @@ import {
   WasmBinaryError,
 } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { limitsOf, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
@@ -146,9 +146,13 @@ describe('M2g — what cannot be held is refused, not dropped', () => {
     assertEquals(section(roundTrip(bytes), 2), section(bytes, 2));
   });
 
-  it('the encoder: a 32-bit size past u32', () => {
+  it('the encoder: a 32-bit size past u32 is written as u64, never wrapped', () => {
+    // 🔧 REPLACED 2026-09-29. This asserted a refusal ('u32 LEB128 out of
+    // range'). Every limit is u64 on the wire (Wasm 3.0), so the size is
+    // written as given: `00 80 80 80 80 10` (flags, then 2^32), never `00 00`.
+    // Whether 2^32 pages is ALLOWED is the validator's rule (no_repair.test.ts).
     const mod = new ModuleBuilder().addMemory('$m', limitsOf(2n ** 32n)).build();
-    assertThrows(() => writeWasm(mod), WasmEncodeError, 'u32 LEB128 out of range');
+    assertEquals(section(writeWasm(mod), 5), '01 00 80 80 80 80 10');
   });
 });
 

@@ -111,11 +111,12 @@ export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}
   try {
     binary = writeBinaryIr(module, { writeTextForm: opts.textForm ?? true });
   } catch (e) {
-    // What the writer cannot represent is usually what the validator refuses:
-    // `(memory 0x1_0000_0000)` is well-formed and INVALID (2^32 pages), and
-    // was reported only as "u32 LEB128 out of range". This tool does not
-    // validate a module it CAN write; one it cannot, the validator explains
-    // first — upstream's diagnostic, with the writer's after it. With EVERY
+    // What the writer cannot represent is usually what the validator refuses
+    // (`(memory 0x1_0000_0000)` was the first case, reported only as "u32
+    // LEB128 out of range"; since limits are written as u64 it is WRITTEN, and
+    // `wasm-validate` rejects the bytes). This tool does not validate a module
+    // it CAN write; one it cannot, the validator explains first — upstream's
+    // diagnostic, with the writer's after it. With EVERY
     // feature on: this tool gates none, and the default set blamed a feature
     // for a module the writer failed on for another reason (a GC type in a
     // `call_indirect` typeuse: five "enable the functionReferences feature"

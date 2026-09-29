@@ -663,16 +663,19 @@ export class SharedValidator {
     }
     // The page LIMIT, not the representable range: a memory's BYTE size has to
     // fit its index space, so the ceiling is 2^32 / pageSize for a 32-bit
-    // memory and 2^64 / pageSize for a 64-bit one. It used to be the constant
-    // 65536 (= 2^32 / 65536) with the division already done, which is right
-    // only for the standard page size: with 1-byte pages a 32-bit memory may
-    // legitimately declare 2^32 PAGES, and the constant rejected the
-    // proposal's own valid modules.
-    const shift = (limits.is64 ? 64 : 32) - (psLog2 === 0 || psLog2 === 16 ? psLog2 : 16);
-    // A 64-bit memory with 1-byte pages wants a ceiling of 2^64, which is
-    // every u64 — express it as the maximum rather than shifting past the
-    // width.
-    const absMax = shift >= 64 ? (1n << 64n) - 1n : 1n << BigInt(shift);
+    // memory and 2^64 / pageSize for a 64-bit one — AND a page count must fit
+    // the index type itself, 2^32-1 or 2^64-1. The second bound only binds
+    // with 1-byte pages: `memory_max.wast` (custom-page-sizes) declares
+    // `(memory 0xFFFF_FFFF (pagesize 1))` valid and `(memory 0x1_0000_0000
+    // (pagesize 1))` INVALID. This read "may legitimately declare 2^32 PAGES"
+    // and accepted the latter, unseen while the writer refused any 32-bit
+    // limit past u32 (wasmtk, 2026-09-29). With 65536-byte pages the first
+    // bound binds (65536 for i32 is valid — `memory.wast`).
+    const bits = limits.is64 ? 64 : 32;
+    const shift = bits - (psLog2 === 0 || psLog2 === 16 ? psLog2 : 16);
+    const indexMax = (1n << BigInt(bits)) - 1n;
+    const byBytes = 1n << BigInt(shift);
+    const absMax = byBytes < indexMax ? byBytes : indexMax;
     r = combineResults(r, this.checkLimits64(loc, limits, absMax, 'pages'));
     // `!limits.max` also fired on a max of ZERO, so `(memory 0 0 shared)` was
     // reported as having no maximum at all.
