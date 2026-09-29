@@ -884,11 +884,14 @@ Every `module` must instantiate (the linking ones included), all **31** assertio
 pages — the default-page-size one at `memory_max_i64.wast:18` too, which lowering does not touch);
 for those our validator judges the lowered bytes instead.
 
-⚠️ **P1, pinned (🗓️ OWNER):** `custom-page-sizes-invalid.wast:104` — a native 64 KiB importer of a
-LOWERED 1-byte memory LINKS, because the lowered memory is a 64 KiB memory to the engine, exported
-under its own name so a host's `exports.memory` keeps working. The proposal calls it unlinkable.
-Refusing it means exporting under a mangled name; the pin is a ratchet (a pin that stops linking
-fails too). [divergences.md](divergences.md) P1.
+✅ **P1 — closed by the owner's decision (2026-09-29): no pins.** Under its own name a lowered
+memory linked to a NATIVE 64 KiB importer (`custom-page-sizes-invalid.wast:104`), which could then
+read and write past the logical size without a trap — not unsafe to the engine (it still
+bounds-checks the underlying memory), but the proposal's guarantees lost. A lowered memory is now
+exported and imported as `<name>#pagesize=<ps>`, so that link fails as the proposal says, and both
+`assert_unlinkable`s hold in every world. The ratchet (`LINKS_ANYWAY`, now empty) is what demanded
+the pin go. Working through the question also found L2 — `grow` exposed unzeroed slack a host
+could have written — [divergences.md](divergences.md) P1, L2.
 
 Unit tests: `lower_custom_page_sizes.test.ts`, V8 with no flag — sizes, growth across a 64 KiB
 boundary and to the declared max, traps at the TRUE size, operand order before a trap,

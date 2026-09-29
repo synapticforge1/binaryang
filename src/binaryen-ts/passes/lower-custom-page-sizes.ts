@@ -33,10 +33,13 @@
  *
  * ## Linking
  *
- * An exported lowered memory also exports its page count as `<name>#pages`; an
- * imported one imports `<field>#pages` from the same module. Two lowered
- * modules link and agree on the size. A host that provides such a memory must
- * provide the global too — the size is not in the memory any more.
+ * An exported lowered memory is exported as `<name>#pagesize=<ps>` (see
+ * {@link pageSizeSuffix}) with its page count beside it as `<name>#pages`; an
+ * imported one imports `<field>#pagesize=<ps>` and `<field>#pages` from the
+ * same module. Two lowered modules link and agree on the size; a NATIVE
+ * 64 KiB-page importer of a lowered memory does not link, as the proposal
+ * requires (P1). A host that provides such a memory must provide the global
+ * too — the size is not in the memory any more.
  *
  * ## Refused, loudly
  *
@@ -92,6 +95,22 @@ function u64Const(v: bigint): Expression {
 
 /** The suffix of the global that carries a lowered memory's size in custom pages. */
 export const PAGES_SUFFIX = '#pages';
+
+/**
+ * The suffix a lowered memory is exported and imported under: `mem` becomes
+ * `mem#pagesize=1`.
+ *
+ * 🗓️ Owner, 2026-09-29 (P1): a lowered memory IS a 64 KiB memory to the engine,
+ * so under its own name a NATIVE 64 KiB importer linked to it — the proposal
+ * calls that unlinkable — and read and wrote past its logical size without a
+ * trap. Renamed, that link fails as the proposal says; a lowered importer asks
+ * for the same name, so lowered modules still link. A host reads the memory as
+ * `exports['mem#pagesize=1']` beside `exports['mem#pages']` — it must know the
+ * module was lowered in any case, since the buffer is larger than the memory.
+ */
+export function pageSizeSuffix(l: { log2: number }): string {
+  return `#pagesize=${1n << BigInt(l.log2)}`;
+}
 
 const LOG2_64K = 16;
 
@@ -207,6 +226,7 @@ export class LowerCustomPageSizesPass implements Pass {
         field: `${i.field}${PAGES_SUFFIX}`,
         global: { name: l.pages, type: l.addr, mutable: true },
       });
+      (i as { field: string }).field = `${i.field}${pageSizeSuffix(l)}`;
     });
     module.memories.forEach((mem, k) => {
       const l = lowered.get(importedMemories.length + k);
@@ -227,6 +247,7 @@ export class LowerCustomPageSizesPass implements Pass {
         kind: ExternalKind.Global,
         var: varName(l.pages),
       });
+      e.name = `${e.name}${pageSizeSuffix(l)}`;
     }
 
     // Every function body.

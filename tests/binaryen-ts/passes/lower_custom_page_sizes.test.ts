@@ -124,7 +124,10 @@ describe('linking lowered modules', () => {
         lowered(`(module (memory (export "mem") 4 (pagesize 1))
           (func (export "grow") (param i32) (result i32) (memory.grow (local.get 0))))`) as BufferSource,
       ),
-    ).exports as unknown as Fns & { mem: WebAssembly.Memory; 'mem#pages': WebAssembly.Global };
+    ).exports as unknown as Fns & {
+      'mem#pagesize=1': WebAssembly.Memory;
+      'mem#pages': WebAssembly.Global;
+    };
     expect(exporter['mem#pages'].value).toBe(4);
     const f = run(`(module (memory (import "m" "mem") 4 (pagesize 1)) ${ACCESSORS})`, {
       m: exporter as unknown as WebAssembly.ModuleImports,
@@ -133,6 +136,24 @@ describe('linking lowered modules', () => {
     exporter.grow!(2);
     expect(f.size!()).toBe(6); // one size, seen from both
     traps(() => f.load!(6));
+    // The memory is exported under its lowered name only (P1).
+    expect('mem' in exporter).toBe(false);
+  });
+
+  it('a NATIVE 64 KiB importer of a lowered memory does not link (P1)', () => {
+    // It would read and write past the logical size without a trap. The
+    // proposal calls this link an error, and so does the engine now.
+    const exporter = new WebAssembly.Instance(
+      new WebAssembly.Module(
+        lowered(`(module (memory (export "mem") 4 (pagesize 1)))`) as BufferSource,
+      ),
+    ).exports;
+    const native = wat2wasm(`(module (memory (import "m" "mem") 0))`).binary;
+    expect(() =>
+      new WebAssembly.Instance(new WebAssembly.Module(native as BufferSource), {
+        m: exporter as unknown as WebAssembly.ModuleImports,
+      })
+    ).toThrow(WebAssembly.LinkError);
   });
 
   it('memory exposed by memory.grow is ZERO, whatever was written into the slack', () => {
@@ -143,9 +164,9 @@ describe('linking lowered modules', () => {
       new WebAssembly.Module(
         lowered(`(module (memory (export "mem") 4 (pagesize 1)) ${ACCESSORS})`) as BufferSource,
       ),
-    ).exports as unknown as Fns & { mem: WebAssembly.Memory };
-    new Uint8Array(i.mem.buffer)[10] = 7; // past the 4 logical bytes
-    new Uint8Array(i.mem.buffer)[65535] = 5; // the last byte of the underlying page
+    ).exports as unknown as Fns & { 'mem#pagesize=1': WebAssembly.Memory };
+    new Uint8Array(i['mem#pagesize=1'].buffer)[10] = 7; // past the 4 logical bytes
+    new Uint8Array(i['mem#pagesize=1'].buffer)[65535] = 5; // the last byte of the underlying page
     expect(i.grow!(8)).toBe(4);
     expect(i.load!(10)).toBe(0);
     // Across a 64 KiB boundary: the old page's slack is zeroed, the new page is the engine's.
