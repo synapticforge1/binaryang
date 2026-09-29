@@ -5,8 +5,8 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Current state (2026-09-29):** `@jrmarcum/binaryang@1.7.2` is latest (`rekorLogId=3002349065`,
-§ "1.7.2" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
+**Current state (2026-09-29):** `@jrmarcum/binaryang@1.8.0` is latest (`rekorLogId=3006244345`,
+§ "1.8.0" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
 unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand), `deno task release`
 (tag and branch in one push), CI publishes; a patch while `main` holds unreleased work goes from a
 branch cut from the last tag (§ "1.6.1"). ✅ **`RELEASE_PAT` — CLOSED as not needed (owner,
@@ -643,6 +643,31 @@ current-state line at the top), and the recovery recipe above still applies to
 any release that falls through to dispatch. The record, by path: `push: tags` has succeeded **6 of
 6** across three packages (binaryang 1.5.3 among them) before 1.5.4 added a seventh; the `auto-tag`
 → `workflow_dispatch` path has succeeded **0 of 4**.
+
+## ✅ 1.8.0 — a hand-typed MINOR, released 2026-09-29
+
+**Published from the tag push, unaided.** JSR: `binaryang@1.8.0`, `rekorLogId=3006244345`, not
+yanked, `latestVersion` 1.8.0; tag `v1.8.0` at `0b2edf7cd`; CI, Auto-tag and Publish green. Owner,
+2026-09-29: "lets go ahead and bump and release". A MINOR by the rule in unreleased.md — changed
+DEFAULTS: the `wat2wasm` CLI validates, `stopOnFirstError` defaults to true, diagnostic text moves,
+lowered memories export as `#pagesize=` — typed by hand, as 1.6.0 and 1.7.0 were. It carries the day's
+work: DG1–DG6, Q10–Q13, `LowerCustomPageSizes` (L1, L2, P1), `proposals/` in the gate —
+`CHANGELOG.md` § 1.8.0. The pattern, unchanged:
+
+1. every change merged after a green gate on its committed tree; release notes merged UNBUMPED
+   (`fb5068e47`); `main` pushed (18 commits) — CI green on all four runtime legs, Node 22.18
+   included (the first CI run of `scripts/cli-smoke.ts`, which this machine cannot run on 22.18),
+   Auto-tag a no-op;
+2. JSR checked first (cache-busted): 1.8.0 absent, latest 1.7.2; 1.8.0 typed in `deno.json` and
+   `main.ts`, `version_sync.test.ts` green;
+3. `deno task release` — cold type check and entry check passed; bump committed, tagged, branch and
+   tag pushed together.
+
+Verified from JSR itself (a scratch directory, `--minimum-dependency-age=0`): `--version` prints
+`binaryang 1.8.0`; the published `wat2wasm` refuses `invalid.wat` with upstream's exact line
+(`invalid.wat:5:6: error: type mismatch in i32.add, …`, `^^^^^^^` under the word) and exit 1, and
+`--no-check` writes it. CI and Publish were followed through the public GitHub API by a Deno script;
+⚠️ its `head_sha` needs the FULL hash — a short one matches no run and waits forever.
 
 ## ✅ 1.7.2 — a patch by `deno task bump`, released 2026-09-29
 
