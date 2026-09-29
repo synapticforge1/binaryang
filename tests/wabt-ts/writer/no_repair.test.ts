@@ -125,8 +125,23 @@ describe('T13 — a limits value is not truncated into range', () => {
     // bytes. Read as u32 it was "integer too large" (malformed); the spec and
     // wasm-tools call the module invalid ("memory size must be at most").
     const bytes = new Uint8Array([
-      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, // header
-      0x05, 0x07, 0x01, 0x00, 0x80, 0x80, 0x80, 0x80, 0x10, // memory: no max, min 2^32
+      0x00,
+      0x61,
+      0x73,
+      0x6d,
+      0x01,
+      0x00,
+      0x00,
+      0x00, // header
+      0x05,
+      0x07,
+      0x01,
+      0x00,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x10, // memory: no max, min 2^32
     ]);
     const msg = formatErrors(wasmValidate(bytes, { features: allFeatures() }).errors);
     assert(msg.includes('initial pages (4294967296) must be <= (65536)'), msg);
@@ -137,8 +152,29 @@ describe('T13 — a limits value is not truncated into range', () => {
     // binary-leb128.wast's "integer representation too long" cases for a
     // 32-bit memory's limits are 11-byte LEBs, so u64 limits keep them malformed.
     const bytes = new Uint8Array([
-      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-      0x05, 0x0d, 0x01, 0x00, 0x82, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00,
+      0x00,
+      0x61,
+      0x73,
+      0x6d,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x05,
+      0x0d,
+      0x01,
+      0x00,
+      0x82,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x00,
     ]);
     const v = wasmValidate(bytes, { features: allFeatures() });
     assertEquals(v.result, Result.Error);
