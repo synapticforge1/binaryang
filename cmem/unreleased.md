@@ -1,7 +1,7 @@
 # Unreleased on `main` — what the next release note must say
 
-**Nothing, as of 2026-09-29.** `main` = `v1.8.0` plus cmem-only commits (check it rather than trust
-this line: `git log --oneline v1.8.0..main -- src/ main.ts deno.json`). `deno.json` reads 1.8.0; the
+**Nothing, as of 2026-09-29.** `main` = `v1.8.1` plus cmem-only commits (check it rather than trust
+this line: `git log --oneline v1.8.1..main -- src/ main.ts deno.json`). `deno.json` reads 1.8.1; the
 version line arms a release ([publishing.md](publishing.md)), so the next bump is the owner's
 decision, never a side effect of work.
 
@@ -12,10 +12,11 @@ removed, wasmtk's items 1–5 with custom descriptors, `--converge`, the minify 
 complete), **1.7.1** (u64 limits and the 1-byte-page cap), **1.7.2** (`wasm2wat` text as upstream /
 wasm-tools: N10, W18, M2a; `array.new_default` defaultability) or **1.8.0** (diagnostics DG1–DG6,
 the `wat2wasm` CLI validating by default, the reader stopping at its first error, Q10–Q13,
-`LowerCustomPageSizes` with its `#pagesize=` exports, `wasm-opt` validating its input). The public
+`LowerCustomPageSizes` with its `#pagesize=` exports, `wasm-opt` validating its input) or **1.8.1**
+(wasmtk's § 20: L3 trap kind, L4 placeholder, C7 `getFunctionInfo` shape). The public
 summary of each is `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field
 by field: `git show 769b4d3c0:cmem/unreleased.md` (to 1.7.0), this file at `7aa54e95c` (1.7.1 →
-1.7.2), and at `fb5068e47` (1.8.0).
+1.7.2), at `fb5068e47` (1.8.0), and at `99f2a5b16` (1.8.1).
 
 ## How to use this file
 
@@ -30,15 +31,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.8.0
+## Since 1.8.1
 
-wasmtk's § 20 ([handoffs.md](handoffs.md)), all for 1.8.1 — owner: "fix all three now and then
-release to 1.8.1". Public text: `CHANGELOG.md` § 1.8.1.
-
-- ⚠️ **BREAKING by the rule, released as a PATCH by the owner's decision — `getFunctionInfo`**
-  (C7): `params` / `results` are `createType(…)` (`none`, one type, an array for a tuple), as
-  binaryen.js; they were always arrays.
-- **Silent fix — a lowered out-of-bounds access traps as out of bounds** (L3), not `unreachable`.
-- **Behaviour — the lowered-memory placeholder** (L4): an exported lowered memory also exports an
-  immutable i32 global under its original name; a lowered importer imports it first. One more
-  export and import per lowered memory, which a host passes along.
+(none)
