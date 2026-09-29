@@ -7,8 +7,9 @@
 // and `wasm-tools print --fold-instructions` both print (measured
 // 2026-09-29). Ours closed each folded expression with a SPACE, so siblings
 // ran on: `(i32.const 0) (i32.const 1)) (i32.store`. Text only, never bytes.
-// A constant expression in a declaration stays on one line, as upstream's
-// does: `(global i32 (i32.const 7))`.
+// A constant expression in a declaration stays on one line, as wasm-tools
+// prints it (upstream wabt breaks it; W18 (b)). An unnamed carrier carries
+// `;; label = @N` folded, as linear (since 2026-09-29).
 
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertStringIncludes } from '@std/assert';
@@ -28,7 +29,7 @@ const SRC = `(module
       (i32.store (i32.const 8) (i32.const 3)))
     (i32.load (i32.const 0))))`;
 
-/** Upstream's and wasm-tools' folded layout of the body (they add a label comment on the unnamed `if`). */
+/** Upstream `wasm2wat --fold-exprs`' layout of the body, exactly (wasm-tools: one space before `;;`). */
 const BODY = `  (func $f (type 0) (param $x i32) (result i32)
     (i32.store
       (i32.const 0)
@@ -36,7 +37,7 @@ const BODY = `  (func $f (type 0) (param $x i32) (result i32)
     (i32.store
       (i32.const 4)
       (local.get $x))
-    (if
+    (if  ;; label = @1
       (local.get $x)
       (then
         (drop
@@ -57,6 +58,36 @@ describe('folded wasm2wat puts each sibling on its own line', () => {
 
   it('lays the body out as upstream and wasm-tools do', () => {
     assertStringIncludes(wasm2wat(bytes, { fold: true }).text, BODY);
+  });
+
+  it('an unnamed carrier says its label, folded: the @N a branch names', () => {
+    // Folded wrote no `;; label = @N`, so `br 1 (;@2;)` pointed at an `@2`
+    // the text never showed. Now every unnamed block / loop / if / try_table
+    // carries it, as linear always did, with the SAME number a branch prints.
+    const text = wasm2wat(
+      wat2wasm(
+        `(module (func (param i32) (result i32)
+        (block (result i32)
+          (loop
+            (drop (br_if 1 (i32.const 5) (local.get 0)))
+            (if (local.get 0) (then (br 1))))
+          (i32.const 9))
+        (block (try_table (catch_all 0) (nop)))))`,
+        { textForm: false },
+      ).binary,
+      { fold: true },
+    ).text;
+    for (
+      const want of [
+        '(block (result i32)  ;; label = @1',
+        '(loop  ;; label = @2',
+        '(br_if 1 (;@1;)',
+        '(if  ;; label = @3',
+        '(br 1 (;@2;)',
+        '(try_table  ;; label = @2',
+        '(catch_all 0 (;@1;))',
+      ]
+    ) assertStringIncludes(text, want);
   });
 
   it('keeps a constant expression in a declaration on one line, both modes', () => {

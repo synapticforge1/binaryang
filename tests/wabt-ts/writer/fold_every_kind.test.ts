@@ -98,7 +98,8 @@ describe('folded wasm2wat folds every instruction kind', () => {
         '(memory.init $d (i32.const 0) (i32.const 0) (i32.const 5))',
         '(call_ref $f (ref.func $one))',
         '(br_on_null $l (local.get 0))',
-        '(try_table (catch_all_ref $h) (throw $e))',
+        // An unnamed carrier's `;; label = @N`, folded as linear (2026-09-29).
+        '(try_table ;; label = @2 (catch_all_ref $h) (throw $e))',
       ]
     ) assert(text.includes(want), `${want}\n${text}`);
   });
@@ -121,7 +122,8 @@ describe('folded wasm2wat folds every instruction kind', () => {
     // Written linearly; this is about the FOLDED writer, so S7's record is set aside.
     const text = writeWatModule(p.module, { fold: true, asWritten: false });
     assert(!text.includes('()'), text);
-    assert(/\(if\s+\(then\)\)/.test(text), text);
+    // An unnamed `if` carries its `;; label = @N` folded too (2026-09-29).
+    assert(/\(if\s+;; label = @\d+\s+\(then\)\)/.test(text), text);
     assert(!/\n\s*\n/.test(text.trim()), `no blank line: ${JSON.stringify(text)}`);
   });
 
