@@ -143,6 +143,10 @@ export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2W
     // already printed as `$outer`. A caller that PARSED text must not set this:
     // there an index is what the author wrote.
     namedLabelTargets: true,
+    // The same reasoning for every other reference: from a binary an index is
+    // all there is, so `call $f` beside `(func $f …)` — upstream `wasm2wat`
+    // runs `ApplyNames` for exactly this, and `wasm-tools print` agrees.
+    namedReferences: true,
   });
 
   return { text, errors, result: Result.Ok };

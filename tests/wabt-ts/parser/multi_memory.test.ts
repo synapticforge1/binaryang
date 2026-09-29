@@ -168,7 +168,9 @@ describe('multi-memory — round-trip', () => {
     const { text, errors } = wasm2wat(binary);
     if (hasErrors(errors)) throw new Error(formatErrors(errors));
     assert(text);
-    assert(/i32\.store 1/.test(text), `expected an explicit memory index:\n${text}`);
+    // `$m1`: a reference to a named memory prints its name (2026-09-29); the
+    // index form is pinned below, read without the name section.
+    assert(/i32\.store \$m1/.test(text), `expected an explicit memory index:\n${text}`);
     const inst = await instantiate(text);
     assertEquals((inst.exports.distinct as () => number)(), 1234);
     assertEquals((inst.exports.cp as () => number)(), 1234);
@@ -180,16 +182,22 @@ describe('multi-memory — round-trip', () => {
   });
 
   it('emits memory.init in TEXT operand order (memory first)', () => {
-    const { text } = wasm2wat(compile(TWO_MEMS));
-    assert(text);
     // Folded since divergence W11 (`(memory.init 1 0 …`); linear before. The
-    // immediate order is the point, in either form.
-    const line = text.split('\n').map((l) => l.trim().replace(/^\(/, '')).find((l) =>
-      l.startsWith('memory.init')
+    // immediate order is the point, in either form — and with names or
+    // without (references print their target's name since 2026-09-29).
+    const memoryInit = (text: string) => {
+      const line = text.split('\n').map((l) => l.trim().replace(/^\(/, '')).find((l) =>
+        l.startsWith('memory.init')
+      );
+      assert(line, 'expected a memory.init in the output');
+      return line.replace(/\)+$/, '').trim();
+    };
+    // $m1 is memory 1 and $d0 is data segment 0.
+    assertEquals(memoryInit(wasm2wat(compile(TWO_MEMS)).text), 'memory.init $m1 $d0');
+    assertEquals(
+      memoryInit(wasm2wat(compile(TWO_MEMS), { readDebugNames: false }).text),
+      'memory.init 1 0',
     );
-    assert(line, 'expected a memory.init in the output');
-    // $m1 is memory 1 and $d0 is data segment 0 -> "memory.init 1 0".
-    assertEquals(line.replace(/\)+$/, '').trim(), 'memory.init 1 0');
   });
 });
 
