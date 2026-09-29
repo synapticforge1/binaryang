@@ -1,7 +1,7 @@
 # Unreleased on `main` — what the next release note must say
 
-**Nothing, as of 2026-09-29.** `main` = `v1.7.1` plus cmem-only commits (check it rather than trust
-this line: `git log --oneline v1.7.1..main -- src/ main.ts deno.json`). `deno.json` reads 1.7.1; the
+**One fix, as of 2026-09-29** — § "Since 1.7.1" (check it rather than trust this line:
+`git log --oneline v1.7.1..main -- src/ main.ts deno.json`). `deno.json` reads 1.7.1; the
 version line arms a release ([publishing.md](publishing.md)), so the next bump is the owner's
 decision, never a side effect of work.
 
@@ -28,4 +28,7 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.7.1
 
-(none)
+- **Behaviour — `array.new_default` refuses an element type with no default** (`d6b487c2d`).
+  `array.new_default` of a `(ref $t)` array validated; `wasm-validate` now rejects it
+  ("array.new_default: field 0 of type N is not defaultable"), as wasm-tools and V8 do. A module
+  that relied on it was already refused by every engine. No bytes move.
