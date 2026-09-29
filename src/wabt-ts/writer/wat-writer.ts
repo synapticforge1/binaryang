@@ -392,9 +392,21 @@ class WatWriter extends ModuleContext {
   // Core emit helpers
   // -------------------------------------------------------------------------
 
+  /**
+   * Inside a DECLARATION's constant expression — a global's init, a segment
+   * offset, an element item, a table initializer — the whole expression is
+   * one line, as `wasm-tools print` writes it in both modes:
+   * `(global $g i32 (i32.add (global.get $b) (i32.const 8)))`. While this is
+   * above zero a pending newline is written as a space, so the instruction
+   * writers need not know where they are. (Upstream wabt breaks such an
+   * expression across lines, one instruction per line; the two oracles
+   * disagree, and wasm-tools' is the readable one.)
+   */
+  private oneLine = 0;
+
   private flushNextChar(): void {
     if (this.nextChar === NC.None) return;
-    if (this.nextChar === NC.Space) {
+    if (this.nextChar === NC.Space || this.oneLine > 0) {
       this.out.push(' ');
     } else {
       // Newline or ForceNewline
@@ -800,7 +812,9 @@ class WatWriter extends ModuleContext {
     // is why `(global anyref (ref.i31 (i32.const 1)))` did not round-trip.
     // A constant expression is `instr*`; the linear form needs no wrapper and
     // is what the parser reads back.
+    this.oneLine++;
     this.writeExprList(exprs);
+    this.oneLine--;
     this.nextChar = NC.Space;
   }
 
@@ -819,17 +833,21 @@ class WatWriter extends ModuleContext {
     // abbreviation `(ref.func 0)` only works when the element expression is a
     // SINGLE instruction — and one expression tree can be several
     // (`(ref.i31 (i32.const 1))` is two), so `item` is used uniformly.
+    this.oneLine++;
     this.openSpace('item');
     this.writeExprList(exprs);
     this.closeSpace();
+    this.oneLine--;
   }
 
   /** Called for ACTIVE segments only: an empty or missing offset still prints `(offset)`. */
   private writeOffsetExpr(r: RegionExpr | undefined): void {
     const exprs = r?.children ?? [];
+    this.oneLine++;
     this.openSpace('offset');
     this.writeExprList(exprs);
     this.closeSpace();
+    this.oneLine--;
   }
 
   // -------------------------------------------------------------------------
@@ -1727,7 +1745,7 @@ class WatWriter extends ModuleContext {
       this.indent += 2;
       new ExprVisitor(d).visitShallow(e, () => {});
       this.writeItems(item.inner);
-      this.close(NC.Space);
+      this.close(NC.Newline);
       return;
     }
     const [first = [], ...rest] = item.arms;
@@ -1756,7 +1774,7 @@ class WatWriter extends ModuleContext {
         this.indent += 2;
         this.writeItems(first);
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return;
       }
       case 'try_table': {
@@ -1776,7 +1794,7 @@ class WatWriter extends ModuleContext {
         this.beginBlock(this.shownLabel(e.label), LabelType.TryTable, this.declaredBlockType(e));
         this.writeItems(first);
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return;
       }
       case 'try': {
@@ -1802,7 +1820,7 @@ class WatWriter extends ModuleContext {
         this.beginBlock(this.shownLabel(e.label), LabelType.Try, this.declaredBlockType(e));
         this.indent += 2;
         this.puts('(', NC.None);
-        this.putsSpace('do');
+        this.putsNewline('do');
         this.indent += 2;
         this.writeItems(first);
         this.close(NC.Newline);
@@ -1817,9 +1835,9 @@ class WatWriter extends ModuleContext {
             this.puts('(', NC.None);
             if (c.tag !== undefined) {
               this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
-              this.writeVar(c.tag, 'tag', NC.Space);
+              this.writeVar(c.tag, 'tag', NC.Newline);
             } else {
-              this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
+              this.putsNewline(c.isRef ? 'catch_all_ref' : 'catch_all');
             }
             this.indent += 2;
             this.writeItems(rest[i] ?? []);
@@ -1827,7 +1845,7 @@ class WatWriter extends ModuleContext {
           });
         }
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return;
       }
       case 'if': {
@@ -1851,20 +1869,20 @@ class WatWriter extends ModuleContext {
         this.beginBlock(this.shownLabel(e.label), LabelType.If, this.declaredBlockType(e));
         if (item.inner.length > 0) this.newline(true);
         this.puts('(', NC.None);
-        this.putsSpace('then');
+        this.putsNewline('then');
         this.indent += 2;
         this.writeItems(first);
-        this.close(NC.Space);
+        this.close(NC.Newline);
         if (e.ifFalse !== null && e.ifFalse.children.length > 0) {
           this.newline(true);
           this.puts('(', NC.None);
-          this.putsSpace('else');
+          this.putsNewline('else');
           this.indent += 2;
           this.writeItems(elseArm);
-          this.close(NC.Space);
+          this.close(NC.Newline);
         }
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return;
       }
     }
@@ -1903,22 +1921,29 @@ class WatWriter extends ModuleContext {
       if (constExprOperands(operand) === null) return false;
     }
 
-    this.puts('(', NC.None);
-    this.indent += 2;
-    // A leaf is a head with zero operands, so both cases are the same write.
-    //
-    // 🔧 The leaf used to go through `writeExprList([e])`, on the reasoning that
-    // "a leaf's linear rendering IS its head". That held only while linear was
-    // the default. Once folding became the default in 1.5.4 that call emitted
-    // `(ref.func 0)` — already parenthesised — inside the parens opened here,
-    // giving `(table $T0 10 funcref ((ref.func 0)))`, which does not parse.
-    // `writeInstrHead` is what was meant: the head alone, no wrapper.
-    this.writeInstrHead(e);
-    for (const operand of operands) {
-      if (!this.writeFoldedConstExpr(operand)) return false;
+    // A table initializer is one line, as every declaration's constant
+    // expression is (`oneLine`); released on EVERY exit, early ones included.
+    this.oneLine++;
+    try {
+      this.puts('(', NC.None);
+      this.indent += 2;
+      // A leaf is a head with zero operands, so both cases are the same write.
+      //
+      // 🔧 The leaf used to go through `writeExprList([e])`, on the reasoning
+      // that "a leaf's linear rendering IS its head". That held only while
+      // linear was the default. Once folding became the default in 1.5.4 that
+      // call emitted `(ref.func 0)` — already parenthesised — inside the parens
+      // opened here, giving `(table $T0 10 funcref ((ref.func 0)))`, which does
+      // not parse. `writeInstrHead` is what was meant: the head alone.
+      this.writeInstrHead(e);
+      for (const operand of operands) {
+        if (!this.writeFoldedConstExpr(operand)) return false;
+      }
+      this.close(NC.Space);
+      return true;
+    } finally {
+      this.oneLine--;
     }
-    this.close(NC.Space);
-    return true;
   }
 
   /**
@@ -2218,7 +2243,7 @@ class WatWriter extends ModuleContext {
         if (!this.writeFoldedExpr(op)) return false;
       }
     }
-    this.close(NC.Space);
+    this.close(NC.Newline);
     return true;
   }
 
@@ -2243,7 +2268,7 @@ class WatWriter extends ModuleContext {
     this.puts('(', NC.None);
     this.indent += 2;
     new ExprVisitor(this.makeDelegate()).visitShallow(e, () => {});
-    this.close(NC.Space);
+    this.close(NC.Newline);
     return true;
   }
 
@@ -2296,7 +2321,7 @@ class WatWriter extends ModuleContext {
         this.indent += 2;
         this.writeExprList(isLoop ? e.body.children : e.children);
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return true;
       }
       case 'try_table': {
@@ -2315,7 +2340,7 @@ class WatWriter extends ModuleContext {
         this.beginBlock(this.shownLabel(e.label), LabelType.TryTable, this.declaredBlockType(e));
         this.writeExprList(e.body.children);
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return true;
       }
       case 'try': {
@@ -2334,7 +2359,7 @@ class WatWriter extends ModuleContext {
         this.indent += 2;
 
         this.puts('(', NC.None);
-        this.putsSpace('do');
+        this.putsNewline('do');
         this.indent += 2;
         this.writeExprList(e.body.children);
         this.close(NC.Newline);
@@ -2350,9 +2375,9 @@ class WatWriter extends ModuleContext {
             this.puts('(', NC.None);
             if (c.tag !== undefined) {
               this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
-              this.writeVar(c.tag, 'tag', NC.Space);
+              this.writeVar(c.tag, 'tag', NC.Newline);
             } else {
-              this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
+              this.putsNewline(c.isRef ? 'catch_all_ref' : 'catch_all');
             }
             this.indent += 2;
             this.writeExprList(c.body.children);
@@ -2361,7 +2386,7 @@ class WatWriter extends ModuleContext {
         }
 
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return true;
       }
       case 'if': {
@@ -2386,20 +2411,20 @@ class WatWriter extends ModuleContext {
           (e.params?.values ?? []).some((v) => v.kind !== 'pop');
         if (wroteHead) this.newline(true);
         this.puts('(', NC.None);
-        this.putsSpace('then');
+        this.putsNewline('then');
         this.indent += 2;
         this.writeExprList(e.ifTrue.children);
-        this.close(NC.Space);
+        this.close(NC.Newline);
         if (e.ifFalse !== null && e.ifFalse.children.length > 0) {
           this.newline(true);
           this.puts('(', NC.None);
-          this.putsSpace('else');
+          this.putsNewline('else');
           this.indent += 2;
           this.writeExprList(e.ifFalse.children);
-          this.close(NC.Space);
+          this.close(NC.Newline);
         }
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return true;
       }
       default:

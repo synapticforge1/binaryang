@@ -250,7 +250,8 @@ and we follow wabt there. Scripts: `wt-oracle.ts`, `wt-legacy.ts` in the session
   `call $foo`. Branches: named since N8. Every other reference: named since 2026-09-29
   (`4d6dec1d3`, register N10) — resolved through the same `shown` rule as its definition, never a
   name two entities share.
-- ⬚ folded siblings share a line (`…)))) (if`) — open-work.md.
+- ✅ folded siblings shared a line (`…)))) (if`) — each starts its own line since 2026-09-29
+  (`bee199092`, register W18), as upstream and wasm-tools print them.
 
 ## ✅ Owner decisions (2026-09-11)
 
