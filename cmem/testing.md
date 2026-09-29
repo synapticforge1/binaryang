@@ -777,7 +777,15 @@ already reads wasm-tools'). **`translate-eh`**: `wasm-tools` fails all four `leg
 ("unknown operator" — it no longer parses `try` / `catch` / `delegate`), so `wast2json` is the only
 external splitter for them. Dropping it means splitting those four with our own
 `parseWastScript` (not independent of what is tested — but V8, not we, judges the result) or
-retiring them. Owner's decision; nothing changed.
+retiring them.
+
+🗓️ **OWNER, 2026-09-28: KEEP `wast2json` — for `translate-eh`.** Its value is the coverage of the
+translate-to-exnref pass (then `-Oz`) on the legacy files, which nothing else has: wasmtk's gate
+runs those four files too (its own splitter, no `wast2json`; baselined 15 / 10 / 39 / 25 passes,
+0 skips) but only AS WRITTEN — never translated — and through its pinned binaryang, not `main`.
+Nothing binaryang ships runs `wast2json` (no reference in `src/`). Checked the same day against 5a
+and the decommission: `translate-eh` needed no change (its import was rewritten by the relocation;
+gate exit 0).
 
 ## The 1.5.5 passes — the code lens, summarized
 
