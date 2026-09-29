@@ -1,5 +1,62 @@
 # Changelog
 
+## 1.8.0
+
+A minor release: **diagnostics you can act on, `wat2wasm` validating as upstream does, the spec's
+`proposals/` in the test gate, and custom page sizes on V8.** No valid module's bytes change
+through `wat2wasm`, `wasm2wat` or a plain read and write.
+
+⚠️ **Defaults change — read these first:**
+
+- **The `wat2wasm` CLI validates by default, as upstream's does.** An invalid module is an error at
+  its `line:col` and exits 1, where it was written silently. `--no-check` restores the old
+  behaviour. Validation uses upstream's default feature set, so a module using GC, exceptions, tail
+  calls, memory64, multi-memory … needs `--enable-<feature>` or `--enable-all`, as with
+  `wasm-validate`. An unknown option is now refused, where it was ignored. The `wat2wasm()` library
+  function does not validate unless asked (`validate: true`, with `features`).
+- **The binary reader stops at its first error** (`ReadBinaryOptions.stopOnFirstError` now
+  defaults to `true`, as upstream; pass `false` to collect more), and **`wasmValidate` does not
+  validate a module that failed to decode.** A malformed binary reports one error, the real one,
+  where it reported up to 9. `errors[0]` and every `result` are unchanged.
+- **Diagnostic text changes.** Binary diagnostics print `file:0000025` (they printed `file:0:0`);
+  a location with neither a line nor an offset prints the filename alone. A type mismatch names its
+  instruction (`in i32.add`, not `in opcode`). If you parse our diagnostic text, expect it to move.
+
+### Added
+
+- **`LowerCustomPageSizes`** (`wasm-opt --lower-custom-page-sizes`): a memory with a custom page
+  size becomes a 64 KiB-page memory with explicit bounds checks and a `<memory>#pages` global, so
+  V8 — which has no custom-page-sizes support — runs the module with the proposal's behaviour,
+  traps and `memory.grow` included. A lowered memory is exported and imported as
+  `<name>#pagesize=<ps>` (e.g. `mem#pagesize=1`), its size beside it as `<name>#pages`: a host reads
+  `exports['mem#pagesize=1']`, and a native 64 KiB-page importer does not link to it, as the
+  proposal requires. Shared custom-page memories are refused.
+- **Source line and caret under text diagnostics**, as upstream's tools print them:
+  `formatErrors(list, ErrorFormat.Long, source)`, used by the `wat2wasm` and `wasm-opt` CLIs. The
+  caret underlines the whole token (new optional `Location.endColumn`), and points at an unknown
+  operator itself, not the `(` before it.
+- `formatLocation`; the `wat2wasm` options `validate` and `features`.
+
+### Changed
+
+- **`wasm-opt` validates its input** (`validate`, default true; `--no-validate` skips both input
+  and output checks, as upstream's `--no-validation`). An invalid module is refused as `input module
+  is not valid:` with located diagnostics, where it was optimized and then reported as an optimizer
+  failure. A WAT input is validated as text, so its errors carry `line:col` and the source line.
+
+### Fixed
+
+- **Optimization emitted INVALID modules around `br_on_*`**: a value on the stack under a
+  `br_on_cast` (any `br_on_*`) that a later instruction consumes was spilled at every `-O` level,
+  and at `-O3` `Inlining` moved a `br_on` operand, or a multi-result operand, into its wrapper
+  block. The output failed to validate — loud, never silently wrong.
+- **`--flatten` emitted invalid modules around `struct.new_desc`**: allocations are now typed
+  exact in a module that uses custom descriptors or exact types, as the proposal types them.
+- **The validator took no label by name**: `(block $l (br $l))` from the text parser threw "var is
+  not resolved", for every label kind.
+- `wasm-opt -o -` (stdout) was refused as a missing output path; a bad `wasm-opt` argument printed
+  a stack trace.
+
 ## 1.7.2
 
 A patch release. **`wasm2wat` prints the text upstream `wasm2wat` and `wasm-tools` print**, and one
