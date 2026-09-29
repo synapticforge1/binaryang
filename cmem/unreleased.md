@@ -64,7 +64,9 @@ DG1–DG4 in [divergences.md](divergences.md)). No byte of any output moves (bas
   page size become 64 KiB-page memories with a `<memory>#pages` global and explicit bounds checks,
   so V8 — which has no custom-page-sizes support — runs them with the proposal's behaviour. An
   exported lowered memory also exports `<name>#pages`; a lowered import imports it. Shared
-  custom-page memories are refused. Known difference: P1 ([divergences.md](divergences.md)).
+  custom-page memories are refused. `memory.grow` zero-fills the rounding slack it exposes (L2), so
+  bytes a host wrote past the logical size never come back as fresh memory. Known difference: P1
+  ([divergences.md](divergences.md)).
 - **Silent fix — `wasm-opt -o -`** (stdout) was refused as "a missing output path"; and a bad
   argument now prints one line instead of a stack trace.
 - Repo only: `deno task proposals` (the testsuite's `proposals/` in the gate, V8 experimental
