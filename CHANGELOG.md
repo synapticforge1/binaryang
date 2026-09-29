@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.7.1
+
+A patch release: **a memory or table limit above 2^32-1 is invalid, not unencodable.** It
+fixes item 1 of the wasmtk team's report of 2026-09-29 (against 1.7.0).
+
+### Fixed — behaviour
+
+- **Every memory and table limit is a u64 in the binary**, as Wasm 3.0 specifies, whatever the
+  index type. `(memory 0x1_0000_0000)` or `(table 0x1_0000_0000 funcref)` used to fail in the
+  encoder (`toBinary`, `wat2wasm`: "u32 LEB128 out of range"). Now it is written as given and
+  `wasm-validate` rejects it as invalid, as `memory.wast` and `table.wast` expect and wasm-tools
+  does. Reading such a limit gives the same verdict, where it said malformed ("integer too large").
+  No valid module's bytes change.
+- **A 32-bit memory with 1-byte pages is capped at 2^32-1 pages** (`memory_max.wast`, from the
+  custom-page-sizes proposal). `(memory 0x1_0000_0000 (pagesize 1))` validated.
+
+Not changed, and reported with it: a branch hint before an instruction that is not a branch
+(`i32.eq`) is already rejected by `wasmValidate` ("invalid target"). `toBinary` encodes without
+validating, as upstream's does.
+
 ## 1.7.0
 
 A minor release with **one breaking change**: the package no longer reaches upstream binaryen.
