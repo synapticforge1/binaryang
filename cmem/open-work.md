@@ -6,7 +6,7 @@ item closes, its record goes to the topic file and its line leaves here.
 
 **State, 2026-09-29:** 🚀 **`binaryang@1.7.1` is published** (tag `v1.7.1`, `ced5ca508`;
 [publishing.md](publishing.md) § 1.7.1) and `main` = the release plus cmem. Nothing is unreleased
-([unreleased.md](unreleased.md)). **21 open items, none blocking**, numbered below. Re-derive any
+([unreleased.md](unreleased.md)). **20 open items, none blocking**, numbered below. Re-derive any
 number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -140,11 +140,10 @@ fatigue.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
-21. ⬚ **§ 11** (adopting their conditional-not-clearance form and their alias invariant) is
-    outbound.
-
-Sent 2026-09-29: § 17, the reply to their 1.7.0 letter (item 1 fixed in 1.7.1). Their gate
-re-recorded on 1.7.1 is theirs to send; when it comes, check that the 11 skips became passes.
+Nothing outbound is open. Sent 2026-09-29: § 17, the reply to their 1.7.0 letter (item 1 fixed in
+1.7.1). Their gate re-recorded on 1.7.1 is theirs to send; when it comes, check that the 11 skips
+became passes. § 11 was sent and answered (their reply reached us 2026-09-29) — closed in
+[handoffs.md](handoffs.md).
 
 ## Not tasks, by decision
 
