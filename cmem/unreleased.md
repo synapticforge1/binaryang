@@ -37,4 +37,5 @@ contains ([handoffs.md](handoffs.md)).
   `(memory 0x1_0000_0000 (pagesize 1))` validated; `memory_max.wast` calls it invalid.
 - Not a change: their item 2 (a branch hint on `i32.eq`) — `wasmValidate` already rejects it.
 
-A patch (1.7.1): nothing is removed or renamed.
+A patch (1.7.1): nothing is removed or renamed. Release notes: `CHANGELOG.md` § 1.7.1 (owner,
+2026-09-29: "lets release 1.7.1").
