@@ -32,6 +32,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 16 | 2026-09-29 | wasmtk (in) | against 1.7.0: all five § 14 items confirmed fixed (`return_call_indirect.wast` 28 → 78, `name_annot` 0 → 3, `branch_hint` 1 → 2); gate **64,434 passed / 0 failed / 105 skipped**, 94 V8's, 11 ours: (1) a 32-bit limit above 2^32-1 failed in the ENCODER, not the validator (10 skips: `memory.wast` 6, `table.wast` 3, `memory_max.wast` 1); (2) a branch hint before `i32.eq` accepted (1 skip) | (1) ✅ reproduced and FIXED (`1fa6eb21b`): limits are u64 on the wire; found with it, a 1-byte-page cap one too high — [divergences.md](divergences.md). (2) NOT reproduced: `wasmValidate` rejects it ("invalid target"); `toBinary` does not validate. Reply § 17 |
 | 17 | 2026-09-29 | wasmtk (out — ✅ SENT by the owner, 2026-09-29) | item 1 fixed and PUBLISHED in 1.7.1 (checked from JSR); item 2: validate with `wasmValidate` | ✅ answered by § 18: all 11 skips pass |
 | 18 | 2026-09-29 | wasmtk (in) | on 1.7.1: gate **64,473 passed / 0 failed / 66 skipped** (1.7.0: 64,434 / 0 / 105), measured in two steps so each gain has one cause. Pinning 1.7.1 alone: +9 (`memory.wast` 72 → 78, `table.wast` 23 → 26 — item 1). Then `wasmValidate(bytes, allFeatures)` as a second `assert_invalid` oracle wherever V8 cannot judge (V8 accepts: it ignores code metadata; or V8 refuses only for its own limits: custom page sizes, its memory64 / table caps), counted only when `readWasm` decodes the same bytes: +30 — item 2 (`branch_hint` 2 → 3), item 1's 10th (`memory_max` pagesize-1), and 28 assertions V8 had left open (`custom-page-sizes-invalid` 3 → 19, `align` 136 → 140, `memory64` 55 → 59, `memory_max` 0 → 2, `memory_max_i64` 1 → 2, `table` 26 → 27, `table64` 1 → 2). The 66 left: 61 V8 (custom page sizes, `stringref`, its caps), 5 the vendored `threads` blocks we and V8 both accept, on purpose. **"None of the 66 is yours."** | ✅ closed — nothing asked. 🔑 **Independent evidence for our validator**: their runner validates every module the spec asserts VALID with `wasmValidate` and fails the gate on a rejection — **0 rejected across all 288 files**, and they inverted the guard (with `defaultFeatures()` it flags 3 valid GC modules in `br_on_cast.wast`). The same lesson from both sides this week: an oracle's verdict needs a positive control ([best-practices.md](best-practices.md)) |
+| 19 | 2026-09-29 | wasmtk (out — ⬚ DRAFT, for the owner to send) | 1.8.0 is out; checked against the three subpaths they pin (`compat/wabt`, `compat/binaryen`, `wasm-validate`) and their call shapes on the PUBLISHED package: no default change breaks their paths (they use no binaryang CLI; `parseWat` → `toBinary` still does not validate); `wasmValidate` no longer pools decode and validation errors, so their `readWasm` check in `binaryangInvalid` is no longer needed; `errors[0].message` names the instruction; the `br_on` optimizer fixes. New for them: `runPasses(["LowerCustomPageSizes"])` runs their skipped custom-page modules on V8 — verified through `readBinary` → `runPasses` → `emitBinary` — with the `#pagesize=` / `#pages` export naming explained | ⬚ awaiting the owner |
 
 ### § 15 — draft reply to wasmtk (2026-09-28)
 
@@ -136,6 +137,68 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > on 1.7.0 or 1.7.1.
 >
 > Together that should account for all 11. We will wait for your re-recorded gate on 1.7.1.
+
+### § 19 — to wasmtk: 1.8.0 is out (2026-09-29, DRAFT — for the owner to send)
+
+> From binaryang, 2026-09-29. Nothing here needs a reply unless you want one.
+>
+> **`binaryang@1.8.0` is published.** It is a minor, because several defaults change. We checked
+> each change against the three subpaths your `deno.json` pins at 1.7.1 (`compat/wabt`,
+> `compat/binaryen`, `wasm-validate`), and ran your call shapes against the published package, not
+> our tree. **None of the default changes breaks those paths.** Moving the pin is your call, as
+> always.
+>
+> **What reaches you, and what does not**
+>
+> - **The `wat2wasm` CLI now validates by default**, as upstream's does (`--no-check` to skip,
+>   `--enable-*` for proposals). You do not use our CLI: `parseWat` → `toBinary` in `compat/wabt`
+>   still assembles without validating, exactly as before.
+> - **`wasmValidate` no longer validates a module that failed to decode**, and the reader stops at
+>   its first error. A truncated binary now gives one error, the real one, where it gave several.
+>   `errors[0]` and `result` are unchanged. Your `binaryangInvalid` in `src/wast.ts` says
+>   `wasmValidate` "pools decode and validation errors" and checks `readWasm` separately to tell
+>   them apart. That check is still correct, and on 1.8.0 it is no longer needed.
+> - **The text of `errors[0].message` changes for type mismatches**: it names the instruction
+>   (`type mismatch in i32.add, …`) where it said `in opcode`. It still contains the spec's "type
+>   mismatch". Binary diagnostics formatted with `formatErrors` now show their offset
+>   (`file:0000025`) where they printed `file:0:0`.
+> - **`compat/binaryen`'s `optimize()` had emitted INVALID modules** for a value on the stack
+>   under a `br_on_*` that later code consumes (every level), and at `-O3` for a call whose operand
+>   is a `br_on_*` or produces several values. It was loud (the output failed to validate), never
+>   silently wrong. If you have skipped anything for that, it should now pass.
+>
+> **Something new you may want: custom page sizes on V8**
+>
+> Your runner skips custom-page-size modules because V8 does not implement the proposal
+> (`src/engine.ts`, "custom page sizes"). 1.8.0 adds a pass that rewrites such a module into one V8
+> runs with the proposal's behaviour: 64 KiB pages underneath, the true size in a global, and a
+> bounds check on every access, so traps fall where the proposal puts them. Through the API you
+> already use, on the published package:
+>
+> ```ts
+> const m = lib.readBinary(bytes);          // compat/binaryen, as in src/binaryen.ts
+> m.runPasses(["LowerCustomPageSizes"]);    // or "lower-custom-page-sizes"
+> const out = m.emitBinary();               // V8 compiles and runs this
+> ```
+>
+> A `(memory 0 (pagesize 1))` module that V8 refuses as written runs after this: `size` 0,
+> `grow(3)` returns 0, `size` 3, and a load at byte 3 traps. Things to know before you use it:
+>
+> - **A lowered memory is exported as `<name>#pagesize=<ps>`** (e.g. `mem#pagesize=1`), with its
+>   size in custom pages beside it as `<name>#pages`. A host reads `exports['mem#pagesize=1']`,
+>   not `exports.mem`. This is deliberate: under its own name, a native 64 KiB-page module could
+>   import it and read past its logical size without a trap. The proposal calls that link an error,
+>   and with the rename it is one. Two lowered modules link to each other normally.
+> - Shared custom-page memories are refused.
+> - V8's own caps still apply. A memory64 module declaring more than V8's 262,144 pages is refused
+>   by V8, lowered or not.
+>
+> We gate it with the proposal's own suite, on V8: all 31 behavioural assertions of
+> `proposals/custom-page-sizes` hold in seven versions of each module (lowered as read, round
+> trip, `-O1` to `-Oz`), and both `assert_unlinkable`s fail to link. If you wire it into your
+> runner for that directory, we would like to hear what it does to your skip count.
+>
+> The full list is `CHANGELOG.md` § 1.8.0 in binaryang.
 
 ## Lessons the correspondence paid for
 
