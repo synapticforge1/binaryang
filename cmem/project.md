@@ -151,6 +151,20 @@ a caller-supplied binaryen.js (`BinaryenInterop`). Both are off by default and f
 binaryen installed. Keeping or removing that bridge is the owner's call (removal breaks the
 published `./interop` export and the `hybridMode` / `--hybrid` options — a minor).
 
+🗓️ **Owner, 2026-09-28:** external tools are FINE for testing and comparison; the claim is only
+that the END PRODUCT does not use them. The hybrid bridge counts as comparison. The statement, as
+it may be made publicly:
+
+> binaryang's reader, validator, writers, text tools and optimizer are entirely its own
+> TypeScript; it has no external dependencies beyond the standard Node and Deno packages. External
+> tools (`wast2json`, `wasm-tools`, upstream binaryen) are used only for testing and comparison.
+> The optional hybrid mode can hand optimization to an installed upstream `wasm-opt` for
+> comparison, but nothing uses it unless you turn it on.
+
+**How to apply:** before changing shipped code, keep it true — no tool spawned and no third-party
+import on a default path (re-measure with the greps of 2026-09-28: `Deno.(run|Command)` /
+`child_process` / non-relative imports in `src/` and `main.ts`).
+
 ## The convergence indicator
 
 **56 exported type names collide** across the two trees (`Type`, `ValueType`, `WasmModule`, `Token`,
