@@ -31,7 +31,7 @@ import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { WatInputError } from './read-wat.ts';
-import { ErrorFormat, formatErrors, hasErrors, unknownLocation } from '../../wabt-ts/core/error.ts';
+import { ErrorFormat, formatErrors, hasErrors } from '../../wabt-ts/core/error.ts';
 import { allFeatures } from '../../wabt-ts/core/feature.ts';
 import { wat2wasm } from '../../wabt-ts/tools/wat2wasm.ts';
 import { wasmValidate } from '../../wabt-ts/tools/wasm-validate.ts';
@@ -264,16 +264,15 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
  * blames the optimizer for the user's module, in V8's words, at an offset into
  * bytes the user never had (2026-09-29, open-work 16).
  *
- * A binary's diagnostics carry offsets into the user's own file. A WAT
- * input's would be offsets into the bytes it was assembled to, so they are
- * shown at the filename alone: the message names the instruction, and a
- * position into bytes the user never sees would only mislead.
+ * A BINARY input: its diagnostics carry offsets into the user's own file. A
+ * WAT input is validated as text by `wat2wasm` (`validate`), at `line:col` —
+ * since 2026-09-29; before, it was checked here as the bytes it was assembled
+ * to and shown at the filename alone, having no position the user could use.
  */
-function validateInput(bytes: Uint8Array, filename: string, isWat: boolean): void {
+function validateInput(bytes: Uint8Array, filename: string): void {
   const { errors } = wasmValidate(bytes, { filename, features: allFeatures() });
   if (!hasErrors(errors)) return;
-  const shown = isWat ? errors.map((e) => ({ ...e, loc: unknownLocation(filename) })) : errors;
-  throw new Error(`input module is not valid:\n${formatErrors(shown)}`);
+  throw new Error(`input module is not valid:\n${formatErrors(errors)}`);
 }
 
 function _nativeOptimize(
@@ -291,7 +290,9 @@ function _nativeOptimize(
   let input = inputBytes;
   if (isWat) {
     const text = new TextDecoder().decode(inputBytes);
-    const r = wat2wasm(text, { filename });
+    // Validated as TEXT, so an invalid module is reported at its `line:col`
+    // with the source line — as upstream, which validates its input.
+    const r = wat2wasm(text, { filename, validate: opts.validate });
     if (hasErrors(r.errors)) {
       throw new WatInputError(formatErrors(r.errors, ErrorFormat.Long, text));
     }
@@ -301,7 +302,8 @@ function _nativeOptimize(
   // which is this entry point's contract (`one_reader.test.ts`); only a
   // module that decodes is then judged valid or not.
   const module = readForPasses(input, filename);
-  if (opts.validate) validateInput(input, filename, isWat);
+  // A WAT input was validated as text above.
+  if (opts.validate && !isWat) validateInput(input, filename);
 
   const passOpts: PassOptions = {
     optimizeLevel: opts.optimizeLevel,

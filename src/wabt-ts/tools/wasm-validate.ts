@@ -38,12 +38,12 @@ import type { ValidateOptions } from '../validator/shared-validator.ts';
 import { checkBranchHints } from '../validator/branch-hints.ts';
 import { countImports } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
-import { defaultFeatures } from '../core/feature.ts';
 import type { Features } from '../core/feature.ts';
 import { combineResults, Result } from '../core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliRead } from '../../cli/io.ts';
+import { FeatureFlags } from '../../cli/feature-flags.ts';
 import process from 'node:process';
 
 // ---------------------------------------------------------------------------
@@ -126,19 +126,10 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   args = args.slice();
   const inputs: string[] = [];
 
-  // `--enable-<feature>` / `--disable-<feature>`, plus `--enable-all`.
-  //
-  // These exist because the validator now ENFORCES the feature set (T13.10);
-  // before that it accepted every proposal regardless, so there was nothing to
-  // turn on. Without these flags a gated validator would reject any GC, SIMD,
-  // threads, tail-call or EH module from the command line with no way to opt
-  // in — a worse regression than the bug being fixed.
-  const features = defaultFeatures();
-  const featureNames = Object.keys(features) as (keyof Features)[];
-  const byFlagName = new Map<string, keyof Features>(
-    // `multiMemory` -> `multi-memory`, matching wabt's spelling.
-    featureNames.map((n) => [n.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()), n]),
-  );
+  // `--enable-<feature>` / `--disable-<feature>`, plus `--enable-all`
+  // (`cli/feature-flags.ts`, shared with `wat2wasm`).
+  const flags = new FeatureFlags();
+  const features = flags.features;
 
   let bad = false;
   for (const arg of args) {
@@ -146,24 +137,13 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       inputs.push(arg);
       continue;
     }
-    if (arg === '--enable-all') {
-      for (const n of featureNames) features[n] = true;
-      continue;
-    }
-    const m = /^--(enable|disable)-(.+)$/.exec(arg);
-    const key = m ? byFlagName.get(m[2]!) : undefined;
-    if (!m || key === undefined) {
+    if (flags.apply(arg) !== true) {
       console.error(`wasm-validate: unknown option ${arg}`);
       bad = true;
-      continue;
     }
-    features[key] = m[1] === 'enable';
   }
   if (bad) {
-    console.error(
-      'features: --enable-all, or --enable-/--disable- one of:\n  ' +
-        [...byFlagName.keys()].join(' '),
-    );
+    console.error(flags.help());
     process.exit(1);
   }
 

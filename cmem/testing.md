@@ -118,7 +118,9 @@ which cost a real bug:
 - **Byte-identical round-trip is blind to a consistently-wrong opcode mapping** — reader and writer
   agree, so the bytes match.
 - **`wat2wasm` does not validate**, which is how the entire SIMD half of the validator sat dead for
-  four releases with four metrics green and none of them running the validator.
+  four releases with four metrics green and none of them running the validator. (The LIBRARY
+  function still does not by default; the CLI does since 2026-09-29, DG5 — and turning it on found
+  the validator had never taken a label by name: a text module was a population no metric fed it.)
 - **A metric measures the population its classifier hands it.** One denominator moved from 2737 to
   2683 purely because a case stopped being misclassified.
 - **The byte BASELINE pins our own output, so it is blind to every divergence older than itself.**
@@ -501,8 +503,8 @@ object to; a cut INSIDE the code section does.
   no person has read them yet.
 - **40 cases are still unlocated**: `duplicate export` (20) and index-out-of-range on exports — the
   export entries carry no location — plus 3 `unexpected end of binary` at offset 0.
-- **`wasm-opt` on WAT shows no position for a validation error** (offsets would be into the bytes
-  it assembled); DG5, `wat2wasm` not validating, is the owner's call and would change that.
+- ~~`wasm-opt` on WAT shows no position for a validation error~~ — ✅ since DG5 closed (the same
+  day), a WAT input is validated as text, at `line:col` with the source line.
 - **The CLI's flags and usage messages are unmeasured** — only diagnostics on bad modules.
 
 ## Independent oracles — our two implementations checking each other is blind by construction

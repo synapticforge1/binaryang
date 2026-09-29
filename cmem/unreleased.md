@@ -68,6 +68,15 @@ DG1–DG4 in [divergences.md](divergences.md)). No byte of any output moves (bas
   `exports.mem`, and a native 64 KiB-page importer does not link to it, as the proposal requires
   (P1). Shared custom-page memories are refused. `memory.grow` zero-fills the rounding slack it
   exposes (L2), so bytes a host wrote past the logical size never come back as fresh memory.
+- ⚠️ **Behaviour — the `wat2wasm` CLI VALIDATES by default, as upstream** (DG5): an invalid module
+  is an error at its `line:col`, exit 1, where it was written silently. `--no-check` restores the
+  old behaviour. Validation uses upstream's DEFAULT features: a module using GC, exceptions, tail
+  calls, memory64, multi-memory … needs `--enable-<feature>` or `--enable-all` (as upstream, and as
+  our `wasm-validate`). An unknown option is refused, where it was ignored. The LIBRARY function is
+  unchanged by default (`validate: true` opts in, `features` chooses).
+- **Silent fix — the validator takes labels BY NAME** (a text-parsed module): `(block $l (br $l))`
+  threw "var is not resolved" — every label kind. Library callers of `validateModule` on a module
+  from the text parser hit it; `wasm-opt` on WAT now validates as text, at `line:col`.
 - **Silent fix — `wasm-opt -o -`** (stdout) was refused as "a missing output path"; and a bad
   argument now prints one line instead of a stack trace.
 - Repo only: `deno task proposals` (the testsuite's `proposals/` in the gate, V8 experimental

@@ -99,7 +99,7 @@ deno run -A jsr:@jrmarcum/binaryang <command> [options]
 
 | command                   | does                                                                                                                 |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `wat2wasm <in.wat>`       | assemble WAT to a WASM binary · `-o <file>` · `--no-text-form`¹                                                      |
+| `wat2wasm <in.wat>`       | assemble and validate WAT to a WASM binary, as upstream · `-o <file>` · `--no-check` · `--enable-all`, `--enable-<feature>`, `--disable-<feature>` · `--no-text-form`¹ |
 | `wasm2wat <in.wasm>`      | disassemble to WAT, every instruction in its written form¹ · `-o <file>` · `--linear` / `--fold` for one form throughout |
 | `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>`                                               |
 | `wasm-objdump <in.wasm>`  | dump sections                                                                                                        |
