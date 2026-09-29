@@ -150,7 +150,7 @@ the END PRODUCT does not use them — and later the same day: **the CLI and the 
 not reference them at all.** So the one exception, the opt-in hybrid bridge (`./interop`'s
 `BinaryenInterop`, `optimize(flags, hybridMode)`, `wasm-opt --hybrid`), LEFT the product for the
 committed, isolated [`comparison/`](../comparison/README.md) suite (`ee25accb2`; owner chose
-committed over gitignored). It is BREAKING — the next release is **1.7.0** (owner). `-S` is native
+committed over gitignored). It was BREAKING and shipped in **1.7.0** (2026-09-29). `-S` is native
 now. The statement, as it may be made publicly (it is in the README):
 
 > binaryang's reader, validator, writers, text tools and optimizer are entirely its own
@@ -199,9 +199,12 @@ non-patch release is typed by hand ([publishing.md](publishing.md)).
 | **1.5.2** | merge `6ee0eef1d`, tag → `740fbb119`: bridge de-coarsening (`50a959baa`), the `-Oz` `try_table` miscompile (`d5485a740`), the `compat/binaryen` pass API, a user-facing README (`9083abdab`). Shipped ahead of the ladder because wasmtk was blocked on the miscompile                                               |
 | **1.5.3** | merge `1e1479f3f`, tag → `384f37ecc`: release trigger (`74bee7522`), all four `br_on_*` forms (`7ff0408f4`), one `scripts/release/` (`b955443a6`), the convergence indicator (`71d7772a0`), the bridge at `src/bridge/` (`e76e2b7ca`), the last ten symbols documented (`6d118b33e`), `.gitattributes` (`ec3a07de0`) |
 | **1.5.4** | `wasm2wat` emits FOLDED output by default (`--linear` opts out), and the export-kind rejection found by A3 — published 2026-09-02 (`rekorLogId=2692137018`)                                                                                                                                                          |
+| **1.6.0** | ⚠️ a MINOR: `./binary` and `./encoder` removed — ONE FRONT END (one reader, one IR, one writer), the post-M8 and Q1–Q8 fixes, S7's text-form record — tag `v1.6.0` → `64d22e06f`, published 2026-09-28 (`rekorLogId=2987187551`) |
+| **1.6.1** | a patch from `release/1.6.1` (cut from `v1.6.0`): the CLI runs from JSR (`.` → `main.ts`) — published 2026-09-28 |
+| **1.7.0** | ⚠️ a MINOR: `./interop` and hybrid mode removed (the `comparison/` suite); wasmtk's items 1–5 incl. custom descriptors; `--converge`; the three minify passes; Flatten complete — tag `v1.7.0` → `f644c9a2b`, published 2026-09-29 (`rekorLogId=2991848417`) |
 
-Both predecessors ended at a terminal **1.5.1**. `main` is ahead of 1.5.4 —
-[unreleased.md](unreleased.md). The 1.5.2 scope's full text:
+Both predecessors ended at a terminal **1.5.1**. Every release's public summary is in
+`CHANGELOG.md`; how each went out, in [publishing.md](publishing.md). The 1.5.2 scope's full text:
 `git show cff3284b8:cmem/scope-1.5.2.md`.
 
 Two lessons from the 1.5.2 scope that live only here:
@@ -321,7 +324,7 @@ it here loses nothing: the commits above, and the file at `1672c2a5a`, are the p
 | ----------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`wasm2ts` is a stub that throws** (wabt-ts Phase 8) | `src/wabt-ts/tools/wasm2ts.ts` | the long-term goal — WASI Preview 1 capable TypeScript output; blocked on wasmtk ([open-work.md](open-work.md), A2)                                |
 | ~~**TranslateEH**~~                                   | binaryen-ts                    | ✅ CLOSED 2026-09-14 — implemented as `TranslateToExnref` (owner decision 7); [binaryen-ts.md](binaryen-ts.md) § "TranslateEH" |
-| **Phase 10 kernel selection**                         | binaryen-ts                    | deferred until real-corpus profiling; single-op dispatch regresses                                                                                 |
+| **Phase 10 kernel selection**                         | binaryen-ts                    | PARKED (owner, 2026-09-29) until optimizer speed is on the table; profile the corpus first — single-op dispatch regresses ([open-work.md](open-work.md) § "Not tasks")                                                                                 |
 | **Diagnostic wording**                                | wabt-ts                        | at close: reader 689/711, validator 2446/2683, parser 816/1229 — none at ceiling; much of the parser's remainder is where OUR message is better    |
 
 Closed since the merge: custom-section preservation (C3, `4c162c584`) and diagnostic offset accuracy

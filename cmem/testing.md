@@ -347,6 +347,13 @@ deterministic, CI-safe; bisects the pipeline to name the first offending pass.
 GC nodes — so it could not have constructed either defect from the duplicate-dispatcher sweep.
 **Grep the harness for the node kinds it emits before assuming it covers a new construct.**
 
+**`corpus_roundtrip.test.ts` holds one binary to byte identity instead of an engine verdict**
+(`ENGINE_UNSTABLE`, `57b16a115`, 2026-09-18): V8 in Deno 2.9.7 has no stable verdict on binaryen's
+`lit/control-flow-input.wast.wasm` (legacy + new EH mixed) — 39 of 40 `compile` / `validate` calls
+rejected it, and two of three probe runs crashed Deno (`!job->compile_imports_.empty()`). If a Deno
+upgrade fixes the engine the set can go; if another binary starts flaking, probe it the same way
+before adding it.
+
 **`scripts/binaryen-ts/equiv_check.ts`** — not a test, a script. Two stubbed instances driven by the
 same call sequence stay bit-identical iff optimisation preserved semantics. Surfaced six miscompiles
 a validity-only benchmark had called "valid".
@@ -690,7 +697,7 @@ that is NOT RUNNING** — so it was proved otherwise: run over those 30 dirs alo
 exactly those counts, and corrupting one accepted module plus making one `assert_invalid` case valid
 makes the harness report both.
 
-### ⬚ Not yet covered
+### ✅ Behaviour — `assert_return` / `assert_trap` (was "Not yet covered"; covered since 2026-09-28)
 
 `assert_return` / `assert_trap` — 55,993 behavioural assertions, skipped deliberately so the first
 pass measured the axis nothing else measures. 🔧 **2026-09-28: they were run, as a DIFFERENTIAL, and
@@ -707,7 +714,10 @@ On `main` today (2026-09-28 late): **1,342 modules with invocations, 57,808 invo
 through v128, 53 blind), 16,062 variants compared, 0 divergences, in ~8 s**. Its verdict: exit 1 on a DIVERGE (an outcome differs, or the engine refuses
 our bytes) or a module that does not terminate; a variant our pipeline REFUSES (throws — loud, not
 a miscompile) is allowed only for a module pinned by name in `REFUSED_BUDGET`, a ratchet like
-`PHANTOM_BUDGET` — 7 relaxed-SIMD modules on route A until stage 3.
+`PHANTOM_BUDGET`. (It held 7 relaxed-SIMD modules on route A, binaryen-ts's decoder; route A left
+with that decoder in 1.6.0, and the budget now holds only the `--flatten` pins below.)
+⚠️ Nothing in the gate checks the manifests' own EXPECTED values — the differential needs none,
+and the SIMD oracle check (24,110 / 24,115, below) was a one-off. Optional, not scheduled.
 
 **Variants since 2026-09-28 (9 per module):** round trip; -O1, -O2, -O3, -Os, -Oz; `-Oz --converge`;
 `--flatten` alone; and "minify through its map" — `…-and-modules` minification where the HOST

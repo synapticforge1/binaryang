@@ -307,7 +307,7 @@ representation details and all the runtime rules are superseded.
   Relooper are omitted. `else_` there is a public parameter — do not rename it with the IR field.
 - [baseline] **WASM kernels** (`src/binaryen-ts/wasm/`, `wasm-runtime.ts`): per-call boundary tax ~2–3 ns (WASM
   `add_i32` ~3.6 ns vs ~0.34 ns native); a kernel pays only if per-op savings × ops per call exceeds it, so single-i32
-  dispatch never does. Kernel selection deferred (binaryen-ts Phase 10) → project.md § "Live gaps".
+  dispatch never does. Kernel selection PARKED (binaryen-ts Phase 10; owner, 2026-09-29) → project.md § "Live gaps".
 
 **Already in the core / superseded**
 - Phase 11 cross-runtime rules ("no `Deno.*` in `src/`", `node:` everywhere, browser-safe subpath list, no
@@ -479,7 +479,8 @@ Full text: `git show 9758fc736:cmem/binaryen-ts/publishing.md`
 Rest of the sequence: Tier 4 corpus closure; Sweeps 1–3 (`if`-arm aliasing, 4 dead exports, duplicate dispatchers);
 Tier 9 (multi-value writer, catch scope, RemoveUnusedNames); Sweep 4 (7 fail-loud findings).
 **Kept:**
-- [open] **Phase 10 kernel selection** is still in cmem/open-work.md § "Repo work". (**TranslateEH**, listed here
+- [parked] **Phase 10 kernel selection** — parked by the owner 2026-09-29 until optimizer speed is
+  on the table; cmem/open-work.md § "Not tasks, by decision". (**TranslateEH**, listed here
   with it, was implemented 2026-09-14 — § "TranslateEH" above.)
 - [lesson] **To hold a release, leave `deno.json` at a version whose tag already exists** — auto-tag no-ops, so no push
   can publish.
