@@ -211,6 +211,8 @@ describe('what lives inside an entry value is still reached', () => {
       ' block (result i32) i32.const 7 br 0 end block (param i32) (result i32) end))';
     const text = wasm2wat(compile(unnamed), { generateNames: true, fold: false }).text!;
     assert(/block \$B0 \(result i32\)/.test(text), text);
-    assert(/block \$B1 \(type 1\)/.test(text), text);
+    // `(type $t1)`, not `(type 1)`: generateNames made `$t1` a real name, and a
+    // block type is a type reference like any other (2026-09-29).
+    assert(/block \$B1 \(type \$t1\)/.test(text), text);
   });
 });

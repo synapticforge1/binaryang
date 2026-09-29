@@ -245,9 +245,12 @@ and we follow wabt there. Scripts: `wt-oracle.ts`, `wt-legacy.ts` in the session
   the folded writer drifted two columns left per block (fixed; hidden while every block had a
   generated label).
 
-⬚ **Follow-ups, cosmetic** — they change text, never bytes, and never lose a name: `wasm2wat` prints
-entity and branch REFERENCES by index (`call 0`, `br_if 1 (;@1;)`) where upstream prints
-`call $foo`; and folded siblings share a line (`…)))) (if`).
+**Follow-ups, cosmetic** — they change text, never bytes, and never lose a name:
+- ✅ `wasm2wat` printed REFERENCES by index (`call 0`, `br_if 1 (;@1;)`) where upstream prints
+  `call $foo`. Branches: named since N8. Every other reference: named since 2026-09-29
+  (`4d6dec1d3`, register N10) — resolved through the same `shown` rule as its definition, never a
+  name two entities share.
+- ⬚ folded siblings share a line (`…)))) (if`) — open-work.md.
 
 ## ✅ Owner decisions (2026-09-11)
 

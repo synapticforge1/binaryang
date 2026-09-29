@@ -51,12 +51,12 @@ import { Type, typeName } from '../core/types.ts';
 import {
   blockTypeOf,
   type HeapTypeRef,
-  heapTypeText,
   indexOf,
   isRefValueType,
   localNameEntries,
   recGroups,
   type ValueType,
+  varIndex,
 } from '../ir/ir.ts';
 import { printF32Literal, printF64Literal } from '../core/literal.ts';
 import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/opcode.ts';
@@ -165,7 +165,43 @@ export interface WriteWatOptions {
    * way.)
    */
   namedLabelTargets?: boolean;
+  /**
+   * Print a reference to a function, global, table, memory, tag, type, field
+   * or segment by its entity's NAME when the definition prints one, instead
+   * of the index the reference carries. Default: `false`.
+   *
+   * The same split as {@link namedLabelTargets}, and for the same reason: from
+   * a BINARY an index is all the format holds, and `call $f` beside a
+   * `(func $f …)` is the text upstream `wasm2wat` (its `ApplyNames`) and
+   * `wasm-tools print` both write; `wasm2wat` sets this. Parsed from TEXT, an
+   * index is what the author wrote, and `toText()` leaves it alone.
+   *
+   * 🔑 A reference prints a name ONLY when the definition it resolves to prints
+   * that same name (the one rule, {@link WatWriter.shown}), and only when no
+   * other entity in the same index space prints it too — so a printed name can
+   * never re-assemble to a different entity. Anything else keeps its index,
+   * which is always correct.
+   */
+  namedReferences?: boolean;
 }
+
+/**
+ * The index space a reference resolves in — `writeVar`'s required second
+ * argument, so the compiler names every reference site (a new one cannot
+ * forget to say what it names). `label` and `local` never print a name here:
+ * labels have their own rule (N8), locals theirs (`writeLocalVar`).
+ */
+type IndexSpace =
+  | 'func'
+  | 'table'
+  | 'memory'
+  | 'global'
+  | 'tag'
+  | 'type'
+  | 'elem'
+  | 'data'
+  | 'label'
+  | 'local';
 
 /**
  * Convert a decoded WebAssembly {@link Module} to a WAT string.
@@ -265,8 +301,72 @@ class WatWriter extends ModuleContext {
       inlineExport: opts.inlineExport ?? true,
       inlineImport: opts.inlineImport ?? false,
       namedLabelTargets: opts.namedLabelTargets ?? false,
+      namedReferences: opts.namedReferences ?? false,
     };
     this.buildNameIndexMap();
+    if (this.opts.namedReferences) this.buildReferenceNames();
+  }
+
+  /**
+   * index space → (index → the name its DEFINITION prints). Built once, from
+   * the same {@link shown} rule the definitions use, so a reference and its
+   * target always agree. A name two entities of one space would both print is
+   * dropped from the map for BOTH: printing it could re-assemble to the wrong
+   * one, and an index is never wrong.
+   */
+  private readonly referenceNames = new Map<IndexSpace, Map<number, string>>();
+
+  private buildReferenceNames(): void {
+    const add = (space: IndexSpace, names: string[]): void => {
+      const seen = new Map<string, number>();
+      for (const n of names) if (n !== '') seen.set(n, (seen.get(n) ?? 0) + 1);
+      const byIndex = new Map<number, string>();
+      names.forEach((n, i) => {
+        if (n !== '' && seen.get(n) === 1) byIndex.set(i, n);
+      });
+      this.referenceNames.set(space, byIndex);
+    };
+    const m = this.module;
+    const imported = (kind: ExternalKind): string[] =>
+      m.imports.filter((imp) => imp.kind === kind).map((imp) => importItemName(imp));
+    add(
+      'func',
+      [...imported(ExternalKind.Func), ...m.functions.map((f) => f.name)].map((n) =>
+        this.shown((r) => r.functions, n)
+      ),
+    );
+    add(
+      'global',
+      [...imported(ExternalKind.Global), ...m.globals.map((g) => g.name)].map((n) =>
+        this.shown((r) => r.globals, n)
+      ),
+    );
+    add(
+      'table',
+      [...imported(ExternalKind.Table), ...m.tables.map((t) => t.name)].map((n) =>
+        this.shown((r) => r.tables, n)
+      ),
+    );
+    add(
+      'memory',
+      [...imported(ExternalKind.Memory), ...m.memories.map((x) => x.name)].map((n) =>
+        this.shown((r) => r.memories, n)
+      ),
+    );
+    add(
+      'tag',
+      [...imported(ExternalKind.Tag), ...m.tags.map((t) => t.name)].map((n) =>
+        this.shown((r) => r.tags, n)
+      ),
+    );
+    add('type', m.types.map((te) => this.shown((r) => r.types, te.name)));
+    add('elem', m.elements.map((s) => this.shown((r) => r.elements, s.name)));
+    add('data', m.dataSegments.map((s) => this.shown((r) => r.dataSegments, s.name)));
+  }
+
+  /** The name a reference to `index` in `space` prints, or `undefined` for the index. */
+  private referenceName(space: IndexSpace, index: number): string | undefined {
+    return this.referenceNames.get(space)?.get(index);
   }
 
   private buildNameIndexMap(): void {
@@ -443,13 +543,46 @@ class WatWriter extends ModuleContext {
   // Var / type emit
   // -------------------------------------------------------------------------
 
-  private writeVar(v: Var, nc: NC): void {
+  /**
+   * A reference: by the NAME its target's definition prints, when
+   * `namedReferences` is on and that name is unambiguous in `space`; else as
+   * written — a name as a name, an index as an index.
+   */
+  private writeVar(v: Var, space: IndexSpace, nc: NC): void {
     if (v.kind === 'index') {
+      const name = this.referenceName(space, v.value);
+      if (name !== undefined) {
+        this.writeName(name, nc);
+        return;
+      }
       this.writef(`${v.value}`);
       this.nextChar = nc;
     } else {
       this.writeName(v.name, nc);
     }
+  }
+
+  /**
+   * A struct field reference (`struct.get $t $field`): by the field's name
+   * when its TYPE's definition prints it — field names live per type, as the
+   * definition writes them — and it is unique within that type.
+   */
+  private writeFieldVar(typeVar: Var, fieldVar: Var, nc: NC): void {
+    if (this.opts.namedReferences && fieldVar.kind === 'index') {
+      const typeIdx = typeVar.kind === 'index'
+        ? typeVar.value
+        : this.module.types.findIndex((te) => te.name === typeVar.name);
+      const te = this.module.types[typeIdx];
+      if (te !== undefined && te.kind === 'struct') {
+        const names = te.fields.map((f) => this.shown((r) => r.fields.get(te.name), f.name));
+        const name = names[fieldVar.value];
+        if (name && names.filter((n) => n === name).length === 1) {
+          this.writeName(name, nc);
+          return;
+        }
+      }
+    }
+    this.writeVar(fieldVar, 'label', nc); // 'label': never renamed here
   }
 
   /**
@@ -471,18 +604,18 @@ class WatWriter extends ModuleContext {
     if (h.kind === 'exact') {
       this.puts('(', NC.None);
       this.puts('exact', NC.Space);
-      this.writeVar(h.type, NC.None);
+      this.writeVar(h.type, 'type', NC.None);
       this.puts(')', nc);
       return;
     }
-    this.writeVar(h, nc);
+    this.writeVar(h, 'type', nc);
   }
-  private writeVarUnlessZero(v: Var, nc: NC): void {
+  private writeVarUnlessZero(v: Var, space: IndexSpace, nc: NC): void {
     if (v.kind === 'index' && v.value === 0) {
       this.nextChar = nc;
       return;
     }
-    this.writeVar(v, nc);
+    this.writeVar(v, space, nc);
   }
 
   /** Resolves a Var to an absolute index for the given kind. */
@@ -493,7 +626,7 @@ class WatWriter extends ModuleContext {
 
   private writeMemoryVarUnlessZero(v: Var, nc: NC): void {
     if (this.resolveVarIndex(v, ExternalKind.Memory) !== 0) {
-      this.writeVar(v, nc);
+      this.writeVar(v, 'memory', nc);
     } else {
       this.nextChar = nc;
     }
@@ -503,8 +636,8 @@ class WatWriter extends ModuleContext {
     const si = this.resolveVarIndex(src, ExternalKind.Memory);
     const di = this.resolveVarIndex(dest, ExternalKind.Memory);
     if (si !== 0 || di !== 0) {
-      this.writeVar(src, NC.Space);
-      this.writeVar(dest, nc);
+      this.writeVar(src, 'memory', NC.Space);
+      this.writeVar(dest, 'memory', nc);
     } else {
       this.nextChar = nc;
     }
@@ -549,7 +682,11 @@ class WatWriter extends ModuleContext {
       this.puts('(', NC.None);
       this.puts('ref', NC.Space);
       if (t.nullable) this.puts('null', NC.Space);
-      this.puts(heapTypeText(t.heapType), NC.None);
+      // Through writeHeapType, as every other heap type: a type REFERENCE,
+      // named when its definition is (namedReferences), and quoted like any
+      // identifier. `heapTypeText` printed the index raw, so `(local (ref
+      // null 1))` stayed numeric beside a named `(type $arr …)`.
+      this.writeHeapType(t.heapType, NC.None);
       this.puts(')', nc);
       return;
     }
@@ -575,9 +712,9 @@ class WatWriter extends ModuleContext {
       this.writeType(bt.type, NC.Space);
       this.closeSpace();
     } else {
-      // func_type — write as (type N)
+      // func_type — write as (type N), a type reference like any other.
       this.openSpace('type');
-      this.writef(`${bt.typeIdx}`);
+      this.writeVar(varIndex(bt.typeIdx), 'type', NC.None);
       this.closeSpace();
     }
   }
@@ -858,12 +995,12 @@ class WatWriter extends ModuleContext {
       },
       onGlobalGetExpr: (e) => {
         this.putsSpace('global.get');
-        this.writeVar(e.var, NC.Newline);
+        this.writeVar(e.var, 'global', NC.Newline);
         return Result.Ok;
       },
       onGlobalSetExpr: (e) => {
         this.putsSpace('global.set');
-        this.writeVar(e.var, NC.Newline);
+        this.writeVar(e.var, 'global', NC.Newline);
         return Result.Ok;
       },
 
@@ -938,28 +1075,28 @@ class WatWriter extends ModuleContext {
         // -1 means "not a plain index", which this comparison treats as
         // non-zero and so prints the memory explicitly.
         const memIdx = indexOf(e.memidx) ?? -1;
-        if (memIdx !== 0) this.writeVar(e.memidx, NC.Space);
-        this.writeVar(e.segment, NC.Space);
+        if (memIdx !== 0) this.writeVar(e.memidx, 'memory', NC.Space);
+        this.writeVar(e.segment, 'data', NC.Space);
         this.newline(false);
         return Result.Ok;
       },
       onDataDropExpr: (e) => {
         this.putsSpace('data.drop');
-        this.writeVar(e.segment, NC.Newline);
+        this.writeVar(e.segment, 'data', NC.Newline);
         return Result.Ok;
       },
 
       onCallExpr: (e) => {
         this.putsSpace(e.isReturn ? 'return_call' : 'call');
-        this.writeVar(e.func, NC.Newline);
+        this.writeVar(e.func, 'func', NC.Newline);
         return Result.Ok;
       },
       onCallIndirectExpr: (e) => {
         this.putsSpace(e.isReturn ? 'return_call_indirect' : 'call_indirect');
-        this.writeVarUnlessZero(e.table, NC.Space);
+        this.writeVarUnlessZero(e.table, 'table', NC.Space);
         if (e.typeVar !== undefined) {
           this.openSpace('type');
-          this.writeVar(e.typeVar, NC.Newline);
+          this.writeVar(e.typeVar, 'type', NC.Newline);
           this.closeNewline();
         } else {
           // No type index yet: the inline signature says the same thing.
@@ -970,7 +1107,7 @@ class WatWriter extends ModuleContext {
       },
       onCallRefExpr: (e) => {
         this.putsSpace(e.isReturn ? 'return_call_ref' : 'call_ref');
-        this.writeVar(e.sigType, NC.Newline);
+        this.writeVar(e.sigType, 'type', NC.Newline);
         return Result.Ok;
       },
 
@@ -988,7 +1125,7 @@ class WatWriter extends ModuleContext {
       },
       onRefFuncExpr: (e) => {
         this.putsSpace('ref.func');
-        this.writeVar(e.func, NC.Newline);
+        this.writeVar(e.func, 'func', NC.Newline);
         return Result.Ok;
       },
       onRefAsNonNullExpr: () => {
@@ -1014,73 +1151,73 @@ class WatWriter extends ModuleContext {
       onStructNewExpr: (e) => {
         const base = e.defaultInit ? 'struct.new_default' : 'struct.new';
         this.putsSpace(e.desc === undefined ? base : `${base}_desc`);
-        this.writeVar(e.typeVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Newline);
         return Result.Ok;
       },
       onStructGetExpr: (e) => {
         this.putsSpace(
           e.signed === true ? 'struct.get_s' : e.signed === false ? 'struct.get_u' : 'struct.get',
         );
-        this.writeVar(e.typeVar, NC.Space);
-        this.writeVar(e.fieldVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Space);
+        this.writeFieldVar(e.typeVar, e.fieldVar, NC.Newline);
         return Result.Ok;
       },
       onStructSetExpr: (e) => {
         this.putsSpace('struct.set');
-        this.writeVar(e.typeVar, NC.Space);
-        this.writeVar(e.fieldVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Space);
+        this.writeFieldVar(e.typeVar, e.fieldVar, NC.Newline);
         return Result.Ok;
       },
       onArrayNewExpr: (e) => {
         this.putsSpace(e.init === undefined ? 'array.new_default' : 'array.new');
-        this.writeVar(e.typeVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Newline);
         return Result.Ok;
       },
       onArrayNewFixedExpr: (e) => {
         this.putsSpace('array.new_fixed');
-        this.writeVar(e.typeVar, NC.Space);
+        this.writeVar(e.typeVar, 'type', NC.Space);
         this.puts(String(e.operands.length), NC.Newline);
         return Result.Ok;
       },
       onArrayNewDataExpr: (e) => {
         this.putsSpace('array.new_data');
-        this.writeVar(e.typeVar, NC.Space);
-        this.writeVar(e.dataVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Space);
+        this.writeVar(e.dataVar, 'data', NC.Newline);
         return Result.Ok;
       },
       onArrayNewElemExpr: (e) => {
         this.putsSpace('array.new_elem');
-        this.writeVar(e.typeVar, NC.Space);
-        this.writeVar(e.elemVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Space);
+        this.writeVar(e.elemVar, 'elem', NC.Newline);
         return Result.Ok;
       },
       onArrayGetExpr: (e) => {
         this.putsSpace(
           e.signed === true ? 'array.get_s' : e.signed === false ? 'array.get_u' : 'array.get',
         );
-        this.writeVar(e.typeVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Newline);
         return Result.Ok;
       },
       onArraySetExpr: (e) => {
         this.putsSpace('array.set');
-        this.writeVar(e.typeVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Newline);
         return Result.Ok;
       },
       onArrayFillExpr: (e) => {
         this.putsSpace('array.fill');
-        this.writeVar(e.typeVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Newline);
         return Result.Ok;
       },
       onArrayCopyExpr: (e) => {
         this.putsSpace('array.copy');
-        this.writeVar(e.destTypeVar, NC.Space);
-        this.writeVar(e.srcTypeVar, NC.Newline);
+        this.writeVar(e.destTypeVar, 'type', NC.Space);
+        this.writeVar(e.srcTypeVar, 'type', NC.Newline);
         return Result.Ok;
       },
       onArrayInitSegmentExpr: (e) => {
         this.putsSpace(e.kind);
-        this.writeVar(e.typeVar, NC.Space);
-        this.writeVar(e.segment, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Space);
+        this.writeVar(e.segment, e.kind === 'array.init_data' ? 'data' : 'elem', NC.Newline);
         return Result.Ok;
       },
       onArrayLenExpr: () => {
@@ -1105,33 +1242,33 @@ class WatWriter extends ModuleContext {
       },
       onRefGetDescExpr: (e) => {
         this.putsSpace('ref.get_desc');
-        this.writeVar(e.typeVar, NC.Newline);
+        this.writeVar(e.typeVar, 'type', NC.Newline);
         return Result.Ok;
       },
 
       onTableGetExpr: (e) => {
         this.putsSpace('table.get');
-        this.writeVar(e.table, NC.Newline);
+        this.writeVar(e.table, 'table', NC.Newline);
         return Result.Ok;
       },
       onTableSetExpr: (e) => {
         this.putsSpace('table.set');
-        this.writeVar(e.table, NC.Newline);
+        this.writeVar(e.table, 'table', NC.Newline);
         return Result.Ok;
       },
       onTableGrowExpr: (e) => {
         this.putsSpace('table.grow');
-        this.writeVar(e.table, NC.Newline);
+        this.writeVar(e.table, 'table', NC.Newline);
         return Result.Ok;
       },
       onTableSizeExpr: (e) => {
         this.putsSpace('table.size');
-        this.writeVar(e.table, NC.Newline);
+        this.writeVar(e.table, 'table', NC.Newline);
         return Result.Ok;
       },
       onTableFillExpr: (e) => {
         this.putsSpace('table.fill');
-        this.writeVar(e.table, NC.Newline);
+        this.writeVar(e.table, 'table', NC.Newline);
         return Result.Ok;
       },
       onTableCopyExpr: (e) => {
@@ -1141,27 +1278,27 @@ class WatWriter extends ModuleContext {
           e.sourceTable.kind !== 'index' ||
           e.sourceTable.value !== 0
         ) {
-          this.writeVar(e.destTable, NC.Space);
-          this.writeVar(e.sourceTable, NC.Space);
+          this.writeVar(e.destTable, 'table', NC.Space);
+          this.writeVar(e.sourceTable, 'table', NC.Space);
         }
         this.newline(false);
         return Result.Ok;
       },
       onTableInitExpr: (e) => {
         this.putsSpace('table.init');
-        this.writeVarUnlessZero(e.table, NC.Space);
-        this.writeVar(e.segment, NC.Newline);
+        this.writeVarUnlessZero(e.table, 'table', NC.Space);
+        this.writeVar(e.segment, 'elem', NC.Newline);
         return Result.Ok;
       },
       onElemDropExpr: (e) => {
         this.putsSpace('elem.drop');
-        this.writeVar(e.segment, NC.Newline);
+        this.writeVar(e.segment, 'elem', NC.Newline);
         return Result.Ok;
       },
 
       onThrowExpr: (e) => {
         this.putsSpace('throw');
-        this.writeVar(e.tag, NC.Newline);
+        this.writeVar(e.tag, 'tag', NC.Newline);
         return Result.Ok;
       },
       onThrowRefExpr: () => {
@@ -1435,7 +1572,7 @@ class WatWriter extends ModuleContext {
     this.indent -= 2;
     if (c.tag !== undefined) {
       this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
-      this.writeVar(c.tag, NC.Newline);
+      this.writeVar(c.tag, 'tag', NC.Newline);
     } else {
       this.putsNewline(c.isRef ? 'catch_all_ref' : 'catch_all');
     }
@@ -1447,7 +1584,7 @@ class WatWriter extends ModuleContext {
     this.puts('(', NC.None);
     if (tc.tag !== undefined) {
       this.putsSpace(tc.isRef ? 'catch_ref' : 'catch');
-      this.writeVar(tc.tag, NC.Space);
+      this.writeVar(tc.tag, 'tag', NC.Space);
     } else {
       this.putsSpace(tc.isRef ? 'catch_all_ref' : 'catch_all');
     }
@@ -1673,14 +1810,14 @@ class WatWriter extends ModuleContext {
           this.puts('(', NC.None);
           this.putsSpace('delegate');
           this.indent += 2;
-          this.writeVar(e.delegate, NC.None);
+          this.writeVar(e.delegate, 'label', NC.None);
           this.close(NC.Newline);
         } else {
           e.catches.forEach((c, i) => {
             this.puts('(', NC.None);
             if (c.tag !== undefined) {
               this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
-              this.writeVar(c.tag, NC.Space);
+              this.writeVar(c.tag, 'tag', NC.Space);
             } else {
               this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
             }
@@ -2206,14 +2343,14 @@ class WatWriter extends ModuleContext {
           this.puts('(', NC.None);
           this.putsSpace('delegate');
           this.indent += 2;
-          this.writeVar(e.delegate, NC.None);
+          this.writeVar(e.delegate, 'label', NC.None);
           this.close(NC.Newline);
         } else {
           for (const c of e.catches) {
             this.puts('(', NC.None);
             if (c.tag !== undefined) {
               this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
-              this.writeVar(c.tag, NC.Space);
+              this.writeVar(c.tag, 'tag', NC.Space);
             } else {
               this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
             }
@@ -2371,17 +2508,17 @@ class WatWriter extends ModuleContext {
     if (te.sub !== undefined) {
       this.openSpace('sub');
       if (te.sub.final) this.puts('final', NC.Space);
-      for (const sup of te.sub.supertypes) this.writeVar(sup, NC.Space);
+      for (const sup of te.sub.supertypes) this.writeVar(sup, 'type', NC.Space);
     }
     // Custom descriptors: siblings of the comptype, describes first.
     if (te.describes !== undefined) {
       this.openSpace('describes');
-      this.writeVar(te.describes, NC.None);
+      this.writeVar(te.describes, 'type', NC.None);
       this.closeSpace();
     }
     if (te.descriptor !== undefined) {
       this.openSpace('descriptor');
-      this.writeVar(te.descriptor, NC.None);
+      this.writeVar(te.descriptor, 'type', NC.None);
       this.closeSpace();
     }
     switch (te.kind) {
@@ -2492,7 +2629,7 @@ class WatWriter extends ModuleContext {
     // Absent: no type index yet, and the inline signature says it all.
     if (func.typeVar === undefined || func.typeVar.kind !== 'index') return;
     this.openSpace('type');
-    this.writeVar(func.typeVar, NC.None);
+    this.writeVar(func.typeVar, 'type', NC.None);
     this.closeSpace();
   }
 
@@ -2588,7 +2725,7 @@ class WatWriter extends ModuleContext {
   private writeLocalVar(v: Var): void {
     const name = v.kind === 'index' ? this.bodyLocalNames?.get(v.value) : undefined;
     if (name !== undefined) this.writeName(name, NC.Newline);
-    else this.writeVar(v, NC.Newline);
+    else this.writeVar(v, 'local', NC.Newline);
   }
 
   private writeGlobalBegin(g: Global, _isImport: boolean): void {
@@ -2665,7 +2802,7 @@ class WatWriter extends ModuleContext {
     // signature alone does not say which (Q9).
     if (tag.typeVar?.kind === 'index') {
       this.openSpace('type');
-      this.writeVar(tag.typeVar, NC.None);
+      this.writeVar(tag.typeVar, 'type', NC.None);
       this.closeSpace();
     }
     this.writeFuncSig(tag.sig);
@@ -2676,7 +2813,8 @@ class WatWriter extends ModuleContext {
     if (this.isInlineExport(exp)) return;
     this.openSpace('export');
     this.writeQuotedString(exp.name, NC.Space);
-    const kindStr = exp.kind === ExternalKind.Func
+    // The keyword IS the index space the export names.
+    const kindStr: IndexSpace = exp.kind === ExternalKind.Func
       ? 'func'
       : exp.kind === ExternalKind.Global
       ? 'global'
@@ -2686,7 +2824,7 @@ class WatWriter extends ModuleContext {
       ? 'memory'
       : 'tag';
     this.openSpace(kindStr);
-    this.writeVar(exp.var, NC.Space);
+    this.writeVar(exp.var, kindStr, NC.Space);
     this.closeSpace();
     this.closeNewline();
   }
@@ -2700,7 +2838,7 @@ class WatWriter extends ModuleContext {
       const tableIdx = this.resolveVarIndex(seg.tableVar, ExternalKind.Table);
       if (tableIdx !== 0) {
         this.openSpace('table');
-        this.writeVar(seg.tableVar, NC.Space);
+        this.writeVar(seg.tableVar, 'table', NC.Space);
         this.closeSpace();
       }
       this.writeOffsetExpr(seg.offset);
@@ -2722,7 +2860,7 @@ class WatWriter extends ModuleContext {
       this.putsSpace('func');
       for (const ee of seg.elemExprs) {
         const e = ee.children[0];
-        if (e?.kind === 'ref.func') this.writeVar(e.func, NC.Space);
+        if (e?.kind === 'ref.func') this.writeVar(e.func, 'func', NC.Space);
       }
     } else {
       this.writeType(seg.elemType, NC.Space);
@@ -2740,7 +2878,7 @@ class WatWriter extends ModuleContext {
       const memIdx = this.resolveVarIndex(seg.memoryVar, ExternalKind.Memory);
       if (memIdx !== 0) {
         this.openSpace('memory');
-        this.writeVar(seg.memoryVar, NC.Space);
+        this.writeVar(seg.memoryVar, 'memory', NC.Space);
         this.closeSpace();
       }
       this.writeOffsetExpr(seg.offset);
@@ -2751,7 +2889,7 @@ class WatWriter extends ModuleContext {
 
   private writeStartFunction(v: Var): void {
     this.openSpace('start');
-    this.writeVar(v, NC.None);
+    this.writeVar(v, 'func', NC.None);
     this.closeNewline();
   }
 

@@ -36,22 +36,30 @@ describe('Bug G: call_indirect (type $name) resolves the right index', () => {
     const r = wat2wasm(moduleWat);
     if (r.result !== Result.Ok) console.log(formatErrors(r.errors));
     assertEquals(r.result, Result.Ok);
-    const d = wasm2wat(r.binary);
-    assertEquals(d.result, Result.Ok);
     // via_i32ret should reference $i32ret which is type index 1.
     // via_voidret should reference $voidret which is type index 0.
     // After Bug G's fix, both should serialize back with the right
-    // numeric type indices (not both 0).
+    // numeric type indices (not both 0). Read WITHOUT the name section, so
+    // the index itself is what prints: since `wasm2wat` names a reference
+    // whose definition is named (2026-09-29), the named read below shows the
+    // names instead, and cannot tell index 1 from index 0 on its own.
+    const bare = wasm2wat(r.binary, { readDebugNames: false });
+    assertEquals(bare.result, Result.Ok);
     assertEquals(
-      d.text.includes('call_indirect (type 1)'),
+      bare.text.includes('call_indirect (type 1)'),
       true,
-      `via_i32ret should reference type 1; full text:\n${d.text}`,
+      `via_i32ret should reference type 1; full text:\n${bare.text}`,
     );
     assertEquals(
-      d.text.includes('call_indirect (type 0)'),
+      bare.text.includes('call_indirect (type 0)'),
       true,
-      `via_voidret should reference type 0; full text:\n${d.text}`,
+      `via_voidret should reference type 0; full text:\n${bare.text}`,
     );
+    // …and with the names, each reference names the type it resolves to.
+    const d = wasm2wat(r.binary);
+    assertEquals(d.result, Result.Ok);
+    assertEquals(d.text.includes('call_indirect (type $i32ret)'), true, d.text);
+    assertEquals(d.text.includes('call_indirect (type $voidret)'), true, d.text);
   });
 
   it('runtime: call_indirect (type $i32ret) returns the right value', async () => {

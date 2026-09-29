@@ -94,10 +94,11 @@ describe('folded wasm2wat folds every instruction kind', () => {
       const want of [
         '(i32.atomic.rmw.add (i32.const 0) (i32.const 5))',
         '(i32x4.extract_lane 1 (i32x4.replace_lane 1 (v128.const',
-        '(memory.init 0 (i32.const 0) (i32.const 0) (i32.const 5))',
-        '(call_ref 0 (ref.func 0))',
+        // References print their target's name where it has one (2026-09-29).
+        '(memory.init $d (i32.const 0) (i32.const 0) (i32.const 5))',
+        '(call_ref $f (ref.func $one))',
         '(br_on_null $l (local.get 0))',
-        '(try_table (catch_all_ref $h) (throw 0))',
+        '(try_table (catch_all_ref $h) (throw $e))',
       ]
     ) assert(text.includes(want), `${want}\n${text}`);
   });
