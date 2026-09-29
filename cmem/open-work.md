@@ -6,7 +6,7 @@ item closes, its record goes to the topic file and its line leaves here.
 
 **State, 2026-09-29:** 🚀 **`binaryang@1.7.1` is published** (tag `v1.7.1`, `ced5ca508`;
 [publishing.md](publishing.md) § 1.7.1) and `main` = the release plus cmem. Nothing is unreleased
-([unreleased.md](unreleased.md)). **22 open items, none blocking**, numbered below. Re-derive any
+([unreleased.md](unreleased.md)). **21 open items, none blocking**, numbered below. Re-derive any
 number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -140,12 +140,11 @@ fatigue.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
-21. ⬚ **§ 17, the reply to wasmtk's letter of 2026-09-29** (against 1.7.0). Item 1, u32 limits, is
-    fixed and PUBLISHED in 1.7.1. Item 2 needs nothing from us: `wasmValidate` already rejects it.
-    The draft is the owner's or the workspace session's to send. Their letter closed §§ 10, 13
-    and 15. Next from them: their gate re-recorded on 1.7.1 (the 11 skips should pass).
-22. ⬚ **§ 11** (adopting their conditional-not-clearance form and their alias invariant) is
+21. ⬚ **§ 11** (adopting their conditional-not-clearance form and their alias invariant) is
     outbound.
+
+Sent 2026-09-29: § 17, the reply to their 1.7.0 letter (item 1 fixed in 1.7.1). Their gate
+re-recorded on 1.7.1 is theirs to send; when it comes, check that the 11 skips became passes.
 
 ## Not tasks, by decision
 

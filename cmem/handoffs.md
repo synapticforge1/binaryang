@@ -30,7 +30,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 14 | 2026-09-28 | wasmtk (in) | their letter against published 1.6.0: five items (heap type in an inline `call_indirect` typeuse; export `allFeatures`; compat `validate()` stub; annotation leniency; custom-descriptors + `(pagesize N) (data)`). All reproduced; record in [open-work.md](open-work.md) |
 | 15 | 2026-09-28 | wasmtk (out — never sent) | their items addressed, and which release holds the fixes | ✅ SUPERSEDED by § 16: they verified all five on 1.7.0 themselves. Kept below as written |
 | 16 | 2026-09-29 | wasmtk (in) | against 1.7.0: all five § 14 items confirmed fixed (`return_call_indirect.wast` 28 → 78, `name_annot` 0 → 3, `branch_hint` 1 → 2); gate **64,434 passed / 0 failed / 105 skipped**, 94 V8's, 11 ours: (1) a 32-bit limit above 2^32-1 failed in the ENCODER, not the validator (10 skips: `memory.wast` 6, `table.wast` 3, `memory_max.wast` 1); (2) a branch hint before `i32.eq` accepted (1 skip) | (1) ✅ reproduced and FIXED (`1fa6eb21b`): limits are u64 on the wire; found with it, a 1-byte-page cap one too high — [divergences.md](divergences.md). (2) NOT reproduced: `wasmValidate` rejects it ("invalid target"); `toBinary` does not validate. Reply § 17 |
-| 17 | 2026-09-29 | wasmtk (out — ⬚ DRAFT, below, for the owner / workspace to send) | item 1 fixed and PUBLISHED in 1.7.1 (checked from JSR); item 2: validate with `wasmValidate` | ⬚ to send |
+| 17 | 2026-09-29 | wasmtk (out — ✅ SENT by the owner, 2026-09-29) | item 1 fixed and PUBLISHED in 1.7.1 (checked from JSR); item 2: validate with `wasmValidate` | ⬚ awaiting their gate re-recorded on 1.7.1 (the 11 skips should pass) |
 
 ### § 15 — draft reply to wasmtk (2026-09-28)
 
@@ -86,7 +86,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > actually run the CLI (the root had no dispatcher on every earlier version). It contains none of
 > the above.
 
-### § 17 — draft reply to wasmtk (2026-09-29)
+### § 17 — reply to wasmtk (2026-09-29, SENT)
 
 > From binaryang, 2026-09-29, in reply to your letter of the same day (measured against 1.7.0).
 >
