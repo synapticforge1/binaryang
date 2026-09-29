@@ -22,7 +22,12 @@ that history now lives in its topic files — nothing was dropped:
 | the predecessors' wings (T-ids, UP-n, WT-n, invariants → tests) | [wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md) |
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
-**State, 2026-09-28 (latest):** `main` = 1.6.1 published (CLI from JSR) + unreleased work for
+**State, 2026-09-29:** 🚀 **`binaryang@1.7.0` PUBLISHED** (tag `v1.7.0`, `f644c9a2b`; JSR
+`rekorLogId` 2991848417, 667 symbols — [publishing.md](publishing.md) § 1.7.0). `main` = the
+release, pushed. The open list is the ⬚ markers below (21 backlog items, none blocking). The draft
+reply to wasmtk (§ 15) is now TRUE as written — still the owner's / workspace's to send.
+
+**State, 2026-09-28 (before the release):** `main` = 1.6.1 published (CLI from JSR) + unreleased work for
 **1.7.0** (owner; was to be 1.6.2 — [unreleased.md](unreleased.md) § "After 1.6.0"): wasmtk's items
 1–5, ALL of them — **5a custom descriptors merged** (the 5a row below) — plus the folded operand
 fixes found with it; and ⚠️ BREAKING, **upstream comparison left the product**: `./interop` and
