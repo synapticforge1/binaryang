@@ -62,7 +62,7 @@ A workspace handoff to wasmtk about 1.6.0 is the workspace session's to write, n
 | 2 | ✅ `allFeatures` / `defaultFeatures` / `Features` exported from `./wasm-validate` AND `./core/wabt-ts` (`05d027a19`) — a MINOR | yes | done (owner: "do items 1–5") |
 | 3 | ✅ compat/binaryen `Module.validate()` validates: the one writer → the one reader → the validator, all features; `0` + reasons on stderr (`d9810af06`) | yes | done |
 | 4 | ✅ `@name` placement checked (after a binding id; once on a module; value NOT applied), branch hint duplicate / outside a function (malformed) / non-branch target (invalid, on the binary: `validator/branch-hints.ts`) (`6ab458690`). Found by it: a hint before a FOLDED instruction was written at the expression's first byte — as upstream wabt; now at the instruction, as wasm-tools (divergence W16) | yes | done |
-| 5 | ✅ **5b** `(memory (pagesize N) (data …))` (`b5c337f10`; `custom-page-sizes.wast` 10/12 → 12/12), and found beside it: an inline-data memory wrote NO maximum (the spec's `(memory m m)`) — fixed. ⬚ **5a custom-descriptors** — NOT built, scoped: 14 wasts, 381 modules, 1,029 assertions (157 invalid, 127 malformed, 271 return, 216 trap); `exact` (1,259 uses), `descriptor` / `describes` type clauses, six instructions (`ref.get_desc`, `ref.cast_desc_eq`, `br_on_cast_desc_eq(_fail)`, `struct.new(_default)_desc`) — parser, binary encoding, validation, both IRs. A proposal-sized job (the conformance row below); V8 needs a flag | yes | owner: when |
+| 5 | ✅ **5b** `(memory (pagesize N) (data …))` (`b5c337f10`; `custom-page-sizes.wast` 10/12 → 12/12), and found beside it: an inline-data memory wrote NO maximum (the spec's `(memory m m)`) — fixed. ⬚ **5a custom-descriptors** — NOT built, scoped: 14 wasts, 381 modules, 1,029 assertions (157 invalid, 127 malformed, 271 return, 216 trap); `exact` (1,259 uses), `descriptor` / `describes` type clauses, six instructions (`ref.get_desc`, `ref.cast_desc_eq`, `br_on_cast_desc_eq(_fail)`, `struct.new(_default)_desc`) — parser, binary encoding, validation, and the optimizer's walkers — ONE IR since 1.6.0 (`wabt-ts/ir/ir.ts`; binaryen-ts's `expressions.ts` / `gc-types.ts` are views of it), two sets of consumers. A proposal-sized job (the conformance row below); V8 needs a flag. ✅ BUILDING — owner, 2026-09-28: "we will build 5a" (`feat/custom-descriptors`) | yes | owner: when |
 
 All merged to `main` (`8fee83e95`), gate green; NOT released — 1.6.1 carried only the CLI fix.
 The next release carries these and must say which of 1–4 it contains (their process).
@@ -658,6 +658,19 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   Left from it: Asyncify refuses `call_ref` (upstream instruments it as an indirect call).
 - ✅ **W8 — wabt-ts dropped `(@metadata.code.*)` text annotations** — FIXED 2026-09-28
   (`815a59244`, pre-bump item 2); divergences.md W8.
+- ⬜ **Decommission binaryen-ts's decoder and encoder** (owner, 2026-09-28). The CODECS are already
+  gone: the decoder was deleted at 1.6.0 (one front end stage 3b), the encoder at stage 4b, and
+  binaryen-ts reads and writes through wabt-ts's reader and writer. What is LEFT is the adapter layer
+  that still stands in their place:
+  - `src/binaryen-ts/encoder/write-wasm.ts` — `writeWasm` / `writeWat` / `WasmEncodeError`:
+    `resolveNames` + `synthesizeTypes` on a COPY, then `writeBinaryIr` / `writeWatModule`;
+  - `src/binaryen-ts/ir/prepare.ts` — the read side: `WasmBinaryError` (moved from the decoder,
+    same contract) and `prepareForPasses` (names M8c + types M8d).
+  Importers, measured 2026-09-28: write-wasm.ts src 4 / tests 109 / scripts 20; prepare.ts src 3 /
+  tests 89 / scripts 25. `Module.emitBinary` (`api/index.ts`) and the compat API go through them,
+  so their public contracts (error classes and messages) must hold. Scope before cutting: which
+  part is a real step (the copy + resolve, the pass preparation) that only MOVES, and which is a
+  name that can go; the `encoder/` directory itself is the obvious leftover.
 
 ### Follow-ups kept deliberately behaviour-neutral
 
@@ -904,7 +917,7 @@ Ranking agreed in [handoffs.md](handoffs.md). Ranks 1–3 shipped (`br_on_cast` 
 | rank | gap                                                | status                                                                                                                                       |
 | ---- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | 4    | the five that unblock nothing for wasmtk           | ⬚ open, ranked last on their numbers despite 121 occurrences                                                                                 |
-| —    | **exact types** (`(exact $T)`), 116–548 assertions | ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case |
+| —    | **exact types** (`(exact $T)`), 116–548 assertions | ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case (written before the IRs merged; since 1.6.0 there is ONE IR — the change is to it and its two sets of consumers, the format tools and the optimizer) |
 
 ## Quality passes — 1.5.6 / 1.5.7
 
