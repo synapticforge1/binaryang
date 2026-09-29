@@ -27,12 +27,12 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-1. ⬚ **Folded `wasm2wat` puts sibling expressions on one line** — `(i32.store $m1 …)) (i32.store
-   (i32.const 0) …)`, `…)))) (if` — where upstream starts each on its own line. Text only, never
-   bytes, never a lost name ([names.md](names.md) § "Follow-ups, cosmetic"). 🔧 Restored
-   2026-09-29: it was the second half of the old "`wasm2wat` cosmetics" item and was dropped when
-   open-work.md was cut back; the first half (references by index) is closed — N10. Any fix
-   re-baselines the folded text of the corpus (a text-only commit, as N10's).
+1. ⬚ **Folded `wasm2wat` prints no `;; label = @N` on an unnamed block / loop / `if`**, which
+   upstream `--fold-exprs` and `wasm-tools --fold-instructions` both print; linear output has it.
+   A branch inside still prints its depth as `br_if 0 (;@1;)`, pointing at an `@1` the folded text
+   never shows. Text only, never bytes. Found 2026-09-29 while closing W18 (folded layout) and left
+   out of it on purpose, to keep that change one thing. Any fix moves folded text (a text-only
+   re-baseline, as W18's).
 
 ## Optimizer and IR
 

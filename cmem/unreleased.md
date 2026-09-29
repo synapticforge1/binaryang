@@ -1,6 +1,6 @@
 # Unreleased on `main` — what the next release note must say
 
-**Three changes, as of 2026-09-29** — § "Since 1.7.1" (check it rather than trust this line:
+**Four changes, as of 2026-09-29** — § "Since 1.7.1" (check it rather than trust this line:
 `git log --oneline v1.7.1..main -- src/ main.ts deno.json`). `deno.json` reads 1.7.1; the
 version line arms a release ([publishing.md](publishing.md)), so the next bump is the owner's
 decision, never a side effect of work.
@@ -42,3 +42,7 @@ contains ([handoffs.md](handoffs.md)).
   with names changes (420 of 421 corpus files); no bytes. Only `wasm2wat`: the compat `toText()` of
   parsed text keeps the author's indices. New option `WriteWatOptions.namedReferences` (`./wat`
   writer API).
+- **Behaviour — folded `wasm2wat` puts each sibling and operand on its own line** (`bee199092`,
+  W18), and `(then` / `(else` / `(do` / `(catch` are followed by one — as upstream and wasm-tools
+  print folded text. A declaration's constant expression is one line in both modes, as wasm-tools
+  (`60fefd723`). The folded TEXT of every module changes; no bytes; linear text unchanged.
