@@ -13,8 +13,9 @@
  *      the real value, and the function runs to completion with its locals
  *      restored.
  *
- * Where `wasm-opt` (Binaryen v130) is on PATH, the SAME driver is run against
- * `wasm-opt --asyncify` output as a differential oracle — both must agree.
+ * The same driver run against upstream `wasm-opt --asyncify` output — the
+ * differential oracle — lives in the comparison suite
+ * (`comparison/tests/asyncify_vs_wasm_opt.compare.ts`, 1.7.0).
  *
  * @license MIT
  */
@@ -23,185 +24,13 @@ import { assert, assertEquals } from '@std/assert';
 
 import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { buildCallResultTypes, flattenFunction } from '../../../src/binaryen-ts/passes/flatten.ts';
-import {
-  analyzeModule,
-  computeRelevantLocals,
-  type FlowCtx,
-  flowInstrumentFunction,
-  localsInstrumentFunction,
-  parseAsyncifyOptions,
-  synthesizeRuntimeSupport,
-} from '../../../src/binaryen-ts/passes/asyncify.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-
-// ---------------------------------------------------------------------------
-// Full pipeline
-// ---------------------------------------------------------------------------
-
-/** Run the complete asyncify transformation over `mod` (in place). */
-function asyncify(mod: WasmModule, passArgs: Record<string, string> = {}): WasmModule {
-  const opts = parseAsyncifyOptions(passArgs);
-  const analysis = analyzeModule(mod, opts);
-  const callResultTypes = buildCallResultTypes(mod);
-  for (const func of mod.functions) {
-    if (!analysis.instrumentedFuncs.has(func.name)) continue;
-    flattenFunction(func, callResultTypes);
-    const relevant = computeRelevantLocals(
-      func,
-      analysis.canChangeState,
-      !opts.ignoreIndirect,
-      analysis.addedFromList,
-    );
-    const flowCtx: FlowCtx = {
-      func,
-      canChangeState: analysis.canChangeState,
-      canIndirect: !opts.ignoreIndirect,
-      addedFromList: analysis.addedFromList,
-      callIndex: { n: 0 },
-      fakeGlobals: new Map(),
-      savedCondTemps: new Set(),
-    };
-    flowInstrumentFunction(func, flowCtx);
-    localsInstrumentFunction(func, flowCtx.fakeGlobals, [
-      ...relevant,
-      ...(flowCtx.savedCondTemps ?? []),
-    ]);
-  }
-  synthesizeRuntimeSupport(mod, opts);
-  return mod;
-}
-
-// ---------------------------------------------------------------------------
-// Unwind/rewind driver
-// ---------------------------------------------------------------------------
-
-interface Exports {
-  memory: WebAssembly.Memory;
-  asyncify_start_unwind: (data: number) => void;
-  asyncify_stop_unwind: () => void;
-  asyncify_start_rewind: (data: number) => void;
-  asyncify_stop_rewind: () => void;
-  asyncify_get_state: () => number;
-  [k: string]: unknown;
-}
-
-const DATA_PTR = 16;
-const STACK_BASE = 24;
-const STACK_END = 1024;
-
-/**
- * Drive one export through a single suspend/resume, where the "async" import
- * `asyncImport` unwinds on the first hit and yields `asyncResult` on rewind.
- * Returns the export's final result.
- */
-function driveOnce(
-  bytes: Uint8Array,
-  exportName: string,
-  args: number[],
-  asyncImportName: string,
-  asyncResult: number,
-): number {
-  // Holder lets the import closure reach the instance's exports, which only
-  // exist after instantiation (which itself needs the closure).
-  const box = { exp: undefined as unknown as Exports };
-  let suspended = false;
-  const asyncImport = (): number => {
-    const e = box.exp;
-    if (e.asyncify_get_state() === 2) { // rewinding — resuming the suspended call
-      e.asyncify_stop_rewind();
-      return asyncResult;
-    }
-    if (!suspended) { // first (normal) hit — begin the unwind
-      suspended = true;
-      e.asyncify_start_unwind(DATA_PTR);
-      return 0; // ignored while unwinding
-    }
-    return asyncResult; // later normal calls (e.g. loop iterations) return directly
-  };
-  const instance = new WebAssembly.Instance(
-    new WebAssembly.Module(bytes as BufferSource),
-    { env: { [asyncImportName]: asyncImport } },
-  );
-  const exp = instance.exports as unknown as Exports;
-  box.exp = exp;
-
-  // Init the asyncify data struct: { stackPos, stackEnd }.
-  const dv = new DataView(exp.memory.buffer);
-  dv.setInt32(DATA_PTR, STACK_BASE, true);
-  dv.setInt32(DATA_PTR + 4, STACK_END, true);
-
-  const fn = exp[exportName] as (...a: number[]) => number;
-  fn(...args); // first call — unwinds, returns a dummy
-  assertEquals(exp.asyncify_get_state(), 1, 'expected Unwinding state after first call');
-  exp.asyncify_stop_unwind();
-  exp.asyncify_start_rewind(DATA_PTR);
-  const result = fn(...args); // second call — rewinds + completes
-  assertEquals(exp.asyncify_get_state(), 0, 'expected Normal state after completion');
-  return result;
-}
-
-function wasmOptAsyncify(wat: string): Uint8Array | null {
-  try {
-    const inFile = Deno.makeTempFileSync({ suffix: '.wat' });
-    const outFile = Deno.makeTempFileSync({ suffix: '.wasm' });
-    Deno.writeTextFileSync(inFile, wat);
-    const out = new Deno.Command('wasm-opt', {
-      args: [inFile, '--asyncify', '-o', outFile],
-      stdout: 'null',
-      stderr: 'null',
-    }).outputSync();
-    if (!out.success) return null;
-    const bytes = Deno.readFileSync(outFile);
-    Deno.removeSync(inFile);
-    Deno.removeSync(outFile);
-    return bytes;
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Fixtures + tests
-// ---------------------------------------------------------------------------
-
-// compute(x) = x + get();  get() is the async import.
-const ADD_GET = `(module
-  (import "env" "get" (func $get (result i32)))
-  (memory 1)
-  (export "memory" (memory 0))
-  (func $compute (export "compute") (param $x i32) (result i32)
-    (i32.add (local.get $x) (call $get))))`;
-
-// Async import inside a loop: sum get() n times (locals must survive rewind).
-const LOOP_GET = `(module
-  (import "env" "get" (func $get (result i32)))
-  (memory 1)
-  (export "memory" (memory 0))
-  (func $sum (export "sum") (param $n i32) (result i32)
-    (local $i i32) (local $acc i32)
-    (block $done
-      (loop $lp
-        (br_if $done (i32.ge_s (local.get $i) (local.get $n)))
-        (local.set $acc (i32.add (local.get $acc) (call $get)))
-        (local.set $i (i32.add (local.get $i) (i32.const 1)))
-        (br $lp)))
-    (local.get $acc)))`;
+import { ADD_GET, asyncify, driveOnce, LOOP_GET } from './asyncify_helpers.ts';
 
 Deno.test('asyncify e2e — suspend/resume across an async call (x + get())', () => {
   const bytes = writeWasm(asyncify(readWat(ADD_GET)));
   // compute(10) with get() → 42 must yield 52 across the unwind/rewind.
   assertEquals(driveOnce(bytes, 'compute', [10], 'get', 42), 52);
-});
-
-Deno.test('asyncify e2e — differential vs wasm-opt --asyncify (x + get())', () => {
-  const ref = wasmOptAsyncify(ADD_GET);
-  if (!ref) {
-    console.warn('  (skipped — wasm-opt not on PATH)');
-    return;
-  }
-  assertEquals(driveOnce(ref, 'compute', [10], 'get', 42), 52);
 });
 
 Deno.test('asyncify e2e — locals survive a rewind (single suspend in a loop)', () => {
@@ -212,15 +41,6 @@ Deno.test('asyncify e2e — locals survive a rewind (single suspend in a loop)',
   const bytes = writeWasm(asyncify(readWat(LOOP_GET)));
   // After resume, get() returns 7 each of the 3 iterations → 21.
   assertEquals(driveOnce(bytes, 'sum', [3], 'get', 7), 21);
-});
-
-Deno.test('asyncify e2e — loop case matches wasm-opt --asyncify', () => {
-  const ref = wasmOptAsyncify(LOOP_GET);
-  if (!ref) {
-    console.warn('  (skipped — wasm-opt not on PATH)');
-    return;
-  }
-  assertEquals(driveOnce(ref, 'sum', [3], 'get', 7), 21);
 });
 
 Deno.test('asyncify — registered as a pass, runnable via PassRunner (lowercase name)', () => {

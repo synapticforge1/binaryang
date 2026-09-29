@@ -1,6 +1,7 @@
 #!/bin/sh
 # MUST: a bare upstream project name (binaryen, wabt) may appear in a path ONLY
-# where upstream compatibility is the subject (compat/, interop/). The qualified
+# where upstream compatibility or comparison is the subject (compat/, interop/,
+# and since 1.7.0 the comparison/ suite, which holds interop/). The qualified
 # forms binaryen-ts / wabt-ts are permitted -- the -ts suffix is what
 # distinguishes our port from the project it ports.
 #
@@ -14,7 +15,7 @@
 git ls-files | awk '
 {
   n = split($0, c, "/")
-  for (i = 1; i <= n; i++) if (tolower(c[i]) ~ /compat|interop/) next
+  for (i = 1; i <= n; i++) if (tolower(c[i]) ~ /compat|interop|comparison/) next
   for (i = 1; i <= n; i++) {
     x = tolower(c[i])
     gsub(/binaryen-ts/, "", x); gsub(/wabt-ts/, "", x)

@@ -41,6 +41,7 @@ import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { parseArgs, wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
 
@@ -390,4 +391,35 @@ Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => 
 
 Deno.test('parseArgs: trailing -o with no value throws instead of defaulting to output.wasm', () => {
   assertThrows(() => parseArgs(['in.wasm', '-o']), Error, 'requires an output path');
+});
+
+// ---------------------------------------------------------------------------
+// 1.7.0 — hybrid mode left the product; -S is native
+// ---------------------------------------------------------------------------
+
+Deno.test('parseArgs: --hybrid is refused by name, not read as a pass called "hybrid"', () => {
+  assertThrows(() => parseArgs(['in.wasm', '--hybrid']), Error, '--hybrid was removed in 1.7.0');
+});
+
+Deno.test('wasmOpt -S: the optimized module as text, computing what the bytes compute', async () => {
+  const add = (bytes: Uint8Array) =>
+    (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.add as (
+      a: number,
+      b: number,
+    ) => number)(2, 3);
+  for (const converge of [false, true]) {
+    const input = buildAddWasm();
+    const bytes = await withTempWasm(input, (p) => wasmOpt(p, { optimizeLevel: 2, converge }));
+    const text = await withTempWasm(
+      input,
+      (p) => wasmOpt(p, { optimizeLevel: 2, converge, emitText: true }),
+    );
+    assertInstanceOf(bytes, Uint8Array);
+    assertEquals(typeof text, 'string');
+    assert((text as string).startsWith('(module'), `converge=${converge}: WAT text`);
+    const again = wat2wasm(text as string);
+    assertEquals(again.errors.length, 0, `converge=${converge}: the text assembles`);
+    assertEquals(add(again.binary), add(bytes as Uint8Array));
+    assertEquals(add(again.binary), 5);
+  }
 });

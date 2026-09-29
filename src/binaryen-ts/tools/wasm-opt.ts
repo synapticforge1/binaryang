@@ -9,10 +9,12 @@
  *
  * **Native path** (default): `.wasm` → {@link readForPasses} (the wabt-ts reader,
  * then `prepareForPasses`) → {@link PassRunner} → {@link writeWasm} (wabt-ts's writer) → `.wasm`.
- * Pure TypeScript; no subprocess required.
+ * Pure TypeScript; no subprocess, no external tool. `-S` prints the result as
+ * WAT through the one WAT writer.
  *
- * **Hybrid path** (`--hybrid`): delegates to the upstream `wasm-opt` subprocess
- * for cases not yet covered by the TypeScript pass set.
+ * The `--hybrid` path that handed the work to an upstream `wasm-opt`
+ * subprocess left the product at 1.7.0 (owner, 2026-09-28): comparison with
+ * upstream lives in the repo's `comparison/` suite, never in the tool.
  *
  * **CLI usage**, through the package root's dispatcher (Deno, Node 22.18+, Bun):
  * ```sh
@@ -29,7 +31,6 @@ import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { readWat } from './read-wat.ts';
-import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import {
   defaultPassOptions,
   formatMinifyMap,
@@ -60,8 +61,9 @@ export interface WasmOptOptions {
   shrinkLevel: 0 | 1 | 2;
   /**
    * Whether to emit WAT text instead of binary WASM.
-   * Equivalent to `--emit-text` / `-S`.
-   * Only supported in `--hybrid` mode; the native path encodes binary only.
+   * Equivalent to `--emit-text` / `-S`. The text is the optimized BYTES read
+   * back and written by the one WAT writer, so it is exactly what `-o` would
+   * have written, `--converge` included.
    */
   emitText: boolean;
   /**
@@ -74,12 +76,6 @@ export interface WasmOptOptions {
    * Equivalent to listing pass names on the `wasm-opt` command line.
    */
   passes: string[];
-  /**
-   * Hybrid mode: when `true`, delegate to the upstream `wasm-opt` subprocess
-   * via {@link BinaryenInterop} rather than the TypeScript pass infrastructure.
-   * Default: `false` (use TypeScript passes).
-   */
-  hybridMode: boolean;
   /** Whether to preserve debug names in the output. Default: `false`. */
   debugInfo: boolean;
   /** Whether to enable closed-world optimizations. Default: `false`. */
@@ -119,7 +115,6 @@ const defaults: WasmOptOptions = {
   emitText: false,
   validate: true,
   passes: [],
-  hybridMode: false,
   debugInfo: false,
   closedWorld: false,
   passArgs: {},
@@ -134,14 +129,11 @@ const defaults: WasmOptOptions = {
 /**
  * Runs `wasm-opt` on the given input file.
  *
- * The default (native) path uses the TypeScript pass infrastructure:
- * parse → run passes → encode. Pass `hybridMode: true` to delegate to the
- * upstream `wasm-opt` subprocess instead.
+ * Uses the TypeScript pass infrastructure: parse → run passes → encode.
  *
  * @param inputPath - Path to the input `.wasm` or `.wat` file.
  * @param options   - Optimization options.
- * @returns The optimized WASM binary, or WAT text when `emitText` is `true`
- *          (hybrid mode only).
+ * @returns The optimized WASM binary, or its WAT text when `emitText` is `true`.
  */
 export async function wasmOpt(
   inputPath: string,
@@ -152,9 +144,6 @@ export async function wasmOpt(
   const inputBytes = new Uint8Array(await readFile(inputPath));
   const isWat = inputPath.endsWith('.wat');
 
-  if (opts.hybridMode) {
-    return await _hybridOptimize(inputBytes, isWat, opts);
-  }
   const out = _nativeOptimize(inputBytes, isWat, opts);
   // `validate` (default true) runs the engine's structural validator over the
   // optimized binary. Previously this option was parsed but never enforced — a
@@ -169,7 +158,9 @@ export async function wasmOpt(
       );
     }
   }
-  return out;
+  // `-S`: the bytes just validated, as text — read back by the one reader and
+  // printed by the one WAT writer.
+  return opts.emitText ? writeWat(readForPasses(out)) : out;
 }
 
 // ---------------------------------------------------------------------------
@@ -204,12 +195,11 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     console.error('  -O0 .. -O4           Optimization level');
     console.error('  -Os, -Oz             Size optimization (shrink level 1, 2)');
     console.error('  -c, --converge       Repeat the passes until a round saves < 0.1%');
-    console.error('  -S                   Emit WAT text (hybrid mode only)');
+    console.error('  -S                   Emit WAT text');
     console.error('  --<pass-name>        Run a specific pass by name');
     console.error('  --pass-arg key=val   Per-pass argument (passname@key=val)');
     console.error('  --partial-inlining-ifs N  Enable split inlining (Pattern A/B); -pii N');
     console.error('  --print-all-passes   List all registered passes and exit');
-    console.error('  --hybrid             Use upstream wasm-opt subprocess');
     process.exit(1);
   }
 
@@ -258,13 +248,6 @@ function _nativeOptimize(
   isWat: boolean,
   opts: WasmOptOptions,
 ): Uint8Array {
-  if (opts.emitText) {
-    throw new Error(
-      'WAT text output (--emit-text / -S) requires wabt-ts wasm2wat. ' +
-        'Use --hybrid for subprocess-based WAT output.',
-    );
-  }
-
   // External WAT goes through wabt-ts to bytes, then the one reader — the one text
   // route (see `read-wat.ts`). binaryen-ts's own WAT parser reads only a folded
   // subset; it rejected the linear text our own `wasm2wat` writes.
@@ -306,42 +289,6 @@ function _nativeOptimize(
 }
 
 // ---------------------------------------------------------------------------
-// Internal: hybrid binaryen.js optimization
-// ---------------------------------------------------------------------------
-
-function _hybridOptimize(
-  inputBytes: Uint8Array,
-  isWat: boolean,
-  opts: WasmOptOptions,
-): Promise<Uint8Array | string> {
-  // A binary is disassembled HERE, by the one reader and WAT writer. 🔧 It was
-  // piped to `wasm-opt --emit-text -` on stdin, and on Windows stdin is text
-  // mode: the bytes arrive altered and upstream reports "Section extends beyond
-  // end of input" — every binary input to hybrid mode failed there.
-  const wat = isWat ? new TextDecoder().decode(inputBytes) : writeWat(readForPasses(inputBytes));
-
-  return BinaryenInterop.optimizeViaSubprocess(wat, buildSubprocessFlags(opts));
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function buildSubprocessFlags(opts: WasmOptOptions): string[] {
-  const flags: string[] = [];
-  if (opts.optimizeLevel > 0) flags.push(`-O${opts.optimizeLevel}`);
-  if (opts.shrinkLevel === 1) flags.push('-Os');
-  if (opts.shrinkLevel === 2) flags.push('-Oz');
-  if (opts.debugInfo) flags.push('-g');
-  if (opts.closedWorld) flags.push('--closed-world');
-  if (opts.partialInliningIfs > 0) flags.push('-pii', String(opts.partialInliningIfs));
-  if (opts.converge) flags.push('--converge');
-  for (const p of opts.passes) flags.push(`--${p}`);
-  if (opts.emitText) flags.push('-S');
-  return flags;
-}
-
-// ---------------------------------------------------------------------------
 // Arg parser
 // ---------------------------------------------------------------------------
 
@@ -363,7 +310,6 @@ const RECOGNIZED_LONG_FLAGS = new Set([
   '--output',
   '--emit-text',
   '--debug-info',
-  '--hybrid',
   '--validate',
   '--no-validate',
   '--closed-world',
@@ -418,7 +364,12 @@ export function parseArgs(args: string[]): ParsedArgs {
     } else if (a === '-g' || a === '--debug-info') {
       result.options.debugInfo = true;
     } else if (a === '--hybrid') {
-      result.options.hybridMode = true;
+      // Removed at 1.7.0. Refused by name: left to the pass-name fallback it
+      // would read as a request for a pass called "hybrid".
+      throw new Error(
+        '--hybrid was removed in 1.7.0: binaryang no longer runs upstream wasm-opt. ' +
+          'Run upstream wasm-opt directly to compare.',
+      );
     } else if (a === '--validate') {
       result.options.validate = true;
     } else if (a === '--no-validate') {

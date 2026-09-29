@@ -36,7 +36,7 @@
  * | ------- | ---- |
  * | `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` | the two IRs, each explicitly named |
  * | `./compat/binaryen`, `./compat/wabt` | the two upstream API shapes |
- * | `./api`, `./passes`, `./wasm`, `./interop` | the Binaryen side: building, optimizing |
+ * | `./api`, `./passes`, `./wasm` | the Binaryen side: building, optimizing |
  * | `./wat2wasm`, `./wasm2wat`, `./wasm-validate`, `./wasm-objdump`, `./wasm-strip`, `./tools/wasm-opt` | each tool as a library function (`wat2wasm(text)`, …) |
  *
  * The root itself exports only what both halves genuinely share — today
@@ -127,7 +127,6 @@ COMMANDS:
                         -O0 .. -O4    Optimization level
                         -Os, -Oz      Size optimization (shrink level 1, 2)
                         -S            Emit WAT text
-                        --hybrid      Use upstream wasm-opt subprocess
   wat2wasm <input>      Assemble WAT text to a WASM binary
                         -o <file>     Output file (default: stdout)
   wasm2wat <input>      Disassemble a WASM binary to WAT text

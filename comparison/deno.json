@@ -1,0 +1,14 @@
+{
+  // The comparison suite: binaryang measured AGAINST upstream (binaryen.js, the
+  // upstream `wasm-opt`). A workspace member so it has its own compiler options,
+  // like `tests/binaryen-ts` (whose files some of these came from) — and so it
+  // is plainly NOT part of the package: no `name`, `version` or `exports`, and
+  // the root's `publish.include` names only `main.ts` and `src/`.
+  //
+  // Outside `deno task test`, the gate and CI by design: it needs upstream tools
+  // installed. Its tests are `*.compare.ts`, a name `deno test` does not
+  // discover; `deno task comparison` names them.
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false
+  }
+}

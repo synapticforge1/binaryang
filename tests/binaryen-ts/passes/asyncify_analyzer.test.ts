@@ -3,14 +3,14 @@
  *
  * Stage 2 tests for the Asyncify ModuleAnalyzer: the whole-program analysis
  * that decides which functions can change the unwind/rewind state and must be
- * instrumented. Two layers:
+ * instrumented — unit tests on hand-built modules (precise control of the call
+ * graph).
  *
- *  1. Unit tests on hand-built modules (precise control of the call graph).
- *  2. A **differential** harness that parses a WAT string, runs our
- *     `analyzeModule`, and compares the instrument set against what the real
- *     `wasm-opt --asyncify --pass-arg=asyncify-verbose` (Binaryen v130) reports
- *     — the authoritative oracle for the ABI TinyGo depends on. The harness
- *     skips gracefully if `wasm-opt` is not on PATH.
+ * The DIFFERENTIAL half — our instrument set against the real
+ * `wasm-opt --asyncify --pass-arg=asyncify-verbose`, the authoritative oracle
+ * for the ABI TinyGo depends on — lives in the comparison suite
+ * (`comparison/tests/asyncify_vs_wasm_opt.compare.ts`, 1.7.0): it needs upstream
+ * installed, and upstream is never part of the product or its gate.
  *
  * @license MIT
  */
@@ -24,107 +24,13 @@ import {
   resolveAsyncifyImports,
 } from '../../../src/binaryen-ts/passes/asyncify.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-
-// ---------------------------------------------------------------------------
-// Differential harness
-// ---------------------------------------------------------------------------
-
-async function haveWasmOpt(): Promise<boolean> {
-  try {
-    const p = new Deno.Command('wasm-opt', { args: ['--version'], stdout: 'null', stderr: 'null' });
-    return (await p.output()).success;
-  } catch {
-    return false;
-  }
-}
-
-/** Our analyzer's instrument set for `wat` under `passArgs` (names sans `$`). */
-function ourInstrumentSet(wat: string, passArgs: Record<string, string>): Set<string> {
-  const mod = readWat(wat);
-  const { instrumentedFuncs } = analyzeModule(mod, parseAsyncifyOptions(passArgs));
-  return new Set([...instrumentedFuncs].map((n) => (n.startsWith('$') ? n.slice(1) : n)));
-}
-
-/**
- * The reference instrument set from `wasm-opt --asyncify --pass-arg=asyncify-verbose`.
- * Verbose prints one line per state-changing function; imported functions are
- * reported as "is an import ..." and are NOT instrumented.
- */
-async function wasmOptInstrumentSet(
-  wat: string,
-  passArgs: Record<string, string>,
-): Promise<Set<string>> {
-  const inFile = await Deno.makeTempFile({ suffix: '.wat' });
-  const outFile = await Deno.makeTempFile({ suffix: '.wat' });
-  try {
-    await Deno.writeTextFile(inFile, wat);
-    const args = [inFile, '--asyncify', '--pass-arg=asyncify-verbose', '-S', '-o', outFile];
-    for (const [k, v] of Object.entries(passArgs)) {
-      args.push(v === '' ? `--pass-arg=${k}` : `--pass-arg=${k}@${v}`);
-    }
-    const out = await new Deno.Command('wasm-opt', { args, stdout: 'piped', stderr: 'piped' })
-      .output();
-    const text = new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr);
-    const set = new Set<string>();
-    for (const line of text.split('\n')) {
-      const m = line.match(/^\[asyncify\]\s+(\S+)\s+can change the state/);
-      if (m && !line.includes('is an import')) set.add(m[1]);
-    }
-    return set;
-  } finally {
-    await Deno.remove(inFile).catch(() => {});
-    await Deno.remove(outFile).catch(() => {});
-  }
-}
-
-async function assertMatchesOracle(
-  name: string,
-  wat: string,
-  passArgs: Record<string, string> = {},
-): Promise<void> {
-  const ours = ourInstrumentSet(wat, passArgs);
-  const ref = await wasmOptInstrumentSet(wat, passArgs);
-  assertEquals(
-    [...ours].sort(),
-    [...ref].sort(),
-    `${name}: instrument set differs from wasm-opt oracle`,
-  );
-}
-
-// ---------------------------------------------------------------------------
-// WAT fixtures
-// ---------------------------------------------------------------------------
-
-const IMPORT_CALL = `(module
-  (import "env" "sleep" (func $sleep))
-  (memory 1)
-  (func $foo (call $sleep))
-  (func $pure (result i32) (i32.const 1)))`;
-
-const TRANSITIVE = `(module
-  (import "env" "sleep" (func $sleep))
-  (memory 1)
-  (func $a (call $b))
-  (func $b (call $sleep))
-  (func $c (result i32) (i32.const 0)))`;
-
-const INDIRECT = `(module
-  (memory 1)
-  (table 1 funcref)
-  (type $v (func))
-  (func $foo (call_indirect (type $v) (i32.const 0)))
-  (func $pure (result i32) (i32.const 1)))`;
-
-const TWO_IMPORTS = `(module
-  (import "env" "sleep" (func $sleep))
-  (import "env" "log" (func $log))
-  (memory 1)
-  (func $foo (call $sleep))
-  (func $bar (call $log)))`;
-
-// ---------------------------------------------------------------------------
-// Unit tests (no external tool)
-// ---------------------------------------------------------------------------
+import {
+  IMPORT_CALL,
+  INDIRECT,
+  ourInstrumentSet,
+  TRANSITIVE,
+  TWO_IMPORTS,
+} from './asyncify_helpers.ts';
 
 Deno.test('analyzeModule — import caller is instrumented, pure function is not', () => {
   const s = ourInstrumentSet(IMPORT_CALL, {});
@@ -190,30 +96,4 @@ Deno.test('resolveAsyncifyImports — in-wasm asyncify.* import mode: topMost ex
 Deno.test('resolveAsyncifyImports — returns false and no-ops when there are no asyncify imports', () => {
   const mod = readWat(TRANSITIVE);
   assert(!resolveAsyncifyImports(mod), 'no asyncify imports → host-driven mode');
-});
-
-// ---------------------------------------------------------------------------
-// Differential tests vs real wasm-opt (skipped if the tool is absent)
-// ---------------------------------------------------------------------------
-
-Deno.test('differential vs wasm-opt --asyncify (verbose)', async (t) => {
-  if (!await haveWasmOpt()) {
-    console.warn('  (skipped — wasm-opt not on PATH)');
-    return;
-  }
-  await t.step('import call', () => assertMatchesOracle('import call', IMPORT_CALL));
-  await t.step('transitive', () => assertMatchesOracle('transitive', TRANSITIVE));
-  await t.step('indirect (default)', () => assertMatchesOracle('indirect', INDIRECT));
-  await t.step(
-    'ignore-indirect',
-    () => assertMatchesOracle('ignore-indirect', INDIRECT, { 'asyncify-ignore-indirect': '' }),
-  );
-  await t.step(
-    'ignore-imports',
-    () => assertMatchesOracle('ignore-imports', IMPORT_CALL, { 'asyncify-ignore-imports': '' }),
-  );
-  await t.step(
-    'imports list',
-    () => assertMatchesOracle('imports list', TWO_IMPORTS, { 'asyncify-imports': 'env.sleep' }),
-  );
 });
