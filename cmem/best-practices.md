@@ -1229,7 +1229,7 @@ not reach, read the CONSUMERS' rule and test it directly.
 ## 🆕 Lessons from the post-M8 run (2026-09-18 → 2026-09-19)
 
 Fourteen items — post-M8 fixes 1–10, W10b, W11, the scheduled cleanup — each measured, mutated and
-gated ([open-work.md](open-work.md) § "Done 2026-09-18 → 2026-09-19"). What they taught, in order of
+gated (`git show 769b4d3c0:cmem/open-work.md`, § "Done 2026-09-18 → 2026-09-19"). What they taught, in order of
 how much they cost when ignored:
 
 ### A task's own description is a claim — check it before scoping

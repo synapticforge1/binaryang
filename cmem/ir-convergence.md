@@ -67,7 +67,7 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
 | S6 unify the type      | ✅ DONE 2026-09-18: steps 1–5 — the bridge is deleted (M8e); `prepareForPasses` (names M8c, types M8d) makes a wabt-ts tree ready for the passes; the module ratchet is **0 / 0 / 0**; `deno task direct` / `direct-behaviour` hold it — see "Item 6 — the MODULE half" |
 | S7 text-form record    | ✅ DONE 2026-09-19: per function (`899263b7b`), then per INSTRUCTION — a mix stays the same mix (`b366262ce`); on by default (owner: fidelity first on the text path), stripped by the optimizer — see S7    |
-| One front end          | 🚧 RUNNING (owner, 2026-09-19: the reader and the encoder are shared too). Stages 0 ✅ `2ca4513f1`, 1 ✅ `f60e4e575` + `1ffdcb561`, **2 ✅ DONE 2026-09-28** (last item R15, merge `196a40c0c`; then Q1–Q8, `a46dab48b`, and several tables, `62289da49`); **stage 3 next**, then 4 and 5 — see "One front end" |
+| One front end          | ✅ COMPLETE 2026-09-28 (owner, 2026-09-19: the reader and the encoder are shared too). Stages 0 `2ca4513f1`, 1 `f60e4e575` + `1ffdcb561`, 2 (last item R15, merge `196a40c0c`; then Q1–Q8, `a46dab48b`, and several tables, `62289da49`), 3a / 4a, 3b / 4b (the decoder and encoder deleted, released in **1.6.0**), 5 (`parseWat` deleted, `824a4b435`); `encoder/` relocated to `ir/` (`4074025fa`) — see "One front end" |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
 `open-work.md`'s summary; the detail is under "The measurements this rests on"):
@@ -84,8 +84,10 @@ The grouping decision was taken by worst-condition analysis — the fidelity wor
 unrepresentable instruction) does NOT bind at 0/128; the optimization worst case does, on
 `optimize-instructions.ts` with its 64 operator dispatches.
 
-**Next:** One front end stage 3 (switch the entry points, delete binaryen-ts's decoder) — [open-work.md](open-work.md) has the order. The
-increments as they landed on `main` are in "Merge log" at the end of this file.
+**Next:** nothing in the convergence itself (2026-09-29). One follow-up it unblocked is open —
+deleting S7's read-back (§ "One front end", stage 2's ⏭️ line); it and the optimizer items are in
+[open-work.md](open-work.md). The increments as they landed on `main` are in "Merge log" at the end
+of this file.
 
 ## The finding
 
@@ -3094,8 +3096,9 @@ elsewhere:
   silently dropped inline exports — 196 of 345 — and inline IMPORTS, which shift every later index
   so a valid module calls the wrong function. **Count the thing, not the bytes.** The real byte gap,
   once found, was wabt-ts not run-length-compressing locals: fixed for **42,437 bytes (2.7%)** over
-  the corpus (baseline 1,557,602 → 1,515,165); binaryen-ts could take the same fix
-  ([open-work.md](open-work.md)).
+  the corpus (baseline 1,557,602 → 1,515,165); binaryen-ts could take the same fix. ✅ MOOT since
+  1.6.0 (closed 2026-09-29): binaryen-ts writes through the one writer (stage 4), which merges
+  locals by value since W11.
 - 🔁 **RECONSTRUCTING a name instead of resolving an index** recurred three times — `$depth{N}` for
   branch labels, a name-only lookup for `call_indirect` types, `$tag{N}` for tags. Each is the name
   the parser would have synthesized for an anonymous construct, so each works until the construct
@@ -4296,7 +4299,7 @@ operand NODES, not values, so a multi-value operand takes its neighbour —
 `(call $add2 (local.get 0) (call $take2 (call $pair)))` reads back with the `local.get` on `$take2`.
 Bytes are right in both; the tree is not.
 
-### 🚧 One front end — RUNNING since 2026-09-19 (owner decision at the top; stages 0–1 done, stage 2 started)
+### ✅ One front end — COMPLETE 2026-09-28 (owner decision at the top; begun 2026-09-19; released in 1.6.0)
 
 The question: can the wabt-ts reader + `prepareForPasses` (route **B**) replace binaryen-ts's decoder
 (route **A**) as the optimizer's entry, and one writer replace two? Measured over every binary in
@@ -4509,10 +4512,10 @@ before it:
      section raw, by design, for `wasm-strip`); the second said **0.75%**, which was the stale-section
      defect below. The lesson is in [best-practices.md](best-practices.md): find WHERE the bytes are
      before attributing them.
-     ⬚ So R11' stays open as a decision, not a task: copying the spill adds locals the merged tree does
-     not need, moves bytes (a re-baseline) and is the largest of stage 2's items, for no measured gain.
-     The cost of NOT copying it is that stacky producers (wasic, TinyGo) keep code the passes leave
-     alone — invisible, since it is not wrong, only unoptimized. Owner's call.
+     🔧 CORRECTED 2026-09-29 — this read "⬚ R11' stays open as a decision", which the ✅ BUILT line
+     above overtook the same day (2026-09-20): the spill was built because it keeps a value
+     REACHABLE (Inlining at -O3, Flatten), not for bytes. The size reasoning here still stands as
+     the reason size was never the argument.
    - 🔧 **Found by that measurement and FIXED (`stale_name_section`, 2026-09-20): a raw-kept name
      section survived optimization on route B** — 286 modules keep one, **211 still carried it after
      -Oz, 13,720 bytes**, 13,670 of them one DWARF module. `PassRunner` cleared `hasNameSection` and
@@ -4525,8 +4528,8 @@ before it:
      29,190 optimizer outputs 29,150 are unchanged, and INVALID went 27 → 9, none new. It is
      POSITIONAL — entry values into locals, each region reads them back, `pop`s untouched, a
      statement split where it holds such a construct in an operand — for why, and for the three
-     pre-existing defects its behaviour check surfaced (Q1–Q3), see [open-work.md](open-work.md)
-     item 3. (`br.0` / `nop.0` at -O3 were R11', fixed by the spill — the line that stood here
+     pre-existing defects its behaviour check surfaced (Q1–Q3), see § "The optimizer after One
+     front end" below. (`br.0` / `nop.0` at -O3 were R11', fixed by the spill — the line that stood here
      attributed them to R15.) Residual tree
      differences: **146 functions of 49,271** (R11's 138 plus 8 one-offs: 2 `drop`/`br`,
      `local.get`/`br_on`, `local.get`/`pop`, `pop`/`br`, `if`/`pop`, a `throw` operand, an
@@ -4549,7 +4552,7 @@ before it:
      succeed. By design, the entry points now REFUSE the invalid binaries the decoder accepted
      (R2–R5). `tests/binaryen-ts/tools/one_reader.test.ts` pins it both ways, and pointing
      `wasm-opt` or `readBinary` back at `parseWasm` fails it.
-   - ⏳ **3b — delete `wasm-parser.ts` — AT THE BUMP (owner, 2026-09-28: "Wait for the bump").** The published `parseWasm`
+   - ✅ **3b — DONE in 1.6.0 (2026-09-28), as planned below.** ~~AT THE BUMP (owner, 2026-09-28: "Wait for the bump").~~ The published `parseWasm`
      (`./binary`) IS that decoder, and the owner decided (2026-09-19) to unpublish `./binary` and
      `./encoder` at the next bump, "not before", with no wrapper. So deleting it now would break
      the published API; deleting it at the bump is the plan as decided. What still calls it:
@@ -4588,8 +4591,9 @@ before it:
      IR field this register said was missing, now carried end to end — divergences.md Q9, W12.
      Writer parity after it: 14,595 / 14,595. `writeWat` re-assembly residuals at O0: 5 → 2
      (binary.55's DataCount; try_table.1's empty `else`, E2).
-   - ⏳ **4b — delete `wasm-encoder.ts` — at the bump**, with the decoder (3b): `encodeWasm` is the
-     published `./encoder`, unpublished in that release.
+   - ✅ **4b — `wasm-encoder.ts` deleted in 1.6.0**, with the decoder (3b): `encodeWasm` was the
+     published `./encoder`, unpublished in that release. Deleting it found four defects its
+     fail-loud checks had covered — [divergences.md](divergences.md), closed table.
 5. Retire binaryen-ts's internal `parseWat` (already planned). ✅ **DONE 2026-09-28** (merge
    `824a4b435`): deleted with its tokenizer and s-expression reader; `readWat` is the only text
    route. What the parser refused or normalized each got a home — the text route's refusals, the
@@ -4661,8 +4665,10 @@ Refinements, ✅ CONFIRMED by the owner with the diagram (2026-09-19):
    names and synthesizing the type table (W1–W3 below) is byte work, so it lives IN the encoder, as
    a step before both writers — without disturbing an as-written index (T1).
 
-⏳ **Still open, needed by stage 3:** whether the published `parseWasm` / `encodeWasm`
-(`./binary`, `./encoder`) stay as thin wrappers over the shared reader and encoder.
+✅ **Decided (owner, 2026-09-19), done in 1.6.0:** the published `parseWasm` / `encodeWasm`
+(`./binary`, `./encoder`) did NOT stay as wrappers — both were unpublished at the bump (option (a);
+the options and the facts behind the choice: `git show 769b4d3c0:cmem/open-work.md`, "Decided
+(owner, 2026-09-19): option (a)").
 3. **One IR is one node kind per instruction**: no reader may choose between `simd.load` and
    `load`, and the opcode set holds the scalar saturating truncations — plan stage 1.
 
@@ -4740,6 +4746,62 @@ sharing obligations.
 ⚠️ This paragraph said nothing about the READERS and WRITERS, and they stayed duplicated — which the
 owner had not intended (decision "ONE FRONT END", 2026-09-19, at the top). Reading and writing
 belong to neither phase; they are shared, like the tree.
+
+## The optimizer after One front end — records moved from open-work.md (2026-09-29)
+
+Moved here when [open-work.md](open-work.md) was cut back to open items. The blow-by-blow (every
+stage-2 item, the M-series and post-M8 tables, the pre-bump items): `git show
+769b4d3c0:cmem/open-work.md`, § "Handoff before the pre-bump items".
+
+### R15 — why the block-param lowering is POSITIONAL (merge `196a40c0c`)
+
+🔑 The first attempt (`wip/r15-tree-pass`, never merged; its commit message keeps the traps) rewrote
+each entry `pop` into a read of its local and failed 6 of 8: a `pop` is only "already on the stack"
+— an entry value may be consumed deep in an operand, pass straight through (`if.0`'s arm is
+`[(pop), (pop)]`: nothing to rewrite), or be carried back by a `br_if` whose values a multi-result
+call produces INSIDE its condition (`fac.0`); and a wrapper `block` around `local.set`s of `pop`s
+cannot reach the enclosing stack. The tree pass: entry values into locals before the construct,
+each region READS them back at its start, `pop`s untouched; a statement holding such a construct or
+back-edge in an operand is split into statements (bytes unchanged — a `pop` writes nothing); the
+spill (R11'), run AFTER the lowering, nests what it can again; a mixed `br_table` goes through a
+trampoline. Its behaviour check found Q1–Q3; the same check over the whole testsuite found Q4–Q8
+(all in [divergences.md](divergences.md); `deno task spec-behaviour` is that check, in the gate).
+🔑 Two guards in the phantom fix (Q4) exist because a first version broke `fac.0`: a region's
+statements are not operands, and a bare `pop` statement is not a phantom — the `fac-ssa` route-A
+fixture caught the pair.
+
+### Flatten — decided KEPT, then completed (2026-09-28)
+
+- **Decision** (pre-bump item 5, `6107691db`): finish it rather than refuse it at the entry point —
+  but never silently invalid. Scoped 2026-09-20 at **132 INVALID outputs of 2,925** (~4.5%) and ~12%
+  throwing, reachable by `wasm-opt --flatten` and `add('Flatten')` though in no `-O` list. The 131
+  after re-measuring were ONE defect: a result-typed body that never falls through was flattened as
+  a void statement.
+- **Value-carrying branches** (`4421bf62a`, merged `51be28b2e`): upstream's shape — the value into
+  the target's result temp, the branch without it; to the frame, a `return`.
+- **Complete** (`de5374681`, merged `7689ea5b7`; owner: "perform the flatten"): an N-value result
+  lives in N temps (`values` beside `value` in `Flat` — no tuple kind added; V1 and S6 6A stand);
+  each frame MODELS its operand stack, so stack-form code and every `pop` flatten (operands first,
+  then the pops take the top); legacy `try`; a value `br_table` to the frame. Over 2,919 modules:
+  **2,896 valid, 0 invalid, 23 refused — `br_on_*` and `try_table` only, both upstream's refusals
+  too.** In the gate as spec-behaviour's `--flatten` variant, its refusals pinned by (module,
+  variant) in `REFUSED_BUDGET`.
+
+### `wasm-opt --converge` — the design reasoning (built 2026-09-28, merge `25717c474`)
+
+The owner's proposal (2026-09-19, parked, then built): repeat the pipeline until the size delta
+over the next TWO rounds averages under 0.1%. Upstream's `--converge` repeats to a fixed point,
+opt-in because of cost. What was built: `optimizeToConvergence` (`passes/converge.ts`, `./passes`),
+opt-in; each round ENCODED (the honest measure); stop at a cumulative gain under 0.2% over the last
+two rounds (≡ the average rule), a fixed point, a cycle (bytes repeating an older round), or 20
+rounds; **return the SMALLEST round, never larger than round 1**. The reasons each guard exists:
+a round can GROW before the next shrinks (Inlining, Flatten) — hence the window and best-so-far;
+passes can undo each other (LocalCSE's tee vs CoalesceLocals) at a small nonzero delta forever — a
+window cannot stop that, hence the cap and the cycle check; the unit is a full round, never a pass
+(single passes are wildly uneven). **Measured first**: over 2,919 modules round 2 saves 0.012%,
+round 3 0.002%, **no round grew any module**, no corpus module moved; −176 bytes (0.014%) in all.
+Built on the owner's call knowing that; the 60.3 KB coverage gap ([open-work.md](open-work.md)) is
+where size lives.
 
 ## Why this was invisible until now
 

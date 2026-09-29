@@ -28,7 +28,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 12 | 2026-09-19 | wasmtk (in) | two parser-leniency reports against 1.5.3, found by hardening their `.wast` runner (one catch around "assemble the module" had let an ENCODER error satisfy an `assert_malformed`): limits took no range check; a legacy `try`'s clause structure was unchecked. Their write-up: `wasmtk/scripts/binaryang-report.md` | ✅ both reproduced on `main` and fixed (`d59816990`), with their correction about `(memory 0x1_0000_0000)` PINNED as a test. Outbound: a `catch` after `catch_all` is INVALID, not malformed (wabt parses it) — three of their rows are parse bugs, the fourth is our validator's gap, still open |
 | 13 | 2026-09-28 | wasmtk (out — NOT SENT, by decision) | binaryang `main` (unreleased) fixes defects that change what an OPTIMIZED module does, several in the 1.5.4 you ship against: a `local.set` before a branch to an `if` label became a `drop` at -O2+ (CoalesceLocals, SILENT — valid output, wrong result; checked against the v1.5.4 source); dead code after `br` could trap; a `call_indirect` across rec groups lost its trap; `Inlining` at -O3 emitted invalid modules for multi-value call operands; modules with several tables or `elem.drop` could not be written back or optimized. Suggest: anything built with `-O2` or higher on 1.5.4 whose source branches to a labelled `if` is suspect; the fix arrives with the next release (its timing is the owner's call). Record: [divergences.md](divergences.md) Q1–Q8 | 🚫 **Not needed (owner, 2026-09-28):** "We are going to fix the -O2 issue before we update to it in wasmtk — no letter needed." The fix is on `main`; wasmtk moves only to a release that carries it. Kept as the record of what it would have said |
 | 14 | 2026-09-28 | wasmtk (in) | their letter against published 1.6.0: five items (heap type in an inline `call_indirect` typeuse; export `allFeatures`; compat `validate()` stub; annotation leniency; custom-descriptors + `(pagesize N) (data)`). All reproduced; record in [open-work.md](open-work.md) |
-| 15 | 2026-09-28 | wasmtk (out — ⬚ DRAFT, below, for the owner to send) | their items addressed, and which release holds the fixes |
+| 15 | 2026-09-28 | wasmtk (out — ⬚ DRAFT, below, for the owner / workspace to send) | their items addressed, and which release holds the fixes — TRUE as written since 1.7.0 was published (2026-09-29); the parenthesis updated to say so |
 
 ### § 15 — draft reply to wasmtk (2026-09-28)
 
@@ -36,8 +36,8 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >
 > Thank you — every item reproduced on our tree before we acted, as you asked.
 >
-> **Items 1–5 are fixed, both halves of 5. The fixes ship in 1.7.0** (not yet published; its
-> changelog will list them by your numbers). It is a minor because it also removes the `./interop`
+> **Items 1–5 are fixed, both halves of 5. The fixes ship in 1.7.0** (published 2026-09-29; its
+> changelog lists them by your numbers). It is a minor because it also removes the `./interop`
 > export and hybrid mode (upstream binaryen is no longer reachable from the package); you use only
 > `/compat/*`, which is unchanged:
 >

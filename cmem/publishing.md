@@ -5,9 +5,15 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Current state (2026-09-14):** `@jrmarcum/binaryang@1.5.4` is latest, score 100, provenance
-`rekorLogId=2692137018`. `main` carries unreleased work — [unreleased.md](unreleased.md).
-`RELEASE_PAT` is still NOT set; that is owner action 1 in [open-work.md](open-work.md).
+**Current state (2026-09-29):** `@jrmarcum/binaryang@1.7.0` is latest (`rekorLogId=2991848417`,
+§ "1.7.0" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
+unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand), `deno task release`
+(tag and branch in one push), CI publishes; a patch while `main` holds unreleased work goes from a
+branch cut from the last tag (§ "1.6.1"). ✅ **`RELEASE_PAT` — CLOSED as not needed (owner,
+2026-09-29):** the pattern always pushes the tag itself, the path that has published unaided 8 of 8;
+the PAT only fixes the `auto-tag` → dispatch path, which the pattern never takes. That path is
+reached only by pushing a bumped `main` without its tag, and fails loudly (`actorNotScopeMember`);
+§ "Recovery when this happens" applies. The sections below that call the PAT open predate this.
 
 The sections below are in the order they were found, so a later one can narrow an earlier one — the
 last section, "The tag-push path works unaided", narrows the manual-step warnings above it.
@@ -473,8 +479,8 @@ serves `.` → `./main.ts`. Verified from JSR: `deno run -A --min-dep-age 0
 jsr:@jrmarcum/binaryang@1.6.1 --version` prints `binaryang 1.6.1`, `--help` the usage, and a
 command runs (exit 1 on a missing file). Without `--min-dep-age 0` Deno refuses for 24 hours —
 the wall recorded below. `release/1.6.1` (bumped) is merged into `main` (`c0dd3d251`): `main`
-reads **1.6.1**, so auto-tag no-ops when `main` is pushed. The NEXT release is **1.6.2** (owner,
-2026-09-28 — despite the new exports and passes; `deno task bump` makes it).
+reads **1.6.1**, so auto-tag no-ops when `main` is pushed. The next release was to be 1.6.2; the
+owner made it **1.7.0** (a minor — `./interop` removed), released 2026-09-29.
 
 The record as written before the release:
 
@@ -519,8 +525,8 @@ The tag push fires `publish.yml`, which verifies the tag matches `deno.json`, ru
 `test`, then calls `deno publish` **directly** — never through `deno task`, because that indirection
 spawns a subprocess and loses OIDC — and finally creates a GitHub Release.
 
-⚠️ **A DISPATCHED release needs a manual step**, because `RELEASE_PAT` is not set. See the
-root-cause section above. 🔧 This first said "a release currently needs a manual step"; 1.5.4
+⚠️ **A DISPATCHED release needs a manual step**, because `RELEASE_PAT` is not set (and will not
+be — closed as not needed, 2026-09-29: this flow never dispatches). See the root-cause section above. 🔧 This first said "a release currently needs a manual step"; 1.5.4
 narrowed it — see "The tag-push path works unaided" at the end of this file.
 
 ## Version rule — sub-version capped at 9
@@ -632,7 +638,8 @@ failure is on the `workflow_dispatch` path, which is what `RELEASE_PAT` exists f
 push authenticates as the developer, so it was never the path at risk. The earlier note that "every
 release will need the manual step" was too broad — every DISPATCHED release does.
 
-**So `RELEASE_PAT` is still an open owner action**, and the recovery recipe above still applies to
+**So `RELEASE_PAT` stayed an open owner action** (until 2026-09-29: closed as not needed — the
+current-state line at the top), and the recovery recipe above still applies to
 any release that falls through to dispatch. The record, by path: `push: tags` has succeeded **6 of
 6** across three packages (binaryang 1.5.3 among them) before 1.5.4 added a seventh; the `auto-tag`
 → `workflow_dispatch` path has succeeded **0 of 4**.

@@ -183,8 +183,9 @@ keep passing, which is why P5's row names the file.)
   run re-encoded and re-decoded, and got the names back — which is what coupled P4 to P5 (a tree
   pass since R15, 2026-09-28, so the coupling is gone).
 - **`-O2 -g` differs from upstream** (register N4): we keep the local and label names the passes
-  leave; upstream drops every local name, params included, and writes no labels. What optimization
-  may do with names was the owner's future discussion — now priced at `-Oz`, § "Names under
+  leave; upstream drops every local name, params included, and writes no labels. ✅ **DECIDED
+  (owner, 2026-09-29): keep them** — the discussion closed with § "Does optimization RENAME
+  things" below. What optimization may do with names was the owner's future discussion — priced at `-Oz`, § "Names under
   optimization, priced" below: the divergence costs 127.4 KB of locals and labels over 421 modules,
   under `-g` only, and is not where our size gap to upstream lives.
 - **`nameless_reference.ts` (then `wabt_reference.ts`) stays — for `parseWat` only.** `parseWat` carries no names by design (W4,
@@ -350,8 +351,8 @@ Three conclusions, each probed:
 2. **The one place upstream renames for size is opt-in and not part of `-O`/`-Oz`:**
    `--minify-imports-and-exports` (also `--minify-imports`, `--minify-exports`) rewrites the interface
    strings to `a`, `b`, `c`… and emits the old→new map as JSON so the host can be updated. On the probe
-   it took a stripped module from 139 to **106 bytes, −24%**, all of it one long export name. **We have
-   no such pass** — see [open-work.md](open-work.md). ⚠️ Under the owner's rule ("an exported name must
+   it took a stripped module from 139 to **106 bytes, −24%**, all of it one long export name. ✅ **We
+   have it since 1.7.0** (merge `26d4ca11e`), map for map with `wasm-opt` 132. ⚠️ Under the owner's rule ("an exported name must
    absolutely be preserved, or we have name mangling") it can only ever be opt-in, which is exactly how
    upstream ships it.
 3. **We never write an INVENTED name into a binary, and upstream nearly does.** Fed a module with no
@@ -361,3 +362,26 @@ Three conclusions, each probed:
    In TEXT the two differ in style and neither costs binary bytes: upstream prints its invented short
    names (`$0` for a param, `$label` for a loop), our `wasm2wat` prints indices (`(;0;)`, `local.get 1`)
    and invents nothing unless asked (N2, `generateNames` opt-in).
+
+🗓️ **The owner's principle for minification (2026-09-19), which settled its shape:** the EXPORT
+side keeps fidelity with the names consumers reference; everything not referenced from outside "can
+be minified without restraint as long as they maintain programmatic fidelity in process, not
+necessarily in name". Two consequences, both measured: no back-reference step is needed (an export
+maps a STRING to a kind and an INDEX, never to an internal name, so renaming internals cannot break
+one); and renaming internals collects ZERO bytes (no name section at `-Oz` on any of 421 modules;
+only `-g` writes one, where shortening defeats `-g`). So the whole prize is the interface — the
+strings the owner fenced off — which is why the passes are opt-in and always print the map. The
+full scoping as written (the three minifier columns: occupies bytes? / what references it / what
+proves it did not break): `git show 769b4d3c0:cmem/open-work.md`, the `MinifyImportsAndExports`
+item.
+
+✅ **Is the minified name scheme optimal? — owner, 2026-09-29: yes, and the question is CLOSED.**
+The pass takes upstream's generator (`a`…`z`, `A`…`Z`, `_`, `$`, then two characters, JS reserved
+words and `env` skipped). Every name is written once per import or export entry behind a one-byte
+length, so the first 54 are already the one-character minimum; ranking names by use gains nothing
+(each is used once, bar a repeated (module, field) pair). The one lever left was REJECTED: separate
+sequences for imports and exports (two namespaces in wasm) saves at most 1 byte per name past the
+54th, only in modules with more than 54 of both together — unmeasured, likely tens to low hundreds of
+bytes over the corpus against −29,674 already taken — and it gives up map-for-map parity with
+`wasm-opt`, and breaks a JS host that keeps both in one object. The large repeated string (a
+`wasi_*` module name per import) is already `…-and-modules`' job.
