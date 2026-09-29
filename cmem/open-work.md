@@ -5,12 +5,12 @@ reads, so this file holds only open items, each with a pointer to where its reco
 item closes, its record goes to the topic file and its line leaves here.
 
 **State, 2026-09-29:** 🚀 **`binaryang@1.7.2` is published** (tag `v1.7.2`, `30929db92`;
-[publishing.md](publishing.md) § 1.7.2) and `main` = the release plus cmem. Nothing is unreleased
-([unreleased.md](unreleased.md)) — until 2026-09-29's diagnostic fixes (item 16's measurement),
-which [unreleased.md](unreleased.md) now carries. **Owner's order that day: items 16 and 17, then
-11, then a discussion of 12**; the optimizer and IR items (from 1) after. **17 open items, none
-blocking**, numbered below (old 16 and 17 closed; new 16 and 17 came out of them). Re-derive any
-number before quoting it.
+[publishing.md](publishing.md) § 1.7.2). `main` = the release plus the diagnostic fixes of
+2026-09-29, which [unreleased.md](unreleased.md) carries. **Owner's order that day: items 16 and 17
+(done), then 11 (found already closed), then a discussion of 12** — next; the optimizer and IR
+items (from 1) after. **16 open items, none blocking**, numbered below: old 16 and 17 closed, new
+16 and 17 came out of them, and 11 is gone with its number kept free. Re-derive any number before
+quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -93,9 +93,10 @@ items 1–15 keep their numbers:
 
 ## Conformance
 
-11. ⬚ **Rank 4 of the wasmtk-ranked list: the five gaps that unblock nothing for wasmtk.** Ranked
-    last on their numbers despite 121 occurrences ([handoffs.md](handoffs.md) §§ 4–6). Ranks 1–3 and
-    exact types shipped.
+(Item 11, rank 4 of the wasmtk-ranked list, closed 2026-09-29 — it had been closed since M8e by the
+One front end, never recorded: [handoffs.md](handoffs.md) § 4's outcome. The numbers below are
+kept.)
+
 12. ⬚ **Bring `proposals/` into the gate.** `spec-prepare` reads the testsuite's top level only.
     Custom descriptors was measured by a scratch harness and its findings pinned. This is the
     owner's call, since behaviour needs a V8 flag per proposal ([testing.md](testing.md) § "The
