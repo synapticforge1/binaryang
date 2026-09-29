@@ -425,7 +425,9 @@ their own bump — and nothing breaks by their standing still.
 - `WasmEncodeError` is the one error `writeWasm` throws (the writer's own `Error` / `RangeError` /
   `TypeError` were thrown bare).
 
-## After 1.6.0 (on `main`, unpushed)
+## After 1.6.0 — 🚀 SHIPPED AS 1.7.0 (2026-09-29, CHANGELOG.md § 1.7.0)
+
+Everything in this section is IN 1.7.0. The next release's note starts from a new section below it.
 
 - **1.6.1 SHIPPED 2026-09-28** (a patch from `release/1.6.1`, cut from `v1.6.0`): the CLI runs from
   JSR — `.` is `main.ts`. CHANGELOG.md § 1.6.1. Everything below is NOT in it; the next release

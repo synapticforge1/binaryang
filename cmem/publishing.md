@@ -637,6 +637,23 @@ any release that falls through to dispatch. The record, by path: `push: tags` ha
 6** across three packages (binaryang 1.5.3 among them) before 1.5.4 added a seventh; the `auto-tag`
 → `workflow_dispatch` path has succeeded **0 of 4**.
 
+## ✅ 1.7.0 — a hand-typed MINOR, released 2026-09-29 (UTC)
+
+**Published from the tag push, unaided.** JSR: `binaryang@1.7.0`, `rekorLogId=2991848417`, 667
+symbols, not yanked, `latestVersion` 1.7.0; tag `v1.7.0` at `f644c9a2b`; Publish green; GitHub
+Release created. Owner, 2026-09-28: "lets release 1.7.0 if there is no further open items" — the
+list held 2 stale markers (closed) and 21 backlog items, none a blocker; the owner chose to release.
+The flow, as for 1.6.0:
+
+1. release notes merged UNBUMPED (`c80d1b07d`), gate green on the committed tree (every step
+   exit 0), `main` pushed — CI green, Auto-tag a no-op (`v1.6.1` existed);
+2. 1.7.0 typed BY HAND in `deno.json` and `main.ts` (`version_sync` checked first);
+3. `deno task release` — cold type check and entry check passed; it committed the bump, tagged,
+   and pushed branch and tag together.
+
+⚠️ This machine has no `gh`: CI and Publish were followed through the public GitHub API
+(`/repos/jrmarcum/binaryang/actions/runs?head_sha=…`) and JSR's (`/versions/1.7.0`).
+
 ## ✅ 1.6.0 — a hand-typed MINOR, released 2026-09-28
 
 **Published from the tag push, unaided — the eighth `push: tags` success.** JSR:
