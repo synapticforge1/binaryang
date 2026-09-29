@@ -59,8 +59,42 @@ describe('folded wasm2wat puts each sibling on its own line', () => {
     assertStringIncludes(wasm2wat(bytes, { fold: true }).text, BODY);
   });
 
-  it('keeps a constant expression in a declaration on one line', () => {
-    assertStringIncludes(wasm2wat(bytes, { fold: true }).text, '(global $g i32 (i32.const 7))');
+  it('keeps a constant expression in a declaration on one line, both modes', () => {
+    // MULTI-instruction ones — a single `(i32.const 7)` fits one line whatever
+    // the writer does, so it tested nothing (its mutant survived). Every
+    // declaration writer is reached: a global's init, a segment offset, an
+    // element item, a table initializer. Expected = `wasm-tools print`'s
+    // lines (it writes the item form bare; we keep `(item …)`).
+    const decls = wat2wasm(
+      `(module
+      (type $s (struct (field i32)))
+      (import "m" "g" (global $base i32))
+      (global $sum i32 (i32.add (global.get $base) (i32.const 8)))
+      (table $t 1 (ref null $s) (struct.new $s (i32.add (i32.const 1) (i32.const 2))))
+      (memory 1)
+      (data (offset (i32.add (global.get $base) (i32.const 4))) "x")
+      (func $f)
+      (elem funcref (item (ref.func $f))))`,
+      { textForm: false },
+    ).binary;
+    const folded = wasm2wat(decls, { fold: true }).text;
+    for (
+      const line of [
+        '(global $sum i32 (i32.add (global.get $base) (i32.const 8)))',
+        '(table $t 1 (ref null $s) (struct.new $s (i32.add (i32.const 1) (i32.const 2))))',
+        '(data (;0;) (offset (i32.add (global.get $base) (i32.const 4))) "x")',
+        '(elem (;0;) funcref (item (ref.func $f)))',
+      ]
+    ) assertStringIncludes(folded, line);
+    const linear = wasm2wat(decls, { fold: false }).text;
+    for (
+      const line of [
+        '(global $sum i32 global.get $base i32.const 8 i32.add)',
+        '(data (;0;) (offset global.get $base i32.const 4 i32.add) "x")',
+      ]
+    ) assertStringIncludes(linear, line);
+    assertEquals(wat2wasm(folded, { textForm: false }).binary, decls);
+    assertEquals(wat2wasm(linear, { textForm: false }).binary, decls);
   });
 
   it('re-assembles to the same bytes', () => {
