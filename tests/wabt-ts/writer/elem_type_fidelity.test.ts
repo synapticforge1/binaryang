@@ -70,7 +70,7 @@ function toBuf(b: Uint8Array): ArrayBuffer {
 function label(t: ValueType): string {
   if (!isRefValueType(t)) return `abstract:0x${(t as number).toString(16)}`;
   const ht = t.heapType;
-  const h = ht.kind === 'index' ? `#${ht.value}` : ht.name;
+  const h = ht.kind === 'index' ? `#${ht.value}` : ht.kind === 'exact' ? 'exact' : ht.name;
   return t.nullable ? `(ref null ${h})` : `(ref ${h})`;
 }
 

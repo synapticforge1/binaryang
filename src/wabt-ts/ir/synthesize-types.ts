@@ -23,7 +23,14 @@
  */
 
 import { ExternalKind } from '../core/binary.ts';
-import { blockTypeOf, isRefValueType, recGroups, UNASSIGNED_TYPE_INDEX, varIndex } from './ir.ts';
+import {
+  blockTypeOf,
+  heapTypeText,
+  isRefValueType,
+  recGroups,
+  UNASSIGNED_TYPE_INDEX,
+  varIndex,
+} from './ir.ts';
 import { ExprVisitor } from './expr-visitor.ts';
 import { Result } from '../core/result.ts';
 import type {
@@ -337,8 +344,8 @@ function typeKey(t: ValueType): string {
     // Distinguish concrete typed refs from each other AND from the abstract
     // type they used to collapse into, or two different `(ref $T)` signatures
     // would dedupe onto one type-section entry.
-    const h = t.heapType.kind === 'index' ? `#${t.heapType.value}` : t.heapType.name;
-    return `ref${t.nullable ? '?' : ''}:${h}`;
+    // Exactness is part of the type: `(ref (exact $T))` is not `(ref $T)`.
+    return `ref${t.nullable ? '?' : ''}:${heapTypeText(t.heapType, (n) => `#${n}`)}`;
   }
   return t.toString(16);
 }

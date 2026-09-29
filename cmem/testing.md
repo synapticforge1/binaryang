@@ -747,6 +747,38 @@ module. Inverted: one pin removed → exit 1.
     reported in the summary rather than agreeing unseen.
   - `spec_behaviour_v128.test.ts`; 6 mutants of the index arithmetic, all caught.
 
+### ⚠️ `allFeatures` is not neutral once a feature CHANGES a verdict (2026-09-28)
+
+Custom descriptors (5a) relaxes `br_on_cast`'s `rt2 <: rt1` to "one hierarchy" — the first feature
+here that makes invalid code valid rather than only permitting new code. With it in `allFeatures`,
+the gate's `spec` step dropped to **2708 / 2714** assert_invalid (six `br_on_cast(_fail).wast`
+modules). The top-level suite is written against the core rules; the proposal's own copies carry
+the relaxed ones. `scripts/spec-testsuite.ts` now runs `{ ...allFeatures(), customDescriptors:
+false }` → 2714 / 2714. **A future proposal that changes a verdict joins that exclusion**, with its
+own suite run under it.
+
+### The proposal testsuites (`proposals/`) are NOT in the gate
+
+`spec-prepare` reads the testsuite's TOP LEVEL only. Custom descriptors was measured with a
+scratch harness (2026-09-28): `wasm-tools json-from-wast` as the command list and byte oracle,
+our reader/validator on its binaries, our `wat2wasm` on each command's text cut from the `.wast`,
+and V8 `--experimental-wasm-custom-descriptors` running every `assert_return` / `assert_trap`
+on our bytes. Result: return 271/271, trap 213/213, invalid 157/157, malformed 127/127, modules
+91/93 byte-identical (W17). What it found is pinned in `tests/wabt-ts/custom_descriptors.test.ts`;
+the numbers themselves are not re-measured by anything. Bringing `proposals/` into the gate is the
+owner's call (it needs a V8 flag per proposal for behaviour).
+
+### Do we need upstream `wast2json`? (measured 2026-09-28)
+
+Two uses, both in this repo (the workspace's other repos only mention it). **`spec-prepare`**:
+`wasm-tools` 1.259 `json-from-wast` split **all 257** top-level files on its own — `wast2json` is
+not needed there (the fallback already exists for 30; the command types differ, and the harness
+already reads wasm-tools'). **`translate-eh`**: `wasm-tools` fails all four `legacy/` files
+("unknown operator" — it no longer parses `try` / `catch` / `delegate`), so `wast2json` is the only
+external splitter for them. Dropping it means splitting those four with our own
+`parseWastScript` (not independent of what is tested — but V8, not we, judges the result) or
+retiring them. Owner's decision; nothing changed.
+
 ## The 1.5.5 passes — the code lens, summarized
 
 Seven passes on 2026-09-02; the plan and the lens definitions for 1.5.6 / 1.5.7 are in

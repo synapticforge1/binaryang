@@ -460,7 +460,12 @@ function _mapChildren(
       return { ...expr, i31: fn(expr.i31) };
 
     case ExpressionKind.StructNew:
-      return { ...expr, operands: expr.operands.map((o) => fn(o)) };
+      // `struct.new(_default)_desc`: the descriptor after the fields.
+      return {
+        ...expr,
+        operands: expr.operands.map((o) => fn(o)),
+        ...(expr.desc === undefined ? {} : { desc: fn(expr.desc) }),
+      };
 
     case ExpressionKind.StructGet:
       return { ...expr, ref: fn(expr.ref) };
@@ -538,12 +543,25 @@ function _mapChildren(
       return { ...expr, ref: fn(expr.ref) };
 
     case ExpressionKind.RefTest:
-    case ExpressionKind.RefCast:
+    case ExpressionKind.RefGetDesc:
       return { ...expr, ref: fn(expr.ref) };
+    case ExpressionKind.RefCast:
+      // `ref.cast_desc_eq`: the descriptor above the ref.
+      return {
+        ...expr,
+        ref: fn(expr.ref),
+        ...(expr.desc === undefined ? {} : { desc: fn(expr.desc) }),
+      };
 
     case ExpressionKind.BrOn:
-      // Values before the ref: the order wasm evaluates them in.
-      return { ...expr, values: expr.values.map(fn), ref: fn(expr.ref) };
+      // Values before the ref, and a `_desc_eq` descriptor after it: the order
+      // wasm evaluates them in.
+      return {
+        ...expr,
+        values: expr.values.map(fn),
+        ref: fn(expr.ref),
+        ...(expr.desc === undefined ? {} : { desc: fn(expr.desc) }),
+      };
 
     case ExpressionKind.TryTable:
       return {
@@ -804,6 +822,7 @@ function _visitChildren(
       break;
     case ExpressionKind.StructNew:
       expr.operands.forEach(visit);
+      if (expr.desc !== undefined) visit(expr.desc);
       break;
     case ExpressionKind.StructGet:
       visit(expr.ref);
@@ -855,13 +874,19 @@ function _visitChildren(
       break;
     case ExpressionKind.ArrayLen:
     case ExpressionKind.RefTest:
-    case ExpressionKind.RefCast:
+    case ExpressionKind.RefGetDesc:
       visit(expr.ref);
       break;
+    case ExpressionKind.RefCast:
+      visit(expr.ref);
+      if (expr.desc !== undefined) visit(expr.desc);
+      break;
     case ExpressionKind.BrOn:
-      // Values before the ref: the order wasm evaluates them in.
+      // Values before the ref, a `_desc_eq` descriptor after it: the order
+      // wasm evaluates them in.
       expr.values.forEach(visit);
       visit(expr.ref);
+      if (expr.desc !== undefined) visit(expr.desc);
       break;
     case ExpressionKind.TryTable:
       expr.params?.values.forEach(visit);

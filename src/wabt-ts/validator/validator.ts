@@ -80,6 +80,7 @@ import type {
   RefCastExpr,
   RefEqExpr,
   RefFuncExpr,
+  RefGetDescExpr,
   RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
@@ -173,8 +174,10 @@ function canonicalTypeKeys(types: readonly TypeEntry[]): string[] {
 
   const vtKey = (vt: StorageType, start: number, size: number): string => {
     if (!isRefValueType(vt)) return `t${vt.toString(16)}`;
-    const h = vt.heapType;
-    const n = vt.nullable ? '?' : '!';
+    // Exactness is part of a type's identity: `(ref (exact $t))` is not `(ref $t)`.
+    const exact = vt.heapType.kind === 'exact';
+    const h = vt.heapType.kind === 'exact' ? vt.heapType.type : vt.heapType;
+    const n = (vt.nullable ? '?' : '!') + (exact ? 'x' : '');
     if (h.kind !== 'index') return `${n}a:${h.name}`;
     if (h.value >= start && h.value < start + size) return `${n}r:${h.value - start}`;
     return `${n}k:${keyOf(h.value)}`;
@@ -195,9 +198,14 @@ function canonicalTypeKeys(types: readonly TypeEntry[]): string[] {
         ? `r:${sv.value - start}`
         : `k:${keyOf(sv.value)}`;
     };
-    const sub = te.sub === undefined
-      ? 'F'
-      : `${te.sub.final ? 'F' : 'N'}[${te.sub.supertypes.map(superKey).join(',')}]`;
+    // Custom descriptors' clauses are part of the identity too, keyed the same
+    // way: `$A` with `(descriptor $A.desc)` is not a plain struct of its shape.
+    const clauses = (te.describes === undefined ? '' : `<${superKey(te.describes)}`) +
+      (te.descriptor === undefined ? '' : `>${superKey(te.descriptor)}`);
+    const sub =
+      (te.sub === undefined
+        ? 'F'
+        : `${te.sub.final ? 'F' : 'N'}[${te.sub.supertypes.map(superKey).join(',')}]`) + clauses;
     if (te.kind === 'func') {
       return `${sub}func(${te.sig.params.map((p) => vtKey(p, start, size)).join(',')})->(${
         te.sig.results.map((r) => vtKey(r, start, size)).join(',')
@@ -308,7 +316,8 @@ class ModuleValidator implements ExprVisitorDelegate {
       if (te.kind === 'func') {
         this.acc(this.sv.onFuncType(locOf(te), te.sig.params, te.sig.results, i, supers, c));
       } else if (te.kind === 'struct') {
-        this.acc(this.sv.onStructType(locOf(te), te.fields, supers, c));
+        const descriptor = te.descriptor === undefined ? undefined : indexOf(te.descriptor);
+        this.acc(this.sv.onStructType(locOf(te), te.fields, supers, c, descriptor));
       } else {
         this.acc(this.sv.onArrayType(locOf(te), te.field, supers, c));
       }
@@ -364,6 +373,7 @@ class ModuleValidator implements ExprVisitorDelegate {
         this.checkSubtypeDecl(te, superEntry, i, sv.value);
       }
     }
+    this.checkDescriptorClauses(scopeEnd, canon);
     for (const g of m.globals) checkVt(g.type, 'global', locOf(g));
     for (const t of m.tables) checkVt(t.elemType, 'table', locOf(t));
     for (const el of m.elements) checkVt(el.elemType, 'elem segment', locOf(el));
@@ -403,7 +413,7 @@ class ModuleValidator implements ExprVisitorDelegate {
             break;
           }
           const sigIdx = varIdx(imp.func.typeVar);
-          this.acc(this.sv.onFunction(locOf(imp.func), sigIdx));
+          this.acc(this.sv.onFunction(locOf(imp.func), sigIdx, imp.exact === true));
           funcImportIdx++;
           break;
         }
@@ -431,7 +441,7 @@ class ModuleValidator implements ExprVisitorDelegate {
         this.acc(this.sv.printError(locOf(func), 'function: no type index (run synthesizeTypes)'));
         continue;
       }
-      this.acc(this.sv.onFunction(locOf(func), varIdx(func.typeVar)));
+      this.acc(this.sv.onFunction(locOf(func), varIdx(func.typeVar), true));
     }
 
     // Tables
@@ -580,6 +590,136 @@ class ModuleValidator implements ExprVisitorDelegate {
       }
     }
     this.visitExprList(exprs);
+  }
+
+  /**
+   * Custom descriptors' type-section rules, for every entry.
+   *
+   * - The clauses need the feature, and appear on structs only.
+   * - `(describes $x)` names an EARLIER type of the same rec group — the rule
+   *   that keeps descriptor chains acyclic, as supertype order does for
+   *   subtyping — and `$x` must say `(descriptor <this>)` back.
+   * - `(descriptor $y)` names a type of the same rec group that says
+   *   `(describes <this>)` back.
+   * - The square, for each declared supertype `$s`: where both have a clause,
+   *   ours names a subtype of what `$s`'s names; a `describes` must be on both
+   *   or neither; a `descriptor` on `$s` must be on this type too, but this
+   *   type may add one `$s` lacks.
+   *
+   * The Overview (and this code's first cut) also asked for matching finality
+   * and a full square; the testsuite, which is newer, drops both
+   * (descriptors.wast: "can have mismatched finality", "its supertype does
+   * not need to have a descriptor"). The testsuite wins.
+   *
+   * `canon` compares types by identity, not index: two equivalent rec groups
+   * make equal types.
+   */
+  private checkDescriptorClauses(scopeEnd: readonly number[], canon: readonly string[]): void {
+    const types = this.module.types;
+    const err = (te: TypeEntry, msg: string): void => {
+      this.acc(this.sv.printError(locOf(te), msg));
+    };
+    const at = (v: Var | undefined): number | undefined => {
+      const n = v === undefined ? undefined : indexOf(v);
+      return n !== undefined && n < types.length ? n : undefined;
+    };
+    const sameType = (a: number, b: number): boolean => a === b || canon[a] === canon[b];
+    // Transitive, over declared supertypes; `seen` bounds a cyclic (invalid,
+    // reported elsewhere) declaration.
+    const subtypeOf = (a: number, b: number): boolean => {
+      const seen = new Set<number>();
+      const work = [a];
+      while (work.length > 0) {
+        const n = work.pop()!;
+        if (sameType(n, b)) return true;
+        if (seen.has(n)) continue;
+        seen.add(n);
+        for (const v of types[n]?.sub?.supertypes ?? []) {
+          const p = at(v);
+          if (p !== undefined) work.push(p);
+        }
+      }
+      return false;
+    };
+    const groupStart: number[] = [];
+    for (let i = 0; i < types.length;) {
+      const size = Math.max(1, types[i]?.recGroupSize ?? 1);
+      for (let k = 0; k < size && i + k < types.length; k++) groupStart[i + k] = i;
+      i += size;
+    }
+
+    for (const [i, te] of types.entries()) {
+      const start = groupStart[i] ?? 0;
+      const end = scopeEnd[i] ?? types.length;
+      if (te.describes !== undefined || te.descriptor !== undefined) {
+        const f = this.sv.requireFeature('customDescriptors', 'descriptor clause', locOf(te));
+        if (f !== Result.Ok) {
+          this.acc(f);
+          continue;
+        }
+      }
+      if (te.describes !== undefined) {
+        const x = at(te.describes);
+        if (te.kind !== 'struct') err(te, `descriptor type must be a struct: type ${i}`);
+        if (x === undefined) {
+          err(te, `unknown type in describes clause of type ${i}`);
+        } else if (x < start) {
+          err(te, `described type is outside rec group: type ${i} describes ${x}`);
+        } else if (x >= i) {
+          err(te, `forward use of described type: type ${i} describes ${x}`);
+        } else if (at(types[x]!.descriptor) !== i) {
+          err(te, `described type is not described by descriptor: type ${i} describes ${x}`);
+        }
+      }
+      if (te.descriptor !== undefined) {
+        const y = at(te.descriptor);
+        if (te.kind !== 'struct') err(te, `described type must be a struct: type ${i}`);
+        if (y === undefined) {
+          err(te, `unknown type in descriptor clause of type ${i}`);
+        } else if (y < start || y >= end) {
+          err(te, `descriptor type is outside rec group: type ${i} has descriptor ${y}`);
+        } else if (at(types[y]!.describes) !== i) {
+          err(te, `type is not described by its descriptor: type ${i} has descriptor ${y}`);
+        }
+      }
+
+      // The square, against each declared supertype. A subtype may ADD a
+      // descriptor its supertype lacks; every other one-sided clause is
+      // invalid. Where both have the clause, ours must be a subtype of theirs.
+      for (const sv of te.sub?.supertypes ?? []) {
+        const s = at(sv);
+        if (s === undefined) continue; // reported as an unknown type already
+        const sup = types[s]!;
+        for (
+          const [clause, mine, theirs] of [
+            ['descriptor', te.descriptor, sup.descriptor],
+            ['describes', te.describes, sup.describes],
+          ] as const
+        ) {
+          if (mine === undefined && theirs === undefined) continue;
+          if (clause === 'descriptor' && theirs === undefined) continue;
+          if (mine === undefined || theirs === undefined) {
+            err(
+              te,
+              `sub type ${i} does not match super type ${s}: ${
+                mine === undefined ? 'only the supertype' : 'only the subtype'
+              } has a ${clause} clause`,
+            );
+            continue;
+          }
+          const a = at(mine);
+          const b = at(theirs);
+          if (a === undefined || b === undefined) continue; // unknown, reported above
+          if (!subtypeOf(a, b)) {
+            err(
+              te,
+              `${clause === 'descriptor' ? 'descriptor' : 'described'} type ${a} does not match: ` +
+                `type ${i}'s supertype ${s} has ${clause} ${b}, and ${a} is not a subtype of it`,
+            );
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -773,12 +913,25 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
     const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
+    const from = { heapType: e.from!.heapType, nullable: e.from!.nullable };
+    const to = { heapType: e.to!.heapType, nullable: e.to!.nullable };
+    if (e.opcode === BrOnOp.CastDescEq || e.opcode === BrOnOp.CastDescEqFail) {
+      const rc = this.sv.requireFeature('customDescriptors', 'descriptor cast', locOf(e));
+      if (rc !== Result.Ok) this.acc(rc);
+      return this.sv.onBrOnCastDescEq(
+        locOf(e),
+        varIdx(e.target),
+        e.opcode === BrOnOp.CastDescEqFail,
+        from,
+        to,
+      );
+    }
     return this.sv.onBrOnCast(
       locOf(e),
       varIdx(e.target),
       e.opcode === BrOnOp.CastFail,
-      { heapType: e.from!.heapType, nullable: e.from!.nullable },
-      { heapType: e.to!.heapType, nullable: e.to!.nullable },
+      from,
+      to,
     );
   }
 
@@ -954,6 +1107,11 @@ class ModuleValidator implements ExprVisitorDelegate {
   onStructNewExpr(e: StructNewExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
+    if (e.desc !== undefined) {
+      const rc = this.sv.requireFeature('customDescriptors', 'descriptor allocation', locOf(e));
+      if (rc !== Result.Ok) this.acc(rc);
+      return this.sv.onStructNewDesc(locOf(e), varIdx(e.typeVar), e.defaultInit === true);
+    }
     // The default form checks nothing about field values, because there are none.
     return e.defaultInit
       ? this.sv.onStructNewDefault(locOf(e), varIdx(e.typeVar))
@@ -1039,10 +1197,18 @@ class ModuleValidator implements ExprVisitorDelegate {
     if (rf !== Result.Ok) this.acc(rf);
     // Hand over the type being cast TO — `(ref [null] H)` — so the result on
     // the stack is that type rather than an anonymous reference.
-    return this.sv.onRefCast(locOf(e), {
-      heapType: e.heapType,
-      nullable: e.nullable,
-    });
+    const castTo = { heapType: e.heapType, nullable: e.nullable };
+    if (e.desc !== undefined) {
+      const rc = this.sv.requireFeature('customDescriptors', 'descriptor cast', locOf(e));
+      if (rc !== Result.Ok) this.acc(rc);
+      return this.sv.onRefCastDescEq(locOf(e), castTo);
+    }
+    return this.sv.onRefCast(locOf(e), castTo);
+  }
+  onRefGetDescExpr(e: RefGetDescExpr): Result {
+    const rc = this.sv.requireFeature('customDescriptors', 'ref.get_desc', locOf(e));
+    if (rc !== Result.Ok) this.acc(rc);
+    return this.sv.onRefGetDesc(locOf(e), varIdx(e.typeVar));
   }
 
   onTableGetExpr(e: TableGetExpr): Result {

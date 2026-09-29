@@ -75,8 +75,11 @@ describe('T13.6 — every named opcode is a keyword the lexer knows', () => {
       // name the nullable OPCODES (0xfb0015 / 0xfb0017), but the text format
       // puts the nullability in the immediate — `ref.test (ref null $t)` — so
       // the mnemonic is one token and these names are two. Guarded below by a
-      // round trip of all four spellings.
-      if (name === 'ref.test null' || name === 'ref.cast null') continue;
+      // round trip of all four spellings. Custom descriptors'
+      // `ref.cast_desc_eq null` (0xfb0024) is the same kind of label.
+      if (
+        name === 'ref.test null' || name === 'ref.cast null' || name === 'ref.cast_desc_eq null'
+      ) continue;
       const tok = lexOne(name);
       if (tok === null || tok.opcode === undefined) {
         unknown.push(`${name} (0x${op.toString(16)})`);

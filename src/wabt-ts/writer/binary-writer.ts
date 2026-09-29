@@ -61,6 +61,7 @@ import type {
   RefCastExpr,
   RefEqExpr,
   RefFuncExpr,
+  RefGetDescExpr,
   RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
@@ -119,6 +120,7 @@ import {
   CUSTOM_SECTION_NAME_CODE_METADATA,
   CUSTOM_SECTION_NAME_NAME,
   ExternalKind,
+  IMPORT_KIND_EXACT_FUNC,
   LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG,
   LIMITS_HAS_MAX_FLAG,
   LIMITS_IS_64_FLAG,
@@ -204,8 +206,26 @@ function writeHeapType(s: MemoryStream, h: HeapTypeRef): void {
       throw new Error(
         `writeHeapType: type "$${h.name}" is not resolved — run resolveNames before writing.`,
       );
+    case 'exact':
+      // `(exact $t)` (custom descriptors): the prefix, then the index as a U32 —
+      // not an s33, which is what makes an exact ABSTRACT type unencodable.
+      if (h.type.kind !== 'index') {
+        throw new Error(
+          `writeHeapType: type "$${h.type.name}" is not resolved — run resolveNames before writing.`,
+        );
+      }
+      s.writeU8(HEAP_TYPE_EXACT);
+      s.writeU32Leb(h.type.value);
+      return;
+    default: {
+      const never: never = h;
+      throw new Error(`writeHeapType: unknown heap type ${JSON.stringify(never)}`);
+    }
   }
 }
+
+/** The prefix of an exact heap type, `(exact $t)` (custom descriptors). */
+const HEAP_TYPE_EXACT = 0x62;
 
 /**
  * Map an abstract heap type to its single-byte binary encoding. Thin alias over
@@ -253,6 +273,15 @@ function writeSubType(s: MemoryStream, t: TypeEntry): void {
     s.writeU8(t.sub.final ? 0x4f : 0x50);
     s.writeU32Leb(t.sub.supertypes.length);
     for (const sup of t.sub.supertypes) writeVar(s, sup);
+  }
+  // Custom descriptors: describes (0x4C) before descriptor (0x4D).
+  if (t.describes !== undefined) {
+    s.writeU8(0x4c);
+    writeVar(s, t.describes);
+  }
+  if (t.descriptor !== undefined) {
+    s.writeU8(0x4d);
+    writeVar(s, t.descriptor);
   }
   writeCompType(s, t);
 }
@@ -901,7 +930,12 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onStructNewExpr(e: StructNewExpr): Result {
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(e.defaultInit ? GcOpcode.StructNewDefault : GcOpcode.StructNew);
+    // A `desc` operand makes it the `_desc` form (custom descriptors).
+    this.s.writeU32Leb(
+      e.desc !== undefined
+        ? (e.defaultInit ? GcOpcode.StructNewDefaultDesc : GcOpcode.StructNewDesc)
+        : (e.defaultInit ? GcOpcode.StructNewDefault : GcOpcode.StructNew),
+    );
     writeVar(this.s, e.typeVar);
     return Result.Ok;
   }
@@ -1004,8 +1038,19 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onRefCastExpr(e: RefCastExpr): Result {
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(e.nullable ? GcOpcode.RefCastNullable : GcOpcode.RefCast);
+    // A `desc` operand makes it `ref.cast_desc_eq` (custom descriptors).
+    this.s.writeU32Leb(
+      e.desc !== undefined
+        ? (e.nullable ? GcOpcode.RefCastDescEqNullable : GcOpcode.RefCastDescEq)
+        : (e.nullable ? GcOpcode.RefCastNullable : GcOpcode.RefCast),
+    );
     writeHeapType(this.s, e.heapType);
+    return Result.Ok;
+  }
+  onRefGetDescExpr(e: RefGetDescExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.RefGetDesc);
+    writeVar(this.s, e.typeVar);
     return Result.Ok;
   }
   onBrOnExpr(e: BrOnExpr): Result {
@@ -1016,8 +1061,11 @@ class BodyWriter implements ExprVisitorDelegate {
       this.writeLabelVar(e.target);
       return Result.Ok;
     }
+    // The sub-opcode is the node's own — four cast forms share this encoding
+    // (br_on_cast, _fail, and custom descriptors' _desc_eq pair), and a
+    // two-way choice here wrote a `_desc_eq` as a plain `br_on_cast`.
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(e.opcode === BrOnOp.CastFail ? GcOpcode.BrOnCastFail : GcOpcode.BrOnCast);
+    this.s.writeU32Leb(e.opcode & 0xffff);
     // Nullability of BOTH reference types travels in one flags byte rather
     // than in the heap types themselves: bit 0 = rt1 nullable, bit 1 = rt2.
     this.s.writeU8((e.from!.nullable ? 1 : 0) | (e.to!.nullable ? 2 : 0));
@@ -1360,7 +1408,10 @@ class BinaryWriter {
       for (const imp of m.imports) {
         s.writeName(imp.module);
         s.writeName(imp.field);
-        s.writeU8(imp.kind as number);
+        // An exact function import is kind `0x20` (custom descriptors).
+        s.writeU8(
+          imp.kind === ExternalKind.Func && imp.exact ? IMPORT_KIND_EXACT_FUNC : imp.kind as number,
+        );
         switch (imp.kind) {
           case ExternalKind.Func:
             writeVar(s, requireFuncType(imp.func));

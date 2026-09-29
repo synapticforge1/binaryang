@@ -142,6 +142,8 @@ export const ExpressionKind = {
   I31Get: 'i31.get',
   RefTest: 'ref.test',
   RefCast: 'ref.cast',
+  /** Custom descriptors. */
+  RefGetDesc: 'ref.get_desc',
   BrOn: 'br_on',
   // GC structs
   StructNew: 'struct.new',
@@ -1200,6 +1202,9 @@ export type RefTestExpr = Extract<Expr, { kind: typeof ExpressionKind.RefTest }>
 
 /** {@link RefCastExpr} — see {@link makeRefCast} for the factory. */
 export type RefCastExpr = Extract<Expr, { kind: typeof ExpressionKind.RefCast }>;
+
+/** {@link RefGetDescExpr} — `ref.get_desc` (custom descriptors). */
+export type RefGetDescExpr = Extract<Expr, { kind: typeof ExpressionKind.RefGetDesc }>;
 
 /** {@link BrOnExpr} — see {@link makeBrOn} for the factory. */
 export type BrOnExpr = Extract<Expr, { kind: typeof ExpressionKind.BrOn }>;

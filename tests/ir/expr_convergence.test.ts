@@ -54,7 +54,8 @@ describe('S6 step 5 — Expr and Expression are one type', () => {
   });
 
   it('the kind object holds exactly the union kinds', () => {
-    // 85 kinds: the count the ratchet ended at, and `deno task operators`' shared count.
-    assertEquals(new Set(Object.values(ExpressionKind)).size, 85);
+    // 85 kinds: the count the ratchet ended at, and `deno task operators`' shared count;
+    // 86 with custom descriptors' `ref.get_desc` (2026-09-28).
+    assertEquals(new Set(Object.values(ExpressionKind)).size, 86);
   });
 });

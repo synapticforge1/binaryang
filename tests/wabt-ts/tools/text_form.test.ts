@@ -165,11 +165,13 @@ describe('S7 — wat2wasm → wasm2wat keeps every instruction’s form', () => 
   });
 
   // A VOID call written inside another call's parens is legal grouping — it
-  // runs first — and the parser's tree makes it an operand, so to the parser
-  // this function IS the plain nested fold. The wabt-ts reader follows the
-  // values instead: the void call is a statement, and it would print it as a
-  // sibling. The record is written against the READER's prediction, so the
-  // form survives the trees disagreeing (found in the wasmtk corpus).
+  // runs first. The wabt-ts reader follows the values: the void call is a
+  // statement, and it would print it as a sibling. The record is written
+  // against the READER's prediction, so the form survives (found in the wasmtk
+  // corpus). The parser's tree used to make the void call an OPERAND of
+  // `$add` — three children for two params — so the trees disagreed; since
+  // custom descriptors (2026-09-28) a folded instruction's surplus children
+  // are siblings below it, and the parser agrees with the reader.
   it('a form the reader would predict differently is recorded, and comes back', () => {
     const src = `(module
       (global $a (mut i32) (i32.const 0))
@@ -177,10 +179,15 @@ describe('S7 — wat2wasm → wasm2wat keeps every instruction’s form', () => 
       (func $add (param i32 i32) (result i32) (i32.add (local.get 0) (local.get 1)))
       (func (export "f") (result i32)
         (call $add (call $set (i32.const 5)) (global.get $a) (i32.const 1))))`;
-    // The premise: the parser sees nothing to record, the reader does.
+    // The premise: what was written (one group of four) is not the tree's
+    // canonical fold (the void call a sibling, then a group of three).
     const m = parseWatModule(src).module!;
     const f = m.functions[2]!;
-    assertEquals(writtenForms(m, f), formNodes(f.body.children).canonical);
+    const canonical = formNodes(f.body.children).canonical;
+    const written = writtenForms(m, f);
+    assert(written !== undefined);
+    assertEquals(canonical[canonical.length - 1], 3);
+    assertEquals(written[written.length - 1], 4);
     const entries = decodeTextForm(trailingRecord(asm(src))!)!;
     assertEquals(entries.map((e) => e.index), [2]);
 

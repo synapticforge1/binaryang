@@ -7,7 +7,7 @@ import { combineResults, Result } from '../core/result.ts';
 import { heapTypeNameToType, isReferenceType, Type, typeToHeapTypeName } from '../core/types.ts';
 import type { ValType } from '../core/types.ts';
 import type { Index } from '../core/types.ts';
-import { isRefValueType, valueTypeName } from '../ir/ir.ts';
+import { heapExact, isRefValueType, valueTypeName } from '../ir/ir.ts';
 import type { ValueType } from '../ir/ir.ts';
 import {
   MiscOpcode,
@@ -28,6 +28,8 @@ export interface FuncType {
   params: ValueType[];
   results: ValueType[];
   typeIndex: Index;
+  /** A function (not a type) whose `ref.func` is exact — custom descriptors. */
+  exact?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -684,6 +686,8 @@ export interface HeapTypeInfo {
    * type, and type-equivalence.wast exists to check exactly that.
    */
   canon: string;
+  /** Custom descriptors: the index its `(descriptor $y)` clause names. */
+  descriptor?: number;
 }
 
 /** Immediate supertype of each abstract heap type in the `any` hierarchy. */
@@ -713,13 +717,21 @@ const KIND_PARENT: Readonly<Record<HeapTypeInfo['kind'], Type>> = {
  * A heap type: an abstract one (whose `Type` enum value IS its heap encoding)
  * or an index into the type section.
  */
-type Heap = { abstract: Type; index?: undefined } | { index: number; abstract?: undefined };
+type Heap =
+  | { abstract: Type; index?: undefined; exact?: undefined }
+  | { index: number; abstract?: undefined; exact?: true };
 
 /** Split a reference value type into heap type + nullability. */
 function refParts(t: ValueType): { heap: Heap; nullable: boolean } | null {
   if (isRefValueType(t)) {
     const h = t.heapType;
     if (h.kind === 'index') return { heap: { index: h.value }, nullable: t.nullable };
+    if (h.kind === 'exact') {
+      // An unresolved `(exact $T)` names no index yet: nothing to compare.
+      return h.type.kind === 'index'
+        ? { heap: { index: h.type.value, exact: true }, nullable: t.nullable }
+        : null;
+    }
     const abs = heapTypeNameToType(h.name);
     return abs === null ? null : { heap: { abstract: abs }, nullable: t.nullable };
   }
@@ -796,11 +808,15 @@ function heapSatisfies(a: Heap, e: Heap, types: ReadonlyMap<number, HeapTypeInfo
   }
 
   if (a.index !== undefined && e.index !== undefined) {
-    if (a.index === e.index) return true;
     // Type identity is STRUCTURAL: distinct indices with the same canonical
     // key are the same type.
     const ec = types.get(e.index)?.canon;
-    if (ec !== undefined && types.get(a.index)?.canon === ec) return true;
+    const same = a.index === e.index || (ec !== undefined && types.get(a.index)?.canon === ec);
+    // `(exact $t)` holds $t and NONE of its subtypes (custom descriptors): only
+    // an exact reference to the same type satisfies it — not `$t` itself,
+    // which may be a subtype at run time. `(exact $t) <: $t <: supers` holds.
+    if (e.exact) return a.exact === true && same;
+    if (same) return true;
     // Transitive closure over declared supertypes. `seen` bounds it — a
     // malformed module can declare a cycle and this must not hang on one.
     const seen = new Set<number>();
@@ -827,7 +843,8 @@ function heapSatisfies(a: Heap, e: Heap, types: ReadonlyMap<number, HeapTypeInfo
     return abstractSatisfies(KIND_PARENT[info.kind], e.abstract!);
   }
 
-  // abstract <: defined holds only for the bottom types.
+  // abstract <: defined holds only for the bottom types — exact or not
+  // (`none <: (exact $struct)`).
   const info = types.get(e.index!);
   if (!info) return true;
   if (a.abstract === Type.NullRef) return info.kind === 'struct' || info.kind === 'array';
@@ -1552,6 +1569,20 @@ export class TypeChecker {
   }
 
   /**
+   * Do two reference types share a supertype — are they in one heap-type
+   * hierarchy? True, too, when either top cannot be determined (the unknown
+   * index is reported elsewhere). False for a non-reference.
+   */
+  sameHierarchy(a: ValueType, b: ValueType): boolean {
+    const pa = refParts(a);
+    const pb = refParts(b);
+    if (pa === null || pb === null) return false;
+    const ta = this.topHeapOf(pa.heap);
+    const tb = this.topHeapOf(pb.heap);
+    return ta === null || tb === null || ta === tb;
+  }
+
+  /**
    * Pop the operand of a `ref.test` / `ref.cast` against the type named in the
    * immediate.
    *
@@ -1600,6 +1631,37 @@ export class TypeChecker {
   onRefCast(castTo: ValueType): Result {
     const r = this.popCastOperand(castTo, 'ref.cast');
     this.pushType(castTo);
+    return r;
+  }
+
+  /**
+   * Custom descriptors: pop the DESCRIPTOR operand of a `_desc` instruction —
+   * the top of the stack — against `expected`, `(ref null (exact? $y))`.
+   */
+  popDescriptor(expected: ValueType, what: string): Result {
+    return this.popAndCheck1Type(expected, what);
+  }
+
+  /**
+   * `ref.get_desc $x` with `$x` described by `$y`: `(ref null (exact? $x))` to
+   * `(ref (exact? $y))`, exact exactly when the operand's heap type is a
+   * subtype of `(exact $x)` — `(exact $x)` itself, or the bottom `none` (a
+   * `ref.null none`). `(exact $z)` for a strict subtype `$z` is only an
+   * inexact `$x`. The unreachable bottom may be typed either way; the exact
+   * reading is the one that lets valid code after it validate.
+   */
+  onRefGetDesc(x: number, y: number): Result {
+    const actual = this.peekType(0);
+    const a = actual === Type.Any ? null : refParts(actual);
+    const exact = actual === Type.Any ||
+      (a !== null && heapSatisfies(a.heap, { index: x, exact: true }, this.types));
+    const vx = { kind: 'index', value: x } as const;
+    const vy = { kind: 'index', value: y } as const;
+    const r = this.popAndCheck1Type(
+      { heapType: exact ? heapExact(vx) : vx, nullable: true },
+      'ref.get_desc',
+    );
+    this.pushType({ heapType: exact ? heapExact(vy) : vy, nullable: false });
     return r;
   }
 
@@ -1777,8 +1839,9 @@ export class TypeChecker {
    * nullable `funcref`. It is non-null by construction, and it is a specific
    * function type, so a `(result (ref $T))` slot accepts it.
    */
-  onRefFunc(typeIndex: number): Result {
-    this.pushType({ heapType: { kind: 'index', value: typeIndex }, nullable: false });
+  onRefFunc(typeIndex: number, exact = false): Result {
+    const v = { kind: 'index', value: typeIndex } as const;
+    this.pushType({ heapType: exact ? heapExact(v) : v, nullable: false });
     return Result.Ok;
   }
 

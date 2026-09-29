@@ -35,7 +35,7 @@ import type {
   ValueType,
   Var,
 } from './ir.ts';
-import { isRefValueType, locOf, varIndex } from './ir.ts';
+import { isRefValueType, locOf, mapHeapVar, varIndex } from './ir.ts';
 import { countImports } from './ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -252,6 +252,9 @@ class ResolveContext {
       if (t.sub !== undefined) {
         t.sub.supertypes = t.sub.supertypes.map((v) => this.resolveTypeVar(v, t.loc));
       }
+      // So are custom descriptors' `(describes $x)` and `(descriptor $y)`.
+      if (t.describes !== undefined) t.describes = this.resolveTypeVar(t.describes, t.loc);
+      if (t.descriptor !== undefined) t.descriptor = this.resolveTypeVar(t.descriptor, t.loc);
     }
     for (const imp of this.module.imports) {
       if (imp.kind === ExternalKind.Func) {
@@ -792,7 +795,17 @@ class ResolveContext {
       }
       case 'struct.new': {
         const [r, operands] = this.resolveExprArray(e.operands);
-        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), operands }];
+        const [rd, desc] = this.resolveDesc(e.desc);
+        return [combineResults(r, rd), {
+          ...e,
+          typeVar: this.resolveTypeVar(e.typeVar, loc),
+          operands,
+          ...desc,
+        }];
+      }
+      case 'ref.get_desc': {
+        const [r, ref] = this.resolveExpr(e.ref);
+        return [r, { ...e, typeVar: this.resolveTypeVar(e.typeVar, loc), ref }];
       }
       case 'struct.get': {
         const [r, ref] = this.resolveExpr(e.ref);
@@ -930,13 +943,23 @@ class ResolveContext {
         // the parser's name-var survived into the binary writer, which
         // rejected every `ref.null` as an unresolved name-var.
         return [Result.Ok, { ...e, refType: this.resolveHeapTypeVar(e.refType, loc) }];
-      case 'ref.test':
-      case 'ref.cast': {
+      case 'ref.test': {
         // The heapType var either names a user-defined heap type (resolve via
         // typeScope) or names an abstract heap type keyword ("any" / "i31" /
         // etc.) — leave abstract keywords as-is.
         const [r, ref] = this.resolveExpr(e.ref);
         return [r, { ...e, heapType: this.resolveHeapTypeVar(e.heapType, loc), ref }];
+      }
+      case 'ref.cast': {
+        // As ref.test, plus `ref.cast_desc_eq`'s descriptor operand.
+        const [r, ref] = this.resolveExpr(e.ref);
+        const [rd, desc] = this.resolveDesc(e.desc);
+        return [combineResults(r, rd), {
+          ...e,
+          heapType: this.resolveHeapTypeVar(e.heapType, loc),
+          ref,
+          ...desc,
+        }];
       }
       case 'throw_ref': {
         const [r, exnref] = this.resolveExpr(e.exnref);
@@ -950,6 +973,7 @@ class ResolveContext {
       case 'br_on': {
         const [r, ref] = this.resolveExpr(e.ref);
         const [rv, values] = this.resolveExprArray(e.values);
+        const [rd, desc] = this.resolveDesc(e.desc);
         const target = this.resolveLabelVar(e.target, loc);
         // The cast variants have three name-bearing immediates, not one: the
         // label AND both heap types. An abstract keyword stays a name-var; a
@@ -957,13 +981,14 @@ class ResolveContext {
         if (e.from === undefined || e.to === undefined) {
           return [combine(r, rv), { ...e, target, ref, values }];
         }
-        return [combine(r, rv), {
+        return [combine(combine(r, rv), rd), {
           ...e,
           target,
           from: { ...e.from, heapType: this.resolveHeapTypeVar(e.from.heapType, loc) },
           to: { ...e.to, heapType: this.resolveHeapTypeVar(e.to.heapType, loc) },
           ref,
           values,
+          ...desc,
         }];
       }
       case 'simd.extract': {
@@ -1006,6 +1031,16 @@ class ResolveContext {
       default:
         return [Result.Ok, e];
     }
+  }
+
+  /**
+   * A custom-descriptors `desc` operand, resolved, as a spread: `{}` when the
+   * node has none (an absent field stays absent, never `desc: undefined`).
+   */
+  private resolveDesc(desc: Expr | undefined): [Result, { desc?: Expr }] {
+    if (desc === undefined) return [Result.Ok, {}];
+    const [r, d] = this.resolveExpr(desc);
+    return [r, { desc: d }];
   }
 
   /** A region's instructions, resolved; the region itself carries no name. */
@@ -1127,6 +1162,10 @@ class ResolveContext {
     // nothing to resolve. Discovering that used to need a keyword-table
     // lookup — the arm states it, so the table is no longer consulted here.
     if (h.kind === 'abstract' || h.kind === 'index') return h;
+    // `(exact $t)` resolves its type and stays exact.
+    if (h.kind === 'exact') {
+      return mapHeapVar(h, (v) => v.kind === 'index' ? v : this.resolveTypeVar(v, loc));
+    }
     return this.resolveTypeVar(h, loc);
   }
   /**

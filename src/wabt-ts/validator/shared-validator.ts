@@ -15,7 +15,7 @@ import { TypeChecker } from './type-checker.ts';
 import { naturalAlignForOpcode } from '../core/opcode.ts';
 import type { FuncType, HeapTypeInfo } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind, StorageType, ValueType } from '../ir/ir.ts';
-import { isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
+import { heapExact, isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
 import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -329,9 +329,14 @@ export class SharedValidator {
   // Type section
   // ---------------------------------------------------------------------------
 
-  /** The non-nullable reference to a defined type: `(ref $idx)`. */
+  /**
+   * What an allocating producer (`struct.new*`, `array.new*`) pushes: the
+   * non-nullable reference to a defined type, EXACT under custom descriptors
+   * (`(ref (exact $idx))`), plain `(ref $idx)` without it.
+   */
   private refTo(idx: number): ValueType {
-    return { heapType: varIndex(idx), nullable: false };
+    const v = varIndex(idx);
+    return { heapType: this.features.customDescriptors ? heapExact(v) : v, nullable: false };
   }
 
   /** `(ref null $idx)` — what an operand slot accepts for a defined type. */
@@ -492,7 +497,12 @@ export class SharedValidator {
     // proposal, whichever kind of type it names.
     const rf = this.requireFeature('functionReferences', `typed reference in ${what}`, loc);
     if (rf !== Result.Ok) return rf;
-    const h = vt.heapType;
+    let h = vt.heapType;
+    if (h.kind === 'exact') {
+      const cd = this.requireFeature('customDescriptors', `exact reference in ${what}`, loc);
+      if (cd !== Result.Ok) return cd;
+      h = h.type;
+    }
     if (h.kind !== 'index') return Result.Ok;
     // `bound` is the SCOPE, not the section size: a type may reference
     // anything defined before it plus the rest of its own rec group, and
@@ -524,10 +534,16 @@ export class SharedValidator {
     fields: Field[] = [],
     supers: number[] = [],
     canon = '',
+    descriptor?: number,
   ): Result {
     const r = this.requireFeature('gc', 'struct type', loc);
     this.structTypesMap.set(this.numTypes, fields);
-    this.heapTypesMap.set(this.numTypes, { kind: 'struct', supers, canon });
+    this.heapTypesMap.set(this.numTypes, {
+      kind: 'struct',
+      supers,
+      canon,
+      ...(descriptor === undefined ? {} : { descriptor }),
+    });
     this.numTypes++;
     return r;
   }
@@ -549,9 +565,13 @@ export class SharedValidator {
   // Module structure
   // ---------------------------------------------------------------------------
 
-  onFunction(loc: Location, sigIdx: number): Result {
+  /**
+   * `exact`: `ref.func` of this function has an exact type — true for a
+   * defined function and an exact import, false for a plain import.
+   */
+  onFunction(loc: Location, sigIdx: number, exact = false): Result {
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
-    this.funcs.push(ft ?? { params: [], results: [], typeIndex: 0 });
+    this.funcs.push({ ...(ft ?? { params: [], results: [], typeIndex: 0 }), exact });
     return ft ? Result.Ok : Result.Error;
   }
 
@@ -945,6 +965,25 @@ export class SharedValidator {
     return this.tc.onBrOnNonNull(depth);
   }
 
+  /**
+   * `br_on_cast_desc_eq(_fail) $l rt1 rt2` (custom descriptors): the
+   * descriptor, typed from `rt2`, comes off first; the rest is br_on_cast's.
+   */
+  onBrOnCastDescEq(
+    loc: Location,
+    depth: number,
+    onFail: boolean,
+    from: ValueType,
+    to: ValueType,
+  ): Result {
+    this.currentLoc = loc;
+    const d = this.descriptorOf(loc, to);
+    if (d === null) return Result.Error;
+    const what = onFail ? 'br_on_cast_desc_eq_fail' : 'br_on_cast_desc_eq';
+    const r = this.tc.popDescriptor(this.descOperand(d), what);
+    return combineResults(r, this.onBrOnCast(loc, depth, onFail, from, to));
+  }
+
   onBrOnCast(
     loc: Location,
     depth: number,
@@ -957,8 +996,21 @@ export class SharedValidator {
     // cannot widen one. Nothing checked the relationship between the two
     // immediates, so `br_on_cast … (ref any) (ref null $s)` validated even
     // though a nullable ref is not a subtype of a non-nullable one.
+    //
+    // Custom descriptors relaxes that to "rt1 and rt2 share a supertype" — one
+    // hierarchy — for these two instructions as well as its own
+    // br_on_cast_desc_eq pair.
     let r: Result = Result.Ok;
-    if (!this.isSubtype(to, from)) {
+    if (this.features.customDescriptors) {
+      if (!this.tc.sameHierarchy(to, from)) {
+        r = this.printError(
+          loc,
+          `type mismatch in br_on_cast: ${valueTypeName(to)} and ${
+            valueTypeName(from)
+          } are in different reference hierarchies`,
+        );
+      }
+    } else if (!this.isSubtype(to, from)) {
       r = this.printError(
         loc,
         `type mismatch in br_on_cast: ${valueTypeName(to)} is not a subtype of ${
@@ -1485,7 +1537,9 @@ export class SharedValidator {
     // first, so it is not a func table — the same answer the old shape gave,
     // where the keyword comparison simply failed to match.
     if (h.kind === 'name') return false;
-    return this.funcTypesMap.has(h.value);
+    // `(ref (exact $f))` still holds functions.
+    const v = h.kind === 'exact' ? h.type : h;
+    return v.kind === 'index' && this.funcTypesMap.has(v.value);
   }
 
   onCallIndirect(loc: Location, sigIdx: number, tableIdx: number): Result {
@@ -1591,7 +1645,13 @@ export class SharedValidator {
         this.checkDeclaredFuncs.push(funcIdx);
       }
     }
-    r = combineResults(r, this.tc.onRefFunc(this.funcs[funcIdx]?.typeIndex ?? 0));
+    r = combineResults(
+      r,
+      this.tc.onRefFunc(
+        this.funcs[funcIdx]?.typeIndex ?? 0,
+        this.features.customDescriptors && this.funcs[funcIdx]?.exact === true,
+      ),
+    );
     return r;
   }
 
@@ -1644,17 +1704,135 @@ export class SharedValidator {
     this.currentLoc = loc;
     const st = this.checkStructTypeIndex(typeIdx, loc);
     if (!st) return Result.Error;
+    const rd = this.checkNoDescriptor(loc, typeIdx);
     // struct.new pops one value per field (in field order), pushes (ref $type).
     // Packed fields (i8/i16) are written as i32 on the stack.
     const stackParams = st.fields.map((f) => packedToStackType(f.type));
-    return this.tc.onCall(stackParams, [this.refTo(typeIdx)]);
+    return combineResults(rd, this.tc.onCall(stackParams, [this.refTo(typeIdx)]));
   }
 
   onStructNewDefault(loc: Location, typeIdx: number): Result {
     this.currentLoc = loc;
     const st = this.checkStructTypeIndex(typeIdx, loc);
     if (!st) return Result.Error;
-    return this.tc.onCall([], [this.refTo(typeIdx)]);
+    const r = combineResults(
+      this.checkNoDescriptor(loc, typeIdx),
+      this.checkDefaultableFields(loc, typeIdx, st.fields, 'struct.new_default'),
+    );
+    return combineResults(r, this.tc.onCall([], [this.refTo(typeIdx)]));
+  }
+
+  /**
+   * `struct.new_desc $x` / `struct.new_default_desc $x` (custom descriptors):
+   * the fields (none for the default form), then `(ref null (exact $y))`,
+   * `$y` the descriptor of `$x`; pushes `(ref (exact $x))`.
+   */
+  onStructNewDesc(loc: Location, typeIdx: number, isDefault: boolean): Result {
+    this.currentLoc = loc;
+    const what = isDefault ? 'struct.new_default_desc' : 'struct.new_desc';
+    const st = this.checkStructTypeIndex(typeIdx, loc);
+    if (!st) return Result.Error;
+    const y = this.heapTypesMap.get(typeIdx)?.descriptor;
+    if (y === undefined) {
+      return this.printError(
+        loc,
+        `type without descriptor requires non-descriptor allocation: ${what} ${typeIdx}`,
+      );
+    }
+    let r = isDefault ? this.checkDefaultableFields(loc, typeIdx, st.fields, what) : Result.Ok;
+    r = combineResults(
+      r,
+      this.tc.popDescriptor({ heapType: heapExact(varIndex(y)), nullable: true }, what),
+    );
+    const stackParams = isDefault ? [] : st.fields.map((f) => packedToStackType(f.type));
+    return combineResults(
+      r,
+      this.tc.onCall(stackParams, [{ heapType: heapExact(varIndex(typeIdx)), nullable: false }]),
+    );
+  }
+
+  /** `struct.new(_default)` may not allocate a type that has a descriptor. */
+  private checkNoDescriptor(loc: Location, typeIdx: number): Result {
+    if (this.heapTypesMap.get(typeIdx)?.descriptor === undefined) return Result.Ok;
+    return this.printError(
+      loc,
+      `type with descriptor requires descriptor allocation: type ${typeIdx}`,
+    );
+  }
+
+  /**
+   * A `_default` allocation needs every field defaultable. Nothing checked it:
+   * `struct.new_default` of a struct with a `(ref $t)` field validated.
+   */
+  private checkDefaultableFields(
+    loc: Location,
+    typeIdx: number,
+    fields: readonly Field[],
+    what: string,
+  ): Result {
+    const bad = fields.findIndex((f) => !SharedValidator.isDefaultable(f.type));
+    if (bad < 0) return Result.Ok;
+    return this.printError(
+      loc,
+      `${what}: field ${bad} of type ${typeIdx} is not defaultable`,
+    );
+  }
+
+  /**
+   * The descriptor type behind a custom-descriptors cast target: `x` the
+   * named type, `y` its descriptor, `exact` whether the target is exact. An
+   * abstract target or a type without a descriptor is an error.
+   */
+  private descriptorOf(
+    loc: Location,
+    heap: ValueType,
+  ): { x: number; y: number; exact: boolean } | null {
+    if (!isRefValueType(heap)) {
+      this.printError(loc, `type ${valueTypeName(heap)} does not have a descriptor`);
+      return null;
+    }
+    const exact = heap.heapType.kind === 'exact';
+    const h = heap.heapType.kind === 'exact' ? heap.heapType.type : heap.heapType;
+    if (h.kind !== 'index') {
+      this.printError(loc, `type ${h.name} does not have a descriptor`);
+      return null;
+    }
+    const y = this.heapTypesMap.get(h.value)?.descriptor;
+    if (y === undefined) {
+      this.printError(loc, `type ${h.value} does not have a descriptor`);
+      return null;
+    }
+    return { x: h.value, y, exact };
+  }
+
+  /** The descriptor operand a `_desc_eq` cast to `(exact? $x)` takes. */
+  private descOperand(d: { y: number; exact: boolean }): ValueType {
+    const v = varIndex(d.y);
+    return { heapType: d.exact ? heapExact(v) : v, nullable: true };
+  }
+
+  /** `ref.get_desc $x` (custom descriptors). */
+  onRefGetDesc(loc: Location, typeIdx: number): Result {
+    this.currentLoc = loc;
+    const st = this.checkStructTypeIndex(typeIdx, loc);
+    if (!st) return Result.Error;
+    const y = this.heapTypesMap.get(typeIdx)?.descriptor;
+    if (y === undefined) {
+      return this.printError(loc, `type ${typeIdx} does not have a descriptor`);
+    }
+    return this.tc.onRefGetDesc(typeIdx, y);
+  }
+
+  /**
+   * `ref.cast_desc_eq rt` (custom descriptors): `[ref desc]` to `rt`, the
+   * descriptor typed `(ref null (exact? $y))` with `rt`'s exactness.
+   */
+  onRefCastDescEq(loc: Location, castTo: ValueType): Result {
+    this.currentLoc = loc;
+    const d = this.descriptorOf(loc, castTo);
+    if (d === null) return Result.Error;
+    const r = this.tc.popDescriptor(this.descOperand(d), 'ref.cast_desc_eq');
+    return combineResults(r, this.tc.onRefCast(castTo));
   }
 
   onStructGet(loc: Location, typeIdx: number, fieldIdx: number, signed?: boolean): Result {

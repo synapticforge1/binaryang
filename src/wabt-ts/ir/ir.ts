@@ -92,7 +92,52 @@ export function varFromToken(token: string): Var {
  */
 export type HeapTypeRef =
   | { readonly kind: 'abstract'; readonly name: AbstractHeap }
+  | ExactHeap
   | Var;
+
+/**
+ * `(exact $t)` — a defined type and NONE of its declared subtypes (custom
+ * descriptors proposal): a subtype of `$t`, not a supertype of `$t`'s subtypes.
+ * Binary `0x62 u32`. Only a DEFINED type has an exact form.
+ *
+ * Its own arm, not a flag on the {@link Var} arm: every place that rebuilds a
+ * `Var` (`resolveNames` first) would have dropped a flag without a word; a new
+ * arm is one the type checker makes each consumer handle.
+ */
+export interface ExactHeap {
+  readonly kind: 'exact';
+  readonly type: Var;
+}
+
+/**
+ * A heap type as text: an abstract name, `$name`, an index, or `(exact …)`.
+ * `index` spells an index-form var (`0`, or `$type0` for a caller's naming).
+ */
+export function heapTypeText(h: HeapTypeRef, index: (n: number) => string = String): string {
+  if (h.kind === 'exact') return `(exact ${heapTypeText(h.type, index)})`;
+  return h.kind === 'index' ? index(h.value) : h.name;
+}
+
+/** `(exact v)`. */
+export function heapExact(v: Var): ExactHeap {
+  return { kind: 'exact', type: v };
+}
+
+/** Whether a heap type is `(exact $t)`. */
+export function isExactHeap(h: HeapTypeRef): h is ExactHeap {
+  return h.kind === 'exact';
+}
+
+/**
+ * The same heap type with its defined-type reference replaced by `f`'s result —
+ * exactness kept. For resolving and renumbering: a caller that took the
+ * {@link heapVar} and rebuilt the heap type from it would lose `exact`.
+ */
+export function mapHeapVar(h: HeapTypeRef, f: (v: Var) => Var): HeapTypeRef {
+  if (h.kind === 'abstract') return h;
+  if (h.kind === 'exact') return { kind: 'exact', type: f(h.type) };
+  return f(h);
+}
 
 /** Construct an abstract heap type (`func`, `i31`, `extern`, …). */
 export function heapAbstract(name: AbstractHeap): HeapTypeRef {
@@ -113,13 +158,17 @@ export function isAbstractHeap(
  * not a reference and must not be resolved, which the old shape could not say.
  */
 export function heapVar(h: HeapTypeRef): Var | undefined {
-  return h.kind === 'abstract' ? undefined : h;
+  if (h.kind === 'abstract') return undefined;
+  return h.kind === 'exact' ? h.type : h;
 }
 
-/** Whether two heap type references denote the same type. */
+/** Whether two heap type references denote the same type (exactness included). */
 export function sameHeap(a: HeapTypeRef, b: HeapTypeRef): boolean {
   if (a.kind === 'abstract' || b.kind === 'abstract') {
     return a.kind === 'abstract' && b.kind === 'abstract' && a.name === b.name;
+  }
+  if (a.kind === 'exact' || b.kind === 'exact') {
+    return a.kind === 'exact' && b.kind === 'exact' && sameVar(a.type, b.type);
   }
   return sameVar(a, b);
 }
@@ -720,6 +769,9 @@ export const BrOnOp = {
   NonNull: Opcode.BrOnNonNull,
   Cast: (PREFIX_GC << 16) | GcOpcode.BrOnCast,
   CastFail: (PREFIX_GC << 16) | GcOpcode.BrOnCastFail,
+  /** Custom descriptors: cast by descriptor identity; `desc` is set. */
+  CastDescEq: (PREFIX_GC << 16) | GcOpcode.BrOnCastDescEq,
+  CastDescEqFail: (PREFIX_GC << 16) | GcOpcode.BrOnCastDescEqFail,
 } as const;
 /** A `br_on_*` operator: an {@link Opcode}, like every operator field. */
 export type BrOnOp = Opcode;
@@ -773,6 +825,12 @@ export interface BrOnExpr {
   readonly from?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
   /** `rt2` — the type being tested for. Cast variants only. */
   readonly to?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
+  /**
+   * The descriptor operand of `br_on_cast_desc_eq(_fail)` (custom descriptors)
+   * — ABOVE `ref`, the last operand; present exactly for those two opcodes.
+   * Upstream binaryen's `BrOn::desc`. A null descriptor traps.
+   */
+  readonly desc?: Expr;
   readonly type?: ExprType;
   readonly loc?: Location;
 }
@@ -1157,6 +1215,13 @@ export interface StructNewExpr {
   readonly defaultInit?: true;
   readonly typeVar: Var;
   readonly operands: Expr[];
+  /**
+   * The descriptor operand of `struct.new_desc` / `struct.new_default_desc`
+   * (custom descriptors), after the fields — present exactly for those two
+   * opcodes, which is how the writers tell them from `struct.new(_default)`.
+   * Upstream binaryen's `StructNew::desc`. A null descriptor traps.
+   */
+  readonly desc?: Expr;
   readonly type?: ExprType;
   readonly loc?: Location;
 }
@@ -1358,6 +1423,24 @@ export interface RefCastExpr {
   readonly kind: 'ref.cast';
   readonly heapType: HeapTypeRef;
   readonly nullable: boolean;
+  readonly ref: Expr;
+  /**
+   * The descriptor operand of `ref.cast_desc_eq` (custom descriptors), above
+   * `ref` — present exactly for that instruction. Upstream binaryen's
+   * `RefCast::desc`. A null descriptor traps.
+   */
+  readonly desc?: Expr;
+  readonly type?: ExprType;
+  readonly loc?: Location;
+}
+/**
+ * `ref.get_desc $x` (custom descriptors) — pops a `(ref null (exact? $x))`,
+ * pushes its descriptor, `(ref (exact? $y))` where `$x` has
+ * `(descriptor $y)`; exact when the operand is. Traps on null.
+ */
+export interface RefGetDescExpr {
+  readonly kind: 'ref.get_desc';
+  readonly typeVar: Var;
   readonly ref: Expr;
   readonly type?: ExprType;
   readonly loc?: Location;
@@ -1768,6 +1851,7 @@ export type Expr =
   | ArrayInitElemExpr
   | RefTestExpr
   | RefCastExpr
+  | RefGetDescExpr
   | TableGetExpr
   | TableSetExpr
   | TableGrowExpr
@@ -1936,8 +2020,7 @@ export function coarsenValueType(vt: ValueType): ValType {
  */
 export function valueTypeName(vt: ValueType | Type): string {
   if (!isRefValueType(vt)) return typeName(vt);
-  const h = vt.heapType.kind === 'index' ? `${vt.heapType.value}` : vt.heapType.name;
-  return `(ref ${vt.nullable ? 'null ' : ''}${h})`;
+  return `(ref ${vt.nullable ? 'null ' : ''}${heapTypeText(vt.heapType)})`;
 }
 
 /** Shared shape for every {@link TypeEntry} variant. */
@@ -1953,6 +2036,17 @@ export interface TypeEntryBase {
    * encoding for each.
    */
   sub?: { final: boolean; supertypes: Var[] };
+  /**
+   * `(describes $x)` — custom descriptors: this struct is the descriptor of
+   * `$x`. Binary `0x4C x`, before any `descriptor` clause; part of the type's
+   * identity, so it takes part in canonicalization like a supertype does.
+   */
+  describes?: Var;
+  /**
+   * `(descriptor $y)` — custom descriptors: instances of this struct carry a
+   * descriptor of type `$y`. Binary `0x4D y`, directly before the comptype.
+   */
+  descriptor?: Var;
   /**
    * Set on the FIRST entry of an explicit `(rec …)` group: how many
    * consecutive entries the group spans. Absent means a singleton group.
@@ -2224,7 +2318,18 @@ export interface DataSegment {
 
 /** An import entry. */
 export type Import =
-  | { kind: ExternalKind.Func; module: string; field: string; func: Func }
+  | {
+    kind: ExternalKind.Func;
+    module: string;
+    field: string;
+    func: Func;
+    /**
+     * `(func (exact (type $f)))` — the imported function has EXACTLY that type,
+     * none of its subtypes (custom descriptors), so `ref.func` of it is exact.
+     * Binary import kind `0x20`. Absent: inexact, as every import before.
+     */
+    exact?: true;
+  }
   | { kind: ExternalKind.Table; module: string; field: string; table: Table }
   | { kind: ExternalKind.Memory; module: string; field: string; memory: Memory }
   | { kind: ExternalKind.Global; module: string; field: string; global: Global }

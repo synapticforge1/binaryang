@@ -340,6 +340,14 @@ export enum GcOpcode {
   RefI31 = 0x1c,
   I31GetS = 0x1d,
   I31GetU = 0x1e,
+  // Custom descriptors proposal.
+  StructNewDesc = 0x20,
+  StructNewDefaultDesc = 0x21,
+  RefGetDesc = 0x22,
+  RefCastDescEq = 0x23,
+  RefCastDescEqNullable = 0x24,
+  BrOnCastDescEq = 0x25,
+  BrOnCastDescEqFail = 0x26,
 }
 
 // ---------------------------------------------------------------------------
@@ -983,6 +991,13 @@ const EXTENDED_OPCODE_NAMES: ReadonlyMap<number, string> = new Map<number, strin
   [(PREFIX_GC << 16) | GcOpcode.ExternConvertAny, 'extern.convert_any'],
   [(PREFIX_GC << 16) | GcOpcode.I31GetS, 'i31.get_s'],
   [(PREFIX_GC << 16) | GcOpcode.I31GetU, 'i31.get_u'],
+  [(PREFIX_GC << 16) | GcOpcode.StructNewDesc, 'struct.new_desc'],
+  [(PREFIX_GC << 16) | GcOpcode.StructNewDefaultDesc, 'struct.new_default_desc'],
+  [(PREFIX_GC << 16) | GcOpcode.RefGetDesc, 'ref.get_desc'],
+  [(PREFIX_GC << 16) | GcOpcode.RefCastDescEq, 'ref.cast_desc_eq'],
+  [(PREFIX_GC << 16) | GcOpcode.RefCastDescEqNullable, 'ref.cast_desc_eq null'],
+  [(PREFIX_GC << 16) | GcOpcode.BrOnCastDescEq, 'br_on_cast_desc_eq'],
+  [(PREFIX_GC << 16) | GcOpcode.BrOnCastDescEqFail, 'br_on_cast_desc_eq_fail'],
 ]);
 
 /**
