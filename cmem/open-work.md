@@ -23,16 +23,20 @@ that history now lives in its topic files — nothing was dropped:
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
 **State, 2026-09-28 (latest):** `main` = 1.6.1 published (CLI from JSR) + unreleased work for
-**1.6.2** ([unreleased.md](unreleased.md) § "After 1.6.0"): wasmtk's items 1–5, ALL of them now —
-**5a custom descriptors merged** (`feat/custom-descriptors`; the 5a row below) — plus the folded
-operand fixes found with it. Gate green on the committed tree (1,325 tests; spec 100% on four axes
-with `customDescriptors` off for the core suite — [testing.md](testing.md)). NOT pushed; `main`
-is well ahead of `origin/main`. The draft reply to wasmtk ([handoffs.md](handoffs.md) § 15) says all
-five ship in 1.6.2 — it is the owner's / workspace's to send. **The decommissioning is DONE** (the
-last trace of binaryen-ts's codec, `encoder/`, relocated to `ir/`; § "IR convergence — next steps").
-`wast2json` STAYS — owner, 2026-09-28, for `translate-eh`'s coverage of the translate-to-exnref
-pass ([testing.md](testing.md) § "Do we need upstream `wast2json`?"). Open for the owner: bring
-`proposals/` into the gate; release 1.6.2.
+**1.7.0** (owner; was to be 1.6.2 — [unreleased.md](unreleased.md) § "After 1.6.0"): wasmtk's items
+1–5, ALL of them — **5a custom descriptors merged** (the 5a row below) — plus the folded operand
+fixes found with it; and ⚠️ BREAKING, **upstream comparison left the product**: `./interop` and
+hybrid mode are gone from the package and the CLI, into the committed, isolated
+[`comparison/`](../comparison/README.md) suite (`deno task comparison`, 18 tests, not in the gate)
+— [project.md](project.md) § "No external dependencies". Gate green on the committed tree (1,308
+tests in the main suite; spec 100% on four axes with `customDescriptors` off for the core suite —
+[testing.md](testing.md)). NOT pushed; `main` is well ahead of `origin/main`. The draft reply to
+wasmtk ([handoffs.md](handoffs.md) § 15) says all five ship in 1.7.0 — it is the owner's /
+workspace's to send. **The decommissioning is DONE** (`encoder/` relocated to `ir/`; § "IR
+convergence — next steps"). `wast2json` STAYS — owner, for `translate-eh`'s coverage of the
+translate-to-exnref pass ([testing.md](testing.md) § "Do we need upstream `wast2json`?"). Open for
+the owner: bring `proposals/` into the gate; release 1.7.0 (a MINOR: type it by hand in
+`deno.json` and `main.ts` — [publishing.md](publishing.md) § "`bump` has no minor mode").
 
 **State, 2026-09-28 (release, history):** 🚀 **`binaryang@1.6.0` PUBLISHED** (tag `v1.6.0`, commit
 `64d22e06f`; JSR `rekorLogId=2987187551`, 647 symbols; CI, Auto-tag and Publish all green). One

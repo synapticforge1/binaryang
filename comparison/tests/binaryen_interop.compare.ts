@@ -1,5 +1,8 @@
 /**
- * @module binaryen-ts/tests/interop/binaryen_interop_test
+ * @module comparison/tests/binaryen_interop
+ *
+ * (Was `tests/binaryen-ts/interop/binaryen_interop.test.ts` until 1.7.0, when
+ * the bridge left the product for the comparison suite.)
  *
  * Tests for the Phase 0 binaryen.js in-process bridge.
  *
@@ -22,7 +25,7 @@ import {
   BinaryenInterop,
   type BinaryenJsLib,
   type BinaryenWrappedModule,
-} from '../../../src/binaryen-ts/interop/binaryen-js.ts';
+} from '../interop/binaryen-js.ts';
 
 // ---------------------------------------------------------------------------
 // Mock binaryen.js

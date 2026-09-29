@@ -129,7 +129,7 @@ targets make the rule layered, and the layers are the part worth keeping:
 | layer                                               | may use                | may not use        | why                                                       |
 | --------------------------------------------------- | ---------------------- | ------------------ | --------------------------------------------------------- |
 | **library** — the exported surface                  | web-standard APIs only | `Deno.*`, `node:*` | must run in a browser                                     |
-| **CLI + interop** — `tools/`, `interop/`, `main.ts` | `node:*` builtins      | `Deno.*`           | not browser code; `node:` works on Deno, Node **and** Bun |
+| **CLI** — `tools/`, `main.ts` (`interop/` until 1.7.0) | `node:*` builtins      | `Deno.*`           | not browser code; `node:` works on Deno, Node **and** Bun |
 
 ⚠️ **`node:` looks like the portable answer and is not, for library code** — porting `Deno.readFile`
 to `node:fs/promises` was right for the six CLI tools because tools are not browser code. **The
@@ -145,25 +145,28 @@ Measured the same day: shipped code (`src/`, `main.ts`) imports only its own fil
 builtins (within the layers above); `@std/*` is used by tests only; nothing shipped spawns a tool
 on the default path. `wast2json` and `wasm-tools` are TEST tooling only ([testing.md](testing.md)).
 
-**The one exception is opt-in:** hybrid mode — `optimize(flags, hybridMode = true)` (`./api`) and
-`wasm-opt --hybrid` — hands the work to the upstream `wasm-opt` subprocess, and `./interop` can load
-a caller-supplied binaryen.js (`BinaryenInterop`). Both are off by default and fail without upstream
-binaryen installed. Keeping or removing that bridge is the owner's call (removal breaks the
-published `./interop` export and the `hybridMode` / `--hybrid` options — a minor).
-
-🗓️ **Owner, 2026-09-28:** external tools are FINE for testing and comparison; the claim is only
-that the END PRODUCT does not use them. The hybrid bridge counts as comparison. The statement, as
-it may be made publicly:
+🗓️ **Owner, 2026-09-28:** external tools are FINE for testing and comparison; the claim is that
+the END PRODUCT does not use them — and later the same day: **the CLI and the published code must
+not reference them at all.** So the one exception, the opt-in hybrid bridge (`./interop`'s
+`BinaryenInterop`, `optimize(flags, hybridMode)`, `wasm-opt --hybrid`), LEFT the product for the
+committed, isolated [`comparison/`](../comparison/README.md) suite (`ee25accb2`; owner chose
+committed over gitignored). It is BREAKING — the next release is **1.7.0** (owner). `-S` is native
+now. The statement, as it may be made publicly (it is in the README):
 
 > binaryang's reader, validator, writers, text tools and optimizer are entirely its own
-> TypeScript; it has no external dependencies beyond the standard Node and Deno packages. External
-> tools (`wast2json`, `wasm-tools`, upstream binaryen) are used only for testing and comparison.
-> The optional hybrid mode can hand optimization to an installed upstream `wasm-opt` for
-> comparison, but nothing uses it unless you turn it on.
+> TypeScript; it has no external dependencies beyond the standard Node and Deno packages, and calls
+> no external tool. Upstream tools (`wast2json`, `wasm-tools`, upstream binaryen) are used only by
+> the repository's tests and its separate comparison suite — never by the published package.
 
-**How to apply:** before changing shipped code, keep it true — no tool spawned and no third-party
-import on a default path (re-measure with the greps of 2026-09-28: `Deno.(run|Command)` /
-`child_process` / non-relative imports in `src/` and `main.ts`).
+What remains, and is fine: ~25 comment lines citing wasm-tools and ~287 mentioning "upstream" in
+`src/` (owner: keep — they explain behaviour; the Apache-2.0 "Ported from" headers must stay); the
+`compat/*` subpaths reproduce upstream's API SHAPES without loading upstream; the `--hybrid`
+refusal message and the CLI help's description of `compat/binaryen`.
+
+**How to apply:** before changing shipped code, keep it true — re-measure with the greps of
+2026-09-28: `Deno.(run|Command)` / `child_process` / `spawn(` and non-relative imports in `src/`
+and `main.ts` (only `node:*` builtins may appear), and nothing outside `comparison/` imports from
+it. A new comparison against upstream goes in `comparison/`, named `*.compare.ts`.
 
 ## The convergence indicator
 

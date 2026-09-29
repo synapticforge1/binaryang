@@ -428,8 +428,16 @@ their own bump — and nothing breaks by their standing still.
 ## After 1.6.0 (on `main`, unpushed)
 
 - **1.6.1 SHIPPED 2026-09-28** (a patch from `release/1.6.1`, cut from `v1.6.0`): the CLI runs from
-  JSR — `.` is `main.ts`. CHANGELOG.md § 1.6.1. Everything below is NOT in it; the next release,
-  **1.6.2** (owner, 2026-09-28), carries it all.
+  JSR — `.` is `main.ts`. CHANGELOG.md § 1.6.1. Everything below is NOT in it; the next release
+  carries it all — **1.7.0** (owner, 2026-09-28; it was to be 1.6.2 until the item below made it a
+  minor).
+- ⚠️ **BREAKING — upstream comparison left the product** (`ee25accb2`; owner: the CLI and the
+  published code must not reference upstream tools): the **`./interop` export is REMOVED**
+  (`BinaryenInterop` → the repo's `comparison/`, unpublished); **`Module.optimize(flags,
+  hybridMode)` loses `hybridMode`**; **`wasm-opt --hybrid` / `hybridMode` are REMOVED** (`--hybrid`
+  is refused with a message naming 1.7.0). wasmtk uses `/compat/*` only. Gained with it:
+  **`wasm-opt -S` works natively** (it required `--hybrid`). The README states the
+  no-external-dependencies claim.
 - **wasmtk's letter of 2026-09-28** (their process: say which of 1–4 the release contains): **(1)**
   a named heap type in an inline `call_indirect` / `return_call_indirect` signature resolves;
   **(2)** NEW exports — `allFeatures`, `defaultFeatures`, `Features` from `./wasm-validate` and

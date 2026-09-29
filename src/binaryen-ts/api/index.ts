@@ -29,9 +29,10 @@
  *
  * ## Runtime support
  *
- * Pure-TypeScript paths (IR construction, encoder, pass pipeline) run on Deno,
- * Node 18+, Bun, and any modern browser. The `optimize()` shorthand uses the
- * subprocess bridge when `hybridMode: true`, which is Node/Deno/Bun only.
+ * Every path (IR construction, writing, the pass pipeline) is binaryang's own
+ * TypeScript and runs on Deno, Node 18+, Bun, and any modern browser. It calls
+ * no external tool: the hybrid mode that handed `optimize()` to an upstream
+ * `wasm-opt` subprocess left the product at 1.7.0 for the comparison suite.
  *
  * @license MIT
  */
@@ -59,7 +60,6 @@ import {
 import { ModuleBuilder, type WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
-import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
 import { varIndex } from '../../wabt-ts/ir/ir.ts';
 
@@ -159,16 +159,8 @@ export class Module {
    * Optimizes the module and returns the WASM binary bytes.
    *
    * @param flags - Optimization preset (e.g. `"-Oz"`, `"-O3"`).
-   *   When `hybridMode` is true, this is passed directly to the upstream
-   *   `wasm-opt` subprocess.
-   * @param hybridMode - Use upstream binaryen.js / wasm-opt subprocess.
-   *   Default: `false` (TypeScript pass infrastructure).
    */
-  optimize(flags = '-Oz', hybridMode = false): Promise<Uint8Array> {
-    if (hybridMode) {
-      const wat = this.toWat();
-      return BinaryenInterop.optimizeViaSubprocess(wat, [flags]);
-    }
+  optimize(flags = '-Oz'): Promise<Uint8Array> {
     // Parse the optimization level out of `flags` (`-O0`..`-O4`, `-Os`, `-Oz`),
     // matching `wasm-opt`'s convention. Previously `optimizeLevel` was hardcoded
     // to 2, so `optimize("-O0")` / `"-O1"` / `"-O3"` all ran the level-2 pipeline.

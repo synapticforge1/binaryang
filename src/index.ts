@@ -32,7 +32,7 @@
  * | `./ir/binaryen-ts`, `./ir/wabt-ts` | the two IRs, each explicitly named |
  * | `./compat/binaryen`, `./compat/wabt` | the two upstream API shapes |
  * | `./wat2wasm`, `./wasm2wat`, `./wasm-validate`, … | the WABT tools |
- * | `./passes`, `./api`, `./wasm`, `./interop` | the Binaryen side (`./encoder` and `./binary` went at 1.6.0) |
+ * | `./passes`, `./api`, `./wasm` | the Binaryen side (`./encoder` and `./binary` went at 1.6.0, `./interop` at 1.7.0) |
  *
  * There is deliberately **no `./ir`**. With both IRs retained it would read as
  * "the IR" while meaning one of them, and an alias would resolve to one of the

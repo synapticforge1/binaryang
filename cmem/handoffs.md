@@ -36,8 +36,10 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >
 > Thank you — every item reproduced on our tree before we acted, as you asked.
 >
-> **Items 1–5 are fixed, both halves of 5. The fixes ship in 1.6.2** (not yet published; its
-> changelog will list them by your numbers):
+> **Items 1–5 are fixed, both halves of 5. The fixes ship in 1.7.0** (not yet published; its
+> changelog will list them by your numbers). It is a minor because it also removes the `./interop`
+> export and hybrid mode (upstream binaryen is no longer reachable from the package); you use only
+> `/compat/*`, which is unchanged:
 >
 > 1. A named heap type inside an inline `call_indirect` / `return_call_indirect` signature is now
 >    resolved. (The `$$t` was the message's own `$` in front of `$t`, not a double prefix.) On our
@@ -65,7 +67,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >    proposal's testsuite and its Overview disagree (matching finality; a supertype needing a
 >    descriptor), we follow the testsuite.
 >
-> **Three byte changes you may see in 1.6.2**, all toward the spec and wasm-tools:
+> **Three byte changes you may see in 1.7.0**, all toward the spec and wasm-tools:
 > - a FOLDED instruction written with more children than it takes (`(struct.new_default $s
 >   (struct.new $s))`, a void call inside another call's parens) kept only the ones it consumed and
 >   DROPPED the rest; the rest are now emitted ahead of it, as the grammar says. A folded

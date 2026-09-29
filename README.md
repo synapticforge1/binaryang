@@ -104,7 +104,7 @@ deno run -A jsr:@jrmarcum/binaryang <command> [options]
 | `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>`                                               |
 | `wasm-objdump <in.wasm>`  | dump sections                                                                                                        |
 | `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                                                                 |
-| `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`, `--hybrid`                                                               |
+| `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`                                                                           |
 | `wasm2ts <in.wasm>`       | emit TypeScript — **not yet implemented**                                                                            |
 
 ¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records how each instruction was written
@@ -142,7 +142,13 @@ bun node_modules/@jrmarcum/binaryang/main.ts wat2wasm add.wat
 | `@jrmarcum/binaryang/tools/wasm-opt`         | `wasm-opt` as a library                                                 |
 | `@jrmarcum/binaryang/compat/binaryen`        | the upstream `npm:binaryen` API shape                                   |
 | `@jrmarcum/binaryang/compat/wabt`            | the upstream `wabt.js` API shape                                        |
-| `@jrmarcum/binaryang/interop`                | bridge to upstream `binaryen.js` (not available in browsers)            |
+
+**No external dependencies.** binaryang's reader, validator, writers, text tools and optimizer are
+entirely its own TypeScript; it has no external dependencies beyond the standard Node and Deno
+packages, and calls no external tool. Upstream tools (`wast2json`, `wasm-tools`, upstream
+binaryen) are used only by the repository's tests and its separate comparison suite — never by
+the published package. The `compat/*` subpaths reproduce upstream's API *shapes*; they do not load
+upstream.
 
 **Two IRs, each explicitly named.** They do different jobs — WABT's round-trip fidelity is exact,
 Binaryen's IR is what the optimisation passes operate on — so both are kept, and neither is called
@@ -181,8 +187,9 @@ From either predecessor, this is a package rename plus two subpaths.
 | the WABT IR, via the `wabt-ts` package **root**         | `@jrmarcum/binaryang/ir/wabt-ts`      |
 | `Result`, `ErrorList`, `formatErrors`, via the **root** | `@jrmarcum/binaryang/core/wabt-ts`    |
 
-Everything else keeps its name: `./api`, `./binary`, `./encoder`, `./passes`, `./interop`, `./wasm`,
-`./wasm-runtime`, `./tools/wasm-opt`, and the six WABT tool subpaths.
+Everything else keeps its name: `./api`, `./passes`, `./wasm`, `./wasm-runtime`,
+`./tools/wasm-opt`, and the six WABT tool subpaths. (`./binary` and `./encoder` were removed at
+1.6.0, and `./interop` — the bridge to upstream binaryen.js — at 1.7.0.)
 
 **If you imported from the `wabt-ts` package root, you need a named subpath now.** That package
 shipped its IR and its core vocabulary through the root; binaryang's root is deliberately narrow,

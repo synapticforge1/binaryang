@@ -12,7 +12,6 @@
     "./compat/wabt": "./src/wabt-ts/api/wabt-compat.ts",
     "./api": "./src/binaryen-ts/api/index.ts",
     "./passes": "./src/binaryen-ts/passes/index.ts",
-    "./interop": "./src/binaryen-ts/interop/binaryen-js.ts",
     "./wasm": "./src/binaryen-ts/wasm/index.ts",
     "./wasm-runtime": "./src/binaryen-ts/wasm-runtime.ts",
     "./tools/wasm-opt": "./src/binaryen-ts/tools/wasm-opt.ts",
@@ -32,7 +31,8 @@
   },
   "workspace": [
     "./tests/binaryen-ts",
-    "./scripts/binaryen-ts"
+    "./scripts/binaryen-ts",
+    "./comparison"
   ],
   "compilerOptions": {
     "strict": true,
@@ -68,7 +68,8 @@
     "direct-behaviour": "deno run --allow-read scripts/check-direct-behaviour.ts",
     "translate-eh": "deno run --allow-read --allow-write --allow-run --allow-env scripts/check-translate-eh.ts",
     "optimize-corpus": "deno run --allow-read scripts/check-optimize-corpus.ts",
-    "spec-behaviour": "deno run --allow-read scripts/check-spec-behaviour.ts"
+    "spec-behaviour": "deno run --allow-read scripts/check-spec-behaviour.ts",
+    "comparison": "deno check comparison/ && deno test --allow-read --allow-write --allow-run --allow-env --allow-net comparison/tests/*.compare.ts"
   },
   "fmt": {
     "include": [
