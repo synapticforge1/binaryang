@@ -30,8 +30,9 @@ with `customDescriptors` off for the core suite — [testing.md](testing.md)). N
 is well ahead of `origin/main`. The draft reply to wasmtk ([handoffs.md](handoffs.md) § 15) says all
 five ship in 1.6.2 — it is the owner's / workspace's to send. **The decommissioning is DONE** (the
 last trace of binaryen-ts's codec, `encoder/`, relocated to `ir/`; § "IR convergence — next steps").
-Open for the owner: drop `wast2json` ([testing.md](testing.md) § "Do we need upstream
-`wast2json`?"); bring `proposals/` into the gate; release 1.6.2.
+`wast2json` STAYS — owner, 2026-09-28, for `translate-eh`'s coverage of the translate-to-exnref
+pass ([testing.md](testing.md) § "Do we need upstream `wast2json`?"). Open for the owner: bring
+`proposals/` into the gate; release 1.6.2.
 
 **State, 2026-09-28 (release, history):** 🚀 **`binaryang@1.6.0` PUBLISHED** (tag `v1.6.0`, commit
 `64d22e06f`; JSR `rekorLogId=2987187551`, 647 symbols; CI, Auto-tag and Publish all green). One

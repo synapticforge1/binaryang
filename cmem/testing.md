@@ -787,6 +787,15 @@ Nothing binaryang ships runs `wast2json` (no reference in `src/`). Checked the s
 and the decommission: `translate-eh` needed no change (its import was rewritten by the relocation;
 gate exit 0).
 
+**And `wasm-tools`? (measured 2026-09-28)** Nothing binaryang ships runs it: `src/` and `main.ts`
+spawn no subprocess at all. The ONE place it is executed is `spec-prepare`'s fallback
+(`scripts/spec-prepare.ts:119`) for the 30 GC-proposal files `wast2json` 1.0.41 cannot split —
+corpus PREPARATION, run when the corpus is (re)built; `deno task spec` reads the prepared output.
+Every other mention (~60, in `src/` and `tests/`) is a comment or a test's EXPECTED bytes citing
+wasm-tools as the reference — measured once, hard-coded, no tool at run time. The custom-descriptors
+harness that used it was scratch, not in the repo. So: not needed for binaryang to work; needed to
+re-prepare the spec corpus's GC files (and for any future proposal harness).
+
 ## The 1.5.5 passes — the code lens, summarized
 
 Seven passes on 2026-09-02; the plan and the lens definitions for 1.5.6 / 1.5.7 are in
