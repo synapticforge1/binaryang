@@ -6,7 +6,7 @@ item closes, its record goes to the topic file and its line leaves here.
 
 **State, 2026-09-29:** 🚀 **`binaryang@1.7.1` is published** (tag `v1.7.1`, `ced5ca508`;
 [publishing.md](publishing.md) § 1.7.1) and `main` = the release plus cmem. One fix is unreleased
-([unreleased.md](unreleased.md)). **19 open items, none blocking**, numbered below. Re-derive any
+([unreleased.md](unreleased.md)). **20 open items, none blocking**, numbered below. Re-derive any
 number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -131,6 +131,19 @@ fatigue.
     to go before there is anything to implement against.
 19. ⬚ **Diagnostic usefulness** ("is the message actionable?") is the one hardening axis never
     attempted. Offsets (A3) and wording are measured ([wabt-ts.md](wabt-ts.md)).
+20. ⬚ **Port the three CI shell scripts to Deno/TypeScript** (owner, 2026-09-29: scripting is
+    TypeScript only, as a rule). `scripts/check-naming.sh` (git ls-files + awk: a bare
+    `binaryen` / `wabt` path component outside `compat/`, `interop/`, `comparison/`; prints
+    offenders, empty means pass), `scripts/check-portability.sh` (git grep: no `Deno.*` in
+    `src/` / `main.ts`, no `node:` imports outside `tools/` / `cli/`, JSDoc lines skipped; exit 1
+    on a hit) and `scripts/cli-smoke.sh` (every dispatcher command under a runtime; prints the
+    wat2wasm output's sha256). Callers to change with them: `.github/workflows/ci.yml` lines 53,
+    60, 133 (the smoke step runs on Deno, Node 22.18, Node 24 and Bun 1.4.0, so its port must run
+    on all four — or stay a thin launcher), [working-rules.md](working-rules.md) § "The gate",
+    and `cli_io_errors.test.ts`'s comment. ⚠️ Keep the two lessons the scripts carry: naming
+    strips the permitted `-ts` components and tests what remains (the old `grep -v` passed
+    everything once `src/binaryen-ts/` existed); portability skips JSDoc (a check that cries wolf
+    gets disabled). Invert each port against a planted violation before trusting it.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
