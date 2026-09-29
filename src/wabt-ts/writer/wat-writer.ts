@@ -513,6 +513,18 @@ class WatWriter extends ModuleContext {
     return this.shown((r) => r.labels.get(this.labelFunc), label);
   }
 
+  /**
+   * `;; label = @N` after an UNNAMED carrier's header — the depth a branch's
+   * `(;@N;)` refers to. Written before the carrier's own label is pushed, as
+   * upstream prints it. One rule for linear and folded: the folded writers
+   * (and S7's as-written path) never wrote it, so a folded `br 1 (;@2;)`
+   * pointed at an `@2` the text never showed; upstream `--fold-exprs` and
+   * `wasm-tools --fold-instructions` both print it.
+   */
+  private writeLabelComment(label: string): void {
+    if (!this.shownLabel(label)) this.writef(` ;; label = @${this.labelStackSize}`);
+  }
+
   private shown(set: (r: ExplicitNames) => ReadonlySet<string> | undefined, name: string): string {
     const r = this.module.explicitNames;
     return isRealName(r, r === undefined ? undefined : set(r), name) ? name : '';
@@ -1365,7 +1377,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('block');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
-        if (!this.shownLabel(e.label)) this.writef(` ;; label = @${this.labelStackSize}`);
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.beginBlock(this.shownLabel(e.label), LabelType.Block, this.declaredBlockType(e));
         this.indent += 2;
@@ -1382,7 +1394,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('loop');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
-        if (!this.shownLabel(e.label)) this.writef(` ;; label = @${this.labelStackSize}`);
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.beginBlock(this.shownLabel(e.label), LabelType.Loop, this.declaredBlockType(e));
         this.indent += 2;
@@ -1399,7 +1411,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('if');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
-        if (!this.shownLabel(e.label)) this.writef(` ;; label = @${this.labelStackSize}`);
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.beginBlock(this.shownLabel(e.label), LabelType.If, this.declaredBlockType(e));
         this.indent += 2;
@@ -1455,7 +1467,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('try_table');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
-        if (!this.shownLabel(e.label)) this.writef(` ;; label = @${this.labelStackSize}`);
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.indent += 2;
         for (const tc of e.catches) {
@@ -1765,6 +1777,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace(isLoop ? 'loop' : 'block');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.beginBlock(
           this.shownLabel(e.label),
@@ -1788,6 +1801,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('try_table');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.indent += 2;
         for (const tc of e.catches) this.writeTableCatch(tc);
@@ -1862,6 +1876,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('if');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.indent += 2;
         // `(if bt foldedinstr* (then …))`: the items written before `(then`.
@@ -2312,6 +2327,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace(isLoop ? 'loop' : 'block');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.beginBlock(
           this.shownLabel(e.label),
@@ -2334,6 +2350,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('try_table');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.indent += 2;
         for (const tc of e.catches) this.writeTableCatch(tc);
@@ -2399,6 +2416,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace('if');
         if (this.shownLabel(e.label)) this.writeName(this.shownLabel(e.label), NC.Space);
         this.writeBlockType(this.declaredBlockType(e));
+        this.writeLabelComment(e.label);
         this.newline(true);
         this.indent += 2;
         // `(if bt foldedinstr* (then …))`: the entry values, then the condition.

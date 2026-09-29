@@ -139,7 +139,11 @@ describe('S7 — wat2wasm → wasm2wat keeps every instruction’s form', () => 
       body,
     );
     // The condition is written INSIDE the folded if, as in the source.
-    assert(body.includes('(if (result i32) (i32.eqz (local.get 0)) (then'), body);
+    // (Its `;; label = @N` is printed folded as linear since 2026-09-29.)
+    assert(
+      /\(if \(result i32\) ;; label = @\d+ \(i32\.eqz \(local\.get 0\)\) \(then/.test(body),
+      body,
+    );
     assert(body.includes('(then i32.const 5) (else (i32.const 6))) i32.add)'), body);
   });
 
