@@ -307,6 +307,17 @@ the tool** — `deno fmt --check` going from `32 not formatted` to `Checked 283 
 unambiguous signal in the entire line-ending episode, and every hand-rolled measurement around it
 was noise.
 
+**The mirror trap, from wasmtk's reply to § 11 (their report § (6), `83c02a2`, written 2026-08-31,
+heading mislabelled 2026-08-27; reached us 2026-09-29).** Ours read HIGH; theirs reads LOW, from a
+nearly identical command. Against `LICENSE-APACHE`, 184 real CRs: `grep -c '\r'` → 140 (our BRE
+case); `grep -c $'\r'` → **0**, because GNU grep under MSYS strips CR in text mode; `grep -cU $'\r'`
+→ 184. Ours would have confirmed a CRLF theory, theirs an "everything is clean LF" one — neither
+looks wrong. **Their rule, adopted: a measurement of ABSENCE needs a positive control.** Run it
+first on a file known to contain the thing; if the method cannot see a known positive, every
+negative it produced is worthless. (It applies well beyond line endings: a grep that finds "no
+callers", a scan that finds "no opcode", a gate that finds "no divergence" — see
+[testing.md](testing.md) § "Invert every gate before trusting it", the same idea for a gate.)
+
 **🔁 Again on 2026-09-19, twice, in throwaway scripts:** a heredoc'd measurement script lost the
 backslashes in its regexes (`Unterminated regexp literal`), and a `sed` that generated a mutant
 script turned `\n` escapes into real newlines, breaking both mutants silently until they reported
