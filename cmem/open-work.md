@@ -4,9 +4,10 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-09-29:** 🚀 **`binaryang@1.7.1` is published** (tag `v1.7.1`, `ced5ca508`;
-[publishing.md](publishing.md) § 1.7.1) and `main` = the release plus cmem. One fix is unreleased
-([unreleased.md](unreleased.md)). **17 open items, none blocking**, numbered below. Re-derive any
+**State, 2026-09-29:** 🚀 **`binaryang@1.7.2` is published** (tag `v1.7.2`, `30929db92`;
+[publishing.md](publishing.md) § 1.7.2) and `main` = the release plus cmem. Nothing is unreleased
+([unreleased.md](unreleased.md)). **Next (owner): the optimizer and IR items**, starting at item 1 —
+paused there by the owner after the release. **17 open items, none blocking**, numbered below. Re-derive any
 number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.

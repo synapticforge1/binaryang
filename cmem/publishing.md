@@ -5,8 +5,8 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Current state (2026-09-29):** `@jrmarcum/binaryang@1.7.1` is latest (`rekorLogId=3001574645`,
-§ "1.7.1" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
+**Current state (2026-09-29):** `@jrmarcum/binaryang@1.7.2` is latest (`rekorLogId=3002349065`,
+§ "1.7.2" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
 unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand), `deno task release`
 (tag and branch in one push), CI publishes; a patch while `main` holds unreleased work goes from a
 branch cut from the last tag (§ "1.6.1"). ✅ **`RELEASE_PAT` — CLOSED as not needed (owner,
@@ -643,6 +643,28 @@ current-state line at the top), and the recovery recipe above still applies to
 any release that falls through to dispatch. The record, by path: `push: tags` has succeeded **6 of
 6** across three packages (binaryang 1.5.3 among them) before 1.5.4 added a seventh; the `auto-tag`
 → `workflow_dispatch` path has succeeded **0 of 4**.
+
+## ✅ 1.7.2 — a patch by `deno task bump`, released 2026-09-29
+
+**Published from the tag push, unaided.** JSR: `binaryang@1.7.2`, `rekorLogId=3002349065`, not
+yanked, `latestVersion` 1.7.2; tag `v1.7.2` at `30929db92`; CI, Auto-tag and Publish green. Owner,
+2026-09-29: "merge the fixes once they are tested and passing, then update the project memory
+files, bump and push"; "1.7.2 is correct" — a patch, as 1.5.4's default-text change was: nothing
+removed or renamed, one optional writer option added, and `wasm2wat`'s TEXT changes for nearly every
+module (the CHANGELOG says so first). It carries `array.new_default`'s defaultability, M2a, N10
+and W18 — `CHANGELOG.md` § 1.7.2. The pattern, unchanged:
+
+1. five fix branches merged, each after a green gate on its committed tree; release notes and
+   memory merged UNBUMPED (`7aa54e95c`); `main` pushed — CI green, Auto-tag a no-op;
+2. `deno task bump` → 1.7.2 in `deno.json` and `main.ts`;
+3. `deno task release` — cold type check and entry check passed; bump committed, tagged, branch and
+   tag pushed together.
+
+Verified from JSR itself (a scratch directory, `--min-dep-age 0`): `--version` prints
+`binaryang 1.7.2`, and `wasm2wat` from the published package prints named references (`call $f`,
+`global.get $g`). 🔧 New this release: CI and Publish were followed, and the gate run, by Deno
+scripts rather than shell loops (owner rule: scripting is TypeScript) — in the session scratchpad;
+porting the repo's own `.sh` gate steps is open-work.md's item 20.
 
 ## ✅ 1.7.1 — a patch by `deno task bump`, released 2026-09-29
 
