@@ -36,8 +36,8 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >
 > Thank you — every item reproduced on our tree before we acted, as you asked.
 >
-> **Items 1–4 and the `pagesize` half of item 5 are fixed. The fixes ship in 1.6.2** (not yet
-> published; its changelog will list them by your numbers):
+> **Items 1–5 are fixed, both halves of 5. The fixes ship in 1.6.2** (not yet published; its
+> changelog will list them by your numbers):
 >
 > 1. A named heap type inside an inline `call_indirect` / `return_call_indirect` signature is now
 >    resolved. (The `$$t` was the message's own `$` in front of `$t`, not a double prefix.) On our
@@ -53,11 +53,24 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > 5. `(memory (pagesize N) (data …))` parses: `custom-page-sizes.wast` builds 12/12 text modules
 >    here (10/12 before).
 >
-> **Item 5's custom-descriptors half is NOT fixed, and no release date is set** — no release holds
-> a fix for it yet. It is the whole proposal (`exact` types, `descriptor` / `describes`, six
-> instructions); we have it on the list.
+> 6. **Custom descriptors** (item 5's other half) — the whole proposal: exact heap types and exact
+>    function imports, `describes` / `descriptor` clauses, and `struct.new(_default)_desc`,
+>    `ref.get_desc`, `ref.cast_desc_eq`, `br_on_cast_desc_eq(_fail)`, through text, binary,
+>    validation and the optimizer, behind a `customDescriptors` feature (on in `allFeatures`). Over
+>    the proposal's 14 wasts, with wasm-tools `json-from-wast` as the oracle and V8
+>    (`--experimental-wasm-custom-descriptors`) running the result: `assert_return` 271/271,
+>    `assert_trap` 213/213, `assert_invalid` 157/157, `assert_malformed` 127/127; 91 of 93 modules
+>    byte-identical to wasm-tools — the two others write an explicit `(sub final …)` as `0x4f 00`
+>    where wasm-tools writes the shorthand (both valid; we keep what the text wrote). Where the
+>    proposal's testsuite and its Overview disagree (matching finality; a supertype needing a
+>    descriptor), we follow the testsuite.
 >
-> **Two byte changes you may see in 1.6.2**, both toward the spec and wasm-tools:
+> **Three byte changes you may see in 1.6.2**, all toward the spec and wasm-tools:
+> - a FOLDED instruction written with more children than it takes (`(struct.new_default $s
+>   (struct.new $s))`, a void call inside another call's parens) kept only the ones it consumed and
+>   DROPPED the rest; the rest are now emitted ahead of it, as the grammar says. A folded
+>   `br_on_cast` carrying a value lost its ref the same way. If your corpus writes such text, its
+>   bytes change — they were wrong before.
 > - a branch hint written before a FOLDED instruction (`(@metadata.code.branch_hint "\01") (if
 >   (local.get 0) …)`) is now recorded at the `if`, not at the `local.get` — upstream wabt 1.0.41
 >   records the expression's first byte, which our new check (item 4) rejects. Linear hints are
