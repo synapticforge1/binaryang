@@ -637,9 +637,17 @@ class WatWriter extends ModuleContext {
   }
 
   // The three below take a constant expression as the region it is held in
-  // (S6 step 5 item 6 (M2)). Text output is unchanged by that: a MISSING one
-  // and an EMPTY one print nothing, as `[]` did. (Text can spell an empty
-  // `(offset)` / `(item)`; printing them is a separate fidelity change.)
+  // (S6 step 5 item 6 (M2)). An EMPTY one is invalid but well-formed, and it
+  // must still print as something the parser reads back to the same module:
+  // - a segment offset prints `(offset)` — printing nothing turned an ACTIVE
+  //   segment into a PASSIVE one (flag 0 → 1), a different module;
+  // - an element item prints `(item)` — printing nothing dropped the item, so
+  //   the segment came back one entry short;
+  // - a global's init prints nothing — `(global i32)` reads back as the same
+  //   empty init.
+  // wasm-tools prints exactly these (`(offset )`, `(item )`); upstream
+  // `wasm2wat` had the first two wrong and printed nothing at all for the
+  // third (M2a, closed 2026-09-29).
   private writeInitExpr(r: RegionExpr | undefined): void {
     const exprs = r?.children ?? [];
     if (exprs.length === 0) return;
@@ -669,8 +677,8 @@ class WatWriter extends ModuleContext {
    */
   private writeElemExpr(r: RegionExpr): void {
     const exprs = r.children;
-    if (exprs.length === 0) return;
-    // `(item instr*)` wraps a whole instruction SEQUENCE. The bare folded
+    // `(item instr*)` wraps a whole instruction SEQUENCE — empty included,
+    // which prints `(item)` rather than nothing (see above). The bare folded
     // abbreviation `(ref.func 0)` only works when the element expression is a
     // SINGLE instruction — and one expression tree can be several
     // (`(ref.i31 (i32.const 1))` is two), so `item` is used uniformly.
@@ -679,9 +687,9 @@ class WatWriter extends ModuleContext {
     this.closeSpace();
   }
 
+  /** Called for ACTIVE segments only: an empty or missing offset still prints `(offset)`. */
   private writeOffsetExpr(r: RegionExpr | undefined): void {
     const exprs = r?.children ?? [];
-    if (exprs.length === 0) return;
     this.openSpace('offset');
     this.writeExprList(exprs);
     this.closeSpace();
