@@ -9,10 +9,10 @@ item closes, its record goes to the topic file and its line leaves here.
 2026-09-29, which [unreleased.md](unreleased.md) carries. **Owner's order that day: items 16 and 17
 (done), then 11 (found already closed), then 12** — decided the same day (both halves, V8 flags)
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
-Custom-page-sizes runs on V8 through a new lowering pass (owner's choice); what is left of 12 is
-one linking trade-off, P1 (🗓️ OWNER). The optimizer and
-IR items (from 1) are next. **15 open items, none blocking**, numbered below: old 16 and 17
-closed, new 16 and 17 came out of them, and 9 and 11 are gone with their numbers kept free.
+Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
+trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
+IR items (from 1) are next. **14 open items, none blocking**, numbered below: old 16 and 17
+closed, new 16 and 17 came out of them, and 9, 11 and 12 are gone with their numbers kept free.
 Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -95,16 +95,11 @@ invalid modules from it. Q13 in [divergences.md](divergences.md).)
 
 ## Conformance
 
-(Item 11, rank 4 of the wasmtk-ranked list, closed 2026-09-29 — it had been closed since M8e by the
-One front end, never recorded: [handoffs.md](handoffs.md) § 4's outcome. The numbers below are
-kept.)
-
-12. ⬚ 🗓️ **OWNER — P1: should a lowered custom-page memory link to a native 64 KiB importer?**
-    `proposals/` is fully in the gate since 2026-09-29, custom-page-sizes on V8 through the new
-    `LowerCustomPageSizes` pass (owner's choice). The one spec assertion it does not honour: a
-    native 64 KiB-page importer of a lowered 1-byte memory LINKS (the proposal says unlinkable),
-    because the lowered memory keeps its export name so `exports.memory` works for hosts. Refusing
-    it means a mangled export name. Pinned; the trade-off is in [divergences.md](divergences.md) P1.
+Nothing open. Closed 2026-09-29: item 11 (rank 4 of the wasmtk-ranked list — closed since M8e by
+the One front end, never recorded: [handoffs.md](handoffs.md) § 4's outcome) and item 12
+(`proposals/` in the gate, both halves; custom-page-sizes on V8 through `LowerCustomPageSizes`,
+every assertion of the suite honoured — [testing.md](testing.md) § "The proposal testsuites",
+[divergences.md](divergences.md) L1, L2, P1). Their numbers are kept free.
 
 ## Quality passes — the lens plan (agreed 2026-09-02)
 

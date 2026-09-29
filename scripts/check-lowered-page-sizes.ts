@@ -150,15 +150,14 @@ let modules = 0;
  * `assert_unlinkable`s that LINK once lowered, pinned by name — a ratchet, as
  * `REFUSED_BUDGET`: a new one fails, and so does a pin that stops linking.
  *
- * A native 64 KiB-page importer of a LOWERED 1-byte-page memory links: the
- * lowered memory IS a 64 KiB memory to the engine, exported under its own name
- * so a host's `exports.memory` still works. The proposal calls that link an
- * error ("incompatible import type"). Making it fail would mean exporting the
- * memory under a mangled name — 🗓️ OWNER (divergence P1). The reverse
- * (`:111`, a lowered importer of a 64 KiB memory) fails as it should: the
- * exporter has no `#pages` global.
+ * EMPTY since P1 closed (owner, 2026-09-29). `:104` — a native 64 KiB-page
+ * importer of a lowered 1-byte-page memory — linked while the lowered memory
+ * kept its export name, and could read past the logical size without a trap.
+ * The memory is exported as `<name>#pagesize=1` now, so that link fails as the
+ * proposal says; this ratchet is what asked for the pin to go. `:111` — a
+ * lowered importer of a native 64 KiB memory — fails too: no such name.
  */
-const LINKS_ANYWAY = new Set(['custom-page-sizes-invalid.wast:104']);
+const LINKS_ANYWAY = new Set<string>();
 const linksAnyway = new Set<string>();
 let unlinkable = 0;
 /** Modules V8's own caps refuse; our validator accepted their lowered bytes. */
