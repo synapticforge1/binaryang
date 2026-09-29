@@ -1514,6 +1514,38 @@ needed an API-built one) and seven refusals nothing else made. **How to apply:**
 a deletion mechanical, list what the deleted code REFUSED or NORMALIZED, and make sure each has a
 new home; a parity measurement is evidence only about the inputs it fed.
 
+## 🆕 Lessons from custom descriptors (5a, 2026-09-28)
+
+### An optional field is invisible to the compiler — audit every consumer of the kind
+
+Adding `desc?` to three existing node kinds type-checked cleanly while `resolve-names` (a
+per-field rewrite with a silent `default`), the WAT writer's fold arms (`operands: [e.ref]`) and the
+binary writer's `br_on` (a two-way sub-opcode choice) would each have lost or misencoded it. A new
+KIND fails exhaustive switches loudly; a new FIELD fails nothing. **How to apply:** grep every
+consumer of the kind (and of its siblings — `ref.test` beside `ref.cast` found the rest), and
+classify each as generic (walks children) or hand-written (must learn the field).
+
+### A builder that reads `operands[0..n]` silently drops the rest
+
+Three defects, one shape: a folded instruction with surplus children, a folded `br_on_cast` with a
+carried value (its FIRST operand taken as the ref), a linear `struct.new` handed the whole stack.
+**How to apply:** where operands are positional, take them from the END (the top of the stack), and
+say what happens to the rest.
+
+### A proposal's testsuite outranks its Overview
+
+The Overview asked for matching finality and a full supertype square; the testsuite, newer,
+accepts both. Built from the prose, 4 valid modules were refused. **How to apply:** implement from
+the prose, then let the suite overrule it — and record where it did.
+
+### "Every feature on" is not neutral — and run a check exactly as the gate runs it
+
+A feature that CHANGES a verdict (5a's relaxed `br_on_cast`) turns a core-suite pass into a failure
+under `allFeatures` ([testing.md](testing.md)). And a path-scoped `deno fmt src tests` checked 211
+files where the gate's bare `deno fmt --check` checks 446: the new test file was formatted by
+neither of my runs and failed the gate. **How to apply:** before the gate, run its commands
+verbatim, not a narrowed equivalent.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

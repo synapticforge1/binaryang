@@ -436,7 +436,25 @@ their own bump — and nothing breaks by their standing still.
   `./core/wabt-ts`; **(3)** compat/binaryen `Module.validate()` validates (it returned 1 for any
   module) — a behaviour change; **(4)** `@name` placement checked, branch hints refused when
   duplicated, outside a function, or on a non-branch (`wasm-validate`) — behaviour changes; and
-  **5b** `(memory (pagesize N) (data …))`. Item 5a (custom-descriptors) is NOT in it.
+  **5b** `(memory (pagesize N) (data …))`, and **5a** below.
+- **5a — the custom-descriptors proposal** (`feat/custom-descriptors`, 2026-09-28): a NEW
+  `customDescriptors` feature (off by default, on in `allFeatures`); exact heap types
+  `(exact $t)` (0x62) and exact function imports (import kind 0x20); `(describes $x)` /
+  `(descriptor $y)` type clauses (0x4C / 0x4D); `struct.new(_default)_desc`, `ref.get_desc`,
+  `ref.cast_desc_eq`, `br_on_cast_desc_eq(_fail)`. ⚠️ **API-visible IR**: a new Expr kind
+  `ref.get_desc` (`RefGetDescExpr`; `ExpressionKind.RefGetDesc`) — an exhaustive switch over kinds
+  gains a case; optional `desc` on `StructNewExpr` / `RefCastExpr` / `BrOnExpr`;
+  `BrOnOp.CastDescEq(Fail)`; `HeapTypeRef` gains `ExactHeap` (`kind: 'exact'`), with
+  `heapExact` / `isExactHeap` / `mapHeapVar` / `heapTypeText`; `TypeEntryBase.describes?` /
+  `.descriptor?`; the func-import arm's `exact?`. Under the feature, allocations and `ref.func` of
+  a defined function are exact, and `br_on_cast`'s `rt2 <: rt1` relaxes to one hierarchy.
+  Measured: the proposal's 14 wasts, return 271/271, trap 213/213, invalid 157/157, malformed
+  127/127, modules 91/93 (W17).
+- **Folded text that DROPPED operands now keeps them** — bytes move for such text, toward the
+  grammar: a folded instruction with more children than operands dropped the surplus (now written
+  ahead of it); a folded `br_on_cast(_fail)` carrying a value lost its ref; a linear `struct.new`
+  took the whole stack as operands (the tree only). `struct.new_default` now refuses a
+  non-defaultable field (it validated).
 - **Branch hints before a folded instruction are written at the instruction** (divergence W16) —
   the bytes of such a module move; linear hints are unchanged. An inline-data memory now writes
   its maximum (`(memory m m)`, as the spec and every other encoder) — its bytes move too.

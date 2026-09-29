@@ -22,7 +22,18 @@ that history now lives in its topic files — nothing was dropped:
 | the predecessors' wings (T-ids, UP-n, WT-n, invariants → tests) | [wabt-ts.md](wabt-ts.md), [binaryen-ts.md](binaryen-ts.md) |
 | the 2026-09-14 memory consolidation                             | [INDEX.md](INDEX.md) § "Cleanup policy"                    |
 
-**State, 2026-09-28 (release):** 🚀 **`binaryang@1.6.0` PUBLISHED** (tag `v1.6.0`, commit
+**State, 2026-09-28 (latest):** `main` = 1.6.1 published (CLI from JSR) + unreleased work for
+**1.6.2** ([unreleased.md](unreleased.md) § "After 1.6.0"): wasmtk's items 1–5, ALL of them now —
+**5a custom descriptors merged** (`feat/custom-descriptors`; the 5a row below) — plus the folded
+operand fixes found with it. Gate green on the committed tree (1,325 tests; spec 100% on four axes
+with `customDescriptors` off for the core suite — [testing.md](testing.md)). NOT pushed; `main`
+is well ahead of `origin/main`. The draft reply to wasmtk ([handoffs.md](handoffs.md) § 15) says all
+five ship in 1.6.2 — it is the owner's / workspace's to send. **Next (owner, 2026-09-28): the
+decommissioning** of binaryen-ts's codec adapters, decided "relocate, keep names" (§ "IR
+convergence — next steps"). Open question for the owner: drop `wast2json` ([testing.md](testing.md)
+§ "Do we need upstream `wast2json`?").
+
+**State, 2026-09-28 (release, history):** 🚀 **`binaryang@1.6.0` PUBLISHED** (tag `v1.6.0`, commit
 `64d22e06f`; JSR `rekorLogId=2987187551`, 647 symbols; CI, Auto-tag and Publish all green). One
 front end stages 3b and 4b are in it: `./binary` and `./encoder` are gone. `main` = the release,
 pushed: **1,315 tests / 0 failed**, baseline IDENTICAL, spec 100% on four axes, spec-behaviour 0
@@ -671,6 +682,14 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   so their public contracts (error classes and messages) must hold. Scope before cutting: which
   part is a real step (the copy + resolve, the pass preparation) that only MOVES, and which is a
   name that can go; the `encoder/` directory itself is the obvious leftover.
+  Scoped 2026-09-28: neither file is a public export (only `api/index.ts`, `api/binaryen-compat.ts`
+  and `tools/wasm-opt.ts` reach them). `write-wasm.ts` is ~500 lines of REAL work on binaryen-ts's
+  tree conventions (copy, `nameTheFrame`, resolve, `checkForWriting` — the deleted encoder's
+  refusals — `labelsToDepths`, sigils), so it moves, it does not go. **Owner, 2026-09-28: "Relocate,
+  keep names"** — `encoder/write-wasm.ts` → `ir/` beside `prepare.ts`, the `encoder/` directory
+  deleted, function names unchanged (callers change their import path only); baseline must stay
+  IDENTICAL. Rejected: renaming every call site; pushing the preparation into wabt-ts (it would
+  learn binaryen-ts's conventions).
 
 ### Follow-ups kept deliberately behaviour-neutral
 
