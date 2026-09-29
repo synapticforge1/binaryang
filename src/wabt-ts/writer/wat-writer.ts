@@ -51,6 +51,7 @@ import { Type, typeName } from '../core/types.ts';
 import {
   blockTypeOf,
   type HeapTypeRef,
+  heapTypeText,
   indexOf,
   isRefValueType,
   localNameEntries,
@@ -467,6 +468,13 @@ class WatWriter extends ModuleContext {
       this.nextChar = nc;
       return;
     }
+    if (h.kind === 'exact') {
+      this.puts('(', NC.None);
+      this.puts('exact', NC.Space);
+      this.writeVar(h.type, NC.None);
+      this.puts(')', nc);
+      return;
+    }
     this.writeVar(h, nc);
   }
   private writeVarUnlessZero(v: Var, nc: NC): void {
@@ -541,8 +549,7 @@ class WatWriter extends ModuleContext {
       this.puts('(', NC.None);
       this.puts('ref', NC.Space);
       if (t.nullable) this.puts('null', NC.Space);
-      if (t.heapType.kind === 'index') this.puts(`${t.heapType.value}`, NC.None);
-      else this.puts(t.heapType.name, NC.None);
+      this.puts(heapTypeText(t.heapType), NC.None);
       this.puts(')', nc);
       return;
     }
@@ -2344,6 +2351,17 @@ class WatWriter extends ModuleContext {
       if (te.sub.final) this.puts('final', NC.Space);
       for (const sup of te.sub.supertypes) this.writeVar(sup, NC.Space);
     }
+    // Custom descriptors: siblings of the comptype, describes first.
+    if (te.describes !== undefined) {
+      this.openSpace('describes');
+      this.writeVar(te.describes, NC.None);
+      this.closeSpace();
+    }
+    if (te.descriptor !== undefined) {
+      this.openSpace('descriptor');
+      this.writeVar(te.descriptor, NC.None);
+      this.closeSpace();
+    }
     switch (te.kind) {
       case 'func':
         this.openSpace('func');
@@ -2416,7 +2434,7 @@ class WatWriter extends ModuleContext {
     this.writeQuotedString(imp.field, NC.Space);
     switch (imp.kind) {
       case ExternalKind.Func:
-        this.writeFuncBegin(imp.func, /*isImport*/ true);
+        this.writeFuncBegin(imp.func, /*isImport*/ true, imp.exact === true);
         this.closeSpace();
         break;
       case ExternalKind.Table:
@@ -2461,13 +2479,16 @@ class WatWriter extends ModuleContext {
    * exports, type use, and its signature — with its param names (N1), which an
    * import can carry like any function.
    */
-  private writeFuncBegin(func: Func, _isImport: boolean): void {
+  private writeFuncBegin(func: Func, _isImport: boolean, exact = false): void {
     this.openSpace('func');
     this.writeNameOrIndex(this.shown((r) => r.functions, func.name), this.funcIdx, NC.Space);
     this.writeInlineExports(ExternalKind.Func, this.funcIdx);
+    // An exact import's type use sits in `(exact …)` (custom descriptors).
+    if (exact) this.openSpace('exact');
     this.writeFuncTypeUse(func);
     this.writeParams(func.sig.params, new Map(localNameEntries(func.locals)));
     this.writeTypes(func.sig.results, 'result');
+    if (exact) this.closeSpace();
     this.funcIdx++;
   }
 

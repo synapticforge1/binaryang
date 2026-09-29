@@ -83,6 +83,7 @@ import {
   type GlobalGetExpr,
   type GlobalSetExpr,
   heapAbstract,
+  heapExact,
   type HeapTypeRef,
   type I31GetExpr,
   type IfExpr,
@@ -1989,6 +1990,20 @@ export class WastParser {
   private parseHeapTypeVar(): HeapTypeRef | null {
     const loc = this.loc();
     const tt = this.peek();
+    // `(exact $t)` / `(exact N)` — custom descriptors. Only a DEFINED type has
+    // an exact form: `(exact any)` is malformed, as wasm-tools reads it.
+    if (tt === TokenType.Lpar && this.peek(1) === TokenType.Exact) {
+      this.drop();
+      this.drop();
+      if (this.peek() !== TokenType.Var && this.peek() !== TokenType.Nat) {
+        this.error(this.loc(), `unexpected token ${tokenName(this.peek())}, expected a type index`);
+        return null;
+      }
+      const inner = this.parseHeapTypeVar();
+      if (inner === null || inner.kind === 'abstract' || inner.kind === 'exact') return null;
+      if (this.expect(TokenType.Rpar) !== Result.Ok) return null;
+      return heapExact(inner);
+    }
     switch (tt) {
       case TokenType.Var: {
         // `$T` — user-defined heap type; resolveNames maps it to an index.
@@ -2268,6 +2283,18 @@ export class WastParser {
   }
 
   /** Parse inline imports `(import "mod" "field")` if present. Returns null if not found. */
+  /**
+   * `(exact` opening an exact function import's type use (custom descriptors):
+   * `(func $f (exact (type $t) (param …) (result …)))`. Consumed when present;
+   * the caller closes it after the signature.
+   */
+  private parseExactOpen(): boolean {
+    if (this.peek() !== TokenType.Lpar || this.peek(1) !== TokenType.Exact) return false;
+    this.drop();
+    this.drop();
+    return true;
+  }
+
   private parseInlineImport(): { moduleName: string; fieldName: string } | null {
     if (!this.matchLpar(TokenType.Import)) return null;
     const moduleName = this.parseQuotedText() ?? '';
@@ -2709,6 +2736,23 @@ export class WastParser {
       if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     }
 
+    // Custom descriptors: `(describes $x)? (descriptor $y)?`, in that order,
+    // between the `sub` header and the comptype. Each is a sibling of the
+    // comptype, not a wrapper, so the closing-paren count is unchanged.
+    const clause = (tok: TokenType): Var | undefined | null => {
+      if (this.peek() !== tok) return undefined;
+      this.drop();
+      const v = this.parseVar();
+      if (v === null) return null;
+      if (this.expect(TokenType.Rpar) !== Result.Ok) return null;
+      if (this.expect(TokenType.Lpar) !== Result.Ok) return null;
+      return v;
+    };
+    const describes = clause(TokenType.Describes);
+    if (describes === null) return Result.Error;
+    const descriptor = clause(TokenType.Descriptor);
+    if (descriptor === null) return Result.Error;
+
     const kindTok = this.peek();
     let entry: TypeEntry;
     if (kindTok === TokenType.Func) {
@@ -2727,6 +2771,8 @@ export class WastParser {
       this.error(this.loc(), 'expected func, struct, or array in type');
       return Result.Error;
     }
+    if (describes !== undefined) entry.describes = describes;
+    if (descriptor !== undefined) entry.descriptor = descriptor;
     if (sub !== undefined) {
       entry.sub = sub;
       this.expect(TokenType.Rpar); // closes the comptype
@@ -2846,8 +2892,10 @@ export class WastParser {
     if (tt === TokenType.Func) {
       this.drop();
       const name = this.parseBindVarOpt();
+      const exact = this.parseExactOpen();
       const typeVar = this.parseTypeUseOpt();
       const { sig, bindings } = this.parseFuncSignature();
+      if (exact && this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
       const typeUse = this.settleTypeUse(module, typeVar, sig);
       const localNames = namesByIndex(bindings);
       const func: Func = {
@@ -2860,7 +2908,13 @@ export class WastParser {
         locals: slotsOf(sig.params, localNames),
         body: region([], loc),
       };
-      imp = { kind: ExternalKind.Func, module: moduleName, field: fieldName, func };
+      imp = {
+        kind: ExternalKind.Func,
+        module: moduleName,
+        field: fieldName,
+        func,
+        ...(exact ? { exact: true as const } : {}),
+      };
       module.imports.push(imp);
     } else if (tt === TokenType.Table) {
       this.drop();
@@ -2958,8 +3012,16 @@ export class WastParser {
 
     // Inline import?
     const inlineImp = this.parseInlineImport();
+    // `(exact …)` around the type use: an exact function IMPORT only.
+    const exactLoc = this.loc();
+    const exact = this.parseExactOpen();
+    if (exact && inlineImp === null) {
+      this.error(exactLoc, 'unexpected token exact: only a function import is exact');
+      return Result.Error;
+    }
     const typeVar = this.parseTypeUseOpt();
     const { sig, bindings } = this.parseFuncSignature();
+    if (exact && this.expect(TokenType.Rpar) !== Result.Ok) return Result.Error;
     // `(func $f (type $t) …)` with NO inline params/results takes its whole
     // signature from $t. Without this the func carried an empty signature: the
     // emitted type was `() -> ()` while the body pushed a value, and V8
@@ -2987,6 +3049,7 @@ export class WastParser {
         module: inlineImp.moduleName,
         field: inlineImp.fieldName,
         func,
+        ...(exact ? { exact: true as const } : {}),
       };
       module.imports.push(imp);
     } else {

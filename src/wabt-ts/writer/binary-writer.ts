@@ -119,6 +119,7 @@ import {
   CUSTOM_SECTION_NAME_CODE_METADATA,
   CUSTOM_SECTION_NAME_NAME,
   ExternalKind,
+  IMPORT_KIND_EXACT_FUNC,
   LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG,
   LIMITS_HAS_MAX_FLAG,
   LIMITS_IS_64_FLAG,
@@ -204,8 +205,26 @@ function writeHeapType(s: MemoryStream, h: HeapTypeRef): void {
       throw new Error(
         `writeHeapType: type "$${h.name}" is not resolved — run resolveNames before writing.`,
       );
+    case 'exact':
+      // `(exact $t)` (custom descriptors): the prefix, then the index as a U32 —
+      // not an s33, which is what makes an exact ABSTRACT type unencodable.
+      if (h.type.kind !== 'index') {
+        throw new Error(
+          `writeHeapType: type "$${h.type.name}" is not resolved — run resolveNames before writing.`,
+        );
+      }
+      s.writeU8(HEAP_TYPE_EXACT);
+      s.writeU32Leb(h.type.value);
+      return;
+    default: {
+      const never: never = h;
+      throw new Error(`writeHeapType: unknown heap type ${JSON.stringify(never)}`);
+    }
   }
 }
+
+/** The prefix of an exact heap type, `(exact $t)` (custom descriptors). */
+const HEAP_TYPE_EXACT = 0x62;
 
 /**
  * Map an abstract heap type to its single-byte binary encoding. Thin alias over
@@ -253,6 +272,15 @@ function writeSubType(s: MemoryStream, t: TypeEntry): void {
     s.writeU8(t.sub.final ? 0x4f : 0x50);
     s.writeU32Leb(t.sub.supertypes.length);
     for (const sup of t.sub.supertypes) writeVar(s, sup);
+  }
+  // Custom descriptors: describes (0x4C) before descriptor (0x4D).
+  if (t.describes !== undefined) {
+    s.writeU8(0x4c);
+    writeVar(s, t.describes);
+  }
+  if (t.descriptor !== undefined) {
+    s.writeU8(0x4d);
+    writeVar(s, t.descriptor);
   }
   writeCompType(s, t);
 }
@@ -1360,7 +1388,10 @@ class BinaryWriter {
       for (const imp of m.imports) {
         s.writeName(imp.module);
         s.writeName(imp.field);
-        s.writeU8(imp.kind as number);
+        // An exact function import is kind `0x20` (custom descriptors).
+        s.writeU8(
+          imp.kind === ExternalKind.Func && imp.exact ? IMPORT_KIND_EXACT_FUNC : imp.kind as number,
+        );
         switch (imp.kind) {
           case ExternalKind.Func:
             writeVar(s, requireFuncType(imp.func));

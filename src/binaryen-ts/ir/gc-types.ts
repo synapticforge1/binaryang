@@ -23,7 +23,7 @@
  */
 
 import { type ValType, valTypeName } from './types.ts';
-import { heapAbstract, type HeapTypeRef } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, type HeapTypeRef, heapTypeText } from '../../wabt-ts/ir/ir.ts';
 import { Type } from '../../wabt-ts/core/types.ts';
 import type * as W from '../../wabt-ts/ir/ir.ts';
 export { heapAbstract, sameHeap } from '../../wabt-ts/ir/ir.ts';
@@ -341,8 +341,7 @@ export function isPackedType(t: StorageType): t is PackedType {
  * Abstract types use their built-in name; type indices use `$typeN`.
  */
 export function heapTypeToString(h: HeapType): string {
-  if (h.kind === 'abstract' || h.kind === 'name') return h.name;
-  return `$type${h.value}`;
+  return heapTypeText(h, (n) => `$type${n}`);
 }
 
 /**

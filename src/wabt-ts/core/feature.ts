@@ -78,6 +78,14 @@ export interface Features {
    * That asymmetry is deliberate for now and tracked in `cmem/open-work.md`.
    */
   wideArithmetic: boolean;
+  /**
+   * Custom descriptors proposal — exact heap types `(exact $t)`, `descriptor` /
+   * `describes` clauses on struct types, exact function imports, and
+   * `struct.new(_default)_desc`, `ref.get_desc`, `ref.cast_desc_eq`,
+   * `br_on_cast_desc_eq(_fail)`. Experimental: V8 needs
+   * `--experimental-wasm-custom-descriptors`.
+   */
+  customDescriptors: boolean;
 }
 
 /**
@@ -108,6 +116,7 @@ export function defaultFeatures(): Features {
     customPageSizes: false,
     compactImports: false,
     wideArithmetic: false,
+    customDescriptors: false,
   };
 }
 
@@ -135,5 +144,6 @@ export function allFeatures(): Features {
     customPageSizes: true,
     compactImports: true,
     wideArithmetic: true,
+    customDescriptors: true,
   };
 }

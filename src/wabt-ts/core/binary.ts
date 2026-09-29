@@ -194,6 +194,13 @@ export enum ExternalKind {
   Tag = 4,
 }
 
+/**
+ * Import kind `0x20` — an EXACT function import (custom descriptors): `func`
+ * with bit 5 set, reserved for exactness. An import only: an export section
+ * using it is malformed.
+ */
+export const IMPORT_KIND_EXACT_FUNC = 0x20;
+
 /** The text format's keyword for an external kind: `func`, `table`, `memory`, `global`, `tag`. */
 export function externalKindKeyword(
   kind: ExternalKind,

@@ -35,7 +35,7 @@ import type {
   ValueType,
   Var,
 } from './ir.ts';
-import { isRefValueType, locOf, varIndex } from './ir.ts';
+import { isRefValueType, locOf, mapHeapVar, varIndex } from './ir.ts';
 import { countImports } from './ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -252,6 +252,9 @@ class ResolveContext {
       if (t.sub !== undefined) {
         t.sub.supertypes = t.sub.supertypes.map((v) => this.resolveTypeVar(v, t.loc));
       }
+      // So are custom descriptors' `(describes $x)` and `(descriptor $y)`.
+      if (t.describes !== undefined) t.describes = this.resolveTypeVar(t.describes, t.loc);
+      if (t.descriptor !== undefined) t.descriptor = this.resolveTypeVar(t.descriptor, t.loc);
     }
     for (const imp of this.module.imports) {
       if (imp.kind === ExternalKind.Func) {
@@ -1127,6 +1130,10 @@ class ResolveContext {
     // nothing to resolve. Discovering that used to need a keyword-table
     // lookup — the arm states it, so the table is no longer consulted here.
     if (h.kind === 'abstract' || h.kind === 'index') return h;
+    // `(exact $t)` resolves its type and stays exact.
+    if (h.kind === 'exact') {
+      return mapHeapVar(h, (v) => v.kind === 'index' ? v : this.resolveTypeVar(v, loc));
+    }
     return this.resolveTypeVar(h, loc);
   }
   /**

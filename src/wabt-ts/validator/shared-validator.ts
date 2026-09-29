@@ -15,7 +15,7 @@ import { TypeChecker } from './type-checker.ts';
 import { naturalAlignForOpcode } from '../core/opcode.ts';
 import type { FuncType, HeapTypeInfo } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind, StorageType, ValueType } from '../ir/ir.ts';
-import { isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
+import { heapExact, isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
 import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -329,9 +329,14 @@ export class SharedValidator {
   // Type section
   // ---------------------------------------------------------------------------
 
-  /** The non-nullable reference to a defined type: `(ref $idx)`. */
+  /**
+   * What an allocating producer (`struct.new*`, `array.new*`) pushes: the
+   * non-nullable reference to a defined type, EXACT under custom descriptors
+   * (`(ref (exact $idx))`), plain `(ref $idx)` without it.
+   */
   private refTo(idx: number): ValueType {
-    return { heapType: varIndex(idx), nullable: false };
+    const v = varIndex(idx);
+    return { heapType: this.features.customDescriptors ? heapExact(v) : v, nullable: false };
   }
 
   /** `(ref null $idx)` — what an operand slot accepts for a defined type. */
@@ -492,7 +497,12 @@ export class SharedValidator {
     // proposal, whichever kind of type it names.
     const rf = this.requireFeature('functionReferences', `typed reference in ${what}`, loc);
     if (rf !== Result.Ok) return rf;
-    const h = vt.heapType;
+    let h = vt.heapType;
+    if (h.kind === 'exact') {
+      const cd = this.requireFeature('customDescriptors', `exact reference in ${what}`, loc);
+      if (cd !== Result.Ok) return cd;
+      h = h.type;
+    }
     if (h.kind !== 'index') return Result.Ok;
     // `bound` is the SCOPE, not the section size: a type may reference
     // anything defined before it plus the rest of its own rec group, and
@@ -549,9 +559,13 @@ export class SharedValidator {
   // Module structure
   // ---------------------------------------------------------------------------
 
-  onFunction(loc: Location, sigIdx: number): Result {
+  /**
+   * `exact`: `ref.func` of this function has an exact type — true for a
+   * defined function and an exact import, false for a plain import.
+   */
+  onFunction(loc: Location, sigIdx: number, exact = false): Result {
     const ft = this.checkFuncTypeIndex(sigIdx, loc);
-    this.funcs.push(ft ?? { params: [], results: [], typeIndex: 0 });
+    this.funcs.push({ ...(ft ?? { params: [], results: [], typeIndex: 0 }), exact });
     return ft ? Result.Ok : Result.Error;
   }
 
@@ -957,8 +971,21 @@ export class SharedValidator {
     // cannot widen one. Nothing checked the relationship between the two
     // immediates, so `br_on_cast … (ref any) (ref null $s)` validated even
     // though a nullable ref is not a subtype of a non-nullable one.
+    //
+    // Custom descriptors relaxes that to "rt1 and rt2 share a supertype" — one
+    // hierarchy — for these two instructions as well as its own
+    // br_on_cast_desc_eq pair.
     let r: Result = Result.Ok;
-    if (!this.isSubtype(to, from)) {
+    if (this.features.customDescriptors) {
+      if (!this.tc.sameHierarchy(to, from)) {
+        r = this.printError(
+          loc,
+          `type mismatch in br_on_cast: ${valueTypeName(to)} and ${
+            valueTypeName(from)
+          } are in different reference hierarchies`,
+        );
+      }
+    } else if (!this.isSubtype(to, from)) {
       r = this.printError(
         loc,
         `type mismatch in br_on_cast: ${valueTypeName(to)} is not a subtype of ${
@@ -1485,7 +1512,9 @@ export class SharedValidator {
     // first, so it is not a func table — the same answer the old shape gave,
     // where the keyword comparison simply failed to match.
     if (h.kind === 'name') return false;
-    return this.funcTypesMap.has(h.value);
+    // `(ref (exact $f))` still holds functions.
+    const v = h.kind === 'exact' ? h.type : h;
+    return v.kind === 'index' && this.funcTypesMap.has(v.value);
   }
 
   onCallIndirect(loc: Location, sigIdx: number, tableIdx: number): Result {
@@ -1591,7 +1620,13 @@ export class SharedValidator {
         this.checkDeclaredFuncs.push(funcIdx);
       }
     }
-    r = combineResults(r, this.tc.onRefFunc(this.funcs[funcIdx]?.typeIndex ?? 0));
+    r = combineResults(
+      r,
+      this.tc.onRefFunc(
+        this.funcs[funcIdx]?.typeIndex ?? 0,
+        this.features.customDescriptors && this.funcs[funcIdx]?.exact === true,
+      ),
+    );
     return r;
   }
 

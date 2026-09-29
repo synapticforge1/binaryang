@@ -17,6 +17,7 @@ import {
 import {
   BinarySection,
   ExternalKind,
+  IMPORT_KIND_EXACT_FUNC,
   NameSectionSubsection,
   sectionOrderRank,
   WASM_MAGIC,
@@ -93,6 +94,7 @@ import {
   type Global,
   type GlobalGetExpr,
   heapAbstract,
+  heapExact,
   type HeapTypeRef,
   type I31GetExpr,
   type Import,
@@ -821,6 +823,12 @@ export class BinaryReader {
    */
   private readHeapTypeVar(): HeapTypeRef {
     const b = this.peekU8();
+    // `0x62 u32` — `(exact $t)` (custom descriptors). A u32, not an s33: an
+    // exact abstract type has no encoding.
+    if (b === 0x62) {
+      this.pos++;
+      return heapExact(varIndex(this.readU32Leb()));
+    }
     if ((b & 0x80) === 0) {
       // Single-byte form: either an abstract heap type (high bit set in the
       // signed sense, so unsigned byte ≥ 0x40) or a tiny non-negative index.
@@ -1060,11 +1068,26 @@ export class BinaryReader {
       for (let i = 0; i < n; i++) supertypes.push(varIndex(this.readU32Leb()));
       sub = { final: marker === 0x4f, supertypes };
     }
+    // Custom descriptors: `0x4C x` (describes), then `0x4D y` (descriptor).
+    let describes: Var | undefined;
+    let descriptor: Var | undefined;
+    if (this.peekU8() === 0x4c) {
+      this.pos++;
+      describes = varIndex(this.readU32Leb());
+    }
+    if (this.peekU8() === 0x4d) {
+      this.pos++;
+      descriptor = varIndex(this.readU32Leb());
+    }
     const before = m.types.length;
     this.readCompType(m, loc);
-    // `sub` rides on the entry the comptype just pushed.
+    // `sub` and the clauses ride on the entry the comptype just pushed.
     const entry = m.types[before];
-    if (entry !== undefined && sub !== undefined) entry.sub = sub;
+    if (entry !== undefined) {
+      if (sub !== undefined) entry.sub = sub;
+      if (describes !== undefined) entry.describes = describes;
+      if (descriptor !== undefined) entry.descriptor = descriptor;
+    }
   }
 
   /** Read the composite part: func (0x60), struct (0x5f), or array (0x5e). */
@@ -1116,7 +1139,11 @@ export class BinaryReader {
       const loc = this.loc();
       const module_ = this.readName();
       const field = this.readName();
-      const kind = this.readU8() as ExternalKind;
+      const byte = this.readU8();
+      // `0x20` — an EXACT function import (custom descriptors): a function
+      // import in every other respect.
+      const exact = byte === IMPORT_KIND_EXACT_FUNC;
+      const kind = (exact ? ExternalKind.Func : byte) as ExternalKind;
 
       switch (kind) {
         case ExternalKind.Func: {
@@ -1132,7 +1159,13 @@ export class BinaryReader {
             locals: sig.params.map((type) => ({ type })),
             body: region([], loc),
           };
-          m.imports.push({ kind: ExternalKind.Func, module: module_, field, func });
+          m.imports.push({
+            kind: ExternalKind.Func,
+            module: module_,
+            field,
+            func,
+            ...(exact ? { exact: true as const } : {}),
+          });
           break;
         }
         case ExternalKind.Table: {
