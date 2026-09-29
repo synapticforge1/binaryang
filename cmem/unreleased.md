@@ -27,4 +27,14 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.7.0
 
-(none)
+- **Behaviour — limits are u64 on the wire for every memory and table** (`1fa6eb21b`; wasmtk's
+  letter of 2026-09-29, item 1). `(memory 0x1_0000_0000)` / `(table 0x1_0000_0000 funcref)` are now
+  WRITTEN (2^32, never wrapped) and rejected by the validator, where `toBinary` / `wat2wasm` refused
+  them ("u32 LEB128 out of range"); `wasm-validate` reads such a limit as INVALID, where it said
+  malformed ("integer too large"). No valid module's bytes move. Their 10 skips in `memory.wast`,
+  `table.wast` and `memory_max.wast` should become passes.
+- **Silent fix — a 32-bit memory with 1-byte pages is capped at 2^32-1 pages.**
+  `(memory 0x1_0000_0000 (pagesize 1))` validated; `memory_max.wast` calls it invalid.
+- Not a change: their item 2 (a branch hint on `i32.eq`) — `wasmValidate` already rejects it.
+
+A patch (1.7.1): nothing is removed or renamed.

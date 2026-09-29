@@ -140,16 +140,12 @@ fatigue.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
-21. ⬚ **§ 15, the reply to wasmtk's letter of 2026-09-28.** The draft is TRUE as written since 1.7.0
-    was published. It is the owner's or the workspace session's to send, not this repo's.
-22. ⬚ **§§ 10–11.**
-    - § 10 is awaiting their answer to one question: their queue lists `br_on_cast` as unstarted,
-      but all four `br_on_*` forms shipped in 1.5.3. Either the entry predates their bump, or our
-      fix does not cover their cases; we asked for one failing module. Resolve it before anyone
-      starts on their queue.
-    - § 11 (adopting their conditional-not-clearance form and their alias invariant) is outbound.
-    - Also open from their side: if any of their 100 pinned GC / ref-types wast failures route to us
-      rather than to wasic, we want to know which.
+21. ⬚ **§ 17, the reply to wasmtk's letter of 2026-09-29** (against 1.7.0). Item 1, u32 limits, is
+    fixed on `main` (`1fa6eb21b`) and ships in the next release (a patch, 1.7.1 — the owner's call).
+    Item 2 needs nothing from us: `wasmValidate` already rejects it. The draft is the owner's or
+    the workspace session's to send. Their letter closed §§ 10, 13 and 15.
+22. ⬚ **§ 11** (adopting their conditional-not-clearance form and their alias invariant) is
+    outbound.
 
 ## Not tasks, by decision
 
