@@ -842,7 +842,7 @@ Deno may need a flag adjusted. `deno task proposals <testsuite-main> <outDir>`
 | proposal           | validity (accept · invalid · malformed bin · malformed text) | behaviour                                | V8 flag                                  |
 | ------------------ | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------------- |
 | custom-descriptors | 93 · 157 · 111 · 16                                          | 488 invocations, 19 modules, 0 DIVERGE   | `--experimental-wasm-custom-descriptors` |
-| custom-page-sizes  | 41 · 19 · 108 · 4                                            | **NOT RUN** — V8 15.0 has no support     | none exists                              |
+| custom-page-sizes  | 41 · 19 · 108 · 4                                            | 31 assertions × 7 worlds, LOWERED (below) | none exists — lowered instead            |
 | threads            | 114 · 93 · 0 · 19                                            | 321 invocations, 14 modules, 0 DIVERGE   | none needed                              |
 | wide-arithmetic    | 2 · 8 · 0 · 0                                                | 99 invocations, 2 modules, 0 DIVERGE     | `--experimental-wasm-wide-arithmetic`    |
 
@@ -866,17 +866,34 @@ call operand inlined at -O3 (Q12), and `--flatten`'s inexact temporaries for exa
 (`br_on_passthrough.test.ts` uses plain `br_on_cast`); the core suite has no such case. Pinned: 14
 `--flatten` refusals of `br_on_*`, as the core suite's.
 
-**custom-page-sizes behaviour — no engine (open-work 12, 🗓️ OWNER).** V8 has no support and no
-flag. Two ways to run it, measured 2026-09-29:
+**custom-page-sizes behaviour — on V8, LOWERED.** V8 15.0 has no support and no flag. Two routes
+were measured (wasmtime 49 runs the `.wast` as written; or lower to 64 KiB pages) and 🗓️ **the
+owner chose lowering, 2026-09-29: "we want V8 to be able to run it. That is the whole point of
+wasmtk, in that it runs everywhere."** So it is a FEATURE, not a test aid:
+`LowerCustomPageSizes` (`wasm-opt --lower-custom-page-sizes`,
+`src/binaryen-ts/passes/lower-custom-page-sizes.ts`; its design is in the module doc).
 
-- **wasmtime** (49.0.1 installed; `-W custom-page-sizes=y`): `wasmtime wast` runs the proposal's
-  `.wast` directly (exit 0). To judge OUR bytes, each `(module …)` of the script would be replaced
-  by `(module binary "…")` of our variant and the spec's own assertions checked by wasmtime — an
-  independent engine, the spec's expected values as the oracle. A second engine and a subprocess in
-  the gate.
-- **Lower to 64 KiB pages** so V8 can run it: a pass that emulates small pages (scaled
-  `memory.size` / `memory.grow`, an explicit bounds check on every access). It would test the
-  lowering more than the module we emit, and it is a sizeable pass of its own.
+`scripts/check-lowered-page-sizes.ts` (run by `deno task proposals`): the original cannot run on
+V8, so the oracle is the spec's expected values, in SEVEN worlds — lowered as read, round trip,
+-O1 … -Oz — each optimized BEFORE lowering, so our optimizer is judged on real custom-page
+memories and the lowering on everything. 🔧 An earlier note here said lowering "would test the
+lowering more than the module we emit"; running the optimized variants first is the answer to it.
+Every `module` must instantiate (the linking ones included), all **31** assertions (27
+`assert_return`, 4 `assert_trap` — every one in the suite) hold in every world, and the 2
+`assert_unlinkable` must fail to link. 4 `module definition`s exceed V8's OWN memory64 cap (262,144
+pages — the default-page-size one at `memory_max_i64.wast:18` too, which lowering does not touch);
+for those our validator judges the lowered bytes instead.
+
+⚠️ **P1, pinned (🗓️ OWNER):** `custom-page-sizes-invalid.wast:104` — a native 64 KiB importer of a
+LOWERED 1-byte memory LINKS, because the lowered memory is a 64 KiB memory to the engine, exported
+under its own name so a host's `exports.memory` keeps working. The proposal calls it unlinkable.
+Refusing it means exporting under a mangled name; the pin is a ratchet (a pin that stops linking
+fails too). [divergences.md](divergences.md) P1.
+
+Unit tests: `lower_custom_page_sizes.test.ts`, V8 with no flag — sizes, growth across a 64 KiB
+boundary and to the declared max, traps at the TRUE size, operand order before a trap,
+`memory.copy` / `fill`, a 64-bit memory, active segments, `#pages` linking, the shared refusal. 8
+mutants, 8 killed.
 
 ### Do we need upstream `wast2json`? (measured 2026-09-28)
 

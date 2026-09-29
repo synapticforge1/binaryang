@@ -394,6 +394,9 @@ Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => 
 
 Deno.test('parseArgs: trailing -o with no value throws instead of defaulting to output.wasm', () => {
   assertThrows(() => parseArgs(['in.wasm', '-o']), Error, 'requires an output path');
+  assertThrows(() => parseArgs(['in.wasm', '-o', '-O2']), Error, 'requires an output path');
+  // `-` alone is stdout (2026-09-29: the guard above refused it too).
+  assertEquals(parseArgs(['in.wasm', '-S', '-o', '-']).options.output, '-');
 });
 
 // ---------------------------------------------------------------------------

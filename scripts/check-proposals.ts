@@ -93,10 +93,9 @@ for (const p of PROPOSALS) {
       'run',
       '--allow-read',
       ...flags,
-      here('./check-spec-behaviour.ts'),
-      dir,
-      '--proposal',
-      p.name,
+      ...(p.behaviourScript !== undefined
+        ? [here(p.behaviourScript), dir]
+        : [here('./check-spec-behaviour.ts'), dir, '--proposal', p.name]),
     ]);
     console.log(b.tail.join('\n'));
     behaviour = b.ok ? 'ok' : 'FAILED';

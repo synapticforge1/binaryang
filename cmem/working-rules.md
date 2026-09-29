@@ -42,7 +42,8 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` ·
 `deno task translate-eh <testsuite-main>/legacy <outDir>` · `deno task optimize-corpus` ·
 `deno task proposals <testsuite-main> <outDir>` (since 2026-09-29: `proposals/`, validity and
 behaviour, V8 experimental flags per `scripts/proposals.ts`; expect every proposal to hold,
-custom-page-sizes behaviour NOT RUN — [testing.md](testing.md) § "The proposal testsuites").
+custom-page-sizes judged on V8 through `LowerCustomPageSizes` — 31 assertions in 7 worlds, 1
+unlinkable pinned (P1) — [testing.md](testing.md) § "The proposal testsuites").
 (`direct` / `direct-behaviour` replaced `bridge` / `bridge-behaviour` when M8e deleted the bridge,
 2026-09-18; this list named the old tasks until 2026-09-19.) Expect `direct` **544 / 544** and
 `direct-behaviour` **1953 calls / 651 exports, 0 DIVERGE** — the 421 corpus modules plus
