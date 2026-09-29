@@ -198,20 +198,32 @@ describe('custom descriptors — instruction typing', () => {
     );
   });
   it('ref.get_desc is exact only from an exact operand (or none)', () => {
-    assertEquals(verdict(fn(`(func (param (ref null (exact $a))) (result (ref (exact $b)))
-      (ref.get_desc $a (local.get 0)))`)), '');
-    assertEquals(verdict(fn(`(func (result (ref (exact $b)))
-      (ref.get_desc $a (ref.null none)))`)), '');
-    assert(verdict(fn(`(func (param (ref null $a)) (result (ref (exact $b)))
-      (ref.get_desc $a (local.get 0)))`)) !== '');
+    assertEquals(
+      verdict(fn(`(func (param (ref null (exact $a))) (result (ref (exact $b)))
+      (ref.get_desc $a (local.get 0)))`)),
+      '',
+    );
+    assertEquals(
+      verdict(fn(`(func (result (ref (exact $b)))
+      (ref.get_desc $a (ref.null none)))`)),
+      '',
+    );
+    assert(
+      verdict(fn(`(func (param (ref null $a)) (result (ref (exact $b)))
+      (ref.get_desc $a (local.get 0)))`)) !== '',
+    );
   });
   it('an exact cast takes an exact descriptor', () => {
-    assert(verdict(fn(`(func (param anyref (ref null $b)) (result (ref null (exact $a)))
-      (ref.cast_desc_eq (ref null (exact $a)) (local.get 0) (local.get 1)))`)) !== '');
+    assert(
+      verdict(fn(`(func (param anyref (ref null $b)) (result (ref null (exact $a)))
+      (ref.cast_desc_eq (ref null (exact $a)) (local.get 0) (local.get 1)))`)) !== '',
+    );
   });
   it('struct.new_default needs every field defaultable (a gap closed with 5a)', () => {
     assertStringIncludes(
-      verdict(`(module (type $s (struct (field (ref any)))) (func (drop (struct.new_default $s))))`),
+      verdict(
+        `(module (type $s (struct (field (ref any)))) (func (drop (struct.new_default $s))))`,
+      ),
       'not defaultable',
     );
   });

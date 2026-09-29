@@ -75,8 +75,15 @@ import { allFeatures } from '../src/wabt-ts/core/feature.ts';
  *
  * `wast2json` is invoked with `--enable-all` for the same reason, so the two
  * ends agree on what the suite is allowed to contain.
+ *
+ * ⚠️ EXCEPT custom descriptors — the first proposal here that CHANGES the
+ * verdict on existing code rather than only permitting more: it relaxes
+ * `br_on_cast`'s `rt2 <: rt1` to "one hierarchy", so under it the six
+ * `br_on_cast(_fail).wast` modules the core suite calls invalid are valid.
+ * This suite is written against the core rules; the proposal's own copies of
+ * those files (`proposals/custom-descriptors/`) carry the relaxed ones.
  */
-const FEATURES = allFeatures();
+const FEATURES = { ...allFeatures(), customDescriptors: false };
 
 const MANIFESTS = Deno.args[0];
 if (!MANIFESTS) {
