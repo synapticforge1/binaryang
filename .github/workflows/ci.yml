@@ -54,7 +54,7 @@ jobs:
           if [ -n "$out" ]; then echo "$out"; echo "::error::naming rule violated"; exit 1; fi
 
       # BINDING (README "Runtime support"). No Deno globals in shipped source;
-      # node: builtins confined to the CLI/interop layer, because they are
+      # node: builtins confined to the CLI layer, because they are
       # portable across Deno/Node/Bun but not to the browser.
       - name: Runtime portability
         run: sh scripts/check-portability.sh

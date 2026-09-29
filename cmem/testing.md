@@ -747,6 +747,26 @@ module. Inverted: one pin removed → exit 1.
     reported in the summary rather than agreeing unseen.
   - `spec_behaviour_v128.test.ts`; 6 mutants of the index arithmetic, all caught.
 
+### The comparison suite — `comparison/`, outside the gate (2026-09-28, `ee25accb2`)
+
+Everything that measures binaryang AGAINST upstream binaryen (`npm:binaryen`, the `wasm-opt`
+binary) lives in the committed `comparison/` directory ([its README](../comparison/README.md)):
+the former `./interop` bridge, its tests, our `-O2` beside upstream's, the Asyncify differentials
+(split from the native tests, which stayed — shared fixtures and driver in
+`tests/binaryen-ts/passes/asyncify_helpers.ts`), and four `npm:binaryen` scripts. Run with
+`deno task comparison` — 18 passed, none skipped, with `wasm-opt` v133 (2026-09-28).
+
+- **Its tests are `*.compare.ts`**, a name `deno test` does not discover; the task names them. ⚠️
+  A config `"test": { "exclude": ["comparison/"] }` was tried first and REJECTED: Deno applies it
+  to explicit paths too — `deno test comparison/tests/` then found "No test modules". A bare
+  `deno test` and `deno task test` both give 1,308; the suite is in neither.
+- It IS covered by `deno fmt --check` (a workspace member), not by `deno task check` or `lint`.
+- The split kept every native test: 1,325 → 1,308 = 19 moved out (interop 14, hybrid 2,
+  asyncify differentials 3) + 2 added (native `-S`, the `--hybrid` refusal). The 19 became 18
+  in `comparison/` — the hybrid pair's CLI-binary-input case had no path left to test.
+- Not in it, deliberately: `wast2json` / `wasm-tools` in `spec-prepare` and `translate-eh` —
+  they SPLIT test inputs for the gate and compare nothing.
+
 ### ⚠️ `allFeatures` is not neutral once a feature CHANGES a verdict (2026-09-28)
 
 Custom descriptors (5a) relaxes `br_on_cast`'s `rt2 <: rt1` to "one hierarchy" — the first feature
