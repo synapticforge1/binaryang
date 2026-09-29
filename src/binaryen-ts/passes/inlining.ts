@@ -54,6 +54,7 @@ import {
   makeUnreachable,
   makeV128Const,
   type RefIsNullExpr,
+  typeOf,
   type UnaryExpr,
   UnaryOp,
 } from '../ir/expressions.ts';
@@ -62,6 +63,7 @@ import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
 import { isRefType, type ValueType } from '../ir/gc-types.ts';
 import { mapExpression, mapWithSequences, type Sequence, walkExpression } from '../ir/walk.ts';
 import { operandsInOrder } from '../ir/phantoms.ts';
+import { slots } from '../ir/derive-types.ts';
 import { optimizeNode } from './optimize-instructions.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { vacuumNode } from './vacuum.ts';
@@ -815,9 +817,17 @@ function inlineCallSite(
 // Walk a function body and inline eligible calls
 // ---------------------------------------------------------------------------
 
-/** Whether `e` holds a `pop` of the stack it is evaluated on (not inside a region of its own). */
+/**
+ * Whether `e` reaches into the stack it is evaluated on (not inside a region of
+ * its own): a `pop`, or a `br_on_*`, whose branch carries the values BENEATH
+ * its operands to its label. 🔧 The `br_on` case: inlined, `(call $f
+ * (br_on_cast_desc_eq 0 …) …)` put the branch inside the wrapper block, away from
+ * the two values under it — "expected 3 elements on the stack for branch, found
+ * 1" at -O3 (`proposals/custom-descriptors`, 2026-09-29).
+ */
 function takesFromStack(e: Expression): boolean {
-  return e.kind === ExpressionKind.Pop || operandsInOrder(e).some(takesFromStack);
+  return e.kind === ExpressionKind.Pop || e.kind === ExpressionKind.BrOn ||
+    operandsInOrder(e).some(takesFromStack);
 }
 
 /**
@@ -848,7 +858,12 @@ function inlineIntoFunction(
     // `spec/call/call.0.wasm` and `spec/fac/fac.0.wasm` (Q2). The spill makes
     // every single-result producer explicit first, so what is left is a tuple,
     // which no local can hold. Such a call is not inlined.
-    if (call.operands.some(takesFromStack)) return e;
+    // 🔧 Nor one whose operand LEAVES values on the stack: a multi-result
+    // operand supplies its last value and leaves the rest for code after the
+    // call. Inlined, those land inside the wrapper block — "expected 0 elements
+    // on the stack for fallthru, found 2" at -O3 for `(call $f (block (result
+    // i32 i32 eqref) …) …)` (`proposals/custom-descriptors`, 2026-09-29).
+    if (call.operands.some((o) => takesFromStack(o) || slots(typeOf(o)).length > 1)) return e;
 
     changed = true;
     // One ACTION, counted as it happens — upstream's `inlinedUses[name]++`.
