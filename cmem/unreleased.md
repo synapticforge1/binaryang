@@ -60,6 +60,13 @@ DG1–DG4 in [divergences.md](divergences.md)). No byte of any output moves (bas
 - **Silent fix — allocations are exact in a module that speaks exact types** (Q13, open-work 9):
   `--flatten` wrote invalid modules around `struct.new_desc`. A module without custom descriptors
   or exact types is unchanged.
+- **NEW — `LowerCustomPageSizes`** (`wasm-opt --lower-custom-page-sizes`): memories with a custom
+  page size become 64 KiB-page memories with a `<memory>#pages` global and explicit bounds checks,
+  so V8 — which has no custom-page-sizes support — runs them with the proposal's behaviour. An
+  exported lowered memory also exports `<name>#pages`; a lowered import imports it. Shared
+  custom-page memories are refused. Known difference: P1 ([divergences.md](divergences.md)).
+- **Silent fix — `wasm-opt -o -`** (stdout) was refused as "a missing output path"; and a bad
+  argument now prints one line instead of a stack trace.
 - Repo only: `deno task proposals` (the testsuite's `proposals/` in the gate, V8 experimental
   flags); an original the engine will not compile now FAILS `spec-behaviour` instead of agreeing;
   `deno task diagnostics`; the CI scripts are TypeScript (`deno task naming` /

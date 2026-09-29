@@ -34,6 +34,13 @@ export interface Proposal {
    * reported as NOT RUN, never as passing.
    */
   noEngine?: string;
+  /**
+   * The behaviour check, when it is not the differential: a script beside this
+   * one that takes the prepared directory. For a proposal V8 cannot run as
+   * written, which a pass LOWERS so it can — the original then has no engine,
+   * and the spec's expected values are the oracle.
+   */
+  behaviourScript?: string;
 }
 
 export const PROPOSALS: readonly Proposal[] = [
@@ -46,8 +53,11 @@ export const PROPOSALS: readonly Proposal[] = [
   {
     name: 'custom-page-sizes',
     features: allFeatures(),
+    // V8 (15.0) has no custom-page-sizes support, not even a flag. Owner,
+    // 2026-09-29: lower it so V8 runs it — `LowerCustomPageSizes`, judged
+    // against the spec's own assertions in seven worlds.
     v8Flags: [],
-    noEngine: 'V8 (Deno 2.9.7, V8 15.0) has no custom-page-sizes support, not even a flag',
+    behaviourScript: './check-lowered-page-sizes.ts',
   },
   {
     name: 'threads',

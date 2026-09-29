@@ -185,7 +185,14 @@ export async function wasmOpt(
  * ```
  */
 export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
-  const parsed = parseArgs(args);
+  // A bad argument is a one-line diagnostic, not a stack trace.
+  let parsed: ReturnType<typeof parseArgs>;
+  try {
+    parsed = parseArgs(args);
+  } catch (e) {
+    console.error(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
+  }
 
   if (parsed.printAllPasses) {
     for (const name of listPasses()) {
@@ -378,9 +385,11 @@ export function parseArgs(args: string[]): ParsedArgs {
     const a = args[i];
     if (a === '-o' || a === '--output') {
       const v = args[++i];
-      if (v === undefined || v.startsWith('-')) {
+      if (v === undefined || (v.startsWith('-') && v !== '-')) {
         // Without this guard a trailing `-o` (or `-o -O2`) silently fell back
         // to the default `output.wasm` instead of reporting the missing path.
+        // `-` alone is STDOUT, which `main` handles: the guard refused it, so
+        // `-o -` — `-S -o -` above all — could not be written (2026-09-29).
         throw new Error(`${a} requires an output path argument`);
       }
       result.options.output = v;
