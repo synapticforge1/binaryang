@@ -471,10 +471,11 @@ are **cited identically**; neither carries a date or a way to fail.
 - **A commit's effect**: `git show <sha> -- <path>`. Read the diff, not the prose. That very
   commit's own takeaway was "check `git diff deno.lock` after version archaeology" — not applied to
   itself.
-- **A gate**: its VERDICT, per step, read the way CI reads it — for most steps the exit code, for
-  `check-naming.sh` the output (it always exits 0; a printed line IS the violation). ⚠️ This line
-  once said that script "prints a filename on success", which was wrong and hid a real violation
-  for a week (2026-09-11 → 18). Check how CI judges a step before deciding what "green" means.
+- **A gate**: its VERDICT, per step, read the way CI reads it — the exit code. (Until 2026-09-29
+  the naming check was a shell script that always exited 0 and made a printed line the violation;
+  its TypeScript port exits 1.) ⚠️ This line once said that script "prints a filename on success",
+  which was wrong and hid a real violation for a week (2026-09-11 → 18). Check how CI judges a step
+  before deciding what "green" means.
 - **A pin**: put the version where the tool ENFORCES it. A bare `import('npm:binaryen')` names no
   version, so the lockfile may answer anything; `const BINARYEN = 'npm:binaryen@132'` in the source
   cannot drift. `deno lint`'s `no-unversioned-import` was flagging exactly this.
@@ -1044,7 +1045,7 @@ worktree — not by assuming.
 
 - **The gate is `grep -n "run:" .github/workflows/ci.yml`**, plus the project's own gates on top.
   Today that is
-  `fmt --check · lint · check · check-naming.sh · check-portability.sh · test ·
+  `fmt --check · lint · check · naming · portability · test ·
   baseline · publish --dry-run`,
   then `operators · spec · bridge`.
 - **An unpushed branch is not a tested branch.** The longer `main` runs ahead of `origin`, the more

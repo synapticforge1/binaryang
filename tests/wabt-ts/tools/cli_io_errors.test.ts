@@ -79,7 +79,7 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
       // `await Deno.readFile(...)` as the LIBRARY usage example, and that is
       // correct — a library caller owns its own I/O.
       const main = src.slice(at);
-      // Deno.* is banned tree-wide now (scripts/check-portability.sh), so the way
+      // Deno.* is banned tree-wide now (scripts/check-portability.ts), so the way
       // this regresses is a direct node:fs call instead of the guarded helper.
       for (const m of main.matchAll(/(?<![A-Za-z])(readFile|writeFile|writeTextFile)\(/g)) {
         offenders.push(`${tool}: unguarded ${m[1]} in main()`);
