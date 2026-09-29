@@ -60,6 +60,7 @@
     "portability": "deno run --allow-run --allow-read scripts/check-portability.ts",
     "collisions": "deno run --allow-read scripts/count-collisions.ts",
     "offsets": "deno run --allow-read scripts/measure-diagnostic-offsets.ts",
+    "diagnostics": "deno run --allow-read scripts/measure-diagnostics.ts",
     "bump": "deno run --allow-read --allow-write scripts/release/bump_version.ts",
     "release": "deno run --allow-read --allow-write --allow-run scripts/release/publish.ts",
     "baseline": "deno run --allow-read scripts/wabt-ts/verify-baseline.ts",

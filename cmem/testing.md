@@ -463,6 +463,48 @@ removed). Missed rejections **5 → 0**, and the one legal alternative encoding 
   explainable rather than obviously wrong — nobody has judged them one at a time.
 - **The accepted class outranks the offset numbers**, and the harness says so in its own output.
 
+## ✅ Diagnostic usefulness — MEASURED (2026-09-29, open-work 16)
+
+`scripts/measure-diagnostics.ts` / `deno task diagnostics <prepared spec dir>` (`--templates` lists
+every message shape by count). Reported, not gated. The one hardening axis never attempted: not "is
+the message the spec's" (wording) or "where does the reader point" (A3), but **can a user act on the
+line the CLI prints?**
+
+⚠️ **The lesson: measure what the user READS.** Wording and offsets were both green while every
+binary diagnostic printed `file:0:0` — both instruments read the `loc` / `message` FIELDS, and the
+renderer threw the offset away between the field and the screen. This instrument renders each
+must-reject case through the tool a user would run (`wat2wasm`; `wasm-validate`), with a filename,
+exactly as `formatErrors` prints it, and scores the first error line.
+
+| over the spec's 4,654 must-reject cases              | before  | after    |
+| ---------------------------------------------------- | ------- | -------- |
+| decode diagnostics LOCATED                           | 0%      | 99.6%    |
+| validate diagnostics LOCATED                         | 0%      | 98.6%    |
+| a PLACEHOLDER subject (`type mismatch in opcode`)    | 420     | 0        |
+| malformed binaries reporting more than one error     | 81      | 0        |
+| a JS-internal leak / a throw instead of a diagnostic | 0 / 0   | 0 / 0    |
+| spec wording agreement (parse · decode · validate)   | 811 · 693 · 2465 | unchanged |
+
+The defects, DG1–DG6 in [divergences.md](divergences.md): the renderer's location (DG1), the
+placeholder subjects (DG2), the reader never stopping at its first error because `stopOnFirstError`
+defaulted the wrong way and `wasm-validate` validating a half-decoded module (DG3), `wasm-opt` not
+validating its input and so blaming the optimizer (DG4), and the source line + caret the CLI now
+prints under a text error. Each fix was inverted alone against `diagnostic_usefulness.test.ts`: 8
+mutants, 8 killed, each by its own test. The first fixture for DG3 let its mutant survive — once
+the reader stops early, a module truncated after its last body gives the validator nothing to
+object to; a cut INSIDE the code section does.
+
+**The blind spots, stated:**
+
+- **Mechanical properties only.** Located / named / clean / alone say a message is usable, not that
+  it is the clearest one. `--templates` groups ~4,600 messages into ~200 shapes for a person to read;
+  no person has read them yet.
+- **40 cases are still unlocated**: `duplicate export` (20) and index-out-of-range on exports — the
+  export entries carry no location — plus 3 `unexpected end of binary` at offset 0.
+- **`wasm-opt` on WAT shows no position for a validation error** (offsets would be into the bytes
+  it assembled); DG5, `wat2wasm` not validating, is the owner's call and would change that.
+- **The CLI's flags and usage messages are unmeasured** — only diagnostics on bad modules.
+
 ## Independent oracles — our two implementations checking each other is blind by construction
 
 ⚠️ **Nearly every invariant in this project compares wabt-ts against binaryen-ts — our own two

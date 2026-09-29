@@ -95,6 +95,29 @@ export enum ErrorFormat {
 }
 
 /**
+ * Where a diagnostic points, as the user reads it:
+ *
+ * - text — `file:line:col`, whenever there is a line;
+ * - binary — `file:0000025`, upstream's seven hex digits of byte offset
+ *   (`<binary>:0x00000025` when there is no filename);
+ * - unknown — the filename alone (`<input>` with none).
+ *
+ * ⚠️ Chosen by what the location HOLDS, not by whether it has a filename. It
+ * used to print `line:col` whenever a filename was set, and every binary tool
+ * sets one — so every binary diagnostic from the CLI read `file:0:0` and the
+ * offset the reader had carefully recorded (A3) never reached a user.
+ */
+export function formatLocation(loc: Location): string {
+  if (loc.line > 0) return `${loc.filename || '<input>'}:${loc.line}:${loc.column}`;
+  if (loc.offset > 0) {
+    return loc.filename
+      ? `${loc.filename}:${loc.offset.toString(16).padStart(7, '0')}`
+      : `<binary>:0x${loc.offset.toString(16).padStart(8, '0')}`;
+  }
+  return loc.filename || '<input>';
+}
+
+/**
  * Renders a single {@link WabtError} to a human-readable string.
  *
  * @param err - The diagnostic to format.
@@ -108,14 +131,13 @@ export function formatError(
 ): string {
   const { loc, message, level } = err;
   const severity = level === ErrorLevel.Warning ? 'warning' : 'error';
-  const locStr = loc.filename
-    ? `${loc.filename}:${loc.line}:${loc.column}`
-    : `<binary>:0x${loc.offset.toString(16).padStart(8, '0')}`;
-  const header = `${locStr}: ${severity}: ${message}`;
+  const header = `${formatLocation(loc)}: ${severity}: ${message}`;
 
   if (format === ErrorFormat.Long && sourceLine !== undefined && loc.column > 0) {
-    const caret = ' '.repeat(loc.column - 1) + '^';
-    return `${header}\n${sourceLine}\n${caret}`;
+    // Tabs are kept under tabs, so the caret lines up however the terminal
+    // expands them.
+    const pad = [...sourceLine.slice(0, loc.column - 1)].map((c) => (c === '\t' ? '\t' : ' '));
+    return `${header}\n${sourceLine}\n${pad.join('')}^`;
   }
   return header;
 }
@@ -123,9 +145,22 @@ export function formatError(
 /**
  * Renders all diagnostics in {@link list} to a newline-separated string.
  *
+ * With {@link ErrorFormat.Long} and the `source` text the diagnostics point
+ * into, each one with a line position is followed by that source line and a
+ * caret under its column, as upstream's tools print it — the CLI does this for
+ * every text input.
+ *
  * @param list - The errors to format.
  * @param format - Output format; defaults to {@link ErrorFormat.Short}.
+ * @param source - The text the errors' `line` / `column` refer to.
  */
-export function formatErrors(list: ErrorList, format: ErrorFormat = ErrorFormat.Short): string {
-  return list.map((e) => formatError(e, undefined, format)).join('\n');
+export function formatErrors(
+  list: ErrorList,
+  format: ErrorFormat = ErrorFormat.Short,
+  source?: string,
+): string {
+  const lines = source?.split(/\r?\n/);
+  return list
+    .map((e) => formatError(e, e.loc.line > 0 ? lines?.[e.loc.line - 1] : undefined, format))
+    .join('\n');
 }

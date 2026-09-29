@@ -363,9 +363,12 @@ Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => 
   // RemoveUnusedNames will strip the name; the encoder then unpacks the
   // resulting null-named block; the parser re-wraps single-expression bodies
   // without a block node — so the final body is just i32.const(42).
+  // Typed i32: a void block around `i32.const 42` is INVALID, which this test
+  // fed wasm-opt until it began validating its input (2026-09-29).
   const body = makeBlock(
     [makeI32Const(42)],
     'dead_label',
+    ValType.I32,
   );
   // Exported, so RemoveUnusedModuleElements (every -O level) keeps it.
   const mod = new ModuleBuilder()

@@ -80,8 +80,14 @@ export interface WasmValidateResult {
 /**
  * Decode a wasm binary and validate it.
  *
- * Errors from both the binary reader and the validator are accumulated in
- * `errors`. Returns `Result.Ok` only if neither phase produced errors.
+ * Errors from the binary reader, or else from the validator, are accumulated
+ * in `errors`. Returns `Result.Ok` only if neither phase produced errors.
+ *
+ * ⚠️ A module that fails to DECODE is not validated, as upstream. The
+ * validator run over a half-decoded module reports code that was never read
+ * (a truncated body is "expected 1 elements on the stack but got 0"), and the
+ * real error scrolls away under it: 81 of the spec's 715 malformed binaries did
+ * this (`deno task diagnostics`, 2026-09-29).
  */
 export function wasmValidate(
   binary: Uint8Array,
@@ -93,20 +99,17 @@ export function wasmValidate(
   if (opts.filename !== undefined) readOpts.filename = opts.filename;
 
   const module = readBinaryIr(binary, errors, readOpts);
-  const readResult = hasErrors(errors) ? Result.Error : Result.Ok;
+  if (hasErrors(errors)) return { errors, result: Result.Error };
 
   const valOpts: ValidateOptions = {};
   if (opts.features !== undefined) valOpts.features = opts.features;
   const valResult = validateModule(module, errors, valOpts);
   // Code metadata the reader keeps raw: a branch hint must point at a branch.
-  let hintResult = Result.Ok;
-  if (readResult === Result.Ok) {
-    const before = errors.length;
-    checkBranchHints(binary, countImports(module, ExternalKind.Func), errors);
-    if (errors.length > before) hintResult = Result.Error;
-  }
+  const before = errors.length;
+  checkBranchHints(binary, countImports(module, ExternalKind.Func), errors);
+  const hintResult = errors.length > before ? Result.Error : Result.Ok;
 
-  return { errors, result: combineResults(combineResults(readResult, valResult), hintResult) };
+  return { errors, result: combineResults(valResult, hintResult) };
 }
 
 // ---------------------------------------------------------------------------

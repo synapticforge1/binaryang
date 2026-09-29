@@ -153,7 +153,16 @@ export interface ReadBinaryOptions {
    * in `module.customSections` unparsed (used by `wasm-strip`).
    */
   readDebugNames?: boolean;
-  /** If true, the reader aborts on the first error rather than continuing. */
+  /**
+   * If true (default, as upstream's `stop_on_first_error`), the reader stops
+   * at the first error rather than continuing. Pass `false` to collect more.
+   *
+   * ⚠️ It defaulted to false until 2026-09-29, and nothing passed it, so the
+   * `ok()` guard that "halts decoding" never halted: past a bad byte the reader
+   * decoded garbage and reported it — up to 9 errors for one malformed binary
+   * (`binary.wast:126`: `expected valid local type (got 0x0)` after the real
+   * `integer too large`), 75 of the spec's 715 (`deno task diagnostics`).
+   */
   stopOnFirstError?: boolean;
 }
 
@@ -621,12 +630,16 @@ export class BinaryReader {
   }
 
   private err(msg: string): void {
+    // Stopping is enforced HERE as well as by the `ok()` loop guards: not every
+    // sub-reader checks `ok()` between reads, and each one that does not would
+    // otherwise report the garbage it decodes after the real error.
+    if (this.hadError && this.opts.stopOnFirstError !== false) return;
     addError(this.errors, this.loc(), msg);
     this.hadError = true;
   }
 
   private ok(): boolean {
-    return !this.hadError || !this.opts.stopOnFirstError;
+    return !this.hadError || this.opts.stopOnFirstError === false;
   }
 
   // ---------------------------------------------------------------------------
