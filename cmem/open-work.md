@@ -4,8 +4,8 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-09-29:** 🚀 **`binaryang@1.7.0` is published** (tag `v1.7.0`, `f644c9a2b`;
-[publishing.md](publishing.md) § 1.7.0) and `main` = the release plus cmem. Nothing is unreleased
+**State, 2026-09-29:** 🚀 **`binaryang@1.7.1` is published** (tag `v1.7.1`, `ced5ca508`;
+[publishing.md](publishing.md) § 1.7.1) and `main` = the release plus cmem. Nothing is unreleased
 ([unreleased.md](unreleased.md)). **22 open items, none blocking**, numbered below. Re-derive any
 number before quoting it.
 
@@ -141,9 +141,9 @@ fatigue.
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
 21. ⬚ **§ 17, the reply to wasmtk's letter of 2026-09-29** (against 1.7.0). Item 1, u32 limits, is
-    fixed on `main` (`1fa6eb21b`) and ships in the next release (a patch, 1.7.1 — the owner's call).
-    Item 2 needs nothing from us: `wasmValidate` already rejects it. The draft is the owner's or
-    the workspace session's to send. Their letter closed §§ 10, 13 and 15.
+    fixed and PUBLISHED in 1.7.1. Item 2 needs nothing from us: `wasmValidate` already rejects it.
+    The draft is the owner's or the workspace session's to send. Their letter closed §§ 10, 13
+    and 15. Next from them: their gate re-recorded on 1.7.1 (the 11 skips should pass).
 22. ⬚ **§ 11** (adopting their conditional-not-clearance form and their alias invariant) is
     outbound.
 

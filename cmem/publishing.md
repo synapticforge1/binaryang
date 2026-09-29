@@ -5,8 +5,8 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Current state (2026-09-29):** `@jrmarcum/binaryang@1.7.0` is latest (`rekorLogId=2991848417`,
-§ "1.7.0" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
+**Current state (2026-09-29):** `@jrmarcum/binaryang@1.7.1` is latest (`rekorLogId=3001574645`,
+§ "1.7.1" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
 unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand), `deno task release`
 (tag and branch in one push), CI publishes; a patch while `main` holds unreleased work goes from a
 branch cut from the last tag (§ "1.6.1"). ✅ **`RELEASE_PAT` — CLOSED as not needed (owner,
@@ -643,6 +643,23 @@ current-state line at the top), and the recovery recipe above still applies to
 any release that falls through to dispatch. The record, by path: `push: tags` has succeeded **6 of
 6** across three packages (binaryang 1.5.3 among them) before 1.5.4 added a seventh; the `auto-tag`
 → `workflow_dispatch` path has succeeded **0 of 4**.
+
+## ✅ 1.7.1 — a patch by `deno task bump`, released 2026-09-29
+
+**Published from the tag push, unaided.** JSR: `binaryang@1.7.1`, `rekorLogId=3001574645`, not
+yanked, `latestVersion` 1.7.1; tag `v1.7.1` at `ced5ca508`; CI, Auto-tag and Publish green. Owner,
+2026-09-29: "lets release 1.7.1". It carries the u64-limits fix (wasmtk's letter of 2026-09-29,
+item 1; merge `33f313134`). The pattern, unchanged:
+
+1. fix merged (`33f313134`), full gate green on the committed tree; release notes merged UNBUMPED
+   (`b8d222d9a`); `main` pushed — CI green, Auto-tag a no-op (`v1.7.0` existed);
+2. `deno task bump` → 1.7.1 in `deno.json` and `main.ts` (a patch, so the task, not a hand edit);
+3. `deno task release` — cold type check and entry check passed; it committed the bump, tagged,
+   and pushed branch and tag together.
+
+Verified from JSR itself (a scratch directory, `--min-dep-age 0` past the 24-hour wall):
+`jsr:@jrmarcum/binaryang@1.7.1 --version` prints `binaryang 1.7.1`, and wasmtk's path
+(`compat/wabt` `parseWat` → `toBinary` → `wasmValidate`) rejects their modules as invalid.
 
 ## ✅ 1.7.0 — a hand-typed MINOR, released 2026-09-29 (UTC)
 

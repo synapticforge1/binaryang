@@ -202,6 +202,7 @@ non-patch release is typed by hand ([publishing.md](publishing.md)).
 | **1.6.0** | ⚠️ a MINOR: `./binary` and `./encoder` removed — ONE FRONT END (one reader, one IR, one writer), the post-M8 and Q1–Q8 fixes, S7's text-form record — tag `v1.6.0` → `64d22e06f`, published 2026-09-28 (`rekorLogId=2987187551`) |
 | **1.6.1** | a patch from `release/1.6.1` (cut from `v1.6.0`): the CLI runs from JSR (`.` → `main.ts`) — published 2026-09-28 |
 | **1.7.0** | ⚠️ a MINOR: `./interop` and hybrid mode removed (the `comparison/` suite); wasmtk's items 1–5 incl. custom descriptors; `--converge`; the three minify passes; Flatten complete — tag `v1.7.0` → `f644c9a2b`, published 2026-09-29 (`rekorLogId=2991848417`) |
+| **1.7.1** | a patch: every memory / table limit is a u64 on the wire, and 1-byte pages cap a 32-bit memory at 2^32-1 pages (wasmtk, 2026-09-29) — tag `v1.7.1` → `ced5ca508`, published 2026-09-29 (`rekorLogId=3001574645`) |
 
 Both predecessors ended at a terminal **1.5.1**. Every release's public summary is in
 `CHANGELOG.md`; how each went out, in [publishing.md](publishing.md). The 1.5.2 scope's full text:
