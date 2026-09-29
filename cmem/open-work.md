@@ -11,8 +11,8 @@ item closes, its record goes to the topic file and its line leaves here.
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 1) are next. **14 open items, none blocking**, numbered below: old 16 and 17
-closed, new 16 and 17 came out of them, and 9, 11 and 12 are gone with their numbers kept free.
+IR items (from 1) are next. **13 open items, none blocking**, numbered below: old 16 and 17
+closed, new 16 and 17 came out of them (16 closed the same day), and 9, 11, 12 and 16 are gone with their numbers kept free.
 Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -40,10 +40,11 @@ comments (W18), and the diagnostic defects DG1–DG4 found by measuring item 16 
 scripts are TypeScript (old item 17). Two came out of that measurement, numbered after the rest so
 items 1–15 keep their numbers:
 
-16. ⬚ 🗓️ **OWNER — DG5: `wat2wasm` does not validate** a module it can encode; upstream does by
-    default (`--no-check` to skip). Not a flag flip: the validator throws on the text-parsed module
-    for a `br_on_*` label left by name, and consumers build invalid binaries through it on purpose.
-    The evidence for the call is in the DG5 row ([divergences.md](divergences.md)).
+(Item 16, DG5, closed 2026-09-29 — owner: "we want to do the same" as upstream. The `wat2wasm`
+CLI validates by default, `--no-check` to skip, upstream's default features plus `--enable-*`;
+the library keeps `validate` opt-in. It needed the validator to take labels BY NAME, which it
+never could — [divergences.md](divergences.md) DG5.)
+
 17. ⬚ **DG6 (cosmetic): a text diagnostic's column** points at the `(` of a folded instruction,
     upstream at the token with a `^^^^` span. The parser's `loc`, not the renderer.
 

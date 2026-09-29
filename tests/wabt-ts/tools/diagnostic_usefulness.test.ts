@@ -168,10 +168,13 @@ describe('wasm-opt blames an invalid INPUT on the input', () => {
     expect(msg).not.toContain('optimized module');
   });
 
-  it('WAT: the instruction, at the file (its offsets are into bytes the user never had)', async () => {
+  it('WAT: the instruction, at its line and column in the text, with the source line', async () => {
+    // Validated as TEXT since 2026-09-29 (wat2wasm validates, as upstream); it
+    // was the filename alone, the bytes' offsets being ones the user never had.
     const e = await optimize('in.wat', I32_ADD_OF_I64).catch((e: Error) => e);
     const msg = (e as Error).message;
-    expect(msg).toMatch(/in\.wat: error: type mismatch in i32\.add/);
+    expect(msg).toMatch(/in\.wat:1:\d+: error: type mismatch in i32\.add/);
+    expect(msg).toContain('(i32.add)))\n');
     expect(msg).not.toMatch(/in\.wat:[0-9a-f]{7}/);
   });
 

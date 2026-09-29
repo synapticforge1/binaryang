@@ -288,10 +288,35 @@ class ModuleValidator implements ExprVisitorDelegate {
   private sv: SharedValidator;
   private module: Module;
   private result: Result = Result.Ok;
+  /**
+   * The label NAMES of the enclosing structured instructions, innermost last
+   * (`''` for an unnamed one) — so a label referenced by name becomes the depth
+   * the shared validator takes.
+   *
+   * 🔧 A module from the TEXT parser keeps label references as names
+   * (`resolveNames` only checks that they exist; the binary writer turns them
+   * into depths). The validator took depths only, so `(block $l (br $l))`
+   * threw "var is not resolved" — found making `wat2wasm` validate by default
+   * as upstream does (2026-09-29): every label kind, `br` to `try_table`
+   * catches. A binary's module holds depths, and passes through unchanged.
+   */
+  private labels: string[] = [];
 
   constructor(module: Module, errors: ErrorList, options?: ValidateOptions) {
     this.module = module;
     this.sv = new SharedValidator(errors, options);
+  }
+
+  /** A label reference as a depth. `skip`: innermost labels not in scope (a `delegate`'s own `try`). */
+  private labelDepth(v: Var, skip = 0): number {
+    if (v.kind === 'index') return v.value;
+    const scope = this.labels.length - skip;
+    // (`lastIndexOf` with a negative start counts from the END: an empty scope is its own case.)
+    const i = scope > 0 ? this.labels.lastIndexOf(v.name, scope - 1) : -1;
+    // `resolveNames` reports an undefined label before validation runs; one
+    // reaching here was never resolved at all.
+    if (i < 0) return varIdx(v);
+    return scope - 1 - i;
   }
 
   // -------------------------------------------------------------------------
@@ -516,6 +541,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     let globalFuncIdx = countImports(m, ExternalKind.Func);
     for (const func of m.functions) {
       this.acc(this.sv.beginFunctionBody(locOf(func), globalFuncIdx++));
+      this.labels = [];
       // One declaration per slot: the shared validator counts locals, and the
       // grouping the binary used is the writer's business (M6c).
       for (const local of func.locals.slice(func.sig.params.length)) {
@@ -864,18 +890,23 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   beginBlockExpr(e: BlockExpr): Result {
+    this.labels.push(e.label);
     return combineResults(this.checkCarrierHeader(e), this.sv.onBlock(locOf(e), blockTypeOf(e)));
   }
   endBlockExpr(e: BlockExpr): Result {
+    this.labels.pop();
     return this.sv.onEnd(locOf(e));
   }
   beginLoopExpr(e: LoopExpr): Result {
+    this.labels.push(e.label);
     return combineResults(this.checkCarrierHeader(e), this.sv.onLoop(locOf(e), blockTypeOf(e)));
   }
   endLoopExpr(e: LoopExpr): Result {
+    this.labels.pop();
     return this.sv.onEnd(locOf(e));
   }
   beginIfExpr(e: IfExpr): Result {
+    this.labels.push(e.label);
     let r = combineResults(this.checkCarrierHeader(e), this.sv.onIf(locOf(e), blockTypeOf(e)));
     // A missing `else` is not modelled anywhere else, so the arity rule for a
     // one-armed if has to be checked from the IR.
@@ -888,14 +919,15 @@ class ModuleValidator implements ExprVisitorDelegate {
     return e.ifFalse !== null ? this.sv.onElse(locOf(e)) : Result.Ok;
   }
   endIfExpr(e: IfExpr): Result {
+    this.labels.pop();
     return this.sv.onEnd(locOf(e));
   }
 
   onBrExpr(e: BrExpr): Result {
     // A `br` carrying a condition IS `br_if`; the opcode follows the field.
     return e.condition !== undefined
-      ? this.sv.onBrIf(locOf(e), varIdx(e.target))
-      : this.sv.onBr(locOf(e), varIdx(e.target));
+      ? this.sv.onBrIf(locOf(e), this.labelDepth(e.target))
+      : this.sv.onBr(locOf(e), this.labelDepth(e.target));
   }
   onBrOnExpr(e: BrOnExpr): Result {
     // The null pair is typed function references; the cast pair is GC.
@@ -908,8 +940,8 @@ class ModuleValidator implements ExprVisitorDelegate {
       );
       if (rn !== Result.Ok) this.acc(rn);
       return e.opcode === BrOnOp.Null
-        ? this.sv.onBrOnNull(locOf(e), varIdx(e.target))
-        : this.sv.onBrOnNonNull(locOf(e), varIdx(e.target));
+        ? this.sv.onBrOnNull(locOf(e), this.labelDepth(e.target))
+        : this.sv.onBrOnNonNull(locOf(e), this.labelDepth(e.target));
     }
     const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
@@ -920,7 +952,7 @@ class ModuleValidator implements ExprVisitorDelegate {
       if (rc !== Result.Ok) this.acc(rc);
       return this.sv.onBrOnCastDescEq(
         locOf(e),
-        varIdx(e.target),
+        this.labelDepth(e.target),
         e.opcode === BrOnOp.CastDescEqFail,
         from,
         to,
@@ -928,7 +960,7 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
     return this.sv.onBrOnCast(
       locOf(e),
-      varIdx(e.target),
+      this.labelDepth(e.target),
       e.opcode === BrOnOp.CastFail,
       from,
       to,
@@ -938,9 +970,9 @@ class ModuleValidator implements ExprVisitorDelegate {
   onBrTableExpr(e: BrTableExpr): Result {
     let r = this.sv.beginBrTable(locOf(e));
     for (const t of e.targets) {
-      r = combineResults(r, this.sv.onBrTableTarget(locOf(e), varIdx(t)));
+      r = combineResults(r, this.sv.onBrTableTarget(locOf(e), this.labelDepth(t)));
     }
-    r = combineResults(r, this.sv.onBrTableTarget(locOf(e), varIdx(e.defaultTarget)));
+    r = combineResults(r, this.sv.onBrTableTarget(locOf(e), this.labelDepth(e.defaultTarget)));
     r = combineResults(r, this.sv.endBrTable(locOf(e)));
     return r;
   }
@@ -1249,10 +1281,11 @@ class ModuleValidator implements ExprVisitorDelegate {
   onRethrowExpr(e: RethrowExpr): Result {
     const rf = this.sv.requireFeature('exceptions', 'exception handling', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
-    return this.sv.onRethrow(locOf(e), varIdx(e.target));
+    return this.sv.onRethrow(locOf(e), this.labelDepth(e.target));
   }
 
   beginTryExpr(e: TryExpr): Result {
+    this.labels.push(e.label);
     const rf = this.sv.requireFeature('exceptions', 'exception handling', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     return combineResults(this.checkCarrierHeader(e), this.sv.onTry(locOf(e), blockTypeOf(e)));
@@ -1262,9 +1295,10 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onCatch(locOf(c), c.tag ? varIdx(c.tag) : 0, isCatchAll);
   }
   onDelegateExpr(e: TryExpr): Result {
-    return this.sv.onDelegate(locOf(e), e.delegate ? varIdx(e.delegate) : 0);
+    return this.sv.onDelegate(locOf(e), e.delegate ? this.labelDepth(e.delegate, 1) : 0);
   }
   endTryExpr(e: TryExpr): Result {
+    this.labels.pop();
     return this.sv.onEnd(locOf(e));
   }
 
@@ -1284,14 +1318,16 @@ class ModuleValidator implements ExprVisitorDelegate {
           locOf(e),
           c.tag !== undefined ? varIdx(c.tag) : undefined,
           c.isRef,
-          varIdx(c.target),
+          this.labelDepth(c.target),
         ),
       );
     }
     r = combineResults(r, this.checkCarrierHeader(e));
+    this.labels.push(e.label);
     return combineResults(r, this.sv.beginTryTable(locOf(e), blockTypeOf(e)));
   }
   endTryTableExpr(e: TryTableExpr): Result {
+    this.labels.pop();
     return this.sv.onEnd(locOf(e));
   }
 

@@ -39,10 +39,12 @@ import { resolveNames } from '../ir/resolve-names.ts';
 import { synthesizeTypes } from '../ir/synthesize-types.ts';
 import { validateModule } from '../validator/validator.ts';
 import { allFeatures } from '../core/feature.ts';
+import type { Features } from '../core/feature.ts';
 import { Result } from '../core/result.ts';
 import { addError, ErrorFormat, formatErrors, hasErrors, unknownLocation } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliRead, cliWrite, writeStdout } from '../../cli/io.ts';
+import { FeatureFlags } from '../../cli/feature-flags.ts';
 import process from 'node:process';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +65,25 @@ export interface Wat2WasmOptions {
    * CLI: `--no-text-form`.
    */
   textForm?: boolean;
+  /**
+   * Validate the module before encoding it, with every feature on (this tool
+   * gates none), reporting what the validator finds at its TEXT position,
+   * `file:line:col` — as upstream `wat2wasm`, which validates unless given
+   * `--no-check`.
+   *
+   * Default: `false` for this LIBRARY function, as upstream's JS library
+   * (wabt.js), where parsing and validating are separate steps — and callers
+   * build invalid binaries through it on purpose (a validator's tests, for
+   * one). The CLI turns it ON (owner, 2026-09-29: "we want to do the same" as
+   * upstream); `--no-check` turns it off.
+   */
+  validate?: boolean;
+  /**
+   * The proposals `validate` allows. Default: every feature — this library
+   * function gates none. The CLI passes upstream's DEFAULT set plus its
+   * `--enable-*` / `--disable-*` flags, as upstream `wat2wasm` does.
+   */
+  features?: Features;
 }
 
 /** Return value from {@link wat2wasm}. */
@@ -100,6 +121,12 @@ export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}
   // stores inline sigs on Func / Tag / Func-import / Tag-import nodes but
   // does not back-fill the type section; this pass closes the gap.
   synthesizeTypes(module);
+
+  // Upstream's order: parse, resolve, validate, then write.
+  if (opts.validate) {
+    validateModule(module, errors, { features: opts.features ?? allFeatures() });
+    if (hasErrors(errors)) return { binary: new Uint8Array(0), errors, result: Result.Error };
+  }
 
   // The encoder is FAIL-LOUD on a module it cannot represent -- a limits value
   // that does not fit its field, a tag whose type is not in the type section,
@@ -151,29 +178,48 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   let input: string | undefined;
   let output: string | undefined;
   let textForm = true;
+  // Validates by default, as upstream (owner, 2026-09-29); `--no-check` as upstream.
+  let validate = true;
+  const flags = new FeatureFlags();
+  let bad = false;
 
   for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
     } else if (arg === '--no-text-form') {
       textForm = false;
-    } else if (arg && !arg.startsWith('-')) {
+    } else if (arg === '--no-check') {
+      validate = false;
+    } else if (!arg.startsWith('-')) {
       input = arg;
+    } else if (flags.apply(arg) !== true) {
+      // It ignored an unknown option; with feature flags, a misspelled
+      // `--enable-…` would have passed silently. Upstream refuses it too.
+      console.error(`wat2wasm: unknown option ${arg}`);
+      bad = true;
     }
   }
 
-  if (!input) {
+  if (!input || bad) {
     console.error(
-      'usage: wat2wasm <input.wat> [-o <output.wasm>] [--no-text-form]\n' +
+      'usage: wat2wasm <input.wat> [-o <output.wasm>] [--no-check] [--no-text-form]\n' +
+        '                [--enable-<feature>|--disable-<feature>|--enable-all]\n' +
+        '  --no-check      do not validate the module (validated by default, as upstream)\n' +
         '  --no-text-form  do not record how each instruction was written\n' +
-        '                  (upstream wat2wasm bytes exactly; wasm2wat then folds it)',
+        '                  (upstream wat2wasm bytes exactly; wasm2wat then folds it)\n' +
+        flags.help(),
     );
     process.exit(1);
   }
 
   const source = await cliRead('wat2wasm', input);
-  const { binary, errors, result } = wat2wasm(source, { filename: input, textForm });
+  const { binary, errors, result } = wat2wasm(source, {
+    filename: input,
+    textForm,
+    validate,
+    features: flags.features,
+  });
 
   if (errors.length > 0) {
     console.error(formatErrors(errors, ErrorFormat.Long, new TextDecoder().decode(source)));
