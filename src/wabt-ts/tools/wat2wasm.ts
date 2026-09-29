@@ -40,7 +40,7 @@ import { synthesizeTypes } from '../ir/synthesize-types.ts';
 import { validateModule } from '../validator/validator.ts';
 import { allFeatures } from '../core/feature.ts';
 import { Result } from '../core/result.ts';
-import { addError, formatErrors, hasErrors, unknownLocation } from '../core/error.ts';
+import { addError, ErrorFormat, formatErrors, hasErrors, unknownLocation } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliRead, cliWrite, writeStdout } from '../../cli/io.ts';
 import process from 'node:process';
@@ -176,7 +176,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   const { binary, errors, result } = wat2wasm(source, { filename: input, textForm });
 
   if (errors.length > 0) {
-    console.error(formatErrors(errors));
+    console.error(formatErrors(errors, ErrorFormat.Long, new TextDecoder().decode(source)));
   }
   if (result !== Result.Ok) {
     process.exit(1);

@@ -10,6 +10,7 @@ import type { Index } from '../core/types.ts';
 import { heapExact, isRefValueType, valueTypeName } from '../ir/ir.ts';
 import type { ValueType } from '../ir/ir.ts';
 import {
+  anyOpcodeName,
   MiscOpcode,
   naturalAlignForOpcode,
   Opcode,
@@ -1209,14 +1210,14 @@ export class TypeChecker {
 
   private checkOpcode1(opcode: number, is64Memory = false): Result {
     const info = applyMemory64(getOpcodeTypeInfo(opcode), is64Memory);
-    const r = this.popAndCheck1Type(operand(info.p1), `opcode`);
+    const r = this.popAndCheck1Type(operand(info.p1), anyOpcodeName(opcode));
     this.pushType(info.r1);
     return r;
   }
 
   private checkOpcode2(opcode: number, is64Memory = false): Result {
     const info = applyMemory64(getOpcodeTypeInfo(opcode), is64Memory);
-    const r = this.popAndCheck2Types(operand(info.p1), operand(info.p2), `opcode`);
+    const r = this.popAndCheck2Types(operand(info.p1), operand(info.p2), anyOpcodeName(opcode));
     this.pushType(info.r1);
     return r;
   }
@@ -1227,7 +1228,7 @@ export class TypeChecker {
       operand(info.p1),
       operand(info.p2),
       operand(info.p3),
-      `opcode`,
+      anyOpcodeName(opcode),
     );
     this.pushType(info.r1);
     return r;
@@ -1293,8 +1294,8 @@ export class TypeChecker {
     return this.checkOpcode1(opcode);
   }
 
-  onTernary(_opcode: number): Result {
-    const r = this.popAndCheck3Types(_V128, _V128, _V128, `ternary`);
+  onTernary(opcode: number): Result {
+    const r = this.popAndCheck3Types(_V128, _V128, _V128, anyOpcodeName(opcode));
     this.pushType(_V128);
     return r;
   }
@@ -1305,14 +1306,14 @@ export class TypeChecker {
       // pairs), two i64 out. This used to hard-code the v128 shape below and
       // ignore the opcode entirely, so it REJECTED the only instructions that
       // actually reach it.
-      let r = this.popAndCheck3Types(_I64, _I64, _I64, `quaternary`);
+      let r = this.popAndCheck3Types(_I64, _I64, _I64, anyOpcodeName(opcode));
       r = combineResults(r, this.dropTypes(1));
       this.pushType(_I64);
       this.pushType(_I64);
       return r;
     }
     // 4 V128 params → V128 result; pop extra 1 after 3-check
-    let r = this.popAndCheck3Types(_V128, _V128, _V128, `quaternary`);
+    let r = this.popAndCheck3Types(_V128, _V128, _V128, anyOpcodeName(opcode));
     r = combineResults(r, this.dropTypes(1));
     this.pushType(_V128);
     return r;
@@ -1326,16 +1327,16 @@ export class TypeChecker {
     return this.checkOpcode2(opcode, is64Memory);
   }
 
-  onLoadSplat(_opcode: number, is64Memory: boolean): Result {
+  onLoadSplat(opcode: number, is64Memory: boolean): Result {
     const addrType = is64Memory ? _I64 : _I32;
-    const r = this.popAndCheck1Type(addrType, `load_splat`);
+    const r = this.popAndCheck1Type(addrType, anyOpcodeName(opcode));
     this.pushType(_V128);
     return r;
   }
 
-  onLoadZero(_opcode: number, is64Memory: boolean): Result {
+  onLoadZero(opcode: number, is64Memory: boolean): Result {
     const addrType = is64Memory ? _I64 : _I32;
-    const r = this.popAndCheck1Type(addrType, `load_zero`);
+    const r = this.popAndCheck1Type(addrType, anyOpcodeName(opcode));
     this.pushType(_V128);
     return r;
   }

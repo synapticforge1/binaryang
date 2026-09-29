@@ -6,8 +6,10 @@ item closes, its record goes to the topic file and its line leaves here.
 
 **State, 2026-09-29:** 🚀 **`binaryang@1.7.2` is published** (tag `v1.7.2`, `30929db92`;
 [publishing.md](publishing.md) § 1.7.2) and `main` = the release plus cmem. Nothing is unreleased
-([unreleased.md](unreleased.md)). **Next (owner): the optimizer and IR items**, starting at item 1 —
-paused there by the owner after the release. **17 open items, none blocking**, numbered below. Re-derive any
+([unreleased.md](unreleased.md)) — until 2026-09-29's diagnostic fixes (item 16's measurement),
+which [unreleased.md](unreleased.md) now carries. **Owner's order that day: items 16 and 17, then
+11, then a discussion of 12**; the optimizer and IR items (from 1) after. **17 open items, none
+blocking**, numbered below (old 16 and 17 closed; new 16 and 17 came out of them). Re-derive any
 number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -28,9 +30,19 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-**None open (2026-09-29).** Closed today: `array.new_default` defaultability (`d6b487c2d`), empty
-offsets / items (M2a), the name section's position (N9, by decision), references by name (N10),
-folded layout and its label comments (W18) — [divergences.md](divergences.md).
+Closed 2026-09-29: `array.new_default` defaultability (`d6b487c2d`), empty offsets / items (M2a),
+the name section's position (N9, by decision), references by name (N10), folded layout and its label
+comments (W18), and the diagnostic defects DG1–DG4 found by measuring item 16 —
+[divergences.md](divergences.md), [testing.md](testing.md) § "Diagnostic usefulness". The CI shell
+scripts are TypeScript (old item 17). Two came out of that measurement, numbered after the rest so
+items 1–15 keep their numbers:
+
+16. ⬚ 🗓️ **OWNER — DG5: `wat2wasm` does not validate** a module it can encode; upstream does by
+    default (`--no-check` to skip). Not a flag flip: the validator throws on the text-parsed module
+    for a `br_on_*` label left by name, and consumers build invalid binaries through it on purpose.
+    The evidence for the call is in the DG5 row ([divergences.md](divergences.md)).
+17. ⬚ **DG6 (cosmetic): a text diagnostic's column** points at the `(` of a folded instruction,
+    upstream at the token with a `^^^^` span. The parser's `loc`, not the renderer.
 
 
 ## Optimizer and IR
@@ -119,8 +131,6 @@ fatigue.
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
-16. ⬚ **Diagnostic usefulness** ("is the message actionable?") is the one hardening axis never
-    attempted. Offsets (A3) and wording are measured ([wabt-ts.md](wabt-ts.md)).
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 

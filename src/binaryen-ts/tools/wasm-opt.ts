@@ -30,7 +30,11 @@ import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
-import { readWat } from './read-wat.ts';
+import { WatInputError } from './read-wat.ts';
+import { ErrorFormat, formatErrors, hasErrors, unknownLocation } from '../../wabt-ts/core/error.ts';
+import { allFeatures } from '../../wabt-ts/core/feature.ts';
+import { wat2wasm } from '../../wabt-ts/tools/wat2wasm.ts';
+import { wasmValidate } from '../../wabt-ts/tools/wasm-validate.ts';
 import {
   defaultPassOptions,
   formatMinifyMap,
@@ -67,8 +71,9 @@ export interface WasmOptOptions {
    */
   emitText: boolean;
   /**
-   * Whether to validate the module after optimization.
-   * Equivalent to `--validate`.
+   * Whether to validate the input before optimizing and the module after.
+   * Equivalent to `--validate`; `--no-validate` skips both, as upstream's
+   * `--no-validation`.
    */
   validate: boolean;
   /**
@@ -144,7 +149,7 @@ export async function wasmOpt(
   const inputBytes = new Uint8Array(await readFile(inputPath));
   const isWat = inputPath.endsWith('.wat');
 
-  const out = _nativeOptimize(inputBytes, isWat, opts);
+  const out = _nativeOptimize(inputBytes, isWat, opts, inputPath);
   // `validate` (default true) runs the engine's structural validator over the
   // optimized binary. Previously this option was parsed but never enforced — a
   // documented behavior that didn't exist. WebAssembly.compile IS a validator,
@@ -243,17 +248,53 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
 // Internal: native TypeScript optimization
 // ---------------------------------------------------------------------------
 
+/**
+ * Refuse an invalid INPUT before the passes see it, as upstream `wasm-opt`
+ * does ("error validating input").
+ *
+ * Without it, an invalid input was optimized and then reported as
+ * "optimized module failed validation: WebAssembly.compile(): …" — which
+ * blames the optimizer for the user's module, in V8's words, at an offset into
+ * bytes the user never had (2026-09-29, open-work 16).
+ *
+ * A binary's diagnostics carry offsets into the user's own file. A WAT
+ * input's would be offsets into the bytes it was assembled to, so they are
+ * shown at the filename alone: the message names the instruction, and a
+ * position into bytes the user never sees would only mislead.
+ */
+function validateInput(bytes: Uint8Array, filename: string, isWat: boolean): void {
+  const { errors } = wasmValidate(bytes, { filename, features: allFeatures() });
+  if (!hasErrors(errors)) return;
+  const shown = isWat ? errors.map((e) => ({ ...e, loc: unknownLocation(filename) })) : errors;
+  throw new Error(`input module is not valid:\n${formatErrors(shown)}`);
+}
+
 function _nativeOptimize(
   inputBytes: Uint8Array,
   isWat: boolean,
   opts: WasmOptOptions,
+  filename = '<input>',
 ): Uint8Array {
   // External WAT goes through wabt-ts to bytes, then the one reader — the one text
-  // route (see `read-wat.ts`). binaryen-ts's own WAT parser reads only a folded
-  // subset; it rejected the linear text our own `wasm2wat` writes.
-  // A binary takes the same reader (One front end, stage 3: binaryen-ts's own
-  // decoder is no longer an entry point).
-  const module = isWat ? readWat(new TextDecoder().decode(inputBytes)) : readForPasses(inputBytes);
+  // route (`readWat` is exactly these two steps; they are spelled out here so
+  // the input is validated as the bytes the passes will read). binaryen-ts's
+  // own WAT parser reads only a folded subset; it rejected the linear text our
+  // own `wasm2wat` writes. A binary takes the same reader (One front end,
+  // stage 3: binaryen-ts's own decoder is no longer an entry point).
+  let input = inputBytes;
+  if (isWat) {
+    const text = new TextDecoder().decode(inputBytes);
+    const r = wat2wasm(text, { filename });
+    if (hasErrors(r.errors)) {
+      throw new WatInputError(formatErrors(r.errors, ErrorFormat.Long, text));
+    }
+    input = r.binary;
+  }
+  // Read first: bytes that do not DECODE throw the reader's `WasmBinaryError`,
+  // which is this entry point's contract (`one_reader.test.ts`); only a
+  // module that decodes is then judged valid or not.
+  const module = readForPasses(input, filename);
+  if (opts.validate) validateInput(input, filename, isWat);
 
   const passOpts: PassOptions = {
     optimizeLevel: opts.optimizeLevel,
