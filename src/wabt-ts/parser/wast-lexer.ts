@@ -909,12 +909,18 @@ export class WastLexer {
 
   private getLocation(): Location {
     const col = (offset: number) => Math.max(1, offset - this.lineStart + 1);
-    return {
+    const loc: Location = {
       filename: this.src.filename,
       line: this.line,
       column: col(this.tokenStart),
       offset: this.tokenStart,
     };
+    // Called once the token is scanned, so the cursor is just past it. A token
+    // that crossed a line (a string with a newline) has no one-line span.
+    if (this.tokenStart >= this.lineStart && this.cursor > this.tokenStart) {
+      loc.endColumn = col(this.cursor);
+    }
+    return loc;
   }
 
   private getText(skip = 0): string {

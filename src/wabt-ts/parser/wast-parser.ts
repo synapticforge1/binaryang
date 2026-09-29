@@ -1363,17 +1363,23 @@ export class WastParser {
    * wording, so the phrase is load-bearing — see
    * `tests/wabt-ts/parser/unknown_operator.test.ts`.
    */
-  private unknownOperatorText(): string | null {
+  private unknownOperator(): StringToken | null {
     const i = this.peek() === TokenType.Lpar ? this.pos + 1 : this.pos;
     const t = this.tokens[i];
     if (t === undefined || t.tokenType !== TokenType.Reserved) return null;
-    return (t as StringToken).text;
+    return t as StringToken;
   }
 
-  /** Report `fallback`, unless an unknown operator explains it better. */
+  /**
+   * Report `fallback`, unless an unknown operator explains it better — AT the
+   * operator. 🔧 DG6: it was reported at the token the parser sat on, the `(`
+   * of a folded form, one column before the word it names; upstream points at
+   * the word (`3:6`, not `3:5`).
+   */
   private reportUnexpected(fallback: string): void {
-    const op = this.unknownOperatorText();
-    this.error(this.loc(), op === null ? fallback : `unknown operator "${op}"`);
+    const op = this.unknownOperator();
+    if (op === null) this.error(this.loc(), fallback);
+    else this.error(op.loc, `unknown operator "${op.text}"`);
   }
 
   private matchLpar(tt: TokenType): boolean {
