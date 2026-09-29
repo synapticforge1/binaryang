@@ -25,7 +25,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 
 /** `$sub3(a,b,c) = a - b - c`, folded, so every argument slot is observable. */
 const DEFS = `(func $sub (param i32 i32) (result i32)

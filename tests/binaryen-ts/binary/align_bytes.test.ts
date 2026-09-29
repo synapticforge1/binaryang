@@ -12,7 +12,7 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import * as binaryen from '../../../src/binaryen-ts/api/binaryen-compat.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { makeDrop, makeI32Const, makeLoad } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';

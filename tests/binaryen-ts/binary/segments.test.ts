@@ -19,7 +19,7 @@ import { assertEquals, assertThrows } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { elemFuncNames, importName, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { makeI32Const } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';

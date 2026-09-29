@@ -29,7 +29,7 @@ import {
   WasmBinaryError,
 } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { limitsOf, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';

@@ -29,7 +29,7 @@ import {
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 
 /** `br` to the function frame, carrying 1. */
 const exitFunctionWith1 = () => makeBreak('', null, [makeI32Const(1)]);

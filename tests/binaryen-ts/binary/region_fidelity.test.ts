@@ -20,7 +20,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import {
   asRegion,

@@ -14,7 +14,7 @@ import { makeCallIndirect, makeI32Const } from '../../../src/binaryen-ts/ir/expr
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 

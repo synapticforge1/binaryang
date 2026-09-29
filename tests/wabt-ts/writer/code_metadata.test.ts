@@ -20,7 +20,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm, writeWat } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm, writeWat } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 
 /** Known sections by id, custom sections as `"name"=<payload hex>`. */
 function layout(b: Uint8Array): string {

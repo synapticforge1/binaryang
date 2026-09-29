@@ -25,7 +25,7 @@
  * @license MIT
  */
 
-import { writeWasm } from '../encoder/write-wasm.ts';
+import { writeWasm } from '../ir/write-wasm.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { type PassOptions, PassRunner } from './pass.ts';
 

@@ -18,7 +18,7 @@ import {
   PREFIX_THREADS,
 } from '../core/opcode.ts';
 import { LabelType } from '../ir/ir-util.ts';
-import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // FuncType — shared with SharedValidator

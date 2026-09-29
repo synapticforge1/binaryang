@@ -15,7 +15,7 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import {
   type CallExpr,
   type CallIndirectExpr,

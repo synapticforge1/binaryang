@@ -13,7 +13,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import upstream from 'npm:binaryen@^116.0.0';
 import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
 
 const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 

@@ -10,7 +10,7 @@
 
 import { assert, assertEquals, assertInstanceOf, assertThrows } from '@std/assert';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { None, Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import {

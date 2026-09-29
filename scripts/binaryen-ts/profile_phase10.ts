@@ -26,7 +26,7 @@ import * as path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
 import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
 import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ModuleBuilder } from '../../src/binaryen-ts/ir/module.ts';

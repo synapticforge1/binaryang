@@ -71,7 +71,7 @@
  */
 
 import { readForPasses } from '../ir/prepare.ts';
-import { writeWasm } from '../encoder/write-wasm.ts';
+import { writeWasm } from '../ir/write-wasm.ts';
 import {
   asRegion,
   BinaryOp,

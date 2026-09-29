@@ -15,7 +15,7 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { ExpressionKind, labelName } from '../../../src/binaryen-ts/ir/expressions.ts';
 import type {
   BlockExpr,

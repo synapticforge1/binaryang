@@ -16,7 +16,7 @@ import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
 import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
 
 import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { createModule } from '../../../src/binaryen-ts/api/index.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';

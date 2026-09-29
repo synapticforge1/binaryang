@@ -2,7 +2,13 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * @module binaryen-ts/encoder/write-wasm
+ * @module binaryen-ts/ir/write-wasm
+ *
+ * binaryen-ts's IR made ready for the one writer — the write half of the pair
+ * whose read half is `prepare.ts` (the one reader, then `prepareForPasses`).
+ * Neither is a codec: binaryen-ts has had none since 1.6.0. This file lived
+ * in `encoder/` until the last trace of that component was decommissioned
+ * (owner, 2026-09-28: "relocate, keep names").
  *
  * A binaryen-ts module — as read, as optimized, or as the API built it — to
  * bytes, through the ONE binary writer (wabt-ts's). One front end, stage 4.
@@ -35,13 +41,13 @@ import { writeBinaryIr } from '../../wabt-ts/writer/binary-writer.ts';
 import { writeWatModule } from '../../wabt-ts/writer/wat-writer.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../wabt-ts/core/error.ts';
 import { FidelityTable } from '../../wabt-ts/ir/fidelity.ts';
-import type { WasmModule } from '../ir/module.ts';
-import { type Expression, ExpressionKind, type RegionExpr } from '../ir/expressions.ts';
-import { mapChildrenShallow } from '../ir/walk.ts';
+import type { WasmModule } from './module.ts';
+import { type Expression, ExpressionKind, type RegionExpr } from './expressions.ts';
+import { mapChildrenShallow } from './walk.ts';
 import { requireIndex, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
 import { Type } from '../../wabt-ts/core/types.ts';
 import { ExternalKind } from '../../wabt-ts/core/binary.ts';
-import { None, Unreachable } from '../ir/types.ts';
+import { None, Unreachable } from './types.ts';
 
 /**
  * Thrown when a module cannot be written: a reference that names nothing, a

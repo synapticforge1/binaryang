@@ -13,7 +13,7 @@
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import {
   formatMinifyMap,
   minifyImportsAndExports,

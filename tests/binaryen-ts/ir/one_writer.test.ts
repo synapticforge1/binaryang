@@ -23,11 +23,7 @@ import { assert, assertEquals, assertThrows } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import {
-  WasmEncodeError,
-  writeWasm,
-  writeWat,
-} from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { WasmEncodeError, writeWasm, writeWat } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { elemFuncEntry, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { makeDrop, makeRefFunc } from '../../../src/binaryen-ts/ir/expressions.ts';

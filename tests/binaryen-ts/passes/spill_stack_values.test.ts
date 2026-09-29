@@ -24,7 +24,7 @@ import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { spillStackValues } from '../../../src/binaryen-ts/passes/spill-stack-values.ts';
 import { ExpressionKind, typeOf } from '../../../src/binaryen-ts/ir/expressions.ts';

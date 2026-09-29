@@ -29,7 +29,7 @@ import {
   makePop,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { mapExpression, walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { heapAbstract } from '../../../src/binaryen-ts/ir/gc-types.ts';

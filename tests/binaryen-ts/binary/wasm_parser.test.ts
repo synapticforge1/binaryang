@@ -8,7 +8,7 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
 import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
