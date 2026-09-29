@@ -23,6 +23,11 @@
 //      `onStructGet` declared the flag as `_signed` and dropped it, and
 //      `onArrayGet` did not take it at all. Same shape as T9.11's ten unused
 //      `offset` parameters.
+//   5. (2026-09-29) `array.new_default` never asked whether its element type
+//      HAS a default. `struct.new_default` gained that check with custom
+//      descriptors (5a, `checkDefaultableFields`); its array sibling did not,
+//      so `array.new_default` of a `(ref $t)` array validated. wasm-tools:
+//      "field is not defaultable".
 //
 // Note the rule for root 1 is SHARED HIERARCHY, not subtyping: both engines
 // accept a widening cast, so a subtype test in either direction is wrong. The
@@ -133,6 +138,17 @@ const INVALID: [string, string][] = [
     `(module ${ARRAY}
        (func (param (ref $a)) (result i32) (array.get_u $a (local.get 0) (i32.const 0))))`,
   ],
+  // --- root 5: array.new_default of an element with no default ------------
+  [
+    'array.new_default of a non-nullable (ref $f) element',
+    `(module (type $f (func)) (type $nn (array (ref $f)))
+       (func (result (ref $nn)) (array.new_default $nn (i32.const 0))))`,
+  ],
+  [
+    'array.new_default of a non-nullable (ref any) element',
+    `(module (type $na (array (mut (ref any))))
+       (func (result (ref $na)) (array.new_default $na (i32.const 0))))`,
+  ],
 ];
 
 /**
@@ -202,6 +218,19 @@ const VALID: [string, string][] = [
     'array.get on a non-packed i32 element',
     `(module ${ARRAY}
        (func (param (ref $a)) (result i32) (array.get $a (local.get 0) (i32.const 0))))`,
+  ],
+  [
+    'array.new_default of a NULLABLE (ref null $f) element',
+    `(module (type $f (func)) (type $n (array (ref null $f)))
+       (func (result (ref $n)) (array.new_default $n (i32.const 0))))`,
+  ],
+  [
+    'array.new_default of an i32 element',
+    `(module ${ARRAY} (func (result (ref $a)) (array.new_default $a (i32.const 0))))`,
+  ],
+  [
+    'array.new_default of a packed i8 element',
+    `(module ${PACKED_ARRAY} (func (result (ref $pa)) (array.new_default $pa (i32.const 0))))`,
   ],
 ];
 
