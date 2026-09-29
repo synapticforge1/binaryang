@@ -129,7 +129,9 @@ fatigue.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
-Nothing is open with wasmtk. § 17 (item 1 fixed in 1.7.1) was answered by § 18: on 1.7.1 their gate
+Nothing is open with wasmtk. § 19 (1.8.0 is out; `LowerCustomPageSizes` offered for the
+custom-page modules they skip) was SENT 2026-09-29 and asks nothing — a reply is welcome, above all
+their custom-page-sizes skip count with the pass. § 17 (item 1 fixed in 1.7.1) was answered by § 18: on 1.7.1 their gate
 is 64,473 passed / 0 failed / 66 skipped, all 11 of our skips pass, and "none of the 66 is yours". § 11 was sent and answered (their reply reached us 2026-09-29) — closed in
 [handoffs.md](handoffs.md).
 
