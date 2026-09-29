@@ -312,7 +312,7 @@ representation details and all the runtime rules are superseded.
 **Already in the core / superseded**
 - Phase 11 cross-runtime rules ("no `Deno.*` in `src/`", `node:` everywhere, browser-safe subpath list, no
   `import.meta.main`, `lib: [deno.ns, esnext, dom]`) → superseded by project.md § "Runtime portability, layered"
-  (library layer: no `node:` either; checked by `scripts/check-portability.sh`) and § "Decided at the pre-merge
+  (library layer: no `node:` either; checked by `scripts/check-portability.ts`) and § "Decided at the pre-merge
   reconciliation" (Node 22.18 floor has `import.meta.main`; `lib` is now `esnext, deno.ns, deno.window, dom`)
 - One tree, two verb sets; the bridge → ir-convergence.md
 - ⟶ S6 5 / 7b(i) / 6A / 4: null-name block unpacking, decode-time block-param spill, `tuple.make` branch values,
@@ -394,7 +394,7 @@ T13.22 catch-scope coupling. All of it closed at the merge. The bridge became `s
   func-heap-type rule are kept once, in the correctness, passes and architecture sections above.
 - [lesson] **A probe that cannot discriminate is not a refutation** (wabt-ts). Depths 1 and 2 both returned 111; a byte
   comparison against a known-correct reference settled it.
-**Already in the core:** naming rule, `scripts/check-naming.sh` → cmem/project.md § "Upstream names are reserved";
+**Already in the core:** naming rule, `scripts/check-naming.ts` → cmem/project.md § "Upstream names are reserved";
 paths, front door → cmem/ir-convergence.md § "The bridge and the WAT routes into binaryen-ts"; T13.22 → project.md
 § "The merge — how it was prepared".
 **History:** landed as "implement Phase 7: wabt-ts → binaryen-ts IR bridge" (`60ea8aec0`). The UP series added

@@ -56,6 +56,8 @@
     "lint": "deno lint",
     "ci": "deno task check && deno task test",
     "publish:dry": "deno publish --dry-run --allow-dirty",
+    "naming": "deno run --allow-run scripts/check-naming.ts",
+    "portability": "deno run --allow-run --allow-read scripts/check-portability.ts",
     "collisions": "deno run --allow-read scripts/count-collisions.ts",
     "offsets": "deno run --allow-read scripts/measure-diagnostic-offsets.ts",
     "bump": "deno run --allow-read --allow-write scripts/release/bump_version.ts",

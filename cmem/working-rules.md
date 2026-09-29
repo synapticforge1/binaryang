@@ -31,8 +31,11 @@ not survive a clone is not a project rule. The lessons behind them are in
 
 CI's steps first, read from `.github/workflows/ci.yml` rather than from memory of it:
 
-`deno fmt --check` · `deno lint` · `deno task ci` · `sh scripts/check-naming.sh` ·
-`sh scripts/check-portability.sh` · `deno task baseline` · `deno publish --dry-run --allow-dirty`
+`deno fmt --check` · `deno lint` · `deno task ci` · `deno task naming` · `deno task portability` ·
+`deno task baseline` · `deno publish --dry-run --allow-dirty` — and the `runtimes` job's
+`scripts/cli-smoke.ts`, run under each runtime it tests (locally: `deno run -A scripts/cli-smoke.ts
+"deno run -A"`, likewise `node --experimental-transform-types …` and `bun …`; all must print the
+same hash)
 
 then the project's own: `deno task operators` · `deno task spec <corpus>` ·
 `deno task spec-behaviour <corpus>` · `deno task direct` · `deno task direct-behaviour` ·
@@ -74,13 +77,12 @@ then the project's own: `deno task operators` · `deno task spec <corpus>` ·
 
 - ⚠️ **Run it after the LAST edit.** If an edit follows the gate, the gate has not run — decision 5
   merged with `deno lint` red that way.
-- ⚠️ **`check-naming.sh`'s verdict is its OUTPUT, not its exit code** — it always exits 0, and any
-  line it prints is a violation (its header: "Empty output means the rule holds"; CI's step fails
-  on non-empty output). Run it as CI does:
-  `out=$(sh scripts/check-naming.sh); [ -z "$out" ]`. ⚠️ This rule used to say the opposite —
-  "prints a filename on SUCCESS, read `$?`" — and that misreading hid a real violation
-  (`tests/binaryen-ts/wabt_reference.ts`, from `138148881` 2026-09-11 until its rename 2026-09-18).
-  The general lesson stands for every OTHER step: read each exit code — `deno lint` was failing on
+- ⚠️ **Read every step's EXIT CODE.** The naming check is now an exit code too: its TypeScript
+  port (2026-09-29) prints each offender AND exits 1. Its shell predecessor always exited 0 and
+  made the output the verdict, and a rule that once read it the wrong way round ("prints a filename
+  on SUCCESS, read `$?`") hid a real violation (`tests/binaryen-ts/wabt_reference.ts`, from
+  `138148881` 2026-09-11 until its rename 2026-09-18). The lesson stands for every step: read each
+  exit code — `deno lint` was failing on
   `main` for two commits whose messages reported it green (`456423b54`, `cec3a3381`; fixed
   `fc91cf409`).
 - ⚠️ **`deno task test` alone is not the gate** — it runs `--no-check`. `deno task ci` is check +

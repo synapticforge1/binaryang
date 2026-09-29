@@ -107,7 +107,8 @@ distinguishes our port from the project it ports. Why it is a must: breaking it 
 on our code and theirs, and invites the reader to assume binaryang vendors the upstream projects
 rather than implementing them — a claim about provenance that must not be made by accident.
 
-**The check is `scripts/check-naming.sh`.** ⚠️ Its original one-liner silently stopped working at
+**The check is `scripts/check-naming.ts`** (`deno task naming`; a shell script until 2026-09-29,
+when scripting became TypeScript-only — it now also exits 1 on a violation). ⚠️ Its original one-liner silently stopped working at
 the merge: it ended with `grep -viE '(binaryen|wabt)-ts'`, which matches anywhere in the path, so
 once `src/binaryen-ts/` existed it discarded every file in both trees and returned empty on a tree
 that still held the known violation. The replacement strips the permitted components and tests what
@@ -133,7 +134,9 @@ targets make the rule layered, and the layers are the part worth keeping:
 
 ⚠️ **`node:` looks like the portable answer and is not, for library code** — porting `Deno.readFile`
 to `node:fs/promises` was right for the six CLI tools because tools are not browser code. **The
-check is `scripts/check-portability.sh`**, and both of its greps must exclude JSDoc: a first pass
+check is `scripts/check-portability.ts`** (`deno task portability`), and both of its checks must be
+blind to JSDoc (the `Deno.*` one skips lines starting `*`; the `node:` one matches only a line that
+starts `import` / `const` / `let`): a first pass
 flagged `const node: BlockExpr` and a doc comment showing consumers a `node:` import — neither a
 violation. A portability check that cries wolf gets disabled.
 

@@ -47,17 +47,16 @@ jobs:
       # The original one-liner silently stopped working at the merge: its
       # `grep -v '(binaryen|wabt)-ts'` matches the DIRECTORY component, so once
       # src/binaryen-ts/ and src/wabt-ts/ existed it discarded every file in both
-      # trees and returned empty on a tree that still held a violation.
+      # trees and returned empty on a tree that still held a violation. Prints
+      # each offender and exits 1 (its shell predecessor always exited 0).
       - name: Naming rule
-        run: |
-          out=$(sh scripts/check-naming.sh)
-          if [ -n "$out" ]; then echo "$out"; echo "::error::naming rule violated"; exit 1; fi
+        run: deno task naming || { echo "::error::naming rule violated"; exit 1; }
 
       # BINDING (README "Runtime support"). No Deno globals in shipped source;
       # node: builtins confined to the CLI layer, because they are
       # portable across Deno/Node/Bun but not to the browser.
       - name: Runtime portability
-        run: sh scripts/check-portability.sh
+        run: deno task portability
 
       - name: Test
         run: deno task test
@@ -127,9 +126,11 @@ jobs:
 
       # Every dispatcher command, under this runtime. Prints the sha256 of the
       # wat2wasm output so the summary shows all four legs agreeing — the same
-      # bytes on every supported runtime is the actual claim.
+      # bytes on every supported runtime is the actual claim. The script itself
+      # runs under the runtime it tests (Deno is not installed on the other
+      # legs), which is why it uses node: builtins only.
       - name: CLI smoke
         run: |
-          h=$(sh scripts/cli-smoke.sh "${{ matrix.invoke }}")
+          h=$(${{ matrix.invoke }} scripts/cli-smoke.ts "${{ matrix.invoke }}")
           echo "wat2wasm output sha256: $h"
           echo "- **${{ matrix.name }}** \`$h\`" >> "$GITHUB_STEP_SUMMARY"
