@@ -78,7 +78,13 @@ export interface SpecInput {
   v128?: [string, Sig][];
 }
 
-export type Status = 'agree' | 'DIVERGE' | 'timeout';
+/**
+ * `blind` — the engine would not compile the ORIGINAL, a module the spec calls
+ * valid, so nothing was compared. It used to read as `agree`: original and
+ * every variant fail to compile ALIKE. That is how a missing V8 flag would pass
+ * silently (a proposal's flag renamed by a Deno upgrade: V8 only warns).
+ */
+export type Status = 'agree' | 'DIVERGE' | 'timeout' | 'blind';
 
 export interface Row {
   name: string;
@@ -323,6 +329,11 @@ export function check(input: SpecInput): Row {
     refused: [],
     detail: [],
   };
+  if (want.length === 1 && want[0]!.startsWith('INVALID: ')) {
+    row.status = 'blind';
+    row.detail.push(`the engine refuses the original: ${want[0]!.slice(9, 160)}`);
+    return row;
+  }
   for (const [variant, make] of variants(bytes)) {
     let made: Made;
     try {

@@ -27,6 +27,7 @@
 
 import type { Invoke, Row, SpecInput } from './spec-behaviour/differential.ts';
 import { needsWrapper, type Sig } from './spec-behaviour/v128.ts';
+import { takeProposalArg } from './proposals.ts';
 
 /**
  * The modules our pipeline may refuse (some variant threw), pinned by NAME — a
@@ -59,6 +60,23 @@ const REFUSED_BUDGET: string[] = [
   'try_table/try_table.2.wasm --flatten',
   'try_table/try_table.13.wasm --flatten',
   'try_table/try_table.16.wasm --flatten',
+  // `proposals/custom-descriptors` (2026-09-29): `--flatten` refusing `br_on_*`
+  // — the `_desc_eq` forms and the proposal's own copies of the core files — for
+  // the same reason as above.
+  'proposals/custom-descriptors/br_on_cast_desc_eq_fail/br_on_cast_desc_eq_fail.26.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_desc_eq_fail/br_on_cast_desc_eq_fail.27.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_desc_eq/br_on_cast_desc_eq.26.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_desc_eq/br_on_cast_desc_eq.27.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_fail/br_on_cast_fail.0.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_fail/br_on_cast_fail.1.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast/br_on_cast.0.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast/br_on_cast.1.wasm --flatten',
+  'proposals/custom-descriptors/exact-casts/exact-casts.0.wasm --flatten',
+  'proposals/custom-descriptors/exact-casts/exact-casts.1.wasm --flatten',
+  'proposals/custom-descriptors/exact-casts/exact-casts.2.wasm --flatten',
+  'proposals/custom-descriptors/exact-func-import/exact-func-import.8.wasm --flatten',
+  'proposals/custom-descriptors/exact-func-import/exact-func-import.13.wasm --flatten',
+  'proposals/custom-descriptors/exact-func-import/exact-func-import.14.wasm --flatten',
 ];
 
 /**
@@ -79,7 +97,17 @@ const MAX_TIMEOUTS = 3;
 
 const WORKER = new URL('./spec-behaviour/worker.ts', import.meta.url);
 
-const dir = Deno.args[0];
+const args = [...Deno.args];
+/**
+ * `--proposal <name>`: a `proposals/<name>` corpus. Its module names are
+ * prefixed `proposals/<name>/` (custom-page-sizes has `binary/` and
+ * `memory_max/`, as the core suite does). The V8 flags it needs are the
+ * caller's to pass (`deno task proposals` does) — a flag cannot be set from
+ * inside a running isolate.
+ */
+const PROPOSAL = takeProposalArg(args);
+const PREFIX = PROPOSAL ? `proposals/${PROPOSAL.name}/` : '';
+const dir = args[0];
 if (!dir) {
   console.error(
     'usage: deno task spec-behaviour <outDir>   (the corpus `deno task spec:prepare` wrote)',
@@ -126,7 +154,7 @@ function collect(root: string): SpecInput[] {
       if (invokes.length > 0) {
         const v128 = [...sigs].filter(([, sig]) => needsWrapper(sig));
         inputs.push({
-          name: `${d}/${file}`,
+          name: `${PREFIX}${d}/${file}`,
           path: `${root}/${d}/${file}`,
           invokes,
           ...(v128.length > 0 ? { v128 } : {}),
@@ -211,12 +239,15 @@ rows.sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true }));
 
 const diverged = rows.filter((r) => r.status === 'DIVERGE');
 const timedOut = rows.filter((r) => r.status === 'timeout');
+const blindOriginals = rows.filter((r) => r.status === 'blind');
 const refused = rows.flatMap((r) => r.refused.map((why) => `${r.name} ${why}`));
 const invocations = rows.reduce((n, r) => n + r.invocations, 0);
 const compared = rows.reduce((n, r) => n + r.variants, 0);
 
 console.log(
-  "  === the spec testsuite's invocations: original vs round trip and -O1…-Oz ===",
+  `  === the spec testsuite's invocations${
+    PROPOSAL ? ` — proposals/${PROPOSAL.name}` : ''
+  }: original vs round trip and -O1…-Oz ===`,
 );
 console.log(`    modules                  ${String(rows.length).padStart(6)}`);
 console.log(
@@ -241,6 +272,11 @@ console.log(
   } modules`,
 );
 console.log(`    DIVERGE                  ${String(diverged.length).padStart(6)} modules`);
+console.log(
+  `    engine refused ORIGINAL  ${
+    String(blindOriginals.length).padStart(6)
+  } modules   (nothing compared — a missing V8 flag looks like this)`,
+);
 console.log(`    did not terminate        ${String(timedOut.length).padStart(6)} modules`);
 if (stoppedEarly > 0) {
   console.log(
@@ -276,7 +312,13 @@ if (refused.length > 0) {
     console.log(`    ${String(n).padStart(4)}x  ${k.slice(0, 110)}`);
   }
 }
-for (const [title, list] of [['DIVERGE', diverged], ['did not terminate', timedOut]] as const) {
+for (
+  const [title, list] of [
+    ['DIVERGE', diverged],
+    ['did not terminate', timedOut],
+    ['engine refused the ORIGINAL', blindOriginals],
+  ] as const
+) {
   if (list.length === 0) continue;
   console.log(`\n  === ${title}: ${list.length} (first 30) ===`);
   for (const r of list.slice(0, 30)) {
@@ -285,7 +327,7 @@ for (const [title, list] of [['DIVERGE', diverged], ['did not terminate', timedO
   }
 }
 
-let failed = diverged.length > 0 || timedOut.length > 0;
+let failed = diverged.length > 0 || timedOut.length > 0 || blindOriginals.length > 0;
 const added = refusedModules.filter((m) => !REFUSED_BUDGET.includes(m));
 // A pin can only be RETIRED by a run that reached it.
 const ran = new Set(rows.map((r) => r.name));

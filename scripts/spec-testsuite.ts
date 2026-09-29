@@ -62,6 +62,7 @@ import { hasErrors, makeErrorList } from '../src/wabt-ts/core/error.ts';
 import { parseWatModule } from '../src/wabt-ts/parser/wast-parser.ts';
 import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
 import { allFeatures } from '../src/wabt-ts/core/feature.ts';
+import { takeProposalArg } from './proposals.ts';
 
 /**
  * ⚠️ EVERY feature on, and the suite is unusable without it.
@@ -83,9 +84,15 @@ import { allFeatures } from '../src/wabt-ts/core/feature.ts';
  * This suite is written against the core rules; the proposal's own copies of
  * those files (`proposals/custom-descriptors/`) carry the relaxed ones.
  */
-const FEATURES = { ...allFeatures(), customDescriptors: false };
+const args = [...Deno.args];
+/**
+ * `--proposal <name>`: a `proposals/<name>` corpus, judged with the feature set
+ * its suite is written against (`proposals.ts`) instead of the core one above.
+ */
+const PROPOSAL = takeProposalArg(args);
+const FEATURES = PROPOSAL?.features ?? { ...allFeatures(), customDescriptors: false };
 
-const MANIFESTS = Deno.args[0];
+const MANIFESTS = args[0];
 if (!MANIFESTS) {
   console.error('usage: spec-testsuite.ts <manifest-dir>   (see deno task spec:prepare)');
   Deno.exit(2);
@@ -215,7 +222,9 @@ const pct = (a: number, b: number) => (b === 0 ? '   -' : `${((100 * a) / b).toF
 const row = (label: string, t: { n: number; ok: number }) =>
   `    ${label.padEnd(34)}${String(t.ok).padStart(6)} / ${String(t.n).padEnd(6)} ${pct(t.ok, t.n)}`;
 
-console.log('  === WebAssembly spec testsuite ===');
+console.log(
+  `  === WebAssembly spec testsuite${PROPOSAL ? ` — proposals/${PROPOSAL.name}` : ''} ===`,
+);
 console.log(row('modules ACCEPTED (must accept)', tally.module));
 console.log(row('assert_invalid REJECTED', tally.assert_invalid));
 console.log(row('malformed BINARY rejected', tally.malformed_binary));

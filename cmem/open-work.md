@@ -7,10 +7,12 @@ item closes, its record goes to the topic file and its line leaves here.
 **State, 2026-09-29:** 🚀 **`binaryang@1.7.2` is published** (tag `v1.7.2`, `30929db92`;
 [publishing.md](publishing.md) § 1.7.2). `main` = the release plus the diagnostic fixes of
 2026-09-29, which [unreleased.md](unreleased.md) carries. **Owner's order that day: items 16 and 17
-(done), then 11 (found already closed), then a discussion of 12** — next; the optimizer and IR
-items (from 1) after. **16 open items, none blocking**, numbered below: old 16 and 17 closed, new
-16 and 17 came out of them, and 11 is gone with its number kept free. Re-derive any number before
-quoting it.
+(done), then 11 (found already closed), then 12** — decided the same day (both halves, V8 flags)
+and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9. What is
+left of 12 is custom-page-sizes behaviour, which no engine here runs (🗓️ OWNER). The optimizer and
+IR items (from 1) are next. **15 open items, none blocking**, numbered below: old 16 and 17
+closed, new 16 and 17 came out of them, and 9 and 11 are gone with their numbers kept free.
+Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -79,10 +81,9 @@ items 1–15 keep their numbers:
     - The `br_if` one was wrong. The rest want each literal's type compared to the factory's.
 8. ⬚ **Asyncify refuses `call_ref`** (K1's leftover; `passes/asyncify.ts`: "call_ref is not yet
     supported"). Upstream instruments it as an indirect call.
-9. ⬚ **`deriveTypes` keeps a plain allocation INEXACT** under custom descriptors
-    (`ir/derive-types.ts`, the `StructNew` case), because it does not know the module's features.
-    Only the `_desc` forms derive exact. Valid either way; it is less precise than the spec's
-    typing.
+(Item 9, inexact allocations, closed 2026-09-29: it was NOT "valid either way" — `--flatten` made
+invalid modules from it. Q13 in [divergences.md](divergences.md).)
+
 10. ⬚ **Delete S7's read-back in `wat2wasm`.** `writeBinaryIr` still re-reads its own bytes
     (`binary-writer.ts`, `readBinaryIr`) to predict the text forms, which costs +26–35% on
     `wat2wasm`.
@@ -97,10 +98,10 @@ items 1–15 keep their numbers:
 One front end, never recorded: [handoffs.md](handoffs.md) § 4's outcome. The numbers below are
 kept.)
 
-12. ⬚ **Bring `proposals/` into the gate.** `spec-prepare` reads the testsuite's top level only.
-    Custom descriptors was measured by a scratch harness and its findings pinned. This is the
-    owner's call, since behaviour needs a V8 flag per proposal ([testing.md](testing.md) § "The
-    proposal testsuites").
+12. ⬚ 🗓️ **OWNER — custom-page-sizes behaviour has no engine.** `proposals/` is in the gate since
+    2026-09-29 (`deno task proposals`, both halves, V8 flags — owner), except this one half: V8
+    15.0 has no custom-page-sizes support at all, so its invocations report NOT RUN. The options
+    and their evidence are in [testing.md](testing.md) § "The proposal testsuites".
 
 ## Quality passes — the lens plan (agreed 2026-09-02)
 

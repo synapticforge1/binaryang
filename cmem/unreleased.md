@@ -52,5 +52,15 @@ DG1–DG4 in [divergences.md](divergences.md)). No byte of any output moves (bas
   filename, where they said `<input>`.
 - **NEW — `formatErrors(list, ErrorFormat.Long, source)`** prints each text error's source line and
   a caret under its column; the `wat2wasm` and `wasm-opt` CLIs do, as upstream's tools.
-- Repo only: `deno task diagnostics`; the CI scripts are TypeScript (`deno task naming` /
+- **Silent fix — optimization no longer emits INVALID modules around `br_on_*`** (Q10–Q12 in
+  [divergences.md](divergences.md)): a value on the stack under a `br_on_cast` (any `br_on_*`)
+  that a later instruction consumes was spilled at every -O level, and at -O3 `Inlining` moved a
+  `br_on` operand, or a multi-result operand, into its wrapper block. Anything optimized with such
+  code failed to validate — loud, not wrong. Found by the proposals gate.
+- **Silent fix — allocations are exact in a module that speaks exact types** (Q13, open-work 9):
+  `--flatten` wrote invalid modules around `struct.new_desc`. A module without custom descriptors
+  or exact types is unchanged.
+- Repo only: `deno task proposals` (the testsuite's `proposals/` in the gate, V8 experimental
+  flags); an original the engine will not compile now FAILS `spec-behaviour` instead of agreeing;
+  `deno task diagnostics`; the CI scripts are TypeScript (`deno task naming` /
   `portability`, `scripts/cli-smoke.ts`), and the naming check now exits 1 on a violation.

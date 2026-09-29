@@ -830,16 +830,53 @@ the relaxed ones. `scripts/spec-testsuite.ts` now runs `{ ...allFeatures(), cust
 false }` → 2714 / 2714. **A future proposal that changes a verdict joins that exclusion**, with its
 own suite run under it.
 
-### The proposal testsuites (`proposals/`) are NOT in the gate
+### The proposal testsuites (`proposals/`) — IN the gate since 2026-09-29
 
-`spec-prepare` reads the testsuite's TOP LEVEL only. Custom descriptors was measured with a
-scratch harness (2026-09-28): `wasm-tools json-from-wast` as the command list and byte oracle,
-our reader/validator on its binaries, our `wat2wasm` on each command's text cut from the `.wast`,
-and V8 `--experimental-wasm-custom-descriptors` running every `assert_return` / `assert_trap`
-on our bytes. Result: return 271/271, trap 213/213, invalid 157/157, malformed 127/127, modules
-91/93 byte-identical (W17). What it found is pinned in `tests/wabt-ts/custom_descriptors.test.ts`;
-the numbers themselves are not re-measured by anything. Bringing `proposals/` into the gate is the
-owner's call (it needs a V8 flag per proposal for behaviour).
+🗓️ **Owner, 2026-09-29: both halves, V8's experimental flags included**, accepting that a future
+Deno may need a flag adjusted. `deno task proposals <testsuite-main> <outDir>`
+(`scripts/check-proposals.ts`) prepares each `proposals/<name>`, runs VALIDITY
+(`spec-testsuite.ts --proposal <name>`) and BEHAVIOUR (`check-spec-behaviour.ts --proposal
+<name>`, in a process started with that proposal's `--v8-flags`). ONE table says what each needs:
+`scripts/proposals.ts` — its feature set, its flags, and why an engine cannot run it.
+
+| proposal           | validity (accept · invalid · malformed bin · malformed text) | behaviour                                | V8 flag                                  |
+| ------------------ | ------------------------------------------------------------ | ---------------------------------------- | ---------------------------------------- |
+| custom-descriptors | 93 · 157 · 111 · 16                                          | 488 invocations, 19 modules, 0 DIVERGE   | `--experimental-wasm-custom-descriptors` |
+| custom-page-sizes  | 41 · 19 · 108 · 4                                            | **NOT RUN** — V8 15.0 has no support     | none exists                              |
+| threads            | 114 · 93 · 0 · 19                                            | 321 invocations, 14 modules, 0 DIVERGE   | none needed                              |
+| wide-arithmetic    | 2 · 8 · 0 · 0                                                | 99 invocations, 2 modules, 0 DIVERGE     | `--experimental-wasm-wide-arithmetic`    |
+
+**Feature sets are the suite's, not ours.** Every feature on, except what a suite predates or a
+proposal turns on: custom descriptors ON for its own suite (the core harness turns it off — it
+relaxes `br_on_cast`); `multiMemory` OFF for threads, which predates it and asserts "multiple
+memories" invalid five times. With our core set, custom descriptors read 36/93 accepted and threads
+5 false accepts — the harness, not the validator.
+
+⚠️ **The flag hazard, and its guard.** A flag Deno's V8 no longer knows is only WARNED about; the
+original and every variant then fail to compile ALIKE, which the differential used to count as
+`agree`. Since 2026-09-29 an original the engine refuses is `blind` and FAILS the run ("engine
+refused ORIGINAL" — 0 across the core suite's 1,342 modules). Inverted: withholding the flag fails
+wide-arithmetic (2 refused) and custom descriptors (15).
+
+**What its first run found** — four defects that emitted INVALID modules, every other gate green
+(the 2026-09-28 scratch harness had run our ROUND TRIP only, never an optimized variant): a value
+under a `br_on_*` spilled at every -O level (Q10), and inlined past at -O3 (Q11), a multi-result
+call operand inlined at -O3 (Q12), and `--flatten`'s inexact temporaries for exact allocations
+(Q13, open-work 9) — [divergences.md](divergences.md). Q10–Q12 are not descriptor-specific
+(`br_on_passthrough.test.ts` uses plain `br_on_cast`); the core suite has no such case. Pinned: 14
+`--flatten` refusals of `br_on_*`, as the core suite's.
+
+**custom-page-sizes behaviour — no engine (open-work 12, 🗓️ OWNER).** V8 has no support and no
+flag. Two ways to run it, measured 2026-09-29:
+
+- **wasmtime** (49.0.1 installed; `-W custom-page-sizes=y`): `wasmtime wast` runs the proposal's
+  `.wast` directly (exit 0). To judge OUR bytes, each `(module …)` of the script would be replaced
+  by `(module binary "…")` of our variant and the spec's own assertions checked by wasmtime — an
+  independent engine, the spec's expected values as the oracle. A second engine and a subprocess in
+  the gate.
+- **Lower to 64 KiB pages** so V8 can run it: a pass that emulates small pages (scaled
+  `memory.size` / `memory.grow`, an explicit bounds check on every access). It would test the
+  lowering more than the module we emit, and it is a sizeable pass of its own.
 
 ### Do we need upstream `wast2json`? (measured 2026-09-28)
 

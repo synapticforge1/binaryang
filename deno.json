@@ -72,6 +72,7 @@
     "translate-eh": "deno run --allow-read --allow-write --allow-run --allow-env scripts/check-translate-eh.ts",
     "optimize-corpus": "deno run --allow-read scripts/check-optimize-corpus.ts",
     "spec-behaviour": "deno run --allow-read scripts/check-spec-behaviour.ts",
+    "proposals": "deno run --allow-read --allow-run --allow-env scripts/check-proposals.ts",
     "comparison": "deno check comparison/ && deno test --allow-read --allow-write --allow-run --allow-env --allow-net comparison/tests/*.compare.ts"
   },
   "fmt": {

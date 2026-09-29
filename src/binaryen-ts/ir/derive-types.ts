@@ -539,16 +539,17 @@ class Deriver {
 
       case ExpressionKind.StructNew: {
         // The `_desc` pair exists only under custom descriptors, where every
-        // allocation is exact; the plain pair stays inexact here, since this
-        // derivation does not know the module's features (an exact type
-        // written into a module without them would not validate).
-        return e.desc === undefined ? this.gcRef(e.typeVar) : this.gcRefExact(e.typeVar);
+        // allocation is exact. The plain pair is exact where the module speaks
+        // exact types (`speaksExactTypes`), and `(ref $T)` where it does not.
+        return e.desc !== undefined || this.m.exactAllocations
+          ? this.gcRefExact(e.typeVar)
+          : this.gcRef(e.typeVar);
       }
       case ExpressionKind.ArrayNew:
       case ExpressionKind.ArrayNewFixed:
       case ExpressionKind.ArrayNewData:
       case ExpressionKind.ArrayNewElem:
-        return this.gcRef(e.typeVar);
+        return this.m.exactAllocations ? this.gcRefExact(e.typeVar) : this.gcRef(e.typeVar);
       case ExpressionKind.StructGet: {
         if (e.signed !== undefined) return ValType.I32;
         const t = this.typeEntry(e.typeVar);
@@ -592,6 +593,44 @@ function carrierParams(e: Expression): { types: readonly ValueType[] } | undefin
     default:
       return undefined;
   }
+}
+
+/**
+ * Whether `m` already speaks exact types: a type with a `descriptor` /
+ * `describes` clause, or `(exact $T)` anywhere in its declarations (types,
+ * signatures, locals, globals, tables, imports). Such a module is valid only
+ * under custom descriptors, so an exact type written into it is valid too —
+ * and it is what the proposal says an allocation IS.
+ *
+ * 🔧 Open-work 9, found a defect by the proposals behaviour gate (2026-09-29):
+ * allocations derived INEXACT, so `--flatten` gave `(struct.new $b)` a
+ * `(ref $b)` temporary and `struct.new_desc $a (local.get $t)` — which needs
+ * `(ref null (exact $b))` — came out invalid. A module that never mentions
+ * exact types keeps `(ref $T)`: written into one without the feature, an exact
+ * type would not validate.
+ */
+function speaksExactTypes(m: WasmModule): boolean {
+  if (
+    m.types.some((t) =>
+      'descriptor' in t && (t.descriptor !== undefined || t.describes !== undefined)
+    )
+  ) {
+    return true;
+  }
+  // Limits are u64 `bigint`s (1.7.1), which JSON cannot serialize: spelled as
+  // strings. 🔧 Without the replacer every module importing a memory or table
+  // threw here, and the threads suite's variants were all refused.
+  const declarations = JSON.stringify(
+    [
+      m.types,
+      m.imports,
+      m.globals.map((g) => g.type),
+      m.tables.map((t) => t.elemType),
+      m.functions.map((f) => [f.sig, f.locals]),
+    ],
+    (_, v) => typeof v === 'bigint' ? v.toString() : v,
+  );
+  return declarations.includes('"kind":"exact"');
 }
 
 /** The module context every function's derivation reads. */
@@ -644,7 +683,14 @@ class Module {
     ], 'tag');
     this.types = new Space(m.types, 'type');
     this.typeNames = m.types.map((t) => t.name);
+    this.exactAllocations = speaksExactTypes(m);
   }
+
+  /**
+   * Whether an allocation derives EXACT (`(ref (exact $T))`, the custom
+   * descriptors typing) rather than `(ref $T)`. See {@link speaksExactTypes}.
+   */
+  readonly exactAllocations: boolean;
 
   typeIndex(v: W.Var): number {
     if (v.kind === 'index') return v.value;

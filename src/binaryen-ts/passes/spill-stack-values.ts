@@ -43,6 +43,15 @@
  *   for its last, sibling `pop`s for the earlier ones), so no one node is "the
  *   value" to spill and one local cannot hold a tuple. The decoder's own rule is
  *   the same — "a `Pop` must be consumed in place, never spilled".
+ * - a value that stands UNDER a `br_on_*` on its way to its consumer stays. A
+ *   `br_on` carries the stack beneath its operands to its label when it branches
+ *   and LEAVES it there when it falls through; the reader keeps those values as
+ *   preceding statements (`values` empty) because the fall-through consumes them
+ *   later. Spilled, the branch finds only its own operands: `(block (result i32
+ *   i32 eqref) i32.const 1 i32.const 2 (call $f (br_on_cast_desc_eq 0 …)) …)`
+ *   came out "expected 3 elements on the stack for branch, found 1" at every
+ *   optimization level (`proposals/custom-descriptors`, 2026-09-29, the first
+ *   run of the proposals behaviour gate).
  *
  * **Which rewrite.** `local.set $t` where the producer stood and `local.get $t` at
  * the `pop` — except when the consumer is the very NEXT instruction, where the
@@ -227,6 +236,15 @@ function rewriteRegion(
     return found;
   };
 
+  /** Whether `e`'s own operands (not a sequence it owns) hold a `br_on_*`. */
+  const holdsBrOn = (e: Expression): boolean => {
+    if (e.kind === ExpressionKind.BrOn) return true;
+    return operandsIn(e).some(holdsBrOn);
+  };
+  const brOnAt = children.map(holdsBrOn);
+  /** A `br_on` runs after producer `i` and no later than consumer `j`: it reads `i`'s value. */
+  const underBrOn = (i: number, j: number): boolean => brOnAt.slice(i + 1, j + 1).includes(true);
+
   const replacement = new Map<Expression, Expression>();
   const spilled = new Map<number, number>(); // producer index -> local slot
   const nested = new Set<number>(); // producer indices moved into their consumer
@@ -243,6 +261,7 @@ function rewriteRegion(
       const i = indexOf.get(from);
       if (i === undefined || i >= j) continue; // a sibling operand, not a statement
       if (producedCount(from) !== 1) continue; // a tuple: no one node to spill
+      if (underBrOn(i, j)) continue; // a `br_on` carries it too: it must stay on the stack
       if (i === j - 1 && !nested.has(i) && !spilled.has(i)) {
         nested.add(i);
         replacement.set(pop, from);
