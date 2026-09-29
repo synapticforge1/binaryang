@@ -182,8 +182,14 @@ describe('duplicate names never re-assemble to the wrong entity', () => {
 
   it('a name two entities would both print is not used for either (the guard)', () => {
     // Reachable only if a reader ever failed to make names unique: force it.
-    const errors = makeErrorList();
-    const m = readBinaryIr(asm('(module (func $a) (func $b (call $a)))'), errors);
+    const bytes = asm('(module (func $a) (func $b (call $a)))');
+    const read = () => readBinaryIr(bytes, makeErrorList(), { readDebugNames: true });
+    // Positive control first: with no collision the call IS named — so the
+    // `call 0` below can only come from the guard, not from naming being off.
+    // (Without it this test passed vacuously: read with no names, nothing was
+    // named with or without the guard, and the guard's mutant survived.)
+    assertStringIncludes(writeWatModule(read(), { namedReferences: true, fold: false }), 'call $a');
+    const m = read();
     m.functions[1]!.name = '$a';
     const text = writeWatModule(m, { namedReferences: true, fold: false });
     assertStringIncludes(text, 'call 0');
