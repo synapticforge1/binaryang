@@ -34,6 +34,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 18 | 2026-09-29 | wasmtk (in) | on 1.7.1: gate **64,473 passed / 0 failed / 66 skipped** (1.7.0: 64,434 / 0 / 105), measured in two steps so each gain has one cause. Pinning 1.7.1 alone: +9 (`memory.wast` 72 → 78, `table.wast` 23 → 26 — item 1). Then `wasmValidate(bytes, allFeatures)` as a second `assert_invalid` oracle wherever V8 cannot judge (V8 accepts: it ignores code metadata; or V8 refuses only for its own limits: custom page sizes, its memory64 / table caps), counted only when `readWasm` decodes the same bytes: +30 — item 2 (`branch_hint` 2 → 3), item 1's 10th (`memory_max` pagesize-1), and 28 assertions V8 had left open (`custom-page-sizes-invalid` 3 → 19, `align` 136 → 140, `memory64` 55 → 59, `memory_max` 0 → 2, `memory_max_i64` 1 → 2, `table` 26 → 27, `table64` 1 → 2). The 66 left: 61 V8 (custom page sizes, `stringref`, its caps), 5 the vendored `threads` blocks we and V8 both accept, on purpose. **"None of the 66 is yours."** | ✅ closed — nothing asked. 🔑 **Independent evidence for our validator**: their runner validates every module the spec asserts VALID with `wasmValidate` and fails the gate on a rejection — **0 rejected across all 288 files**, and they inverted the guard (with `defaultFeatures()` it flags 3 valid GC modules in `br_on_cast.wast`). The same lesson from both sides this week: an oracle's verdict needs a positive control ([best-practices.md](best-practices.md)) |
 | 19 | 2026-09-29 | wasmtk (out — ✅ SENT by the owner, 2026-09-29) | 1.8.0 is out; checked against the three subpaths they pin (`compat/wabt`, `compat/binaryen`, `wasm-validate`) and their call shapes on the PUBLISHED package: no default change breaks their paths (they use no binaryang CLI; `parseWat` → `toBinary` still does not validate); `wasmValidate` no longer pools decode and validation errors, so their `readWasm` check in `binaryangInvalid` is no longer needed; `errors[0].message` names the instruction; the `br_on` optimizer fixes. New for them: `runPasses(["LowerCustomPageSizes"])` runs their skipped custom-page modules on V8 — verified through `readBinary` → `runPasses` → `emitBinary` — with the `#pagesize=` / `#pages` export naming explained | ✅ sent; nothing asked of them — a reply is welcome, above all what the pass does to their custom-page-sizes skip count |
 | 20 | 2026-09-29 | wasmtk (in) | reply to § 19, measured on the PUBLISHED 1.8.0 in a scratch area (their pin is still 1.7.1). They checked `LowerCustomPageSizes` beyond V8: wasmtime 49 with the proposal native as the reference, then the lowered modules on wasmtime (no flag), V8 (Deno), JavaScriptCore (Bun), wasmer 7.4.2 and wazero (one WASI driver per assertion, 41, controlled on wasmtime). **Values, trap POSITIONS and linking hold on every engine that can run the modules** (27/27 `assert_return`, 4/4 trap positions; wazero 20/27, its misses the two multi-memory modules). Three findings: **F1** every lowered out-of-bounds access traps as `unreachable`, not "out of bounds memory access" — on all five engines; **F2** a lowered `assert_unlinkable` fails as an unknown import, not "incompatible import type"; **compat** `getFunctionInfo(f).results` is an array where binaryen.js returns one packed type (`results === binaryen.none` takes the wrong branch). Their skip count with the pass, on V8: **66 → 16**, not yet wired in — they wait for F1 (their runner does not check trap kind, a gap on their side this exposed). Suggestions: for F1, an access at an address that can never be in bounds instead of `unreachable`; for F2, a placeholder of another kind under the original name. (The same paste repeats § 18, already on record.) | all three REPRODUCED on our tree 2026-09-29 — F1 on a load and on `memory.fill`; F2 as V8's "must be a WebAssembly.Memory object"; compat BROADER than reported: `params` is an array too (binaryen.js@132: `params` and `results` packed, `vars` an array). Rows L3, L4, C7 in [divergences.md](divergences.md); decisions with the owner. ✅ **All three fixed the same day, for 1.8.1** (owner: "fix all three now and then release to 1.8.1"): F1 as they suggested; F2 as they suggested, which fixes case 1 on strict wasmtime — case 2 has an engine ceiling (wasmtime resolves names before types), measured and recorded in L4; C7 for `params` too |
+| 21 | 2026-09-29 | wasmtk (out — ⬚ DRAFT, for the owner to send) | reply to § 20: 1.8.1 published and fixes all three, re-checked on the PUBLISHED package through their call shapes. F1 as they suggested (the engine's own out-of-bounds trap; our gate had their gap and now checks the kind). F2 their placeholder: case 1 "incompatible import type" on strict wasmtime; case 2 an ENGINE CEILING — wasmtime resolves names before types, V8 reports the memory first, JSC reports the placeholder — the link fails everywhere; the host now passes three things per lowered memory. C7 fixed for `params` too, a patch by the owner's decision; `expandType` the portable form. Asks for their skip count on 1.8.1 | ⬚ awaiting the owner |
 
 ### § 15 — reply to wasmtk (2026-09-28, SENT)
 
@@ -200,6 +201,61 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > runner for that directory, we would like to hear what it does to your skip count.
 >
 > The full list is `CHANGELOG.md` § 1.8.0 in binaryang.
+
+### § 21 — reply to wasmtk: 1.8.1 (2026-09-29, DRAFT — for the owner to send)
+
+> From binaryang, 2026-09-29, in reply to your letter on 1.8.0's custom-page-sizes lowering.
+>
+> Thank you for checking the pass on five engines instead of one. A V8-only check would not have
+> found either finding. All three reproduced on our tree before we acted.
+>
+> **`binaryang@1.8.1` is published and fixes all three.** We re-checked each one against the
+> published package through your call shapes (`compat/wabt` → `compat/binaryen` `readBinary` →
+> `runPasses(["LowerCustomPageSizes"])` → `emitBinary`), not only our tree.
+>
+> **Finding 1, the trap kind: fixed as you suggested.** The out-of-range branch now makes a 4-byte
+> load at the all-ones address, which is out of bounds for every memory of that address type, a
+> full 4 GiB one included. The engine raises its own trap: on V8 a lowered load past the true size
+> is now "memory access out of bounds", as a native one is. This covers loads, stores, atomics,
+> SIMD and `memory.fill` / `copy` / `init`. On strict `wasmtime wast` (no proposal flag), every
+> `assert_trap … "out of bounds memory access"` passes on the lowered modules. Our own gate had the
+> same gap as your runner: it checked that a trap happened, not its kind. It now checks the kind;
+> with the old `unreachable` put back it fails 28 times (4 traps in 7 versions).
+>
+> **Finding 2, the link error: your placeholder, with one limit we measured.** An exported lowered
+> memory now also exports, under its original name, an immutable i32 global holding its page size.
+> A lowered importer imports that name first.
+>
+> - **Case 1**, a 64 KiB-page module (lowered or not) importing a lowered 1-byte memory: now
+>   "incompatible import type" on strict wasmtime. This is `custom-page-sizes-invalid.wast`'s first
+>   case.
+> - **Case 2**, a lowered module importing a native 64 KiB memory: this depends on the engine, and
+>   on wasmtime it cannot be made a type error. wasmtime resolves every import NAME before checking
+>   any type, and the lowered importer also needs `…#pagesize=1` and `…#pages`, which a native
+>   exporter never has. So it reports "unknown import" before it reaches the placeholder. V8
+>   reports the memory import first, with the same wording for missing and wrong-kind imports.
+>   JavaScriptCore checks imports in order and does report the placeholder as the wrong kind. No
+>   lowering can do better while the importer needs imports a native exporter lacks. The link still
+>   fails everywhere, so nothing reads past the logical size.
+> - The pairing you noted, two lowered modules with different custom page sizes, still fails as a
+>   missing import. As you said, no spec file tests it.
+> - **For a host:** a lowered exporter now exports three things per memory: `mem` (the
+>   placeholder global), `mem#pagesize=1` (the memory) and `mem#pages`. A lowered importer asks for
+>   all three, `mem` first. A host that builds an importer's imports by hand must pass the
+>   placeholder along.
+>
+> **The compat difference: fixed, and it was wider than `results`.** `params` had the same shape
+> problem. `getFunctionInfo` now returns each as one packed type, as binaryen.js does: `none` for
+> none and the type itself for one, so `results === binaryen.none` holds for a void function. A
+> tuple is still an array, because our facade has no type interner; `expandType` flattens either.
+> This changes a return shape, so strictly it is a breaking change. It went out in a patch by our
+> maintainer's decision, and the changelog says so first. If you read `.params` or `.results` as
+> arrays anywhere, `expandType` is the portable form. Your `createType(results)` workaround keeps
+> working.
+>
+> With Finding 1 fixed, the four trap passes you held back should now count. If you wire the pass
+> into your runner for `proposals/custom-page-sizes/`, we would like to hear the skip count on
+> 1.8.1. The full list is `CHANGELOG.md` § 1.8.1 in binaryang.
 
 ## Lessons the correspondence paid for
 
