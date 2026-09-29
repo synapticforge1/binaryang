@@ -5,8 +5,8 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Current state (2026-09-29):** `@jrmarcum/binaryang@1.8.0` is latest (`rekorLogId=3006244345`,
-§ "1.8.0" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
+**Current state (2026-09-29):** `@jrmarcum/binaryang@1.8.1` is latest (`rekorLogId=3007105518`,
+§ "1.8.1" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
 unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand), `deno task release`
 (tag and branch in one push), CI publishes; a patch while `main` holds unreleased work goes from a
 branch cut from the last tag (§ "1.6.1"). ✅ **`RELEASE_PAT` — CLOSED as not needed (owner,
@@ -643,6 +643,23 @@ current-state line at the top), and the recovery recipe above still applies to
 any release that falls through to dispatch. The record, by path: `push: tags` has succeeded **6 of
 6** across three packages (binaryang 1.5.3 among them) before 1.5.4 added a seventh; the `auto-tag`
 → `workflow_dispatch` path has succeeded **0 of 4**.
+
+## ✅ 1.8.1 — a patch by `deno task bump`, released 2026-09-29
+
+**Published from the tag push, unaided.** JSR: `binaryang@1.8.1`, `rekorLogId=3007105518`, not
+yanked, `latestVersion` 1.8.1; tag `v1.8.1` at `531d82f1b`; CI, Auto-tag and Publish green. Owner,
+2026-09-29: "I want to fix all three now and then release to 1.8.1" — wasmtk's § 20: L3 (a lowered
+out-of-bounds access traps as out of bounds), L4 (the placeholder export), C7 (`getFunctionInfo`
+shaped as binaryen.js). ⚠️ **A PATCH by the owner's decision although C7 changes a return shape,
+which the rule counts as BREAKING** — told before the choice; the CHANGELOG states the shape change
+first. The pattern, unchanged: fixes merged UNBUMPED (`99f2a5b16`) after a green gate, `main`
+pushed and CI green, JSR checked (1.8.1 absent), `deno task bump` (a patch), `deno task release`.
+
+Verified from JSR itself, through wasmtk's call shapes (`compat/wabt` → `compat/binaryen`
+`readBinary` → `runPasses(["LowerCustomPageSizes"])` → `emitBinary`): the lowered load traps "memory
+access out of bounds"; the exporter carries `mem` (a Global) beside `mem#pagesize=1` and `mem#pages`;
+a lowered importer asks `global mem` first; `getFunctionInfo` gives `results === none` for a void
+function and `=== i32` for an i32 one.
 
 ## ✅ 1.8.0 — a hand-typed MINOR, released 2026-09-29
 
