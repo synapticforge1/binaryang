@@ -1595,10 +1595,18 @@ export interface FunctionInfo {
    * matching upstream's.
    */
   type: number | number[];
-  /** Parameter type IDs. Pass to {@link expandType} to flatten (identity here). */
-  params: number[];
-  /** Result type IDs. Pass to {@link expandType} to flatten. */
-  results: number[];
+  /**
+   * The parameters as ONE packed type, as upstream: `none` for none, the type
+   * itself for one, and — having no type interner — an array for several.
+   * {@link expandType} flattens any of them.
+   */
+  params: number | number[];
+  /**
+   * The results as ONE packed type, as upstream: `none` for none (so
+   * `results === binaryen.none` holds for a void function), the type itself
+   * for one, an array for several. {@link expandType} flattens any of them.
+   */
+  results: number | number[];
   /** Extra local (non-parameter) type IDs. */
   vars: number[];
   /** Function body expression (binaryen-ts native node). */
@@ -1606,9 +1614,15 @@ export interface FunctionInfo {
 }
 
 /**
- * Returns inspection info for a locally-defined function handle. Upstream
- * returns `params` and `results` as packed tuple IDs; binaryen-ts returns them
- * as arrays already, which {@link expandType} handles transparently.
+ * Returns inspection info for a locally-defined function handle, shaped as
+ * binaryen.js's: `params` and `results` each ONE packed type ({@link createType}
+ * — `none`, a single type, or an array standing in for a tuple ID).
+ *
+ * 🔧 C7 (wasmtk § 20): they were arrays even for none and one (`[]`, `[2]`),
+ * so code written for binaryen.js — `results === binaryen.none` — took the
+ * wrong branch. `expandType` accepted both shapes, which is why no test here
+ * saw it; binaryen.js@132 was measured: `results` 0 for a void function, 2
+ * for an i32 one, `vars` an array.
  *
  * Note: this surfaces locally-DEFINED functions only (the handle from
  * {@link Module.getFunction}). Imported functions live in a separate list and
@@ -1622,8 +1636,8 @@ export function getFunctionInfo(func: WasmFunction): FunctionInfo {
     module: '',
     base: '',
     type: createType(results),
-    params: func.sig.params.map(_valTypeToId),
-    results,
+    params: createType(func.sig.params.map(_valTypeToId)),
+    results: createType(results),
     vars: func.locals.slice(func.sig.params.length).map((l) => _valTypeToId(l.type)),
     body: func.body,
   };

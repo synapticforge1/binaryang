@@ -57,11 +57,13 @@ import {
   makeBinary,
   makeBlock,
   makeCall,
+  makeDrop,
   makeGlobalGet,
   makeGlobalSet,
   makeI32Const,
   makeI64Const,
   makeIf,
+  makeLoad,
   makeLocalGet,
   makeLocalSet,
   makeMemoryFill,
@@ -69,7 +71,6 @@ import {
   makeMemorySize,
   makeSelect,
   makeUnary,
-  makeUnreachable,
   typeOf,
   UnaryOp,
 } from '../ir/expressions.ts';
@@ -79,7 +80,7 @@ import type { ValueType } from '../ir/gc-types.ts';
 import { mapExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { ExternalKind } from '../../wabt-ts/core/binary.ts';
-import { naturalAlignForOpcode } from '../../wabt-ts/core/opcode.ts';
+import { naturalAlignForOpcode, Opcode } from '../../wabt-ts/core/opcode.ts';
 import { varIndex, varName } from '../../wabt-ts/ir/ir.ts';
 import type { BlockResult, Limits, Var } from '../../wabt-ts/ir/ir.ts';
 
@@ -108,6 +109,28 @@ export const PAGES_SUFFIX = '#pages';
  * `exports['mem#pagesize=1']` beside `exports['mem#pages']` — it must know the
  * module was lowered in any case, since the buffer is larger than the memory.
  */
+/**
+ * The suffix of the internal name of a lowered memory's PLACEHOLDER: an
+ * immutable i32 global holding the page size, exported under the memory's
+ * ORIGINAL name and imported under it, before the memory, by a lowered importer.
+ *
+ * 🔧 L4 (wasmtk § 20, their suggestion): with the rename alone, a mismatched
+ * link failed as a MISSING import — "unknown import", where the proposal says
+ * "incompatible import type". With the placeholder both mismatches meet the
+ * wrong KIND under the original name: a native importer asks for a memory and
+ * finds this global; a lowered importer asks for this global and finds a
+ * native memory. Two lowered modules link global to global, then memory to
+ * memory. Not covered: two lowered modules of DIFFERENT custom page sizes meet
+ * on the placeholder and then miss the renamed memory — a missing import again
+ * (no spec file pairs them).
+ */
+export const PLACEHOLDER = '#placeholder';
+
+/** An imported memory's internal name, for naming what the pass adds beside it. */
+function memName(i: { memory: { name: string } }): string {
+  return i.memory.name;
+}
+
 export function pageSizeSuffix(l: { log2: number }): string {
   return `#pagesize=${1n << BigInt(l.log2)}`;
 }
@@ -124,6 +147,8 @@ interface Lowered {
   addr: typeof ValType.I32 | typeof ValType.I64;
   /** Largest size in custom pages: the declared maximum, else the address space. */
   maxPages: bigint;
+  /** Its index in the memory space (imports first): the memory a trap's access reads. */
+  index: number;
   /** Its initial size in bytes; `null` for an imported memory, known only at run time. */
   initialBytes: bigint | null;
 }
@@ -205,6 +230,7 @@ export class LowerCustomPageSizesPass implements Pass {
         log2: limits.pageSizeLog2!,
         addr,
         maxPages: limits.max ?? addressSpacePages(limits),
+        index,
         initialBytes: index < importedMemories.length
           ? null
           : limits.initial << BigInt(limits.pageSizeLog2!),
@@ -225,6 +251,15 @@ export class LowerCustomPageSizesPass implements Pass {
         module: i.module,
         field: `${i.field}${PAGES_SUFFIX}`,
         global: { name: l.pages, type: l.addr, mutable: true },
+      });
+      // The placeholder under the ORIGINAL name, imported BEFORE the memory
+      // (see `PLACEHOLDER`): an exporter with a native memory there fails this
+      // import first, as "incompatible import type".
+      module.imports.splice(module.imports.indexOf(imp), 0, {
+        kind: ExternalKind.Global,
+        module: i.module,
+        field: i.field,
+        global: { name: fresh(`${memName(i)}${PLACEHOLDER}`), type: ValType.I32, mutable: false },
       });
       (i as { field: string }).field = `${i.field}${pageSizeSuffix(l)}`;
     });
@@ -247,6 +282,17 @@ export class LowerCustomPageSizesPass implements Pass {
         kind: ExternalKind.Global,
         var: varName(l.pages),
       });
+      // The placeholder takes the ORIGINAL name: a global holding the page
+      // size, so a native 64 KiB importer asking for a memory there finds a
+      // global — "incompatible import type", as the proposal says.
+      const placeholder = fresh(`${space[memoryIndex(e.var, space)]!.name}${PLACEHOLDER}`);
+      module.globals.push({
+        name: placeholder,
+        type: ValType.I32,
+        mutable: false,
+        init: asRegion(makeI32Const(1 << l.log2)),
+      });
+      module.exports.push({ name: e.name, kind: ExternalKind.Global, var: varName(placeholder) });
       e.name = `${e.name}${pageSizeSuffix(l)}`;
     }
 
@@ -294,9 +340,22 @@ function bytesOf(l: Lowered): Expression {
   return l.log2 === 0 ? pages : makeBinary(BinaryOp.MulI64, pages, u64Const(1n << BigInt(l.log2)));
 }
 
-/** `if (end > bytes) unreachable`, `end` an i64 expression. */
+/**
+ * `if (end > bytes)` trap as an out-of-bounds ACCESS, `end` an i64 expression.
+ *
+ * The trap is the engine's own: a 4-byte load at the all-ones address, which
+ * ends past 2^32 (2^64 for memory64) and so is out of bounds for every memory
+ * of that address type, a full 4 GiB one included. 🔧 L3 (wasmtk § 20): it was
+ * `unreachable`, so the trap came at the right place as the wrong KIND —
+ * "unreachable" on V8, JSC, wasmer, wazero and wasmtime alike, where the
+ * proposal traps "out of bounds memory access".
+ */
 function trapPast(end: Expression, l: Lowered): Expression {
-  return makeIf(makeBinary(BinaryOp.GtUI64, end, bytesOf(l)), makeUnreachable());
+  const nowhere = l.addr === ValType.I64 ? u64Const(-1n) : makeI32Const(-1);
+  return makeIf(
+    makeBinary(BinaryOp.GtUI64, end, bytesOf(l)),
+    makeDrop(makeLoad(Opcode.I32Load, 0n, 4, nowhere, varIndex(l.index))),
+  );
 }
 
 /**
