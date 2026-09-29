@@ -918,7 +918,8 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   whose dispatcher runs under `import.meta.main` and which re-exports `src/index.ts` (no library
   import breaks — the root exported nothing); the tools' JSDoc name the root's form; release
   preflight 0d (`scripts/release/entry-check.ts`) runs the root as a user does and refuses.
-  ⬚ **1.6.1 itself is NOT released** — see [publishing.md](publishing.md) § "1.6.1 — a patch
+  ✅ **1.6.1 RELEASED 2026-09-28** (marker closed before 1.7.0: it read "NOT released", the state
+  before the owner's go) — see [publishing.md](publishing.md) § "1.6.1 — a patch
   from a branch": `deno task release` pushes LOCAL `main`, which holds unreleased work. Was:
   **The CLI is unreachable from JSR** (found 2026-09-28 fixing a stale comment): README's
   `deno run -A jsr:@jrmarcum/binaryang <command>` runs the `.` export, `src/index.ts`, which has no
@@ -946,7 +947,7 @@ Ranking agreed in [handoffs.md](handoffs.md). Ranks 1–3 shipped (`br_on_cast` 
 | rank | gap                                                | status                                                                                                                                       |
 | ---- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | 4    | the five that unblock nothing for wasmtk           | ⬚ open, ranked last on their numbers despite 121 occurrences                                                                                 |
-| —    | **exact types** (`(exact $T)`), 116–548 assertions | ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case (written before the IRs merged; since 1.6.0 there is ONE IR — the change is to it and its two sets of consumers, the format tools and the optimizer) |
+| —    | **exact types** (`(exact $T)`), 116–548 assertions | ✅ DONE 2026-09-28 with custom descriptors (5a — the 5a row above; `927fdcdd7`, merged `8cabdb811`), which they are part of. Was: ⬚ open, ranked last on effort. Parser-gated: `(exact $T)` fails at parse, so it is a type-system change across both trees, not a bridge case (written before the IRs merged; since 1.6.0 there is ONE IR — the change is to it and its two sets of consumers, the format tools and the optimizer) |
 
 ## Quality passes — 1.5.6 / 1.5.7
 
