@@ -1,5 +1,90 @@
 # Changelog
 
+## 1.7.0
+
+A minor release with **one breaking change**: the package no longer reaches upstream binaryen.
+It adds the **custom-descriptors** proposal, fixes every item in the wasmtk team's report of
+2026-09-28, and adds `wasm-opt --converge` and the three minify passes.
+
+binaryang now has **no external dependencies** beyond the standard Node and Deno packages, and
+calls no external tool: its reader, validator, writers, text tools and optimizer are entirely its
+own TypeScript. Upstream tools are used only by the repository's tests and its separate comparison
+suite.
+
+### Breaking
+
+- **`@jrmarcum/binaryang/interop` is removed**, with the hybrid mode that used it:
+  `Module.optimize(flags, hybridMode)` no longer takes `hybridMode`, and `wasm-opt --hybrid` is
+  refused ("removed in 1.7.0"). Both handed optimization to an installed upstream `wasm-opt`. To
+  compare against upstream, run upstream `wasm-opt` directly. The `compat/*` APIs are unchanged —
+  they reproduce upstream's API shapes without loading upstream.
+- **The Binaryen IR gains custom-descriptors shapes** (`./ir/binaryen-ts`, `./ir/wabt-ts`): a new
+  expression kind `ref.get_desc` (`RefGetDescExpr`), so an exhaustive `switch` over kinds needs a
+  case; an optional `desc` operand on `StructNewExpr`, `RefCastExpr` and `BrOnExpr`, and
+  `BrOnOp.CastDescEq` / `CastDescEqFail`; `HeapTypeRef` gains `ExactHeap` (`kind: 'exact'`), with
+  `heapExact`, `isExactHeap`, `mapHeapVar` and `heapTypeText`; `TypeEntryBase` gains `describes?`
+  and `descriptor?`; a function import may be `exact`.
+
+### Added
+
+- **The custom-descriptors proposal**, behind a new `customDescriptors` feature (off by default,
+  on in `allFeatures`): exact heap types `(exact $t)` and exact function imports;
+  `(describes $x)` / `(descriptor $y)` type clauses; `struct.new_desc`,
+  `struct.new_default_desc`, `ref.get_desc`, `ref.cast_desc_eq`, `br_on_cast_desc_eq` and
+  `br_on_cast_desc_eq_fail` — through `wat2wasm`, `wasm2wat`, `wasm-validate` and the optimizer.
+  Under the feature, allocations are exact and `br_on_cast`'s cast types need only share a
+  hierarchy, as the proposal specifies. Measured on the proposal's testsuite: every `assert_return`
+  (271), `assert_trap` (213), `assert_invalid` (157) and `assert_malformed` (127) passes.
+- **`wasm-opt --converge` / `-c`** and `optimizeToConvergence` (`./passes`): the pass schedule in
+  rounds until one saves under 0.1%, keeping the smallest round. Opt-in, as upstream's.
+- **`--minify-imports`, `--minify-imports-and-exports`,
+  `--minify-imports-and-exports-and-modules`** — upstream's three passes, with maps identical to
+  `wasm-opt` 132's. Opt-in: a renamed interface is a contract change the host applies from the map
+  (printed to stdout; `minifyImportsAndExports`, `formatMinifyMap`, `takeMinifyMap` in
+  `./passes`).
+- **`wasm-opt -S` emits WAT** from the optimized module. It needed `--hybrid` before.
+- `allFeatures`, `defaultFeatures` and `Features` are exported from `./wasm-validate` and
+  `./core/wabt-ts` (wasmtk item 2).
+
+### Fixed — reported by wasmtk (2026-09-28)
+
+1. A named heap type inside an inline `call_indirect` / `return_call_indirect` signature is
+   resolved.
+2. The feature exports above.
+3. `compat/binaryen`'s `Module.validate()` validates — `1` valid, `0` invalid with the reasons on
+   stderr, as upstream. It returned `1` for any module.
+4. `@name` placement is checked (after a binding id; once per module), and a branch hint is refused
+   when duplicated, outside a function, or on anything but an `if` / `br_if`.
+5. `(memory (pagesize N) (data …))` parses, and custom descriptors (above).
+
+### Fixed — bytes move toward the spec
+
+- **Folded text no longer drops operands.** A folded instruction written with more children than
+  it takes — `(struct.new_default $s (struct.new $s))`, a void call inside another call's
+  parentheses — dropped the extras; they are now emitted ahead of it, as the grammar says. A folded
+  `br_on_cast` carrying a value lost its reference the same way.
+- **A branch hint before a folded instruction** is recorded at the instruction, as wasm-tools
+  records it, not at the expression's first byte.
+- **An inline-data memory writes its maximum** (`(memory m m)`, as the spec abbreviation says); it
+  wrote none, so the memory could grow.
+- **The text-form section** of a module where a multi-value producer feeds a fold changes (3 of
+  421 corpus files); the printed text does not.
+
+### Fixed — behaviour
+
+- `struct.new_default` refuses a struct with a non-defaultable field; it validated.
+- `wat2wasm` refuses `function` where `func` is meant (`(module (function $f))`, an import or
+  export of kind `function`), as upstream and wasm-tools do.
+- `parseF32Literal` / `parseF64Literal` (`core/literal.ts`) agree with `wat2wasm` bit for bit: `0x1.5`,
+  `1_000.5`, values past bit 52, f32 decimals and `1e39` were wrong; an overflowing finite literal
+  is an error, and trailing junk is refused.
+- `wat2wasm` explains a limit past its index type with the validator's message.
+- `wasm-objdump -d` alone no longer prints section headers; `-h -d` prints both.
+- `Flatten` handles value-carrying `br` / `br_if` / `br_table`, multi-value, stack-form code and
+  legacy `try`; it refuses only `br_on_*` and `try_table`, as upstream does. Three silent defects
+  went with it (a lost trap, an invalid block, a discarded stack value). ⚠️ `flattenFunction` gains
+  an optional `tagParams` argument.
+
 ## 1.6.1
 
 A patch release: **the CLI runs from JSR.**
