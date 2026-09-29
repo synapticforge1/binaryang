@@ -317,6 +317,12 @@ first on a file known to contain the thing; if the method cannot see a known pos
 negative it produced is worthless. (It applies well beyond line endings: a grep that finds "no
 callers", a scan that finds "no opcode", a gate that finds "no divergence" — see
 [testing.md](testing.md) § "Invert every gate before trusting it", the same idea for a gate.)
+🔁 **Three more the same day, each found only because a mutant SURVIVED:** a duplicate-name guard
+test that read the module WITHOUT its names, so nothing was named with or without the guard
+(`e98886a61`); a "declarations stay on one line" test whose one-leaf fixture fits one line whatever
+the writer does (`60fefd723`); and a gate step whose `sh.exe` had no `grep` on its PATH, which can
+report "no violation" with its tools missing. The fix each time is the same: first assert the
+positive case, then the absence.
 
 **🔁 Again on 2026-09-19, twice, in throwaway scripts:** a heredoc'd measurement script lost the
 backslashes in its regexes (`Unterminated regexp literal`), and a `sed` that generated a mutant
