@@ -45,4 +45,6 @@ contains ([handoffs.md](handoffs.md)).
 - **Behaviour — folded `wasm2wat` puts each sibling and operand on its own line** (`bee199092`,
   W18), and `(then` / `(else` / `(do` / `(catch` are followed by one — as upstream and wasm-tools
   print folded text. A declaration's constant expression is one line in both modes, as wasm-tools
-  (`60fefd723`). The folded TEXT of every module changes; no bytes; linear text unchanged.
+  (`60fefd723`). An unnamed block / loop / `if` / `try_table` carries `;; label = @N` folded, as
+  linear always did (`35b4e5cc7`). The folded TEXT of every module changes; no bytes; linear text
+  unchanged.
