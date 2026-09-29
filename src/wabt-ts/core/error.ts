@@ -24,6 +24,12 @@ export interface Location {
   column: number;
   /** Byte offset from the start of the binary (binary format only; 0 for text). */
   offset: number;
+  /**
+   * 1-based column just PAST the token (text only; absent where unknown), so a
+   * diagnostic underlines the whole token — `^^^^^^^` under `i32.add`, as
+   * upstream's tools print it (DG6) — rather than one `^`.
+   */
+  endColumn?: number;
 }
 
 /** Returns a {@link Location} with all fields zeroed (unknown / binary context). */
@@ -137,7 +143,9 @@ export function formatError(
     // Tabs are kept under tabs, so the caret lines up however the terminal
     // expands them.
     const pad = [...sourceLine.slice(0, loc.column - 1)].map((c) => (c === '\t' ? '\t' : ' '));
-    return `${header}\n${sourceLine}\n${pad.join('')}^`;
+    // Under the whole token, as upstream (DG6); one `^` where its end is unknown.
+    const width = loc.endColumn !== undefined ? Math.max(1, loc.endColumn - loc.column) : 1;
+    return `${header}\n${sourceLine}\n${pad.join('')}${'^'.repeat(width)}`;
   }
   return header;
 }

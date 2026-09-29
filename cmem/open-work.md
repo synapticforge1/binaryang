@@ -11,8 +11,8 @@ item closes, its record goes to the topic file and its line leaves here.
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 1) are next. **13 open items, none blocking**, numbered below: old 16 and 17
-closed, new 16 and 17 came out of them (16 closed the same day), and 9, 11, 12 and 16 are gone with their numbers kept free.
+IR items (from 1) are next. **12 open items, none blocking**, numbered below: old 16 and 17
+closed, new 16 and 17 came out of them and closed the same day, and 9, 11, 12, 16 and 17 are gone with their numbers kept free.
 Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -33,20 +33,14 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-Closed 2026-09-29: `array.new_default` defaultability (`d6b487c2d`), empty offsets / items (M2a),
-the name section's position (N9, by decision), references by name (N10), folded layout and its label
-comments (W18), and the diagnostic defects DG1–DG4 found by measuring item 16 —
-[divergences.md](divergences.md), [testing.md](testing.md) § "Diagnostic usefulness". The CI shell
-scripts are TypeScript (old item 17). Two came out of that measurement, numbered after the rest so
-items 1–15 keep their numbers:
-
-(Item 16, DG5, closed 2026-09-29 — owner: "we want to do the same" as upstream. The `wat2wasm`
-CLI validates by default, `--no-check` to skip, upstream's default features plus `--enable-*`;
-the library keeps `validate` opt-in. It needed the validator to take labels BY NAME, which it
-never could — [divergences.md](divergences.md) DG5.)
-
-17. ⬚ **DG6 (cosmetic): a text diagnostic's column** points at the `(` of a folded instruction,
-    upstream at the token with a `^^^^` span. The parser's `loc`, not the renderer.
+**None open (2026-09-29).** Closed that day: `array.new_default` defaultability (`d6b487c2d`),
+empty offsets / items (M2a), the name section's position (N9, by decision), references by name
+(N10), folded layout and its label comments (W18), the diagnostic defects DG1–DG4 found by
+measuring the old item 16 ([testing.md](testing.md) § "Diagnostic usefulness"), and the two that
+measurement left, numbered 16 and 17 after it: DG5 (`wat2wasm` validates by default, as upstream —
+owner: "we want to do the same"; it needed the validator to take labels BY NAME, which it never
+could) and DG6 (a text diagnostic at the WORD, not its `(`, underlined as upstream) —
+[divergences.md](divergences.md). The CI shell scripts are TypeScript (the old item 17).
 
 
 ## Optimizer and IR

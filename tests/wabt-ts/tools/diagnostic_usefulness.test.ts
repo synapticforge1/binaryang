@@ -191,13 +191,23 @@ describe('wasm-opt blames an invalid INPUT on the input', () => {
 });
 
 describe('a text diagnostic shows the source line and a caret', () => {
-  it('under the column, tabs kept as tabs', () => {
+  it('under the whole token, at the word not its paren; tabs kept as tabs (DG6)', () => {
+    // Upstream: `3:4` and `^^^^^^^^^` under `i32.bogus`. It was `3:3` — the
+    // `(` of the folded form — with one `^`.
     const source = '(module\n\t(func\n\t\t(i32.bogus)))';
     const { errors } = wat2wasm(source, { filename: 't.wat' });
     const out = formatErrors(errors, ErrorFormat.Long, source).split('\n');
-    expect(out[0]).toMatch(/^t\.wat:3:3: error: /);
+    expect(out[0]).toMatch(/^t\.wat:3:4: error: /);
     expect(out[1]).toBe('\t\t(i32.bogus)))');
-    expect(out[2]).toBe('\t\t^');
+    expect(out[2]).toBe('\t\t ^^^^^^^^^');
+  });
+
+  it('a validation error underlines its instruction, as upstream', () => {
+    const source = '(module\n  (func (result i32)\n    (i64.const 1)\n    (i32.eqz)))';
+    const { errors } = wat2wasm(source, { filename: 't.wat', validate: true });
+    const out = formatErrors(errors, ErrorFormat.Long, source).split('\n');
+    expect(out[0]).toMatch(/^t\.wat:4:6: error: type mismatch in i32\.eqz/);
+    expect(out[2]).toBe('     ^^^^^^^');
   });
 
   it('the short format is unchanged', () => {

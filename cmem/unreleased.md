@@ -77,6 +77,9 @@ DG1–DG4 in [divergences.md](divergences.md)). No byte of any output moves (bas
 - **Silent fix — the validator takes labels BY NAME** (a text-parsed module): `(block $l (br $l))`
   threw "var is not resolved" — every label kind. Library callers of `validateModule` on a module
   from the text parser hit it; `wasm-opt` on WAT now validates as text, at `line:col`.
+- **Behaviour — a text diagnostic points at the word and underlines it, as upstream** (DG6): an
+  unknown operator in a folded form is reported at the operator (`3:6`), not its `(` (`3:5`), and
+  the caret spans the token (`^^^^^^^`) — new optional `Location.endColumn`.
 - **Silent fix — `wasm-opt -o -`** (stdout) was refused as "a missing output path"; and a bad
   argument now prints one line instead of a stack trace.
 - Repo only: `deno task proposals` (the testsuite's `proposals/` in the gate, V8 experimental
