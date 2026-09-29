@@ -686,6 +686,8 @@ export interface HeapTypeInfo {
    * type, and type-equivalence.wast exists to check exactly that.
    */
   canon: string;
+  /** Custom descriptors: the index its `(descriptor $y)` clause names. */
+  descriptor?: number;
 }
 
 /** Immediate supertype of each abstract heap type in the `any` hierarchy. */
@@ -1629,6 +1631,37 @@ export class TypeChecker {
   onRefCast(castTo: ValueType): Result {
     const r = this.popCastOperand(castTo, 'ref.cast');
     this.pushType(castTo);
+    return r;
+  }
+
+  /**
+   * Custom descriptors: pop the DESCRIPTOR operand of a `_desc` instruction —
+   * the top of the stack — against `expected`, `(ref null (exact? $y))`.
+   */
+  popDescriptor(expected: ValueType, what: string): Result {
+    return this.popAndCheck1Type(expected, what);
+  }
+
+  /**
+   * `ref.get_desc $x` with `$x` described by `$y`: `(ref null (exact? $x))` to
+   * `(ref (exact? $y))`, exact exactly when the operand's heap type is a
+   * subtype of `(exact $x)` — `(exact $x)` itself, or the bottom `none` (a
+   * `ref.null none`). `(exact $z)` for a strict subtype `$z` is only an
+   * inexact `$x`. The unreachable bottom may be typed either way; the exact
+   * reading is the one that lets valid code after it validate.
+   */
+  onRefGetDesc(x: number, y: number): Result {
+    const actual = this.peekType(0);
+    const a = actual === Type.Any ? null : refParts(actual);
+    const exact = actual === Type.Any ||
+      (a !== null && heapSatisfies(a.heap, { index: x, exact: true }, this.types));
+    const vx = { kind: 'index', value: x } as const;
+    const vy = { kind: 'index', value: y } as const;
+    const r = this.popAndCheck1Type(
+      { heapType: exact ? heapExact(vx) : vx, nullable: true },
+      'ref.get_desc',
+    );
+    this.pushType({ heapType: exact ? heapExact(vy) : vy, nullable: false });
     return r;
   }
 

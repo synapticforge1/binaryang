@@ -112,6 +112,7 @@ import {
   type RefCastExpr,
   type RefEqExpr,
   type RefFuncExpr,
+  type RefGetDescExpr,
   type RefI31Expr,
   type RefNullExpr,
   type RefTestExpr,
@@ -3357,6 +3358,33 @@ export class BinaryReader {
         } as StructNewExpr);
         return;
       }
+      // Custom descriptors: the descriptor is the TOP operand, above the fields.
+      case GcOpcode.StructNewDesc:
+      case GcOpcode.StructNewDefaultDesc: {
+        const typeIdx = this.readU32Leb();
+        const desc = stack.pop() ?? nop();
+        const t = m.types[typeIdx];
+        const isDefault = op === GcOpcode.StructNewDefaultDesc;
+        const fieldCount = !isDefault && t && t.kind === 'struct' ? t.fields.length : 0;
+        const operands = popN(stack, fieldCount);
+        stack.push({
+          kind: 'struct.new',
+          ...(isDefault ? { defaultInit: true as const } : {}),
+          typeVar: varIndex(typeIdx),
+          operands,
+          desc,
+          loc,
+        } as StructNewExpr);
+        return;
+      }
+      case GcOpcode.RefGetDesc: {
+        const typeIdx = this.readU32Leb();
+        const ref = stack.pop() ?? nop();
+        stack.push(
+          { kind: 'ref.get_desc', typeVar: varIndex(typeIdx), ref, loc } as RefGetDescExpr,
+        );
+        return;
+      }
       case GcOpcode.StructGet:
       case GcOpcode.StructGetS:
       case GcOpcode.StructGetU: {
@@ -3610,6 +3638,43 @@ export class BinaryReader {
           ref,
           loc,
         } as RefCastExpr);
+        return;
+      }
+      case GcOpcode.RefCastDescEq:
+      case GcOpcode.RefCastDescEqNullable: {
+        const heapType = this.readHeapTypeVar();
+        const desc = stack.pop() ?? nop();
+        const ref = stack.pop() ?? nop();
+        stack.push({
+          kind: 'ref.cast',
+          heapType,
+          nullable: op === GcOpcode.RefCastDescEqNullable,
+          ref,
+          desc,
+          loc,
+        } as RefCastExpr);
+        return;
+      }
+      case GcOpcode.BrOnCastDescEq:
+      case GcOpcode.BrOnCastDescEqFail: {
+        // As br_on_cast, with the descriptor above the ref.
+        const flags = this.readU8();
+        const depth = this.readU32Leb();
+        const fromHeap = this.readHeapTypeVar();
+        const toHeap = this.readHeapTypeVar();
+        const desc = stack.pop() ?? nop();
+        const value = stack.pop() ?? nop();
+        stack.push({
+          kind: 'br_on',
+          opcode: op === GcOpcode.BrOnCastDescEqFail ? BrOnOp.CastDescEqFail : BrOnOp.CastDescEq,
+          target: varIndex(depth),
+          from: { heapType: fromHeap, nullable: (flags & 1) !== 0 },
+          to: { heapType: toHeap, nullable: (flags & 2) !== 0 },
+          ref: value,
+          desc,
+          values: [],
+          loc,
+        } as BrOnExpr);
         return;
       }
       default:

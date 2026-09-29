@@ -111,6 +111,7 @@ import {
   type RefCastExpr,
   type RefEqExpr,
   type RefFuncExpr,
+  type RefGetDescExpr,
   type RefI31Expr,
   type RefIsNullExpr,
   type RefNullExpr,
@@ -413,6 +414,24 @@ export interface WastScript {
 // Helper classification functions
 // ---------------------------------------------------------------------------
 
+/**
+ * Branches whose node OWNS the values it carries to its label (`values`,
+ * decision 6): a folded form hands their builder every child, and none is a
+ * surplus left on the stack (`parseFoldedInstr`).
+ */
+const KEEPS_CARRIED: ReadonlySet<TokenType> = new Set([
+  TokenType.Br,
+  TokenType.BrIf,
+  TokenType.BrTable,
+  TokenType.Return,
+  TokenType.BrOnNull,
+  TokenType.BrOnNonNull,
+  TokenType.BrOnCast,
+  TokenType.BrOnCastFail,
+  TokenType.BrOnCastDescEq,
+  TokenType.BrOnCastDescEqFail,
+]);
+
 function isPlainInstr(tt: TokenType): boolean {
   switch (tt) {
     case TokenType.Unreachable:
@@ -490,6 +509,12 @@ function isPlainInstr(tt: TokenType): boolean {
     case TokenType.ArrayInitElem:
     case TokenType.RefTest:
     case TokenType.RefCast:
+    case TokenType.StructNewDesc:
+    case TokenType.StructNewDefaultDesc:
+    case TokenType.RefGetDesc:
+    case TokenType.RefCastDescEq:
+    case TokenType.BrOnCastDescEq:
+    case TokenType.BrOnCastDescEqFail:
     case TokenType.AtomicLoad:
     case TokenType.AtomicStore:
     case TokenType.AtomicRmw:
@@ -747,7 +772,15 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.BrOnCastFail:
       // br_on_cast's two reference types are IMMEDIATES, not operands — only
       // the ref being tested comes off the stack.
+    case TokenType.StructNewDefaultDesc:
+    case TokenType.RefGetDesc:
+      // Custom descriptors: the descriptor alone; the ref alone.
       return 1;
+    case TokenType.RefCastDescEq:
+    case TokenType.BrOnCastDescEq:
+    case TokenType.BrOnCastDescEqFail:
+      // The ref, then the descriptor above it.
+      return 2;
     case TokenType.Load:
     case TokenType.AtomicLoad:
       // load/atomic_load: single operand (the address). Earlier this group
@@ -851,6 +884,7 @@ function instrInputCount(tt: TokenType): number {
     case TokenType.CallIndirect:
     case TokenType.CallRef:
     case TokenType.StructNew:
+    case TokenType.StructNewDesc:
     case TokenType.ArrayNewFixed:
     case TokenType.ReturnCall:
     case TokenType.ReturnCallIndirect:
@@ -936,6 +970,10 @@ function instrProducesValue(tt: TokenType): boolean {
     case TokenType.ArrayLen:
     case TokenType.RefTest:
     case TokenType.RefCast:
+    case TokenType.StructNewDesc:
+    case TokenType.StructNewDefaultDesc:
+    case TokenType.RefGetDesc:
+    case TokenType.RefCastDescEq:
     case TokenType.LocalTee:
     case TokenType.MemoryGrow:
     case TokenType.TableGet:
@@ -979,6 +1017,8 @@ function instrProducesValue(tt: TokenType): boolean {
     //   (i31.get_u)          ;; <- consumes the fallthrough ref
     case TokenType.BrOnCast:
     case TokenType.BrOnCastFail:
+    case TokenType.BrOnCastDescEq:
+    case TokenType.BrOnCastDescEqFail:
       return true;
     default:
       return false;
@@ -1721,9 +1761,32 @@ export class WastParser {
         this.errors.length = savedErrors;
         return n === null || n < 0n || n > 0xffffffffn ? -1 : Number(n);
       }
+      case TokenType.StructNew:
+      case TokenType.StructNewDesc: {
+        // One operand per declared field — plus the descriptor for the `_desc`
+        // form. `struct.new` drained the whole stack here, as `array.new_fixed`
+        // did before T10.6: `(i32.const 7) (i32.const 1) (struct.new $one)`
+        // handed the one-field struct both values.
+        const v = this.peekVar();
+        const fields = v === null ? undefined : this.declaredFieldCount(v);
+        if (fields === undefined) return -1;
+        return tok.tokenType === TokenType.StructNewDesc ? fields + 1 : fields;
+      }
       default:
         return -1;
     }
+  }
+
+  /**
+   * How many fields the declared struct type `v` has, or `undefined` when the
+   * module is not yet known or `v` names no struct — the caller then keeps
+   * the draining behaviour.
+   */
+  private declaredFieldCount(v: Var): number | undefined {
+    const types = this.currentModule?.types;
+    if (types === undefined) return undefined;
+    const entry = v.kind === 'index' ? types[v.value] : types.find((t) => t.name === v.name);
+    return entry?.kind === 'struct' ? entry.fields.length : undefined;
   }
 
   /**
@@ -3865,6 +3928,18 @@ export class WastParser {
         operands = [...ctx.stack];
         ctx.stack.length = 0;
       }
+    } else if (innerCtx.stmts.length > nInputs && !KEEPS_CARRIED.has(tt2)) {
+      // MORE children than the instruction takes: the grammar's folded form
+      // is its children in order, then the instruction, so only the LAST
+      // `nInputs` are operands. The leading ones are earlier instructions whose
+      // values sit below — on the stack, as the linear form leaves them.
+      // Handing them all to the builder DROPPED the surplus: `(struct.new_default
+      // $s (struct.new $b))` lost its child and validated, where wasm-tools and
+      // V8 report the extra value. A branch is the exception: it OWNS what it
+      // carries (`values`), and its builder takes every child.
+      const surplus = innerCtx.stmts.length - nInputs;
+      for (const s of innerCtx.stmts.slice(0, surplus)) ctx.stack.push(s);
+      operands = innerCtx.stmts.slice(surplus);
     } else if (innerCtx.stmts.length >= nInputs) {
       operands = innerCtx.stmts;
     } else {
@@ -4636,14 +4711,43 @@ export class WastParser {
         if (from === null) return null;
         const to = this.parseRefImmediate();
         if (to === null) return null;
+        // The ref is the LAST operand; a folded form may hand over values
+        // carried to the label ahead of it. Taking op0() made the first of
+        // those the ref and DROPPED the real one: `(br_on_cast_fail 1 … (i32.const
+        // 42) (local.get 0))` wrote no `local.get` at all.
+        const n = operands.length;
         return {
           kind: 'br_on',
           opcode: tt === TokenType.BrOnCastFail ? BrOnOp.CastFail : BrOnOp.Cast,
           target: v,
           from,
           to,
-          ref: op0(),
-          values: [],
+          ref: n >= 1 ? operands[n - 1]! : op0(),
+          values: n > 1 ? operands.slice(0, n - 1) : [],
+          loc,
+        } as BrOnExpr;
+      }
+      case TokenType.BrOnCastDescEq:
+      case TokenType.BrOnCastDescEqFail: {
+        // As br_on_cast, with the descriptor above the ref.
+        const v = this.parseVar();
+        if (v === null) return null;
+        const from = this.parseRefImmediate();
+        if (from === null) return null;
+        const to = this.parseRefImmediate();
+        if (to === null) return null;
+        // The ref and the descriptor are the LAST two operands; a folded form
+        // may hand over values carried to the label ahead of them.
+        const n = operands.length;
+        return {
+          kind: 'br_on',
+          opcode: tt === TokenType.BrOnCastDescEqFail ? BrOnOp.CastDescEqFail : BrOnOp.CastDescEq,
+          target: v,
+          from,
+          to,
+          ref: n >= 2 ? operands[n - 2]! : op0(),
+          desc: n >= 2 ? operands[n - 1]! : op1(),
+          values: n > 2 ? operands.slice(0, n - 2) : [],
           loc,
         } as BrOnExpr;
       }
@@ -5044,6 +5148,33 @@ export class WastParser {
           loc,
         } as StructNewExpr;
       }
+      case TokenType.StructNewDesc: {
+        // The fields, then the descriptor — the LAST operand.
+        const typeVar = this.parseVar() ?? varIndex(0);
+        const desc = operands.length > 0 ? operands[operands.length - 1]! : op0();
+        return {
+          kind: 'struct.new',
+          typeVar,
+          operands: operands.slice(0, -1),
+          desc,
+          loc,
+        } as StructNewExpr;
+      }
+      case TokenType.StructNewDefaultDesc: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        return {
+          kind: 'struct.new',
+          defaultInit: true,
+          operands: [],
+          desc: op0(),
+          typeVar,
+          loc,
+        } as StructNewExpr;
+      }
+      case TokenType.RefGetDesc: {
+        const typeVar = this.parseVar() ?? varIndex(0);
+        return { kind: 'ref.get_desc', typeVar, ref: op0(), loc } as RefGetDescExpr;
+      }
       case TokenType.StructGet: {
         // Three lexer entries (struct.get / get_s / get_u) all route here;
         // the opcode immediate distinguishes signedness for packed-field reads.
@@ -5230,6 +5361,19 @@ export class WastParser {
           heapType: imm.heapType,
           nullable: imm.nullable,
           ref: op0(),
+          loc,
+        } as RefCastExpr;
+      }
+      case TokenType.RefCastDescEq: {
+        // `ref.cast_desc_eq rt` — the ref, then the descriptor above it.
+        const imm = this.parseRefImmediate();
+        if (imm === null) return null;
+        return {
+          kind: 'ref.cast',
+          heapType: imm.heapType,
+          nullable: imm.nullable,
+          ref: op0(),
+          desc: op1(),
           loc,
         } as RefCastExpr;
       }

@@ -335,7 +335,8 @@ export class ModuleContext {
         if (expr.opcode === BrOnOp.NonNull) {
           return { nargs: 1 + expr.values.length, nreturns: 0, unreachable: false };
         }
-        return { nargs: 1, nreturns: 1, unreachable: false };
+        // The `_desc_eq` pair takes the descriptor too.
+        return { nargs: expr.desc === undefined ? 1 : 2, nreturns: 1, unreachable: false };
       case 'block':
       case 'loop':
       case 'if':
@@ -363,7 +364,12 @@ export class ModuleContext {
       case 'struct.new':
         // Field-count comes from the type def; we use the operand array
         // as the parser/reader already paired it with the struct's fields.
-        return { nargs: expr.operands.length, nreturns: 1, unreachable: false };
+        // `struct.new(_default)_desc` takes the descriptor last.
+        return {
+          nargs: expr.operands.length + (expr.desc === undefined ? 0 : 1),
+          nreturns: 1,
+          unreachable: false,
+        };
       case 'struct.get':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'struct.set':
@@ -387,8 +393,11 @@ export class ModuleContext {
       case 'array.len':
         return { nargs: 1, nreturns: 1, unreachable: false };
       case 'ref.test':
-      case 'ref.cast':
+      case 'ref.get_desc':
         return { nargs: 1, nreturns: 1, unreachable: false };
+      case 'ref.cast':
+        // `ref.cast_desc_eq` takes the descriptor too.
+        return { nargs: expr.desc === undefined ? 1 : 2, nreturns: 1, unreachable: false };
       case 'pop':
         // Stands for a value already on the stack: takes none, yields one.
         return { nargs: 0, nreturns: 1, unreachable: false };

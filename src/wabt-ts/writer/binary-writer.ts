@@ -61,6 +61,7 @@ import type {
   RefCastExpr,
   RefEqExpr,
   RefFuncExpr,
+  RefGetDescExpr,
   RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
@@ -929,7 +930,12 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onStructNewExpr(e: StructNewExpr): Result {
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(e.defaultInit ? GcOpcode.StructNewDefault : GcOpcode.StructNew);
+    // A `desc` operand makes it the `_desc` form (custom descriptors).
+    this.s.writeU32Leb(
+      e.desc !== undefined
+        ? (e.defaultInit ? GcOpcode.StructNewDefaultDesc : GcOpcode.StructNewDesc)
+        : (e.defaultInit ? GcOpcode.StructNewDefault : GcOpcode.StructNew),
+    );
     writeVar(this.s, e.typeVar);
     return Result.Ok;
   }
@@ -1032,8 +1038,19 @@ class BodyWriter implements ExprVisitorDelegate {
   }
   onRefCastExpr(e: RefCastExpr): Result {
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(e.nullable ? GcOpcode.RefCastNullable : GcOpcode.RefCast);
+    // A `desc` operand makes it `ref.cast_desc_eq` (custom descriptors).
+    this.s.writeU32Leb(
+      e.desc !== undefined
+        ? (e.nullable ? GcOpcode.RefCastDescEqNullable : GcOpcode.RefCastDescEq)
+        : (e.nullable ? GcOpcode.RefCastNullable : GcOpcode.RefCast),
+    );
     writeHeapType(this.s, e.heapType);
+    return Result.Ok;
+  }
+  onRefGetDescExpr(e: RefGetDescExpr): Result {
+    this.s.writeU8(PREFIX_GC);
+    this.s.writeU32Leb(GcOpcode.RefGetDesc);
+    writeVar(this.s, e.typeVar);
     return Result.Ok;
   }
   onBrOnExpr(e: BrOnExpr): Result {
@@ -1044,8 +1061,11 @@ class BodyWriter implements ExprVisitorDelegate {
       this.writeLabelVar(e.target);
       return Result.Ok;
     }
+    // The sub-opcode is the node's own — four cast forms share this encoding
+    // (br_on_cast, _fail, and custom descriptors' _desc_eq pair), and a
+    // two-way choice here wrote a `_desc_eq` as a plain `br_on_cast`.
     this.s.writeU8(PREFIX_GC);
-    this.s.writeU32Leb(e.opcode === BrOnOp.CastFail ? GcOpcode.BrOnCastFail : GcOpcode.BrOnCast);
+    this.s.writeU32Leb(e.opcode & 0xffff);
     // Nullability of BOTH reference types travels in one flags byte rather
     // than in the heap types themselves: bit 0 = rt1 nullable, bit 1 = rt2.
     this.s.writeU8((e.from!.nullable ? 1 : 0) | (e.to!.nullable ? 2 : 0));

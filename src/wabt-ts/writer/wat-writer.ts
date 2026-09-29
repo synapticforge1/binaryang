@@ -1004,7 +1004,8 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       onStructNewExpr: (e) => {
-        this.putsSpace(e.defaultInit ? 'struct.new_default' : 'struct.new');
+        const base = e.defaultInit ? 'struct.new_default' : 'struct.new';
+        this.putsSpace(e.desc === undefined ? base : `${base}_desc`);
         this.writeVar(e.typeVar, NC.Newline);
         return Result.Ok;
       },
@@ -1087,11 +1088,16 @@ class WatWriter extends ModuleContext {
         return Result.Ok;
       },
       onRefCastExpr: (e) => {
-        this.putsSpace('ref.cast');
+        this.putsSpace(e.desc === undefined ? 'ref.cast' : 'ref.cast_desc_eq');
         this.openSpace('ref');
         if (e.nullable) this.putsSpace('null');
         this.writeHeapType(e.heapType, NC.None);
         this.closeNewline();
+        return Result.Ok;
+      },
+      onRefGetDescExpr: (e) => {
+        this.putsSpace('ref.get_desc');
+        this.writeVar(e.typeVar, NC.Newline);
         return Result.Ok;
       },
 
@@ -1852,7 +1858,11 @@ class WatWriter extends ModuleContext {
         case 'ref.test':
           return { operands: [e.ref], head: (d) => void d.onRefTestExpr?.(e) };
         case 'ref.cast':
-          return { operands: [e.ref], head: (d) => void d.onRefCastExpr?.(e) };
+          // `ref.cast_desc_eq`'s descriptor is its second operand.
+          return {
+            operands: e.desc === undefined ? [e.ref] : [e.ref, e.desc],
+            head: (d) => void d.onRefCastExpr?.(e),
+          };
         case 'struct.get':
           return { operands: [e.ref], head: (d) => void d.onStructGetExpr?.(e) };
         case 'table.get':
@@ -1949,7 +1959,11 @@ class WatWriter extends ModuleContext {
         case 'call':
           return { operands: [...e.operands], head: (d) => void d.onCallExpr?.(e) };
         case 'struct.new':
-          return { operands: [...e.operands], head: (d) => void d.onStructNewExpr?.(e) };
+          // The `_desc` form's descriptor is the last operand.
+          return {
+            operands: e.desc === undefined ? [...e.operands] : [...e.operands, e.desc],
+            head: (d) => void d.onStructNewExpr?.(e),
+          };
         case 'array.new_fixed':
           return { operands: [...e.operands], head: (d) => void d.onArrayNewFixedExpr?.(e) };
         case 'throw':
@@ -2893,6 +2907,8 @@ function constExprOperands(e: Expr): Expr[] | null {
       // Extended-const arithmetic: i32/i64 add, sub, mul.
       return [e.left, e.right];
     case 'struct.new':
+      // `struct.new(_default)_desc` is constant too; its descriptor is last.
+      return e.desc === undefined ? e.operands : [...e.operands, e.desc];
     case 'array.new_fixed':
       return e.operands;
     default:

@@ -252,6 +252,20 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   // between the nullable and non-nullable encoding.
   ['ref.test', op(TokenType.RefTest, G(GcOpcode.RefTest))],
   ['ref.cast', op(TokenType.RefCast, G(GcOpcode.RefCast))],
+  // Custom descriptors. `ref.cast_desc_eq` holds the non-null form, as
+  // `ref.cast` does; the immediate picks the encoding.
+  ['struct.new_desc', op(TokenType.StructNewDesc, G(GcOpcode.StructNewDesc))],
+  [
+    'struct.new_default_desc',
+    op(TokenType.StructNewDefaultDesc, G(GcOpcode.StructNewDefaultDesc)),
+  ],
+  ['ref.get_desc', op(TokenType.RefGetDesc, G(GcOpcode.RefGetDesc))],
+  ['ref.cast_desc_eq', op(TokenType.RefCastDescEq, G(GcOpcode.RefCastDescEq))],
+  ['br_on_cast_desc_eq', op(TokenType.BrOnCastDescEq, G(GcOpcode.BrOnCastDescEq))],
+  [
+    'br_on_cast_desc_eq_fail',
+    op(TokenType.BrOnCastDescEqFail, G(GcOpcode.BrOnCastDescEqFail)),
+  ],
   ['rethrow', op(TokenType.Rethrow, Opcode.Rethrow)],
   ['return', op(TokenType.Return, Opcode.Return)],
   ['return_call', op(TokenType.ReturnCall, Opcode.ReturnCall)],

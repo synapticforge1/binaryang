@@ -77,6 +77,7 @@ import type {
   RefCastExpr,
   RefEqExpr,
   RefFuncExpr,
+  RefGetDescExpr,
   RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
@@ -187,6 +188,7 @@ export interface ExprVisitorDelegate {
   onArrayLenExpr?(e: ArrayLenExpr): Result;
   onRefTestExpr?(e: RefTestExpr): Result;
   onRefCastExpr?(e: RefCastExpr): Result;
+  onRefGetDescExpr?(e: RefGetDescExpr): Result;
 
   onTableGetExpr?(e: TableGetExpr): Result;
   onTableSetExpr?(e: TableSetExpr): Result;
@@ -418,6 +420,11 @@ export class ExprVisitor {
           const r = this.dispatch(op);
           if (r === Result.Error) return r;
         }
+        // `struct.new(_default)_desc`: the descriptor is the LAST operand.
+        if (e.desc !== undefined) {
+          const r = this.dispatch(e.desc);
+          if (r === Result.Error) return r;
+        }
         return this.d.onStructNewExpr?.(e) ?? Result.Ok;
       }
       case 'struct.get': {
@@ -509,7 +516,17 @@ export class ExprVisitor {
       case 'ref.cast': {
         const r = this.dispatch(e.ref);
         if (r === Result.Error) return r;
+        // `ref.cast_desc_eq`: the descriptor is above the ref.
+        if (e.desc !== undefined) {
+          const rd = this.dispatch(e.desc);
+          if (rd === Result.Error) return rd;
+        }
         return this.d.onRefCastExpr?.(e) ?? Result.Ok;
+      }
+      case 'ref.get_desc': {
+        const r = this.dispatch(e.ref);
+        if (r === Result.Error) return r;
+        return this.d.onRefGetDescExpr?.(e) ?? Result.Ok;
       }
       case 'memory.grow': {
         const r = this.dispatch(e.delta);
@@ -652,6 +669,11 @@ export class ExprVisitor {
         }
         const r = this.dispatch(e.ref);
         if (r === Result.Error) return r;
+        // `br_on_cast_desc_eq(_fail)`: the descriptor is above the ref.
+        if (e.desc !== undefined) {
+          const rd = this.dispatch(e.desc);
+          if (rd === Result.Error) return rd;
+        }
         return this.d.onBrOnExpr?.(e) ?? Result.Ok;
       }
 

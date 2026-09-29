@@ -403,6 +403,7 @@ function rewriteOwnVars(e: Expr, ctx: ApplyContext): Expr {
     case 'array.get':
     case 'array.set':
     case 'array.fill':
+    case 'ref.get_desc':
       return { ...e, typeVar: rewriteVar(e.typeVar, n.typeNames) };
     case 'struct.get':
     case 'struct.set': {

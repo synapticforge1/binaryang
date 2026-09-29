@@ -769,6 +769,9 @@ export const BrOnOp = {
   NonNull: Opcode.BrOnNonNull,
   Cast: (PREFIX_GC << 16) | GcOpcode.BrOnCast,
   CastFail: (PREFIX_GC << 16) | GcOpcode.BrOnCastFail,
+  /** Custom descriptors: cast by descriptor identity; `desc` is set. */
+  CastDescEq: (PREFIX_GC << 16) | GcOpcode.BrOnCastDescEq,
+  CastDescEqFail: (PREFIX_GC << 16) | GcOpcode.BrOnCastDescEqFail,
 } as const;
 /** A `br_on_*` operator: an {@link Opcode}, like every operator field. */
 export type BrOnOp = Opcode;
@@ -822,6 +825,12 @@ export interface BrOnExpr {
   readonly from?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
   /** `rt2` — the type being tested for. Cast variants only. */
   readonly to?: { readonly heapType: HeapTypeRef; readonly nullable: boolean };
+  /**
+   * The descriptor operand of `br_on_cast_desc_eq(_fail)` (custom descriptors)
+   * — ABOVE `ref`, the last operand; present exactly for those two opcodes.
+   * Upstream binaryen's `BrOn::desc`. A null descriptor traps.
+   */
+  readonly desc?: Expr;
   readonly type?: ExprType;
   readonly loc?: Location;
 }
@@ -1206,6 +1215,13 @@ export interface StructNewExpr {
   readonly defaultInit?: true;
   readonly typeVar: Var;
   readonly operands: Expr[];
+  /**
+   * The descriptor operand of `struct.new_desc` / `struct.new_default_desc`
+   * (custom descriptors), after the fields — present exactly for those two
+   * opcodes, which is how the writers tell them from `struct.new(_default)`.
+   * Upstream binaryen's `StructNew::desc`. A null descriptor traps.
+   */
+  readonly desc?: Expr;
   readonly type?: ExprType;
   readonly loc?: Location;
 }
@@ -1407,6 +1423,24 @@ export interface RefCastExpr {
   readonly kind: 'ref.cast';
   readonly heapType: HeapTypeRef;
   readonly nullable: boolean;
+  readonly ref: Expr;
+  /**
+   * The descriptor operand of `ref.cast_desc_eq` (custom descriptors), above
+   * `ref` — present exactly for that instruction. Upstream binaryen's
+   * `RefCast::desc`. A null descriptor traps.
+   */
+  readonly desc?: Expr;
+  readonly type?: ExprType;
+  readonly loc?: Location;
+}
+/**
+ * `ref.get_desc $x` (custom descriptors) — pops a `(ref null (exact? $x))`,
+ * pushes its descriptor, `(ref (exact? $y))` where `$x` has
+ * `(descriptor $y)`; exact when the operand is. Traps on null.
+ */
+export interface RefGetDescExpr {
+  readonly kind: 'ref.get_desc';
+  readonly typeVar: Var;
   readonly ref: Expr;
   readonly type?: ExprType;
   readonly loc?: Location;
@@ -1817,6 +1851,7 @@ export type Expr =
   | ArrayInitElemExpr
   | RefTestExpr
   | RefCastExpr
+  | RefGetDescExpr
   | TableGetExpr
   | TableSetExpr
   | TableGrowExpr

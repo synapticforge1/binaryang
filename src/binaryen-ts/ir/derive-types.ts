@@ -59,7 +59,7 @@ import {
   typeOf,
 } from './expressions.ts';
 import { AbstractHeapType, isRefType, Packed, type ValueType } from './gc-types.ts';
-import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract, heapExact } from '../../wabt-ts/ir/ir.ts';
 import { None, type Type, Unreachable, ValType } from './types.ts';
 import { BrOnOp } from '../../wabt-ts/ir/ir.ts';
 import { visitChildren } from './walk.ts';
@@ -344,6 +344,14 @@ class Deriver {
     return { heapType: v.kind === 'index' ? v : W_index(this.m.typeIndex(v)), nullable: false };
   }
 
+  /** `(ref (exact $T))` — what an allocation is under custom descriptors. */
+  private gcRefExact(v: W.Var): ValueType {
+    return {
+      heapType: heapExact(v.kind === 'index' ? v : W_index(this.m.typeIndex(v))),
+      nullable: false,
+    };
+  }
+
   /**
    * A field's value on the stack, for a read WITHOUT a sign (a signed read is
    * `i32`). A packed field can only be read with one, and a field must
@@ -514,11 +522,28 @@ class Deriver {
         return typeOf(makeExternConvert(e.kind, e.value));
       case ExpressionKind.RefCast:
         return { heapType: e.heapType, nullable: e.nullable } as ValueType;
+      case ExpressionKind.RefGetDesc: {
+        // `(ref (exact? $y))`, `$y` the descriptor of the named type; exact
+        // when the operand is.
+        const t = this.typeEntry(e.typeVar);
+        if (t.descriptor === undefined) {
+          throw new Error('derive-types: ref.get_desc names a type without a descriptor');
+        }
+        const operand = typeOf(e.ref);
+        const exact = isRefType(operand) && operand.heapType.kind === 'exact';
+        return exact ? this.gcRefExact(t.descriptor) : this.gcRef(t.descriptor);
+      }
       case ExpressionKind.BrOn:
         // The operand's type, as the decoder and the bridge both give it.
         return typeOf(e.ref);
 
-      case ExpressionKind.StructNew:
+      case ExpressionKind.StructNew: {
+        // The `_desc` pair exists only under custom descriptors, where every
+        // allocation is exact; the plain pair stays inexact here, since this
+        // derivation does not know the module's features (an exact type
+        // written into a module without them would not validate).
+        return e.desc === undefined ? this.gcRef(e.typeVar) : this.gcRefExact(e.typeVar);
+      }
       case ExpressionKind.ArrayNew:
       case ExpressionKind.ArrayNewFixed:
       case ExpressionKind.ArrayNewData:

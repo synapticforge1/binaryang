@@ -80,6 +80,7 @@ import type {
   RefCastExpr,
   RefEqExpr,
   RefFuncExpr,
+  RefGetDescExpr,
   RefI31Expr,
   RefIsNullExpr,
   RefNullExpr,
@@ -315,7 +316,8 @@ class ModuleValidator implements ExprVisitorDelegate {
       if (te.kind === 'func') {
         this.acc(this.sv.onFuncType(locOf(te), te.sig.params, te.sig.results, i, supers, c));
       } else if (te.kind === 'struct') {
-        this.acc(this.sv.onStructType(locOf(te), te.fields, supers, c));
+        const descriptor = te.descriptor === undefined ? undefined : indexOf(te.descriptor);
+        this.acc(this.sv.onStructType(locOf(te), te.fields, supers, c, descriptor));
       } else {
         this.acc(this.sv.onArrayType(locOf(te), te.field, supers, c));
       }
@@ -911,12 +913,25 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
     const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
+    const from = { heapType: e.from!.heapType, nullable: e.from!.nullable };
+    const to = { heapType: e.to!.heapType, nullable: e.to!.nullable };
+    if (e.opcode === BrOnOp.CastDescEq || e.opcode === BrOnOp.CastDescEqFail) {
+      const rc = this.sv.requireFeature('customDescriptors', 'descriptor cast', locOf(e));
+      if (rc !== Result.Ok) this.acc(rc);
+      return this.sv.onBrOnCastDescEq(
+        locOf(e),
+        varIdx(e.target),
+        e.opcode === BrOnOp.CastDescEqFail,
+        from,
+        to,
+      );
+    }
     return this.sv.onBrOnCast(
       locOf(e),
       varIdx(e.target),
       e.opcode === BrOnOp.CastFail,
-      { heapType: e.from!.heapType, nullable: e.from!.nullable },
-      { heapType: e.to!.heapType, nullable: e.to!.nullable },
+      from,
+      to,
     );
   }
 
@@ -1092,6 +1107,11 @@ class ModuleValidator implements ExprVisitorDelegate {
   onStructNewExpr(e: StructNewExpr): Result {
     const rf = this.sv.requireFeature('gc', 'GC instruction', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
+    if (e.desc !== undefined) {
+      const rc = this.sv.requireFeature('customDescriptors', 'descriptor allocation', locOf(e));
+      if (rc !== Result.Ok) this.acc(rc);
+      return this.sv.onStructNewDesc(locOf(e), varIdx(e.typeVar), e.defaultInit === true);
+    }
     // The default form checks nothing about field values, because there are none.
     return e.defaultInit
       ? this.sv.onStructNewDefault(locOf(e), varIdx(e.typeVar))
@@ -1177,10 +1197,18 @@ class ModuleValidator implements ExprVisitorDelegate {
     if (rf !== Result.Ok) this.acc(rf);
     // Hand over the type being cast TO — `(ref [null] H)` — so the result on
     // the stack is that type rather than an anonymous reference.
-    return this.sv.onRefCast(locOf(e), {
-      heapType: e.heapType,
-      nullable: e.nullable,
-    });
+    const castTo = { heapType: e.heapType, nullable: e.nullable };
+    if (e.desc !== undefined) {
+      const rc = this.sv.requireFeature('customDescriptors', 'descriptor cast', locOf(e));
+      if (rc !== Result.Ok) this.acc(rc);
+      return this.sv.onRefCastDescEq(locOf(e), castTo);
+    }
+    return this.sv.onRefCast(locOf(e), castTo);
+  }
+  onRefGetDescExpr(e: RefGetDescExpr): Result {
+    const rc = this.sv.requireFeature('customDescriptors', 'ref.get_desc', locOf(e));
+    if (rc !== Result.Ok) this.acc(rc);
+    return this.sv.onRefGetDesc(locOf(e), varIdx(e.typeVar));
   }
 
   onTableGetExpr(e: TableGetExpr): Result {
