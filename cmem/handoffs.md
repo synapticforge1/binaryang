@@ -30,7 +30,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 14 | 2026-09-28 | wasmtk (in) | their letter against published 1.6.0: five items (heap type in an inline `call_indirect` typeuse; export `allFeatures`; compat `validate()` stub; annotation leniency; custom-descriptors + `(pagesize N) (data)`). All reproduced; record in [open-work.md](open-work.md) |
 | 15 | 2026-09-28 | wasmtk (out — never sent) | their items addressed, and which release holds the fixes | ✅ SUPERSEDED by § 16: they verified all five on 1.7.0 themselves. Kept below as written |
 | 16 | 2026-09-29 | wasmtk (in) | against 1.7.0: all five § 14 items confirmed fixed (`return_call_indirect.wast` 28 → 78, `name_annot` 0 → 3, `branch_hint` 1 → 2); gate **64,434 passed / 0 failed / 105 skipped**, 94 V8's, 11 ours: (1) a 32-bit limit above 2^32-1 failed in the ENCODER, not the validator (10 skips: `memory.wast` 6, `table.wast` 3, `memory_max.wast` 1); (2) a branch hint before `i32.eq` accepted (1 skip) | (1) ✅ reproduced and FIXED (`1fa6eb21b`): limits are u64 on the wire; found with it, a 1-byte-page cap one too high — [divergences.md](divergences.md). (2) NOT reproduced: `wasmValidate` rejects it ("invalid target"); `toBinary` does not validate. Reply § 17 |
-| 17 | 2026-09-29 | wasmtk (out — ⬚ DRAFT, below, for the owner / workspace to send) | item 1 fixed, the release it ships in; item 2: validate with `wasmValidate` | ⬚ to send |
+| 17 | 2026-09-29 | wasmtk (out — ⬚ DRAFT, below, for the owner / workspace to send) | item 1 fixed and PUBLISHED in 1.7.1 (checked from JSR); item 2: validate with `wasmValidate` | ⬚ to send |
 
 ### § 15 — draft reply to wasmtk (2026-09-28)
 
@@ -93,14 +93,18 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > Thank you for checking all five 1.7.0 fixes on your side. Both new items were reproduced on our
 > tree before we acted.
 >
-> **1. A limit above u32 fails in the encoder — fixed** (commit `1fa6eb21b`; it ships in the next
-> release, a patch). You were right: Wasm 3.0 encodes every limit as a u64 whatever the index type,
-> and the index type only bounds the value, which is the validator's job. wasm-tools agrees: it
-> writes `(memory 0x1_0000_0000)` as `00 80 80 80 80 10` and rejects it as invalid.
+> **`binaryang@1.7.1` is published and fixes item 1.** It is a patch: nothing is removed or
+> renamed, and no valid module's bytes change. Its changelog names your letter. We ran your path
+> against the published package, not only our tree.
 >
-> - The writer now writes every limit as a u64. A value below 2^32 has the same LEB either way, so
->   no valid module's bytes change.
-> - The reader now reads every limit as a u64. Those five bytes used to come back as malformed
+> **1. A limit above u32 failed in the encoder — fixed in 1.7.1.** You were right: Wasm 3.0
+> encodes every limit as a u64 whatever the index type, and the index type only bounds the value,
+> which is the validator's job. wasm-tools agrees: it writes `(memory 0x1_0000_0000)` as
+> `00 80 80 80 80 10` and rejects it as invalid.
+>
+> - The writer writes every limit as a u64. A value below 2^32 has the same LEB either way, which
+>   is why no valid module's bytes change.
+> - The reader reads every limit as a u64. Those five bytes used to come back as malformed
 >   ("integer too large"); now they come back invalid. `binary-leb128.wast`'s too-long limits are
 >   11 bytes, one past a u64's ten, and still read as malformed.
 > - All five of your modules now go through `parseWat` → `toBinary` and produce bytes, and
@@ -110,16 +114,16 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >   - `(memory 0x1_0000_0000 (pagesize 1))`: `initial pages (4294967296) must be <= (4294967295)`.
 > - **Found by your report and fixed with it:** once the encoder stopped refusing, the validator
 >   ACCEPTED `(memory 0x1_0000_0000 (pagesize 1))`. It capped a 32-bit memory with 1-byte pages at
->   2^32 pages; `memory_max.wast` says the cap is `0xFFFF_FFFF`. Your 10th skip would otherwise have
->   become a failure rather than a pass.
+>   2^32 pages; `memory_max.wast` says the cap is `0xFFFF_FFFF` (which stays valid). Without this,
+>   your 10th skip would have become a failure instead of a pass.
 >
 > The messages are wabt's wording, not the spec's "memory size must be at most"; the verdict is what
-> your `assert_invalid` check needs. We expect your 10 skips in `memory.wast`, `table.wast` and
-> `memory_max.wast` to become passes on the release.
+> your `assert_invalid` check needs. On 1.7.1 we expect your 10 skips in `memory.wast` (6),
+> `table.wast` (3) and `memory_max.wast` (1) to become passes.
 >
-> **2. A branch hint before `i32.eq` — already rejected, by the validator.** `toBinary` encodes and
-> never validates, in binaryang as in libwabt.js; the branch-hint check is in `wasmValidate`, and on
-> the bytes of your module it reports:
+> **2. A branch hint before `i32.eq` — already rejected, by the validator; nothing changed.**
+> `toBinary` encodes and never validates, in binaryang as in libwabt.js. The branch-hint check is in
+> `wasmValidate`, and on the bytes of your module it reports:
 >
 > ```
 > @metadata.code.branch_hint annotation: invalid target — function 0, offset 6 is not an `if` or a `br_if`
@@ -127,10 +131,10 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >
 > The same hint before `if` validates. If your `assert_invalid` verdict comes from V8, that is the
 > gap: V8 never reads the code-metadata custom section, so it accepts the module. Running
-> `wasmValidate(bytes, { features: allFeatures() })` on the bytes should turn that skip into a pass
-> today, on 1.7.0, without a release from us.
+> `wasmValidate(bytes, { features: allFeatures() })` on the bytes should turn that skip into a pass,
+> on 1.7.0 or 1.7.1.
 >
-> We will wait for your re-recorded gate on the release.
+> Together that should account for all 11. We will wait for your re-recorded gate on 1.7.1.
 
 ## Lessons the correspondence paid for
 

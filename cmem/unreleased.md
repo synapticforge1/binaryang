@@ -1,15 +1,16 @@
 # Unreleased on `main` — what the next release note must say
 
-**Nothing, as of 2026-09-29.** `main` = `v1.7.0` plus cmem-only commits (check it rather than trust
-this line: `git log --oneline v1.7.0..main -- src/ main.ts deno.json`). `deno.json` reads 1.7.0; the
+**Nothing, as of 2026-09-29.** `main` = `v1.7.1` plus cmem-only commits (check it rather than trust
+this line: `git log --oneline v1.7.1..main -- src/ main.ts deno.json`). `deno.json` reads 1.7.1; the
 version line arms a release ([publishing.md](publishing.md)), so the next bump is the owner's
 decision, never a side effect of work.
 
 **Folded away 2026-09-29** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file
 held since 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR
-record changes, the post-M8 and Q1–Q8 fixes, S7), **1.6.1** (the CLI from JSR) or **1.7.0**
+record changes, the post-M8 and Q1–Q8 fixes, S7), **1.6.1** (the CLI from JSR), **1.7.0**
 (`./interop` removed, wasmtk's items 1–5 with custom descriptors, `--converge`, the minify passes,
-Flatten complete). The public summary of each is `CHANGELOG.md` § that version; the full notes as
+Flatten complete) or **1.7.1** (u64 limits and the 1-byte-page cap — wasmtk's letter of
+2026-09-29). The public summary of each is `CHANGELOG.md` § that version; the full notes as
 gathered, BREAKING items field by field: `git show 769b4d3c0:cmem/unreleased.md`.
 
 ## How to use this file
@@ -25,17 +26,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.7.0
+## Since 1.7.1
 
-- **Behaviour — limits are u64 on the wire for every memory and table** (`1fa6eb21b`; wasmtk's
-  letter of 2026-09-29, item 1). `(memory 0x1_0000_0000)` / `(table 0x1_0000_0000 funcref)` are now
-  WRITTEN (2^32, never wrapped) and rejected by the validator, where `toBinary` / `wat2wasm` refused
-  them ("u32 LEB128 out of range"); `wasm-validate` reads such a limit as INVALID, where it said
-  malformed ("integer too large"). No valid module's bytes move. Their 10 skips in `memory.wast`,
-  `table.wast` and `memory_max.wast` should become passes.
-- **Silent fix — a 32-bit memory with 1-byte pages is capped at 2^32-1 pages.**
-  `(memory 0x1_0000_0000 (pagesize 1))` validated; `memory_max.wast` calls it invalid.
-- Not a change: their item 2 (a branch hint on `i32.eq`) — `wasmValidate` already rejects it.
-
-A patch (1.7.1): nothing is removed or renamed. Release notes: `CHANGELOG.md` § 1.7.1 (owner,
-2026-09-29: "lets release 1.7.1").
+(none)
