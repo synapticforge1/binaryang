@@ -88,7 +88,7 @@ import type { ValueType } from '../ir/gc-types.ts';
 import { mapChildrenShallow } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { requireName, type Var, varIndex } from '../../wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Type helpers

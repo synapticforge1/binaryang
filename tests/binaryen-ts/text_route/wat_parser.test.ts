@@ -15,7 +15,7 @@ import {
   type SwitchExpr,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
 import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';

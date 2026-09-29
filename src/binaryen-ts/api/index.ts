@@ -58,7 +58,7 @@ import {
 } from '../ir/expressions.ts';
 import { ModuleBuilder, type WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
-import { writeWasm, writeWat } from '../encoder/write-wasm.ts';
+import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import { PassRunner } from '../passes/index.ts';
 import { varIndex } from '../../wabt-ts/ir/ir.ts';

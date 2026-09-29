@@ -51,7 +51,7 @@ import {
 import { AbstractHeapType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { heapAbstract, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';

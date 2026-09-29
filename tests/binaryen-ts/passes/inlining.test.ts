@@ -33,7 +33,7 @@ import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { deepCopy, measureSize } from '../../../src/binaryen-ts/passes/inlining.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { nameOf } from '../../../src/wabt-ts/ir/ir.ts';

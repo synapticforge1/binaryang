@@ -14,7 +14,7 @@
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import * as fs from 'node:fs/promises';
 import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
 import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
 import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
 import '../../src/binaryen-ts/passes/index.ts';

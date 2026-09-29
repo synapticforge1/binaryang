@@ -17,7 +17,7 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
 

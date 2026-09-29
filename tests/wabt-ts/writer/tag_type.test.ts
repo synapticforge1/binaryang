@@ -29,7 +29,7 @@ import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm, writeWat } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm, writeWat } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 

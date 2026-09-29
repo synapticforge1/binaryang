@@ -37,7 +37,7 @@ import {
   type WasmModule,
 } from '../../../src/binaryen-ts/ir/module.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { parseArgs, wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';

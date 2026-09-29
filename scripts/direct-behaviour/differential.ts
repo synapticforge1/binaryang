@@ -43,7 +43,7 @@ import { synthesizeTypes } from '../../src/wabt-ts/ir/synthesize-types.ts';
 import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
 import { prepareForPasses, readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
 import { PassRunner } from '../../src/binaryen-ts/passes/index.ts';
-import { writeWasm } from '../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
 import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../src/binaryen-ts/ir/types.ts';
 import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';

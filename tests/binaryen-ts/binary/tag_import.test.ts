@@ -19,7 +19,7 @@
 
 import { assert, assertEquals } from '@std/assert';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { makeI32Const, makeThrow } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';

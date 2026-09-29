@@ -19,7 +19,7 @@ import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';

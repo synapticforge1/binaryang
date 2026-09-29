@@ -27,7 +27,7 @@ import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 
 /**
  * The section sequence: known sections by id, custom sections as

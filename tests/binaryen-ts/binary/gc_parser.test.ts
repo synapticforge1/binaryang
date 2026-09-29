@@ -8,7 +8,7 @@
 
 import { assertEquals } from '@std/assert';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';

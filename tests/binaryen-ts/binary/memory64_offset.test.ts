@@ -27,7 +27,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import {
   ExpressionKind,
   makeI32Const,

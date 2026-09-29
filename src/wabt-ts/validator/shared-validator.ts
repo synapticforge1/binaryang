@@ -16,7 +16,7 @@ import { naturalAlignForOpcode } from '../core/opcode.ts';
 import type { FuncType, HeapTypeInfo } from './type-checker.ts';
 import type { BlockType, Field, Limits, SegmentKind, StorageType, ValueType } from '../ir/ir.ts';
 import { heapExact, isRefValueType, valueTypeName, varIndex } from '../ir/ir.ts';
-import { heapAbstract } from '../../wabt-ts/ir/ir.ts';
+import { heapAbstract } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // Public options

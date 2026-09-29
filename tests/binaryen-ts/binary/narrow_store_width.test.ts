@@ -38,7 +38,7 @@ import { assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { storeShape } from '../../../src/binaryen-ts/ir/memory-access.ts';
 import type { Opcode } from '../../../src/wabt-ts/core/opcode.ts';

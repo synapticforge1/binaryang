@@ -34,7 +34,7 @@ import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/cor
 import { Result } from '../../../src/wabt-ts/core/result.ts';
 import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 
 function parseClean(wat: string): { module: ReturnType<typeof parseWatModule>['module'] } {
   const { module, errors } = parseWatModule(new LexerSource(wat, '<folded>'));

@@ -28,7 +28,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 // wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../nameless_reference.ts.
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/wabt-ts/core/error.ts';

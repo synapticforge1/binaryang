@@ -27,7 +27,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
-import { writeWasm, writeWat } from '../encoder/write-wasm.ts';
+import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { readWat } from './read-wat.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 import {

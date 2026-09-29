@@ -24,7 +24,7 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import {
   type BinaryExpr,
   BinaryOp,

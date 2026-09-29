@@ -24,7 +24,7 @@ import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readWat, WatInputError } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { MEMORY_ACCESS_TABLE } from '../../../src/binaryen-ts/ir/memory-access.ts';
 import { ValType, valTypeName } from '../../../src/binaryen-ts/ir/types.ts';

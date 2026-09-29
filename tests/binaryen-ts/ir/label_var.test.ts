@@ -30,7 +30,7 @@ import {
   makeRethrow,
   makeSwitch,
 } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
 import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
 import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';

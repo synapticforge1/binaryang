@@ -35,7 +35,7 @@
 
 import { assert } from '@std/assert';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 import { createPass, PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
 import '../../../src/binaryen-ts/passes/index.ts'; // register all built-in passes
 import {

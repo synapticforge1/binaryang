@@ -16,7 +16,7 @@ import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 
 /** `n` one-page memories, `$m0` … `$m<n-1>`. */
 const memories = (n: number) => Array.from({ length: n }, (_, i) => `(memory $m${i} 1)`).join(' ');

@@ -30,7 +30,7 @@ import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
 import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
 import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/encoder/write-wasm.ts';
+import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
