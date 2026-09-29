@@ -137,6 +137,20 @@ check is `scripts/check-portability.sh`**, and both of its greps must exclude JS
 flagged `const node: BlockExpr` and a doc comment showing consumers a `node:` import — neither a
 violation. A portability check that cries wolf gets disabled.
 
+### No external dependencies — the goal, and what it excludes
+
+🗓️ **Owner, 2026-09-28:** binaryang has **no external dependencies** — and "external" EXCLUDES the
+standard Node and Deno packages (`node:*` builtins, `@std/*`), which are kept for compatibility.
+Measured the same day: shipped code (`src/`, `main.ts`) imports only its own files and `node:*`
+builtins (within the layers above); `@std/*` is used by tests only; nothing shipped spawns a tool
+on the default path. `wast2json` and `wasm-tools` are TEST tooling only ([testing.md](testing.md)).
+
+**The one exception is opt-in:** hybrid mode — `optimize(flags, hybridMode = true)` (`./api`) and
+`wasm-opt --hybrid` — hands the work to the upstream `wasm-opt` subprocess, and `./interop` can load
+a caller-supplied binaryen.js (`BinaryenInterop`). Both are off by default and fail without upstream
+binaryen installed. Keeping or removing that bridge is the owner's call (removal breaks the
+published `./interop` export and the `hybridMode` / `--hybrid` options — a minor).
+
 ## The convergence indicator
 
 **56 exported type names collide** across the two trees (`Type`, `ValueType`, `WasmModule`, `Token`,
