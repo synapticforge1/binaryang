@@ -494,6 +494,7 @@ would have agreed with the first and proved nothing.
 | 511 foreign `.wasm` read and re-encoded valid   | 511 / 511                          |
 | wabt-ts `wat2wasm` bytes == upstream (W5, W6)   | 421 / 421, outside custom sections |
 | `wasm-tools` on our labels and field names (N2) | see [names.md](names.md)           |
+| wasmtk's gate on 1.7.1: our `wasmValidate` on every module the spec asserts VALID, 288 files | **0 rejected** — their guard, inverted by them (`defaultFeatures()` flags 3 valid GC modules); they now use our validator as a second `assert_invalid` oracle where V8 cannot judge. 2026-09-29, [handoffs.md](handoffs.md) § 18 |
 
 ### Byte parity with upstream `wat2wasm` — 146 → 400 → 421 of 421
 

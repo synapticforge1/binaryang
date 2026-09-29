@@ -27,15 +27,12 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-1. ⬚ **`wasm2wat` prints entity references by index** (`call 15` beside a function the name section
-   calls `$__str_char_at`), where upstream prints the name. Labels print by name since N8. Text
-   only, never bytes. **Scoped, not built — the owner's call:**
-   - every reference site must move together (calls, `global.*`, `table.*`, `memory.*`, `(type N)`,
-     exports, `start`, elem segments, tags). The T13.20 lesson; `rewriteExprVars` covers expressions
-     only.
-   - a name section need not hold UNIQUE names. Two `$f`s would re-assemble `call $f` to the first,
-     silently producing WRONG BYTES, so upstream's dedup rule has to come first.
-   - it re-baselines the text of every corpus module with names, and needs a CHANGELOG line.
+1. ⬚ **Folded `wasm2wat` puts sibling expressions on one line** — `(i32.store $m1 …)) (i32.store
+   (i32.const 0) …)`, `…)))) (if` — where upstream starts each on its own line. Text only, never
+   bytes, never a lost name ([names.md](names.md) § "Follow-ups, cosmetic"). 🔧 Restored
+   2026-09-29: it was the second half of the old "`wasm2wat` cosmetics" item and was dropped when
+   open-work.md was cut back; the first half (references by index) is closed — N10. Any fix
+   re-baselines the folded text of the corpus (a text-only commit, as N10's).
 
 ## Optimizer and IR
 
@@ -141,9 +138,8 @@ fatigue.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
-Nothing outbound is open. Sent 2026-09-29: § 17, the reply to their 1.7.0 letter (item 1 fixed in
-1.7.1). Their gate re-recorded on 1.7.1 is theirs to send; when it comes, check that the 11 skips
-became passes. § 11 was sent and answered (their reply reached us 2026-09-29) — closed in
+Nothing is open with wasmtk. § 17 (item 1 fixed in 1.7.1) was answered by § 18: on 1.7.1 their gate
+is 64,473 passed / 0 failed / 66 skipped, all 11 of our skips pass, and "none of the 66 is yours". § 11 was sent and answered (their reply reached us 2026-09-29) — closed in
 [handoffs.md](handoffs.md).
 
 ## Not tasks, by decision

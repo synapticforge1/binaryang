@@ -1,6 +1,6 @@
 # Unreleased on `main` — what the next release note must say
 
-**Two fixes, as of 2026-09-29** — § "Since 1.7.1" (check it rather than trust this line:
+**Three changes, as of 2026-09-29** — § "Since 1.7.1" (check it rather than trust this line:
 `git log --oneline v1.7.1..main -- src/ main.ts deno.json`). `deno.json` reads 1.7.1; the
 version line arms a release ([publishing.md](publishing.md)), so the next bump is the owner's
 decision, never a side effect of work.
@@ -36,3 +36,9 @@ contains ([handoffs.md](handoffs.md)).
   (`79e4c10d1`). It printed nothing, so `wasm2wat` → `wat2wasm` turned an active segment with an
   empty offset PASSIVE and dropped an empty element item. Text of such (invalid) modules changes;
   no corpus module has one.
+- **Behaviour — `wasm2wat` prints a reference by its target's name** (`4d6dec1d3`; N10):
+  `call $f`, `global.get $g`, `(type $sig)`, `(ref null $pair)`, `struct.get $pair $left`, … where
+  it printed indices — as upstream `wasm2wat` and `wasm-tools print` do. The TEXT of every module
+  with names changes (420 of 421 corpus files); no bytes. Only `wasm2wat`: the compat `toText()` of
+  parsed text keeps the author's indices. New option `WriteWatOptions.namedReferences` (`./wat`
+  writer API).
