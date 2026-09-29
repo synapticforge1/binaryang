@@ -11,7 +11,7 @@ Nothing is unreleased ([unreleased.md](unreleased.md)). **Owner's order that day
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 1) are next. **15 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 1) are next. **12 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 9, 11, 12, 16 and 17 are gone with their numbers kept free.
 Re-derive any number before quoting it.
 
@@ -33,15 +33,9 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-From wasmtk's § 20 (2026-09-29, all three reproduced; numbered after the rest):
-
-18. ⬚ **L3: a lowered out-of-bounds access traps as `unreachable`**, not "out of bounds memory
-    access" — on all five engines wasmtk tried. Position right, kind wrong. Their fix: an access that
-    can never be in bounds, so the engine raises its own trap. It blocks their 66 → 16 skips.
-19. ⬚ 🗓️ **OWNER — L4: a lowered `assert_unlinkable` fails as a missing import**, not
-    "incompatible import type". Their placeholder-export fix and its cost are in the L4 row.
-20. ⬚ **C7: `compat/binaryen` `getFunctionInfo` returns `params` / `results` as arrays**, where
-    binaryen.js returns packed types. Matching it is BREAKING for a caller that read the arrays.
+**None open.** Items 18–20, from wasmtk's § 20, were fixed for 1.8.1 the day they arrived: L3
+(a lowered out-of-bounds access traps as out of bounds), L4 (the placeholder; case 2 at an engine
+ceiling) and C7 (`getFunctionInfo` shaped as binaryen.js) — [divergences.md](divergences.md).
 
 Closed 2026-09-29: `array.new_default` defaultability (`d6b487c2d`),
 empty offsets / items (M2a), the name section's position (N9, by decision), references by name
@@ -139,7 +133,7 @@ fatigue.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
-§ 20 (their reply to § 19, 2026-09-29) is being worked: items 18–20. § 19 (1.8.0 is out; `LowerCustomPageSizes` offered for the
+§ 20 (their reply to § 19, 2026-09-29) was answered in code: items 18–20 fixed for 1.8.1. § 19 (1.8.0 is out; `LowerCustomPageSizes` offered for the
 custom-page modules they skip) was SENT 2026-09-29 and asks nothing — a reply is welcome, above all
 their custom-page-sizes skip count with the pass. § 17 (item 1 fixed in 1.7.1) was answered by § 18: on 1.7.1 their gate
 is 64,473 passed / 0 failed / 66 skipped, all 11 of our skips pass, and "none of the 66 is yours". § 11 was sent and answered (their reply reached us 2026-09-29) — closed in

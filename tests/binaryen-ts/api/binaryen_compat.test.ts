@@ -14,6 +14,7 @@ import * as binaryen from '../../../src/binaryen-ts/api/binaryen-compat.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { type CallIndirectExpr, ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
 import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
 
 // ---------------------------------------------------------------------------
 // Fixture: same ADD_MODULE used by encoder tests — a tiny module with one
@@ -171,6 +172,31 @@ Deno.test('getFunction + getFunctionInfo + expandType for `add(i32,i32)->i32`', 
   assertEquals(binaryen.expandType(info.results), [binaryen.i32]);
   // No extra vars beyond the two parameters.
   assertEquals(info.vars.length, 0);
+});
+
+// C7 (wasmtk § 20): `params` / `results` are each ONE packed type, as binaryen.js@132
+// returns them — they were arrays (`[]`, `[2]`), so `results === binaryen.none` took
+// the wrong branch. Only a tuple stays an array (the facade has no type interner).
+Deno.test('getFunctionInfo packs params and results as binaryen.js does', () => {
+  const mod = binaryen.readBinary(
+    new Uint8Array(
+      wat2wasm(`(module
+      (func $void)
+      (func $one (param i64) (result i32) (i32.const 1))
+      (func $two (param i32 f64) (result i32 i64) (i32.const 1) (i64.const 2)))`).binary,
+    ),
+  );
+  const info = (name: string) => {
+    const f = mod.getFunction(name);
+    if (!f) throw new Error(`function ${name} not found`);
+    return binaryen.getFunctionInfo(f);
+  };
+  assertEquals(info('$void').params, binaryen.none);
+  assertEquals(info('$void').results, binaryen.none); // the comparison binaryen.js code makes
+  assertEquals(info('$one').params, binaryen.i64);
+  assertEquals(info('$one').results, binaryen.i32);
+  assertEquals(binaryen.expandType(info('$two').params), [binaryen.i32, binaryen.f64]);
+  assertEquals(binaryen.expandType(info('$two').results), [binaryen.i32, binaryen.i64]);
 });
 
 Deno.test('getFunction returns null for missing name', () => {

@@ -29,7 +29,23 @@ function run(wat: string, imports: WebAssembly.Imports = {}): Fns {
   const mod = new WebAssembly.Module(bytes as BufferSource); // V8 compiles it: no custom page size left
   return new WebAssembly.Instance(mod, imports).exports as unknown as Fns;
 }
-const traps = (f: () => unknown) => expect(f).toThrow(WebAssembly.RuntimeError);
+/**
+ * Every trap here is an out-of-bounds ACCESS, and must be the engine's own
+ * kind: V8's "memory access out of bounds". 🔧 L3 (wasmtk § 20): the lowering
+ * trapped at the right place as `unreachable`, which a check of the class
+ * alone (`RuntimeError`) could not see.
+ */
+const traps = (f: () => unknown) => {
+  // Called ONCE: a call with side effects (the operand-order case) must run once.
+  let caught: unknown;
+  try {
+    f();
+  } catch (e) {
+    caught = e;
+  }
+  expect(caught).toBeInstanceOf(WebAssembly.RuntimeError);
+  expect((caught as Error).message).toMatch(/out of bounds/);
+};
 
 const ACCESSORS = `
   (func (export "size") (result i32) memory.size)
@@ -136,8 +152,22 @@ describe('linking lowered modules', () => {
     exporter.grow!(2);
     expect(f.size!()).toBe(6); // one size, seen from both
     traps(() => f.load!(6));
-    // The memory is exported under its lowered name only (P1).
-    expect('mem' in exporter).toBe(false);
+    // Under the ORIGINAL name: not the memory (P1) but its placeholder (L4),
+    // an immutable global holding the page size.
+    const placeholder = (exporter as unknown as Record<string, unknown>).mem;
+    expect(placeholder).toBeInstanceOf(WebAssembly.Global);
+    expect((placeholder as WebAssembly.Global).value).toBe(1);
+  });
+
+  it('a lowered importer asks for the placeholder FIRST, under the original name (L4)', () => {
+    // So an engine that checks imports in order meets the wrong KIND there —
+    // "incompatible import type" — when the exporter's memory is native.
+    const imports = WebAssembly.Module.imports(
+      new WebAssembly.Module(
+        lowered(`(module (memory (import "m" "mem") 0 (pagesize 1)))`) as BufferSource,
+      ),
+    ).map((i) => `${i.kind} ${i.name}`);
+    expect(imports).toEqual(['global mem', 'memory mem#pagesize=1', 'global mem#pages']);
   });
 
   it('a NATIVE 64 KiB importer of a lowered memory does not link (P1)', () => {

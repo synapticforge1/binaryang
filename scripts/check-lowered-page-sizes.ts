@@ -61,6 +61,8 @@ interface Command {
   as?: string;
   action?: Action;
   expected?: SpecValue[];
+  /** The spec's expected message (`assert_trap`, `assert_unlinkable`). */
+  text?: string;
 }
 
 const LEVELS: [string, 0 | 1 | 2 | 3, 0 | 1 | 2][] = [
@@ -278,7 +280,16 @@ for (const d of dirs) {
       try {
         got = (f as (...x: unknown[]) => unknown)(...a.args.map(toJs));
       } catch (e) {
-        if (c.type === 'assert_trap' && e instanceof WebAssembly.RuntimeError) continue;
+        if (c.type === 'assert_trap' && e instanceof WebAssembly.RuntimeError) {
+          // The trap's KIND, not only that it trapped. 🔧 L3 (wasmtk § 20): the
+          // lowering trapped as `unreachable` at the right place, and a check
+          // of the class alone passed it in every world.
+          const msg = (e as Error).message;
+          if (/out of bounds/.test(c.text ?? '') && !/out of bounds/.test(msg)) {
+            fail(w, where, `${a.field} trapped as "${msg}"; the spec says "${c.text}"`);
+          }
+          continue;
+        }
         fail(w, where, `${a.field} threw ${(e as Error).message}`);
         continue;
       }

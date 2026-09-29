@@ -32,4 +32,13 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.8.0
 
-(none)
+wasmtk's § 20 ([handoffs.md](handoffs.md)), all for 1.8.1 — owner: "fix all three now and then
+release to 1.8.1". Public text: `CHANGELOG.md` § 1.8.1.
+
+- ⚠️ **BREAKING by the rule, released as a PATCH by the owner's decision — `getFunctionInfo`**
+  (C7): `params` / `results` are `createType(…)` (`none`, one type, an array for a tuple), as
+  binaryen.js; they were always arrays.
+- **Silent fix — a lowered out-of-bounds access traps as out of bounds** (L3), not `unreachable`.
+- **Behaviour — the lowered-memory placeholder** (L4): an exported lowered memory also exports an
+  immutable i32 global under its original name; a lowered importer imports it first. One more
+  export and import per lowered memory, which a host passes along.

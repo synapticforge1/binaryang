@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.8.1
+
+A patch release answering the wasmtk team's check of 1.8.0's custom-page-sizes lowering on five
+engines (wasmtime, V8, JavaScriptCore, wasmer, wazero): values, trap positions and linking held on
+all of them; the trap and link-error KINDS did not. No valid module's bytes change through
+`wat2wasm`, `wasm2wat` or a plain read and write.
+
+⚠️ **`compat/binaryen` `getFunctionInfo(f)` changes shape**: `params` and `results` are each ONE
+packed type, as binaryen.js returns them — `binaryen.none` for none, the type itself for one, an
+array (standing in for a tuple type) for several. They were always arrays (`[]`, `[i32]`), so code
+written for binaryen.js (`results === binaryen.none`) took the wrong branch. `expandType` flattens
+either shape. Code that read the arrays directly must now call `expandType`. (Released as a patch
+by the maintainer's decision.)
+
+### Fixed — `LowerCustomPageSizes`
+
+- **An out-of-bounds access traps as an out-of-bounds access.** A lowered access past the true size
+  trapped as `unreachable` on every engine — at the right place, as the wrong kind. It now makes an
+  access that is out of bounds for any memory, so the engine raises its own trap ("memory access out
+  of bounds" on V8), for loads, stores, atomics, SIMD and `memory.fill` / `copy` / `init` alike.
+- **A mismatched link is an import-TYPE error where the engine allows it.** An exported lowered
+  memory also exports, under its original name, an immutable i32 global holding its page size, and
+  a lowered importer imports that name first. A 64 KiB-page module importing a lowered 1-byte-page
+  memory now fails as "incompatible import type" (wasmtime), where it failed as an unknown import.
+  The reverse — a lowered importer of a native memory — fails as a type error on engines that check
+  imports in order (JavaScriptCore); wasmtime and V8 report its renamed memory as missing, as no
+  lowering can avoid. A JavaScript host passes the extra import along with the others.
+
 ## 1.8.0
 
 A minor release: **diagnostics you can act on, `wat2wasm` validating as upstream does, the spec's
