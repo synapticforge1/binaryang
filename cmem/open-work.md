@@ -4,9 +4,9 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-09-29:** 🚀 **`binaryang@1.7.2` is published** (tag `v1.7.2`, `30929db92`;
-[publishing.md](publishing.md) § 1.7.2). `main` = the release plus the diagnostic fixes of
-2026-09-29, which [unreleased.md](unreleased.md) carries. **Owner's order that day: items 16 and 17
+**State, 2026-09-29:** 🚀 **`binaryang@1.8.0` is published** (tag `v1.8.0`, `0b2edf7cd`;
+[publishing.md](publishing.md) § 1.8.0), carrying everything below; `main` = the release plus cmem.
+Nothing is unreleased ([unreleased.md](unreleased.md)). **Owner's order that day: items 16 and 17
 (done), then 11 (found already closed), then 12** — decided the same day (both halves, V8 flags)
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
