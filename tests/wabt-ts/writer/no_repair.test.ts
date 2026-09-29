@@ -90,44 +90,106 @@ describe('T13 — a limits value is not truncated into range', () => {
     it(`rejects ${src.slice(8, 60)}`, () => invalid(src));
   }
 
-  it('says the encoder refused, rather than throwing out of the tool', () => {
-    // A fail-loud encoder is right; a throw escaping `wat2wasm` is not. Same
-    // rule as the validator's — a failure must REPORT.
-    const { errors } = wat2wasm('(module (memory 0x1_0000_0000))');
-    assert(hasErrors(errors), 'no error reported');
-    assert(/cannot encode module/.test(formatErrors(errors)), formatErrors(errors));
-  });
-
-  it('says WHY first — the validator refuses what the writer cannot hold', () => {
-    // The limit is well-formed (it fits the u64 spelling) and INVALID; it was
-    // reported only as "u32 LEB128 out of range" (wasmtk, 2026-09-19). The
-    // validator's diagnostic — upstream's wording — now comes first. Not
-    // MALFORMED: `malformed_text.test.ts` pins that.
+  it('writes the limit as WRITTEN, and the validator says why it is invalid', () => {
+    // 🔧 REPLACED 2026-09-29. These asserted the ENCODER refused ("cannot
+    // encode module", the validator's reason first): a 32-bit limit was a u32
+    // field. Every limit is u64 on the wire (Wasm 3.0), so the module is
+    // well-formed, is WRITTEN — 2^32, not 0 — and the validator rejects the
+    // bytes. A caller that encodes first (compat `toBinary`) could not get
+    // `memory.wast` / `table.wast`'s assert_invalid verdict any other way
+    // (wasmtk, 2026-09-29). Not MALFORMED: `malformed_text.test.ts` pins that.
     for (
       const [src, why] of [
         ['(module (memory 0x1_0000_0000))', 'initial pages (4294967296) must be <= (65536)'],
         ['(module (memory 0 0x1_0000_0000))', 'max pages (4294967296) must be <= (65536)'],
+        [
+          '(module (import "M" "m" (memory 0x1_0000_0000)))',
+          'initial pages (4294967296) must be <= (65536)',
+        ],
         [
           '(module (table 0x1_0000_0000 funcref))',
           'initial elems (4294967296) must be <= (4294967295)',
         ],
       ] as const
     ) {
-      const { errors } = wat2wasm(src);
-      assert(errors[0]?.message.includes(why), `${src}\n${formatErrors(errors)}`);
+      const { binary, errors } = wat2wasm(src);
+      assert(!hasErrors(errors), `${src}\n${formatErrors(errors)}`);
+      const v = wasmValidate(binary, { features: allFeatures() });
+      assertEquals(v.result, Result.Error, src);
+      assert(formatErrors(v.errors).includes(why), `${src}\n${formatErrors(v.errors)}`);
     }
+  });
+
+  it('reads a 5-byte 32-bit limit as a u64 — INVALID, not malformed', () => {
+    // wasm-tools' bytes for `(memory 0x1_0000_0000)`: the limit 2^32 in five
+    // bytes. Read as u32 it was "integer too large" (malformed); the spec and
+    // wasm-tools call the module invalid ("memory size must be at most").
+    const bytes = new Uint8Array([
+      0x00,
+      0x61,
+      0x73,
+      0x6d,
+      0x01,
+      0x00,
+      0x00,
+      0x00, // header
+      0x05,
+      0x07,
+      0x01,
+      0x00,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x10, // memory: no max, min 2^32
+    ]);
+    const msg = formatErrors(wasmValidate(bytes, { features: allFeatures() }).errors);
+    assert(msg.includes('initial pages (4294967296) must be <= (65536)'), msg);
+    assert(!/integer too large/.test(msg), msg);
+  });
+
+  it('still reads an 11-byte limit as MALFORMED — one past u64', () => {
+    // binary-leb128.wast's "integer representation too long" cases for a
+    // 32-bit memory's limits are 11-byte LEBs, so u64 limits keep them malformed.
+    const bytes = new Uint8Array([
+      0x00,
+      0x61,
+      0x73,
+      0x6d,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x05,
+      0x0d,
+      0x01,
+      0x00,
+      0x82,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x80,
+      0x00,
+    ]);
+    const v = wasmValidate(bytes, { features: allFeatures() });
+    assertEquals(v.result, Result.Error);
+    assert(!/initial pages/.test(formatErrors(v.errors)), formatErrors(v.errors));
   });
 
   it('explains with EVERY feature on — wat2wasm gates none', () => {
     // With the default set, a GC type anywhere put "enable the … feature"
-    // lines before the real reason (wasmtk, 2026-09-28).
-    const { errors } = wat2wasm(
-      '(module (type $t (struct)) (global (ref null $t) (ref.null $t)) (memory 0x1_0000_0000))',
-    );
-    assert(
-      errors[0]?.message.includes('initial pages (4294967296) must be <= (65536)'),
-      formatErrors(errors),
-    );
+    // lines before the real reason (wasmtk, 2026-09-28). The trigger was a
+    // 2^32 memory until limits became u64 (2026-09-29); what the writer still
+    // refuses is a custom section that collides with code-metadata annotations.
+    const { errors } = wat2wasm(`(module (type $t (struct)) (global (ref null $t) (ref.null $t))
+      (@custom "metadata.code.branch_hint" "")
+      (func (param i32) (local.get 0) (@metadata.code.branch_hint "\\01") (if (then))))`);
+    assert(/cannot encode module/.test(formatErrors(errors)), formatErrors(errors));
     assert(!/enable the/.test(formatErrors(errors)), formatErrors(errors));
   });
 
@@ -152,6 +214,27 @@ describe('T13 — a limits value is not truncated into range', () => {
     const text = wasm2wat(ok('(module (memory i64 0x1_0000_0000 0x2_0000_0000))')).text!;
     assert(text.includes('4294967296'), text);
     assert(text.includes('8589934592'), text);
+  });
+
+  it('holds a 1-byte-page 32-bit memory to 2^32-1 pages (memory_max.wast)', () => {
+    // The byte bound allows 2^32 one-byte pages, but a page COUNT must fit the
+    // index type: the proposal's `memory_max.wast` declares 0xFFFF_FFFF valid
+    // and 0x1_0000_0000 invalid. The validator accepted the latter, unseen
+    // while the writer refused any 32-bit limit past u32 (wasmtk, 2026-09-29).
+    for (
+      const [src, want] of [
+        ['(module (memory 0xFFFF_FFFF (pagesize 1)))', Result.Ok],
+        ['(module (import "a" "b" (memory 0xFFFF_FFFF (pagesize 1))))', Result.Ok],
+        ['(module (memory 0x1_0000_0000 (pagesize 1)))', Result.Error],
+        ['(module (memory i64 0xFFFF_FFFF_FFFF_FFFF (pagesize 1)))', Result.Ok],
+        ['(module (memory 65536 (pagesize 65536)))', Result.Ok],
+        ['(module (memory 65537 (pagesize 65536)))', Result.Error],
+      ] as const
+    ) {
+      const { binary, errors } = wat2wasm(src);
+      assert(!hasErrors(errors), `${src}\n${formatErrors(errors)}`);
+      assertEquals(wasmValidate(binary, { features: allFeatures() }).result, want, src);
+    }
   });
 
   it('still rejects the sizes that exceed the PAGE bound', () => {

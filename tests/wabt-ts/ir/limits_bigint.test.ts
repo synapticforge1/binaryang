@@ -103,12 +103,18 @@ describe('T13.3 — a 64-bit limit survives at full width', () => {
 });
 
 describe('T13.3 — the bounds that still apply', () => {
-  it('rejects a 32-bit limit that does not fit its u32 field', () => {
-    // No rounding involved: the field is u32 and 2^32 does not fit, so the
-    // encoder refuses by name rather than wrapping to 0.
-    const { errors } = wat2wasm('(module (table 0 0x1_0000_0000 funcref))');
-    assert(hasErrors(errors));
-    assert(/u32 LEB128 out of range: 4294967296/.test(formatErrors(errors)), formatErrors(errors));
+  it('writes a 32-bit limit past 2^32-1 as WRITTEN, and the validator rejects it', () => {
+    // 🔧 REPLACED 2026-09-29. This asserted the encoder refused ("u32 LEB128
+    // out of range"): the field was u32 for a 32-bit table. It is u64 for every
+    // limit (Wasm 3.0), so the value reaches the validator unwrapped — which is
+    // what `table.wast`'s assert_invalid needs from a caller that encodes first
+    // (wasmtk, 2026-09-29). Still never wrapped to 0 (T13.2): the validator
+    // names 4294967296.
+    const { binary, errors } = wat2wasm('(module (table 0 0x1_0000_0000 funcref))');
+    assert(!hasErrors(errors), formatErrors(errors));
+    const v = wasmValidate(binary, { features: allFeatures() });
+    assertEquals(v.result, Result.Error);
+    assert(/max elems \(4294967296\) must be <= \(4294967295\)/.test(formatErrors(v.errors)));
   });
 
   it('rejects a 64-bit MEMORY above the 2^48 page bound', () => {

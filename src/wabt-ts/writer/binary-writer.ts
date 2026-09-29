@@ -398,18 +398,6 @@ function writeMemArg(
   s.writeU64Leb(offset);
 }
 
-/**
- * Narrow a limits value to the `number` the u32 LEB encoder takes.
- *
- * Anything at or below 2^32-1 is exact in a JS number. Anything above it does
- * not fit the field at all, and is refused HERE rather than after a lossy
- * `Number()` — so the message names the value the source actually wrote.
- */
-function u32Limit(v: bigint): number {
-  if (v > 0xffff_ffffn) throw new RangeError(`u32 LEB128 out of range: ${v}`);
-  return Number(v);
-}
-
 function writeLimits(
   s: MemoryStream,
   lim: { initial: bigint; max?: bigint; isShared: boolean; is64: boolean; pageSizeLog2?: number },
@@ -426,19 +414,17 @@ function writeLimits(
   // for every decoded memory.)
   if (lim.pageSizeLog2 !== undefined) flags |= LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG;
   s.writeU32Leb(flags);
-  // The field's WIDTH follows the index type: u64 for a 64-bit memory or
-  // table, u32 for a 32-bit one. Writing a 64-bit limit as u32 truncated every
-  // size above 2^32, so the validator's page bound never saw the value it
-  // exists to reject (T13.2). Both LEB encoders are fail-loud on a value too
-  // large for their field, so a 32-bit limit of 2^32 is REFUSED rather than
-  // wrapped to 0.
-  if (lim.is64) {
-    s.writeU64Leb(lim.initial);
-    if (lim.max !== undefined) s.writeU64Leb(lim.max);
-  } else {
-    s.writeU32Leb(u32Limit(lim.initial));
-    if (lim.max !== undefined) s.writeU32Leb(u32Limit(lim.max));
-  }
+  // Every limit is a u64 on the wire (Wasm 3.0: `limits ::= flags n:u64
+  // m:u64`), whatever the index type. The index type bounds the VALUE, and
+  // that is the validator's rule: `(memory 0x1_0000_0000)` is well-formed and
+  // INVALID, so it must reach the validator as written. Writing a 32-bit
+  // limit as u32 made this writer refuse it instead, and no caller that
+  // encodes first (compat `toBinary`) could get the spec's verdict (wasmtk,
+  // 2026-09-29). A value below 2^32 has the same LEB either way, so no valid
+  // module's bytes move. Still never wrapped (T13.2): the u64 encoder is
+  // fail-loud too.
+  s.writeU64Leb(lim.initial);
+  if (lim.max !== undefined) s.writeU64Leb(lim.max);
   // Trails min/max, and carries the LOG2 — the wire field is the exponent.
   if ((flags & LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG) !== 0 && lim.pageSizeLog2 !== undefined) {
     s.writeU32Leb(lim.pageSizeLog2);

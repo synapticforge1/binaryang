@@ -936,9 +936,13 @@ export class BinaryReader {
     const isShared = (flags & 0x02) !== 0;
     const is64 = (flags & 0x04) !== 0;
     const hasCustomPageSize = (flags & 0x08) !== 0;
-    // Matching the writer: 64-bit limits are u64 on the wire. Reading them as
-    // u32 threw "LEB128 u32 overflow" on any 64-bit memory above 2^32.
-    const readSize = (): bigint => (is64 ? this.readU64Leb() : BigInt(this.readU32Leb()));
+    // Every limit is a u64 on the wire (Wasm 3.0), whatever the index type;
+    // the index type bounds the VALUE, which is the validator's call. Read as
+    // u32 for a 32-bit memory or table, `(memory 0x1_0000_0000)` came back
+    // MALFORMED ("integer too large") where wasm-tools and the spec say
+    // INVALID (memory.wast, table.wast). binary-leb128.wast's too-long limits
+    // are 11-byte LEBs: one past u64's ten, so they stay malformed.
+    const readSize = (): bigint => this.readU64Leb();
     const initial = readSize();
     const max = hasMax ? readSize() : undefined;
     const limits: Limits = { initial, isShared, is64 };

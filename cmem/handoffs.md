@@ -23,12 +23,14 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 7  | 2026-08-27 | wasmtk      | correction: `br_on_cast` was THREE defects in two trees, not one bridge case                                                                                                                         | ✅ all four `br_on_*` shipped in 1.5.3 (`7ff0408f4`)                                                                                                               |
 | 8  | 2026-08-27 | wasmtk      | retraction: "deps need proper names" described our own broken printout, not their manifest                                                                                                           | ✅ closed                                                                                                                                                          |
 | 9  | 2026-08-31 | wasmtk      | defect 5's precondition is a conjunction (a struct or array exists AND no function shares the tag's signature) — wider than reported; they had no `.gitattributes`                                   | ✅ closed by them: `binaryen` alias renamed `binaryen-backend`, `.gitattributes` widened, defect 5 closed with a conditional                                       |
-| 10 | 2026-08-31 | wasmtk      | correction: they are on 1.5.3, not 1.5.2; the convert pair priced by building it (two layers)                                                                                                        | ⬚ **one question awaiting their answer** — is `br_on_cast` still failing for them on 1.5.3? ([open-work.md](open-work.md)); convert pair since built (`9d5c886be`) |
+| 10 | 2026-08-31 | wasmtk      | correction: they are on 1.5.3, not 1.5.2; the convert pair priced by building it (two layers)                                                                                                        | ✅ **answered by their 2026-09-29 gate** (§ 16): on 1.7.0, 64,434 passed / 0 failed, every skip V8's or § 16's — no `br_on_cast` failure left. Convert pair since built (`9d5c886be`) |
 | 11 | 2026-08-31 | wasmtk      | adopting their conditional-not-clearance form and their import-alias invariant; a fifth property-in-view instance                                                                                    | ⬚ outbound                                                                                                                                                         |
 | 12 | 2026-09-19 | wasmtk (in) | two parser-leniency reports against 1.5.3, found by hardening their `.wast` runner (one catch around "assemble the module" had let an ENCODER error satisfy an `assert_malformed`): limits took no range check; a legacy `try`'s clause structure was unchecked. Their write-up: `wasmtk/scripts/binaryang-report.md` | ✅ both reproduced on `main` and fixed (`d59816990`), with their correction about `(memory 0x1_0000_0000)` PINNED as a test. Outbound: a `catch` after `catch_all` is INVALID, not malformed (wabt parses it) — three of their rows are parse bugs, the fourth is our validator's gap, still open |
-| 13 | 2026-09-28 | wasmtk (out — NOT SENT, by decision) | binaryang `main` (unreleased) fixes defects that change what an OPTIMIZED module does, several in the 1.5.4 you ship against: a `local.set` before a branch to an `if` label became a `drop` at -O2+ (CoalesceLocals, SILENT — valid output, wrong result; checked against the v1.5.4 source); dead code after `br` could trap; a `call_indirect` across rec groups lost its trap; `Inlining` at -O3 emitted invalid modules for multi-value call operands; modules with several tables or `elem.drop` could not be written back or optimized. Suggest: anything built with `-O2` or higher on 1.5.4 whose source branches to a labelled `if` is suspect; the fix arrives with the next release (its timing is the owner's call). Record: [divergences.md](divergences.md) Q1–Q8 | 🚫 **Not needed (owner, 2026-09-28):** "We are going to fix the -O2 issue before we update to it in wasmtk — no letter needed." The fix is on `main`; wasmtk moves only to a release that carries it. Kept as the record of what it would have said |
+| 13 | 2026-09-28 | wasmtk (out — NOT SENT, by decision) | binaryang `main` (unreleased) fixes defects that change what an OPTIMIZED module does, several in the 1.5.4 you ship against: a `local.set` before a branch to an `if` label became a `drop` at -O2+ (CoalesceLocals, SILENT — valid output, wrong result; checked against the v1.5.4 source); dead code after `br` could trap; a `call_indirect` across rec groups lost its trap; `Inlining` at -O3 emitted invalid modules for multi-value call operands; modules with several tables or `elem.drop` could not be written back or optimized. Suggest: anything built with `-O2` or higher on 1.5.4 whose source branches to a labelled `if` is suspect; the fix arrives with the next release (its timing is the owner's call). Record: [divergences.md](divergences.md) Q1–Q8 | 🚫 **Not needed (owner, 2026-09-28):** "We are going to fix the -O2 issue before we update to it in wasmtk — no letter needed." The fix is on `main`; wasmtk moves only to a release that carries it. Kept as the record of what it would have said. ✅ MOOT since § 16: their gate runs on 1.7.0, which carries Q1–Q8 |
 | 14 | 2026-09-28 | wasmtk (in) | their letter against published 1.6.0: five items (heap type in an inline `call_indirect` typeuse; export `allFeatures`; compat `validate()` stub; annotation leniency; custom-descriptors + `(pagesize N) (data)`). All reproduced; record in [open-work.md](open-work.md) |
-| 15 | 2026-09-28 | wasmtk (out — ⬚ DRAFT, below, for the owner / workspace to send) | their items addressed, and which release holds the fixes — TRUE as written since 1.7.0 was published (2026-09-29); the parenthesis updated to say so |
+| 15 | 2026-09-28 | wasmtk (out — never sent) | their items addressed, and which release holds the fixes | ✅ SUPERSEDED by § 16: they verified all five on 1.7.0 themselves. Kept below as written |
+| 16 | 2026-09-29 | wasmtk (in) | against 1.7.0: all five § 14 items confirmed fixed (`return_call_indirect.wast` 28 → 78, `name_annot` 0 → 3, `branch_hint` 1 → 2); gate **64,434 passed / 0 failed / 105 skipped**, 94 V8's, 11 ours: (1) a 32-bit limit above 2^32-1 failed in the ENCODER, not the validator (10 skips: `memory.wast` 6, `table.wast` 3, `memory_max.wast` 1); (2) a branch hint before `i32.eq` accepted (1 skip) | (1) ✅ reproduced and FIXED (`1fa6eb21b`): limits are u64 on the wire; found with it, a 1-byte-page cap one too high — [divergences.md](divergences.md). (2) NOT reproduced: `wasmValidate` rejects it ("invalid target"); `toBinary` does not validate. Reply § 17 |
+| 17 | 2026-09-29 | wasmtk (out — ⬚ DRAFT, below, for the owner / workspace to send) | item 1 fixed, the release it ships in; item 2: validate with `wasmValidate` | ⬚ to send |
 
 ### § 15 — draft reply to wasmtk (2026-09-28)
 
@@ -83,6 +85,52 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > Separately, **1.6.1 is published** and makes `deno run -A jsr:@jrmarcum/binaryang <command>`
 > actually run the CLI (the root had no dispatcher on every earlier version). It contains none of
 > the above.
+
+### § 17 — draft reply to wasmtk (2026-09-29)
+
+> From binaryang, 2026-09-29, in reply to your letter of the same day (measured against 1.7.0).
+>
+> Thank you for checking all five 1.7.0 fixes on your side. Both new items were reproduced on our
+> tree before we acted.
+>
+> **1. A limit above u32 fails in the encoder — fixed** (commit `1fa6eb21b`; it ships in the next
+> release, a patch). You were right: Wasm 3.0 encodes every limit as a u64 whatever the index type,
+> and the index type only bounds the value, which is the validator's job. wasm-tools agrees: it
+> writes `(memory 0x1_0000_0000)` as `00 80 80 80 80 10` and rejects it as invalid.
+>
+> - The writer now writes every limit as a u64. A value below 2^32 has the same LEB either way, so
+>   no valid module's bytes change.
+> - The reader now reads every limit as a u64. Those five bytes used to come back as malformed
+>   ("integer too large"); now they come back invalid. `binary-leb128.wast`'s too-long limits are
+>   11 bytes, one past a u64's ten, and still read as malformed.
+> - All five of your modules now go through `parseWat` → `toBinary` and produce bytes, and
+>   `wasmValidate(bytes, { features: allFeatures() })` rejects each one:
+>   - memory: `initial pages (4294967296) must be <= (65536)` (or `max pages …`);
+>   - table: `initial elems (4294967296) must be <= (4294967295)`;
+>   - `(memory 0x1_0000_0000 (pagesize 1))`: `initial pages (4294967296) must be <= (4294967295)`.
+> - **Found by your report and fixed with it:** once the encoder stopped refusing, the validator
+>   ACCEPTED `(memory 0x1_0000_0000 (pagesize 1))`. It capped a 32-bit memory with 1-byte pages at
+>   2^32 pages; `memory_max.wast` says the cap is `0xFFFF_FFFF`. Your 10th skip would otherwise have
+>   become a failure rather than a pass.
+>
+> The messages are wabt's wording, not the spec's "memory size must be at most"; the verdict is what
+> your `assert_invalid` check needs. We expect your 10 skips in `memory.wast`, `table.wast` and
+> `memory_max.wast` to become passes on the release.
+>
+> **2. A branch hint before `i32.eq` — already rejected, by the validator.** `toBinary` encodes and
+> never validates, in binaryang as in libwabt.js; the branch-hint check is in `wasmValidate`, and on
+> the bytes of your module it reports:
+>
+> ```
+> @metadata.code.branch_hint annotation: invalid target — function 0, offset 6 is not an `if` or a `br_if`
+> ```
+>
+> The same hint before `if` validates. If your `assert_invalid` verdict comes from V8, that is the
+> gap: V8 never reads the code-metadata custom section, so it accepts the module. Running
+> `wasmValidate(bytes, { features: allFeatures() })` on the bytes should turn that skip into a pass
+> today, on 1.7.0, without a release from us.
+>
+> We will wait for your re-recorded gate on the release.
 
 ## Lessons the correspondence paid for
 
