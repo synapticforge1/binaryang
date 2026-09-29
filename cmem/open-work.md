@@ -28,10 +28,10 @@ that history now lives in its topic files — nothing was dropped:
 operand fixes found with it. Gate green on the committed tree (1,325 tests; spec 100% on four axes
 with `customDescriptors` off for the core suite — [testing.md](testing.md)). NOT pushed; `main`
 is well ahead of `origin/main`. The draft reply to wasmtk ([handoffs.md](handoffs.md) § 15) says all
-five ship in 1.6.2 — it is the owner's / workspace's to send. **Next (owner, 2026-09-28): the
-decommissioning** of binaryen-ts's codec adapters, decided "relocate, keep names" (§ "IR
-convergence — next steps"). Open question for the owner: drop `wast2json` ([testing.md](testing.md)
-§ "Do we need upstream `wast2json`?").
+five ship in 1.6.2 — it is the owner's / workspace's to send. **The decommissioning is DONE** (the
+last trace of binaryen-ts's codec, `encoder/`, relocated to `ir/`; § "IR convergence — next steps").
+Open for the owner: drop `wast2json` ([testing.md](testing.md) § "Do we need upstream
+`wast2json`?"); bring `proposals/` into the gate; release 1.6.2.
 
 **State, 2026-09-28 (release, history):** 🚀 **`binaryang@1.6.0` PUBLISHED** (tag `v1.6.0`, commit
 `64d22e06f`; JSR `rekorLogId=2987187551`, 647 symbols; CI, Auto-tag and Publish all green). One
@@ -669,7 +669,12 @@ Status table and full record: [ir-convergence.md](ir-convergence.md) § "Where i
   Left from it: Asyncify refuses `call_ref` (upstream instruments it as an indirect call).
 - ✅ **W8 — wabt-ts dropped `(@metadata.code.*)` text annotations** — FIXED 2026-09-28
   (`815a59244`, pre-bump item 2); divergences.md W8.
-- ⬜ **Decommission binaryen-ts's decoder and encoder** (owner, 2026-09-28). The CODECS are already
+- ✅ **DONE 2026-09-28 (`4074025fa`, merged on `refactor/decommission-codec`):**
+  `encoder/write-wasm.ts` → `ir/write-wasm.ts`, `tests/binaryen-ts/encoder/` → `tests/binaryen-ts/ir/`,
+  both `encoder/` directories gone; 140 specifiers in 137 files; 1,325 tests, baseline IDENTICAL,
+  gate green on the committed tree. Paths to `…/encoder/…` in older cmem records are now dead
+  (history — [testing.md](testing.md) § "Every test-file path in the wing full texts is DEAD").
+  **Decommission binaryen-ts's decoder and encoder** (owner, 2026-09-28). The CODECS are already
   gone: the decoder was deleted at 1.6.0 (one front end stage 3b), the encoder at stage 4b, and
   binaryen-ts reads and writes through wabt-ts's reader and writer. What is LEFT is the adapter layer
   that still stands in their place:
