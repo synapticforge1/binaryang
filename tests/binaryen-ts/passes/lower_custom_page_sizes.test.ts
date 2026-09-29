@@ -135,6 +135,25 @@ describe('linking lowered modules', () => {
     traps(() => f.load!(6));
   });
 
+  it('memory exposed by memory.grow is ZERO, whatever was written into the slack', () => {
+    // The underlying 64 KiB page is larger than the logical memory, and a host
+    // sees all of it through `buffer`. Bytes written there must not come back
+    // as "fresh" memory when the module grows over them.
+    const i = new WebAssembly.Instance(
+      new WebAssembly.Module(
+        lowered(`(module (memory (export "mem") 4 (pagesize 1)) ${ACCESSORS})`) as BufferSource,
+      ),
+    ).exports as unknown as Fns & { mem: WebAssembly.Memory };
+    new Uint8Array(i.mem.buffer)[10] = 7; // past the 4 logical bytes
+    new Uint8Array(i.mem.buffer)[65535] = 5; // the last byte of the underlying page
+    expect(i.grow!(8)).toBe(4);
+    expect(i.load!(10)).toBe(0);
+    // Across a 64 KiB boundary: the old page's slack is zeroed, the new page is the engine's.
+    expect(i.grow!(70000)).toBe(12);
+    expect(i.load!(65535)).toBe(0);
+    expect(i.load!(69999)).toBe(0);
+  });
+
   it('a SHARED custom-page memory is refused, loudly', () => {
     expect(() => lowered(`(module (memory 1 2 shared (pagesize 1)))`)).toThrow(/SHARED/);
   });

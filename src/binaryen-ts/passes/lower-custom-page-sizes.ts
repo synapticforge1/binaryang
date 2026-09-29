@@ -61,8 +61,10 @@ import {
   makeIf,
   makeLocalGet,
   makeLocalSet,
+  makeMemoryFill,
   makeMemoryGrow,
   makeMemorySize,
+  makeSelect,
   makeUnary,
   makeUnreachable,
   typeOf,
@@ -437,12 +439,54 @@ function grow(delta: Expression, memidx: Var, l: Lowered, fn: WasmFunction): Exp
     makeMemoryGrow(narrow(makeBinary(BinaryOp.SubI64, get(needV), underlyingSize)), memidx, l.addr),
     fail,
   );
-  const commit = [
-    makeGlobalSet(varName(l.pages), narrow(get(newV))),
-    narrow(get(oldV)),
+  // Grown memory must read as ZERO. Pages the engine adds are; but the part of
+  // the new range that lies in the underlying pages that ALREADY existed is the
+  // rounding slack, which a host could write through `exports.mem.buffer` (or a
+  // native importer, P1). 🔧 Unzeroed, those bytes came back as "fresh" memory.
+  // So fill [old bytes, min(new bytes, old underlying bytes)) with 0 — only the
+  // slack, never the pages the engine just zeroed.
+  const curV = newLocal(fn, i64); // underlying bytes BEFORE this grow
+  const endV = newLocal(fn, i64);
+  const bytes = (v: Var) =>
+    l.log2 === 0 ? get(v) : makeBinary(BinaryOp.ShlI64, get(v), u64Const(BigInt(l.log2)));
+  const zeroSlack = (): Expression[] => [
+    makeLocalSet(
+      endV,
+      makeSelect(
+        bytes(newV),
+        get(curV),
+        makeBinary(BinaryOp.LtUI64, bytes(newV), get(curV)),
+        i64,
+      ),
+    ),
+    makeIf(
+      makeBinary(BinaryOp.GtUI64, get(endV), bytes(oldV)),
+      makeMemoryFill(
+        narrow(bytes(oldV)),
+        makeI32Const(0),
+        narrow(makeBinary(BinaryOp.SubI64, get(endV), bytes(oldV))),
+        memidx,
+      ),
+    ),
   ];
+  // Built fresh for each of its two places: one node in two places of a tree is
+  // a hazard to every later pass.
+  const commit = () =>
+    makeBlock(
+      [
+        ...zeroSlack(),
+        makeGlobalSet(varName(l.pages), narrow(get(newV))),
+        narrow(get(oldV)),
+      ],
+      null,
+      l.addr,
+    );
   return makeBlock(
     [
+      makeLocalSet(
+        curV,
+        makeBinary(BinaryOp.ShlI64, underlyingSize, u64Const(BigInt(LOG2_64K))),
+      ),
       makeLocalSet(oldV, toI64(makeGlobalGet(varName(l.pages), l.addr), l.addr)),
       makeLocalSet(newV, makeBinary(BinaryOp.AddI64, get(oldV), toI64(delta, l.addr))),
       makeIf(
@@ -453,8 +497,8 @@ function grow(delta: Expression, memidx: Var, l: Lowered, fn: WasmFunction): Exp
             makeLocalSet(needV, needed),
             makeIf(
               makeBinary(BinaryOp.GtUI64, get(needV), underlyingSize),
-              makeIf(growUnderlying, fail, makeBlock(commit, null, l.addr), '', l.addr),
-              makeBlock(commit, null, l.addr),
+              makeIf(growUnderlying, fail, commit(), '', l.addr),
+              commit(),
               '',
               l.addr,
             ),
