@@ -120,7 +120,9 @@ describe('a br_table holds the values it carries', () => {
     // record (written linearly → written back linearly) is set aside.
     const text = wasm2wat(wat2wasm(LINEAR).binary!, { asWritten: false }).text;
     assert(
-      /\(br_table 0 \(;@1;\) 0 \(;@1;\)\s+\(i32\.const 7\) \(local\.get 0\)\)/.test(text),
+      // `\s+` between the operands: each is on its own line since folded
+      // siblings stopped sharing one (2026-09-29) — nesting is the point here.
+      /\(br_table 0 \(;@1;\) 0 \(;@1;\)\s+\(i32\.const 7\)\s+\(local\.get 0\)\)/.test(text),
       text,
     );
   });

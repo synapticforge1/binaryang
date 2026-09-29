@@ -1727,7 +1727,7 @@ class WatWriter extends ModuleContext {
       this.indent += 2;
       new ExprVisitor(d).visitShallow(e, () => {});
       this.writeItems(item.inner);
-      this.close(NC.Space);
+      this.close(NC.Newline);
       return;
     }
     const [first = [], ...rest] = item.arms;
@@ -1756,7 +1756,7 @@ class WatWriter extends ModuleContext {
         this.indent += 2;
         this.writeItems(first);
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return;
       }
       case 'try_table': {
@@ -1776,7 +1776,7 @@ class WatWriter extends ModuleContext {
         this.beginBlock(this.shownLabel(e.label), LabelType.TryTable, this.declaredBlockType(e));
         this.writeItems(first);
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return;
       }
       case 'try': {
@@ -1802,7 +1802,7 @@ class WatWriter extends ModuleContext {
         this.beginBlock(this.shownLabel(e.label), LabelType.Try, this.declaredBlockType(e));
         this.indent += 2;
         this.puts('(', NC.None);
-        this.putsSpace('do');
+        this.putsNewline('do');
         this.indent += 2;
         this.writeItems(first);
         this.close(NC.Newline);
@@ -1817,9 +1817,9 @@ class WatWriter extends ModuleContext {
             this.puts('(', NC.None);
             if (c.tag !== undefined) {
               this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
-              this.writeVar(c.tag, 'tag', NC.Space);
+              this.writeVar(c.tag, 'tag', NC.Newline);
             } else {
-              this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
+              this.putsNewline(c.isRef ? 'catch_all_ref' : 'catch_all');
             }
             this.indent += 2;
             this.writeItems(rest[i] ?? []);
@@ -1827,7 +1827,7 @@ class WatWriter extends ModuleContext {
           });
         }
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return;
       }
       case 'if': {
@@ -1851,20 +1851,20 @@ class WatWriter extends ModuleContext {
         this.beginBlock(this.shownLabel(e.label), LabelType.If, this.declaredBlockType(e));
         if (item.inner.length > 0) this.newline(true);
         this.puts('(', NC.None);
-        this.putsSpace('then');
+        this.putsNewline('then');
         this.indent += 2;
         this.writeItems(first);
-        this.close(NC.Space);
+        this.close(NC.Newline);
         if (e.ifFalse !== null && e.ifFalse.children.length > 0) {
           this.newline(true);
           this.puts('(', NC.None);
-          this.putsSpace('else');
+          this.putsNewline('else');
           this.indent += 2;
           this.writeItems(elseArm);
-          this.close(NC.Space);
+          this.close(NC.Newline);
         }
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return;
       }
     }
@@ -2218,7 +2218,7 @@ class WatWriter extends ModuleContext {
         if (!this.writeFoldedExpr(op)) return false;
       }
     }
-    this.close(NC.Space);
+    this.close(NC.Newline);
     return true;
   }
 
@@ -2243,7 +2243,7 @@ class WatWriter extends ModuleContext {
     this.puts('(', NC.None);
     this.indent += 2;
     new ExprVisitor(this.makeDelegate()).visitShallow(e, () => {});
-    this.close(NC.Space);
+    this.close(NC.Newline);
     return true;
   }
 
@@ -2296,7 +2296,7 @@ class WatWriter extends ModuleContext {
         this.indent += 2;
         this.writeExprList(isLoop ? e.body.children : e.children);
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return true;
       }
       case 'try_table': {
@@ -2315,7 +2315,7 @@ class WatWriter extends ModuleContext {
         this.beginBlock(this.shownLabel(e.label), LabelType.TryTable, this.declaredBlockType(e));
         this.writeExprList(e.body.children);
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return true;
       }
       case 'try': {
@@ -2334,7 +2334,7 @@ class WatWriter extends ModuleContext {
         this.indent += 2;
 
         this.puts('(', NC.None);
-        this.putsSpace('do');
+        this.putsNewline('do');
         this.indent += 2;
         this.writeExprList(e.body.children);
         this.close(NC.Newline);
@@ -2350,9 +2350,9 @@ class WatWriter extends ModuleContext {
             this.puts('(', NC.None);
             if (c.tag !== undefined) {
               this.putsSpace(c.isRef ? 'catch_ref' : 'catch');
-              this.writeVar(c.tag, 'tag', NC.Space);
+              this.writeVar(c.tag, 'tag', NC.Newline);
             } else {
-              this.putsSpace(c.isRef ? 'catch_all_ref' : 'catch_all');
+              this.putsNewline(c.isRef ? 'catch_all_ref' : 'catch_all');
             }
             this.indent += 2;
             this.writeExprList(c.body.children);
@@ -2361,7 +2361,7 @@ class WatWriter extends ModuleContext {
         }
 
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return true;
       }
       case 'if': {
@@ -2386,20 +2386,20 @@ class WatWriter extends ModuleContext {
           (e.params?.values ?? []).some((v) => v.kind !== 'pop');
         if (wroteHead) this.newline(true);
         this.puts('(', NC.None);
-        this.putsSpace('then');
+        this.putsNewline('then');
         this.indent += 2;
         this.writeExprList(e.ifTrue.children);
-        this.close(NC.Space);
+        this.close(NC.Newline);
         if (e.ifFalse !== null && e.ifFalse.children.length > 0) {
           this.newline(true);
           this.puts('(', NC.None);
-          this.putsSpace('else');
+          this.putsNewline('else');
           this.indent += 2;
           this.writeExprList(e.ifFalse.children);
-          this.close(NC.Space);
+          this.close(NC.Newline);
         }
         this.endBlock();
-        this.close(NC.Space);
+        this.close(NC.Newline);
         return true;
       }
       default:
