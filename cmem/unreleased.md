@@ -1,9 +1,11 @@
 # Unreleased on `main` — what the next release note must say
 
-**Four changes, as of 2026-09-29** — § "Since 1.7.1" (check it rather than trust this line:
+**Five changes, as of 2026-09-29** — § "Since 1.7.1" (check it rather than trust this line:
 `git log --oneline v1.7.1..main -- src/ main.ts deno.json`). `deno.json` reads 1.7.1; the
 version line arms a release ([publishing.md](publishing.md)), so the next bump is the owner's
-decision, never a side effect of work.
+decision, never a side effect of work. ➡️ **Going out as 1.7.2** (owner, 2026-09-29: "merge the
+fixes …, update the project memory files, bump and push"; "1.7.2 is correct" — a patch, as 1.5.4's
+default-text change was). Release notes: `CHANGELOG.md` § 1.7.2.
 
 **Folded away 2026-09-29** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file
 held since 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR

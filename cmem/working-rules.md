@@ -17,7 +17,9 @@ not survive a clone is not a project rule. The lessons behind them are in
 - **End every message with the attribution line** the session supplies (`Co-Authored-By: …`).
 - **Prefer a new commit over `--amend`.**
 - **Nothing is pushed** unless the owner says so.
-- **`deno.json` stays at the released version** (1.5.4 as of 2026-09-14). The version line is what
+- **`deno.json` stays at the released version** (read it there, and the latest release in
+  [publishing.md](publishing.md)'s current-state line — a number quoted here went stale for two
+  weeks). The version line is what
   ARMS a release — `auto-tag` publishes whenever `v<version>` has no tag. See
   [publishing.md](publishing.md); the unreleased changes waiting for it are in
   [unreleased.md](unreleased.md).

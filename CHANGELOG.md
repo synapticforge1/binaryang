@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.7.2
+
+A patch release. **`wasm2wat` prints the text upstream `wasm2wat` and `wasm-tools` print**, and one
+validator gap is closed. No valid module's bytes change; nothing is removed or renamed.
+
+⚠️ **The text `wasm2wat` prints changes for nearly every module** — references by name and the
+folded layout below. If you compare `wasm2wat` output against saved text, expect it to move once.
+Assembling that text gives the same bytes as before.
+
+### Changed — `wasm2wat` text
+
+- **A reference prints its target's name** where the definition has one: `call $f`,
+  `global.get $g`, `(type $sig)`, `(ref null $pair)`, `struct.get $pair $left`, `memory.init $m $d`,
+  exports, `start`, element and data segments — where it printed indices (`call 15` beside
+  `(func $f …)`). A name that two entities of one index space would share is never used, so the
+  text always assembles back to the same module. Only `wasm2wat` does this: the compat API's
+  `toText()` of text you parsed keeps the indices you wrote. New writer option
+  `WriteWatOptions.namedReferences`.
+- **Folded output puts each sibling expression and each operand on its own line**, with a newline
+  after `(then`, `(else`, `(do` and `(catch`, as upstream and wasm-tools do. It ran them together:
+  `(i32.const 0) (i32.const 1)) (i32.store …`.
+- **An unnamed block, loop, `if` or `try_table` carries `;; label = @N` in folded output**, as it
+  always did in linear output — so a branch's `(;@N;)` points at something the text shows.
+- **A declaration's constant expression is one line**, folded and linear:
+  `(global $g i32 (i32.add (global.get $b) (i32.const 8)))`, as wasm-tools prints it.
+- **An empty offset or element item prints `(offset)` / `(item)`.** It printed nothing, so an active
+  segment with an empty offset read back as a PASSIVE one, and an empty item was dropped. (Such
+  modules are invalid; the text now says what the binary holds.)
+
+### Fixed — validation
+
+- **`array.new_default` requires an element type with a default.** `array.new_default` of a
+  `(ref $t)` array validated; wasm-tools and V8 reject it, and now so does `wasm-validate`.
+
 ## 1.7.1
 
 A patch release: **a memory or table limit above 2^32-1 is invalid, not unencodable.** It
