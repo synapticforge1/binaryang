@@ -1936,7 +1936,13 @@ export class SharedValidator {
     this.currentLoc = loc;
     const at = this.checkArrayTypeIndex(typeIdx, loc);
     if (!at) return Result.Error;
-    return this.tc.onCall([Type.I32], [this.refTo(typeIdx)]);
+    // The element must have a default, as every field must for
+    // `struct.new_default`. Nothing checked it: `array.new_default` of a
+    // `(ref $t)` array validated (wasm-tools: "field is not defaultable").
+    return combineResults(
+      this.checkDefaultableFields(loc, typeIdx, [at.element], 'array.new_default'),
+      this.tc.onCall([Type.I32], [this.refTo(typeIdx)]),
+    );
   }
 
   onArrayNewFixed(loc: Location, typeIdx: number, count: number): Result {
