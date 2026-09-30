@@ -176,6 +176,19 @@ fatigue.
     - Mirrors to move with it: `tests/binaryen-ts|wabt-ts|ir`, `scripts/binaryen-ts|wabt-ts`
       (workspace members with their own `deno.json`), and cmem's path citations (retargeting is part
       of the move — working-rules.md).
+    - 🗓️ **Agreed with the owner, 2026-09-30** — worth doing, for simpler optimization, bug finding,
+      hardening and security work: one name and one place per concept, one layout for the lens
+      rounds to audit. The shape agreed:
+      - **Mostly NOT breaking.** Consumers import SUBPATHS, a map in `deno.json`; moving files
+        behind them breaks no one (wasmtk uses `compat/wabt`, `compat/binaryen`, `wasm-validate`).
+        Only the three tree-named subpaths raise it: keep them as deprecated aliases for a release
+        beside new names, remove them in a later MINOR.
+      - **Phased:** (1) move files into one tree by concept (`ir/`, `reader/`, `writer/`,
+        `validator/`, `passes/`, `tools/`, `compat/`), every subpath kept — the gate green and
+        output bytes IDENTICAL; (2) collapse the aliases into single names; (3) remove logic that
+        exists twice; (4) then decide the three tree-named subpaths.
+      - **Timing:** after the IR work (owner) and BEFORE the hardening and security rounds (items
+        13, 14), so those audit the final structure once.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
