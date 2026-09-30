@@ -48,3 +48,12 @@ contains ([handoffs.md](handoffs.md)).
   types nothing refers to are removed and every reference renumbered, as upstream's writer leaves
   them out. The corpus is −10.3 KB at -O1 / -O2 / -Os / -Oz, −12.5 KB at -O3. A plain read and write
   keeps the type section as it was.
+- **Silent fix — `OptimizeInstructions` folded `i64.extend8_s` / `i64.extend16_s` of a constant
+  wrong above 2^53** (open-work 2, step 3a): the fold went through a JS number, which rounds away
+  the low bits it extends. Valid output, wrong value; only a module holding such a constant
+  operand, at `-O2` and above.
+- **Behaviour — `OptimizeInstructions` covers more** (open-work 2, step 3a): a store's conversion
+  or mask folded into the store, an extend of a load into the extending load, `if (eqz c)` arms
+  swapped, `eqz(eqz x)` in a condition, the constants of an add / sub tree gathered into one.
+  Corpus −9.8 KB at -O2 / -Os / -Oz, −26.5 KB at -O3; behaviour unchanged (the spec and corpus
+  behaviour gates).

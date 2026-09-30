@@ -120,7 +120,24 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      changed — and ours, run on upstream's `--dae` output, collect about 1 KB of it (898,604 →
      897,581; control, our -Oz run twice: 898,608 → 898,604). DAE's value waits on the cleanups:
      OptimizeInstructions coverage, SimplifyLocals, RemoveUnusedBrs, Precompute (`precompute` 556,
-     `precompute-propagate` 1,517 on its own). Scratch: `daeprobe.ts` (method is this paragraph). 2026-09-30:** a copy does not make its two locals interfere, a variable may
+     `precompute-propagate` 1,517 on its own). Scratch: `daeprobe.ts` (method is this paragraph).
+   - ✅ **Step 3a done 2026-09-30 — OptimizeInstructions coverage.** What upstream's pass still
+     changes on our -Oz output, by opcode count (`opdelta.ts` / `hunks.ts`: per-opcode net change,
+     then sample diff hunks): `i32.store (wrap_i64 x)` → `i64.store32` (770), `extend_i32_u
+     (i32.load)` → `i64.load32_u` (770), `if (eqz c)` arm swap (~1,000 eqz), added constants
+     gathered (`(x+c1)+c2`, `(0-x)+c`, `((x+1)<<2)+8`); `ge_u` → `le_u` is canonical order, 0
+     bytes. Built those (plus `i64.storeN(extend)`, the store mask, `eqz(eqz)` in a condition,
+     `select` swap when both operands are pure, the shorter spelling of `x ± c`). Corpus: -O2
+     902,484 → **892,635 (−9,849)**, -O3 1,112,248 → **1,085,767 (−26,481)**, -Os / -Oz 898,608 →
+     **888,759 (−9,849)** — more than upstream's pass alone was worth (6,538): the later passes
+     find more. -O1 unmoved (no OI there). 🔧 Found reading the pass: `i64.extend8_s` /
+     `extend16_s` of a constant folded through `Number(v)`, WRONG above 2^53 — silent, valid
+     output (a mutant restoring it is killed). NOT built: `load(add(p, c))` → `offset=c` — the add
+     wraps and the offset does not (upstream needs `--low-memory-unused`). `spec-behaviour` 57,808 /
+     0 DIVERGE, `direct-behaviour` 1,953 / 651 agree, gate green;
+     `optimize_instructions_coverage.test.ts` runs every case before and after, 13 mutants killed
+     (4 survived the first draft — each an untested case, now tested). Next: SimplifyLocals,
+     RemoveUnusedBrs, Precompute, measured the same way. 2026-09-30:** a copy does not make its two locals interfere, a variable may
      take a PARAM's slot (the search started past the params), a copy partner's slot is tried
      first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
      -O3 1,147,462 → **1,124,763 (−22,699)**, -Os / -Oz 915,103 → **908,932 (−6,171)**; the
