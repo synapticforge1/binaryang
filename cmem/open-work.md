@@ -12,7 +12,7 @@ Nothing is unreleased ([unreleased.md](unreleased.md)). **Owner's order that day
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **11 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 2) are next. **12 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 9, 11, 12, 16 and 17 are gone with their numbers kept free.
 Re-derive any number before quoting it.
 
@@ -82,6 +82,16 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      with a `br` out of an `if` (upstream's RemoveUnusedBrs / MergeBlocks remove it and make the
      `if` a `select`); an unused type (item 6). **So the order is: those cleanups first, then
      inlining at upstream's schedule and one-caller limit.** The probes were reverted.
+   - The steps, owner-agreed 2026-09-30: (1) copy coalescing in CoalesceLocals, (2) MergeBlocks,
+     (3) Precompute (+ propagate), (4) Inlining at upstream's schedule and one-caller limit —
+     each measured the same way (corpus totals at every level; the behaviour gates).
+   - ✅ **Step 1 done 2026-09-30:** a copy does not make its two locals interfere, a variable may
+     take a PARAM's slot (the search started past the params), a copy partner's slot is tried
+     first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
+     -O3 1,147,462 → **1,124,763 (−22,699)**, -Os / -Oz 915,103 → **908,932 (−6,171)**; the
+     one-inline example 70 → 66 bytes. `spec-behaviour` 57,808 / 0 DIVERGE, `direct-behaviour`
+     1953 / 651 agree. `coalesce_copies.test.ts` — 5 mutants killed, the over-merge one by the
+     three tests that RUN a module where a copy's source or copy is later overwritten.
 3. ⬚ **LocalCSE is an allow-list of kinds**, so it never reuses what sits under an unlisted kind
    (`extract_lane`, any SIMD). Upstream reuses it.
    - Its share of the **42.1 KB** our twelve passes lose to upstream's same twelve is unmeasured.
@@ -149,6 +159,23 @@ fatigue.
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
+21. ⬚ 🗓️ **Merge `src/binaryen-ts/` and `src/wabt-ts/` into `src/` — SCOPE after the IR work**
+    (owner, 2026-09-30: "It looks like we can now phase a merge of the binaryen-ts and wabt-ts
+    folders into the src folder … I would like to scope that after our IR work is completed").
+    Facts measured that day, for the scoping:
+    - **There is ONE IR already**: `Expression = Expr`, `WasmModule = W.Module`, `WasmFunction =
+      W.Func` (binaryen-ts `ir/` aliases wabt-ts `ir/ir.ts`). The trees are LAYERS, not two IRs:
+      30 binaryen-ts files import wabt-ts, 0 the other way (wabt-ts 52 files / 37k lines — IR,
+      reader, writer, validator, text tools; binaryen-ts 43 / 19k — passes, compat, `wasm-opt`).
+    - **Decision 1** ([project.md](project.md)) says "Two IRs are retained … not a merge task" — its
+      premise no longer describes the code; the merge re-decides it.
+    - `deno task collisions` = **86** names declared in both trees — the aliases; one tree needs
+      one name each, and the indicator itself (it counts per tree) retires with the merge.
+    - PUBLIC subpaths name the trees: `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` —
+      moving files keeps them working (they map to paths), renaming them is BREAKING.
+    - Mirrors to move with it: `tests/binaryen-ts|wabt-ts|ir`, `scripts/binaryen-ts|wabt-ts`
+      (workspace members with their own `deno.json`), and cmem's path citations (retargeting is part
+      of the move — working-rules.md).
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
