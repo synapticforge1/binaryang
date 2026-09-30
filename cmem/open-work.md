@@ -12,7 +12,7 @@ Nothing is unreleased ([unreleased.md](unreleased.md)). **Owner's order that day
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **12 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 2) are next. **11 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 9, 11, 12, 16 and 17 are gone with their numbers kept free.
 Re-derive any number before quoting it.
 
@@ -85,6 +85,32 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
    - The steps, owner-agreed 2026-09-30: (1) copy coalescing in CoalesceLocals, (2) MergeBlocks,
      (3) Precompute (+ propagate), (4) Inlining at upstream's schedule and one-caller limit —
      each measured the same way (corpus totals at every level; the behaviour gates).
+   - 🔧 **Re-ranked by measurement 2026-09-30, owner-agreed:** each upstream pass run ALONE by
+     `wasm-opt -all` on OUR -Oz output (421 modules, after step 1: 908,932 bytes; upstream's
+     re-encode with no pass: 901,807). What each would still save: `inlining-optimizing` 46,994 ·
+     `dae-optimizing` 25,763 · **re-encoding alone 7,125** · `optimize-instructions` 6,538 ·
+     `simplify-locals` 5,007 · `code-folding` 4,551 · `remove-unused-brs` 4,211 · `local-cse` 3,531
+     · `simplify-globals-optimizing` 1,537 · `precompute-propagate` 1,517 ·
+     `duplicate-function-elimination` 1,306 · `merge-similar-functions` 1,293 · `vacuum`,
+     `precompute`, `remove-unused-module-elements`, `coalesce-locals`, `reorder-locals` 351–595 each
+     · **`merge-blocks` 12**. (Our -Oz leaves 3,770 NAMED blocks — branch targets — and 181 unnamed;
+     ~160 in MergeBlocks' shapes.) So MergeBlocks is dropped from step 2; the order is now: **the
+     encoder gap**, then **DAE**, then the cleanups inlining needs (OptimizeInstructions coverage,
+     SimplifyLocals, RemoveUnusedBrs, Precompute), then **inlining**. Scratch instrument:
+     `passvalue.ts` (not kept; its method is this paragraph).
+   - ✅ **Step 2 done 2026-09-30 — "the encoder gap" was not the encoder.** Per section, our -Oz
+     bytes vs upstream re-encoding them: import +7,506 was an ARTIFACT (`-all` turns on upstream's
+     compact-import form; with `--disable-compact-imports` the sections are identical), DataCount
+     −819 likewise (upstream writes it whenever bulk memory is on), and code −9,535 is upstream's
+     encoding being LARGER. The one real loss: **type +9,973 — unused types** (item 6). New pass
+     `RemoveUnusedTypes` (`passes/remove-unused-types.ts`), last at every -O level: uses found by
+     FIELD over the whole module (type `Var`s, heap types, a block's numeric `typeIndex`), closed
+     over used types' own references and whole rec groups, then every index renumbered. Corpus:
+     -O1 −10,324, -O2 −10,324, -O3 −12,515, -Os / -Oz 908,932 → **898,608**; the type section now
+     17,307 against upstream's 17,658. `spec-behaviour` 57,808 / 0 DIVERGE, `direct-behaviour`,
+     `proposals` (descriptor types) all hold. `remove_unused_types.test.ts`, 6 mutants killed — the
+     block `typeIndex` one only by running the pass DIRECTLY: through `PassRunner` a block's written
+     index is dropped as form before any pass.
    - ✅ **Step 1 done 2026-09-30:** a copy does not make its two locals interfere, a variable may
      take a PARAM's slot (the search started past the params), a copy partner's slot is tried
      first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
@@ -99,10 +125,8 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
 4. ⬚ **LocalCSE runs after SimplifyLocals and CoalesceLocals at `-Oz`**, so the tee it adds is never
    cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
 5. ⬚ **LocalCSE treats a multi-value `return` as opaque** (as it once did `tuple.make`).
-6. ⬚ **`RemoveUnusedModuleElements` does not prune unused TYPES.** On the probe it kept 2 type
-    entries to upstream's 1 (4 bytes). Not measured over the corpus: the script that would have
-    priced it (`scratchpad/names/types.ts`) was session scratch and is gone. Rebuild it: the
-    Type-section total, ours vs upstream, at `-Oz`.
+(Item 6, unused types, closed 2026-09-30 as item 2's step 2 — below.)
+
 7. ⬚ **9 node LITERALS in `src/` bypass their factory** and hand-compute `type` (re-counted
     2026-09-29: inlining 5, optimize-instructions 2, local-cse 1, simplify-locals 1; it was 26
     before the WAT parser was deleted).

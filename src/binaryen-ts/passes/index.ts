@@ -56,6 +56,7 @@ import './remove-unused-names.ts';
 import './strip-eh.ts';
 import './translate-eh.ts';
 import './lower-custom-page-sizes.ts';
+import './remove-unused-types.ts';
 import './flatten.ts';
 import './asyncify.ts';
 import './minify-imports-and-exports.ts';
