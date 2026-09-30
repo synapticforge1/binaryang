@@ -44,3 +44,7 @@ contains ([handoffs.md](handoffs.md)).
   parameter's slot, and a copy onto itself is removed. Optimized output moves at `-O2` and above:
   the corpus is −4,675 bytes at -O2, −22,699 at -O3, −6,171 at -Os / -Oz; behaviour unchanged
   (the spec and corpus behaviour gates).
+- **NEW / Behaviour — `RemoveUnusedTypes`** (open-work 6; 2, step 2), last at every `-O` level:
+  types nothing refers to are removed and every reference renumbered, as upstream's writer leaves
+  them out. The corpus is −10.3 KB at -O1 / -O2 / -Os / -Oz, −12.5 KB at -O3. A plain read and write
+  keeps the type section as it was.

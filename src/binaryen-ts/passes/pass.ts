@@ -448,6 +448,9 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     passes.push('Vacuum');
   }
   if (opts.optimizeLevel >= 1) passes.push('RemoveUnusedModuleElements');
+  // Last: the types nothing refers to once the module's other elements have
+  // gone — which upstream's writer leaves out by construction (open-work 6).
+  if (opts.optimizeLevel >= 1) passes.push('RemoveUnusedTypes');
 
   return passes;
 }
