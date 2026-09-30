@@ -6,14 +6,16 @@ item closes, its record goes to the topic file and its line leaves here.
 
 **State, 2026-09-29:** 🚀 **`binaryang@1.8.1` is published** (tag `v1.8.1`, `531d82f1b`;
 [publishing.md](publishing.md) § 1.8.1) — 1.8.0 carried everything below, 1.8.1 wasmtk's § 20
-fixes; `main` = the release plus cmem.
-Nothing is unreleased ([unreleased.md](unreleased.md)). **Owner's order that day: items 16 and 17
+fixes; `main` = the release plus, since 2026-09-30, item 2's steps 1–2 and item 1 — UNRELEASED and
+NOT PUSHED (owner: wait "until the next updates are finished"; [unreleased.md](unreleased.md)).
+**Owner's order that day: items 16 and 17
 (done), then 11 (found already closed), then 12** — decided the same day (both halves, V8 flags)
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **11 open items, none blocking**, numbered below: old 16 and 17
-closed, new 16 and 17 came out of them and closed the same day, and 9, 11, 12, 16 and 17 are gone with their numbers kept free.
+IR items (from 2) are next. **13 open items, none blocking**, numbered below: old 16 and 17
+closed, new 16 and 17 came out of them and closed the same day, and 6, 9, 11, 12, 16 and 17 are
+gone with their numbers kept free.
 Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -111,7 +113,14 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      `proposals` (descriptor types) all hold. `remove_unused_types.test.ts`, 6 mutants killed — the
      block `typeIndex` one only by running the pass DIRECTLY: through `PassRunner` a block's written
      index is dropped as form before any pass.
-   - ✅ **Step 1 done 2026-09-30:** a copy does not make its two locals interfere, a variable may
+   - 🔧 **Re-ordered 2026-09-30, owner-agreed: the cleanups (step 3), THEN DAE (step 4), then
+     inlining.** Measured before writing DAE, on our -Oz output (898,608): upstream's plain `--dae`
+     saves 3,745; `--dae-optimizing` 25,763 against the compact-imports re-encode (to 883,550 with
+     `--disable-compact-imports`). The difference is upstream's FUNCTION passes re-run on what DAE
+     changed — and ours, run on upstream's `--dae` output, collect about 1 KB of it (898,604 →
+     897,581; control, our -Oz run twice: 898,608 → 898,604). DAE's value waits on the cleanups:
+     OptimizeInstructions coverage, SimplifyLocals, RemoveUnusedBrs, Precompute (`precompute` 556,
+     `precompute-propagate` 1,517 on its own). Scratch: `daeprobe.ts` (method is this paragraph). 2026-09-30:** a copy does not make its two locals interfere, a variable may
      take a PARAM's slot (the search started past the params), a copy partner's slot is tried
      first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
      -O3 1,147,462 → **1,124,763 (−22,699)**, -Os / -Oz 915,103 → **908,932 (−6,171)**; the
@@ -144,6 +153,26 @@ invalid modules from it. Q13 in [divergences.md](divergences.md).)
       now, so predict from the module in hand, delete the read-back, and re-measure.
     - The prediction hash keeps it safe: a residual disagreement prints as predicted, never wrong
       ([ir-convergence.md](ir-convergence.md) § "S7", and § "One front end", stage 2's ⏭️ line).
+23. ⬚ 🗓️ **An interpreter, and `wasm-ctor-eval` on it — AFTER the optimizer steps** (owner,
+    2026-09-30: "yes add as open item after the optimizer steps … the wasm-ctor-eval then the -Oz
+    seems to be the right path"). The owner's question: could an interpreter precompute DATA
+    OBJECTS — memory, globals, what a program builds at start — as part of optimization? Yes; that
+    is upstream's `wasm-ctor-eval`: run an entry point at build time up to the first host call, then
+    write memory into data segments, globals into their initializers, and what is left back as the
+    body. wabt-ts has NO interpreter today (upstream wabt's `wasm-interp` was never ported).
+    - **Priced 2026-09-30** on our -Oz output (421 modules, 419 export `_start` — WASI commands,
+      `proc_exit` / `fd_write`), with upstream's tool (`--ctors=_start --kept-exports=_start
+      --ignore-external-input`): ours 898,608 → ctor-eval **843,920** (366 changed, 80 grew, 2
+      refused); upstream `-Oz` on ours without it **810,895**, with it first **758,362** — worth
+      **52.5 KB on top of full optimization**, more than inlining. Scratch: `ctoreval.ts`.
+    - **Shape:** ONE evaluator shared by a Precompute pass, the ctor-eval tool and a `wasm-interp`
+      CLI; the spec testsuite's `assert_return` / `assert_trap` its tests, V8 a second oracle. A
+      wrong evaluator is a SILENT miscompile (valid module, wrong result), so the behaviour gates
+      apply as to any pass.
+    - **Rules:** stop at any host call and anything non-deterministic; never fold a trap away.
+      **Opt-in, never part of `-O`** — upstream keeps it a separate tool, and
+      `--ignore-external-input` assumes empty args / environment (2 corpus modules read their
+      environment): an explicit caller decision.
 
 ## Conformance
 
@@ -213,6 +242,42 @@ fatigue.
         exists twice; (4) then decide the three tree-named subpaths.
       - **Timing:** after the IR work (owner) and BEFORE the hardening and security rounds (items
         13, 14), so those audit the final structure once.
+22. ⬚ **H9 — publish the shared definitions D2 / D3 / D1 as a `./definitions` subpath** (placed on
+    the list by the owner 2026-09-30, from wasmtk's letter [§ 23](handoffs.md); the design is the
+    workspace's `../cmem/divergences.md` § "The shared definitions", letter H9 in
+    `../cmem/handoffs.md`). wasmtk is ready to start H10 (generating their copies) as soon as there
+    is a version to pin. What they asked, narrowed to their use:
+    - **Order: D2 and D3 first, D1 later.** Their runner uses D2 / D3 today; D1 matters to them only
+      when their WAT regexes give way to our parser (I2, after one-front-end stage 5). ⚠️ This
+      REVERSES the workspace plan (D1 first, proved by regenerating our own opcode table; D3 last,
+      after C1) — the order is the owner's call.
+    - **Delivery:** a `./definitions` subpath in a normal release (a new export = MINOR), pinned at
+      the same exact version as their other three. A TS module of typed constants, and/or the JSON
+      sources in the package at a stable path (for the Rust / Zig consumers). **The content hash and
+      the version IN the data**, so their generated copy's header quotes them and their gate proves
+      the copy matches.
+    - **D2, per feature:** the canonical name (the one `allFeatures()` / `Features` uses); the
+      spec-testsuite directories it gates, relative to the testsuite root; whether it CHANGES core
+      semantics, not only adds (why they scope `custom-descriptors`: on everywhere it relaxes
+      `br_on_cast`, and core `br_on_cast.wast` / `br_on_cast_fail.wast` lose 3 `assert_invalid`
+      each — possibly the same fact as D2's "snapshots that must NOT receive it" column); the date
+      it entered the list. Engine flag spellings stay theirs, keyed by our name.
+    - **D3, per verdict class:** for traps a class key and the testsuite's exact `assert_trap`
+      message, with the PREFIX rule stated (`"uninitialized element 2"` matches `"uninitialized
+      element"`); the same for `assert_invalid` / `assert_malformed` later; nothing engine-specific.
+      Entries they filed now (H10 asks for it): `unreachable`, `out of bounds memory access`, `out
+      of bounds table access`, `out of bounds array access`, `undefined element`, `uninitialized
+      element`, `indirect call type mismatch`, `integer divide by zero`, `integer overflow`,
+      `invalid conversion to integer`, `cast failure`, `descriptor cast failure`, `null reference`,
+      `null structure reference`, `null array reference`, `null i31 reference`, `null function
+      reference`, `null descriptor reference`, `unaligned atomic`; `call stack exhausted` for
+      `assert_exhaustion`. Proposals their gate treats specially: `wide-arithmetic` (every file),
+      `custom-descriptors` (scoped), `custom-page-sizes` (through `LowerCustomPageSizes`).
+    - **D1, later:** mnemonic and legal shorthands, immediate syntax (`offset=` / `align=`), stack
+      signature, gating feature; a coarse operator class ("numeric binary") would let them DERIVE
+      their 13 never-a-pointer `i32` operators — that judgment stays theirs.
+    - Their side (H10), for reference: `scripts/gen-definitions.ts` → committed
+      `src/definitions.generated.ts`; their gate regenerates and diffs, inverted once.
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
