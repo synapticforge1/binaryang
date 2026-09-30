@@ -13,7 +13,7 @@ NOT PUSHED (owner: wait "until the next updates are finished"; [unreleased.md](u
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **13 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 2) are next. **14 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 6, 9, 11, 12, 16 and 17 are
 gone with their numbers kept free.
 Re-derive any number before quoting it.
@@ -173,6 +173,9 @@ invalid modules from it. Q13 in [divergences.md](divergences.md).)
       **Opt-in, never part of `-O`** — upstream keeps it a separate tool, and
       `--ignore-external-input` assumes empty args / environment (2 corpus modules read their
       environment): an explicit caller decision.
+    - **Owner, 2026-09-30:** "maybe wasm-ctor-eval is the better tool … but maybe a combination of
+      wasm-ctor-eval and wasm-interp could be ideal also. we will need to measure and see." Which
+      combination is an open question to MEASURE, not a decided shape.
 
 ## Conformance
 
@@ -278,6 +281,34 @@ fatigue.
       their 13 never-a-pointer `i32` operators — that judgment stays theirs.
     - Their side (H10), for reference: `scripts/gen-definitions.ts` → committed
       `src/definitions.generated.ts`; their gate regenerates and diffs, inverted once.
+24. ⬚ 🗓️ **`wasm-bundle` — take wasmtk's `wasmbundle` into our tools, and wasmtk imports it back**
+    (owner, 2026-09-30: "incorporating wasmtk's wasmbundle into our cli tools and offload that from
+    wasmtk. And import it back for use there"; "we will probably want to call it wasm-bundle in our
+    tools section"). Nothing is written into wasmtk from here: they drop their copy and pin ours
+    by their own session, from a letter, once there is a release to pin. Facts read from their
+    tree 2026-09-30 (re-derive before acting):
+    - **What it is:** `src/wasmbundle.ts` (413 lines) bundles N standalone `.wasm` (WASI programs
+      or libraries) into ONE library: export-name conflicts resolved (interactive prompt, or
+      `--on-conflict=prefix|alias|exclude`, `--alias a.wasm=m`), WASI imports deduplicated, every
+      module's data RELOCATED into one memory, `_start` kept, then `-Oz`. The merging itself is
+      `src/wasmmerge.ts` (991 lines) — REGEXES over printed WAT (`readWasm` → `toText` →
+      `parseWat`), which `wasic.ts` also uses; the data relocation decides "never a pointer" by
+      operator (`ARITH_NEVER_PTR`, 13 `i32` ops) — a heuristic. Their tests: `bundle_tests.ts`
+      (179 lines), `merge_tests.ts` (245), `wasmmerge_guard_tests.ts`.
+    - **So it is a REWRITE on the IR, not a port of the text:** index spaces (types, functions,
+      globals, tables, memories, tags, data, elems) renumbered on the tree — which also retires
+      I2's regexes for this path (`../cmem/divergences.md` I2). Upstream binaryen's `wasm-merge`
+      (installed here) is the reference for the linking half.
+    - ⚠️ **Decision for the owner — ONE memory or MANY:** their bundle relocates every module into
+      one memory, which needs to know which values are pointers (the heuristic above; a wrong
+      judgment is silent corruption — their own comment at `wasmbundle.ts:142`). Upstream
+      `wasm-merge` keeps each module's memory (multi-memory): sound by construction, and every
+      engine wasmtk targets runs multi-memory — but a host expecting ONE exported `memory` breaks.
+    - **Scope questions:** whether `wasmmerge.ts`'s `wasic` path moves too or stays theirs; what
+      stays in wasmtk (`witgen`'s WIT emission beside the output; the interactive prompt belongs
+      to a CLI — ours or theirs).
+    - **Surface:** a `wasm-bundle` CLI tool and a `./wasm-bundle` subpath — a new export, so a
+      MINOR; their pin moves to four specifiers (five with item 22's `./definitions`).
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 
