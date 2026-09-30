@@ -64,8 +64,24 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
    - The missing passes: Inlining (ours runs at `-O3` only), DAE, DuplicateFunctionElimination,
      Precompute, MergeBlocks, SimplifyGlobals.
    - It shows in what survives: we keep 3,943 functions to upstream's 2,663.
-   - The cheapest probe is scheduling Inlining at `-O2` / `-Oz`. The earlier "wait for stage 2" is
-     lifted: stage 2 is done.
+   - ~~The cheapest probe is scheduling Inlining at `-O2` / `-Oz`.~~ **Probed 2026-09-30: inlining
+     does not pay until the cleanup passes exist.** Corpus totals (421 modules), before → probe:
+     - upstream's schedule (`InliningOptimizing` in the post passes at `optimizeLevel >= 2 ||
+       shrinkLevel >= 2`, `pass.cpp:822`): -Oz 915,103 → **915,970 (+867)**, -O3 +14 KB;
+     - plus a second round of the function passes after it, as upstream's
+       `addUsefulPassesAfterInlining` does (`precompute-propagate` + the default function
+       passes): -O2 917,483 → 915,587, **-Oz 915,575 (+472)**;
+     - that second round WITHOUT inlining: -O2 915,115 (**−2,368**), -Oz unchanged — the -O2 gain
+       is the round, not the inlining;
+     - plus upstream's one-caller limit (`oneCallerInlineMaxSize = -1`, unlimited; ours is 10):
+       -Oz **919,515 (+4.4 KB)** — every inline leaves overhead we cannot remove.
+   - **What an inline leaves behind** (one callee, one caller, -Oz: ours 70 bytes, upstream 43):
+     parameter COPIES (`local.set 1 (local.get 0)` — upstream's CoalesceLocals coalesces copies,
+     ours does not); a CONSTANT parameter not propagated or folded (`5 * 3` → upstream's
+     `precompute-propagate` gives 15; we have no Precompute); the `__inlined_func` wrapper block
+     with a `br` out of an `if` (upstream's RemoveUnusedBrs / MergeBlocks remove it and make the
+     `if` a `select`); an unused type (item 6). **So the order is: those cleanups first, then
+     inlining at upstream's schedule and one-caller limit.** The probes were reverted.
 3. ⬚ **LocalCSE is an allow-list of kinds**, so it never reuses what sits under an unlisted kind
    (`extract_lane`, any SIMD). Upstream reuses it.
    - Its share of the **42.1 KB** our twelve passes lose to upstream's same twelve is unmeasured.
