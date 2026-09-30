@@ -113,6 +113,12 @@ Assembling that text gives the same bytes as before.
 - **An empty offset or element item prints `(offset)` / `(item)`.** It printed nothing, so an active
   segment with an empty offset read back as a PASSIVE one, and an empty item was dropped. (Such
   modules are invalid; the text now says what the binary holds.)
+- **The LAYOUT changes reach the compat printer too** (added after release, 2026-09-30, reported by
+  the wasmtk team): `compat/wabt` `readWasm(bytes).toText()` prints one expression per line and
+  `;; label = @N` after each unnamed `block` / `loop` / `if` / `try_table`, with either
+  `readDebugNames` setting. Its tokens are unchanged — named references stay `wasm2wat`-only, as
+  above — but code that reads the printed text line by line, or compares it against saved text,
+  sees it move once.
 
 ### Fixed — validation
 
