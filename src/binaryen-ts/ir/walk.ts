@@ -263,22 +263,26 @@ function _mapChildren(
     case ExpressionKind.Loop:
       return { ...expr, ...mappedParams(expr.params, fn), body: slot(expr.body) };
 
-    // ⚠️ Condition is mapped BEFORE the values, the reverse of wasm's evaluation
-    // order (values are pushed first). Kept as it was when `value` became
-    // `values` (S6 decision 6A) so that change moved no bytes; see open-work.
-    case ExpressionKind.Break:
+    // Values BEFORE the condition: wasm pushes the carried values first. 🔧
+    // Open-work 1: the condition was mapped first (kept that way when `value`
+    // became `values`, S6 decision 6A, so that change moved no bytes). It was
+    // not only an order: `mapWithSequences` keeps, evaluated, what is mapped
+    // BEFORE an operand that becomes a never-falling-through sequence — so
+    // StripEH ran `br_if $l (throw $e (i32.const 7)) (call $bump)`'s call
+    // before the trap (`branch_operand_order.test.ts`).
+    case ExpressionKind.Break: {
+      const values = expr.values.map(fn);
       return {
         ...expr,
+        values,
         ...(expr.condition === undefined ? {} : { condition: fn(expr.condition) }),
-        values: expr.values.map(fn),
       };
+    }
 
-    case ExpressionKind.Switch:
-      return {
-        ...expr,
-        condition: fn(expr.condition),
-        values: expr.values.map(fn),
-      };
+    case ExpressionKind.Switch: {
+      const values = expr.values.map(fn);
+      return { ...expr, values, condition: fn(expr.condition) };
+    }
 
     case ExpressionKind.Return:
       return { ...expr, values: expr.values.map(fn) };
@@ -681,14 +685,15 @@ function _visitChildren(
       expr.params?.values.forEach(visit);
       visit(expr.body);
       break;
-    // ⚠️ Condition before values — see the same note in `mapExpression`.
+    // Values before the condition, as wasm evaluates them (open-work 1; see
+    // the note in `_mapChildren`).
     case ExpressionKind.Break:
-      if (expr.condition) visit(expr.condition);
       expr.values.forEach(visit);
+      if (expr.condition) visit(expr.condition);
       break;
     case ExpressionKind.Switch:
-      visit(expr.condition);
       expr.values.forEach(visit);
+      visit(expr.condition);
       break;
     case ExpressionKind.Return:
       expr.values.forEach(visit);

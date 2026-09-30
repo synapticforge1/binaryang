@@ -33,4 +33,9 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.8.1
 
-(none)
+- **Silent fix — the tree walkers visit a branch's values before its condition** (open-work 1):
+  `mapExpression`, `walkExpression`, `visitChildren`, `mapChildrenShallow` and `mapWithSequences`
+  took a `br_if` / `br_table`'s condition first, the reverse of wasm. For a tree built by the
+  builder API or a pass with a payload-carrying `throw` among a branch's values, StripEH ran the
+  condition before the trap. A module read from text or binary never has that shape; no optimizer
+  output moves (0 of 13,285 measured).

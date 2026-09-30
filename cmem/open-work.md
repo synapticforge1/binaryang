@@ -12,7 +12,7 @@ Nothing is unreleased ([unreleased.md](unreleased.md)). **Owner's order that day
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 1) are next. **12 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 2) are next. **11 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 9, 11, 12, 16 and 17 are gone with their numbers kept free.
 Re-derive any number before quoting it.
 
@@ -50,13 +50,15 @@ could) and DG6 (a text diagnostic at the WORD, not its `(`, underlined as upstre
 
 ## Optimizer and IR
 
-1. ⬚ **`mapExpression` / `walkExpression` visit a branch's condition BEFORE its values**, which
-   reverses wasm's evaluation order.
-   - `deriveTypes` orders branch operands itself (`cd37142a6`), but any other order-sensitive
-     visitor is exposed.
-   - `operandsInOrder` (`ir/phantoms.ts`) is the one correct ordering, and a fix could route through
-     it.
-   - It may move `-Oz` bytes, so it wants its own measured commit.
+(Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
+It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
+operand that becomes a never-falling-through sequence, so StripEH ran a builder-made
+`br_if $l (throw $e (i32.const 7)) (call $bump)`'s call before the trap — reachable only from trees
+built by the API or a pass; the text reader keeps such a `throw` a statement before the branch.
+The "may move `-Oz` bytes" premise was measured: 0 of 13,285 optimizer outputs moved (the corpus
+and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`deriveTypes`,
+`phantoms`, `cfg`, `non-nullable-locals`) already had wasm's order. `branch_operand_order.test.ts`.)
+
 2. ⬚ **The size gap to upstream at `-Oz` is mostly COVERAGE: 60.3 KB of 109.5 KB**
    ([names.md](names.md) § "Names under optimization, priced", measured 2026-09-19).
    - The missing passes: Inlining (ours runs at `-O3` only), DAE, DuplicateFunctionElimination,
