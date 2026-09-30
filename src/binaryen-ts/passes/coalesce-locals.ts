@@ -19,15 +19,17 @@
  *    actions starting from the block's `end`.
  * 4. Builds an interference graph by walking each block forward: at each
  *    effective set, all currently live locals (other than the one being
- *    written) interfere with it. Params interfere with each other
- *    pairwise; zero-initialised locals that are live at function entry
- *    interfere with every param.
- * 5. Greedily colours the interference graph — each non-param local is
- *    assigned to the lowest slot whose existing tenants do not interfere.
+ *    written) interfere with it — except the local a COPY
+ *    (`local.set x (local.get y)`) reads, which then holds the same value.
+ *    Params interfere with each other pairwise; zero-initialised locals that
+ *    are live at function entry interfere with every param.
+ * 5. Greedily colours the interference graph — each non-param local takes a
+ *    copy partner's slot if it fits, else the lowest slot, a PARAM's included,
+ *    whose existing tenants do not interfere.
  * 6. Rewrites the body: renames local indices through the mapping, replaces
  *    ineffective `local.set` with `drop`, replaces ineffective `local.tee`
- *    with the bare value. The `fn.locals` array is rebuilt to match the
- *    new slot count.
+ *    with the bare value, and drops a copy onto its own slot. The
+ *    `fn.locals` array is rebuilt to match the new slot count.
  *
  * Because liveness is computed across CFG edges, values that flow around
  * loop back-edges are kept live across the back-edge — so two locals whose
@@ -41,7 +43,7 @@
  * @license MIT
  */
 
-import { asRegion, type Expression, ExpressionKind, makeDrop } from '../ir/expressions.ts';
+import { asRegion, type Expression, ExpressionKind, makeDrop, makeNop } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
@@ -123,26 +125,36 @@ function _coalesceFunction(fn: WasmFunction): void {
   const slotMembers = new Map<number, number[]>();
   for (let i = 0; i < numParams; i++) slotMembers.set(i, [i]);
 
+  // Copies between locals (`local.set x (local.get y)`), both directions: a
+  // local prefers the slot of a local it is copied from or to, since sharing it
+  // turns the copy into a copy onto itself, which the rewrite removes (as
+  // upstream's copy weights do).
+  const copyPartners = _copyPartners(cfg, effectiveSet, numLocals);
+
+  const fits = (slot: number, local: number): boolean => {
+    const members = slotMembers.get(slot)!;
+    // Type must match (slots are typed); slots always have members.
+    if (fn.locals[members[0]!]!.type !== fn.locals[local]!.type) return false;
+    return members.every((m) => !interferes.get(m, local));
+  };
+
   let nextSlot = numParams;
   for (let local = numParams; local < numLocals; local++) {
-    const myType = fn.locals[local]!.type; // local < numLocals === fn.locals.length
     let assigned = -1;
-    // Try existing non-param slots in order.
-    for (let slot = numParams; slot < nextSlot; slot++) {
-      const members = slotMembers.get(slot)!;
-      // Type must match (slots are typed).
-      if (fn.locals[members[0]!]!.type !== myType) continue; // slots always have members
-      let ok = true;
-      for (const m of members) {
-        if (interferes.get(m, local)) {
-          ok = false;
-          break;
-        }
-      }
-      if (ok) {
+    // A copy partner's slot first — a PARAM's included — then the lowest slot
+    // that fits. 🔧 Open-work 2, step 1: the search started past the params, so
+    // a variable could never take a param's slot; the copy an inline leaves
+    // (`local.set 1 (local.get 0)`, param 0 not read again) could not go.
+    for (const partner of copyPartners[local]!) {
+      if (partner >= local) continue; // not yet placed
+      const slot = mapping[partner]!;
+      if (fits(slot, local)) {
         assigned = slot;
         break;
       }
+    }
+    for (let slot = 0; assigned === -1 && slot < nextSlot; slot++) {
+      if (fits(slot, local)) assigned = slot;
     }
     if (assigned === -1) {
       assigned = nextSlot++;
@@ -165,7 +177,8 @@ function _coalesceFunction(fn: WasmFunction): void {
     const newLocals = new Array(nextSlot);
     for (let i = 0; i < numParams; i++) newLocals[i] = fn.locals[i];
     for (let i = numParams; i < numLocals; i++) {
-      newLocals[mapping[i]!] = fn.locals[i]!;
+      // A variable sharing a PARAM's slot leaves the param's entry as it is.
+      if (mapping[i]! >= numParams) newLocals[mapping[i]!] = fn.locals[i]!;
     }
     // Every slot from numParams to nextSlot-1 was allocated by the loop above,
     // so a gap is an invariant violation in the colouring. Filling it with an
@@ -232,11 +245,41 @@ function _markBlockInterference(
     }
     // set
     if (!effectiveSet.has(a.origin)) continue;
+    // A COPY (`local.set x (local.get y)`) leaves x and y holding one value, so
+    // it does not make them interfere; a later write to either, while the other
+    // is live, does (as upstream's liveness does).
+    const source = _copySource(a.origin);
     for (const other of live) {
-      if (other !== a.index) interferes.set(other, a.index);
+      if (other !== a.index && other !== source) interferes.set(other, a.index);
     }
     live.add(a.index);
   }
+}
+
+/** The local a `local.set` / `local.tee` copies — its value is a bare `local.get` — or -1. */
+function _copySource(set: Expression): number {
+  if (set.kind !== ExpressionKind.LocalSet && set.kind !== ExpressionKind.LocalTee) return -1;
+  const v = set.value;
+  return v.kind === ExpressionKind.LocalGet ? requireIndex(v.var, 'local index') : -1;
+}
+
+/** For each local, the locals an EFFECTIVE copy connects it to, in either direction. */
+function _copyPartners(
+  cfg: CFG,
+  effectiveSet: ReadonlySet<Expression>,
+  numLocals: number,
+): number[][] {
+  const partners = Array.from({ length: numLocals }, () => new Set<number>());
+  for (const b of cfg.blocks) {
+    for (const a of b.actions) {
+      if (a.kind !== 'set' || !effectiveSet.has(a.origin)) continue;
+      const source = _copySource(a.origin);
+      if (source < 0 || source === a.index || source >= numLocals) continue;
+      partners[a.index]!.add(source);
+      partners[source]!.add(a.index);
+    }
+  }
+  return partners.map((s) => [...s].sort((x, y) => x - y));
 }
 
 // ---------------------------------------------------------------------------
@@ -325,13 +368,19 @@ function _rewriteBody(
     }
   });
 
+  /** Whether `value` (already renamed) reads the very slot being written. */
+  const readsSlot = (value: Expression, slot: number) =>
+    value.kind === ExpressionKind.LocalGet && requireIndex(value.var, 'local index') === slot;
+
   return mapExpression(expr, (e) => {
     if (e.kind === ExpressionKind.LocalSet) {
       // `e.value` here is already the post-rewrite (renamed) value subtree.
       if (_isIneffective(e)) return makeDrop(e.value);
       const cur = requireIndex(e.var, 'local index');
-      const slot = mapping[cur];
-      if (slot !== undefined && slot !== cur) return { ...e, var: varIndex(slot) };
+      const slot = mapping[cur] ?? cur;
+      // A copy onto ITSELF once coalesced does nothing (upstream drops it too).
+      if (readsSlot(e.value, slot)) return makeNop();
+      if (slot !== cur) return { ...e, var: varIndex(slot) };
       return e;
     }
     if (e.kind === ExpressionKind.LocalTee) {
@@ -339,8 +388,10 @@ function _rewriteBody(
       // the tee degrades to just the (already-rewritten) value.
       if (_isIneffective(e)) return e.value;
       const cur = requireIndex(e.var, 'local index');
-      const slot = mapping[cur];
-      if (slot !== undefined && slot !== cur) return { ...e, var: varIndex(slot) };
+      const slot = mapping[cur] ?? cur;
+      // A tee of the slot it writes is just that read.
+      if (readsSlot(e.value, slot)) return e.value;
+      if (slot !== cur) return { ...e, var: varIndex(slot) };
       return e;
     }
     if (e.kind === ExpressionKind.LocalGet) {

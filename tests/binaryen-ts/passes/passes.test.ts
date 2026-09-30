@@ -6,7 +6,7 @@
  * @license MIT
  */
 
-import { assertEquals, assertNotEquals } from '@std/assert';
+import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
 import {
   asRegion,
@@ -52,7 +52,8 @@ import { AbstractHeapType } from '../../../src/binaryen-ts/ir/gc-types.ts';
 import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
 import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
 import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { requireIndex, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
 import { heapAbstract, varName } from '../../../src/wabt-ts/ir/ir.ts';
 import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
@@ -787,8 +788,16 @@ Deno.test('CoalesceLocals: if-else with overlapping liveness on merge stays dist
 
   new PassRunner(mod).add('CoalesceLocals').run();
 
-  // Param is at slot 0; $A and $B (slots 1, 2) must remain distinct.
-  assertEquals(mod.functions[0].locals.length, 3);
+  // $A and $B must remain DISTINCT: the two reads after the `if` name two
+  // different slots. (This asserted "3 locals" until 2026-09-30 — a proxy that
+  // broke when a variable could take a PARAM's slot: the param is dead after
+  // the condition, so one of $A / $B may legitimately reuse slot 0.)
+  const reads: number[] = [];
+  walkExpression(mod.functions[0].body, (e) => {
+    if (e.kind === ExpressionKind.LocalGet) reads.push(requireIndex(e.var, 'local'));
+  });
+  const [a, b] = reads.slice(-2);
+  assert(a !== b, `$A and $B share slot ${a}`);
 });
 
 Deno.test('CoalesceLocals: dead set inside loop is replaced with drop', () => {

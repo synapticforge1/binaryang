@@ -39,3 +39,8 @@ contains ([handoffs.md](handoffs.md)).
   builder API or a pass with a payload-carrying `throw` among a branch's values, StripEH ran the
   condition before the trap. A module read from text or binary never has that shape; no optimizer
   output moves (0 of 13,285 measured).
+- **Behaviour — `CoalesceLocals` coalesces copies** (open-work 2, step 1), as upstream's: a copy
+  (`local.set x (local.get y)`) no longer makes x and y interfere, a variable may share a
+  parameter's slot, and a copy onto itself is removed. Optimized output moves at `-O2` and above:
+  the corpus is −4,675 bytes at -O2, −22,699 at -O3, −6,171 at -Os / -Oz; behaviour unchanged
+  (the spec and corpus behaviour gates).
