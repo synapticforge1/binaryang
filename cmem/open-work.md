@@ -174,7 +174,22 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      `proposals`, not by the fuzzer (its generator builds no stack residue). Not built: upstream's
      loop restructuring. Gate green, fuzz 3,000 more seeds clean; `remove_unused_brs_3c.test.ts`, 9
      mutants killed — the `br_if` type one only by asserting the IR (nothing reads a valueless
-     `br_if`'s stored type today; DCE asks the structure). Next: Precompute. 2026-09-30:** a copy does not make its two locals interfere, a variable may
+     `br_if`'s stored type today; DCE asks the structure). Next: Precompute.
+   - 🔧 **Re-ordered again 2026-10-06, owner-agreed:** Precompute (now 1,134 on our output) is
+     FOLDED INTO item 23 — built on the one evaluator item 23 plans, not separately. Measured
+     after 3c (872,500): our whole -Oz run TWICE saves 2,764 (the pipeline was not at a fixed
+     point); upstream's plain `--dae` then our pipeline 869,736 → 867,076 (was ~1 KB before the
+     cleanups), upstream's `dae-optimizing` 863,788. So: **4a** the re-runs, **4b** DAE, then
+     inlining.
+   - ✅ **Step 4a done 2026-10-06 — the schedule re-runs what later passes expose**
+     (`schedule.ts`: candidate schedules, corpus totals). All of the twice-run gain is ONE pass:
+     CoalesceLocals again after SimplifyLocals / LocalCSE (the reads and writes sinking removed
+     leave locals to merge): −2,900, more than running everything twice; moving it instead of
+     repeating keeps only −2,348. And SimplifyLocals after Inlining at -O3 (an inlined call leaves
+     its arguments copied into locals): −8,097 of -O3's −8,309 (−212 without it). Corpus: -O2
+     876,375 → **873,471 (−2,904)**, -O3 1,062,111 → **1,053,802 (−8,309)**, -Os / -Oz 872,500 →
+     **869,600 (−2,900)**. Gate green; `pipeline_schedule.test.ts` asserts each re-run against the
+     schedule without it and runs the output — removing either fails it. Next: **4b DAE**. 2026-09-30:** a copy does not make its two locals interfere, a variable may
      take a PARAM's slot (the search started past the params), a copy partner's slot is tried
      first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
      -O3 1,147,462 → **1,124,763 (−22,699)**, -Os / -Oz 915,103 → **908,932 (−6,171)**; the
@@ -230,6 +245,9 @@ invalid modules from it. Q13 in [divergences.md](divergences.md).)
     - **Owner, 2026-09-30:** "maybe wasm-ctor-eval is the better tool … but maybe a combination of
       wasm-ctor-eval and wasm-interp could be ideal also. we will need to measure and see." Which
       combination is an open question to MEASURE, not a decided shape.
+    - **Precompute joins this item** (owner-agreed 2026-10-06, item 2): `precompute-propagate`
+      was worth 1,134 on our -Oz output after step 3c — built on this item's evaluator, so
+      constant folding has one semantics, not two.
 
 ## Conformance
 
