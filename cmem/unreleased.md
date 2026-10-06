@@ -57,3 +57,8 @@ contains ([handoffs.md](handoffs.md)).
   swapped, `eqz(eqz x)` in a condition, the constants of an add / sub tree gathered into one.
   Corpus −9.8 KB at -O2 / -Os / -Oz, −26.5 KB at -O3; behaviour unchanged (the spec and corpus
   behaviour gates).
+- **Behaviour — `SimplifyLocals` sinks a set into the get that reads it** (open-work 2, step 3b),
+  along straight-line code, past whatever its effects may pass; the only read becomes the value
+  itself, otherwise a `local.tee`. It merged only an adjacent set and get before. Corpus −14.2 KB
+  at -O2 / -Os / -Oz, −20.7 KB at -O3; behaviour unchanged (the spec and corpus behaviour gates,
+  the optimizer fuzzer). Internal: a shared effect analysis, `ir/effects.ts` (not a subpath).

@@ -137,7 +137,29 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      0 DIVERGE, `direct-behaviour` 1,953 / 651 agree, gate green;
      `optimize_instructions_coverage.test.ts` runs every case before and after, 13 mutants killed
      (4 survived the first draft — each an untested case, now tested). Next: SimplifyLocals,
-     RemoveUnusedBrs, Precompute, measured the same way. 2026-09-30:** a copy does not make its two locals interfere, a variable may
+     RemoveUnusedBrs, Precompute, measured the same way.
+   - ✅ **Step 3b done 2026-10-06 — SimplifyLocals SINKS, on a shared effect analysis.**
+     Re-ranked first on our -Oz output after 3a: `inlining-optimizing` 43,621 · `dae-optimizing`
+     24,559 · `simplify-locals` 5,007 · `code-folding` 4,542 · `remove-unused-brs` 4,210 ·
+     `local-cse` 3,327 · `precompute-propagate` 1,511 · `optimize-instructions` 1,003 (was 6,538).
+     Upstream's simplify-locals by opcode: 8,013 sets became tees, 7,594 gets went. Ours only
+     merged a set with an ADJACENT get. New `ir/effects.ts` (upstream's `effects.h` role): shallow /
+     deep effects, `invalidates(a, b)`; an unclassified kind conflicts with everything; two traps
+     never swap (the trap kind is behaviour). SimplifyLocals rewritten on it: a set's value moves
+     to the first get that reads it along straight-line code (cleared at any branch, loop, `if`
+     arm, `try`, and EVERY block end — a branch names its target by depth, so an empty label
+     proves nothing), the get becoming the value when it is the only read, else a tee. Corpus:
+     -O2 892,635 → **878,476 (−14,159)**, -O3 1,085,767 → **1,065,080 (−20,687)**, -Os / -Oz
+     888,759 → **874,595 (−14,164)**. 🔧 The fuzzer (`optimize_fuzz.test.ts`, seed 128) caught
+     two miscompiles in the first draft, both now named tests: a `local.get` did not invalidate a
+     pending value that WRITES its local (a tee inside it), and a value that another set was sunk
+     into did not carry that set's effects. Found measuring: globals reach the passes by NAME
+     (667 / 667), so per-index global tracking was dead — keys are now the reference as written,
+     and an index and a name are never proved apart. Upstream's `if` / block result values from
+     sets in arms are not done. `spec-behaviour` 57,808 / 0 DIVERGE, `direct-behaviour` 1,953 /
+     651 agree, gate green, fuzz 5,000 more seeds clean; `simplify_locals_sink.test.ts`, 14 of 15
+     mutants killed — the survivor, "a branch does not clear", is redundant with the effect rule
+     (every sinkable writes its local) and kept as its statement. Next: RemoveUnusedBrs, Precompute. 2026-09-30:** a copy does not make its two locals interfere, a variable may
      take a PARAM's slot (the search started past the params), a copy partner's slot is tried
      first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
      -O3 1,147,462 → **1,124,763 (−22,699)**, -Os / -Oz 915,103 → **908,932 (−6,171)**; the
