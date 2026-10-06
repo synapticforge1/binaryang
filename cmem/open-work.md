@@ -189,7 +189,24 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      its arguments copied into locals): −8,097 of -O3's −8,309 (−212 without it). Corpus: -O2
      876,375 → **873,471 (−2,904)**, -O3 1,062,111 → **1,053,802 (−8,309)**, -Os / -Oz 872,500 →
      **869,600 (−2,900)**. Gate green; `pipeline_schedule.test.ts` asserts each re-run against the
-     schedule without it and runs the output — removing either fails it. Next: **4b DAE**. 2026-09-30:** a copy does not make its two locals interfere, a variable may
+     schedule without it and runs the output — removing either fails it. Next: **4b DAE**.
+   - ✅ **Step 4b done 2026-10-06 — DeadArgumentElimination** (`passes/dead-argument-elimination.ts`,
+     new). For a function reached ONLY by direct `call` / `return_call` (not exported, never a
+     `ref.func` operand in code, globals or element segments, not imported): a parameter nothing
+     reads goes when every call passes it an effect-free value; one every call passes the SAME
+     constant (bit for bit — a float by its bits) becomes a local set to it on entry. Decided on
+     the tree as read, then every call pruned by node IDENTITY before any rebuild, then each
+     function's locals renumbered and its type interned with the writer's own interner
+     (`makeTypeInterner`, so RemoveUnusedTypes sees the right use). Placement measured
+     (`schedule2.ts`): before the function passes −5,315, after them plus a cleanup re-run (upstream's
+     `dae-optimizing` placement) −5,411, both −5,559 — taken: before, one pass. Corpus: -O2 873,471 →
+     **868,216 (−5,255)**, -O3 1,053,802 → **1,046,251 (−7,551)**, -Os / -Oz 869,600 → **864,285
+     (−5,315)** — upstream's `dae-optimizing` reached 863,788 from 872,500. Spec -O3 +246 on
+     `call.0` / `return_call.0` (Inlining takes the smaller functions; -O3 trades size for speed).
+     Not done: removing a result every caller drops; moving an operand with effects out of the
+     call. Gate green; `dead_argument_elimination.test.ts`, 12 mutants killed (a test asserting the
+     start function's signature was dropped as vacuous — a start function has no parameters, and
+     the check with it). Next: **inlining** at upstream's schedule. 2026-09-30:** a copy does not make its two locals interfere, a variable may
      take a PARAM's slot (the search started past the params), a copy partner's slot is tried
      first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
      -O3 1,147,462 → **1,124,763 (−22,699)**, -Os / -Oz 915,103 → **908,932 (−6,171)**; the

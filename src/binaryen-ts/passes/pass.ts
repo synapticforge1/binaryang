@@ -427,6 +427,11 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
   // Inlining side effect (divergence I1, retired 2026-09-14: corpus -O1 / -O2
   // −39% bytes, -O3 −13%, -Os / -Oz unchanged; `dead_function_removal.test.ts`).
   if (opts.optimizeLevel >= 2) passes.push('RemoveUnusedModuleElements');
+  // Before the function passes, which then fold in the constants it turns
+  // parameters into (open-work 2, step 4b; corpus -Oz −5.3 KB). Upstream runs
+  // it after them and re-optimizes what changed: measured, −5.4 KB for four
+  // more passes; both places, −5.6 KB.
+  if (opts.optimizeLevel >= 2) passes.push('DeadArgumentElimination');
 
   if (opts.optimizeLevel >= 1) {
     passes.push('DCE', 'PickLoadSigns', 'Vacuum');
