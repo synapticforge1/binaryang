@@ -439,10 +439,18 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
       'CoalesceLocals',
       'SimplifyLocals',
       'LocalCSE',
+      // Again, as upstream schedules it after simplify-locals: the reads and
+      // writes SimplifyLocals removed leave locals to merge and drop (open-work
+      // 2, step 4a: corpus -Oz −2.9 KB; moving it here instead of running it
+      // twice keeps only −2.3 KB).
+      'CoalesceLocals',
     );
   }
   if (opts.optimizeLevel >= 3) {
-    passes.push('Inlining', 'OptimizeInstructions', 'CoalesceLocals');
+    // SimplifyLocals after Inlining: an inlined call leaves its arguments
+    // copied into locals that sinking removes (open-work 2, step 4a: corpus
+    // -O3 −8.3 KB with it, −0.2 KB without).
+    passes.push('Inlining', 'OptimizeInstructions', 'SimplifyLocals', 'CoalesceLocals');
   }
   if (opts.shrinkLevel >= 1) {
     passes.push('Vacuum');

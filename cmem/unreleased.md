@@ -65,3 +65,6 @@ contains ([handoffs.md](handoffs.md)).
 - **Behaviour — `RemoveUnusedBrs` covers more** (open-work 2, step 3c): a `return` ending a function
   body becomes its value, a cheap `if` with a numeric result becomes a `select`, `if (c) br` becomes
   `br_if`. Corpus −2.1 KB at -O2 / -Os / -Oz, −3.0 KB at -O3; behaviour unchanged.
+- **Behaviour — the default `-O` schedule re-runs passes** (open-work 2, step 4a): CoalesceLocals
+  again after SimplifyLocals / LocalCSE at -O2 and above, and SimplifyLocals after Inlining at -O3.
+  Corpus −2.9 KB at -O2 / -Os / -Oz, −8.3 KB at -O3.
