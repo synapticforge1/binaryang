@@ -62,3 +62,6 @@ contains ([handoffs.md](handoffs.md)).
   itself, otherwise a `local.tee`. It merged only an adjacent set and get before. Corpus −14.2 KB
   at -O2 / -Os / -Oz, −20.7 KB at -O3; behaviour unchanged (the spec and corpus behaviour gates,
   the optimizer fuzzer). Internal: a shared effect analysis, `ir/effects.ts` (not a subpath).
+- **Behaviour — `RemoveUnusedBrs` covers more** (open-work 2, step 3c): a `return` ending a function
+  body becomes its value, a cheap `if` with a numeric result becomes a `select`, `if (c) br` becomes
+  `br_if`. Corpus −2.1 KB at -O2 / -Os / -Oz, −3.0 KB at -O3; behaviour unchanged.

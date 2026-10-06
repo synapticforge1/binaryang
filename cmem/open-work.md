@@ -159,7 +159,22 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      sets in arms are not done. `spec-behaviour` 57,808 / 0 DIVERGE, `direct-behaviour` 1,953 /
      651 agree, gate green, fuzz 5,000 more seeds clean; `simplify_locals_sink.test.ts`, 14 of 15
      mutants killed — the survivor, "a branch does not clear", is redundant with the effect rule
-     (every sinkable writes its local) and kept as its statement. Next: RemoveUnusedBrs, Precompute. 2026-09-30:** a copy does not make its two locals interfere, a variable may
+     (every sinkable writes its local) and kept as its statement. Next: RemoveUnusedBrs, Precompute.
+   - ✅ **Step 3c done 2026-10-06 — RemoveUnusedBrs, the counted shapes.** Upstream's
+     remove-unused-brs on our output after 3b: 4,174 (upstream's simplify-locals is now −1,992
+     there: ours does better). Most of it restructures loops; the shapes counted in our -Oz
+     output (`brshapes.ts`): a `return` ending the body 494, a cheap `if` with a result 468, `if
+     (c) br` 29. Built: the tail `return` → its value (not past values left on the stack), a cheap
+     `if` → `select` (numeric result, each arm one constant / read, and the condition writes
+     nothing they read — `ir/effects.ts`), `if (c) br $l` → `br_if $l c` (not to the `if`
+     itself). Corpus: -O2 878,476 → **876,375 (−2,101)**, -O3 1,065,080 → **1,062,111
+     (−2,969)**, -Os / -Oz 874,595 → **872,500 (−2,095)**. 🔧 The first draft removed a tail
+     `return` that also DISCARDS values left on the stack (spec `unwind.wast`: `(i32.const 3)
+     (i64.const 1) (return (i32.const 9))`) — INVALID output, caught by `spec-behaviour` and
+     `proposals`, not by the fuzzer (its generator builds no stack residue). Not built: upstream's
+     loop restructuring. Gate green, fuzz 3,000 more seeds clean; `remove_unused_brs_3c.test.ts`, 9
+     mutants killed — the `br_if` type one only by asserting the IR (nothing reads a valueless
+     `br_if`'s stored type today; DCE asks the structure). Next: Precompute. 2026-09-30:** a copy does not make its two locals interfere, a variable may
      take a PARAM's slot (the search started past the params), a copy partner's slot is tried
      first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
      -O3 1,147,462 → **1,124,763 (−22,699)**, -Os / -Oz 915,103 → **908,932 (−6,171)**; the
