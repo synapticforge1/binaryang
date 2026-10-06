@@ -206,7 +206,30 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      Not done: removing a result every caller drops; moving an operand with effects out of the
      call. Gate green; `dead_argument_elimination.test.ts`, 12 mutants killed (a test asserting the
      start function's signature was dropped as vacuous — a start function has no parameters, and
-     the check with it). Next: **inlining** at upstream's schedule. 2026-09-30:** a copy does not make its two locals interfere, a variable may
+     the check with it). Next: **inlining** at upstream's schedule.
+   - ✅ **Step 5 done 2026-10-06 — Inlining at upstream's rules and schedule.** `isInlineable` is
+     upstream's `worthFullInlining`: size ≤ 2 always; ONE caller at any size (upstream's
+     `oneCallerInlineMaxSize = -1`; ours was 10 — `--pass-arg one-caller-inline-max-size@N` limits
+     it); several callers only at -O3 without shrinking, and only a leaf without loops. 🔧 That last
+     rule was `!hasCalls || !hasLoops` (upstream refuses EITHER): -O3 inlined far too much. The
+     schedule (`schedule3.ts` measured placements): at -O2 and above the function passes, then
+     Inlining, then the function passes AGAIN and a Vacuum (upstream's
+     `addUsefulPassesAfterInlining`; without the trailing Vacuum -O2 GREW 8.4 KB — the round's
+     later passes leave what its early Vacuum already passed). The same probe on 2026-09-30 grew
+     -Oz by 0.5–4.4 KB; the cleanups since make it pay. Corpus: -O2 868,216 → **859,534
+     (−8,682)**, -O3 1,046,251 → **865,688 (−180,563, −17%)**, -Os / -Oz 864,285 → **859,534
+     (−4,751)**; spec -O3 −18.5 KB. Upstream's `inlining-optimizing` now saves 918 on our output
+     (was 33.7 KB), `dae-optimizing` 635. 🔧 Found by `translate-eh` (spec legacy
+     `try_catch.wast` / `try_delegate.wast`): a `return_call` inside a `try` was inlined — the
+     callee's throw, which a tail call takes PAST the `try`, was caught — at -O3 before this step
+     too. In a function with any `try`, no `return_call` is inlined now. Gate green, fuzz 3,000
+     more seeds clean; `inlining_schedule.test.ts`, 8 mutants killed; `inlining.test.ts`'s
+     size-limit test given a second caller (its premise was the old cap).
+   - 📏 **Where item 2 stands, 2026-10-06:** upstream `wasm-opt -Oz` on each ORIGINAL corpus module
+     totals 816,485; ours 859,534 — **the gap is 43,049 (5.0%)**, from 109.5 KB on 2026-09-19.
+     Functions kept: ours 2,705, upstream 2,663 (was 3,943). No single upstream pass saves more
+     than 3.6 KB on our output (`code-folding` 3,573, `local-cse` 3,549); upstream's whole -Oz on
+     our output still saves 55,449 — the rest is passes in combination. Scratch: `gap.ts`. 2026-09-30:** a copy does not make its two locals interfere, a variable may
      take a PARAM's slot (the search started past the params), a copy partner's slot is tried
      first, and a copy onto its own slot is removed. Corpus: -O2 917,483 → **912,808 (−4,675)**,
      -O3 1,147,462 → **1,124,763 (−22,699)**, -Os / -Oz 915,103 → **908,932 (−6,171)**; the

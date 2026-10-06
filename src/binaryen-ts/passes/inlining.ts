@@ -77,7 +77,8 @@ import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 // ---------------------------------------------------------------------------
 
 const ALWAYS_INLINE_MAX_SIZE = 2;
-const ONE_CALLER_INLINE_MAX_SIZE = 10;
+/** Upstream's default is -1, unlimited (`pass.h`); `--pass-arg one-caller-inline-max-size@N` limits it. */
+const ONE_CALLER_INLINE_MAX_SIZE = Number.POSITIVE_INFINITY;
 const FLEXIBLE_INLINE_MAX_SIZE = 20;
 const MAX_ITERATIONS = 5;
 
@@ -162,19 +163,26 @@ function buildFunctionInfo(module: WasmModule): Map<string, FunctionInfo> {
 // Inlineability decision
 // ---------------------------------------------------------------------------
 
+/**
+ * Upstream's `worthFullInlining` (open-work 2, step 5): tiny functions always;
+ * a function with ONE caller at any size (it disappears, so inlining it costs
+ * nothing); anything else only when speed is all that counts — `-O3` without
+ * shrinking — and only a leaf without loops.
+ */
 function isInlineable(
   info: FunctionInfo,
   opts: PassOptions,
 ): boolean {
   if (info.size <= ALWAYS_INLINE_MAX_SIZE) return true;
-  if (
-    info.refs === 1 && !info.usedGlobally &&
-    info.size <= ONE_CALLER_INLINE_MAX_SIZE
-  ) return true;
-  if (opts.optimizeLevel >= 3 && info.size <= FLEXIBLE_INLINE_MAX_SIZE) {
-    return !info.hasCalls || !info.hasLoops;
-  }
-  return false;
+  const oneCallerMax = Number(
+    opts.passArgs?.['one-caller-inline-max-size'] ?? ONE_CALLER_INLINE_MAX_SIZE,
+  );
+  if (info.refs === 1 && !info.usedGlobally && info.size <= oneCallerMax) return true;
+  if (opts.shrinkLevel > 0 || opts.optimizeLevel < 3) return false;
+  // 🔧 Was `!hasCalls || !hasLoops`: upstream refuses a function with calls
+  // AND one with loops (`allowFunctionsWithLoops` defaults to false).
+  if (info.hasCalls || info.hasLoops) return false;
+  return info.size <= FLEXIBLE_INLINE_MAX_SIZE;
 }
 
 // ---------------------------------------------------------------------------
@@ -844,10 +852,22 @@ function inlineIntoFunction(
 ): boolean {
   const usedLabels = collectLabels(fn.body);
   let changed = false;
+  // 🔧 A `return_call` LEAVES the frame, and with it every `try` around it:
+  // an exception the callee throws is not caught there. Inlined, the callee's
+  // `throw` sits inside the `try`, which catches it — spec legacy
+  // `try_catch.wast` / `try_delegate.wast` `return-call-in-try-*` returned
+  // normally at -Oz once inlining ran there (open-work 2, step 5). The walk is
+  // bottom-up, so which calls are inside a `try` is not known at the call:
+  // in a function with any `try`, no `return_call` is inlined.
+  let hasTry = false;
+  walkExpression(fn.body, (x) => {
+    if (x.kind === ExpressionKind.Try || x.kind === ExpressionKind.TryTable) hasTry = true;
+  });
 
   fn.body = mapWithSequences(fn.body, (e): Expression | Sequence => {
     if (e.kind !== ExpressionKind.Call) return e;
     const call = e as CallExpr;
+    if (call.isReturn && hasTry) return e;
     if (requireName(call.func, 'call target') === fn.name) return e; // skip recursive calls
     const callee = inlineable.get(requireName(call.func, 'call target'));
     if (!callee) return e;

@@ -72,3 +72,14 @@ contains ([handoffs.md](handoffs.md)).
   the function passes: a function reached only by direct calls loses a parameter nothing reads, or
   one every call passes the same constant. Corpus −5.3 KB at -O2 / -Os / -Oz, −7.6 KB at -O3. The
   pass name is accepted by `runPasses` / `wasm-opt` like the others.
+- **Silent fix — Inlining caught an exception a tail call throws past a `try`** (open-work 2,
+  step 5): a `return_call` inside a `try` was inlined, so the callee's throw, which the tail call
+  takes out of the frame, was caught there and the function returned normally. At `-O3` in 1.8.1
+  (the only level that inlined); spec legacy `try_catch.wast` / `try_delegate.wast`. A module
+  combining exceptions and tail calls, optimized at -O3, may be affected.
+- **Behaviour — Inlining at upstream's rules and schedule** (open-work 2, step 5): it now runs at
+  `-O2`, `-Os` and `-Oz` too, after the function passes and followed by them again; a function
+  with one caller is inlined at any size (was ≤ 10 nodes; `--pass-arg
+  one-caller-inline-max-size@N` limits it); at `-O3` a function with several callers only when it
+  has no calls AND no loops (it took either). Corpus −8.7 KB at -O2, −4.8 KB at -Os / -Oz, **−180.6
+  KB (−17%) at -O3**.
