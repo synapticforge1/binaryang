@@ -414,10 +414,19 @@ Deno.test('Inlining: large function is not inlined at optimizeLevel 2', () => {
     locals: [],
     body: asRegion(makeReturn([makeCall(varName('big'), [], ValType.I32)])),
   };
+  // A SECOND caller: with one, upstream's one-caller rule inlines at any size
+  // (open-work 2, step 5), and this test is about the size limit.
+  const caller2: WasmFunction = {
+    name: 'main2',
+    sig: { params: [], results: [ValType.I32] },
+    locals: [],
+    body: asRegion(makeReturn([makeCall(varName('big'), [], ValType.I32)])),
+  };
 
   const mod = emptyModule();
-  mod.functions.push(caller, callee);
+  mod.functions.push(caller, caller2, callee);
   mod.exports.push({ name: 'main', var: varName('main'), kind: ExternalKind.Func });
+  mod.exports.push({ name: 'main2', var: varName('main2'), kind: ExternalKind.Func });
 
   // optimizeLevel 2 — FLEXIBLE threshold not active, only ALWAYS and ONE_CALLER
   new PassRunner(mod, { optimizeLevel: 2 }).add('Inlining').run();

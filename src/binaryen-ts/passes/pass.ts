@@ -416,6 +416,24 @@ export class PassRunner {
  *
  * @internal
  */
+/** The function passes of `-O2` and above, in order. */
+const FUNCTION_PASSES = [
+  'DCE',
+  'PickLoadSigns',
+  'Vacuum',
+  'RemoveUnusedBrs',
+  'RemoveUnusedNames',
+  'OptimizeInstructions',
+  'CoalesceLocals',
+  'SimplifyLocals',
+  'LocalCSE',
+  // Again, as upstream schedules it after simplify-locals: the reads and
+  // writes SimplifyLocals removed leave locals to merge and drop (open-work
+  // 2, step 4a: corpus -Oz −2.9 KB; moving it here instead of running it
+  // twice keeps only −2.3 KB).
+  'CoalesceLocals',
+];
+
 function getDefaultOptimizationPasses(opts: PassOptions): string[] {
   const passes: string[] = [];
 
@@ -433,29 +451,18 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
   // more passes; both places, −5.6 KB.
   if (opts.optimizeLevel >= 2) passes.push('DeadArgumentElimination');
 
-  if (opts.optimizeLevel >= 1) {
+  if (opts.optimizeLevel === 1) {
     passes.push('DCE', 'PickLoadSigns', 'Vacuum');
   }
   if (opts.optimizeLevel >= 2) {
-    passes.push(
-      'RemoveUnusedBrs',
-      'RemoveUnusedNames',
-      'OptimizeInstructions',
-      'CoalesceLocals',
-      'SimplifyLocals',
-      'LocalCSE',
-      // Again, as upstream schedules it after simplify-locals: the reads and
-      // writes SimplifyLocals removed leave locals to merge and drop (open-work
-      // 2, step 4a: corpus -Oz −2.9 KB; moving it here instead of running it
-      // twice keeps only −2.3 KB).
-      'CoalesceLocals',
-    );
-  }
-  if (opts.optimizeLevel >= 3) {
-    // SimplifyLocals after Inlining: an inlined call leaves its arguments
-    // copied into locals that sinking removes (open-work 2, step 4a: corpus
-    // -O3 −8.3 KB with it, −0.2 KB without).
-    passes.push('Inlining', 'OptimizeInstructions', 'SimplifyLocals', 'CoalesceLocals');
+    passes.push(...FUNCTION_PASSES);
+    // Inlining where upstream schedules it — after the function passes, at
+    // every level from -O2 (`inlining-optimizing` in the post passes) — and
+    // the function passes AGAIN after it, as `addUsefulPassesAfterInlining`
+    // does: an inlined call leaves its arguments copied into locals, constant
+    // operands to fold, a wrapper block to remove (open-work 2, step 5).
+    // `isInlineable` decides what -O3 adds over -O2 / -Os / -Oz.
+    passes.push('Inlining', ...FUNCTION_PASSES, 'Vacuum');
   }
   if (opts.shrinkLevel >= 1) {
     passes.push('Vacuum');
