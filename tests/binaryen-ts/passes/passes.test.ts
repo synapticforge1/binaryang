@@ -398,8 +398,32 @@ Deno.test('SimplifyLocals: local.set + local.get → local.tee', () => {
 
   new PassRunner(mod).add('SimplifyLocals').run();
 
-  // A region of one tee — no longer "a tee, or a block of one tee".
-  soleOf(mod.functions[0].body, ExpressionKind.LocalTee);
+  // The only read takes the value itself: no set, no tee (open-work 2, step 3b).
+  soleOf(mod.functions[0].body, ExpressionKind.Const);
+});
+
+Deno.test('SimplifyLocals: a local read twice keeps its value in a tee', () => {
+  const mod = emptyModule();
+  const fn: WasmFunction = {
+    name: 'f',
+    sig: { params: [], results: [ValType.I32] },
+    locals: [{ type: ValType.I32 }],
+    body: asRegion(makeBlock([
+      makeLocalSet(varIndex(0), makeI32Const(42)),
+      makeDrop(makeLocalGet(varIndex(0), ValType.I32)),
+      makeLocalGet(varIndex(0), ValType.I32),
+    ])),
+  };
+  mod.functions.push(fn);
+
+  new PassRunner(mod).add('SimplifyLocals').run();
+
+  assertEquals(region(mod.functions[0].body).children.map((c) => c.kind), [
+    ExpressionKind.Drop,
+    ExpressionKind.LocalGet,
+  ]);
+  const drop = region(mod.functions[0].body).children[0]!;
+  assertEquals(drop.kind === ExpressionKind.Drop && drop.value.kind, ExpressionKind.LocalTee);
 });
 
 Deno.test('SimplifyLocals: non-matching indices are not merged', () => {
