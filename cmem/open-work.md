@@ -342,7 +342,9 @@ fatigue.
     - **Order: D2 and D3 first, D1 later.** Their runner uses D2 / D3 today; D1 matters to them only
       when their WAT regexes give way to our parser (I2, after one-front-end stage 5). ⚠️ This
       REVERSES the workspace plan (D1 first, proved by regenerating our own opcode table; D3 last,
-      after C1) — the order is the owner's call.
+      after C1). ✅ **Decided 2026-10-06, owner: "I approve the wasmtk order for definitions"** —
+      D2 and D3 first, D1 later. (The workspace's `../cmem/divergences.md` still reads D1-first;
+      the workspace session updates it, not this one.)
     - **Delivery:** a `./definitions` subpath in a normal release (a new export = MINOR), pinned at
       the same exact version as their other three. A TS module of typed constants, and/or the JSON
       sources in the package at a stable path (for the Rust / Zig consumers). **The content hash and
