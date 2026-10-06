@@ -68,3 +68,7 @@ contains ([handoffs.md](handoffs.md)).
 - **Behaviour — the default `-O` schedule re-runs passes** (open-work 2, step 4a): CoalesceLocals
   again after SimplifyLocals / LocalCSE at -O2 and above, and SimplifyLocals after Inlining at -O3.
   Corpus −2.9 KB at -O2 / -Os / -Oz, −8.3 KB at -O3.
+- **NEW / Behaviour — `DeadArgumentElimination`** (open-work 2, step 4b), at -O2 and above before
+  the function passes: a function reached only by direct calls loses a parameter nothing reads, or
+  one every call passes the same constant. Corpus −5.3 KB at -O2 / -Os / -Oz, −7.6 KB at -O3. The
+  pass name is accepted by `runPasses` / `wasm-opt` like the others.
