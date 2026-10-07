@@ -41,6 +41,10 @@ contains ([handoffs.md](handoffs.md)).
   multi-result folded child shifted its siblings. The bytes `wat2wasm` writes were right; the TREE was
   not, so anything optimizing straight from parsed text (the direct path) could compute a different
   result — measured for the `select` case at -O2.
+- **Behaviour — `LocalCSE` rewritten** (open-work 3–5): it reuses any repeated expression that only
+  reads (loads, `memory.size`, global reads) or may trap, along straight-line code, until something
+  writes what it reads; it reused only constants, locals, globals and non-trapping arithmetic within
+  one block before. Corpus −3.0 KB at -Os / -Oz, −3.1 KB at -O2, −3.2 KB at -O3; behaviour unchanged.
 - **Behaviour — `wat2wasm` no longer reads its own output back** to predict text forms: −12% time on the
   corpus, bytes identical.
 - **NEW — `./definitions`** (open-work 22; wasmtk's H10): the shared definitions for other projects

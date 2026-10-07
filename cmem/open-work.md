@@ -13,7 +13,7 @@ NOT PUSHED (owner: wait "until the next updates are finished"; [unreleased.md](u
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **12 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 2) are next. **9 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 6, 9, 11, 12, 16 and 17 are
 gone with their numbers kept free.
 Re-derive any number before quoting it.
@@ -236,13 +236,22 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      one-inline example 70 → 66 bytes. `spec-behaviour` 57,808 / 0 DIVERGE, `direct-behaviour`
      1953 / 651 agree. `coalesce_copies.test.ts` — 5 mutants killed, the over-merge one by the
      three tests that RUN a module where a copy's source or copy is later overwritten.
-3. ⬚ **LocalCSE is an allow-list of kinds**, so it never reuses what sits under an unlisted kind
-   (`extract_lane`, any SIMD). Upstream reuses it.
-   - Its share of the **42.1 KB** our twelve passes lose to upstream's same twelve is unmeasured.
-   - That 42.1 KB is the budget items 3–5 draw from.
-4. ⬚ **LocalCSE runs after SimplifyLocals and CoalesceLocals at `-Oz`**, so the tee it adds is never
-   cleaned up: +4 bytes on a repeated binary (measured scoping K3, 2026-09-14).
-5. ⬚ **LocalCSE treats a multi-value `return` as opaque** (as it once did `tuple.make`).
+(Items 3–5, LocalCSE, closed 2026-10-06 by REWRITING the pass on `ir/effects.ts`, in SimplifyLocals'
+straight-line walk. Upstream's `local-cse` still found 3,549 on our -Oz output: repeated `i32.shl`
+index arithmetic (×1,142), `memory.size`, loads, trapping conversions, `select` — all outside the
+old pass's ALLOW-LIST (item 3) and its one-block scope; its hand-kept invalidation list had drifted
+four times (`fib`, `itoa`, `call_ref`, `monthFromDays`). Now: any expression with no effect beyond
+reads and a trap is keyed structurally (a trap is no obstacle: the first evaluation traps or neither
+does); invalidated by what writes what it reads (`writesWhatItReads`, new in `effects.ts`); cleared
+at loop starts, `if` arms, block ends, `try` bodies and handlers; reference values never (which also
+keeps out allocations). A multi-value `return` is no longer opaque (item 5): its values are walked
+like any operands. Item 4 (the tee never cleaned) was closed by step 4a's CoalesceLocals after
+LocalCSE — re-checked: the repeated `i32.mul` example is 57 → 44 bytes, the tee in a param slot.
+Corpus: -O2 −3,124, -O3 −3,200, -Os / -Oz 859,534 → **856,554 (−2,980)**; spec -Oz −1,057. Gate
+green, fuzz 4,000 more seeds clean; `local_cse_effects.test.ts`, 7 mutants killed — an eighth, the
+allocation exclusion, was REDUNDANT with the reference-type rule and was removed, its `ref.eq` test
+kept for the day reference values become candidates.)
+
 (Item 6, unused types, closed 2026-09-30 as item 2's step 2 — below.)
 
 (Item 7, node literals, closed 2026-10-06: the 8 left — local-cse 1, optimize-instructions 2,
