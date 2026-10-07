@@ -55,6 +55,13 @@ contains ([handoffs.md](handoffs.md)).
   zero counted; numeric and `v128` only; no evaluation — that is item 23). Scheduled at -O2 and up
   after OptimizeInstructions, with OptimizeInstructions again. Corpus −2.3 KB at -O2 / -Os / -Oz,
   −3.4 KB at -O3; -O1 unchanged; behaviour unchanged.
+- **Behaviour — `OptimizeInstructions` folds through the evaluator** (open-work 23, E1, 2026-10-07):
+  every scalar operator now folds — floats, division, conversions — through one numeric core
+  (`interp/numeric.ts`, V8-checked on all 136 scalar instructions); never a trap, and a NaN only
+  from a bit-exact operator. It folded integers only before. Corpus −2.5 KB at -O2 / -Os / -Oz, −4.4
+  KB at -O3; behaviour unchanged. **NEW export** `makeConst(literal)` in `./ir/binaryen-ts` (the
+  `*.const` node for any scalar or `v128` Literal). `interp/numeric.ts` itself is NOT exported yet —
+  its public shape waits for E3 / E4.
 - **Behaviour — `wat2wasm` no longer reads its own output back** to predict text forms: −12% time on
   the corpus, bytes identical.
 - **NEW — `./definitions`** (open-work 22; wasmtk's H10): the shared definitions for other projects
