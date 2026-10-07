@@ -318,6 +318,29 @@ function _writesConflict(a: Effects, b: Effects): boolean {
 }
 
 /**
+ * True when code with effects `writer`, run between two evaluations of code
+ * with effects `reader`, may change what the second evaluation computes: it
+ * writes something the reader reads, or calls (which may write any state but
+ * locals), or is unclassified. What it does NOT ask: traps and branches — they
+ * stop the second evaluation from happening, not change its result. LocalCSE's
+ * question: may the second evaluation reuse the first's value?
+ */
+export function writesWhatItReads(writer: Effects, reader: Effects): boolean {
+  if (writer.unknown || reader.unknown) return true;
+  if (writer.calls && _touchesGlobalState(reader)) return true;
+  if (_meets(writer.localsWritten, reader.localsRead)) return true;
+  for (const w of writer.globalsWritten) {
+    for (const r of reader.globalsRead) {
+      if (r === w || r.startsWith('#') !== w.startsWith('#')) return true;
+    }
+  }
+  if (writer.writesMemory && reader.readsMemory) return true;
+  if (writer.writesTable && reader.readsTable) return true;
+  if (writer.writesHeap && reader.readsHeap) return true;
+  return false;
+}
+
+/**
  * True when code with effects `a` and code with effects `b` may NOT change
  * places: some order of the two is observable.
  */
