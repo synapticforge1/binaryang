@@ -488,7 +488,20 @@ fatigue.
       producers (`wasic`, the Go / Zig / Rust wrappers) emit is settled with wasmtk by letter when
       this item starts. **Letter § 24 SENT 2026-10-06** ([handoffs.md](handoffs.md)): proposes the tool-conventions
       Linking format (`linking` + `reloc.*`, `wasm-ld --emit-relocs`) and asks wasmtk to measure, per
-      producer, whether it can emit it. Building waits on that answer. (wasmtk's current rule, their header: "range-scoped … but still
+      producer, whether it can emit it. Building waits on that answer. **Answered: § 25** (2026-10-06, measured): Rust yes; Zig and TinyGo only
+      object + `wasm-ld --emit-relocs` (TinyGo's own build runs `wasm-opt` after linking, leaving STALE
+      relocations: 0/48 address sites correct); wasic needs our part first. **The design points it fixes:**
+      - consume relocations as the module is READ, each tied to its instruction node, before anything
+        rewrites a byte — our own reader → writer re-encodes the padded LEBs `wasm-ld` writes at
+        relocation sites, so a byte offset is valid only against the original bytes;
+      - VERIFY every relocation against the code it names, and refuse a stale one as a missing one
+        (their site check is the start: `i32.const` + 5-byte LEB, `call` / `ref.func`);
+      - bundle BEFORE optimisation; `linking` with no `reloc.CODE` = nothing to relocate;
+      - `reloc..debug_*`: drop the DWARF sections with a printed note (proposed default) or relocate;
+      - for wasic: a WAT form that marks an address and an assembler writing `linking` / `reloc.*` from
+        it — ⚠️ OWNER'S DECISION: no standard text syntax exists (upstream wabt's `--relocatable` covers
+        function / global indices, not memory addresses — recalled, not re-checked); an annotation on the
+        `i32.const`, or a relocation list beside the WAT. (wasmtk's current rule, their header: "range-scoped … but still
       address-based, not dataflow-exact".)
     - **Scope questions:** whether `wasmmerge.ts`'s `wasic` path moves too or stays theirs; what
       stays in wasmtk (`witgen`'s WIT emission beside the output; the interactive prompt belongs
