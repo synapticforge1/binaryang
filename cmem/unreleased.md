@@ -1,9 +1,11 @@
 # Unreleased on `main` — what the next release note must say
 
-**Nothing, as of 2026-09-29.** `main` = `v1.8.1` plus cmem-only commits (check it rather than trust
-this line: `git log --oneline v1.8.1..main -- src/ main.ts deno.json`). `deno.json` reads 1.8.1; the
-version line arms a release ([publishing.md](publishing.md)), so the next bump is the owner's
-decision, never a side effect of work.
+**As of 2026-10-06: `main` = `v1.8.1` plus everything under "Since 1.8.1" below — UNRELEASED, NOT
+PUSHED** (check it rather than trust this line: `git log --oneline v1.8.1..main -- src/ main.ts
+deno.json`). It adds an export (`./definitions`), so the next release is a MINOR, 1.9.0 — typed by
+hand ([publishing.md](publishing.md) § "`bump` has no minor mode"). The owner's order: the wasmtk
+list (open-work 22, 24) and the remaining items before publishing. `deno.json` reads 1.8.1; the
+version line arms a release, so the bump is the owner's decision, never a side effect of work.
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR record
@@ -33,6 +35,14 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.8.1
 
+- **Silent fix — the WAT parser put a folded instruction's missing operands in the wrong slots**
+  (open-work 10): `(i32.const 10) (nop) (select (i32.const 20) (local.get 0))` built a `select` with
+  value and condition swapped; also a `throw` of a param-less tag took a value it should leave, and a
+  multi-result folded child shifted its siblings. The bytes `wat2wasm` writes were right; the TREE was
+  not, so anything optimizing straight from parsed text (the direct path) could compute a different
+  result — measured for the `select` case at -O2.
+- **Behaviour — `wat2wasm` no longer reads its own output back** to predict text forms: −12% time on the
+  corpus, bytes identical.
 - **NEW — `./definitions`** (open-work 22; wasmtk's H10): the shared definitions for other projects
   to generate their copies from — D2, the WebAssembly feature / proposal list, and D3, the spec
   testsuite's trap / exhaustion vocabulary with its prefix rule — each with `dataVersion` and a

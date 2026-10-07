@@ -135,8 +135,6 @@ import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { blockTypeOf, BrOnOp, localNameEntries } from '../ir/ir.ts';
 import { isRealName } from '../ir/made-up-names.ts';
 import { encodeTextForm, hasWrittenForms, TEXT_FORM_SECTION } from '../ir/text-form.ts';
-import { readBinaryIr } from '../reader/binary-reader.ts';
-import { makeErrorList } from '../core/error.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -2105,13 +2103,17 @@ class BinaryWriter {
     }
     // S7: how each instruction was written — LAST, after the `name`
     // section, so a read → write round trip puts it back where it was. What
-    // the reader would predict comes from reading back the bytes so far — the
-    // whole module but this section (`text-form.ts`).
+    // the reader would predict is the canonical forms of the module IN HAND
+    // (`text-form.ts`): the parser's tree and the reader's tree of the same
+    // bytes are the same tree for every valid module (open-work 10, measured
+    // 2026-10-06: 5,437 of 5,437 — the corpus and every prepared spec module,
+    // linear and folded). This read the bytes back to get it, +26–35% on
+    // `wat2wasm`, while the two trees differed. For an INVALID module (written
+    // with validation off) they still may: the section's prediction hash then
+    // mismatches and the reader prints that function as predicted — grouped
+    // plainly, never wrongly.
     const textForm = this.writeTextForm && hasWrittenForms(this.m)
-      ? encodeTextForm(
-        this.m,
-        readBinaryIr(s.toUint8Array(), makeErrorList(), { readDebugNames: false }),
-      )
+      ? encodeTextForm(this.m, this.m)
       : null;
     if (textForm !== null) {
       s.writeSection(BinarySection.Custom, () => {

@@ -13,7 +13,7 @@ NOT PUSHED (owner: wait "until the next updates are finished"; [unreleased.md](u
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **13 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 2) are next. **12 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 6, 9, 11, 12, 16 and 17 are
 gone with their numbers kept free.
 Re-derive any number before quoting it.
@@ -255,13 +255,21 @@ any new one outside `ir/expressions.ts` — inverted once.)
 (Item 9, inexact allocations, closed 2026-09-29: it was NOT "valid either way" — `--flatten` made
 invalid modules from it. Q13 in [divergences.md](divergences.md).)
 
-10. ⬚ **Delete S7's read-back in `wat2wasm`.** `writeBinaryIr` still re-reads its own bytes
-    (`binary-writer.ts`, `readBinaryIr`) to predict the text forms, which costs +26–35% on
-    `wat2wasm`.
-    - The re-read existed only because two front ends built different trees. There is one front end
-      now, so predict from the module in hand, delete the read-back, and re-measure.
-    - The prediction hash keeps it safe: a residual disagreement prints as predicted, never wrong
-      ([ir-convergence.md](ir-convergence.md) § "S7", and § "One front end", stage 2's ⏭️ line).
+(Item 10, S7's read-back, closed 2026-10-06. Its premise — "one front end, so predict from the module in
+hand" — was MEASURED first and was false: the parser's and the reader's trees of the same bytes still
+differed in 17 of 5,439 valid modules (the corpus, and every prepared spec module printed linear and
+folded; scratch `s7probe.ts`). Three parser shapes, each fixed, so they now agree on 5,437 of 5,437:
+🔧 a folded instruction short of operands padded the missing ones at the END —
+`(i32.const 10) (nop) (select (i32.const 20) (local.get 0))` built select(20, cond, pop): **a miscompile
+on the direct path** (text tree → passes), 20 where wat2wasm's module gives 10 at -O2; 🔧 `throw`
+drained the stack instead of taking its tag's params (an imported tag's too); 🔧 a folded multi-result
+child lost its earlier results' `pop`s, shifting a sibling into the wrong slot (a tree difference only:
+the direct path's result was right). Then the writer predicts from the module in hand: `wat2wasm` over
+the corpus 1,546 → 1,362 ms (−12%; the item's 26–35% was an older measure), bytes identical. An INVALID
+module (validation off) may still predict differently; its hash then mismatches and the reader prints
+that function as predicted — plainly, never wrongly. `tests/wabt-ts/parser/tree_matches_reader.test.ts`,
+4 mutants killed.)
+
 23. ⬚ 🗓️ **An interpreter, and `wasm-ctor-eval` on it — AFTER the optimizer steps** (owner,
     2026-09-30: "yes add as open item after the optimizer steps … the wasm-ctor-eval then the -Oz
     seems to be the right path"). The owner's question: could an interpreter precompute DATA
