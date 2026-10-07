@@ -1101,6 +1101,21 @@ export class TypeChecker {
     return combineResults(r, this.dropTypes(2));
   }
 
+  /** {@link popAndCheck3Types} for any number of operands, bottom of the stack first. */
+  private popAndCheckTypes(exps: StackType[], desc: string): Result {
+    const got = exps.map((_, i) => this.peekType(exps.length - 1 - i));
+    let r: Result = Result.Ok;
+    for (let i = 0; i < exps.length; i++) r = combineResults(r, this.checkType(got[i]!, exps[i]!));
+    if (r === Result.Error) {
+      this.printError(
+        `type mismatch in ${desc}, expected [${exps.map(valueTypeName).join(', ')}] but got [${
+          got.map(valueTypeName).join(', ')
+        }]`,
+      );
+    }
+    return combineResults(r, this.dropTypes(exps.length));
+  }
+
   private popAndCheck3Types(
     exp1: StackType,
     exp2: StackType,
@@ -1306,15 +1321,16 @@ export class TypeChecker {
       // pairs), two i64 out. This used to hard-code the v128 shape below and
       // ignore the opcode entirely, so it REJECTED the only instructions that
       // actually reach it.
-      let r = this.popAndCheck3Types(_I64, _I64, _I64, anyOpcodeName(opcode));
-      r = combineResults(r, this.dropTypes(1));
+      // 🔧 It checked THREE operands and dropped the fourth — the deepest, the
+      // first operand — unchecked: `i64.add128` took an i32 there and
+      // validated (found by D1's proof, open-work 22, 2026-10-06).
+      const r = this.popAndCheckTypes([_I64, _I64, _I64, _I64], anyOpcodeName(opcode));
       this.pushType(_I64);
       this.pushType(_I64);
       return r;
     }
-    // 4 V128 params → V128 result; pop extra 1 after 3-check
-    let r = this.popAndCheck3Types(_V128, _V128, _V128, anyOpcodeName(opcode));
-    r = combineResults(r, this.dropTypes(1));
+    // 4 V128 params → V128 result — all four checked, as above.
+    const r = this.popAndCheckTypes([_V128, _V128, _V128, _V128], anyOpcodeName(opcode));
     this.pushType(_V128);
     return r;
   }

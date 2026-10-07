@@ -20,6 +20,38 @@ export interface DefinitionHeader {
   rules: Record<string, string>;
 }
 
+/** A stack signature: operand types bottom-first, then result types. `addr`: the memory's index type. */
+export interface StackSignature {
+  params: string[];
+  results: string[];
+}
+
+/** One WebAssembly instruction (D1). */
+export interface OpcodeDefinition {
+  /** The text mnemonic as binaryang prints it. */
+  name: string;
+  /** The opcode bytes, hex: prefix and LEB128 sub-opcode. */
+  encoding: string;
+  /** `null`, or the prefix byte as hex (`0xfd`). */
+  prefix: string | null;
+  /** The single byte, or the sub-opcode after the prefix. */
+  opcode: number;
+  /** Immediate kinds, in binary order. */
+  immediates: string[];
+  /** Access width in bytes, for an instruction with a memarg. */
+  align?: number;
+  /** Fixed stack signature, or `null`. */
+  signature: StackSignature | null;
+  /** The D2 feature that gates it; `null` for core. */
+  feature: string | null;
+  /** Coarse class. */
+  class: string;
+}
+
+export interface OpcodeDefinitions extends DefinitionHeader {
+  entries: OpcodeDefinition[];
+}
+
 /** One WebAssembly feature or proposal (D2). */
 export interface FeatureDefinition {
   /** The canonical name: a key of `Features`. */

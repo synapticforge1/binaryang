@@ -417,6 +417,38 @@ fatigue.
       unimplemented. Gate step `definitions`. A letter to wasmtk goes WITH the release (§ 24 in
       [handoffs.md](handoffs.md), to draft then): the version to pin, the field list, the prefix
       rule. **Next: D1** (the opcode + immediate table; their I2 trigger).
+    - ✅ **D1 built 2026-10-06 — the item's three definitions are done (unreleased); it closes with
+      the release and the letter.** `src/definitions/opcodes.json`, 582 entries: `name`,
+      `encoding` (hex, LEB sub-opcode), `prefix`, `opcode`, `immediates` (kinds in binary order —
+      the vocabulary is in the data's `rules`), `align` (memarg width), `signature` (fixed stack
+      types, `addr` = the memory's index type; 498 of 582 — null where an immediate or the stack
+      decides), `feature` (a D2 name), `class` (coarse: wasmtk's "numeric binary" ask). Populated
+      once from `opcode.ts` plus rules by mnemonic (scratch `d1populate.ts`), then PROVED, as the
+      data's `proof` rule says (`tests/definitions/opcodes.test.ts`): every entry decodes as ONE
+      instruction and re-encodes to its bytes; every signature validates (addr i32, and i64 on
+      memory64) and is refused with its first or its last operand changed; align is exactly
+      natural (one step above is refused); every gated instruction with a signature is refused
+      with its feature off. Each check inverted when written (a dropped / extra immediate, a wrong
+      operand, a wrong align, a gate removed — the extra immediate survived until the
+      one-instruction count was added: its sample byte decoded as `unreachable`). **binaryang
+      now reads D1:** `opcode.ts`'s name tables and `naturalAlignForOpcode` (~790 hand-kept lines)
+      are built from it; `check-operator-mapping.ts` reads it. What the proof found, all fixed:
+      - 🔧 **Five features were gated NOWHERE** — `simd`, `signExtension`, `satFloatToInt`,
+        `bulkMemory`, `referenceTypes`: with the feature off, `v128.load`, `i32.extend8_s`,
+        `memory.copy`, `table.get`, `ref.null` … validated (254 of 345 gated instructions with a
+        signature). They are wabt's default-ON features, which hid it. Now one gate in the
+        validator (`everyExpr`, a new `ExprVisitorDelegate` hook) asks D1 for each instruction's
+        feature; the other features keep their dedicated handlers, so nothing reports twice.
+        ⚠️ The hook is NOT named `on…`: three delegates (text-form, WAT writer, binary writer) are
+        Proxies answering every `on…` / `begin…` / `end…` name — named `onAnyExpr` it broke 18
+        test files, each recording every instruction twice.
+      - 🔧 **`i64.add128` / `i64.sub128` checked three operands and dropped the fourth** — the
+        FIRST — unchecked: an `i32` there validated. A test had pinned the three-type message.
+      - 🔧 `delegate`, `catch_all`, `try_table` had no name (a disassembly printed
+        `<opcode:0x1f>`); and the lexer gave `delegate` no opcode, unlike `else` / `catch_all`.
+      What D1 does NOT prove: the NAME of an index space in an immediate (a `memidx` and a
+      `tableidx` are both one LEB) beyond what the signature check resolves; text shorthands
+      (wasmtk's I2 list) beyond the mnemonic and the memarg's `offset=` / `align=`.
 24. ⬚ 🗓️ **`wasm-bundle` — take wasmtk's `wasmbundle` into our tools, and wasmtk imports it back**
     (owner, 2026-09-30: "incorporating wasmtk's wasmbundle into our cli tools and offload that from
     wasmtk. And import it back for use there"; "we will probably want to call it wasm-bundle in our

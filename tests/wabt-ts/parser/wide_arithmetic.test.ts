@@ -241,8 +241,19 @@ describe('wide arithmetic — the validator types it correctly', () => {
     const v = wasmValidate(compile(bad), { features: allFeatures() });
     assertEquals(v.result, Result.Error);
     const msg = formatErrors(v.errors);
-    assert(/expected \[i64, i64, i64\]/.test(msg), msg);
+    // All FOUR operands: the message named three because only three were
+    // checked (open-work 22's D1 proof found the fourth unchecked).
+    assert(/expected \[i64, i64, i64, i64\]/.test(msg), msg);
     assert(!/v128/.test(msg), `still claiming a SIMD signature: ${msg}`);
+  });
+
+  it('🔧 checks the FIRST operand too (it was dropped unchecked)', () => {
+    const firstWrong = `(module (func (export "f") (result i64 i64)
+      (i64.add128 (i32.const 1) (i64.const 0) (i64.const 2) (i64.const 0))))`;
+    assertEquals(verdict(firstWrong), Result.Error);
+    const subFirstWrong = `(module (func (export "f") (result i64 i64)
+      (i64.sub128 (f64.const 1) (i64.const 0) (i64.const 2) (i64.const 0))))`;
+    assertEquals(verdict(subFirstWrong), Result.Error);
   });
 
   it('pushes TWO results, so a single-result signature is rejected', () => {

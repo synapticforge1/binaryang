@@ -19,17 +19,39 @@
  * ```
  */
 
-import { FEATURE_DEFINITIONS, VERDICT_DEFINITIONS } from './data.ts';
-import type { FeatureDefinition, VerdictDefinition } from './types.ts';
+import { FEATURE_DEFINITIONS, OPCODE_DEFINITIONS, VERDICT_DEFINITIONS } from './data.ts';
+import type { FeatureDefinition, OpcodeDefinition, VerdictDefinition } from './types.ts';
 
-export { FEATURE_DEFINITIONS, VERDICT_DEFINITIONS };
+export { FEATURE_DEFINITIONS, OPCODE_DEFINITIONS, VERDICT_DEFINITIONS };
 export type {
   DefinitionHeader,
   FeatureDefinition,
   FeatureDefinitions,
+  OpcodeDefinition,
+  OpcodeDefinitions,
+  StackSignature,
   VerdictDefinition,
   VerdictDefinitions,
 } from './types.ts';
+
+/**
+ * An instruction's KEY as binaryang's IR holds it: the byte for a core opcode,
+ * `(prefix << 16) | sub` for a prefixed one.
+ */
+export function opcodeKey(d: OpcodeDefinition): number {
+  return d.prefix === null ? d.opcode : (parseInt(d.prefix, 16) << 16) | d.opcode;
+}
+
+const BY_KEY = new Map<number, OpcodeDefinition>();
+for (const d of OPCODE_DEFINITIONS.entries) {
+  // The first entry for a key wins; keys are unique (checked by the tests).
+  if (!BY_KEY.has(opcodeKey(d))) BY_KEY.set(opcodeKey(d), d);
+}
+
+/** The D1 entry for an IR opcode key, or `undefined`. */
+export function opcodeDefinition(key: number): OpcodeDefinition | undefined {
+  return BY_KEY.get(key);
+}
 
 /**
  * The class of an expected-failure text, by the testsuite's prefix rule: the

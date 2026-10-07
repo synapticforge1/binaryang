@@ -79,7 +79,7 @@ const KEYWORDS: ReadonlyMap<string, KwInfo> = new Map<string, KwInfo>([
   ['code', bare(TokenType.Code)],
   ['data', bare(TokenType.Data)],
   ['declare', bare(TokenType.Declare)],
-  ['delegate', bare(TokenType.Delegate)],
+  ['delegate', op(TokenType.Delegate, Opcode.Delegate)],
   ['do', bare(TokenType.Do)],
   ['either', bare(TokenType.Either)],
   ['elem', bare(TokenType.Elem)],

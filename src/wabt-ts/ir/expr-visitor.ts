@@ -121,6 +121,17 @@ import type {
  * returning `Result.Ok`.
  */
 export interface ExprVisitorDelegate {
+  /**
+   * Called for EVERY instruction, before its kind's own callback (and before
+   * its operands are visited) — for a check that holds for all kinds alike,
+   * such as the validator's feature gate (open-work 22, D1).
+   *
+   * ⚠️ Deliberately NOT named `on…`: the text-form, WAT-writer and
+   * binary-writer delegates are Proxies that treat every `on…` / `begin…` /
+   * `end…` name as an instruction callback. Named `onAnyExpr`, it was — and
+   * each of them recorded every instruction twice (18 test files, 2026-10-06).
+   */
+  everyExpr?(e: Expr): void;
   onNopExpr?(e: NopExpr): Result;
   onUnreachableExpr?(e: UnreachableExpr): Result;
   onReturnExpr?(e: ReturnExpr): Result;
@@ -318,6 +329,7 @@ export class ExprVisitor {
       this.shallowOperand(e);
       return Result.Ok;
     }
+    this.d.everyExpr?.(e);
     switch (e.kind) {
       // --- No children, single callback ---
       case 'nop':

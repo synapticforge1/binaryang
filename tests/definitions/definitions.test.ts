@@ -10,6 +10,7 @@ import { expect } from '@std/expect';
 import {
   FEATURE_DEFINITIONS,
   featuresForSuite,
+  OPCODE_DEFINITIONS,
   VERDICT_DEFINITIONS,
   verdictClass,
 } from '../../src/definitions/mod.ts';
@@ -23,6 +24,7 @@ const source = (f: string) =>
 describe('the generated module is its sources', () => {
   for (
     const [file, data] of [
+      ['opcodes.json', OPCODE_DEFINITIONS],
       ['features.json', FEATURE_DEFINITIONS],
       ['verdicts.json', VERDICT_DEFINITIONS],
     ] as const

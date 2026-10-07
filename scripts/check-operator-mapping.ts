@@ -38,17 +38,8 @@
  * @license MIT
  */
 
-const OPCODE_SRC = new URL('../src/wabt-ts/core/opcode.ts', import.meta.url);
+import { OPCODE_DEFINITIONS, opcodeKey } from '../src/definitions/mod.ts';
 
-/**
- * Every instruction name wabt-ts knows, from BOTH of its name tables.
- *
- * ⚠️ Read from the source rather than through `anyOpcodeName`, because that
- * takes a number and there is no exported way to enumerate the four opcode
- * spaces (base, misc, GC, and the SIMD table keyed by a prefixed value). An
- * earlier version of this check enumerated only the base `Opcode` enum and
- * reported 185 false orphans — every one of them a real SIMD instruction.
- */
 /**
  * `ExpressionKind`'s members as `[identifier, kind string]`. It is a const
  * object with a same-named union type (S6 step 5, item 5 (2)); it was an enum.
@@ -120,58 +111,11 @@ function phantomKinds(exprSrc: string): string[] {
  */
 const PHANTOM_BUDGET: string[] = [];
 
-async function knownInstructionNames(): Promise<Set<string>> {
-  const src = await Deno.readTextFile(OPCODE_SRC);
-  const names = new Set<string>();
-  // Table entries are `[value, 'name']`; instruction names are the quoted
-  // strings containing a dot (`i32.add`) or one of the bare control forms.
-  for (const m of src.matchAll(/'([a-z][a-z0-9_]*\.[a-z0-9_.]+)'/g)) names.add(m[1]!);
-  for (
-    const m of src.matchAll(
-      /'(nop|unreachable|drop|select|return|block|loop|if|else|end|br|br_if|br_table|call|call_indirect)'/g,
-    )
-  ) {
-    names.add(m[1]!);
-  }
-  return names;
-}
-
-const known = await knownInstructionNames();
-
-/**
- * Every opcode VALUE wabt-ts assigns to an instruction.
- *
- * Read from the same tables as the names, and by the same rule: a bare number
- * or `Opcode.X` below 0x100, or `(PREFIX << 16) | sub` above. That second form
- * is why this cannot just scan the `Opcode` enum — SIMD, MISC, THREADS and GC
- * instructions have no enum member at all, only a table row.
- */
-async function knownOpcodeValues(): Promise<Set<number>> {
-  const src = await Deno.readTextFile(OPCODE_SRC);
-  const out = new Set<number>();
-  const members = new Map<string, number>();
-  const enumBody = src.match(/export enum [A-Za-z]*Opcode \{([\s\S]*?)\n\}/g) ?? [];
-  for (const blk of enumBody) {
-    for (const m of blk.matchAll(/^\s+([A-Za-z0-9_]+) = (0x[0-9a-fA-F]+|\d+),/gm)) {
-      members.set(m[1]!, Number(m[2]));
-      out.add(Number(m[2]));
-    }
-  }
-  for (const m of src.matchAll(/\((PREFIX_[A-Z]+) << 16\) \| (0x[0-9a-fA-F]+|\d+)/g)) {
-    const p =
-      { PREFIX_MISC: 0xfc, PREFIX_SIMD: 0xfd, PREFIX_THREADS: 0xfe, PREFIX_GC: 0xfb }[m[1]!];
-    if (p !== undefined) out.add((p << 16) | Number(m[2]));
-  }
-  for (const m of src.matchAll(/\((PREFIX_[A-Z]+) << 16\) \| [A-Za-z]+Opcode\.([A-Za-z0-9_]+)/g)) {
-    const p =
-      { PREFIX_MISC: 0xfc, PREFIX_SIMD: 0xfd, PREFIX_THREADS: 0xfe, PREFIX_GC: 0xfb }[m[1]!];
-    const sub = members.get(m[2]!);
-    if (p !== undefined && sub !== undefined) out.add((p << 16) | sub);
-  }
-  return out;
-}
-
-const knownOpcodes = await knownOpcodeValues();
+// The instruction names and opcode values wabt-ts assigns — D1, the table
+// `opcode.ts` reads its names from since open-work 22 (2026-10-06). This parsed
+// `opcode.ts`'s text before, and failed loudly (below) when the tables moved.
+const known = new Set(OPCODE_DEFINITIONS.entries.map((d) => d.name));
+const knownOpcodes = new Set(OPCODE_DEFINITIONS.entries.map(opcodeKey));
 if (known.size < 100) {
   console.error(
     `check-operator-mapping: only ${known.size} instruction names found — the name ` +

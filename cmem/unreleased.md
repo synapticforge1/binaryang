@@ -37,8 +37,18 @@ contains ([handoffs.md](handoffs.md)).
   to generate their copies from — D2, the WebAssembly feature / proposal list, and D3, the spec
   testsuite's trap / exhaustion vocabulary with its prefix rule — each with `dataVersion` and a
   content `sha256`; `verdictClass()`, `featuresForSuite()`; the JSON sources ship in the package
-  (`src/definitions/*.json`). A new export: the release is a MINOR. wasmtk asked for D2 and D3
-  first; D1 (opcodes) follows.
+  (`src/definitions/*.json`). A new export: the release is a MINOR. And D1, the instruction table:
+  582 entries — encoding, immediates, natural alignment, fixed stack signature, gating feature,
+  class — each proved against binaryang's reader, writer and validator; `OPCODE_DEFINITIONS`,
+  `opcodeKey()`, `opcodeDefinition()`. binaryang's own opcode name table is now built from it.
+- **Behaviour — the validator gates five more features** (open-work 22): with `simd`,
+  `signExtension`, `satFloatToInt`, `bulkMemory` or `referenceTypes` turned OFF, their instructions
+  are now refused (`… not allowed: enable the <feature> feature`); they validated before. Only a
+  caller that turns one of these default-on features off sees a change.
+- **Silent fix — `i64.add128` / `i64.sub128` accepted a wrong-typed FIRST operand** (open-work 22):
+  the type checker checked three of the four and dropped the first unchecked.
+- **Behaviour — `delegate`, `catch_all` and `try_table` have names** where printing an opcode
+  showed `<opcode:0x1f>` (diagnostics, `wasm-objdump`).
 
 - **Silent fix — the tree walkers visit a branch's values before its condition** (open-work 1):
   `mapExpression`, `walkExpression`, `visitChildren`, `mapChildrenShallow` and `mapWithSequences`

@@ -119,6 +119,49 @@ import { SharedValidator } from './shared-validator.ts';
 import type { ValidateOptions } from './shared-validator.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
 import { countImports } from '../ir/ir.ts';
+import type { Features } from '../core/feature.ts';
+import { Type } from '../core/types.ts';
+import { opcodeDefinition } from '../../definitions/mod.ts';
+
+/** The features {@link Validator.everyExpr} gates by D1, and how its message names them. */
+const GATED_BY_DEFINITION: Partial<Record<keyof Features, string>> = {
+  simd: 'SIMD instruction',
+  signExtension: 'sign-extension instruction',
+  satFloatToInt: 'saturating float-to-int instruction',
+  bulkMemory: 'bulk memory instruction',
+  referenceTypes: 'reference-types instruction',
+};
+
+/** The kinds that carry no `opcode`: the D1 key each one IS. */
+const KIND_KEY: Partial<Record<string, number>> = {
+  'memory.init': (PREFIX_MISC << 16) | 0x08,
+  'data.drop': (PREFIX_MISC << 16) | 0x09,
+  'memory.copy': (PREFIX_MISC << 16) | 0x0a,
+  'memory.fill': (PREFIX_MISC << 16) | 0x0b,
+  'table.init': (PREFIX_MISC << 16) | 0x0c,
+  'elem.drop': (PREFIX_MISC << 16) | 0x0d,
+  'table.copy': (PREFIX_MISC << 16) | 0x0e,
+  'table.grow': (PREFIX_MISC << 16) | 0x0f,
+  'table.size': (PREFIX_MISC << 16) | 0x10,
+  'table.fill': (PREFIX_MISC << 16) | 0x11,
+  'table.get': 0x25,
+  'table.set': 0x26,
+  'ref.null': 0xd0,
+  'ref.is_null': 0xd1,
+  'ref.func': 0xd2,
+  'simd.shuffle': OPCODE_I8X16_SHUFFLE,
+};
+
+/** An instruction's D1 key: its `opcode`, or what its kind is. */
+function instructionKey(e: Expr): number | undefined {
+  const op = (e as { opcode?: unknown }).opcode;
+  if (typeof op === 'number') return op;
+  if (e.kind === 'const') {
+    return e.value.type === Type.V128 ? (PREFIX_SIMD << 16) | 0x0c : undefined;
+  }
+  if (e.kind === 'select') return e.resultType.length > 0 ? 0x1c : undefined;
+  return KIND_KEY[e.kind];
+}
 
 /**
  * Canonical structural keys for every type-section entry.
@@ -1007,6 +1050,28 @@ class ModuleValidator implements ExprVisitorDelegate {
    * arithmetic distinguished only by APPEARING IN AN INITIALIZER. A gate hung
    * off an expression kind would have missed all three (T13.10).
    */
+  /**
+   * The feature gate for the proposals no dedicated handler gates — D1 says
+   * which feature each instruction needs (open-work 22). 🔧 None of these five
+   * was gated anywhere: with `simd` off, `v128.load` validated, and likewise
+   * every sign-extension, saturating-conversion, bulk-memory and
+   * reference-types instruction (found by D1's proof, 2026-10-06 — 254 of the
+   * 345 gated instructions with a signature). They are the features wabt turns
+   * ON by default, which is how the gap stayed unseen. The other features keep
+   * their own handlers (atomics, GC, exceptions, …), so nothing is reported
+   * twice.
+   */
+  everyExpr(e: Expr): void {
+    const key = instructionKey(e);
+    if (key === undefined) return;
+    const d = opcodeDefinition(key);
+    const what = d?.feature ? GATED_BY_DEFINITION[d.feature as keyof Features] : undefined;
+    if (d === undefined || what === undefined) return;
+    this.acc(
+      this.sv.requireFeature(d.feature as keyof Features, `${what} \`${d.name}\``, locOf(e)),
+    );
+  }
+
   private gateOpcode(op: number, loc: Location): void {
     if ((op >>> 16) === PREFIX_SIMD && (op & 0xffff) >= 0x100) {
       // Relaxed-SIMD sub-opcodes are the ones at or above 0x100 — the same
