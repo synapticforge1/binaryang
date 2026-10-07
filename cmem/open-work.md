@@ -10,10 +10,10 @@ item 22), items 3–8 and 10 closed, six silent fixes ([unreleased.md](unrelease
 release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finish the open items and
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
 design decided and waits to be built. Item 2 is PARKED at a 4.6% gap (owner, 2026-10-07: the delta
-to upstream is judged after item 23). **Next: item 23** — the evaluator first (see its "Plan" line),
-then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once 23 is done. **8 open items,
-none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free. Re-derive any number before
-quoting it.
+to upstream is judged after item 23). **Next: item 23** — E1 (the numeric evaluator) done; E2,
+Precompute, next (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining
+steps once 23 is done. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept
+free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -370,7 +370,15 @@ mismatches and the reader prints that function as predicted — plainly, never w
         `Literal`s, exact (float BITS, NaN payloads as the spec allows, a trap as a RESULT, never a
         throw). Oracle: V8, differentially, per opcode over edge and random operands. OI's
         `_foldBinary` / `_foldUnary` then call it — one semantics. `v128` later, recorded as a
-        limit.
+        limit. ✅ **Done 2026-10-07** (`interp/numeric.ts`; `numeric_differential.test.ts`, all 136
+        scalar instructions D1 lists, coverage asserted; `fold_through_evaluator.test.ts`). The V8
+        differential found one defect first run: `f64.ceil` / `floor` returned a signalling NaN
+        unchanged — results that are NaN are now written canonical explicitly. 14 / 15 mutants
+        killed (the survivor is equivalent: JS masks shift counts). OI now folds every scalar
+        operator — never a trap; a NaN only from a bit-exact operator (`isBitExact`). Corpus -Oz
+        854,227 → **851,764 (−2,463)**, -O3 −4,409. Gate green. **LIMIT: `v128` operators are not
+        evaluated** (`null`); E2 / E3 must treat them as unknown.
+      - 📏 **Resume here: E2 (Precompute).**
       - **E2 — Precompute** on it: an expression of constants with no other effect becomes its
         value; a trap is never folded away; a constant condition picks its arm. In -O, as upstream.
         Measured on the corpus; item 2's gap re-measured.

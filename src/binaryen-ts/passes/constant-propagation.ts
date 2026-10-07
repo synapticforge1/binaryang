@@ -30,17 +30,7 @@
  * @license MIT
  */
 
-import {
-  type ConstExpr,
-  type Expression,
-  ExpressionKind,
-  type Literal,
-  makeF32ConstBits,
-  makeF64ConstBits,
-  makeI32Const,
-  makeI64Const,
-  makeV128Const,
-} from '../ir/expressions.ts';
+import { type Expression, ExpressionKind, type Literal, makeConst } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { mapExpression } from '../ir/walk.ts';
@@ -222,22 +212,6 @@ function _propagateFunction(fn: WasmFunction): void {
   if (replace.size === 0) return;
   fn.body = mapExpression(fn.body, (e) => {
     const lit = replace.get(e);
-    return lit === undefined ? e : makeConstOf(lit);
+    return lit === undefined ? e : makeConst(lit);
   });
-}
-
-/** A fresh `*.const` node for `lit` — never shared between sites. */
-function makeConstOf(lit: Literal): ConstExpr {
-  switch (lit.type) {
-    case ValType.I32:
-      return makeI32Const(lit.value);
-    case ValType.I64:
-      return makeI64Const(lit.value);
-    case ValType.F32:
-      return makeF32ConstBits(lit.bits);
-    case ValType.F64:
-      return makeF64ConstBits(lit.bits);
-    case ValType.V128:
-      return makeV128Const(lit.bytes.slice());
-  }
 }

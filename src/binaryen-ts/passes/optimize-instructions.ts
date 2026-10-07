@@ -19,11 +19,11 @@
  *   - `div(x, 1)` → `x`
  *   - `eq(x, 0)` → `eqz(x)` (i32 only)
  *
- * **Constant folding** (both operands are compile-time constants):
- *   - Integer binary ops: add, sub, mul, and, or, xor, shl, shr, rotl, rotr,
- *     eq, ne, lt, le, gt, ge (signed and unsigned variants).
- *   - Integer unary ops: clz, eqz, extend, wrap, sign-extend.
- *   - Division is excluded from constant folding (can trap on zero).
+ * **Constant folding** (every operand a constant): every scalar unary and
+ * binary operator, through the evaluator's numeric core (`interp/numeric.ts`,
+ * open-work 23) — integer and float, division and conversions included. An
+ * operation that traps is left to trap; one that gives an arithmetic NaN is
+ * left to the engine (see `_folded`).
  *
  * **Shapes upstream's pass still found on our -Oz output** (open-work 2, step 3):
  *   - a store writes only its low bits: `i32.storeN(wrap x)` → `i64.storeN x`,
@@ -50,7 +50,7 @@ import {
   type IfExpr,
   type Literal,
   makeBinary,
-  makeF32ConstBits,
+  makeConst,
   makeI32Const,
   makeI64Const,
   makeLoad,
@@ -65,6 +65,13 @@ import { ValType } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression } from '../ir/walk.ts';
 import { anyOpcodeName, Opcode } from '../../wabt-ts/core/opcode.ts';
+import {
+  evalBinary,
+  evalUnary,
+  isBitExact,
+  isNaNLiteral,
+  type NumericResult,
+} from '../interp/numeric.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -596,192 +603,29 @@ function _optimizeUnary(
 }
 
 // ---------------------------------------------------------------------------
-// Constant folding — binary
+// Constant folding — through the evaluator (open-work 23, E1)
 // ---------------------------------------------------------------------------
+//
+// One semantics: the folds below are `interp/numeric.ts`'s, as the
+// interpreter's and Precompute's will be. Until E1 this pass had its own
+// integer-only switch, which had been wrong three times (`extend8_s` above 2^53,
+// `reinterpret` building an i32 holding a float, a signalling NaN's payload).
+//
+// A trap is never folded away — the expression stays and traps when run. A NaN
+// is folded only from an operator exact on the bits (`isBitExact`): any other
+// gives whichever arithmetic NaN the engine computes, and a constant would fix
+// one the program can then read back through a reinterpretation.
 
-function _foldBinary(
-  opcode: BinaryOp,
-  lhs: Literal,
-  rhs: Literal,
-): Expression | null {
-  // i32 × i32
-  if (lhs.type === ValType.I32 && rhs.type === ValType.I32) {
-    const a = lhs.value;
-    const b = rhs.value;
-    switch (opcode) {
-      case BinaryOp.AddI32:
-        return makeI32Const((a + b) | 0);
-      case BinaryOp.SubI32:
-        return makeI32Const((a - b) | 0);
-      case BinaryOp.MulI32:
-        return makeI32Const(Math.imul(a, b));
-      case BinaryOp.AndI32:
-        return makeI32Const(a & b);
-      case BinaryOp.OrI32:
-        return makeI32Const(a | b);
-      case BinaryOp.XorI32:
-        return makeI32Const(a ^ b);
-      case BinaryOp.ShlI32:
-        return makeI32Const((a << (b & 31)) | 0);
-      case BinaryOp.ShrSI32:
-        return makeI32Const(a >> (b & 31));
-      case BinaryOp.ShrUI32:
-        return makeI32Const((a >>> (b & 31)) | 0);
-      case BinaryOp.RotlI32: {
-        const s = b & 31;
-        return makeI32Const(s === 0 ? a : ((a << s) | (a >>> (32 - s))) | 0);
-      }
-      case BinaryOp.RotrI32: {
-        const s = b & 31;
-        return makeI32Const(s === 0 ? a : ((a >>> s) | (a << (32 - s))) | 0);
-      }
-      case BinaryOp.EqI32:
-        return makeI32Const(a === b ? 1 : 0);
-      case BinaryOp.NeI32:
-        return makeI32Const(a !== b ? 1 : 0);
-      case BinaryOp.LtSI32:
-        return makeI32Const(a < b ? 1 : 0);
-      case BinaryOp.LeSI32:
-        return makeI32Const(a <= b ? 1 : 0);
-      case BinaryOp.GtSI32:
-        return makeI32Const(a > b ? 1 : 0);
-      case BinaryOp.GeSI32:
-        return makeI32Const(a >= b ? 1 : 0);
-      case BinaryOp.LtUI32:
-        return makeI32Const((a >>> 0) < (b >>> 0) ? 1 : 0);
-      case BinaryOp.LeUI32:
-        return makeI32Const((a >>> 0) <= (b >>> 0) ? 1 : 0);
-      case BinaryOp.GtUI32:
-        return makeI32Const((a >>> 0) > (b >>> 0) ? 1 : 0);
-      case BinaryOp.GeUI32:
-        return makeI32Const((a >>> 0) >= (b >>> 0) ? 1 : 0);
-    }
-  }
-
-  // i64 × i64
-  if (lhs.type === ValType.I64 && rhs.type === ValType.I64) {
-    const a = lhs.value;
-    const b = rhs.value;
-    switch (opcode) {
-      case BinaryOp.AddI64:
-        return makeI64Const(BigInt.asIntN(64, a + b));
-      case BinaryOp.SubI64:
-        return makeI64Const(BigInt.asIntN(64, a - b));
-      case BinaryOp.MulI64:
-        return makeI64Const(BigInt.asIntN(64, a * b));
-      case BinaryOp.AndI64:
-        return makeI64Const(BigInt.asIntN(64, a & b));
-      case BinaryOp.OrI64:
-        return makeI64Const(BigInt.asIntN(64, a | b));
-      case BinaryOp.XorI64:
-        return makeI64Const(BigInt.asIntN(64, a ^ b));
-      case BinaryOp.ShlI64:
-        return makeI64Const(BigInt.asIntN(64, a << (b & 63n)));
-      case BinaryOp.ShrSI64:
-        return makeI64Const(a >> (b & 63n));
-      case BinaryOp.ShrUI64:
-        return makeI64Const(
-          BigInt.asIntN(64, BigInt.asUintN(64, a) >> (b & 63n)),
-        );
-      case BinaryOp.RotlI64: {
-        const s = b & 63n;
-        if (s === 0n) return makeI64Const(a);
-        const u = BigInt.asUintN(64, a);
-        return makeI64Const(BigInt.asIntN(64, (u << s) | (u >> (64n - s))));
-      }
-      case BinaryOp.RotrI64: {
-        const s = b & 63n;
-        if (s === 0n) return makeI64Const(a);
-        const u = BigInt.asUintN(64, a);
-        return makeI64Const(BigInt.asIntN(64, (u >> s) | (u << (64n - s))));
-      }
-      // i64 comparisons return i32
-      case BinaryOp.EqI64:
-        return makeI32Const(a === b ? 1 : 0);
-      case BinaryOp.NeI64:
-        return makeI32Const(a !== b ? 1 : 0);
-      case BinaryOp.LtSI64:
-        return makeI32Const(a < b ? 1 : 0);
-      case BinaryOp.LeSI64:
-        return makeI32Const(a <= b ? 1 : 0);
-      case BinaryOp.GtSI64:
-        return makeI32Const(a > b ? 1 : 0);
-      case BinaryOp.GeSI64:
-        return makeI32Const(a >= b ? 1 : 0);
-      case BinaryOp.LtUI64:
-        return makeI32Const(BigInt.asUintN(64, a) < BigInt.asUintN(64, b) ? 1 : 0);
-      case BinaryOp.LeUI64:
-        return makeI32Const(BigInt.asUintN(64, a) <= BigInt.asUintN(64, b) ? 1 : 0);
-      case BinaryOp.GtUI64:
-        return makeI32Const(BigInt.asUintN(64, a) > BigInt.asUintN(64, b) ? 1 : 0);
-      case BinaryOp.GeUI64:
-        return makeI32Const(BigInt.asUintN(64, a) >= BigInt.asUintN(64, b) ? 1 : 0);
-    }
-  }
-
-  return null;
+function _folded(op: UnaryOp | BinaryOp, r: NumericResult | null): Expression | null {
+  if (r === null || 'trap' in r) return null;
+  if (isNaNLiteral(r.value) && !isBitExact(op)) return null;
+  return makeConst(r.value);
 }
 
-// ---------------------------------------------------------------------------
-// Constant folding — unary
-// ---------------------------------------------------------------------------
+function _foldBinary(opcode: BinaryOp, lhs: Literal, rhs: Literal): Expression | null {
+  return _folded(opcode, evalBinary(opcode, lhs, rhs));
+}
 
 function _foldUnary(opcode: UnaryOp, val: Literal): Expression | null {
-  if (val.type === ValType.I32) {
-    const v = val.value;
-    switch (opcode) {
-      case UnaryOp.ClzI32:
-        return makeI32Const(Math.clz32(v));
-      case UnaryOp.EqzI32:
-        return makeI32Const(v === 0 ? 1 : 0);
-      case UnaryOp.ExtendSI32:
-        return makeI64Const(BigInt(v));
-      case UnaryOp.ExtendUI32:
-        return makeI64Const(BigInt(v >>> 0));
-      case UnaryOp.ExtendS8I32:
-        return makeI32Const((v << 24) >> 24);
-      case UnaryOp.ExtendS16I32:
-        return makeI32Const((v << 16) >> 16);
-      case UnaryOp.ReinterpretI32:
-        // `f32.reinterpret_i32` yields an F32. This built an i32 CONSTANT holding a
-        // float, which -O2 then encoded as an invalid module (measured 2026-09-15).
-        // The bits are the value: no conversion, so no NaN payload is lost either.
-        return makeF32ConstBits(v >>> 0);
-    }
-  }
-
-  if (val.type === ValType.I64) {
-    const v = val.value;
-    switch (opcode) {
-      case UnaryOp.WrapI64:
-        return makeI32Const(Number(BigInt.asIntN(32, v)));
-      case UnaryOp.EqzI64:
-        return makeI32Const(v === 0n ? 1 : 0);
-      // 🔧 These went through `Number(v)`, which above 2^53 rounds away the
-      // very bits they extend: `i64.extend8_s(0x100000000000007f)` folded to
-      // the wrong constant (open-work 2, step 3).
-      case UnaryOp.ExtendS8I64:
-        return makeI64Const(BigInt.asIntN(8, v));
-      case UnaryOp.ExtendS16I64:
-        return makeI64Const(BigInt.asIntN(16, v));
-      case UnaryOp.ExtendS32I64:
-        return makeI64Const(BigInt.asIntN(64, BigInt(Number(BigInt.asIntN(32, v)))));
-    }
-  }
-
-  if (val.type === ValType.F32) {
-    if (opcode === UnaryOp.ReinterpretF32) {
-      // Straight from the bits: going through a float LOST a signalling NaN's
-      // payload, so `i32.reinterpret_f32` of one folded to the wrong integer.
-      return makeI32Const(val.bits | 0);
-    }
-  }
-
-  if (val.type === ValType.F64) {
-    if (opcode === UnaryOp.ReinterpretF64) {
-      return makeI64Const(BigInt.asIntN(64, val.bits));
-    }
-  }
-
-  return null;
+  return _folded(opcode, evalUnary(opcode, val));
 }

@@ -2670,6 +2670,25 @@ export function makeV128Const(bytes: Uint8Array): ConstExpr {
   return { kind: ExpressionKind.Const, type: ValType.V128, value: { type: ValType.V128, bytes } };
 }
 
+/**
+ * Creates the `*.const` expression for a {@link Literal} of any scalar or `v128`
+ * type — a fresh node, its `v128` bytes copied, so two sites never share one.
+ */
+export function makeConst(lit: Literal): ConstExpr {
+  switch (lit.type) {
+    case ValType.I32:
+      return makeI32Const(lit.value);
+    case ValType.I64:
+      return makeI64Const(lit.value);
+    case ValType.F32:
+      return makeF32ConstBits(lit.bits);
+    case ValType.F64:
+      return makeF64ConstBits(lit.bits);
+    case ValType.V128:
+      return makeV128Const(lit.bytes.slice());
+  }
+}
+
 /** Creates a `*.extract_lane` SIMD expression. */
 export function makeSIMDExtract(
   opcode: SIMDExtractOp,
