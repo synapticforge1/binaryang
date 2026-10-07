@@ -10,7 +10,7 @@ item closes, its record goes to the topic file and its line leaves here.
 the next release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finish the open
 items and the wasmtk list before publishing — 22 is done (closes with the release and its letter),
 24 has its design decided and waits to be built. **Next: item 2 to within 2% of upstream** (see its
-"Resume here" line and its question), then 23, 24, 21, and the rounds 13 / 14. **8 open items, none
+"Resume here" line: constant propagation first, owner-approved), then 23, 24, 21, and the rounds 13 / 14. **8 open items, none
 blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -239,6 +239,9 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      OptimizeInstructions') is not EVALUATION — may it go in item 2 now, while Precompute proper
      (evaluation) stays in item 23 as decided? Then RemoveUnusedBrs' block / br_if → if, then
      CodeFolding.
+     ✅ **Answered 2026-10-06, owner: "Yes. Constant propagation may go into item 2 now."** Precompute
+     proper (evaluation) stays in item 23. So item 2 resumes with: constant propagation, then RemoveUnusedBrs'
+     block / br_if → if, then CodeFolding — each measured and gated as before.
    - 📏 **Where item 2 stands, 2026-10-06:** upstream `wasm-opt -Oz` on each ORIGINAL corpus module
      totals 816,485; ours 859,534 — **the gap is 43,049 (5.0%)**, from 109.5 KB on 2026-09-19.
      Functions kept: ours 2,705, upstream 2,663 (was 3,943). No single upstream pass saves more
