@@ -54,6 +54,7 @@ import {
   makeI32Const,
   makeI64Const,
   makeLoad,
+  makeUnary,
   type SelectExpr,
   type StoreExpr,
   type UnaryExpr,
@@ -470,14 +471,7 @@ function _simplifyRHS(
         if ((v & 31) === 0) return left;
         break;
       case BinaryOp.EqI32:
-        if (v === 0) {
-          return {
-            kind: ExpressionKind.Unary,
-            type: ValType.I32,
-            opcode: UnaryOp.EqzI32,
-            value: left,
-          };
-        }
+        if (v === 0) return makeUnary(UnaryOp.EqzI32, left);
         break;
     }
   }
@@ -518,14 +512,7 @@ function _simplifyRHS(
         if ((v & 63n) === 0n) return left;
         break;
       case BinaryOp.EqI64:
-        if (v === 0n) {
-          return {
-            kind: ExpressionKind.Unary,
-            type: ValType.I32,
-            opcode: UnaryOp.EqzI64,
-            value: left,
-          };
-        }
+        if (v === 0n) return makeUnary(UnaryOp.EqzI64, left);
         break;
     }
   }

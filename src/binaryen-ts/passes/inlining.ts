@@ -40,7 +40,9 @@ import {
   type LocalGetExpr,
   type LocalSetExpr,
   makeBlock,
+  makeBreak,
   makeCall,
+  makeDrop,
   makeF32Const,
   makeF64Const,
   makeI32Const,
@@ -670,13 +672,7 @@ function substituteBody(
         // `unreachable` (mirrors `makeBreak` / upstream `Break::finalize`). The
         // old code stamped it with the value's type (e.g. `i32`), which mistypes
         // any block that infers its type from this `br` as its last child.
-        const br: BreakExpr = {
-          kind: ExpressionKind.Break,
-          type: Unreachable,
-          target: varName(returnLabel),
-          values: e.values,
-        };
-        return br;
+        return makeBreak(returnLabel, undefined, e.values);
       }
 
       default:
@@ -734,13 +730,7 @@ function inlineCallSite(
     );
   }
   for (const [i, operand] of call.operands.entries()) {
-    const setParam: LocalSetExpr = {
-      kind: ExpressionKind.LocalSet,
-      type: None,
-      var: varIndex(remapSlot(mapping, i)),
-      value: operand,
-    };
-    children.push(setParam);
+    children.push(makeLocalSet(varIndex(remapSlot(mapping, i)), operand));
   }
 
   // Zero-initialise non-param locals (needed for correctness in loops).
@@ -794,9 +784,7 @@ function inlineCallSite(
     // block's `end` would not.
     return {
       sequence: [
-        block.type !== None && !Array.isArray(block.type)
-          ? { kind: ExpressionKind.Drop, type: None, value: block }
-          : block,
+        block.type !== None && !Array.isArray(block.type) ? makeDrop(block) : block,
         makeUnreachable(),
       ],
     };
@@ -813,9 +801,9 @@ function inlineCallSite(
   // caller as the caller's own return — matching tail-call semantics.
   if (call.isReturn) {
     if (retType === None) {
-      return { sequence: [block, { kind: ExpressionKind.Return, type: Unreachable, values: [] }] };
+      return { sequence: [block, makeReturn()] };
     }
-    return { kind: ExpressionKind.Return, type: Unreachable, values: [block] };
+    return makeReturn([block]);
   }
 
   return block;
