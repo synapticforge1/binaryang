@@ -13,7 +13,7 @@ NOT PUSHED (owner: wait "until the next updates are finished"; [unreleased.md](u
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **9 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 2) are next. **8 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 6, 9, 11, 12, 16 and 17 are
 gone with their numbers kept free.
 Re-derive any number before quoting it.
@@ -259,8 +259,14 @@ inlining 5 — use their factories; every literal's type had matched its factory
 optimizer outputs stayed byte-identical. `tests/binaryen-ts/ir/no_node_literals.test.ts` now fails on
 any new one outside `ir/expressions.ts` — inverted once.)
 
-8. ⬚ **Asyncify refuses `call_ref`** (K1's leftover; `passes/asyncify.ts`: "call_ref is not yet
-    supported"). Upstream instruments it as an indirect call.
+(Item 8, Asyncify and `call_ref`, closed 2026-10-06: `call_ref` is instrumented as an INDIRECT call,
+as upstream treats it — in the call-graph scan (it seeds its function as state-changing, so callers
+propagate), `exprCanChangeState`, `doesCall` and `callChangesState`; the CFG already counted it as a
+call point. `return_call_ref` stays refused, as the other tail calls are. `asyncify_e2e.test.ts` runs a
+suspend inside a function reached by `call_ref`, through a caller, with a run COUNTER — an
+uninstrumented function re-runs its prologue on rewind and the count shows it: the scan's seed
+survived two drafts of the test that had no side effect before the call. 5 mutants killed.)
+
 (Item 9, inexact allocations, closed 2026-09-29: it was NOT "valid either way" — `--flatten` made
 invalid modules from it. Q13 in [divergences.md](divergences.md).)
 

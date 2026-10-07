@@ -41,6 +41,8 @@ contains ([handoffs.md](handoffs.md)).
   multi-result folded child shifted its siblings. The bytes `wat2wasm` writes were right; the TREE was
   not, so anything optimizing straight from parsed text (the direct path) could compute a different
   result — measured for the `select` case at -O2.
+- **Behaviour — `Asyncify` accepts `call_ref`** (open-work 8): instrumented as an indirect call, as
+  upstream does; it refused the module before. `return_call_ref` is still refused.
 - **Behaviour — `LocalCSE` rewritten** (open-work 3–5): it reuses any repeated expression that only
   reads (loads, `memory.size`, global reads) or may trap, along straight-line code, until something
   writes what it reads; it reused only constants, locals, globals and non-trapping arithmetic within

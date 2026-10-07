@@ -43,6 +43,52 @@ Deno.test('asyncify e2e — locals survive a rewind (single suspend in a loop)',
   assertEquals(driveOnce(bytes, 'sum', [3], 'get', 7), 21);
 });
 
+Deno.test('asyncify e2e — suspend inside a function reached by call_ref (open-work 8)', () => {
+  // `call_ref` is an INDIRECT call, as upstream treats it: `compute` must be
+  // instrumented, and the partial `x * 3` it holds across the call restored on
+  // rewind. compute(10) = 30 + helper(10) = 30 + (10 + get()) = 82 with get → 42.
+  const bytes = writeWasm(asyncify(readWat(`(module
+    (import "env" "get" (func $get (result i32)))
+    (memory 1)
+    (export "memory" (memory 0))
+    (type $h (func (param i32) (result i32)))
+    (elem declare func $helper)
+    (func $helper (type $h) (param $y i32) (result i32)
+      (i32.add (local.get $y) (call $get)))
+    ;; Counts its runs: an instrumented function SKIPS what it already did when
+    ;; it rewinds; one left uninstrumented runs it again (the count shows 2).
+    (global $runs (mut i32) (i32.const 0))
+    (func $compute (export "compute") (param $x i32) (result i32)
+      (global.set $runs (i32.add (global.get $runs) (i32.const 1)))
+      (i32.add
+        (i32.mul (global.get $runs) (i32.const 100))
+        (i32.add
+          (i32.mul (local.get $x) (i32.const 3))
+          (call_ref $h (local.get $x) (ref.func $helper)))))
+    ;; A CALLER: instrumented only if compute is known to change state —
+    ;; which only the call_ref can tell.
+    (func $main (export "main") (param $x i32) (result i32)
+      (i32.add (i32.const 1) (call $compute (local.get $x)))))`)));
+  // runs = 1 on the resumed path: 1 + 100 + 30 + (10 + 42).
+  assertEquals(driveOnce(bytes, 'main', [10], 'get', 42), 183);
+});
+
+Deno.test('asyncify — return_call_ref is refused, as the other tail calls are', () => {
+  const mod = readWat(`(module
+    (memory 1)
+    (type $v (func))
+    (elem declare func $f)
+    (func $f)
+    (func $g (return_call_ref $v (ref.func $f))))`);
+  let message = '';
+  try {
+    asyncify(mod);
+  } catch (e) {
+    message = (e as Error).message;
+  }
+  assert(/return_call_ref/.test(message), message);
+});
+
 Deno.test('asyncify — registered as a pass, runnable via PassRunner (lowercase name)', () => {
   assert(listPasses().includes('Asyncify'), 'Asyncify should be a registered pass');
   const mod = readWat(ADD_GET);
