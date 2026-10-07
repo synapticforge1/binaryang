@@ -48,6 +48,7 @@ import {
   BinaryOp,
   type CallExpr,
   type CallIndirectExpr,
+  type CallRefExpr,
   type DropExpr,
   type Expression,
   ExpressionKind,
@@ -640,10 +641,15 @@ export function analyzeModule(
         }
         indirect = true;
       } else if (e.kind === ExpressionKind.CallRef) {
-        // Upstream treats it as an indirect call. Refused rather than guessed
-        // until the flow and locals stages handle it: an uninstrumented call that
-        // unwinds corrupts the resume (S6 step 5 item 5 (5)).
-        throw new Error('asyncify: call_ref is not yet supported.');
+        // An INDIRECT call, as upstream treats it (open-work 8): it may reach
+        // any function of its type, so it is a state-changer exactly where a
+        // `call_indirect` is. It was refused until every stage below handled it
+        // — the scan, `exprCanChangeState`, `doesCall`, `callChangesState`; the
+        // CFG already counted it as a call point.
+        if ((e as CallRefExpr).isReturn) {
+          throw new Error('asyncify: tail calls (return_call_ref) are not yet supported.');
+        }
+        indirect = true;
       }
     });
     if (isTop) topMost.add(func.name);
@@ -793,7 +799,7 @@ function exprCanChangeState(expr: Expression, ctx: FlowCtx): boolean {
       if (ctx.canChangeState.get(requireName((e as CallExpr).func, 'call target'))) {
         changes = true;
       }
-    } else if (e.kind === ExpressionKind.CallIndirect) {
+    } else if (e.kind === ExpressionKind.CallIndirect || e.kind === ExpressionKind.CallRef) {
       indirect = true;
     }
   });
@@ -806,7 +812,8 @@ function doesCall(curr: Expression): boolean {
   let inner = curr;
   if (curr.kind === ExpressionKind.LocalSet) inner = (curr as LocalSetExpr).value;
   else if (curr.kind === ExpressionKind.Drop) inner = (curr as DropExpr).value;
-  return inner.kind === ExpressionKind.Call || inner.kind === ExpressionKind.CallIndirect;
+  return inner.kind === ExpressionKind.Call || inner.kind === ExpressionKind.CallIndirect ||
+    inner.kind === ExpressionKind.CallRef;
 }
 
 /** The fake global name for a call-result `type` (created lazily). */
@@ -1006,7 +1013,7 @@ function callChangesState(
   if (call.kind === ExpressionKind.Call) {
     return canChangeState.get(requireName((call as CallExpr).func, 'call target')) === true;
   }
-  if (call.kind === ExpressionKind.CallIndirect) {
+  if (call.kind === ExpressionKind.CallIndirect || call.kind === ExpressionKind.CallRef) {
     return canIndirect || addedFromList.has(funcName);
   }
   return false;

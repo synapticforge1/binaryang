@@ -248,13 +248,13 @@ Deno.test('CoalesceLocals: a throwing call_ref in a try keeps the pre-try value 
   assertEquals([run(bytes), run(writeWasm(mod))], [-1, -1]);
 });
 
-Deno.test('Asyncify refuses call_ref rather than leaving it uninstrumented', () => {
+Deno.test('Asyncify instruments call_ref as an indirect call (open-work 8; it refused it)', () => {
+  // It refused rather than leave the call uninstrumented. Now every stage
+  // treats it as `call_indirect` — the run across an unwind / rewind is
+  // `asyncify_e2e.test.ts`'s; here, the fixture is accepted and stays valid.
   const mod = readForPasses(assemble(FIX.call_ref!.wat));
-  assertThrows(
-    () => new PassRunner(mod, { optimizeLevel: 0, shrinkLevel: 0 }).add('asyncify').run(),
-    Error,
-    'call_ref is not yet supported',
-  );
+  new PassRunner(mod, { optimizeLevel: 0, shrinkLevel: 0 }).add('asyncify').run();
+  assert(WebAssembly.validate(writeWasm(mod) as BufferSource), 'valid after asyncify');
 });
 
 Deno.test('Flatten takes a call_ref with several results: N temps, not a tuple', () => {
