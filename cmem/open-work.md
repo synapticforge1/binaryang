@@ -9,10 +9,11 @@ the optimizer steps (item 2: 1–5, LocalCSE, ConstantPropagation), `./definitio
 item 22), items 3–8 and 10 closed, six silent fixes ([unreleased.md](unreleased.md): the next
 release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finish the open items and
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
-design decided and waits to be built. **Next: item 2 to within 2% of upstream** (see its "Resume
-here (2026-10-07)" line: propagation done, gap 4.6%; RemoveUnusedBrs next; a scope question for the
-owner is recorded there), then 23, 24, 21, and the rounds 13 / 14. **8 open items, none blocking**;
-numbers 3–7, 9–12, 16, 17 are gone and kept free. Re-derive any number before quoting it.
+design decided and waits to be built. Item 2 is PARKED at a 4.6% gap (owner, 2026-10-07: the delta
+to upstream is judged after item 23). **Next: item 23** — the evaluator first (see its "Plan" line),
+then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once 23 is done. **8 open items,
+none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free. Re-derive any number before
+quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -269,7 +270,10 @@ every prepared spec module, at -O1 … -Oz). The hand-written traversals (`deriv
      sit near 3.3%, not ≤ 2%, while ~9.5 KB of what remains is evaluation, which is item 23's.
      Either item 2's target counts evaluation as out of scope (≤ 2% measured without it), or
      Precompute moves forward, or more passes are found (`enable.ts` over the rest of upstream's
-     list). Not decided; measure after the two steps.
+     list). Not decided; measure after the two steps. ✅ **Owner, 2026-10-07: "Lets worry about the
+     delta with upstream after item 23 is done. For now move on to the next item."** Item 2 is
+     PARKED at 4.6% — RemoveUnusedBrs and CodeFolding wait; the gap is re-measured once item 23
+     (with Precompute) is done, and the target judged then.
    - 📏 **Where item 2 stands, 2026-10-06:** upstream `wasm-opt -Oz` on each ORIGINAL corpus module
      totals 816,485; ours 859,534 — **the gap is 43,049 (5.0%)**, from 109.5 KB on 2026-09-19.
      Functions kept: ours 2,705, upstream 2,663 (was 3,943). No single upstream pass saves more than
@@ -360,6 +364,21 @@ mismatches and the reader prints that function as predicted — plainly, never w
     - **Precompute joins this item** (owner-agreed 2026-10-06, item 2): `precompute-propagate` was
       worth 1,134 on our -Oz output after step 3c — built on this item's evaluator, so constant
       folding has one semantics, not two.
+    - 🗺️ **Plan (2026-10-07, started on the owner's "move on to the next item").** Each stage gated
+      and merged on its own:
+      - **E1 — the evaluator's numeric core**: every scalar unary / binary / compare / conversion on
+        `Literal`s, exact (float BITS, NaN payloads as the spec allows, a trap as a RESULT, never a
+        throw). Oracle: V8, differentially, per opcode over edge and random operands. OI's
+        `_foldBinary` / `_foldUnary` then call it — one semantics. `v128` later, recorded as a
+        limit.
+      - **E2 — Precompute** on it: an expression of constants with no other effect becomes its
+        value; a trap is never folded away; a constant condition picks its arm. In -O, as upstream.
+        Measured on the corpus; item 2's gap re-measured.
+      - **E3 — the interpreter**: bodies, locals, control, memory, globals, tables, calls; a host
+        call or anything non-deterministic STOPS it. Oracles: the spec testsuite's `assert_return` /
+        `assert_trap`, and V8.
+      - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
+        combination — MEASURED.
 
 ## Conformance
 
