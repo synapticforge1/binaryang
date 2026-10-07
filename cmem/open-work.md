@@ -6,7 +6,7 @@ item closes, its record goes to the topic file and its line leaves here.
 
 **State, 2026-10-06 (paused by the owner at day's end):** `binaryang@1.8.1` is the last release;
 `main` holds a large UNRELEASED set — the optimizer steps (item 2: 1–5 and LocalCSE), `./definitions`
-(D1 / D2 / D3, item 22), items 3–8 and 10 closed, four silent fixes ([unreleased.md](unreleased.md):
+(D1 / D2 / D3, item 22), items 3–8 and 10 closed, six silent fixes ([unreleased.md](unreleased.md):
 the next release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finish the open
 items and the wasmtk list before publishing — 22 is done (closes with the release and its letter),
 24 has its design decided and waits to be built. **Next: item 2 to within 2% of upstream** (see its
