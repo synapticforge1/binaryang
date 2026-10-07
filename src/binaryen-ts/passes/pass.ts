@@ -424,6 +424,8 @@ const FUNCTION_PASSES = [
   'RemoveUnusedBrs',
   'RemoveUnusedNames',
   'OptimizeInstructions',
+  'ConstantPropagation',
+  'OptimizeInstructions',
   'CoalesceLocals',
   'SimplifyLocals',
   'LocalCSE',

@@ -1,11 +1,13 @@
 # Unreleased on `main` — what the next release note must say
 
 **As of 2026-10-06: `main` = `v1.8.1` plus everything under "Since 1.8.1" below — UNRELEASED, NOT
-PUSHED** (check it rather than trust this line: `git log --oneline v1.8.1..main -- src/ main.ts
-deno.json`). It adds an export (`./definitions`), so the next release is a MINOR, 1.9.0 — typed by
-hand ([publishing.md](publishing.md) § "`bump` has no minor mode"). The owner's order: the wasmtk
-list (open-work 22, 24) and the remaining items before publishing. `deno.json` reads 1.8.1; the
-version line arms a release, so the bump is the owner's decision, never a side effect of work.
+PUSHED** (check it rather than trust this line:
+`git log --oneline v1.8.1..main -- src/ main.ts
+deno.json`). It adds an export (`./definitions`), so
+the next release is a MINOR, 1.9.0 — typed by hand ([publishing.md](publishing.md) § "`bump` has no
+minor mode"). The owner's order: the wasmtk list (open-work 22, 24) and the remaining items before
+publishing. `deno.json` reads 1.8.1; the version line arms a release, so the bump is the owner's
+decision, never a side effect of work.
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR record
@@ -15,10 +17,10 @@ complete), **1.7.1** (u64 limits and the 1-byte-page cap), **1.7.2** (`wasm2wat`
 wasm-tools: N10, W18, M2a; `array.new_default` defaultability) or **1.8.0** (diagnostics DG1–DG6,
 the `wat2wasm` CLI validating by default, the reader stopping at its first error, Q10–Q13,
 `LowerCustomPageSizes` with its `#pagesize=` exports, `wasm-opt` validating its input) or **1.8.1**
-(wasmtk's § 20: L3 trap kind, L4 placeholder, C7 `getFunctionInfo` shape). The public
-summary of each is `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field
-by field: `git show 769b4d3c0:cmem/unreleased.md` (to 1.7.0), this file at `7aa54e95c` (1.7.1 →
-1.7.2), at `fb5068e47` (1.8.0), and at `99f2a5b16` (1.8.1).
+(wasmtk's § 20: L3 trap kind, L4 placeholder, C7 `getFunctionInfo` shape). The public summary of
+each is `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
+`git show 769b4d3c0:cmem/unreleased.md` (to 1.7.0), this file at `7aa54e95c` (1.7.1 → 1.7.2), at
+`fb5068e47` (1.8.0), and at `99f2a5b16` (1.8.1).
 
 ## How to use this file
 
@@ -37,18 +39,24 @@ contains ([handoffs.md](handoffs.md)).
 
 - **Silent fix — the WAT parser put a folded instruction's missing operands in the wrong slots**
   (open-work 10): `(i32.const 10) (nop) (select (i32.const 20) (local.get 0))` built a `select` with
-  value and condition swapped; also a `throw` of a param-less tag took a value it should leave, and a
-  multi-result folded child shifted its siblings. The bytes `wat2wasm` writes were right; the TREE was
-  not, so anything optimizing straight from parsed text (the direct path) could compute a different
-  result — measured for the `select` case at -O2.
+  value and condition swapped; also a `throw` of a param-less tag took a value it should leave, and
+  a multi-result folded child shifted its siblings. The bytes `wat2wasm` writes were right; the TREE
+  was not, so anything optimizing straight from parsed text (the direct path) could compute a
+  different result — measured for the `select` case at -O2.
 - **Behaviour — `Asyncify` accepts `call_ref`** (open-work 8): instrumented as an indirect call, as
   upstream does; it refused the module before. `return_call_ref` is still refused.
 - **Behaviour — `LocalCSE` rewritten** (open-work 3–5): it reuses any repeated expression that only
   reads (loads, `memory.size`, global reads) or may trap, along straight-line code, until something
   writes what it reads; it reused only constants, locals, globals and non-trapping arithmetic within
-  one block before. Corpus −3.0 KB at -Os / -Oz, −3.1 KB at -O2, −3.2 KB at -O3; behaviour unchanged.
-- **Behaviour — `wat2wasm` no longer reads its own output back** to predict text forms: −12% time on the
-  corpus, bytes identical.
+  one block before. Corpus −3.0 KB at -Os / -Oz, −3.1 KB at -O2, −3.2 KB at -O3; behaviour
+  unchanged.
+- **NEW / Behaviour — `ConstantPropagation` pass** (open-work 2, 2026-10-07): a `local.get` whose
+  only reaching value is one constant becomes that constant (copies followed, a declared local's
+  zero counted; numeric and `v128` only; no evaluation — that is item 23). Scheduled at -O2 and up
+  after OptimizeInstructions, with OptimizeInstructions again. Corpus −2.3 KB at -O2 / -Os / -Oz,
+  −3.4 KB at -O3; -O1 unchanged; behaviour unchanged.
+- **Behaviour — `wat2wasm` no longer reads its own output back** to predict text forms: −12% time on
+  the corpus, bytes identical.
 - **NEW — `./definitions`** (open-work 22; wasmtk's H10): the shared definitions for other projects
   to generate their copies from — D2, the WebAssembly feature / proposal list, and D3, the spec
   testsuite's trap / exhaustion vocabulary with its prefix rule — each with `dataVersion` and a
@@ -63,8 +71,8 @@ contains ([handoffs.md](handoffs.md)).
   caller that turns one of these default-on features off sees a change.
 - **Silent fix — `i64.add128` / `i64.sub128` accepted a wrong-typed FIRST operand** (open-work 22):
   the type checker checked three of the four and dropped the first unchecked.
-- **Behaviour — `delegate`, `catch_all` and `try_table` have names** where printing an opcode
-  showed `<opcode:0x1f>` (diagnostics, `wasm-objdump`).
+- **Behaviour — `delegate`, `catch_all` and `try_table` have names** where printing an opcode showed
+  `<opcode:0x1f>` (diagnostics, `wasm-objdump`).
 
 - **Silent fix — the tree walkers visit a branch's values before its condition** (open-work 1):
   `mapExpression`, `walkExpression`, `visitChildren`, `mapChildrenShallow` and `mapWithSequences`
@@ -75,26 +83,26 @@ contains ([handoffs.md](handoffs.md)).
 - **Behaviour — `CoalesceLocals` coalesces copies** (open-work 2, step 1), as upstream's: a copy
   (`local.set x (local.get y)`) no longer makes x and y interfere, a variable may share a
   parameter's slot, and a copy onto itself is removed. Optimized output moves at `-O2` and above:
-  the corpus is −4,675 bytes at -O2, −22,699 at -O3, −6,171 at -Os / -Oz; behaviour unchanged
-  (the spec and corpus behaviour gates).
+  the corpus is −4,675 bytes at -O2, −22,699 at -O3, −6,171 at -Os / -Oz; behaviour unchanged (the
+  spec and corpus behaviour gates).
 - **NEW / Behaviour — `RemoveUnusedTypes`** (open-work 6; 2, step 2), last at every `-O` level:
   types nothing refers to are removed and every reference renumbered, as upstream's writer leaves
   them out. The corpus is −10.3 KB at -O1 / -O2 / -Os / -Oz, −12.5 KB at -O3. A plain read and write
   keeps the type section as it was.
 - **Silent fix — `OptimizeInstructions` folded `i64.extend8_s` / `i64.extend16_s` of a constant
   wrong above 2^53** (open-work 2, step 3a): the fold went through a JS number, which rounds away
-  the low bits it extends. Valid output, wrong value; only a module holding such a constant
-  operand, at `-O2` and above.
-- **Behaviour — `OptimizeInstructions` covers more** (open-work 2, step 3a): a store's conversion
-  or mask folded into the store, an extend of a load into the extending load, `if (eqz c)` arms
-  swapped, `eqz(eqz x)` in a condition, the constants of an add / sub tree gathered into one.
-  Corpus −9.8 KB at -O2 / -Os / -Oz, −26.5 KB at -O3; behaviour unchanged (the spec and corpus
-  behaviour gates).
+  the low bits it extends. Valid output, wrong value; only a module holding such a constant operand,
+  at `-O2` and above.
+- **Behaviour — `OptimizeInstructions` covers more** (open-work 2, step 3a): a store's conversion or
+  mask folded into the store, an extend of a load into the extending load, `if (eqz c)` arms
+  swapped, `eqz(eqz x)` in a condition, the constants of an add / sub tree gathered into one. Corpus
+  −9.8 KB at -O2 / -Os / -Oz, −26.5 KB at -O3; behaviour unchanged (the spec and corpus behaviour
+  gates).
 - **Behaviour — `SimplifyLocals` sinks a set into the get that reads it** (open-work 2, step 3b),
   along straight-line code, past whatever its effects may pass; the only read becomes the value
-  itself, otherwise a `local.tee`. It merged only an adjacent set and get before. Corpus −14.2 KB
-  at -O2 / -Os / -Oz, −20.7 KB at -O3; behaviour unchanged (the spec and corpus behaviour gates,
-  the optimizer fuzzer). Internal: a shared effect analysis, `ir/effects.ts` (not a subpath).
+  itself, otherwise a `local.tee`. It merged only an adjacent set and get before. Corpus −14.2 KB at
+  -O2 / -Os / -Oz, −20.7 KB at -O3; behaviour unchanged (the spec and corpus behaviour gates, the
+  optimizer fuzzer). Internal: a shared effect analysis, `ir/effects.ts` (not a subpath).
 - **Behaviour — `RemoveUnusedBrs` covers more** (open-work 2, step 3c): a `return` ending a function
   body becomes its value, a cheap `if` with a numeric result becomes a `select`, `if (c) br` becomes
   `br_if`. Corpus −2.1 KB at -O2 / -Os / -Oz, −3.0 KB at -O3; behaviour unchanged.
@@ -105,14 +113,14 @@ contains ([handoffs.md](handoffs.md)).
   the function passes: a function reached only by direct calls loses a parameter nothing reads, or
   one every call passes the same constant. Corpus −5.3 KB at -O2 / -Os / -Oz, −7.6 KB at -O3. The
   pass name is accepted by `runPasses` / `wasm-opt` like the others.
-- **Silent fix — Inlining caught an exception a tail call throws past a `try`** (open-work 2,
-  step 5): a `return_call` inside a `try` was inlined, so the callee's throw, which the tail call
-  takes out of the frame, was caught there and the function returned normally. At `-O3` in 1.8.1
-  (the only level that inlined); spec legacy `try_catch.wast` / `try_delegate.wast`. A module
-  combining exceptions and tail calls, optimized at -O3, may be affected.
+- **Silent fix — Inlining caught an exception a tail call throws past a `try`** (open-work 2, step
+  5): a `return_call` inside a `try` was inlined, so the callee's throw, which the tail call takes
+  out of the frame, was caught there and the function returned normally. At `-O3` in 1.8.1 (the only
+  level that inlined); spec legacy `try_catch.wast` / `try_delegate.wast`. A module combining
+  exceptions and tail calls, optimized at -O3, may be affected.
 - **Behaviour — Inlining at upstream's rules and schedule** (open-work 2, step 5): it now runs at
-  `-O2`, `-Os` and `-Oz` too, after the function passes and followed by them again; a function
-  with one caller is inlined at any size (was ≤ 10 nodes; `--pass-arg
-  one-caller-inline-max-size@N` limits it); at `-O3` a function with several callers only when it
-  has no calls AND no loops (it took either). Corpus −8.7 KB at -O2, −4.8 KB at -Os / -Oz, **−180.6
-  KB (−17%) at -O3**.
+  `-O2`, `-Os` and `-Oz` too, after the function passes and followed by them again; a function with
+  one caller is inlined at any size (was ≤ 10 nodes; `--pass-arg
+  one-caller-inline-max-size@N`
+  limits it); at `-O3` a function with several callers only when it has no calls AND no loops (it
+  took either). Corpus −8.7 KB at -O2, −4.8 KB at -Os / -Oz, **−180.6 KB (−17%) at -O3**.
