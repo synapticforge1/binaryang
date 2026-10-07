@@ -1266,6 +1266,9 @@ export class WastParser {
   private allowNanPatterns = false;
 
   private funcParamCounts: (number | undefined)[] = [];
+  /** Each tag's param count, as {@link funcParamCounts}: a `throw`'s arity. */
+  private tagParamCounts: (number | undefined)[] = [];
+  private tagParamCountsByName = new Map<string, number | undefined>();
   private funcParamCountsByName = new Map<string, number | undefined>();
   /** Each function's result count, as {@link funcParamCounts}: see {@link producesValue}. */
   private funcResultCounts: (number | undefined)[] = [];
@@ -1745,6 +1748,18 @@ export class WastParser {
         }
         const params = this.declaredParamCount(typeVar);
         return params === undefined ? -1 : params + 1;
+      }
+      case TokenType.Throw: {
+        // 🔧 Its TAG's params. Draining handed a `throw $e` of a param-less tag
+        // a value that was only left on the stack for it to discard —
+        // `(i32.const 1) (throw $e)` hung the const on the throw (spec
+        // `try_table.1`, open-work 10's probe: a tree the reader does not build).
+        const v = this.peekVar();
+        if (v === null) return -1;
+        const count = v.kind === 'index'
+          ? this.tagParamCounts[v.value]
+          : this.tagParamCountsByName.get(v.name);
+        return count ?? -1;
       }
       case TokenType.CallRef:
       case TokenType.ReturnCallRef: {
@@ -2609,6 +2624,24 @@ export class WastParser {
     this.funcResultCounts = results;
     this.funcResultCountsByName = resultsByName;
 
+    // Tags likewise — imports first: a `throw`'s arity is its tag's params.
+    const savedTags = this.tagParamCounts;
+    const savedTagsByName = this.tagParamCountsByName;
+    const tagCounts: (number | undefined)[] = [];
+    const tagsByName = new Map<string, number | undefined>();
+    this.currentModule = module; // `declaredParamCount` reads the type section through it
+    const recordTag = (t: Tag): void => {
+      const n = t.typeVar !== undefined ? this.declaredParamCount(t.typeVar) : t.sig.params.length;
+      if (t.name) tagsByName.set(t.name, n);
+      tagCounts.push(n);
+    };
+    for (const imp of module.imports) {
+      if (imp.kind === ExternalKind.Tag) recordTag(imp.tag);
+    }
+    for (const t of module.tags) recordTag(t);
+    this.tagParamCounts = tagCounts;
+    this.tagParamCountsByName = tagsByName;
+
     const savedLabels = this.labels;
     for (const pb of pending) {
       this.pos = pb.pos;
@@ -2648,6 +2681,8 @@ export class WastParser {
     this.funcParamCountsByName = savedByName;
     this.funcResultCounts = savedResults;
     this.funcResultCountsByName = savedResultsByName;
+    this.tagParamCounts = savedTags;
+    this.tagParamCountsByName = savedTagsByName;
     this.currentModule = savedModule;
     this.localScope = savedScope;
     this.pos = savedPos;
@@ -3902,7 +3937,15 @@ export class WastParser {
       this.parseOneInstr(innerCtx);
       inner++;
     }
-    flushStack(innerCtx);
+    // 🔧 Collected WITH their `pop`s: among an instruction's folded children a
+    // `pop` is a VALUE in its place — the earlier results of a multi-result
+    // child. `flushStack` drops them (right at a block's end, where nothing
+    // consumes them), and the operands then shifted: `(call $g (local.get x)
+    // (call $two))`, $g taking three, built `$g(pop, x, $two)` where the
+    // reader builds `$g(x, pop, $two)` — x in the wrong slot (open-work 10's
+    // probe, 2026-10-06; corpus `27_string-functions.wat`).
+    for (const e of innerCtx.stack) innerCtx.stmts.push(e);
+    innerCtx.stack.length = 0;
     const subExprEndPos = this.pos;
 
     // Bug D fix: when the folded form supplies fewer children than the
@@ -3952,6 +3995,22 @@ export class WastParser {
       const deficit = nInputs - innerCtx.stmts.length;
       const available = Math.min(deficit, ctx.stack.length);
       operands = available > 0 ? [...popN(ctx, available, loc), ...innerCtx.stmts] : innerCtx.stmts;
+      // 🔧 What is STILL missing comes from below — values an earlier
+      // instruction left that a statement (`nop`, a `local.set`) moved off this
+      // stack. Those are the LEADING operands, so the placeholders go in FRONT,
+      // as `popN` puts them. Left short, `buildPlainExpr` padded the END:
+      // `(i32.const 10) (nop) (select (i32.const 20) (local.get 0))` built
+      // `select(20, cond, pop)` — the bytes right, the TREE swapping value and
+      // condition — and the direct path (text tree → passes) returned 20
+      // where wat2wasm's module returns 10, at -O2 (open-work 10's probe,
+      // 2026-10-06). Not for a branch: its carried values are optional (Bug F).
+      if (operands.length < nInputs && !KEEPS_CARRIED.has(tt2)) {
+        const missing = Array.from(
+          { length: nInputs - operands.length },
+          () => operandPlaceholder(loc),
+        );
+        operands = [...missing, ...operands];
+      }
     }
 
     // 4. Rewind and re-invoke buildPlainExpr with the real operands.
