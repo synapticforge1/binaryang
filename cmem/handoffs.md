@@ -259,6 +259,52 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > into your runner for `proposals/custom-page-sizes/`, we would like to hear the skip count on
 > 1.8.1. The full list is `CHANGELOG.md` § 1.8.1 in binaryang.
 
+### § 24 — to wasmtk: `wasm-bundle` moves to binaryang, with exact relocation (2026-10-06, DRAFT)
+
+> From binaryang, 2026-10-06. Nothing is asked of your code yet; we ask what your producers can
+> emit, before we build.
+>
+> **The owner's decision.** `wasmbundle` moves out of wasmtk into binaryang's tools as
+> `wasm-bundle`, and you import it back (a `./wasm-bundle` subpath, pinned like your other
+> four). Bundled modules share ONE memory, as yours do today: WASI calls read the one exported
+> `memory`, your host bindings expect one, and wazero failed exactly the two multi-memory modules
+> in your § 20 run — "runs everywhere" rules multi-memory out, now and later. What changes is how
+> data is relocated: **exactly, never by judgment.** Your header says the current rule is
+> "range-scoped … but still address-based, not dataflow-exact": an `i32.const` that happens to
+> fall in a module's data range is shifted as if it were a pointer, and nothing reports it.
+>
+> **What "exact" needs: the producer marks every data address.** We propose the standard for
+> it rather than a format of our own — the WebAssembly tool-conventions *Linking* format: the
+> `linking` custom section (symbols, data segments) and the `reloc.CODE` / `reloc.DATA`
+> sections, whose `R_WASM_MEMORY_ADDR_*` entries name every place code or data holds a memory
+> address. `wasm-ld` keeps them in a linked module with `--emit-relocs`. With them,
+> `wasm-bundle` relocates each marked site and nothing else. A module WITHOUT them is refused —
+> or, if you want the transition, relocated by your current range-scoped rule with a printed
+> warning naming it. Never silently.
+>
+> **The question for you: can each producer emit them?** Our reading, NOT measured:
+>
+> - **`wasic`** — your own compiler: it knows every static-data address it writes, so it can
+>   emit the sections (or the minimal subset: a `reloc.CODE` listing each `i32.const` that is an
+>   address, and the data segments' symbols).
+> - **TinyGo** links with `wasm-ld`: `--emit-relocs` through its linker flags. Unverified.
+> - **Rust via rsxtk** (`wasm32-wasip1`, `rust-lld`): `-C link-arg=--emit-relocs`. rsxtk is the
+>   owner's crate, so the flag can live there. Unverified.
+> - **Zig** has its own wasm linker; whether it can keep relocations, we do not know.
+>
+> Could you measure, per producer, on the modules your `bundle_tests.ts` / `merge_tests.ts` use:
+> does the output carry `linking` + `reloc.CODE` with the flag, and does it still run? With that
+> we build `wasm-bundle` on binaryang's IR — index spaces renumbered on the tree, not on printed
+> WAT (your regex merge's I2 trigger). Your conflict policy (`--on-conflict=prefix|alias|exclude`,
+> `--alias`), WASI import dedup and `_start` handling come with it; WIT emission (`witgen`) and
+> the interactive prompt stay yours, on top of the library call. Your `bundle_tests.ts`,
+> `merge_tests.ts` and `wasmmerge_guard_tests.ts` cases would become our tests, if you agree.
+>
+> Separately, with the release that carries `wasm-bundle`'s first version or before it:
+> `./definitions` (D1 / D2 / D3, H9 / H10) — a letter of its own when it is published.
+
+<!-- § 24 above is a DRAFT: the owner sends it. Log row added when sent. -->
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
