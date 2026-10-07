@@ -4,19 +4,14 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-09-29:** 🚀 **`binaryang@1.8.1` is published** (tag `v1.8.1`, `531d82f1b`;
-[publishing.md](publishing.md) § 1.8.1) — 1.8.0 carried everything below, 1.8.1 wasmtk's § 20
-fixes; `main` = the release plus, since 2026-09-30, item 2's steps 1–2 and item 1 — UNRELEASED and
-NOT PUSHED (owner: wait "until the next updates are finished"; [unreleased.md](unreleased.md)).
-**Owner's order that day: items 16 and 17
-(done), then 11 (found already closed), then 12** — decided the same day (both halves, V8 flags)
-and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
-Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
-trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **8 open items, none blocking**, numbered below: old 16 and 17
-closed, new 16 and 17 came out of them and closed the same day, and 6, 9, 11, 12, 16 and 17 are
-gone with their numbers kept free.
-Re-derive any number before quoting it.
+**State, 2026-10-06 (paused by the owner at day's end):** `binaryang@1.8.1` is the last release;
+`main` holds a large UNRELEASED set — the optimizer steps (item 2: 1–5 and LocalCSE), `./definitions`
+(D1 / D2 / D3, item 22), items 3–8 and 10 closed, four silent fixes ([unreleased.md](unreleased.md):
+the next release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finish the open
+items and the wasmtk list before publishing — 22 is done (closes with the release and its letter),
+24 has its design decided and waits to be built. **Next: item 2 to within 2% of upstream** (see its
+"Resume here" line and its question), then 23, 24, 21, and the rounds 13 / 14. **8 open items, none
+blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -227,6 +222,23 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      size-limit test given a second caller (its premise was the old cap).
    - ✅ **Done when (owner, 2026-10-06): our corpus -Oz is within 2% of upstream `wasm-opt -Oz`** on
      the same original modules (`gap.ts`) — about 16 KB at today's 816,485. Not "match upstream".
+   - 📏 **Resume here (end of 2026-10-06).** After LocalCSE the gap is **40,069 (4.9%)**: ours 856,554,
+     upstream 816,485 (`gap.ts`); the target (≤ 2%) is ~16.3 KB, so ~24 KB to find. WHERE it is
+     (`gapdetail.ts`, ours − upstream on the original modules): code +43,166 (upstream also keeps
+     6,499 of custom sections we drop, and a DataCount); by opcode we have +6,906 `local.get`, +4,163
+     `local.set`, +1,260 local decls, +4,234 `block`, +2,634 `br_if`, −1,706 `if`. WHAT closes it —
+     each upstream pass applied to our -Oz output, then OUR -Oz again (`enable.ts`; control: ours run
+     twice = 856,248): `precompute-propagate` **−11,135**, `precompute` (fold only) −3,392 — so
+     constant PROPAGATION through locals is ~7.7 KB of it; `remove-unused-brs` −5,014 (its
+     `block`+`br_if` → `if` restructuring is the block / br_if / if delta above); `code-folding`
+     −5,442; all three −17,889 (→ ~2.7%). Example (`sidebyside.ts`, `10b_DynamicArrays.wat` $7):
+     `(local.set $12 (local.tee $15 (i32.const 132)))` — $15 is 132 for the whole function; upstream
+     writes `i32.const 132` at every read and folds `x - 132 + 8` to `x - 124`.
+     ⚠️ **Question for the owner before building it:** constant PROPAGATION (a reaching-definitions
+     pass: a `local.get` whose only reaching set is a constant becomes the constant; folding stays
+     OptimizeInstructions') is not EVALUATION — may it go in item 2 now, while Precompute proper
+     (evaluation) stays in item 23 as decided? Then RemoveUnusedBrs' block / br_if → if, then
+     CodeFolding.
    - 📏 **Where item 2 stands, 2026-10-06:** upstream `wasm-opt -Oz` on each ORIGINAL corpus module
      totals 816,485; ours 859,534 — **the gap is 43,049 (5.0%)**, from 109.5 KB on 2026-09-19.
      Functions kept: ours 2,705, upstream 2,663 (was 3,943). No single upstream pass saves more
