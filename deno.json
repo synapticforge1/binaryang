@@ -20,7 +20,8 @@
     "./wasm-validate": "./src/wabt-ts/tools/wasm-validate.ts",
     "./wasm-objdump": "./src/wabt-ts/tools/wasm-objdump.ts",
     "./wasm-strip": "./src/wabt-ts/tools/wasm-strip.ts",
-    "./wasm2ts": "./src/wabt-ts/tools/wasm2ts.ts"
+    "./wasm2ts": "./src/wabt-ts/tools/wasm2ts.ts",
+    "./definitions": "./src/definitions/mod.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1",
@@ -50,7 +51,7 @@
   },
   "tasks": {
     "check": "deno check src/**/*.ts main.ts tests/**/*.ts scripts/**/*.ts",
-    "test": "deno test --allow-read --allow-write --allow-run --allow-env tests/binaryen-ts/ tests/wabt-ts/ tests/ir/",
+    "test": "deno test --allow-read --allow-write --allow-run --allow-env tests/binaryen-ts/ tests/wabt-ts/ tests/ir/ tests/definitions/",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
     "lint": "deno lint",
@@ -73,6 +74,7 @@
     "optimize-corpus": "deno run --allow-read scripts/check-optimize-corpus.ts",
     "spec-behaviour": "deno run --allow-read scripts/check-spec-behaviour.ts",
     "proposals": "deno run --allow-read --allow-run --allow-env scripts/check-proposals.ts",
+    "definitions": "deno run --allow-read --allow-write --allow-run scripts/definitions.ts",
     "comparison": "deno check comparison/ && deno test --allow-read --allow-write --allow-run --allow-env --allow-net comparison/tests/*.compare.ts"
   },
   "fmt": {
@@ -112,6 +114,7 @@
     "include": [
       "main.ts",
       "src/**/*.ts",
+      "src/definitions/*.json",
       "README.md",
       "LICENSE",
       "LICENSE-MIT",

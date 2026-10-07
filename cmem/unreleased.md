@@ -33,6 +33,13 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.8.1
 
+- **NEW — `./definitions`** (open-work 22; wasmtk's H10): the shared definitions for other projects
+  to generate their copies from — D2, the WebAssembly feature / proposal list, and D3, the spec
+  testsuite's trap / exhaustion vocabulary with its prefix rule — each with `dataVersion` and a
+  content `sha256`; `verdictClass()`, `featuresForSuite()`; the JSON sources ship in the package
+  (`src/definitions/*.json`). A new export: the release is a MINOR. wasmtk asked for D2 and D3
+  first; D1 (opcodes) follows.
+
 - **Silent fix — the tree walkers visit a branch's values before its condition** (open-work 1):
   `mapExpression`, `walkExpression`, `visitChildren`, `mapChildrenShallow` and `mapWithSequences`
   took a `br_if` / `br_table`'s condition first, the reverse of wasm. For a tree built by the

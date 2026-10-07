@@ -1,0 +1,59 @@
+{
+  "definition": "D3",
+  "title": "Verdict vocabulary: the spec testsuite's expected-failure messages, by class",
+  "dataVersion": "1.0.0",
+  "sha256": "db956f7d590bf50c83e5062e4f636b99e14d0780ca50589d787e0edb93114a2a",
+  "rules": {
+    "key": "The class key a runner reports. Engine wordings (V8's, wasmtime's) stay in each runner, keyed by this.",
+    "message": "The text the spec testsuite writes in the assertion, exactly.",
+    "prefix": "The reference interpreter's rule: an engine message matches an expected text E when it STARTS WITH E. An expected text belongs to the class whose message is the LONGEST prefix of it ('uninitialized element 2' is class uninitialized-element).",
+    "verdict": "trap: assert_trap. exhaustion: assert_exhaustion. assert_invalid / assert_malformed classes are not in this version.",
+    "scope": "Every message the vendored testsuite (core, proposals/, legacy/) writes in these assertions has a class here — checked by binaryang's gate."
+  },
+  "entries": [
+    { "verdict": "trap", "key": "unreachable", "message": "unreachable" },
+    {
+      "verdict": "trap",
+      "key": "out-of-bounds-memory-access",
+      "message": "out of bounds memory access"
+    },
+    {
+      "verdict": "trap",
+      "key": "out-of-bounds-table-access",
+      "message": "out of bounds table access"
+    },
+    {
+      "verdict": "trap",
+      "key": "out-of-bounds-array-access",
+      "message": "out of bounds array access"
+    },
+    { "verdict": "trap", "key": "undefined-element", "message": "undefined element" },
+    { "verdict": "trap", "key": "uninitialized-element", "message": "uninitialized element" },
+    {
+      "verdict": "trap",
+      "key": "indirect-call-type-mismatch",
+      "message": "indirect call type mismatch"
+    },
+    { "verdict": "trap", "key": "integer-divide-by-zero", "message": "integer divide by zero" },
+    { "verdict": "trap", "key": "integer-overflow", "message": "integer overflow" },
+    {
+      "verdict": "trap",
+      "key": "invalid-conversion-to-integer",
+      "message": "invalid conversion to integer"
+    },
+    { "verdict": "trap", "key": "cast-failure", "message": "cast failure" },
+    { "verdict": "trap", "key": "descriptor-cast-failure", "message": "descriptor cast failure" },
+    { "verdict": "trap", "key": "null-reference", "message": "null reference" },
+    { "verdict": "trap", "key": "null-structure-reference", "message": "null structure reference" },
+    { "verdict": "trap", "key": "null-array-reference", "message": "null array reference" },
+    { "verdict": "trap", "key": "null-i31-reference", "message": "null i31 reference" },
+    { "verdict": "trap", "key": "null-function-reference", "message": "null function reference" },
+    {
+      "verdict": "trap",
+      "key": "null-descriptor-reference",
+      "message": "null descriptor reference"
+    },
+    { "verdict": "trap", "key": "unaligned-atomic", "message": "unaligned atomic" },
+    { "verdict": "exhaustion", "key": "call-stack-exhausted", "message": "call stack exhausted" }
+  ]
+}

@@ -16,7 +16,15 @@
  */
 
 import type { Features } from '../src/wabt-ts/core/feature.ts';
-import { allFeatures } from '../src/wabt-ts/core/feature.ts';
+import { featuresForSuite } from '../src/definitions/mod.ts';
+
+/**
+ * The feature set a suite in `dir` (relative to the testsuite root) is written
+ * against — from D2, the shared feature list (open-work 22): every feature on,
+ * except where an entry's `onlyIn` / `offIn` says otherwise.
+ */
+export const suiteFeatures = (dir: string): Features =>
+  featuresForSuite(dir) as unknown as Features;
 
 export interface Proposal {
   /** The directory under `testsuite-main/proposals/`. */
@@ -46,13 +54,13 @@ export interface Proposal {
 export const PROPOSALS: readonly Proposal[] = [
   {
     name: 'custom-descriptors',
-    // The core harness turns this OFF (it relaxes `br_on_cast`); its own suite needs it ON.
-    features: { ...allFeatures(), customDescriptors: true },
+    // D2: on ONLY here — it relaxes `br_on_cast`, which the core suite asserts.
+    features: suiteFeatures('proposals/custom-descriptors/'),
     v8Flags: ['--experimental-wasm-custom-descriptors'],
   },
   {
     name: 'custom-page-sizes',
-    features: allFeatures(),
+    features: suiteFeatures('proposals/custom-page-sizes/'),
     // V8 (15.0) has no custom-page-sizes support, not even a flag. Owner,
     // 2026-09-29: lower it so V8 runs it — `LowerCustomPageSizes`, judged
     // against the spec's own assertions in seven worlds.
@@ -61,15 +69,14 @@ export const PROPOSALS: readonly Proposal[] = [
   },
   {
     name: 'threads',
-    // Written before multi-memory: it asserts "multiple memories" INVALID five
-    // times (imports.wast:410/414/418, memory.wast:14/15), which multi-memory
-    // — Wasm 3.0 — made valid.
-    features: { ...allFeatures(), multiMemory: false },
+    // D2: multi-memory is OFF here — the suite predates it and asserts
+    // "multiple memories" invalid five times.
+    features: suiteFeatures('proposals/threads/'),
     v8Flags: [],
   },
   {
     name: 'wide-arithmetic',
-    features: allFeatures(),
+    features: suiteFeatures('proposals/wide-arithmetic/'),
     v8Flags: ['--experimental-wasm-wide-arithmetic'],
   },
 ];
