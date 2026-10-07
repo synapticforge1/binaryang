@@ -225,6 +225,8 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
      too. In a function with any `try`, no `return_call` is inlined now. Gate green, fuzz 3,000
      more seeds clean; `inlining_schedule.test.ts`, 8 mutants killed; `inlining.test.ts`'s
      size-limit test given a second caller (its premise was the old cap).
+   - ✅ **Done when (owner, 2026-10-06): our corpus -Oz is within 2% of upstream `wasm-opt -Oz`** on
+     the same original modules (`gap.ts`) — about 16 KB at today's 816,485. Not "match upstream".
    - 📏 **Where item 2 stands, 2026-10-06:** upstream `wasm-opt -Oz` on each ORIGINAL corpus module
      totals 816,485; ours 859,534 — **the gap is 43,049 (5.0%)**, from 109.5 KB on 2026-09-19.
      Functions kept: ours 2,705, upstream 2,663 (was 3,943). No single upstream pass saves more
@@ -514,9 +516,11 @@ fatigue.
       - bundle BEFORE optimisation; `linking` with no `reloc.CODE` = nothing to relocate;
       - `reloc..debug_*`: drop the DWARF sections with a printed note (proposed default) or relocate;
       - for wasic: a WAT form that marks an address and an assembler writing `linking` / `reloc.*` from
-        it — ⚠️ OWNER'S DECISION: no standard text syntax exists (upstream wabt's `--relocatable` covers
-        function / global indices, not memory addresses — recalled, not re-checked); an annotation on the
-        `i32.const`, or a relocation list beside the WAT. (wasmtk's current rule, their header: "range-scoped … but still
+        it. ✅ **Decided 2026-10-06, owner: an ANNOTATION in the WAT** — the text format's standard
+        annotation syntax (annotations proposal), e.g. `(i32.const 1024 (@reloc data $str_0))`, one file,
+        through our parser; we define the annotation's meaning and document it for wasmtk (not a
+        relocation list beside the WAT, not wasm-ld objects only). The exact spelling is ours to propose
+        when the item starts. (wasmtk's current rule, their header: "range-scoped … but still
       address-based, not dataflow-exact".)
     - **Scope questions:** whether `wasmmerge.ts`'s `wasic` path moves too or stays theirs; what
       stays in wasmtk (`witgen`'s WIT emission beside the output; the interactive prompt belongs
