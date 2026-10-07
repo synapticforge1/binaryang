@@ -49,6 +49,7 @@ import './remove-unused-brs.ts';
 import './simplify-locals.ts';
 import './coalesce-locals.ts';
 import './local-cse.ts';
+import './constant-propagation.ts';
 import './remove-unused-module-elements.ts';
 import './pick-load-signs.ts';
 import './inlining.ts';
