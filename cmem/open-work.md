@@ -478,7 +478,9 @@ fatigue.
       global — so nothing is guessed; a module without the marks is refused, or relocated by
       today's range-scoped rule with a printed warning, never silently. Which marking wasmtk's
       producers (`wasic`, the Go / Zig / Rust wrappers) emit is settled with wasmtk by letter when
-      this item starts. (wasmtk's current rule, their header: "range-scoped … but still
+      this item starts. **Letter § 24 SENT 2026-10-06** ([handoffs.md](handoffs.md)): proposes the tool-conventions
+      Linking format (`linking` + `reloc.*`, `wasm-ld --emit-relocs`) and asks wasmtk to measure, per
+      producer, whether it can emit it. Building waits on that answer. (wasmtk's current rule, their header: "range-scoped … but still
       address-based, not dataflow-exact".)
     - **Scope questions:** whether `wasmmerge.ts`'s `wasic` path moves too or stays theirs; what
       stays in wasmtk (`witgen`'s WIT emission beside the output; the interactive prompt belongs

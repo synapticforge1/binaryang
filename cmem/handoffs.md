@@ -37,6 +37,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 21 | 2026-09-29 | wasmtk (out — ✅ SENT by the owner, 2026-09-29) | reply to § 20: 1.8.1 published and fixes all three, re-checked on the PUBLISHED package through their call shapes. F1 as they suggested (the engine's own out-of-bounds trap; our gate had their gap and now checks the kind). F2 their placeholder: case 1 "incompatible import type" on strict wasmtime; case 2 an ENGINE CEILING — wasmtime resolves names before types, V8 reports the memory first, JSC reports the placeholder — the link fails everywhere; the host now passes three things per lowered memory. C7 fixed for `params` too, a patch by the owner's decision; `expandType` the portable form. Asks for their skip count on 1.8.1 | ✅ sent; asks their skip count on 1.8.1 |
 | 22 | 2026-09-30 | wasmtk (in) | on 1.8.1, published: all three § 20 fixes hold on their five engines — trap KIND out-of-bounds on every one (1.8.0: `unreachable` on every one), strict `wasmtime wast` passes all of `custom-page-sizes.wast`; case 1 "incompatible import type", case 2 "unknown import" with our per-engine account confirmed (V8 names the memory, JSC the placeholder). They closed the SAME trap-kind gap in their runner (a wrong kind fails, an unmapped message skips, never passes; 5,263 existing trap passes all already right). **Pinned 1.8.1** (all three subpaths), gate green; `getFunctionInfo` does not reach them; our validator still rejects no spec-valid module across 288 files. **With the lowering as a gate-only retry** (only on a V8 custom-page-sizes refusal, never for `assert_invalid` / `assert_malformed`, every lowered module through our validator): **skips 66 → 16, gate 64,506 / 0 / 16** (was 64,473 / 0 / 66) — 33 passes on 23 lowered modules; our validator rejected none of the 23; the 16 left are V8's (4 `memory_max_i64` over its memory64 cap, 3 stringref, 4 size caps) and 5 vendored `threads` — "None is yours". One note for us: the 1.7.2 LAYOUT change reached compat `readWasm(bytes).toText()` too (124 of 124 texts differ on 62 binaries, tokens identical), which our 1.7.2 notes did not say | ✅ closed — nothing asked. The note REPRODUCED against the published 1.7.1 and 1.7.2 (both `readDebugNames`) and added to `CHANGELOG.md` § 1.7.2 (repo-only; the CHANGELOG is not in the package). 🔑 The lesson: a note scoping a change to ONE surface ("only `wasm2wat`") was true of the feature it named (references by name) and silent about the rest of the change, which lives in the shared writer — every surface that prints through it moved |
 | 23 | 2026-09-30 | wasmtk (in) | H9 / H10: ready to start H10 once there is a `./definitions` to pin. Asks D2 and D3 FIRST, D1 later (only when their WAT regexes give way to our parser, I2); a subpath in a normal release with the content hash and version in the data; D2's fields (canonical name, testsuite dirs, "changes core semantics", date), D3's (class key, the testsuite's exact message, the prefix rule); files their 20 trap messages and 3 specially-treated proposals as entries our source may lack. Replaces five hand-kept lists of theirs (`TRAP_KINDS`, `GATE_V8_FEATURES`, `engine.ts` feature names, `ARITH_NEVER_PTR`, WAT text reads) | 📋 on the list as [open-work.md](open-work.md) item 22 (owner, 2026-09-30); the D2/D3-first order (reversing the workspace plan) APPROVED by the owner 2026-10-06. No reply drafted |
+| 24 | 2026-10-06 | wasmtk (out — ✅ SENT by the owner, 2026-10-06) | the owner's decision: `wasmbundle` moves to binaryang as `wasm-bundle`, imported back; ONE memory, never multi-memory (WASI, host bindings, wazero); relocation EXACT — the tool-conventions Linking format (`linking` + `reloc.CODE` / `reloc.DATA`, `wasm-ld --emit-relocs`), a module without it refused or relocated by their current rule with a printed warning. Asks: per producer (`wasic`, TinyGo, Rust via rsxtk, Zig), can it emit the sections, measured on their bundle / merge test modules; and whether their bundle tests become ours | awaiting their measurement — item 24 starts on it ([open-work.md](open-work.md)) |
 
 ### § 15 — reply to wasmtk (2026-09-28, SENT)
 
@@ -259,7 +260,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > into your runner for `proposals/custom-page-sizes/`, we would like to hear the skip count on
 > 1.8.1. The full list is `CHANGELOG.md` § 1.8.1 in binaryang.
 
-### § 24 — to wasmtk: `wasm-bundle` moves to binaryang, with exact relocation (2026-10-06, DRAFT)
+### § 24 — to wasmtk: `wasm-bundle` moves to binaryang, with exact relocation (2026-10-06, SENT)
 
 > From binaryang, 2026-10-06. Nothing is asked of your code yet; we ask what your producers can
 > emit, before we build.
@@ -302,8 +303,6 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >
 > Separately, with the release that carries `wasm-bundle`'s first version or before it:
 > `./definitions` (D1 / D2 / D3, H9 / H10) — a letter of its own when it is published.
-
-<!-- § 24 above is a DRAFT: the owner sends it. Log row added when sent. -->
 
 ## Lessons the correspondence paid for
 
