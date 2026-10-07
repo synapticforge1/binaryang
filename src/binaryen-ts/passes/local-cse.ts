@@ -41,8 +41,8 @@ import {
   BinaryOp,
   type Expression,
   ExpressionKind,
-  type LocalTeeExpr,
   makeLocalGet,
+  makeLocalTee,
 } from '../ir/expressions.ts';
 import type { Local, WasmFunction, WasmModule } from '../ir/module.ts';
 import { isValType, ValType } from '../ir/types.ts';
@@ -351,13 +351,7 @@ function _rewriteExpr(
       const localType = _exprType(expr);
       state.newLocals.push({ type: localType as ValType });
       cache.set(key, slot);
-      const tee: LocalTeeExpr = {
-        kind: ExpressionKind.LocalTee,
-        type: localType,
-        var: varIndex(slot),
-        value: expr,
-      };
-      return tee;
+      return makeLocalTee(varIndex(slot), expr, localType);
     }
   }
 

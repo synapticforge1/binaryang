@@ -13,7 +13,7 @@ NOT PUSHED (owner: wait "until the next updates are finished"; [unreleased.md](u
 and built: `proposals/` is in the gate, and its first run found Q10–Q13 and closed item 9.
 Custom-page-sizes runs on V8 through a new lowering pass (owner's choice), and its linking
 trade-off P1 was decided the same day (rename the export), which closed 12. The optimizer and
-IR items (from 2) are next. **14 open items, none blocking**, numbered below: old 16 and 17
+IR items (from 2) are next. **13 open items, none blocking**, numbered below: old 16 and 17
 closed, new 16 and 17 came out of them and closed the same day, and 6, 9, 11, 12, 16 and 17 are
 gone with their numbers kept free.
 Re-derive any number before quoting it.
@@ -245,11 +245,11 @@ and every prepared spec module, at -O1 … -Oz). The hand-written traversals (`d
 5. ⬚ **LocalCSE treats a multi-value `return` as opaque** (as it once did `tuple.make`).
 (Item 6, unused types, closed 2026-09-30 as item 2's step 2 — below.)
 
-7. ⬚ **9 node LITERALS in `src/` bypass their factory** and hand-compute `type` (re-counted
-    2026-09-29: inlining 5, optimize-instructions 2, local-cse 1, simplify-locals 1; it was 26
-    before the WAT parser was deleted).
-    - Count them with `grep -rnE "kind: ExpressionKind\.\w+," src` outside `ir/expressions.ts`.
-    - The `br_if` one was wrong. The rest want each literal's type compared to the factory's.
+(Item 7, node literals, closed 2026-10-06: the 8 left — local-cse 1, optimize-instructions 2,
+inlining 5 — use their factories; every literal's type had matched its factory's, and all 13,285
+optimizer outputs stayed byte-identical. `tests/binaryen-ts/ir/no_node_literals.test.ts` now fails on
+any new one outside `ir/expressions.ts` — inverted once.)
+
 8. ⬚ **Asyncify refuses `call_ref`** (K1's leftover; `passes/asyncify.ts`: "call_ref is not yet
     supported"). Upstream instruments it as an indirect call.
 (Item 9, inexact allocations, closed 2026-09-29: it was NOT "valid either way" — `--flatten` made
