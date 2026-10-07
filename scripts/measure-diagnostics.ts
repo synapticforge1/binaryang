@@ -61,12 +61,12 @@
 import { formatErrors, hasErrors, makeErrorList } from '../src/wabt-ts/core/error.ts';
 import { readBinaryIr } from '../src/wabt-ts/reader/binary-reader-ir.ts';
 import type { ErrorList } from '../src/wabt-ts/core/error.ts';
-import { allFeatures } from '../src/wabt-ts/core/feature.ts';
+import { suiteFeatures } from './proposals.ts';
 import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
 import { wasmValidate } from '../src/wabt-ts/tools/wasm-validate.ts';
 
 /** The spec harness's feature set, for the same reason (see spec-testsuite.ts). */
-const FEATURES = { ...allFeatures(), customDescriptors: false };
+const FEATURES = suiteFeatures('');
 
 /** A subject the message should have named, standing in for it. */
 const PLACEHOLDER = /\bin (opcode|ternary|quaternary|load_splat|load_zero)\b|<opcode:0x/;

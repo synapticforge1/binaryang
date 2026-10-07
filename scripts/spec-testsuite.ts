@@ -61,8 +61,7 @@ import { validateModule } from '../src/wabt-ts/validator/validator.ts';
 import { hasErrors, makeErrorList } from '../src/wabt-ts/core/error.ts';
 import { parseWatModule } from '../src/wabt-ts/parser/wast-parser.ts';
 import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
-import { allFeatures } from '../src/wabt-ts/core/feature.ts';
-import { takeProposalArg } from './proposals.ts';
+import { suiteFeatures, takeProposalArg } from './proposals.ts';
 
 /**
  * ⚠️ EVERY feature on, and the suite is unusable without it.
@@ -90,7 +89,7 @@ const args = [...Deno.args];
  * its suite is written against (`proposals.ts`) instead of the core one above.
  */
 const PROPOSAL = takeProposalArg(args);
-const FEATURES = PROPOSAL?.features ?? { ...allFeatures(), customDescriptors: false };
+const FEATURES = PROPOSAL?.features ?? suiteFeatures('');
 
 const MANIFESTS = args[0];
 if (!MANIFESTS) {

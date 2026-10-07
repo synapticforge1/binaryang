@@ -395,6 +395,28 @@ fatigue.
       their 13 never-a-pointer `i32` operators — that judgment stays theirs.
     - Their side (H10), for reference: `scripts/gen-definitions.ts` → committed
       `src/definitions.generated.ts`; their gate regenerates and diffs, inverted once.
+    - ✅ **D2 and D3 built 2026-10-06 (unreleased; D1 is what is left of this item).** Sources
+      `src/definitions/features.json` (D2: 22 entries — `name` = the `Features` key, `cli`,
+      `defaultOn`, `implemented`, `testsuiteDirs`, `onlyIn` / `offIn` for a feature that changes
+      core semantics, `note`, `since`) and `verdicts.json` (D3: 19 trap classes + `call stack
+      exhausted`, `key` / `message`, the PREFIX rule stated in the data). Each carries `dataVersion`
+      and a `sha256` of its canonical content (keys sorted, the hash field empty). `deno task
+      definitions` stamps the hashes and GENERATES `src/definitions/data.ts`; `--check` changes
+      nothing and fails on a stale hash or a generated module that differs; `--prepared <roots>`
+      also proves D3 has a class for every trap / exhaustion message the prepared suites write
+      (21 distinct across core, the four proposals and legacy EH — inverted once: dropping
+      `unaligned-atomic` trips all three checks). Subpath `./definitions` (`mod.ts`:
+      `FEATURE_DEFINITIONS`, `VERDICT_DEFINITIONS`, `verdictClass(text)`, `featuresForSuite(dir)`)
+      — a new export, so the release is a MINOR; the JSON ships in the package. binaryang is the
+      first consumer: `scripts/proposals.ts`, the core spec harness and `measure-diagnostics.ts`
+      take their feature sets from D2 (`suiteFeatures`), with `spec` and `proposals` green on it
+      (custom-descriptors is now off in `threads` / `wide-arithmetic` / `custom-page-sizes` too,
+      per its `onlyIn`; none of those suites tests `br_on_cast`). `tests/definitions/` asserts the
+      data against the code: one entry per `Features` key in order, `defaultOn` =
+      `defaultFeatures()`, every `cli` accepted by `FeatureFlags`, only `compactImports`
+      unimplemented. Gate step `definitions`. A letter to wasmtk goes WITH the release (§ 24 in
+      [handoffs.md](handoffs.md), to draft then): the version to pin, the field list, the prefix
+      rule. **Next: D1** (the opcode + immediate table; their I2 trigger).
 24. ⬚ 🗓️ **`wasm-bundle` — take wasmtk's `wasmbundle` into our tools, and wasmtk imports it back**
     (owner, 2026-09-30: "incorporating wasmtk's wasmbundle into our cli tools and offload that from
     wasmtk. And import it back for use there"; "we will probably want to call it wasm-bundle in our
@@ -413,11 +435,19 @@ fatigue.
       globals, tables, memories, tags, data, elems) renumbered on the tree — which also retires
       I2's regexes for this path (`../cmem/divergences.md` I2). Upstream binaryen's `wasm-merge`
       (installed here) is the reference for the linking half.
-    - ⚠️ **Decision for the owner — ONE memory or MANY:** their bundle relocates every module into
-      one memory, which needs to know which values are pointers (the heuristic above; a wrong
-      judgment is silent corruption — their own comment at `wasmbundle.ts:142`). Upstream
-      `wasm-merge` keeps each module's memory (multi-memory): sound by construction, and every
-      engine wasmtk targets runs multi-memory — but a host expecting ONE exported `memory` breaks.
+    - ✅ **Decided 2026-10-06, owner: ONE memory, relocated EXACTLY — no multi-memory mode, ever**
+      ("no future multiple memories that breaks 'runs everywhere'"; "exact relocation instead of
+      guessed. This is why I want it in this repository and out of wasmtk. This repository has more
+      experience with this side of the process"). Why, as weighed that day: multi-memory breaks
+      WASI (`fd_write` reads the one exported `memory`), wasmtk's host bindings (one `memory`
+      export), cross-module pointers, and wazero (it failed exactly the two multi-memory modules
+      in wasmtk's § 20 run). Exact means the PRODUCER marks its data addresses — a relocation
+      section as `wasm-ld` objects carry, or position-independent code with a `__memory_base`
+      global — so nothing is guessed; a module without the marks is refused, or relocated by
+      today's range-scoped rule with a printed warning, never silently. Which marking wasmtk's
+      producers (`wasic`, the Go / Zig / Rust wrappers) emit is settled with wasmtk by letter when
+      this item starts. (wasmtk's current rule, their header: "range-scoped … but still
+      address-based, not dataflow-exact".)
     - **Scope questions:** whether `wasmmerge.ts`'s `wasic` path moves too or stays theirs; what
       stays in wasmtk (`witgen`'s WIT emission beside the output; the interactive prompt belongs
       to a CLI — ours or theirs).

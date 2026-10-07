@@ -1,0 +1,199 @@
+{
+  "definition": "D2",
+  "title": "WebAssembly feature / proposal list",
+  "dataVersion": "1.0.0",
+  "sha256": "ced38bc7668d33c0f6f7f254e2a54464f98a77f55c2a97fa2675882b05de447f",
+  "rules": {
+    "name": "The canonical name: the key of binaryang's `Features` (`allFeatures()`, `defaultFeatures()`).",
+    "cli": "The spelling binaryang's CLIs accept, as `--enable-<cli>` / `--disable-<cli>`.",
+    "defaultOn": "On in `defaultFeatures()` (wabt's tool defaults; not the same as 'in Wasm 3.0').",
+    "implemented": "false: the flag exists and changes nothing (see `note`).",
+    "testsuiteDirs": "Directories of the spec testsuite (relative to its root) whose suites need this feature. Empty: its tests are in the core suite, which runs with every feature on except as `onlyIn` / `offIn` say.",
+    "onlyIn": "Absent: on everywhere. Present: ON only in these directories — it CHANGES core semantics, and the core suite (or another) asserts against the change.",
+    "offIn": "Directories whose suite must run with this feature OFF — a snapshot written before the feature, which it relaxes.",
+    "since": "The date the entry entered this list."
+  },
+  "entries": [
+    {
+      "name": "exceptions",
+      "cli": "exceptions",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": ["legacy/"],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "mutableGlobals",
+      "cli": "mutable-globals",
+      "defaultOn": true,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "satFloatToInt",
+      "cli": "sat-float-to-int",
+      "defaultOn": true,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "signExtension",
+      "cli": "sign-extension",
+      "defaultOn": true,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "simd",
+      "cli": "simd",
+      "defaultOn": true,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "threads",
+      "cli": "threads",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": ["proposals/threads/"],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "functionReferences",
+      "cli": "function-references",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "multiValue",
+      "cli": "multi-value",
+      "defaultOn": true,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "tailCall",
+      "cli": "tail-call",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "bulkMemory",
+      "cli": "bulk-memory",
+      "defaultOn": true,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "referenceTypes",
+      "cli": "reference-types",
+      "defaultOn": true,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "annotations",
+      "cli": "annotations",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "codeMetadata",
+      "cli": "code-metadata",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "gc",
+      "cli": "gc",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "memory64",
+      "cli": "memory64",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "multiMemory",
+      "cli": "multi-memory",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "offIn": ["proposals/threads/"],
+      "note": "proposals/threads/ predates multi-memory: it asserts 'multiple memories' invalid five times (imports.wast:410/414/418, memory.wast:14/15).",
+      "since": "2026-10-06"
+    },
+    {
+      "name": "extendedConst",
+      "cli": "extended-const",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "relaxedSimd",
+      "cli": "relaxed-simd",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": [],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "customPageSizes",
+      "cli": "custom-page-sizes",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": ["proposals/custom-page-sizes/"],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "compactImports",
+      "cli": "compact-imports",
+      "defaultOn": false,
+      "implemented": false,
+      "testsuiteDirs": [],
+      "note": "Declared, not implemented: setting it changes nothing, and a module using import kind 0x7f is refused.",
+      "since": "2026-10-06"
+    },
+    {
+      "name": "wideArithmetic",
+      "cli": "wide-arithmetic",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": ["proposals/wide-arithmetic/"],
+      "since": "2026-10-06"
+    },
+    {
+      "name": "customDescriptors",
+      "cli": "custom-descriptors",
+      "defaultOn": false,
+      "implemented": true,
+      "testsuiteDirs": ["proposals/custom-descriptors/"],
+      "onlyIn": ["proposals/custom-descriptors/"],
+      "note": "Relaxes br_on_cast's typing rule: on in the core suite, br_on_cast.wast and br_on_cast_fail.wast each lose 3 assert_invalid (wasmtk, measured 2026-09-28).",
+      "since": "2026-10-06"
+    }
+  ]
+}
