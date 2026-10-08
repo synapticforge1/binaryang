@@ -11,8 +11,8 @@ release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finis
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
 design decided and waits to be built. Item 2 is PARKED (owner, 2026-10-07: the delta to upstream is
 judged after item 23; 3.8% after E2). **Next: item 23** — E1 (the numeric evaluator) and E2
-(Precompute) done; E3, the interpreter, under way — E3a, E3b (memory) and E3c (tables, calls)
-done, E3d (exceptions, GC) next (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once
+(Precompute) done; E3, the interpreter, under way — E3a, E3b (memory), E3c (tables, calls) and
+E3d-1 (exceptions) done, E3d-2 (GC) next (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once
 23 is done. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free.
 Re-derive any number before quoting it.
 
@@ -431,8 +431,22 @@ mismatches and the reader prints that function as predicted — plainly, never w
           ⚠️ **Deferred to E3d, as a STOP:** a `call_indirect` in a module with a rec group or
           explicit subtyping, or with typed references — types then match by IDENTITY
           (`type-rec.wast`, `type-subtyping.wast`), which structural `sigEquals` cannot decide.
-        - 📏 **Resume here: E3d (exceptions, GC).** `try_table` / `throw` / tags; structs, arrays,
-          `i31`, casts, `br_on_*`, type identity (rec groups, subtyping) — then `v128`, which is
+        - E3d split in two (2026-10-07): **E3d-1 exceptions**, then **E3d-2 GC**.
+        - ✅ **E3d-1 done 2026-10-07.** Tags are identity cells (an imported tag IS the
+          exporter's); a `WasmException` is never a `Trap` (no `catch_all` catches a trap).
+          `throw`, `throw_ref`, `try_table` (first matching clause), legacy `try` / `catch` /
+          `rethrow` (innermost by label — matters under recursion) / `delegate` (a `try` with the
+          label handles it, any other construct passes it outward, the frame lets it leave).
+          `deno task interp`: core **32,687 pass, 0 FAIL, 24,961 stopped**; the LEGACY suite
+          (`testsuite-main/legacy`, its own `spec:prepare` corpus) **70 / 70, 0 stopped**. 11
+          mutants: 10 killed (one only after a recursion test was added; clause order killed by the
+          core corpus alone, `delegate` by the legacy corpus alone), 1 equivalent and removed. Gate
+          green (with the legacy corpus run as a proposed step).
+          ⚠️ **For the owner: should the gate run `deno task interp` on the legacy corpus too?**
+          Today it does not, and it is the only thing that killed the `delegate` mutant. It would
+          need `spec:prepare <testsuite-main>/legacy <dir>` beside the core corpus.
+        - 📏 **Resume here: E3d-2 (GC).** Structs, arrays, `i31`, casts, `br_on_*`, type identity
+          (rec groups, subtyping — the `call_indirect` cases E3c stops on) — then `v128`, which is
           most of the remaining stops (21,868 arguments alone).
       - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
         combination — MEASURED.
