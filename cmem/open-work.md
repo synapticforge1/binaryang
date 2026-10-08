@@ -11,8 +11,9 @@ release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finis
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
 design decided and waits to be built. Item 2 is PARKED (owner, 2026-10-07: the delta to upstream is
 judged after item 23; 3.8% after E2). **Next: item 23** — E1 (the numeric evaluator) and E2
-(Precompute) done; E3, the interpreter, under way — E3a, E3b (memory), E3c (tables, calls) and
-E3d-1 (exceptions) done, E3d-2 (GC) next (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once
+(Precompute) done; E3, the interpreter, done except `v128` (E3a–E3d: numbers, control,
+memory, tables, calls, exceptions, GC); E4 (`wasm-ctor-eval`, `wasm-interp`) next (see its
+"Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once
 23 is done. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free.
 Re-derive any number before quoting it.
 
@@ -445,9 +446,27 @@ mismatches and the reader prints that function as predicted — plainly, never w
           ⚠️ **For the owner: should the gate run `deno task interp` on the legacy corpus too?**
           Today it does not, and it is the only thing that killed the `delegate` mutant. It would
           need `spec:prepare <testsuite-main>/legacy <dir>` beside the core corpus.
-        - 📏 **Resume here: E3d-2 (GC).** Structs, arrays, `i31`, casts, `br_on_*`, type identity
-          (rec groups, subtyping — the `call_indirect` cases E3c stops on) — then `v128`, which is
-          most of the remaining stops (21,868 arguments alone).
+        - ✅ **E3d-2 done 2026-10-07** (`interp/types.ts`: iso-recursive canonicalisation — a rec
+          group keyed by its structure, in-group references relative, earlier ones by THEIR keys,
+          interned process-wide, so identical groups in two modules are one `RttType` and identity
+          is `===`; a singleton group IS the bare type). Structs, arrays (packed `i8` / `i16`),
+          `i31`, `ref.test` / `ref.cast` / `br_on_*`, the extern ↔ any round trip; `call_indirect`
+          by canonical subtyping (E3c's Stop gone). A reference to an IMPORTED function is the
+          function itself, with the exporter's type (it was minted with the importer's declared
+          type — found by the custom-descriptors corpus). Descriptor operations and exact function
+          imports STOP (they ran as plain ones: 85 FAILs in that corpus first). `deno task interp`:
+          core **33,268 pass, 0 FAIL, 24,380 stopped** (21,868 v128 arguments); legacy 70 / 70;
+          proposals, NOT in the gate: custom-descriptors 170 / 0 FAIL, custom-page-sizes 31 / 0,
+          threads 80 / 0 (shared memory stops), wide-arithmetic 0 run (stops). 15 / 15 GC mutants
+          (exact only after an interpreter-only test) plus the imported-identity one. Gate green,
+          with the legacy and four proposal corpora run as proposed steps.
+          ⚠️ **For the owner, widening the earlier question:** should the gate's `interp` step
+          also run the legacy-EH corpus and the four `proposals/` corpora the `proposals` step
+          already prepares? The custom-descriptors corpus is what found both of E3d-2's defects.
+        - **E3 is complete except `v128`** — every SIMD operator still stops (E1's limit), and that
+          is most of what `stopped` counts. Owner's choice whether it comes before E4.
+        - 📏 **Resume here: E4 — `wasm-ctor-eval` and `wasm-interp` on the interpreter**, then the
+          owner's question (which combination) MEASURED; or `v128` first, if the owner says so.
       - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
         combination — MEASURED.
 
