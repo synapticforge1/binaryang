@@ -4,8 +4,9 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-10-07:** `binaryang@1.8.1` is the last release; `main` holds a large UNRELEASED set —
-the optimizer steps (item 2: 1–5, LocalCSE, ConstantPropagation), `./definitions` (D1 / D2 / D3,
+**State, 2026-10-07 (paused by the owner at day's end; tomorrow is scoped in item 23's "Resume here"):** `binaryang@1.8.1` is the last release; `main` holds a large UNRELEASED set —
+the optimizer steps (item 2: 1–5, LocalCSE, ConstantPropagation; item 23: OI folding through the
+evaluator, Precompute — the interpreter itself is internal), `./definitions` (D1 / D2 / D3,
 item 22), items 3–8 and 10 closed, six silent fixes ([unreleased.md](unreleased.md): the next
 release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finish the open items and
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
@@ -469,8 +470,37 @@ mismatches and the reader prints that function as predicted — plainly, never w
         - **E3 is complete except `v128`** — every SIMD operator still stops (E1's limit), and that
           is most of what `stopped` counts. Owner's choice whether it comes before E4.
           ✅ **Owner, 2026-10-07: "SIMD first."**
-        - 📏 **Resume here: E3e — `v128`** (the evaluator's SIMD core, then the interpreter's SIMD
-          loads / stores / lanes / shuffles), V8 as the per-operator oracle as for E1; then E4.
+        - 📏 **Resume here (paused by the owner at the end of 2026-10-07): E3e — `v128`.** Scoped:
+          D1 lists **256 SIMD instructions** — 198 with no immediate, 20 relaxed-SIMD, 14 memory
+          (`memarg`), 14 lane (`laneidx`), 8 memory + lane, `v128.const`, `i8x16.shuffle`. Two
+          increments, each gated and merged:
+          - **E3e-1 — the SIMD numeric core** (`interp/simd.ts`): a `v128` as 16 bytes, lanes
+            through typed views. Where the spec defines a lane op as the scalar one (float
+            arithmetic, comparisons, conversions, `nearest`…) it calls `numeric.ts` per lane — one
+            semantics again; its own code for what has no scalar twin (saturating add / sub,
+            `avgr_u`, `q15mulr_sat_s`, `dot`, `extmul`, `extadd_pairwise`, `narrow`, `extend`,
+            `bitmask`, `all_true` / `any_true`, `swizzle`, `shuffle`, `splat`, extract / replace
+            lane, `bitselect`, the bitwise ops). Oracle: V8 per operator, as E1 — a v128 crossing
+            the JS boundary as two `i64` halves through a wrapper, coverage ASSERTED against D1's
+            list, NaNs per lane under E1's rule (an arithmetic NaN may differ but must be quiet;
+            bit operations exact). Then `foldedLiteral` covers `v128` too, so OI / Precompute fold
+            SIMD constants — measure the corpus.
+          - **E3e-2 — the interpreter's SIMD**: full-width `v128.load` / `store` (today a Stop),
+            `simd.load` (splat / extend / zero), load / store lane, `SIMDTernary`, the SIMD
+            `unary` / `binary` / extract / replace / shuffle through `simd.ts`; the harness's
+            `v128` arguments and expectations (lane type plus lane values, a NaN pattern per lane,
+            `either` for relaxed). Should run most of the 21,868 `v128`-argument stops plus the
+            179 expected-`v128` and the SIMD-instruction ones.
+          - ⚠️ **Relaxed SIMD (20 instructions) is implementation-defined**: the spec allows a SET
+            of results and the suite writes `either`. Proposed: the interpreter computes the
+            spec's deterministic profile and the harness accepts any listed alternative; the
+            folding passes NEVER fold a relaxed operator (the engine picks — E1's NaN reasoning).
+            To confirm with the owner before E3e-2.
+          - Small, optional, beside it: wide-arithmetic's four `quaternary` instructions
+            (`i64.add128` / `sub128` / `mul_wide_s` / `_u`) — the 99 stops in that corpus.
+          - Start-of-day checklist: `spec:prepare` the core corpus AND the legacy corpus into the
+            session's scratch (both are lost with it), run the gate once to confirm the
+            starting numbers (core 33,268 / 0 / 24,380 …), then branch.
         - Then **E4 — `wasm-ctor-eval` and `wasm-interp` on the interpreter**, and the owner's
           question (which combination) MEASURED.
       - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
