@@ -9,11 +9,11 @@ the optimizer steps (item 2: 1–5, LocalCSE, ConstantPropagation), `./definitio
 item 22), items 3–8 and 10 closed, six silent fixes ([unreleased.md](unreleased.md): the next
 release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finish the open items and
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
-design decided and waits to be built. Item 2 is PARKED at a 4.6% gap (owner, 2026-10-07: the delta
-to upstream is judged after item 23). **Next: item 23** — E1 (the numeric evaluator) done; E2,
-Precompute, next (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining
-steps once 23 is done. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept
-free. Re-derive any number before quoting it.
+design decided and waits to be built. Item 2 is PARKED (owner, 2026-10-07: the delta to upstream is
+judged after item 23; 3.8% after E2). **Next: item 23** — E1 (the numeric evaluator) and E2
+(Precompute) done; E3, the interpreter, next (see its "Plan" line), then 24, 21, and the rounds 13 /
+14, and item 2's remaining steps once 23 is done. **8 open items, none blocking**; numbers 3–7,
+9–12, 16, 17 are gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -378,10 +378,16 @@ mismatches and the reader prints that function as predicted — plainly, never w
         operator — never a trap; a NaN only from a bit-exact operator (`isBitExact`). Corpus -Oz
         854,227 → **851,764 (−2,463)**, -O3 −4,409. Gate green. **LIMIT: `v128` operators are not
         evaluated** (`null`); E2 / E3 must treat them as unknown.
-      - 📏 **Resume here: E2 (Precompute).**
       - **E2 — Precompute** on it: an expression of constants with no other effect becomes its
         value; a trap is never folded away; a constant condition picks its arm. In -O, as upstream.
-        Measured on the corpus; item 2's gap re-measured.
+        Measured on the corpus; item 2's gap re-measured. ✅ **Done 2026-10-07** (`precompute.ts`;
+        the fold rule is now ONE function, `foldedLiteral`, shared with OI). Scheduled
+        ConstantPropagation, Precompute, ConstantPropagation, Precompute (one round −3,862, two
+        −4,435; DCE right after it: −66 more, not taken). Corpus -Oz 851,764 → **847,329**, -O3
+        854,686 → 848,683. `precompute.test.ts`, 9 / 9 mutants killed. Gate green. Item 2's gap
+        re-derived: **30,844 (3.8%)** (ours 847,329, upstream 816,485; functions 2,706 / 2,663) —
+        judged when item 23 is done (owner).
+      - 📏 **Resume here: E3 (the interpreter).**
       - **E3 — the interpreter**: bodies, locals, control, memory, globals, tables, calls; a host
         call or anything non-deterministic STOPS it. Oracles: the spec testsuite's `assert_return` /
         `assert_trap`, and V8.

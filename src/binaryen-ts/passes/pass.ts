@@ -424,7 +424,13 @@ const FUNCTION_PASSES = [
   'RemoveUnusedBrs',
   'RemoveUnusedNames',
   'OptimizeInstructions',
+  // Constants flow through locals, then what they make known is computed, and
+  // once more: a computed constant written to a local flows on (open-work 23,
+  // E2: corpus -Oz −3.9 KB for one round, −4.4 KB for two; -O3 −6.0 KB).
   'ConstantPropagation',
+  'Precompute',
+  'ConstantPropagation',
+  'Precompute',
   'OptimizeInstructions',
   'CoalesceLocals',
   'SimplifyLocals',
