@@ -1,6 +1,6 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-06: `main` = `v1.8.1` plus everything under "Since 1.8.1" below — UNRELEASED, NOT
+**As of 2026-10-07: `main` = `v1.8.1` plus everything under "Since 1.8.1" below — UNRELEASED, NOT
 PUSHED** (check it rather than trust this line:
 `git log --oneline v1.8.1..main -- src/ main.ts
 deno.json`). It adds an export (`./definitions`), so
