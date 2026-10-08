@@ -539,7 +539,7 @@ would have agreed with the first and proved nothing.
 | wabt-ts `wat2wasm` bytes == upstream (W5, W6)   | 421 / 421, outside custom sections |
 | `wasm-tools` on our labels and field names (N2) | see [names.md](names.md)           |
 | V8, per operator, on the evaluator's numeric core | 136 / 136 scalar instructions (2026-10-07; one defect found first) |
-| the spec manifests' `expected` on the interpreter (`deno task interp`) | 32,618 pass, 0 FAIL, 25,012 stopped (2026-10-07, E3c) |
+| the spec manifests' `expected` on the interpreter (`deno task interp`) | 32,687 pass, 0 FAIL, 24,961 stopped (2026-10-07, E3d-1); legacy EH 70 / 70 |
 | wasmtk's gate on 1.7.1: our `wasmValidate` on every module the spec asserts VALID, 288 files | **0 rejected** — their guard, inverted by them (`defaultFeatures()` flags 3 valid GC modules); they now use our validator as a second `assert_invalid` oracle where V8 cannot judge. 2026-09-29, [handoffs.md](handoffs.md) § 18 |
 
 ### Byte parity with upstream `wat2wasm` — 146 → 400 → 421 of 421
@@ -818,8 +818,16 @@ Same prepared corpus as `spec`; ~3 s. Owner: "yes on deno task interp" (2026-10-
   traps, or a JS error out of the interpreter is a FAIL.
 - **`stopped` is coverage, printed by reason** — an instruction not run yet, a host import not
   given, a `v128` argument. It should only FALL as E3's increments land; a rise is a coverage loss.
-  At E3a 15,432 pass / 42,144 stopped; at E3b 25,811 / 31,819; at E3c **32,618 / 25,012**
-  (2026-10-07).
+  At E3a 15,432 pass / 42,144 stopped; at E3b 25,811 / 31,819; at E3c 32,618 / 25,012; at
+  E3d-1 **32,687 / 24,961** (2026-10-07).
+- **The legacy-EH suite is a SEPARATE corpus** — `testsuite-main/legacy` (`try` / `catch` /
+  `rethrow` / `delegate`) is not under the core corpus `spec:prepare` writes, and `translate-eh`'s
+  output is flat, not the per-module layout the harness reads. Prepared on its own
+  (`spec:prepare <testsuite-main>/legacy <dir>`): 70 / 70 pass, 0 stopped at E3d-1. It is NOT in
+  the gate yet (a question for the owner, open-work 23) — and it is the only check that killed
+  the `delegate` mutant.
+- `--only=<manifest,…>` runs just those manifests, for reading one area's numbers; never in the
+  gate.
 - **50 M instructions of fuel per invocation**, and running out is a FAIL, not a stop: every suite
   invocation finishes (clean at 5 M), and without the limit a wrong loop HANGS the run — it did,
   under a mutant, before the limit existed.
@@ -849,7 +857,8 @@ carried the payload through `Math.ceil`) on its first run.
 
 **Every increment's tests were mutation-tested, with the equivalents named** — E1 14 / 15 (the
 survivor computes the same function: JS masks shift counts), E2 9 / 9, E3a 11 / 11, E3b 13 / 13
-plus one equivalent (`copyWithin` vs `set` for an overlapping copy), E3c 15 / 15. Twice a mutant
+plus one equivalent (`copyWithin` vs `set` for an overlapping copy), E3c 15 / 15, E3d-1 10 / 11
+plus one equivalent (a stack reset before a `try_table` payload; removed). Twice a mutant
 survived the WHOLE spec suite and was killed only by a test added for it: a value BELOW a block's
 parameters read after the block (E3a), and an active data segment not dropped (E3b). The other way
 round once: a non-overlap-safe `table.copy` passed the unit tests and only the suite killed it —

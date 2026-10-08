@@ -1616,6 +1616,23 @@ killed it. **How to apply:** for each behaviour, work out the input and the OBSE
 at which the wrong implementation and the right one part — then read there. A test that reads
 where they agree is green for both.
 
+### State kept per INSTANCE is tested under RECURSION
+
+The interpreter keeps the exceptions legacy `catch` bodies are handling on one stack per
+instance; `rethrow $l` searches it by label. A mutant that searched outermost-first passed every
+unit test and both spec corpora, because only recursion puts two entries with the same label on
+that stack at once. **How to apply:** for state that outlives a frame (a handler stack, a cache,
+a per-instance counter), write the test where the same code is active twice — a recursive call
+from inside the construct.
+
+### A test module the engine REFUSES is not a test — check that the kill is real
+
+Two "kills" in E3d-1 were the test failing to compile, not the mutant being caught: one WAT gave
+`catch_all` a target expecting a value; one mixed legacy and new exception handling, which V8
+refuses in one module. The test helper does not validate (`wat2wasm`'s library default), so the
+first sign was V8's `CompileError`. **How to apply:** a mutant is killed only if the test PASSES
+on the real code and fails on the mutant; read the failure message, not only the exit code.
+
 ### An evaluated NaN is the engine's to choose — fold it only where the spec fixes the bits
 
 The spec lets an arithmetic operator return ANY arithmetic NaN; engines propagate payloads; a

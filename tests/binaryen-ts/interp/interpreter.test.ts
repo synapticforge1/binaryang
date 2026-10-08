@@ -20,6 +20,7 @@ import {
   Stop,
   Trap,
   type Value,
+  WasmException,
 } from '../../../src/binaryen-ts/interp/interpreter.ts';
 import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
 
@@ -36,17 +37,20 @@ async function agree(wat: string, ...args: number[]): Promise<number | string> {
   try {
     engine = (instance.exports.f as (...a: number[]) => number)(...args);
   } catch (e) {
-    engine = `trap: ${(e as Error).message}`;
+    // An uncaught wasm exception is not a trap, on either side.
+    engine = e instanceof WebAssembly.Exception ? 'exception' : `trap: ${(e as Error).message}`;
   }
   let ours: number | string;
   try {
     const [r] = interp(wat).invoke('f', args.map(i32));
     ours = r!.type === ValType.I32 ? r!.value : NaN;
   } catch (e) {
-    if (!(e instanceof Trap)) throw e;
-    ours = `trap: ${e.message}`;
+    if (e instanceof WasmException) ours = 'exception';
+    else if (e instanceof Trap) ours = `trap: ${e.message}`;
+    else throw e;
   }
   expect(typeof ours === 'string').toBe(typeof engine === 'string');
+  expect(ours === 'exception').toBe(engine === 'exception');
   if (typeof ours === 'number') expect(ours).toBe(engine);
   return ours;
 }
@@ -489,5 +493,130 @@ describe('tables, references and indirect calls (E3c)', () => {
       )
     ).toThrow(Trap);
     expect(shared.elems[0]!.type === 'ref' && shared.elems[0]!.kind).toBe('func');
+  });
+});
+
+describe('exceptions (E3d)', () => {
+  const TAGS = `(tag $a (param i32)) (tag $b (param i32)) (tag $none)
+    (func $raise (param i32)
+      (if (i32.eq (local.get 0) (i32.const 1)) (then (throw $a (i32.const 10))))
+      (if (i32.eq (local.get 0) (i32.const 2)) (then (throw $b (i32.const 20))))
+      (if (i32.eq (local.get 0) (i32.const 3)) (then (throw $none)))
+      (if (i32.eq (local.get 0) (i32.const 4)) (then (unreachable))))`;
+
+  it('try_table: catch / catch_ref / catch_all / catch_all_ref, the first that matches, across a call', async () => {
+    // One function per clause shape; each returns where it landed. x: 0 nothing
+    // thrown, 1 $a, 2 $b, 3 $none, 4 a TRAP — which no catch_all catches.
+    const clauses = [
+      ['(catch $a $h)', '(result i32)', '(i32.add (i32.const 100))'],
+      ['(catch_ref $b $h)', '(result i32 exnref)', '(drop) (i32.add (i32.const 200))'],
+      ['(catch_all $h)', '', '(i32.const 300)'],
+      ['(catch_all_ref $h)', '(result exnref)', '(drop) (i32.const 400)'],
+      // Two clauses that both match $a: the FIRST wins (a $b clause before it does not).
+      ['(catch $b $h) (catch $a $h) (catch $a $h)', '(result i32)', '(i32.add (i32.const 500))'],
+    ];
+    for (const [clause, result, landed] of clauses) {
+      const wat = `(module ${TAGS}
+        (func (export "f") (param i32) (result i32)
+          (block $h ${result}
+            (try_table ${clause} (call $raise (local.get 0)))
+            (return (i32.const 0)))
+          ${landed}))`;
+      for (const x of [0, 1, 2, 3, 4]) await agree(wat, x);
+    }
+  });
+
+  it('a tag matches by identity, not signature; an uncaught one leaves the invocation', async () => {
+    const wat = `(module ${TAGS}
+      (func (export "f") (param i32) (result i32)
+        (block $h (result i32)
+          (try_table (catch $a $h) (call $raise (local.get 0)))
+          (i32.const 0))))`;
+    for (const x of [1, 2, 3]) await agree(wat, x); // $b has $a's signature, and escapes
+  });
+
+  it('throw_ref rethrows the same exception; a null one traps', async () => {
+    const wat = `(module ${TAGS}
+      (func (export "f") (param i32) (result i32)
+        (block $outer (result i32)
+          (try_table (catch $a $outer)
+            (throw_ref (block $r (result exnref)
+              (try_table (catch_all_ref $r) (call $raise (local.get 0)))
+              (ref.null exn))))
+          (i32.const 0))))`;
+    for (const x of [0, 1, 2]) await agree(wat, x);
+  });
+
+  it('legacy try: catch with its payload, catch_all, rethrow to an outer catch', async () => {
+    const wat = `(module ${TAGS}
+      (func (export "f") (param i32) (result i32)
+        (try (result i32)
+          (do
+            (try (result i32)
+              (do (call $raise (local.get 0)) (i32.const 0))
+              (catch $a (i32.add (i32.const 1)))
+              (catch_all (rethrow 0))))
+          (catch $b (i32.add (i32.const 1000)))
+          (catch_all (i32.const -1)))))`;
+    for (const x of [0, 1, 2, 3]) await agree(wat, x);
+  });
+
+  it("rethrow under recursion rethrows its OWN frame's exception", async () => {
+    // r(n) throws $a(n) and catches it; with n > 0 the catch body returns
+    // r(n - 1), else it rethrows. When r(0) rethrows, r(1)'s catch is still
+    // active with the same label: rethrow must take the innermost (payload 0),
+    // not the outer frame's (payload 1). A mutant that searched outermost-first
+    // passed every other test and both spec corpora.
+    // Legacy only: V8 refuses a module that mixes legacy and new EH.
+    const wat = `(module ${TAGS}
+      (func $r (export "f") (param i32) (result i32)
+        (try (result i32)
+          (do
+            (try (result i32)
+              (do (throw $a (local.get 0)))
+              (catch $a
+                (drop)
+                (if (result i32) (local.get 0)
+                  (then (return (call $r (i32.sub (local.get 0) (i32.const 1)))))
+                  (else (rethrow 1))))))
+          (catch $a))))`;
+    for (const x of [0, 1, 3]) await agree(wat, x);
+  });
+
+  it("delegate: to an outer try's handlers, past a block, out of the function", async () => {
+    const toTry = `(module ${TAGS}
+      (func (export "f") (param i32) (result i32)
+        (try $t (result i32)
+          (do (try (result i32) (do (call $raise (local.get 0)) (i32.const 0)) (delegate $t)))
+          (catch $a (drop) (i32.const 7)))))`;
+    for (const x of [0, 1, 2]) await agree(toTry, x);
+    const pastBlock = `(module ${TAGS}
+      (func (export "f") (param i32) (result i32)
+        (try (result i32)
+          (do (block $b (result i32)
+            (try (result i32) (do (call $raise (local.get 0)) (i32.const 0)) (delegate $b))))
+          (catch $a (drop) (i32.const 8)))))`;
+    for (const x of [0, 1]) await agree(pastBlock, x);
+    const outOfFunction = `(module ${TAGS}
+      (func (export "f") (param i32) (result i32)
+        (try (result i32) (do (call $raise (local.get 0)) (i32.const 0)) (delegate 0))))`;
+    for (const x of [0, 1]) await agree(outOfFunction, x);
+  });
+
+  it("an imported tag is the exporter's: its exception is caught across modules", () => {
+    const a = interp(`(module (tag (export "e") (param i32))
+      (func (export "raise") (param i32) (throw 0 (local.get 0))))`);
+    const b = interp(
+      `(module (import "a" "e" (tag $e (param i32))) (import "a" "raise" (func $raise (param i32)))
+        (func (export "f") (result i32)
+          (block $h (result i32) (try_table (catch $e $h) (call $raise (i32.const 5))) (i32.const 0))))`,
+      {
+        imports: (_m: string, f: string) =>
+          f === 'e'
+            ? { kind: 'tag' as const, cell: a.tagCell('e') }
+            : { kind: 'func' as const, call: (args: Value[]) => a.invoke('raise', args) },
+      },
+    );
+    expect(b.invoke('f', [])).toEqual([i32(5)]);
   });
 });

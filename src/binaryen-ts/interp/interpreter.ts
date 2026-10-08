@@ -82,7 +82,33 @@ export interface FuncRef {
 export type Ref =
   | { readonly type: 'ref'; readonly kind: 'null' }
   | { readonly type: 'ref'; readonly kind: 'func'; readonly func: FuncRef }
-  | { readonly type: 'ref'; readonly kind: 'extern'; readonly host: unknown };
+  | { readonly type: 'ref'; readonly kind: 'extern'; readonly host: unknown }
+  | { readonly type: 'ref'; readonly kind: 'exn'; readonly exn: WasmException };
+
+/**
+ * A tag's identity (E3d). A `catch` matches by IDENTITY, not by signature: an
+ * imported tag is the exporter's cell, and two tags with the same signature
+ * are different tags.
+ */
+export interface TagCell {
+  readonly name: string;
+  readonly sig: FuncSignature;
+}
+
+/**
+ * A wasm exception in flight: its tag and its payload. Thrown through the
+ * interpreter as itself, so it is never confused with a {@link Trap} — a trap
+ * is not an exception, and no `catch_all` catches one. One that leaves an
+ * invocation uncaught is what `assert_exception` asks for.
+ */
+export class WasmException {
+  constructor(readonly tag: TagCell, readonly values: Value[]) {}
+}
+
+/** `delegate $l` in flight: the construct labelled `$l` handles, or passes on, `exn`. */
+class Delegate {
+  constructor(readonly exn: WasmException, readonly label: string) {}
+}
 
 /** The null reference. */
 export const NULL: Ref = { type: 'ref', kind: 'null' };
@@ -128,7 +154,8 @@ export type HostImport =
   | { kind: 'func'; call: HostFunction }
   | { kind: 'global'; cell: GlobalCell }
   | { kind: 'memory'; cell: MemoryCell }
-  | { kind: 'table'; cell: TableCell<Value> };
+  | { kind: 'table'; cell: TableCell<Value> }
+  | { kind: 'tag'; cell: TagCell };
 
 /** Options for {@link Interpreter}. */
 export interface InterpreterOptions {
@@ -323,6 +350,10 @@ export class Interpreter {
   private readonly tableNames: string[] = [];
   /** Each element segment's references; a dropped one is empty. */
   private readonly elems: Value[][] = [];
+  private readonly tags: TagCell[] = [];
+  private readonly tagNames: string[] = [];
+  /** The exceptions legacy `catch` bodies are handling, innermost last — what `rethrow $l` finds. */
+  private readonly handling: { label: string; exn: WasmException }[] = [];
   private readonly stack: Value[] = [];
   private readonly maxDepth: number;
   /** Whether this module declares a rec group or explicit subtyping — types then match by identity. */
@@ -361,8 +392,12 @@ export class Interpreter {
         if (h?.kind !== 'table') throw new Stop('host', `table ${imp.module}.${imp.field}`);
         this.tables.push(h.cell);
         this.tableNames.push(imp.table.name);
+      } else if (imp.kind === ExternalKind.Tag) {
+        const h = host(imp.module, imp.field);
+        if (h?.kind !== 'tag') throw new Stop('host', `tag ${imp.module}.${imp.field}`);
+        this.tags.push(h.cell);
+        this.tagNames.push(imp.tag.name);
       }
-      // An imported tag is not set up yet (E3d): a throw or catch of one stops.
     }
     for (const fn of module.functions) {
       this.funcs.push({ kind: 'defined', fn, sig: fn.sig });
@@ -384,6 +419,10 @@ export class Interpreter {
       const [value] = this.evaluate(g.init?.children ?? [], 1);
       this.globals.push({ value: value! });
       this.globalNames.push(g.name);
+    }
+    for (const t of module.tags) {
+      this.tags.push({ name: t.name, sig: t.sig });
+      this.tagNames.push(t.name);
     }
     // Tables, each filled with its initialiser or null (E3c).
     for (const t of module.tables) {
@@ -457,6 +496,13 @@ export class Interpreter {
     return resolve(ex.var, this.tables, this.tableNames, 'table');
   }
 
+  /** The exported tag `name`'s cell — what another module importing it shares, and catches by. */
+  tagCell(name: string): TagCell {
+    const ex = this.module.exports.find((e) => e.name === name && e.kind === ExternalKind.Tag);
+    if (ex === undefined) throw new Error(`interp: no exported tag "${name}"`);
+    return resolve(ex.var, this.tags, this.tagNames, 'tag');
+  }
+
   /** Calls function `index` of this instance — how a {@link FuncRef} from any table runs. */
   callIndex(index: number, args: Value[]): Value[] {
     const f = this.funcs[index];
@@ -527,6 +573,10 @@ export class Interpreter {
         if (t !== RETURN && !frame) {
           this.depth--;
           this.stack.length = base;
+          // `delegate` to the function's own frame: the exception leaves it.
+          if (t instanceof Delegate && (t.label === '' || t.label === fn.bodyFrameLabel)) {
+            throw t.exn;
+          }
           // The host's own stack ran out first: to the program that is the same
           // exhaustion. 🔧 This tested the message with a regex, and at the
           // stack's limit the regex ITSELF overflowed (spec `fac.wast`'s
@@ -589,6 +639,9 @@ export class Interpreter {
     try {
       run();
     } catch (t) {
+      // A `delegate` to a construct that is not a `try` goes on outward, as
+      // if thrown from that construct (a `try` handles its own, in `Try`).
+      if (t instanceof Delegate && label !== '' && t.label === label) throw t.exn;
       if (!(t instanceof Branch) || label === '' || t.label !== label) throw t;
     }
     const results = this.stack.splice(this.stack.length - arity, arity);
@@ -685,6 +738,7 @@ export class Interpreter {
           try {
             this.exec(e.body, locals);
           } catch (t) {
+            if (t instanceof Delegate && t.label === e.label) throw t.exn;
             if (!(t instanceof Branch) || t.label !== e.label) throw t;
             // Back to the top, with the loop's parameters.
             const carried = s.splice(s.length - params, params);
@@ -872,6 +926,91 @@ export class Interpreter {
       }
 
       // -------------------------------------------------------------------
+      // Exceptions (E3d)
+      // -------------------------------------------------------------------
+      case ExpressionKind.Throw: {
+        for (const o of e.operands) this.exec(o, locals);
+        const tag = resolve(e.tag, this.tags, this.tagNames, 'tag');
+        throw new WasmException(tag, s.splice(s.length - tag.sig.params.length));
+      }
+      case ExpressionKind.ThrowRef: {
+        this.exec(e.exnref, locals);
+        const r = this.pop();
+        if (r.type !== 'ref') throw new Error('interp: throw_ref of a number');
+        if (r.kind === 'null') throw new Trap('null exception reference');
+        if (r.kind !== 'exn') throw new Error('interp: throw_ref of a non-exception');
+        throw r.exn;
+      }
+      case ExpressionKind.TryTable: {
+        const params = this.params(e, locals);
+        const base = s.length - params;
+        try {
+          this.scope(
+            e.label,
+            base,
+            arityOf(e.type as BlockResult),
+            () => this.exec(e.body, locals),
+          );
+        } catch (t) {
+          if (!(t instanceof WasmException)) throw t;
+          // The first clause that matches branches to ITS label, outside the
+          // try_table, with the payload (and the exception, for a `_ref`). What
+          // the body left below the payload needs no clearing: a branch carries
+          // only the top values and its target truncates to its own base (a
+          // mutant that skipped a reset here was equivalent).
+          for (const c of e.catches) {
+            if (c.tag !== undefined && this.tag(c.tag) !== t.tag) continue;
+            if (c.tag !== undefined) s.push(...t.values);
+            if (c.isRef) s.push({ type: 'ref', kind: 'exn', exn: t });
+            throw new Branch(labelName(c.target));
+          }
+          throw t;
+        }
+        return;
+      }
+      case ExpressionKind.Try: {
+        const params = this.params(e, locals);
+        const base = s.length - params;
+        this.scope(e.label, base, arityOf(e.type as BlockResult), () => {
+          try {
+            this.exec(e.body, locals);
+          } catch (t) {
+            // What reaches this try's handlers: an exception from its body,
+            // or one a `delegate` inside it named this try for.
+            let exn: WasmException;
+            if (t instanceof WasmException) exn = t;
+            else if (t instanceof Delegate && e.label !== '' && t.label === e.label) exn = t.exn;
+            else throw t;
+            if (e.delegate !== undefined) throw new Delegate(exn, labelName(e.delegate));
+            for (const c of e.catches) {
+              if (c.tag !== undefined && this.tag(c.tag) !== exn.tag) continue;
+              // The handler starts from the try's own stack, the payload on it
+              // for the handler's `pop`s.
+              s.length = base;
+              if (c.tag !== undefined) s.push(...exn.values);
+              if (c.isRef) s.push({ type: 'ref', kind: 'exn', exn });
+              this.handling.push({ label: e.label, exn });
+              try {
+                this.exec(c.body, locals);
+              } finally {
+                this.handling.pop();
+              }
+              return;
+            }
+            throw exn;
+          }
+        });
+        return;
+      }
+      case ExpressionKind.Rethrow: {
+        const label = labelName(e.target);
+        for (let i = this.handling.length - 1; i >= 0; i--) {
+          if (this.handling[i]!.label === label) throw this.handling[i]!.exn;
+        }
+        throw new Error(`interp: rethrow to "${label}", which no catch encloses`);
+      }
+
+      // -------------------------------------------------------------------
       // Linear memory (E3b)
       // -------------------------------------------------------------------
       case ExpressionKind.Load: {
@@ -946,6 +1085,10 @@ export class Interpreter {
       default:
         throw new Stop('unsupported', e.kind);
     }
+  }
+
+  private tag(v: Var): TagCell {
+    return resolve(v, this.tags, this.tagNames, 'tag');
   }
 
   private table(v: Var): TableCell<Value> {
