@@ -110,6 +110,19 @@ export function isBitExact(op: UnaryOp | BinaryOp): boolean {
   return BIT_EXACT.has(op);
 }
 
+/**
+ * The constant a pass may FOLD `op`'s outcome to, or `null` when it must leave
+ * the expression to run: not evaluated, a trap (folding it away would remove
+ * the trap), or a NaN from an operator that is not {@link isBitExact} (the
+ * engine picks that NaN, and a program can read it back). Every folding pass
+ * decides through here — one rule as well as one semantics.
+ */
+export function foldedLiteral(op: UnaryOp | BinaryOp, r: NumericResult | null): Literal | null {
+  if (r === null || 'trap' in r) return null;
+  if (isNaNLiteral(r.value) && !isBitExact(op)) return null;
+  return r.value;
+}
+
 // ---------------------------------------------------------------------------
 // Bit counting
 // ---------------------------------------------------------------------------

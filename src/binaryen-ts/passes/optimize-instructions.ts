@@ -65,13 +65,7 @@ import { ValType } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression } from '../ir/walk.ts';
 import { anyOpcodeName, Opcode } from '../../wabt-ts/core/opcode.ts';
-import {
-  evalBinary,
-  evalUnary,
-  isBitExact,
-  isNaNLiteral,
-  type NumericResult,
-} from '../interp/numeric.ts';
+import { evalBinary, evalUnary, foldedLiteral } from '../interp/numeric.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -611,21 +605,15 @@ function _optimizeUnary(
 // integer-only switch, which had been wrong three times (`extend8_s` above 2^53,
 // `reinterpret` building an i32 holding a float, a signalling NaN's payload).
 //
-// A trap is never folded away — the expression stays and traps when run. A NaN
-// is folded only from an operator exact on the bits (`isBitExact`): any other
-// gives whichever arithmetic NaN the engine computes, and a constant would fix
-// one the program can then read back through a reinterpretation.
-
-function _folded(op: UnaryOp | BinaryOp, r: NumericResult | null): Expression | null {
-  if (r === null || 'trap' in r) return null;
-  if (isNaNLiteral(r.value) && !isBitExact(op)) return null;
-  return makeConst(r.value);
-}
+// WHETHER to fold is `foldedLiteral`'s rule, shared with Precompute: never a
+// trap, and a NaN only from an operator exact on the bits.
 
 function _foldBinary(opcode: BinaryOp, lhs: Literal, rhs: Literal): Expression | null {
-  return _folded(opcode, evalBinary(opcode, lhs, rhs));
+  const lit = foldedLiteral(opcode, evalBinary(opcode, lhs, rhs));
+  return lit === null ? null : makeConst(lit);
 }
 
 function _foldUnary(opcode: UnaryOp, val: Literal): Expression | null {
-  return _folded(opcode, evalUnary(opcode, val));
+  const lit = foldedLiteral(opcode, evalUnary(opcode, val));
+  return lit === null ? null : makeConst(lit);
 }
