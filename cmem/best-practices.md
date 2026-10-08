@@ -1564,6 +1564,64 @@ files where the gate's bare `deno fmt --check` checks 446: the new test file was
 neither of my runs and failed the gate. **How to apply:** before the gate, run its commands
 verbatim, not a narrowed equivalent.
 
+## 🆕 Lessons from constant propagation and the evaluator (open-work 2 / 23, 2026-10-07)
+
+### Two measurements do not add unless the passes are independent
+
+On 2026-10-06 "propagation is ~7.7 KB" was derived as `precompute-propagate` (−11,135) minus
+`precompute` (−3,392), and the owner approved building it on that price. Built, propagation was
+worth 2.3 KB: what `precompute-propagate` saves beyond `precompute` is mostly EVALUATION that
+propagation ENABLES, not propagation. Re-measured on the new output, the same upstream pass still
+saved 9.5 KB, all of it evaluation. **How to apply:** price a pass by building the smallest
+version of it and measuring, or by an upstream pass that does ONLY that; a difference of two
+composite passes prices their interaction too. Say so when an estimate a decision rests on turns
+out wrong (open-work 2 records it).
+
+### An oracle suite has blind spots too — a mutant that survives it names one
+
+Twice a mutant survived the WHOLE spec testsuite (57,630 assertions) and every existing test: an
+interpreter that ignored a block's parameter count, and one that never dropped an active data
+segment. Both wrong states are invisible until a later read crosses them — a value BELOW the
+parameters read after the block, a `memory.init` from the segment after instantiation. **How to
+apply:** mutation-test against the strongest oracle too, not only unit tests; when a mutant
+survives it, the test that kills it is the one the suite lacks — add it, and record that the suite
+missed it.
+
+### A harness without a limit is a harness a wrong loop hangs
+
+The first mutant run against the spec harness hung for 10 minutes on a `br_table` mutant that made
+a loop dispatch forever; killing it would have left the mutated file in place (the restore was in
+a `finally` that never ran). **How to apply:** every harness that RUNS code gets fuel or a timeout,
+and running out is a FAIL where the suite promises termination; every mutant runner backs up the
+file first and checks the restore byte for byte.
+
+### "Cannot go on" is not a result — and it taints what it touched
+
+The interpreter has two exits that must never be confused: a `Trap` is the program's behaviour; a
+`Stop` (a host call not given, an instruction not run yet, fuel) is a statement about the
+interpreter. A consumer that evaluates at compile time keeps the code as it was on a Stop. And a
+Stop in a module being set up can leave SHARED state short of the spec's (`linking.wast`): every
+instance it touched is unreliable thereafter. **How to apply:** count Stops by reason as coverage,
+never as passes; propagate them to everything that shares state with the stopped unit.
+
+### An evaluated NaN is the engine's to choose — fold it only where the spec fixes the bits
+
+The spec lets an arithmetic operator return ANY arithmetic NaN; engines propagate payloads; a
+constant fixes the bits, and a program can read them back through a reinterpretation. Only
+`abs` / `neg` / `copysign` / reinterpretations fix a NaN's bits. Upstream folds them all (F1,
+measured). And JS numbers can carry a NaN's payload through `Math.ceil` and a `DataView`, so
+"canonical" must be WRITTEN, not assumed — `f64.ceil` of a signalling NaN came back signalling.
+**How to apply:** one fold rule for every folding pass (`foldedLiteral`); test NaNs by bits.
+
+### A formatter run on a file the gate excludes rewrites it unseen — and renumbers IDs
+
+`deno fmt cmem/<file>` rewrapped three cmem files across a day's commits and renumbered
+`open-work.md`'s ordered list — items 21 / 22 / 24 became 16 / 17 / 18, two of them retired
+numbers — while `deno fmt --check` stayed green, because `cmem/` is outside `fmt.include` and the
+check never looked. Found only by a whitespace-insensitive diff against the day's first version.
+**How to apply:** never format cmem ([working-rules.md](working-rules.md) § "Tools"); when a tool
+touches a document whose numbers are IDs, compare the IDs before and after.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

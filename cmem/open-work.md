@@ -459,7 +459,7 @@ fatigue.
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
-16. ⬚ 🗓️ **Merge `src/binaryen-ts/` and `src/wabt-ts/` into `src/` — SCOPE after the IR work**
+21. ⬚ 🗓️ **Merge `src/binaryen-ts/` and `src/wabt-ts/` into `src/` — SCOPE after the IR work**
     (owner, 2026-09-30: "It looks like we can now phase a merge of the binaryen-ts and wabt-ts
     folders into the src folder … I would like to scope that after our IR work is completed"). Facts
     measured that day, for the scoping:
@@ -491,7 +491,7 @@ fatigue.
         exists twice; (4) then decide the three tree-named subpaths.
       - **Timing:** after the IR work (owner) and BEFORE the hardening and security rounds (items
         13, 14), so those audit the final structure once.
-17. ⬚ **H9 — publish the shared definitions D2 / D3 / D1 as a `./definitions` subpath** (placed on
+22. ⬚ **H9 — publish the shared definitions D2 / D3 / D1 as a `./definitions` subpath** (placed on
     the list by the owner 2026-09-30, from wasmtk's letter [§ 23](handoffs.md); the design is the
     workspace's `../cmem/divergences.md` § "The shared definitions", letter H9 in
     `../cmem/handoffs.md`). wasmtk is ready to start H10 (generating their copies) as soon as there
@@ -591,7 +591,7 @@ fatigue.
         prove: the NAME of an index space in an immediate (a `memidx` and a `tableidx` are both one
         LEB) beyond what the signature check resolves; text shorthands (wasmtk's I2 list) beyond the
         mnemonic and the memarg's `offset=` / `align=`.
-18. ⬚ 🗓️ **`wasm-bundle` — take wasmtk's `wasmbundle` into our tools, and wasmtk imports it back**
+24. ⬚ 🗓️ **`wasm-bundle` — take wasmtk's `wasmbundle` into our tools, and wasmtk imports it back**
     (owner, 2026-09-30: "incorporating wasmtk's wasmbundle into our cli tools and offload that from
     wasmtk. And import it back for use there"; "we will probably want to call it wasm-bundle in our
     tools section"). Nothing is written into wasmtk from here: they drop their copy and pin ours by

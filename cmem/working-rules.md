@@ -150,6 +150,14 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
 
 ## Tools
 
+- ⚠️ **Never run `deno fmt` on `cmem/`.** `deno.json`'s `fmt.include` leaves `cmem/` out, so the
+  gate's `deno fmt --check` never looks at it — but naming a path explicitly overrides the include,
+  and `deno fmt cmem/<file>` then REWRAPS the whole file and RENUMBERS its ordered lists. On
+  2026-10-07 it turned open-work items 21 / 22 / 24 into 16 / 17 / 18 on `main` (16 and 17 are
+  retired numbers) and rewrapped `open-work.md`, `unreleased.md` and `working-rules.md` across
+  today's commits (checked: whitespace only apart from the numbers, which were restored by hand).
+  Edit cmem by hand, keeping each line under 100 columns.
+
 - **Use the best tool for the job, and check what is available before improvising.** Owner,
   2026-09-02: _"Definitely use the best tool for the job. Especially if you already have it
   available to you. We never want to use a hammer when a screw driver is needed."_ The `Grep` tool

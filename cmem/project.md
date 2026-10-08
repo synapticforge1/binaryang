@@ -92,6 +92,12 @@ cross-tree is its job. **When the proxy and the intent disagree, the intent gove
 disagreement is written down.** A second exception would be a sign the rule needs rewriting. (S6
 deleted the bridge — [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".)
 
+**`src/binaryen-ts/interp/`** (2026-10-07, open-work 23) holds the evaluator and the interpreter:
+`numeric.ts` (every scalar operator on `Literal`s — the ONE semantics OptimizeInstructions,
+Precompute and the interpreter share), `interpreter.ts`, `memory.ts`. It works on the converged IR
+and is NOT exported yet — its public shape waits for E4's tools (`wasm-ctor-eval`, `wasm-interp`).
+`scripts/check-interp.ts` (`deno task interp`) is its gate step.
+
 Two namespaced trees with a working bridge is a _stable_ arrangement — nothing breaks if convergence
 never happens — which is what made it safe to start this way, and why it needs counter-pressure.
 
