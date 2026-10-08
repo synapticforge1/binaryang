@@ -4,18 +4,17 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-10-07 (paused by the owner at day's end; tomorrow is scoped in item 23's "Resume here"):** `binaryang@1.8.1` is the last release; `main` holds a large UNRELEASED set —
+**State, 2026-10-08 (owner: "finish item 23 then move to item 2. once complete we will publish and
+notify wasmtk team"):** `binaryang@1.8.1` is the last release; `main` holds a large UNRELEASED set —
 the optimizer steps (item 2: 1–5, LocalCSE, ConstantPropagation; item 23: OI folding through the
 evaluator, Precompute — the interpreter itself is internal), `./definitions` (D1 / D2 / D3,
 item 22), items 3–8 and 10 closed, six silent fixes ([unreleased.md](unreleased.md): the next
-release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finish the open items and
-the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
-design decided and waits to be built. Item 2 is PARKED (owner, 2026-10-07: the delta to upstream is
-judged after item 23; 3.8% after E2). **Next: item 23** — E1 (the numeric evaluator) and E2
-(Precompute) done; E3, the interpreter, done except `v128` (E3a–E3d: numbers, control,
-memory, tables, calls, exceptions, GC); `v128` next (owner: "SIMD first"), then E4
-(`wasm-ctor-eval`, `wasm-interp`) (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once
-23 is done. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free.
+release is a MINOR, 1.9.0) — NOT PUSHED. 22 is done (closes with the release and its letter), 24
+has its design decided and waits to be built. **Now: item 23** — E1, E2 and all of E3 done (E3e,
+`v128`, landed 2026-10-08: core 57,608 / 0 / 40); **E4 next** (`wasm-ctor-eval`, `wasm-interp`,
+the combination measured), **then item 2** (the gap, 3.8% after E2, re-derived then; RemoveUnusedBrs
+and CodeFolding first), then the release and wasmtk's letter; 24, 21 and the rounds 13 / 14
+after. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free.
 Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -470,41 +469,56 @@ mismatches and the reader prints that function as predicted — plainly, never w
         - **E3 is complete except `v128`** — every SIMD operator still stops (E1's limit), and that
           is most of what `stopped` counts. Owner's choice whether it comes before E4.
           ✅ **Owner, 2026-10-07: "SIMD first."**
-        - 📏 **Resume here (paused by the owner at the end of 2026-10-07): E3e — `v128`.** Scoped:
-          D1 lists **256 SIMD instructions** — 198 with no immediate, 20 relaxed-SIMD, 14 memory
-          (`memarg`), 14 lane (`laneidx`), 8 memory + lane, `v128.const`, `i8x16.shuffle`. Two
-          increments, each gated and merged:
-          - **E3e-1 — the SIMD numeric core** (`interp/simd.ts`): a `v128` as 16 bytes, lanes
-            through typed views. Where the spec defines a lane op as the scalar one (float
-            arithmetic, comparisons, conversions, `nearest`…) it calls `numeric.ts` per lane — one
-            semantics again; its own code for what has no scalar twin (saturating add / sub,
-            `avgr_u`, `q15mulr_sat_s`, `dot`, `extmul`, `extadd_pairwise`, `narrow`, `extend`,
-            `bitmask`, `all_true` / `any_true`, `swizzle`, `shuffle`, `splat`, extract / replace
-            lane, `bitselect`, the bitwise ops). Oracle: V8 per operator, as E1 — a v128 crossing
-            the JS boundary as two `i64` halves through a wrapper, coverage ASSERTED against D1's
-            list, NaNs per lane under E1's rule (an arithmetic NaN may differ but must be quiet;
-            bit operations exact). Then `foldedLiteral` covers `v128` too, so OI / Precompute fold
-            SIMD constants — measure the corpus.
-          - **E3e-2 — the interpreter's SIMD**: full-width `v128.load` / `store` (today a Stop),
-            `simd.load` (splat / extend / zero), load / store lane, `SIMDTernary`, the SIMD
-            `unary` / `binary` / extract / replace / shuffle through `simd.ts`; the harness's
-            `v128` arguments and expectations (lane type plus lane values, a NaN pattern per lane,
-            `either` for relaxed). Should run most of the 21,868 `v128`-argument stops plus the
-            179 expected-`v128` and the SIMD-instruction ones.
-          - ⚠️ **Relaxed SIMD (20 instructions) is implementation-defined**: the spec allows a SET
-            of results and the suite writes `either`. Proposed: the interpreter computes the
-            spec's deterministic profile and the harness accepts any listed alternative; the
-            folding passes NEVER fold a relaxed operator (the engine picks — E1's NaN reasoning).
-            ✅ **Owner, 2026-10-07: "I agree with your proposal on the SIMD."** Decided as above:
-            the deterministic profile in the interpreter, any listed alternative accepted by the
-            harness, no relaxed operator ever folded.
-          - Small, optional, beside it: wide-arithmetic's four `quaternary` instructions
-            (`i64.add128` / `sub128` / `mul_wide_s` / `_u`) — the 99 stops in that corpus.
-          - Start-of-day checklist: `spec:prepare` the core corpus AND the legacy corpus into the
-            session's scratch (both are lost with it), run the gate once to confirm the
-            starting numbers (core 33,268 / 0 / 24,380 …), then branch.
-        - Then **E4 — `wasm-ctor-eval` and `wasm-interp` on the interpreter**, and the owner's
-          question (which combination) MEASURED.
+        - ✅ **E3e done 2026-10-08 — `v128`**, in one increment (`interp/simd.ts`; the
+          interpreter's SIMD loads, stores, lane and ternary nodes; the harness's `v128` values).
+          Every SIMD operator D1 lists (233 of its 234 `simd`-class entries; `v128.const` is a
+          value) on 16-byte vectors, lanes as little-endian views; where the spec defines a lane
+          as the scalar operator, each lane goes through `numeric.ts` — one semantics. `evalUnary`
+          / `evalBinary` dispatch to it for a `v128` operand or a splat, so OI and Precompute fold
+          SIMD constants through `foldedLiteral`, extended: a NaN LANE from float-arithmetic is
+          not folded, a relaxed operator never (`precompute.test.ts`). **Measured on the corpus:
+          not one byte moved** at any level — it holds no foldable SIMD constant.
+          - **Relaxed SIMD, decided (owner 2026-10-07) and built:** `relaxed_swizzle` as
+            `swizzle`, the relaxed truncations saturating, `relaxed_madd` / `nmadd` FUSED (one
+            rounding, exact through `bigint` — `fma` in `simd.ts`), `relaxed_laneselect` as
+            `bitselect`, `relaxed_min` / `max` as `min` / `max`, `relaxed_q15mulr_s` saturating,
+            the relaxed dot products with every lane signed and a wrapping i16 intermediate. The
+            harness accepts any alternative of an `either`. ⚠️ The suite's `either` lists are
+            not a profile: on three of them (`i16x8_relaxed_q15mulr_s:13`,
+            `relaxed_dot_product:32` / `:62`) ours is a LATER alternative — upstream binaryen's
+            interpreter (`upstream/src/wasm/literal.cpp`: `q15MulrSatSI16`, `madd` via `fmaf`,
+            `dotSI8x16toI16x8`) computes the same three. Its `nmadd` is unfused ("not an actual
+            fused", its own comment); ours is fused — [divergences.md](divergences.md) D-row.
+          - Beside it, **wide arithmetic**: `i64.add128` / `sub128` (`quaternary`) and
+            `i64.mul_wide_s` / `_u` (the two-result `binary`) run; that corpus is 99 / 0 / 0.
+          - `deno task interp`: core **57,608 pass, 0 FAIL, 40 stopped** (from 33,268 / 24,380;
+            what is left: 15 expected `funcref` values, shared-state taints, two 2^31-element
+            arrays); legacy 70 / 0 / 0; custom-descriptors 170 / 0 / 317; custom-page-sizes
+            31 / 0 / 0; threads 80 / 0 / 187; wide-arithmetic 99 / 0 / 0.
+          - `simd_differential.test.ts`: every non-relaxed operator against V8 over edge and
+            random vectors (a vector crosses as two `i64` through a wrapper, as the behaviour
+            differential's), coverage asserted against D1 (233), NaN lanes under E1's rule; the
+            fused madd on cases that tell one rounding from two; the fold rule on `v128`. Green
+            first run — the differential and the suite agreed on all 24,340 new assertions, so the
+            inversion carried the weight: **18 / 18 non-equivalent mutants killed** (12 core, 5
+            interpreter, the unfused madd by the unit test alone — the suite accepts either by
+            design); the two harness-JUDGEMENT mutants (a NaN pattern matching any lane; lanes
+            after the first ignored) survive alone, as they must on a correct interpreter, and
+            each was shown to hide a planted core defect (82 → 44 FAILs; 121 → 0).
+          - 🔧 **One defect, found by the gate's `ci` step, not by the suite:** `fma` tested the
+            double product for zero before the exact path, so a product that UNDERFLOWS
+            (2^-1000 × 2^-75) dropped out of the sum — a tie the exact path rounds to even. The
+            unit test had agreed because its expected value was computed with the same
+            underflowing `2 ** -1075`; rewriting the expectation by hand exposed it. Only a zero
+            OPERAND short-circuits now.
+          - Lessons, for [best-practices.md](best-practices.md) if they recur: **a harness mutant
+            needs a defect to judge** — mutate the judge and the judged together; and **an
+            expected value computed in the arithmetic under test shares its defects** — write the
+            expectation by hand, or from a different arithmetic.
+      - 📏 **Resume here: E4** — `wasm-ctor-eval` and `wasm-interp` on the interpreter, opt-in;
+        then the owner's question (which combination) MEASURED. Start-of-day: `spec:prepare` the
+        core and legacy corpora, `proposals` for the four, run `interp` to confirm core
+        57,608 / 0 / 40, then branch.
       - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
         combination — MEASURED.
 
