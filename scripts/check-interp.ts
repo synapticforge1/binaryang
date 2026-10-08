@@ -92,32 +92,53 @@ function toValue(a: Arg): Value | null {
     default: {
       const r = refExpectation(a);
       if (r === 'null') return NULL;
-      if (r !== null && typeof r === 'object') {
+      // As an ARGUMENT only a value can be built: a host extern, or one in `any`.
+      if (r !== null && typeof r === 'object' && 'extern' in r) {
         return { type: 'ref', kind: 'extern', host: r.extern };
+      }
+      if (r !== null && typeof r === 'object' && 'hostany' in r) {
+        return { type: 'ref', kind: 'hostany', host: r.hostany };
       }
       return null;
     }
   }
 }
 
-/** The reference types whose values E3c runs; the GC ones (`anyref`, `i31ref`, …) are E3d's. */
+/** The bottom reference types: only null is in them. */
 const NULL_TYPES = new Set(['nullref', 'nullfuncref', 'nullexternref', 'nullexnref', 'refnull']);
 
 /**
- * What a manifest reference value asks for: `null`; `func` (no value on a
- * `funcref`: any non-null function reference); an extern host value, by its
- * string; or `null` (the JS value) for one this harness cannot judge yet.
+ * With no value, a manifest reference type asks for ANY non-null value of a
+ * kind (wast's `(ref.func)`, `(ref.struct)`, …): which interpreter reference
+ * kinds that admits.
  */
-function refExpectation(a: Arg): 'null' | 'func' | { extern: string } | null {
-  if (
-    a.value === 'null' && (a.type === 'funcref' || a.type === 'externref' || NULL_TYPES.has(a.type))
-  ) {
-    return 'null';
-  }
-  if (a.value === undefined && NULL_TYPES.has(a.type)) return 'null';
-  if (a.value === undefined && a.type === 'funcref') return 'func';
-  if (a.type === 'externref' && typeof a.value === 'string' && /^\d+$/.test(a.value)) {
-    return { extern: a.value };
+const NON_NULL_OF: Record<string, readonly string[]> = {
+  funcref: ['func'],
+  externref: ['extern'],
+  exnref: ['exn'],
+  anyref: ['i31', 'struct', 'array', 'hostany'],
+  eqref: ['i31', 'struct', 'array'],
+  i31ref: ['i31'],
+  structref: ['struct'],
+  arrayref: ['array'],
+};
+
+/**
+ * What a manifest reference value asks for: `null`; a non-null value of some
+ * kinds; an extern host value by its string; a host value brought into `any`
+ * (`anyref` with a number); or `null` (the JS value) for one this harness
+ * cannot judge.
+ */
+function refExpectation(
+  a: Arg,
+): 'null' | { kinds: readonly string[] } | { extern: string } | { hostany: string } | null {
+  const isRefType = NULL_TYPES.has(a.type) || a.type in NON_NULL_OF;
+  if (!isRefType) return null;
+  if (a.value === 'null' || (a.value === undefined && NULL_TYPES.has(a.type))) return 'null';
+  if (a.value === undefined) return { kinds: NON_NULL_OF[a.type]! };
+  if (typeof a.value === 'string' && /^\d+$/.test(a.value)) {
+    if (a.type === 'externref') return { extern: a.value };
+    if (a.type === 'anyref') return { hostany: a.value };
   }
   return null;
 }
@@ -133,8 +154,9 @@ function matches(want: Arg, got: Value): boolean {
   if (ref !== null) {
     if (got.type !== 'ref') return false;
     if (ref === 'null') return got.kind === 'null';
-    if (ref === 'func') return got.kind === 'func';
-    return got.kind === 'extern' && got.host === ref.extern;
+    if ('kinds' in ref) return ref.kinds.includes(got.kind);
+    if ('extern' in ref) return got.kind === 'extern' && got.host === ref.extern;
+    return got.kind === 'hostany' && got.host === ref.hostany;
   }
   if (typeof want.value !== 'string') return false;
   const nan = want.value.startsWith('nan:') ? want.value.slice(4) : null;
@@ -243,7 +265,11 @@ for (const dir of dirs) {
     if (inst === undefined) return undefined;
     switch (inst.exportKind(field)) {
       case ExternalKind.Func:
-        return { kind: 'func', call: (args) => inst.invoke(field, args) };
+        return {
+          kind: 'func',
+          call: (args) => inst.invoke(field, args),
+          func: inst.funcRefOf(field),
+        };
       case ExternalKind.Global:
         return { kind: 'global', cell: inst.globalCell(field) };
       case ExternalKind.Tag:

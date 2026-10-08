@@ -35,6 +35,7 @@
 
 import {
   blockParamsOf,
+  BrOnOp,
   type Expression,
   ExpressionKind,
   labelName,
@@ -43,18 +44,22 @@ import {
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { ExternalKind } from '../../wabt-ts/core/binary.ts';
-import {
-  type BlockResult,
-  type FuncSignature,
-  sigEquals,
-  type ValueType,
-  type Var,
+import type {
+  BlockResult,
+  FuncSignature,
+  HeapTypeRef,
+  StorageType,
+  TypeEntry,
+  ValueType,
+  Var,
 } from '../../wabt-ts/ir/ir.ts';
+import { Type } from '../../wabt-ts/core/types.ts';
 import { isRef } from '../ir/types.ts';
 import { loadShape, storeShape } from '../ir/memory-access.ts';
 import { evalBinary, evalUnary } from './numeric.ts';
 import { MemoryCell, OutOfBounds, TooLarge } from './memory.ts';
 import { TableCell, TableOutOfBounds, TableTooLarge } from './table.ts';
+import { inHeap, ModuleTypes, type RefShape, type ResolvedHeap, type RttType } from './types.ts';
 
 export { MemoryCell } from './memory.ts';
 export { TableCell } from './table.ts';
@@ -72,6 +77,24 @@ export interface FuncRef {
   readonly owner: Interpreter;
   readonly index: number;
   readonly sig: FuncSignature;
+  /** The function's canonical type — what `call_indirect` and a cast compare (E3d-2). */
+  readonly rtt: RttType;
+}
+
+/** A GC struct: its canonical type and its fields, in order (packed fields as `i32`). */
+export interface StructObj {
+  readonly type: 'ref';
+  readonly kind: 'struct';
+  readonly rtt: RttType;
+  readonly fields: Value[];
+}
+
+/** A GC array: its canonical type and its elements (packed elements as `i32`). */
+export interface ArrayObj {
+  readonly type: 'ref';
+  readonly kind: 'array';
+  readonly rtt: RttType;
+  readonly elems: Value[];
 }
 
 /**
@@ -82,8 +105,19 @@ export interface FuncRef {
 export type Ref =
   | { readonly type: 'ref'; readonly kind: 'null' }
   | { readonly type: 'ref'; readonly kind: 'func'; readonly func: FuncRef }
-  | { readonly type: 'ref'; readonly kind: 'extern'; readonly host: unknown }
-  | { readonly type: 'ref'; readonly kind: 'exn'; readonly exn: WasmException };
+  // An extern value: the host's, or an internal one `extern.convert_any` wrapped.
+  | {
+    readonly type: 'ref';
+    readonly kind: 'extern';
+    readonly host: unknown;
+    readonly internal?: Ref;
+  }
+  | { readonly type: 'ref'; readonly kind: 'exn'; readonly exn: WasmException }
+  | StructObj
+  | ArrayObj
+  | { readonly type: 'ref'; readonly kind: 'i31'; readonly value: number }
+  // A host extern value brought into `any` by `any.convert_extern`: in `any`, not in `eq`.
+  | { readonly type: 'ref'; readonly kind: 'hostany'; readonly host: unknown };
 
 /**
  * A tag's identity (E3d). A `catch` matches by IDENTITY, not by signature: an
@@ -151,7 +185,10 @@ export interface GlobalCell {
 
 /** What the host supplies for one import, by its kind. */
 export type HostImport =
-  | { kind: 'func'; call: HostFunction }
+  // `func`, when the import is another instance's function: a reference to the
+  // import is then THAT function, with its own type — which may be a subtype of
+  // the type the importer declared (custom descriptors' `exact-func-import.wast`).
+  | { kind: 'func'; call: HostFunction; func?: FuncRef }
   | { kind: 'global'; cell: GlobalCell }
   | { kind: 'memory'; cell: MemoryCell }
   | { kind: 'table'; cell: TableCell<Value> }
@@ -186,8 +223,16 @@ class TailCall {
 // ---------------------------------------------------------------------------
 
 type FuncSlot =
-  | { kind: 'defined'; fn: WasmFunction; sig: FuncSignature }
-  | { kind: 'host'; name: string; call: HostFunction | undefined; sig: FuncSignature };
+  | { kind: 'defined'; fn: WasmFunction; sig: FuncSignature; rtt: RttType }
+  | {
+    kind: 'host';
+    name: string;
+    call: HostFunction | undefined;
+    sig: FuncSignature;
+    rtt: RttType;
+    /** The imported function itself, when it is another instance's: what its references ARE. */
+    func?: FuncRef;
+  };
 
 const EMPTY = new Uint8Array(0);
 
@@ -226,16 +271,121 @@ function tableOp<T>(run: () => T): T {
   }
 }
 
-/** Whether a signature mentions a typed (concrete) reference — compared by identity in E3d. */
-const hasTypedRefs = (sig: FuncSignature): boolean =>
-  [...sig.params, ...sig.results].some((t) => typeof t === 'object');
-
-/** `ref.eq`: both null, or the same object. */
+/** `ref.eq`: both null, two i31s of one value, or the same struct / array. */
 function sameRef(a: Value, b: Value): boolean {
   if (a.type !== 'ref' || b.type !== 'ref') throw new Error('interp: ref.eq of a non-reference');
   if (a.kind === 'null' || b.kind === 'null') return a.kind === b.kind;
+  if (a.kind === 'i31' && b.kind === 'i31') return a.value === b.value;
   if (a.kind === 'extern' && b.kind === 'extern') return a.host === b.host;
   return a === b;
+}
+
+/** A module's canonical types; one this cannot canonicalise is a Stop, never a guess. */
+function typesOf(entries: readonly TypeEntry[]): ModuleTypes {
+  try {
+    return new ModuleTypes(entries);
+  } catch (e) {
+    throw new Stop('unsupported', `type section: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
+/** What a non-null reference IS, for a cast. */
+function shapeOf(r: Ref): RefShape {
+  switch (r.kind) {
+    case 'null':
+      return { kind: 'null' };
+    case 'func':
+      return { kind: 'func', rtt: r.func.rtt };
+    case 'struct':
+    case 'array':
+      return { kind: r.kind, rtt: r.rtt };
+    default:
+      return { kind: r.kind };
+  }
+}
+
+/** The zero a GC field of `type` holds by default (`struct.new_default`, `array.new_default`). */
+function fieldDefault(type: StorageType): Value {
+  if (type === Type.I8 || type === Type.I16) return { type: ValType.I32, value: 0 };
+  if (type === ValType.V128) return { type: ValType.V128, bytes: new Uint8Array(16) };
+  const z = zeroOf(type as ValueType);
+  if (z === undefined) throw new Stop('unsupported', `a field of type ${String(type)}`);
+  return z;
+}
+
+/** A value as a field of `type` stores it: a packed field keeps its low 8 / 16 bits. */
+function packField(type: StorageType, v: Value): Value {
+  if (type === Type.I8) return { type: ValType.I32, value: (v as { value: number }).value & 0xff };
+  if (type === Type.I16) {
+    return { type: ValType.I32, value: (v as { value: number }).value & 0xffff };
+  }
+  return v;
+}
+
+/** A stored field as `get` / `get_s` / `get_u` reads it. */
+function unpackField(type: StorageType, v: Value, signed: boolean | undefined): Value {
+  if (type !== Type.I8 && type !== Type.I16) return v;
+  const bits = type === Type.I8 ? 24 : 16;
+  const raw = (v as { value: number }).value;
+  return { type: ValType.I32, value: signed ? (raw << bits) >> bits : raw };
+}
+
+/** Elements beyond which an array allocation is refused here (a Stop, not a trap). */
+const ARRAY_LIMIT = 10_000_000;
+
+/** An `array.new*` length: unsigned, and a Stop past what this process allocates. */
+function arrayLength(n: number): number {
+  const len = n >>> 0;
+  if (len > ARRAY_LIMIT) throw new Stop('unsupported', `an array of ${len} elements`);
+  return len;
+}
+
+/** The index a struct field `Var` names. */
+function fieldIndex(entry: Extract<TypeEntry, { kind: 'struct' }>, v: Var): number {
+  const i = v.kind === 'index' ? v.value : entry.fields.findIndex((f) => f.name === v.name);
+  if (i < 0 || i >= entry.fields.length) throw new Error('interp: unknown field');
+  return i;
+}
+
+/** Bytes an element of `type` takes in a data segment (`array.new_data`, `array.init_data`). */
+function storageBytes(type: StorageType): number {
+  switch (type) {
+    case Type.I8:
+      return 1;
+    case Type.I16:
+      return 2;
+    case ValType.I32:
+    case ValType.F32:
+      return 4;
+    case ValType.I64:
+    case ValType.F64:
+      return 8;
+    case ValType.V128:
+      return 16;
+    default:
+      throw new Error('interp: a reference element cannot come from a data segment');
+  }
+}
+
+/** One element of `type` read little-endian from `data` at `at`. */
+function readElement(data: Uint8Array, at: number, type: StorageType): Value {
+  const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  switch (type) {
+    case Type.I8:
+      return { type: ValType.I32, value: v.getUint8(at) };
+    case Type.I16:
+      return { type: ValType.I32, value: v.getUint16(at, true) };
+    case ValType.I32:
+      return { type: ValType.I32, value: v.getInt32(at, true) };
+    case ValType.I64:
+      return { type: ValType.I64, value: v.getBigInt64(at, true) };
+    case ValType.F32:
+      return { type: ValType.F32, bits: v.getUint32(at, true) };
+    case ValType.F64:
+      return { type: ValType.F64, bits: v.getBigUint64(at, true) };
+    default:
+      return { type: ValType.V128, bytes: data.slice(at, at + 16) };
+  }
 }
 
 /** A load's bytes as its value. */
@@ -313,6 +463,10 @@ function zeroOf(type: ValueType): Value | undefined {
       return { type: ValType.F32, bits: 0 };
     case ValType.F64:
       return { type: ValType.F64, bits: 0n };
+    case ValType.V128:
+      // A v128 VALUE can be held and moved (const, local, select, a field);
+      // its operators are not evaluated yet (E1's limit) and stop.
+      return { type: ValType.V128, bytes: new Uint8Array(16) };
     default:
       // A reference local starts null. (A non-nullable one is set before any
       // read — validation's guarantee — so its start value is never seen.)
@@ -356,18 +510,21 @@ export class Interpreter {
   private readonly handling: { label: string; exn: WasmException }[] = [];
   private readonly stack: Value[] = [];
   private readonly maxDepth: number;
-  /** Whether this module declares a rec group or explicit subtyping — types then match by identity. */
-  readonly nominal: boolean;
+  /** This module's types, canonical across every module (E3d-2). */
+  readonly types: ModuleTypes;
   private depth = 0;
   private fuel: number;
 
   constructor(readonly module: WasmModule, options: InterpreterOptions = {}) {
     this.maxDepth = options.maxDepth ?? 1000;
-    this.nominal = module.types.some((t) => t.sub !== undefined || (t.recGroupSize ?? 0) > 0);
+    this.types = typesOf(module.types);
     this.fuel = options.fuel ?? Infinity;
     const host = options.imports ?? (() => undefined);
 
     for (const imp of module.imports) {
+      if (imp.kind === ExternalKind.Func && imp.exact) {
+        throw new Stop('unsupported', 'an exact function import (custom descriptors)');
+      }
       if (imp.kind === ExternalKind.Func) {
         const h = host(imp.module, imp.field);
         this.funcs.push({
@@ -375,6 +532,10 @@ export class Interpreter {
           name: `${imp.module}.${imp.field}`,
           call: h?.kind === 'func' ? h.call : undefined,
           sig: imp.func.sig,
+          rtt: imp.func.typeVar !== undefined
+            ? this.types.of(imp.func.typeVar)
+            : this.types.ofSig(imp.func.sig),
+          ...(h?.kind === 'func' && h.func !== undefined ? { func: h.func } : {}),
         });
         this.funcNames.push(imp.func.name);
       } else if (imp.kind === ExternalKind.Global) {
@@ -400,7 +561,12 @@ export class Interpreter {
       }
     }
     for (const fn of module.functions) {
-      this.funcs.push({ kind: 'defined', fn, sig: fn.sig });
+      this.funcs.push({
+        kind: 'defined',
+        fn,
+        sig: fn.sig,
+        rtt: fn.typeVar !== undefined ? this.types.of(fn.typeVar) : this.types.ofSig(fn.sig),
+      });
       this.funcNames.push(fn.name);
     }
     for (const m of module.memories) {
@@ -810,17 +976,14 @@ export class Interpreter {
         // the suite expects both that and the bare prefix.
         const func = this.funcOf(table.get(i), `uninitialized element ${i}`);
         // Since GC, function types match by IDENTITY — rec-group
-        // canonicalisation and declared subtyping — not by shape: two `(func)`
+        // canonicalisation — and declared subtyping, not by shape: two `(func)`
         // types in different rec groups differ, and a subtype matches its
-        // supertype (`type-rec.wast`, `type-subtyping.wast`). Without either in
-        // play the structural comparison IS the spec's; with them, E3d decides.
-        if (this.nominal || func.owner.nominal || hasTypedRefs(e.sig) || hasTypedRefs(func.sig)) {
-          throw new Stop(
-            'unsupported',
-            'call_indirect type identity (rec groups, subtypes, typed refs)',
-          );
-        }
-        if (!sigEquals(func.sig, e.sig)) throw new Trap('indirect call type mismatch');
+        // supertype (`type-rec.wast`, `type-subtyping.wast`). Canonical types
+        // are shared across modules, so this compares a callee from any table.
+        const expected = e.typeVar !== undefined
+          ? this.types.of(e.typeVar)
+          : this.types.ofSig(e.sig);
+        if (!func.rtt.isSubtypeOf(expected)) throw new Trap('indirect call type mismatch');
         this.invokeRef(func, e.isReturn);
         return;
       }
@@ -922,6 +1085,247 @@ export class Interpreter {
         const i = e.segment.kind === 'index' ? e.segment.value : names.indexOf(e.segment.name);
         if (this.elems[i] === undefined) throw new Error('interp: unknown element segment');
         this.elems[i] = [];
+        return;
+      }
+
+      // -------------------------------------------------------------------
+      // GC (E3d-2): i31, structs, arrays, casts, conversions
+      // -------------------------------------------------------------------
+      case ExpressionKind.RefI31: {
+        this.exec(e.value, locals);
+        s.push({ type: 'ref', kind: 'i31', value: this.i32() & 0x7fffffff });
+        return;
+      }
+      case ExpressionKind.I31Get: {
+        this.exec(e.i31, locals);
+        const r = this.nonNull('null i31 reference');
+        if (r.kind !== 'i31') throw new Error('interp: i31.get of a non-i31');
+        s.push({ type: ValType.I32, value: e.signed ? (r.value << 1) >> 1 : r.value });
+        return;
+      }
+      case ExpressionKind.StructNew: {
+        // Descriptors (custom descriptors proposal) are not run: a struct made
+        // with one, and every cast by one, STOPS rather than run as plain.
+        if (e.desc !== undefined) {
+          throw new Stop('unsupported', 'struct.new_desc (custom descriptors)');
+        }
+        const { entry, rtt } = this.structType(e.typeVar);
+        let fields: Value[];
+        if (e.defaultInit) fields = entry.fields.map((f) => fieldDefault(f.type));
+        else {
+          for (const o of e.operands) this.exec(o, locals);
+          fields = s.splice(s.length - entry.fields.length).map((v, i) =>
+            packField(entry.fields[i]!.type, v)
+          );
+        }
+        s.push({ type: 'ref', kind: 'struct', rtt, fields });
+        return;
+      }
+      case ExpressionKind.StructGet: {
+        this.exec(e.ref, locals);
+        const { entry } = this.structType(e.typeVar);
+        const r = this.nonNull('null structure reference');
+        if (r.kind !== 'struct') throw new Error('interp: struct.get of a non-struct');
+        const i = fieldIndex(entry, e.fieldVar);
+        s.push(unpackField(entry.fields[i]!.type, r.fields[i]!, e.signed));
+        return;
+      }
+      case ExpressionKind.StructSet: {
+        this.exec(e.ref, locals);
+        this.exec(e.value, locals);
+        const { entry } = this.structType(e.typeVar);
+        const v = this.pop();
+        const r = this.nonNull('null structure reference');
+        if (r.kind !== 'struct') throw new Error('interp: struct.set of a non-struct');
+        const i = fieldIndex(entry, e.fieldVar);
+        r.fields[i] = packField(entry.fields[i]!.type, v);
+        return;
+      }
+      case ExpressionKind.ArrayNew: {
+        const { field, rtt } = this.arrayType(e.typeVar);
+        if (e.init !== undefined) this.exec(e.init, locals);
+        this.exec(e.length, locals);
+        const n = arrayLength(this.i32());
+        const v = e.init !== undefined ? this.pop() : fieldDefault(field.type);
+        s.push({
+          type: 'ref',
+          kind: 'array',
+          rtt,
+          elems: new Array<Value>(n).fill(packField(field.type, v)),
+        });
+        return;
+      }
+      case ExpressionKind.ArrayNewFixed: {
+        const { field, rtt } = this.arrayType(e.typeVar);
+        for (const o of e.operands) this.exec(o, locals);
+        const elems = s.splice(s.length - e.operands.length).map((v) => packField(field.type, v));
+        s.push({ type: 'ref', kind: 'array', rtt, elems });
+        return;
+      }
+      case ExpressionKind.ArrayNewData: {
+        const { field, rtt } = this.arrayType(e.typeVar);
+        this.exec(e.offset, locals);
+        this.exec(e.length, locals);
+        const n = arrayLength(this.i32()), off = this.i32() >>> 0;
+        const data = this.dataSegment(e.dataVar);
+        const z = storageBytes(field.type);
+        if (off + n * z > data.length) throw new Trap('out of bounds memory access');
+        const elems = Array.from(
+          { length: n },
+          (_, k) => readElement(data, off + k * z, field.type),
+        );
+        s.push({ type: 'ref', kind: 'array', rtt, elems });
+        return;
+      }
+      case ExpressionKind.ArrayNewElem: {
+        const { rtt } = this.arrayType(e.typeVar);
+        this.exec(e.offset, locals);
+        this.exec(e.length, locals);
+        const n = arrayLength(this.i32()), off = this.i32() >>> 0;
+        const seg = this.elemSegment(e.elemVar);
+        if (off + n > seg.length) throw new Trap('out of bounds table access');
+        s.push({ type: 'ref', kind: 'array', rtt, elems: seg.slice(off, off + n) });
+        return;
+      }
+      case ExpressionKind.ArrayGet: {
+        this.exec(e.ref, locals);
+        this.exec(e.index, locals);
+        const { field } = this.arrayType(e.typeVar);
+        const i = this.i32() >>> 0;
+        const a = this.array();
+        if (i >= a.elems.length) throw new Trap('out of bounds array access');
+        s.push(unpackField(field.type, a.elems[i]!, e.signed));
+        return;
+      }
+      case ExpressionKind.ArraySet: {
+        this.exec(e.ref, locals);
+        this.exec(e.index, locals);
+        this.exec(e.value, locals);
+        const { field } = this.arrayType(e.typeVar);
+        const v = this.pop(), i = this.i32() >>> 0;
+        const a = this.array();
+        if (i >= a.elems.length) throw new Trap('out of bounds array access');
+        a.elems[i] = packField(field.type, v);
+        return;
+      }
+      case ExpressionKind.ArrayLen: {
+        this.exec(e.ref, locals);
+        s.push({ type: ValType.I32, value: this.array().elems.length | 0 });
+        return;
+      }
+      case ExpressionKind.ArrayFill: {
+        this.exec(e.ref, locals);
+        this.exec(e.offset, locals);
+        this.exec(e.value, locals);
+        this.exec(e.size, locals);
+        const { field } = this.arrayType(e.typeVar);
+        const n = this.i32() >>> 0, v = this.pop(), off = this.i32() >>> 0;
+        const a = this.array();
+        if (off + n > a.elems.length) throw new Trap('out of bounds array access');
+        a.elems.fill(packField(field.type, v), off, off + n);
+        return;
+      }
+      case ExpressionKind.ArrayCopy: {
+        this.exec(e.destRef, locals);
+        this.exec(e.destOffset, locals);
+        this.exec(e.srcRef, locals);
+        this.exec(e.srcOffset, locals);
+        this.exec(e.size, locals);
+        const n = this.i32() >>> 0, so = this.i32() >>> 0;
+        const src = this.array();
+        const d = this.i32() >>> 0;
+        const dest = this.array();
+        if (so + n > src.elems.length || d + n > dest.elems.length) {
+          throw new Trap('out of bounds array access');
+        }
+        // Overlapping ranges copy as if through a buffer.
+        const moved = src.elems.slice(so, so + n);
+        for (let k = 0; k < n; k++) dest.elems[d + k] = moved[k]!;
+        return;
+      }
+      case ExpressionKind.ArrayInitData: {
+        this.exec(e.ref, locals);
+        this.exec(e.destOffset, locals);
+        this.exec(e.srcOffset, locals);
+        this.exec(e.size, locals);
+        const { field } = this.arrayType(e.typeVar);
+        const n = this.i32() >>> 0, so = this.i32() >>> 0, d = this.i32() >>> 0;
+        const a = this.array();
+        const data = this.dataSegment(e.segment);
+        const z = storageBytes(field.type);
+        if (d + n > a.elems.length) throw new Trap('out of bounds array access');
+        if (so + n * z > data.length) throw new Trap('out of bounds memory access');
+        for (let k = 0; k < n; k++) a.elems[d + k] = readElement(data, so + k * z, field.type);
+        return;
+      }
+      case ExpressionKind.ArrayInitElem: {
+        this.exec(e.ref, locals);
+        this.exec(e.destOffset, locals);
+        this.exec(e.srcOffset, locals);
+        this.exec(e.size, locals);
+        const n = this.i32() >>> 0, so = this.i32() >>> 0, d = this.i32() >>> 0;
+        const a = this.array();
+        const seg = this.elemSegment(e.segment);
+        if (d + n > a.elems.length) throw new Trap('out of bounds array access');
+        if (so + n > seg.length) throw new Trap('out of bounds table access');
+        for (let k = 0; k < n; k++) a.elems[d + k] = seg[so + k]!;
+        return;
+      }
+      case ExpressionKind.RefTest: {
+        this.exec(e.ref, locals);
+        const r = this.pop();
+        s.push({ type: ValType.I32, value: this.inType(r, e.heapType, e.nullable) ? 1 : 0 });
+        return;
+      }
+      case ExpressionKind.RefCast: {
+        if (e.desc !== undefined) {
+          throw new Stop('unsupported', 'ref.cast_desc_eq (custom descriptors)');
+        }
+        this.exec(e.ref, locals);
+        const r = this.pop();
+        if (!this.inType(r, e.heapType, e.nullable)) throw new Trap('cast failure');
+        s.push(r);
+        return;
+      }
+      case ExpressionKind.BrOn: {
+        for (const v of e.values) this.exec(v, locals);
+        this.exec(e.ref, locals);
+        const r = this.pop();
+        const isNull = r.type === 'ref' && r.kind === 'null';
+        if (e.opcode === BrOnOp.Null) {
+          // Taken: the carried values go, the null does not. Not taken: the
+          // ref stays, now known non-null.
+          if (isNull) throw new Branch(labelName(e.target));
+          s.push(r);
+        } else if (e.opcode === BrOnOp.NonNull) {
+          if (isNull) return;
+          s.push(r);
+          throw new Branch(labelName(e.target));
+        } else if (e.opcode === BrOnOp.Cast || e.opcode === BrOnOp.CastFail) {
+          const to = e.to!;
+          s.push(r);
+          if (this.inType(r, to.heapType, to.nullable) === (e.opcode === BrOnOp.Cast)) {
+            throw new Branch(labelName(e.target));
+          }
+        } else throw new Stop('unsupported', 'br_on_cast_desc_eq (custom descriptors)');
+        return;
+      }
+      case ExpressionKind.AnyConvertExtern: {
+        this.exec(e.value, locals);
+        const r = this.pop();
+        if (r.type !== 'ref' || r.kind === 'null') s.push(NULL);
+        else if (r.kind === 'extern') {
+          // An extern that `extern.convert_any` made gives back the very value.
+          s.push(r.internal ?? { type: 'ref', kind: 'hostany', host: r.host });
+        } else throw new Error('interp: any.convert_extern of a non-extern');
+        return;
+      }
+      case ExpressionKind.ExternConvertAny: {
+        this.exec(e.value, locals);
+        const r = this.pop();
+        if (r.type !== 'ref' || r.kind === 'null') s.push(NULL);
+        else if (r.kind === 'hostany') s.push({ type: 'ref', kind: 'extern', host: r.host });
+        else s.push({ type: 'ref', kind: 'extern', host: r, internal: r });
         return;
       }
 
@@ -1087,6 +1491,58 @@ export class Interpreter {
     }
   }
 
+  /** Pops a reference, trapping with `message` on null. */
+  private nonNull(message: string): Ref {
+    const r = this.pop();
+    if (r.type !== 'ref') throw new Error('interp: expected a reference');
+    if (r.kind === 'null') throw new Trap(message);
+    return r;
+  }
+
+  /** Pops an array reference, trapping on null. */
+  private array(): ArrayObj {
+    const r = this.nonNull('null array reference');
+    if (r.kind !== 'array') throw new Error('interp: expected an array');
+    return r;
+  }
+
+  private structType(v: Var): { entry: Extract<TypeEntry, { kind: 'struct' }>; rtt: RttType } {
+    const i = this.types.index(v);
+    const entry = this.module.types[i]!;
+    if (entry.kind !== 'struct') throw new Error('interp: not a struct type');
+    return { entry, rtt: this.types.types[i]! };
+  }
+
+  private arrayType(
+    v: Var,
+  ): { field: Extract<TypeEntry, { kind: 'array' }>['field']; rtt: RttType } {
+    const i = this.types.index(v);
+    const entry = this.module.types[i]!;
+    if (entry.kind !== 'array') throw new Error('interp: not an array type');
+    return { field: entry.field, rtt: this.types.types[i]! };
+  }
+
+  private dataSegment(v: Var): Uint8Array {
+    return resolve(v, this.data, this.dataNames(), 'data segment');
+  }
+
+  private elemSegment(v: Var): Value[] {
+    return resolve(v, this.elems, this.module.elements.map((s) => s.name), 'element segment');
+  }
+
+  /** Whether `r` is in the reference type `(ref null? h)`. */
+  private inType(r: Value, h: HeapTypeRef, nullable: boolean): boolean {
+    if (r.type !== 'ref') throw new Error('interp: a cast of a number');
+    if (r.kind === 'null') return nullable;
+    return inHeap(shapeOf(r), this.heap(h));
+  }
+
+  private heap(h: HeapTypeRef): ResolvedHeap {
+    if (h.kind === 'abstract') return { kind: 'abstract', name: h.name };
+    if (h.kind === 'exact') return { kind: 'defined', rtt: this.types.of(h.type), exact: true };
+    return { kind: 'defined', rtt: this.types.of(h), exact: false };
+  }
+
   private tag(v: Var): TagCell {
     return resolve(v, this.tags, this.tagNames, 'tag');
   }
@@ -1103,7 +1559,15 @@ export class Interpreter {
     if (slot === undefined) {
       throw new Error(`interp: unknown function ${v.kind === 'index' ? v.value : v.name}`);
     }
-    return { owner: this, index, sig: slot.sig };
+    if (slot.kind === 'host' && slot.func !== undefined) return slot.func;
+    return { owner: this, index, sig: slot.sig, rtt: slot.rtt };
+  }
+
+  /** A reference to the exported function `name` — the function itself, for another instance to import. */
+  funcRefOf(name: string): FuncRef {
+    const ex = this.module.exports.find((e) => e.name === name && e.kind === ExternalKind.Func);
+    if (ex === undefined) throw new Error(`interp: no exported function "${name}"`);
+    return this.funcRef(ex.var);
   }
 
   private memory(v: Var): MemoryCell {

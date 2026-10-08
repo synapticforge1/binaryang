@@ -65,7 +65,8 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   **0 FAIL**; the `stopped` count (what the interpreter cannot run yet, by reason) should only FALL
   as E3's increments land — a rise is a coverage loss to read. At E3a: 15,432 pass, 42,144 stopped;
   at E3b: 25,811 pass, 31,819 stopped; at E3c: 32,618 pass, 25,012 stopped (15 s in the gate
-  run, from 3 s at E3b — not yet attributed); at E3d-1: **32,687 pass, 24,961 stopped**.
+  run, from 3 s at E3b — not yet attributed); at E3d-1: 32,687 pass, 24,961 stopped; at E3d-2:
+  **33,268 pass, 24,380 stopped**.
 
 - ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
   (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes all

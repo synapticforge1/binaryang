@@ -1633,6 +1633,18 @@ refuses in one module. The test helper does not validate (`wat2wasm`'s library d
 first sign was V8's `CompileError`. **How to apply:** a mutant is killed only if the test PASSES
 on the real code and fails on the mutant; read the failure message, not only the exit code.
 
+### An operand a node CARRIES but the code ignores is a guess — make it stop
+
+`struct.new` / `ref.cast` / `br_on` carry an optional descriptor operand (custom descriptors).
+The interpreter, written for the core spec, ignored the field and ran `ref.cast_desc_eq` as a
+plain cast: 85 FAILs on the custom-descriptors corpus, none on the core suite, which never
+exercises the field. The same corpus showed a reference to an imported function typed by the
+IMPORTER's declaration instead of being the exporter's function. **How to apply:** for each
+node kind a component handles, list every optional field and either implement it or make its
+presence a Stop; and run the corpora BEYOND the core suite — here the proposal one found both
+defects while the core suite was green (the earlier lesson, "an optional field is invisible to
+the compiler", from the runtime side).
+
 ### An evaluated NaN is the engine's to choose — fold it only where the spec fixes the bits
 
 The spec lets an arithmetic operator return ANY arithmetic NaN; engines propagate payloads; a
