@@ -63,7 +63,8 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   interpreter (open-work 23, E3) against the testsuite's `assert_return` / `assert_trap` /
   `assert_exhaustion`, the MANIFEST as the oracle. Same prepared corpus as `spec`. The verdict is
   **0 FAIL**; the `stopped` count (what the interpreter cannot run yet, by reason) should only FALL
-  as E3's increments land — a rise is a coverage loss to read. At E3a: 15,432 pass, 42,144 stopped.
+  as E3's increments land — a rise is a coverage loss to read. At E3a: 15,432 pass, 42,144 stopped;
+  at E3b: **25,811 pass, 31,819 stopped**.
 
 - ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
   (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes all

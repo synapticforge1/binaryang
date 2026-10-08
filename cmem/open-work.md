@@ -11,10 +11,10 @@ release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finis
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
 design decided and waits to be built. Item 2 is PARKED (owner, 2026-10-07: the delta to upstream is
 judged after item 23; 3.8% after E2). **Next: item 23** — E1 (the numeric evaluator) and E2
-(Precompute) done; E3, the interpreter, under way — E3a done, E3b (memory) next (see its "Plan"
-line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once 23 is done. **8 open
-items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free. Re-derive any number
-before quoting it.
+(Precompute) done; E3, the interpreter, under way — E3a and E3b (memory) done, E3c (tables, calls)
+next (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once
+23 is done. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free.
+Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -406,8 +406,18 @@ mismatches and the reader prints that function as predicted — plainly, never w
           step; the rule is a FAIL count of 0, and the stopped count should only fall. ✅ **Owner,
           2026-10-07: "yes on deno task interp"** — in the gate
           ([working-rules.md](working-rules.md) § "The gate").
-        - 📏 **Resume here: E3b (memory).** `load` / `store` / `memory.*` and data segments — the
-          10,618 + 765 + 113 + 96 stops above.
+        - ✅ **E3b done 2026-10-07** (`interp/memory.ts`: a shared `MemoryCell`, bounds-checked,
+          floats as bits; `memory.grow` −1 where the spec allows, a STOP past 1 GiB). Loads /
+          stores, `memory.*`, data segments (in order, an OOB one trapping after the ones before it,
+          active ones dropped), imported / exported memories. `deno task interp`: **25,811 pass, 0
+          FAIL, 31,819 stopped** (23,508 v128 arguments, 5,592 active element segment — a module
+          with one now STOPS at instantiation until E3c, it was set up as if its tables were empty —
+          932 `call_indirect`, …). The harness checks `assert_uninstantiable`, fails a plain module
+          whose instantiation traps, and marks instances a STOPPED importer may have left short of
+          the spec's state as stopped (`linking.wast`). 13 / 13 non-equivalent mutants (one after a
+          test was added); `copyWithin` vs `set` was equivalent — `set` alone now.
+        - 📏 **Resume here: E3c (tables, calls).** Tables, element segments, `call_indirect`,
+          `ref.func` / `ref.null` and funcref / externref values — the 5,592 + 932 + table stops.
       - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
         combination — MEASURED.
 
