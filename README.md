@@ -105,6 +105,8 @@ deno run -A jsr:@jrmarcum/binaryang <command> [options]
 | `wasm-objdump <in.wasm>`  | dump sections                                                                                                        |
 | `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                                                                 |
 | `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`                                                                           |
+| `wasm-ctor-eval <in>`     | run constructors at build time and write their memory and globals into the module · `--ctors=a,b`, `--kept-exports=a,b`, `--ignore-external-input`, `-o <file>`, `-S` |
+| `wasm-interp <in>`        | run exported functions on the interpreter and print each result · `--run-all-exports`, `--run-export=NAME`, `--argument=V`, `--dummy-import-func` |
 | `wasm2ts <in.wasm>`       | emit TypeScript — **not yet implemented**                                                                            |
 
 ¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records how each instruction was written
@@ -140,6 +142,8 @@ bun node_modules/@jrmarcum/binaryang/main.ts wat2wasm add.wat
 | `@jrmarcum/binaryang/passes`                 | optimisation pass registry and runner                                   |
 | `@jrmarcum/binaryang/wasm` · `/wasm-runtime` | WASM helpers and a small runtime                                        |
 | `@jrmarcum/binaryang/tools/wasm-opt`         | `wasm-opt` as a library                                                 |
+| `@jrmarcum/binaryang/tools/wasm-ctor-eval`   | `wasm-ctor-eval` as a library (`ctorEval(module, options)`)             |
+| `@jrmarcum/binaryang/tools/wasm-interp`      | `wasm-interp` as a library (`interpModule(module, options)`)            |
 | `@jrmarcum/binaryang/compat/binaryen`        | the upstream `npm:binaryen` API shape                                   |
 | `@jrmarcum/binaryang/compat/wabt`            | the upstream `wabt.js` API shape                                        |
 

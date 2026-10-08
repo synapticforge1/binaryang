@@ -55,6 +55,22 @@ contains ([handoffs.md](handoffs.md)).
   zero counted; numeric and `v128` only; no evaluation — that is item 23). Scheduled at -O2 and up
   after OptimizeInstructions, with OptimizeInstructions again. Corpus −2.3 KB at -O2 / -Os / -Oz,
   −3.4 KB at -O3; -O1 unchanged; behaviour unchanged.
+- **NEW — `wasm-ctor-eval` and `wasm-interp`** (open-work 23, E4, 2026-10-08): two CLI commands
+  and two subpaths, `./tools/wasm-ctor-eval` (`ctorEval(module, options)`) and
+  `./tools/wasm-interp` (`interpModule(module, options)`), on the interpreter. `wasm-ctor-eval` runs
+  the start function and `--ctors` at build time and writes memory (packed data segments) and
+  globals back; a constructor cut at a host call keeps its remaining code; `--kept-exports`,
+  `--ignore-external-input`, `-S`, `-o`. Opt-in, never part of `-O`; run `-Oz` after it. Measured
+  on the corpus: −54 KB on top of `-Oz` (6.4%). `wasm-interp`: `--run-all-exports`,
+  `--run-export=NAME` with `--argument=V`, `--dummy-import-func`.
+- **Silent fix — the optimizer could make an INVALID module (or a wrong one) of a binaryen-written
+  body** (open-work 23, E4, 2026-10-08): where a value sat on the stack beneath a two-result call
+  whose first result a later instruction took (`i32.const; call $two; local.set; local.tee …`),
+  the spill before the passes replaced the deeper value's `pop` with a `local.get` while the
+  tuple's `pop` stayed, and the `local.get` pushed its value on top of what the `local.tee` was to
+  take: V8 refused the output (`local.tee[0] expected type f64, found local.get of type i32`), or,
+  where the types coincided, it computed with the wrong value. A pop that stays now keeps every
+  pop evaluated before it. Found on upstream `wasm-ctor-eval`'s output; corpus bytes unmoved.
 - **Behaviour — `OptimizeInstructions` and `Precompute` fold `v128` constant expressions**
   (open-work 23, E3e, 2026-10-08): every SIMD operator of constants becomes its value, through the
   one evaluator; never a relaxed-SIMD operator (the engine picks its result), never a vector with
