@@ -11,8 +11,8 @@ release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finis
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
 design decided and waits to be built. Item 2 is PARKED (owner, 2026-10-07: the delta to upstream is
 judged after item 23; 3.8% after E2). **Next: item 23** — E1 (the numeric evaluator) and E2
-(Precompute) done; E3, the interpreter, under way — E3a and E3b (memory) done, E3c (tables, calls)
-next (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once
+(Precompute) done; E3, the interpreter, under way — E3a, E3b (memory) and E3c (tables, calls)
+done, E3d (exceptions, GC) next (see its "Plan" line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once
 23 is done. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free.
 Re-derive any number before quoting it.
 
@@ -416,8 +416,24 @@ mismatches and the reader prints that function as predicted — plainly, never w
           whose instantiation traps, and marks instances a STOPPED importer may have left short of
           the spec's state as stopped (`linking.wast`). 13 / 13 non-equivalent mutants (one after a
           test was added); `copyWithin` vs `set` was equivalent — `set` alone now.
-        - 📏 **Resume here: E3c (tables, calls).** Tables, element segments, `call_indirect`,
-          `ref.func` / `ref.null` and funcref / externref values — the 5,592 + 932 + table stops.
+        - ✅ **E3c done 2026-10-07** (`interp/table.ts`: a shared `TableCell`, grow −1 where the
+          spec allows, a STOP past 10 M elements). References are values — one null, a function
+          reference that runs in its OWN instance, an extern host value. Runs `ref.*`, `table.*`,
+          `elem.drop`, element segments (same order rules as data), imported / exported tables,
+          `call_indirect` (undefined element → `uninitialized element N` → type mismatch),
+          `call_ref`, and TAIL calls (the frame is replaced: 10^6 deep under a depth limit of 100).
+          `deno task interp`: **32,618 pass, 0 FAIL, 25,012 stopped** (21,868 of them v128
+          arguments; 2,601 tainted — below). Harness rule made general: an invocation that STOPS
+          part way taints every instance sharing state with it (`ref_eq.wast`'s `init` action
+          stopped on `struct.new`, and the `eq` assertions after it compared nulls); a bare action
+          that traps is a FAIL. 15 / 15 mutants (one by the spec suite alone until the unit test
+          read the table slot where the two copies differ). Gate green.
+          ⚠️ **Deferred to E3d, as a STOP:** a `call_indirect` in a module with a rec group or
+          explicit subtyping, or with typed references — types then match by IDENTITY
+          (`type-rec.wast`, `type-subtyping.wast`), which structural `sigEquals` cannot decide.
+        - 📏 **Resume here: E3d (exceptions, GC).** `try_table` / `throw` / tags; structs, arrays,
+          `i31`, casts, `br_on_*`, type identity (rec groups, subtyping) — then `v128`, which is
+          most of the remaining stops (21,868 arguments alone).
       - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
         combination — MEASURED.
 

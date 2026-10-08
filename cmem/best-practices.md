@@ -1599,10 +1599,22 @@ file first and checks the restore byte for byte.
 
 The interpreter has two exits that must never be confused: a `Trap` is the program's behaviour; a
 `Stop` (a host call not given, an instruction not run yet, fuel) is a statement about the
-interpreter. A consumer that evaluates at compile time keeps the code as it was on a Stop. And a
-Stop in a module being set up can leave SHARED state short of the spec's (`linking.wast`): every
-instance it touched is unreliable thereafter. **How to apply:** count Stops by reason as coverage,
-never as passes; propagate them to everything that shares state with the stopped unit.
+interpreter. A consumer that evaluates at compile time keeps the code as it was on a Stop. And
+ANY Stop part way — a module being set up (`linking.wast`), a setup action (`ref_eq.wast`'s
+`init`, after which 40 assertions compared nulls) — can leave SHARED state short of the spec's:
+every instance sharing state with it is unreliable thereafter. The first version of the rule
+covered instantiation only; the second case found the gap at the next increment. **How to
+apply:** count Stops by reason as coverage, never as passes; propagate them to everything that
+shares state with the stopped unit; a "result ignored" step (a bare action) is still a step whose
+failure to finish matters.
+
+### A test must read where the two implementations DIFFER
+
+A non-overlap-safe `table.copy` passed a unit test of overlapping copies, because the test read
+the slot that a correct copy and a naive forward copy both leave the same; only the spec suite
+killed it. **How to apply:** for each behaviour, work out the input and the OBSERVATION point
+at which the wrong implementation and the right one part — then read there. A test that reads
+where they agree is green for both.
 
 ### An evaluated NaN is the engine's to choose — fold it only where the spec fixes the bits
 
