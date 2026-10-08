@@ -23,24 +23,31 @@
  *   result about the program — a caller that evaluates at compile time keeps
  *   the code as it was.
  *
- * Runs today: numeric code, locals, globals, control flow (`block`, `loop`,
- * `if`, `br`, `br_if`, `br_table`, `return`, `select`, `drop`), direct calls,
- * host functions (E3a); linear memory — loads, stores, `memory.*`, data
- * segments, imported and exported memories (E3b, `memory.ts`). Everything else
- * is a {@link Stop} — tables, references, exceptions, GC, atomics and `v128`
- * come in later increments.
+ * Runs: numeric code, locals, globals, control flow (`block`, `loop`, `if`,
+ * `br`, `br_if`, `br_table`, `return`, `select`, `drop`), direct calls, host
+ * functions (E3a); linear memory — loads, stores, `memory.*`, data segments,
+ * imported and exported memories (E3b, `memory.ts`); tables, references,
+ * indirect and tail calls (E3c, `table.ts`); exceptions (E3d-1); GC (E3d-2,
+ * `types.ts`); `v128` — every SIMD operator through `simd.ts`, the SIMD loads
+ * and stores, lane loads and stores (E3e); wide arithmetic. What is left is a
+ * {@link Stop}: atomics and shared memory, custom descriptors.
  *
  * @license MIT
  */
 
 import {
+  BinaryOp,
   blockParamsOf,
   BrOnOp,
   type Expression,
   ExpressionKind,
   labelName,
   type Literal,
+  QuaternaryOp,
+  SIMDLoadOp,
+  SIMDLoadStoreLaneOp,
 } from '../ir/expressions.ts';
+import { simdExtract, simdReplace, simdShuffle, simdTernary } from './simd.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { ExternalKind } from '../../wabt-ts/core/binary.ts';
@@ -418,7 +425,7 @@ function readValue(mem: MemoryCell, at: number, opcode: number): Value {
     case ValType.F64:
       return { type, bits: v.getBigUint64(at, true) };
     default:
-      throw new Stop('unsupported', 'a v128 load');
+      return { type: ValType.V128, bytes: mem.bytes.slice(at, at + 16) };
   }
 }
 
@@ -447,10 +454,116 @@ function writeValue(mem: MemoryCell, at: number, opcode: number, value: Value): 
     case ValType.F64:
       v.setBigUint64(at, BigInt.asUintN(64, value.bits), true);
       return;
+    case ValType.V128:
+      mem.bytes.set(value.bytes, at);
+      return;
     default:
-      throw new Stop('unsupported', 'a v128 store');
+      throw new Error('interp: a store of a reference');
   }
 }
+
+/** The bytes a `simd.load` reads: 8 for the extending loads, the lane's width for a splat or `_zero`. */
+function simdLoadBytes(opcode: number): number {
+  switch (opcode) {
+    case SIMDLoadOp.Load8SplatVec128:
+      return 1;
+    case SIMDLoadOp.Load16SplatVec128:
+      return 2;
+    case SIMDLoadOp.Load32SplatVec128:
+    case SIMDLoadOp.Load32ZeroVec128:
+      return 4;
+    default:
+      return 8;
+  }
+}
+
+/** The vector a `simd.load` makes of the `n` bytes at `at`. */
+function simdLoadValue(mem: MemoryCell, at: number, opcode: number): Value {
+  const v = mem.view;
+  const out = new Uint8Array(16);
+  const o = new DataView(out.buffer);
+  switch (opcode) {
+    case SIMDLoadOp.Load8SplatVec128:
+      out.fill(v.getUint8(at));
+      break;
+    case SIMDLoadOp.Load16SplatVec128:
+      for (let i = 0; i < 8; i++) o.setUint16(2 * i, v.getUint16(at, true), true);
+      break;
+    case SIMDLoadOp.Load32SplatVec128:
+      for (let i = 0; i < 4; i++) o.setUint32(4 * i, v.getUint32(at, true), true);
+      break;
+    case SIMDLoadOp.Load64SplatVec128:
+      for (let i = 0; i < 2; i++) o.setBigUint64(8 * i, v.getBigUint64(at, true), true);
+      break;
+    case SIMDLoadOp.Load8x8SVec128:
+      for (let i = 0; i < 8; i++) o.setInt16(2 * i, v.getInt8(at + i), true);
+      break;
+    case SIMDLoadOp.Load8x8UVec128:
+      for (let i = 0; i < 8; i++) o.setUint16(2 * i, v.getUint8(at + i), true);
+      break;
+    case SIMDLoadOp.Load16x4SVec128:
+      for (let i = 0; i < 4; i++) o.setInt32(4 * i, v.getInt16(at + 2 * i, true), true);
+      break;
+    case SIMDLoadOp.Load16x4UVec128:
+      for (let i = 0; i < 4; i++) o.setUint32(4 * i, v.getUint16(at + 2 * i, true), true);
+      break;
+    case SIMDLoadOp.Load32x2SVec128:
+      for (let i = 0; i < 2; i++) o.setBigInt64(8 * i, BigInt(v.getInt32(at + 4 * i, true)), true);
+      break;
+    case SIMDLoadOp.Load32x2UVec128:
+      for (let i = 0; i < 2; i++) {
+        o.setBigUint64(8 * i, BigInt(v.getUint32(at + 4 * i, true)), true);
+      }
+      break;
+    case SIMDLoadOp.Load32ZeroVec128:
+      o.setUint32(0, v.getUint32(at, true), true);
+      break;
+    case SIMDLoadOp.Load64ZeroVec128:
+      o.setBigUint64(0, v.getBigUint64(at, true), true);
+      break;
+    default:
+      throw new Error(`interp: not a simd.load opcode 0x${opcode.toString(16)}`);
+  }
+  return { type: ValType.V128, bytes: out };
+}
+
+/** A lane load / store's width in bytes, and whether it stores. */
+function laneAccess(opcode: number): { bytes: number; store: boolean } {
+  switch (opcode) {
+    case SIMDLoadStoreLaneOp.Load8LaneVec128:
+      return { bytes: 1, store: false };
+    case SIMDLoadStoreLaneOp.Load16LaneVec128:
+      return { bytes: 2, store: false };
+    case SIMDLoadStoreLaneOp.Load32LaneVec128:
+      return { bytes: 4, store: false };
+    case SIMDLoadStoreLaneOp.Load64LaneVec128:
+      return { bytes: 8, store: false };
+    case SIMDLoadStoreLaneOp.Store8LaneVec128:
+      return { bytes: 1, store: true };
+    case SIMDLoadStoreLaneOp.Store16LaneVec128:
+      return { bytes: 2, store: true };
+    case SIMDLoadStoreLaneOp.Store32LaneVec128:
+      return { bytes: 4, store: true };
+    case SIMDLoadStoreLaneOp.Store64LaneVec128:
+      return { bytes: 8, store: true };
+    default:
+      throw new Error(`interp: not a lane access opcode 0x${opcode.toString(16)}`);
+  }
+}
+
+/** Pops a vector's bytes. */
+function vectorOf(v: Value): Uint8Array {
+  if (v.type !== ValType.V128) throw new Error('interp: expected a v128 operand');
+  return v.bytes;
+}
+
+const I64 = (value: bigint): Value => ({ type: ValType.I64, value: BigInt.asIntN(64, value) });
+
+/** A 128-bit value from its `(lo, hi)` i64 halves, unsigned. */
+const wide = (lo: bigint, hi: bigint): bigint =>
+  (BigInt.asUintN(64, hi) << 64n) | BigInt.asUintN(64, lo);
+/** A 128-bit value as its `(lo, hi)` i64 halves. */
+const halves = (x: bigint): Value[] => [I64(BigInt.asUintN(64, x)), I64(x >> 64n)];
 
 /** The zero a local of `type` starts with; `undefined` for a type not run yet. */
 function zeroOf(type: ValueType): Value | undefined {
@@ -464,8 +577,6 @@ function zeroOf(type: ValueType): Value | undefined {
     case ValType.F64:
       return { type: ValType.F64, bits: 0n };
     case ValType.V128:
-      // A v128 VALUE can be held and moved (const, local, select, a field);
-      // its operators are not evaluated yet (E1's limit) and stop.
       return { type: ValType.V128, bytes: new Uint8Array(16) };
     default:
       // A reference local starts null. (A non-nullable one is set before any
@@ -800,6 +911,12 @@ export class Interpreter {
     return v.value | 0;
   }
 
+  private i64(): bigint {
+    const v = this.pop();
+    if (v.type !== ValType.I64) throw new Error('interp: expected an i64 operand');
+    return BigInt.asIntN(64, v.value);
+  }
+
   /** Runs a labelled construct whose body is `run`; a branch to `label` ends it with `arity` values. */
   private scope(label: string, base: number, arity: number, run: () => void): void {
     try {
@@ -863,10 +980,97 @@ export class Interpreter {
         this.exec(e.left, locals);
         this.exec(e.right, locals);
         const b = this.num(), a = this.num();
+        // Wide arithmetic: two i64 in, the 128-bit product out as two i64.
+        if (e.opcode === BinaryOp.MulWideSInt64 || e.opcode === BinaryOp.MulWideUInt64) {
+          if (a.type !== ValType.I64 || b.type !== ValType.I64) {
+            throw new Error('interp: i64.mul_wide of non-i64 operands');
+          }
+          const signed = e.opcode === BinaryOp.MulWideSInt64;
+          const x = signed ? BigInt.asIntN(64, a.value) : BigInt.asUintN(64, a.value);
+          const y = signed ? BigInt.asIntN(64, b.value) : BigInt.asUintN(64, b.value);
+          s.push(...halves(x * y));
+          return;
+        }
         const r = evalBinary(e.opcode, a, b);
         if (r === null) throw new Stop('unsupported', `binary 0x${e.opcode.toString(16)}`);
         if ('trap' in r) throw new Trap(r.trap);
         s.push(r.value);
+        return;
+      }
+
+      case ExpressionKind.Quaternary: {
+        // `i64.add128` / `sub128`: two 128-bit values as (lo, hi) pairs, the
+        // 128-bit sum or difference as a (lo, hi) pair, wrapping.
+        this.exec(e.a, locals);
+        this.exec(e.b, locals);
+        this.exec(e.c, locals);
+        this.exec(e.d, locals);
+        const yh = this.i64(), yl = this.i64(), xh = this.i64(), xl = this.i64();
+        const x = wide(xl, xh), y = wide(yl, yh);
+        s.push(...halves(e.opcode === QuaternaryOp.Add128 ? x + y : x - y));
+        return;
+      }
+
+      // -------------------------------------------------------------------
+      // SIMD (E3e): lanes, shuffles, ternaries — the operators are `simd.ts`'s
+      // -------------------------------------------------------------------
+      case ExpressionKind.SIMDExtract: {
+        this.exec(e.vec, locals);
+        const r = simdExtract(e.opcode, vectorOf(this.pop()), e.lane);
+        if (r === null || 'trap' in r) throw new Error('interp: not a lane extraction');
+        s.push(r.value);
+        return;
+      }
+      case ExpressionKind.SIMDReplace: {
+        this.exec(e.vec, locals);
+        this.exec(e.value, locals);
+        const value = this.num();
+        const r = simdReplace(e.opcode, vectorOf(this.pop()), e.lane, value);
+        if (r === null || 'trap' in r) throw new Error('interp: not a lane replacement');
+        s.push(r.value);
+        return;
+      }
+      case ExpressionKind.SIMDShuffle: {
+        this.exec(e.left, locals);
+        this.exec(e.right, locals);
+        const b = vectorOf(this.pop()), a = vectorOf(this.pop());
+        s.push(simdShuffle(a, b, e.lanes).value);
+        return;
+      }
+      case ExpressionKind.SIMDTernary: {
+        this.exec(e.a, locals);
+        this.exec(e.b, locals);
+        this.exec(e.c, locals);
+        const c = vectorOf(this.pop()), b = vectorOf(this.pop()), a = vectorOf(this.pop());
+        const r = simdTernary(e.opcode, a, b, c);
+        if (r === null) throw new Stop('unsupported', `simd.ternary 0x${e.opcode.toString(16)}`);
+        if ('trap' in r) throw new Trap(r.trap);
+        s.push(r.value);
+        return;
+      }
+      case ExpressionKind.SIMDLoad: {
+        this.exec(e.address, locals);
+        const mem = this.memory(e.memidx);
+        const n = simdLoadBytes(e.opcode);
+        const at = memoryOp(() => mem.at(address(this.pop()), e.offset, n));
+        s.push(simdLoadValue(mem, at, e.opcode));
+        return;
+      }
+      case ExpressionKind.SIMDLoadStoreLane: {
+        this.exec(e.address, locals);
+        this.exec(e.vec, locals);
+        const mem = this.memory(e.memidx);
+        const vec = vectorOf(this.pop());
+        const { bytes, store } = laneAccess(e.opcode);
+        const at = memoryOp(() => mem.at(address(this.pop()), e.offset, bytes));
+        const laneAt = e.lane * bytes;
+        if (store) {
+          mem.bytes.set(vec.subarray(laneAt, laneAt + bytes), at);
+          return;
+        }
+        const out = vec.slice();
+        out.set(mem.bytes.subarray(at, at + bytes), laneAt);
+        s.push({ type: ValType.V128, bytes: out });
         return;
       }
 

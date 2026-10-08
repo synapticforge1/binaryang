@@ -24,8 +24,9 @@
  * plus two bits). A 64-bit integer converted to f32 is first narrowed to 53 bits
  * with a sticky bit, so it too rounds once.
  *
- * `null` means "not a scalar operator this core evaluates, or operands of the
- * wrong type" — never a guess. `v128` is not here yet (recorded in open-work 23).
+ * `null` means "not an operator this core evaluates, or operands of the wrong
+ * type" — never a guess. A `v128` operand, or a splat, goes to `simd.ts`
+ * (E3e), which computes each float lane through the scalar operator here.
  *
  * @license MIT
  */
@@ -39,6 +40,7 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import { ValType } from '../ir/types.ts';
+import { isNaNLane, isRelaxed, simdBinary, simdSplat, simdUnary } from './simd.ts';
 
 /** The trap messages a numeric operator can produce — the spec testsuite's wording. */
 export type NumericTrap =
@@ -111,15 +113,60 @@ export function isBitExact(op: UnaryOp | BinaryOp): boolean {
 }
 
 /**
+ * The SIMD operators whose result lanes are float ARITHMETIC — where a NaN
+ * lane may be any arithmetic NaN, as for the scalar operators above. Every
+ * other SIMD operator is exact on the bits: the sign operations, `pmin` /
+ * `pmax` (an operand's bits), the bitwise ones, and everything with integer
+ * lanes. `true` for the `f64x2` ones (two wide lanes), `false` for `f32x4`.
+ */
+const SIMD_FLOAT_ARITH = new Map<number, boolean>([
+  [UnaryOp.SqrtVecF32x4, false],
+  [UnaryOp.CeilVecF32x4, false],
+  [UnaryOp.FloorVecF32x4, false],
+  [UnaryOp.TruncVecF32x4, false],
+  [UnaryOp.NearestVecF32x4, false],
+  [UnaryOp.DemoteZeroVecF64x2ToF32x4, false],
+  [UnaryOp.ConvertSVecI32x4ToF32x4, false],
+  [UnaryOp.ConvertUVecI32x4ToF32x4, false],
+  [BinaryOp.AddVecF32x4, false],
+  [BinaryOp.SubVecF32x4, false],
+  [BinaryOp.MulVecF32x4, false],
+  [BinaryOp.DivVecF32x4, false],
+  [BinaryOp.MinVecF32x4, false],
+  [BinaryOp.MaxVecF32x4, false],
+  [UnaryOp.SqrtVecF64x2, true],
+  [UnaryOp.CeilVecF64x2, true],
+  [UnaryOp.FloorVecF64x2, true],
+  [UnaryOp.TruncVecF64x2, true],
+  [UnaryOp.NearestVecF64x2, true],
+  [UnaryOp.PromoteLowVecF32x4ToF64x2, true],
+  [UnaryOp.ConvertLowSVecI32x4ToF64x2, true],
+  [UnaryOp.ConvertLowUVecI32x4ToF64x2, true],
+  [BinaryOp.AddVecF64x2, true],
+  [BinaryOp.SubVecF64x2, true],
+  [BinaryOp.MulVecF64x2, true],
+  [BinaryOp.DivVecF64x2, true],
+  [BinaryOp.MinVecF64x2, true],
+  [BinaryOp.MaxVecF64x2, true],
+]);
+
+/**
  * The constant a pass may FOLD `op`'s outcome to, or `null` when it must leave
  * the expression to run: not evaluated, a trap (folding it away would remove
- * the trap), or a NaN from an operator that is not {@link isBitExact} (the
- * engine picks that NaN, and a program can read it back). Every folding pass
- * decides through here — one rule as well as one semantics.
+ * the trap), a NaN from an operator that is not {@link isBitExact} (the
+ * engine picks that NaN, and a program can read it back) — a NaN LANE from a
+ * float-arithmetic SIMD operator likewise — or a relaxed-SIMD operator, whose
+ * result the engine picks among the alternatives the spec allows. Every
+ * folding pass decides through here — one rule as well as one semantics.
  */
 export function foldedLiteral(op: UnaryOp | BinaryOp, r: NumericResult | null): Literal | null {
   if (r === null || 'trap' in r) return null;
+  if (isRelaxed(op)) return null;
   if (isNaNLiteral(r.value) && !isBitExact(op)) return null;
+  if (r.value.type === ValType.V128) {
+    const wide = SIMD_FLOAT_ARITH.get(op);
+    if (wide !== undefined && isNaNLane(r.value.bytes, wide)) return null;
+  }
   return r.value;
 }
 
@@ -222,19 +269,22 @@ function truncSatToI64(x: number, unsigned: boolean): NumericResult {
 // ---------------------------------------------------------------------------
 
 /**
- * Evaluates a scalar unary operator. `null` when `op` is not one this core
- * evaluates or `a` is not its operand type.
+ * Evaluates a unary operator — scalar, or SIMD on a `v128` (a splat takes a
+ * scalar). `null` when `op` is not one this core evaluates or `a` is not its
+ * operand type.
  */
 export function evalUnary(op: UnaryOp, a: Literal): NumericResult | null {
   switch (a.type) {
     case ValType.I32:
-      return unaryI32(op, a.value | 0);
+      return unaryI32(op, a.value | 0) ?? simdSplat(op, a);
     case ValType.I64:
-      return unaryI64(op, BigInt.asIntN(64, a.value));
+      return unaryI64(op, BigInt.asIntN(64, a.value)) ?? simdSplat(op, a);
     case ValType.F32:
-      return unaryF32(op, a.bits >>> 0, literalFloat(a));
+      return unaryF32(op, a.bits >>> 0, literalFloat(a)) ?? simdSplat(op, a);
     case ValType.F64:
-      return unaryF64(op, BigInt.asUintN(64, a.bits), literalFloat(a));
+      return unaryF64(op, BigInt.asUintN(64, a.bits), literalFloat(a)) ?? simdSplat(op, a);
+    case ValType.V128:
+      return simdUnary(op, a.bytes);
     default:
       return null;
   }
@@ -395,10 +445,12 @@ function unaryF64(op: UnaryOp, bits: bigint, x: number): NumericResult | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Evaluates a scalar binary operator. `null` when `op` is not one this core
- * evaluates or the operands are not its operand type.
+ * Evaluates a binary operator — scalar, or SIMD on a `v128` (a lane shift
+ * takes an `i32` count on the right). `null` when `op` is not one this core
+ * evaluates or the operands are not its operand types.
  */
 export function evalBinary(op: BinaryOp, a: Literal, b: Literal): NumericResult | null {
+  if (a.type === ValType.V128) return simdBinary(op, a.bytes, b);
   if (a.type !== b.type) return null;
   switch (a.type) {
     case ValType.I32:

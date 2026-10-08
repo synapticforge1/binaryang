@@ -44,6 +44,8 @@ import { f32BitsOf, f64BitsOf } from '../src/binaryen-ts/ir/expressions.ts';
 
 interface Arg {
   type: string;
+  /** A `v128`'s lane type (`i8` … `f64`); its `value` is then one string per lane. */
+  lane_type?: string;
   value?: string | string[];
 }
 interface Action {
@@ -60,6 +62,13 @@ interface Command {
   as?: string;
   action?: Action;
   expected?: Arg[];
+  /**
+   * A relaxed-SIMD assertion: the result may be ANY of these (one value each),
+   * as the spec lists the alternatives an engine may pick. The interpreter
+   * computes the deterministic profile; the harness accepts any (owner,
+   * 2026-10-07).
+   */
+  either?: Arg[];
   text?: string;
 }
 
@@ -80,8 +89,33 @@ if (roots.length === 0) {
 // Values
 // ---------------------------------------------------------------------------
 
-/** A manifest value as a runtime value, or `null` for a type not run yet. */
+/** Bytes per lane of a `v128`'s lane type. */
+const LANE_BYTES: Record<string, number> = { i8: 1, i16: 2, i32: 4, i64: 8, f32: 4, f64: 8 };
+
+/** A manifest `v128` — a lane type and one unsigned integer (or bits) per lane — as bytes. */
+function v128Bytes(a: Arg): Uint8Array | null {
+  if (a.type !== 'v128' || !Array.isArray(a.value) || a.lane_type === undefined) return null;
+  const n = LANE_BYTES[a.lane_type];
+  if (n === undefined || a.value.length * n !== 16) return null;
+  const bytes = new Uint8Array(16);
+  const v = new DataView(bytes.buffer);
+  for (const [i, lane] of a.value.entries()) {
+    if (!/^\d+$/.test(lane)) return null; // a NaN pattern: an expectation, never a value
+    const x = BigInt(lane);
+    if (n === 1) v.setUint8(i, Number(x & 0xffn));
+    else if (n === 2) v.setUint16(2 * i, Number(x & 0xffffn), true);
+    else if (n === 4) v.setUint32(4 * i, Number(BigInt.asUintN(32, x)), true);
+    else v.setBigUint64(8 * i, BigInt.asUintN(64, x), true);
+  }
+  return bytes;
+}
+
+/** A manifest value as a runtime value, or `null` for one that is not a value. */
 function toValue(a: Arg): Value | null {
+  if (a.type === 'v128') {
+    const bytes = v128Bytes(a);
+    return bytes === null ? null : { type: ValType.V128, bytes };
+  }
   if (typeof a.value !== 'string' || a.value.startsWith('nan:')) return null;
   switch (a.type) {
     case 'i32':
@@ -149,10 +183,41 @@ function refExpectation(
 /** Whether the harness can judge an expected value at all. */
 const checkable = (w: Arg): boolean =>
   toValue(w) !== null || refExpectation(w) !== null ||
-  (typeof w.value === 'string' && w.value.startsWith('nan:'));
+  (typeof w.value === 'string' && w.value.startsWith('nan:')) ||
+  (w.type === 'v128' && Array.isArray(w.value) && w.lane_type !== undefined &&
+    w.value.every((l) => /^\d+$/.test(l) || l === 'nan:canonical' || l === 'nan:arithmetic'));
 
-/** Whether `got` is what `want` asks for — bits, a NaN pattern, or a reference. */
+/** Whether a `v128` result matches lane by lane: bits, or a NaN pattern per float lane. */
+function matchesV128(want: Arg, got: Uint8Array): boolean {
+  const lanes = want.value as string[];
+  const n = LANE_BYTES[want.lane_type!]!;
+  const v = new DataView(got.buffer, got.byteOffset, 16);
+  return lanes.every((lane, i) => {
+    const at = i * n;
+    const bits = n === 1
+      ? BigInt(v.getUint8(at))
+      : n === 2
+      ? BigInt(v.getUint16(at, true))
+      : n === 4
+      ? BigInt(v.getUint32(at, true))
+      : v.getBigUint64(at, true);
+    if (lane === 'nan:canonical') {
+      return n === 4
+        ? (bits & 0x7fffffffn) === 0x7fc00000n
+        : (bits & 0x7fffffffffffffffn) === 0x7ff8000000000000n;
+    }
+    if (lane === 'nan:arithmetic') {
+      return n === 4
+        ? (bits & 0x7fc00000n) === 0x7fc00000n
+        : (bits & 0x7ff8000000000000n) === 0x7ff8000000000000n;
+    }
+    return bits === BigInt.asUintN(n * 8, BigInt(lane));
+  });
+}
+
+/** Whether `got` is what `want` asks for — bits, a NaN pattern, a vector's lanes, or a reference. */
 function matches(want: Arg, got: Value): boolean {
+  if (want.type === 'v128') return got.type === ValType.V128 && matchesV128(want, got.bytes);
   const ref = refExpectation(want);
   if (ref !== null) {
     if (got.type !== 'ref') return false;
@@ -198,6 +263,8 @@ const show = (v: Value): string =>
     ? `f32:0x${(v.bits >>> 0).toString(16)}`
     : v.type === ValType.F64
     ? `f64:0x${BigInt.asUintN(64, v.bits).toString(16)}`
+    : v.type === ValType.V128
+    ? `v128:0x${[...v.bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`
     : '?';
 
 // ---------------------------------------------------------------------------
@@ -472,14 +539,25 @@ for (const root of roots) {
       let ok: boolean;
       let detail = '';
       if (cmd.type === 'assert_return') {
-        const want = cmd.expected ?? [];
-        if (!want.every(checkable)) {
-          stopped(new Stop('unsupported', `an expected ${want.find((w) => !checkable(w))!.type}`));
+        // One expected list — or, for a relaxed-SIMD `either`, several
+        // single-value alternatives, any of which is a pass.
+        const alternatives = cmd.either !== undefined
+          ? cmd.either.map((a) => [a])
+          : [cmd.expected ?? []];
+        const unjudged = alternatives.flat().find((w) => !checkable(w));
+        if (unjudged !== undefined) {
+          stopped(new Stop('unsupported', `an expected ${unjudged.type}`));
           continue;
         }
-        ok = 'values' in outcome && outcome.values.length === want.length &&
-          want.every((w, i) => matches(w, (outcome as { values: Value[] }).values[i]!));
-        detail = `${got}, want [${want.map((w) => `${w.type}:${w.value}`).join(' ')}]`;
+        ok = 'values' in outcome &&
+          alternatives.some((want) =>
+            (outcome as { values: Value[] }).values.length === want.length &&
+            want.every((w, i) => matches(w, (outcome as { values: Value[] }).values[i]!))
+          );
+        detail = `${got}, want ${
+          alternatives.map((want) => `[${want.map((w) => `${w.type}:${w.value}`).join(' ')}]`)
+            .join(' or ')
+        }`;
       } else if (cmd.type === 'assert_exception') {
         // An exception that leaves the invocation uncaught — not a trap.
         ok = 'exception' in outcome;

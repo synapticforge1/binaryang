@@ -64,6 +64,27 @@ describe('a tree of constants folds in one run', () => {
     const t = await same('(i32.reinterpret_f32 (f32.sqrt (f32.const -1)))');
     expect(t).toContain('f32.sqrt');
   });
+
+  // E3e: `v128` operators go through the same evaluator and the same rule.
+  it('a v128 tree of constants folds; a NaN lane from arithmetic and a relaxed operator stay', async () => {
+    const folded = await same(
+      '(i32x4.extract_lane 2 (i32x4.add (i32x4.splat (i32.const 20)) (v128.const i32x4 1 2 3 4)))',
+    );
+    expect(folded).toContain('v128.const i32x4 0x00000015 0x00000016 0x00000017 0x00000018');
+    expect(folded).not.toContain('i32x4.add');
+    const nan = await same(
+      '(i32x4.extract_lane 0 (f32x4.sqrt (v128.const f32x4 -1 1 1 1)))',
+    );
+    expect(nan).toContain('f32x4.sqrt');
+    const relaxed = await same(
+      '(i32x4.extract_lane 0 (f32x4.relaxed_min (v128.const f32x4 1 1 1 1) (v128.const f32x4 2 2 2 2)))',
+    );
+    expect(relaxed).toContain('f32x4.relaxed_min');
+    const exact = await same(
+      '(i32x4.extract_lane 0 (f32x4.neg (v128.const f32x4 nan 1 1 1)))',
+    );
+    expect(exact).not.toContain('f32x4.neg');
+  });
 });
 
 describe('a constant condition picks its arm', () => {

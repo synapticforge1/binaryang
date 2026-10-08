@@ -55,6 +55,10 @@ contains ([handoffs.md](handoffs.md)).
   zero counted; numeric and `v128` only; no evaluation — that is item 23). Scheduled at -O2 and up
   after OptimizeInstructions, with OptimizeInstructions again. Corpus −2.3 KB at -O2 / -Os / -Oz,
   −3.4 KB at -O3; -O1 unchanged; behaviour unchanged.
+- **Behaviour — `OptimizeInstructions` and `Precompute` fold `v128` constant expressions**
+  (open-work 23, E3e, 2026-10-08): every SIMD operator of constants becomes its value, through the
+  one evaluator; never a relaxed-SIMD operator (the engine picks its result), never a vector with
+  a NaN lane from float arithmetic. Corpus: not one byte moved at any level.
 - **NEW / Behaviour — `Precompute` pass** (open-work 23, E2, 2026-10-07): an expression whose value
   is known becomes it — a tree of constants; an `if` / `select` / `br_if` / `br_table` with a
   constant condition takes its arm (a `select`'s other operand only when it has no effect and cannot
