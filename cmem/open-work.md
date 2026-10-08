@@ -403,7 +403,9 @@ mismatches and the reader prints that function as predicted — plainly, never w
           `Mg.mut_glob`). `interpreter.test.ts` against V8; 11 / 11 mutants (one only after a test
           with a value BELOW a block's parameters — the whole spec suite missed it). ⚠️ **For the
           owner: should `deno task interp` join the gate?** Green in today's gate runs as a proposed
-          step; the rule is a FAIL count of 0, and the stopped count should only fall.
+          step; the rule is a FAIL count of 0, and the stopped count should only fall. ✅ **Owner,
+          2026-10-07: "yes on deno task interp"** — in the gate
+          ([working-rules.md](working-rules.md) § "The gate").
         - 📏 **Resume here: E3b (memory).** `load` / `store` / `memory.*` and data segments — the
           10,618 + 765 + 113 + 96 stops above.
       - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which

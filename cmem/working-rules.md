@@ -19,9 +19,8 @@ not survive a clone is not a project rule. The lessons behind them are in
 - **Nothing is pushed** unless the owner says so.
 - **`deno.json` stays at the released version** (read it there, and the latest release in
   [publishing.md](publishing.md)'s current-state line — a number quoted here went stale for two
-  weeks). The version line is what
-  ARMS a release — `auto-tag` publishes whenever `v<version>` has no tag. See
-  [publishing.md](publishing.md); the unreleased changes waiting for it are in
+  weeks). The version line is what ARMS a release — `auto-tag` publishes whenever `v<version>` has
+  no tag. See [publishing.md](publishing.md); the unreleased changes waiting for it are in
   [unreleased.md](unreleased.md).
 - **A re-baseline goes in its OWN commit**:
   `deno run --allow-read --allow-write scripts/wabt-ts/verify-baseline.ts --write`, with the reason
@@ -33,17 +32,18 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 
 `deno fmt --check` · `deno lint` · `deno task ci` · `deno task naming` · `deno task portability` ·
 `deno task baseline` · `deno publish --dry-run --allow-dirty` — and the `runtimes` job's
-`scripts/cli-smoke.ts`, run under each runtime it tests (locally: `deno run -A scripts/cli-smoke.ts
-"deno run -A"`, likewise `node --experimental-transform-types …` and `bun …`; all must print the
-same hash)
+`scripts/cli-smoke.ts`, run under each runtime it tests (locally:
+`deno run -A scripts/cli-smoke.ts
+"deno run -A"`, likewise `node --experimental-transform-types …`
+and `bun …`; all must print the same hash)
 
 then the project's own: `deno task operators` · `deno task spec <corpus>` ·
-`deno task spec-behaviour <corpus>` · `deno task direct` · `deno task direct-behaviour` ·
-`deno task translate-eh <testsuite-main>/legacy <outDir>` · `deno task optimize-corpus` ·
-`deno task proposals <testsuite-main> <outDir>` (since 2026-09-29: `proposals/`, validity and
-behaviour, V8 experimental flags per `scripts/proposals.ts`; expect every proposal to hold,
-custom-page-sizes judged on V8 through `LowerCustomPageSizes` — 31 assertions in 7 worlds, both
-unlinkables honoured, no pins — [testing.md](testing.md) § "The proposal testsuites").
+`deno task spec-behaviour <corpus>` · `deno task interp <corpus>` · `deno task direct` ·
+`deno task direct-behaviour` · `deno task translate-eh <testsuite-main>/legacy <outDir>` ·
+`deno task optimize-corpus` · `deno task proposals <testsuite-main> <outDir>` (since 2026-09-29:
+`proposals/`, validity and behaviour, V8 experimental flags per `scripts/proposals.ts`; expect every
+proposal to hold, custom-page-sizes judged on V8 through `LowerCustomPageSizes` — 31 assertions in 7
+worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The proposal testsuites").
 (`direct` / `direct-behaviour` replaced `bridge` / `bridge-behaviour` when M8e deleted the bridge,
 2026-09-18; this list named the old tasks until 2026-09-19.) Expect `direct` **544 / 544** and
 `direct-behaviour` **1953 calls / 651 exports, 0 DIVERGE** — the 421 corpus modules plus
@@ -59,10 +59,15 @@ unlinkables honoured, no pins — [testing.md](testing.md) § "The proposal test
   are the one route's round trip and -O1…-Oz). A module that starts being refused FAILS the step
   until it is fixed or pinned with why — that is the ratchet, not a regression.
 
+- **`deno task interp <corpus>` joined the gate 2026-10-07 (owner: "yes on deno task interp").** The
+  interpreter (open-work 23, E3) against the testsuite's `assert_return` / `assert_trap` /
+  `assert_exhaustion`, the MANIFEST as the oracle. Same prepared corpus as `spec`. The verdict is
+  **0 FAIL**; the `stopped` count (what the interpreter cannot run yet, by reason) should only FALL
+  as E3's increments land — a rise is a coverage loss to read. At E3a: 15,432 pass, 42,144 stopped.
+
 - ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
-  (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes
-  all 421 modules at `-O1` … `-Oz` and fails on any throw or any module `WebAssembly.validate`
-  rejects.
+  (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes all
+  421 modules at `-O1` … `-Oz` and fails on any throw or any module `WebAssembly.validate` rejects.
 
 - ⚠️ **A gate that COMPILES is not a gate that RUNS.** `deno task bridge` read 421/421 for as long
   as the bridge silently dropped every element segment, because an empty table is a valid table.
@@ -73,22 +78,21 @@ unlinkables honoured, no pins — [testing.md](testing.md) § "The proposal test
   (Both are history since M8e: `deno task direct` / `direct-behaviour` carry the same pair — one
   compiles and validates, the other RUNS in lockstep — over the prepared tree.)
 
-- ⚠️ **A gate is evidence about what it REACHES.** Not one corpus module has a `(start …)`, so
-  when M8e's mutant dropped the start function both direct gates stayed green; only a unit test
-  saw it. Since post-M8 fix 7 both also run `prepare.test.ts`'s fixture (`scripts/direct-inputs.ts`),
-  and that mutant fails both (`direct`: 3 bytes short; `direct-behaviour`: `f()` 99 vs 0). Before
+- ⚠️ **A gate is evidence about what it REACHES.** Not one corpus module has a `(start …)`, so when
+  M8e's mutant dropped the start function both direct gates stayed green; only a unit test saw it.
+  Since post-M8 fix 7 both also run `prepare.test.ts`'s fixture (`scripts/direct-inputs.ts`), and
+  that mutant fails both (`direct`: 3 bytes short; `direct-behaviour`: `f()` 99 vs 0). Before
   trusting a gate for a feature, find an input in it that HAS the feature.
 
 - ⚠️ **Run it after the LAST edit.** If an edit follows the gate, the gate has not run — decision 5
   merged with `deno lint` red that way.
-- ⚠️ **Read every step's EXIT CODE.** The naming check is now an exit code too: its TypeScript
-  port (2026-09-29) prints each offender AND exits 1. Its shell predecessor always exited 0 and
-  made the output the verdict, and a rule that once read it the wrong way round ("prints a filename
-  on SUCCESS, read `$?`") hid a real violation (`tests/binaryen-ts/wabt_reference.ts`, from
-  `138148881` 2026-09-11 until its rename 2026-09-18). The lesson stands for every step: read each
-  exit code — `deno lint` was failing on
-  `main` for two commits whose messages reported it green (`456423b54`, `cec3a3381`; fixed
-  `fc91cf409`).
+- ⚠️ **Read every step's EXIT CODE.** The naming check is now an exit code too: its TypeScript port
+  (2026-09-29) prints each offender AND exits 1. Its shell predecessor always exited 0 and made the
+  output the verdict, and a rule that once read it the wrong way round ("prints a filename on
+  SUCCESS, read `$?`") hid a real violation (`tests/binaryen-ts/wabt_reference.ts`, from `138148881`
+  2026-09-11 until its rename 2026-09-18). The lesson stands for every step: read each exit code —
+  `deno lint` was failing on `main` for two commits whose messages reported it green (`456423b54`,
+  `cec3a3381`; fixed `fc91cf409`).
 - ⚠️ **`deno task test` alone is not the gate** — it runs `--no-check`. `deno task ci` is check +
   test. Dropping `check` left `main` red by CI's standard for 65 unpushed commits (`80a45bffe`).
 - **The spec corpus is per-session scratch.** A new session rebuilds it first:
@@ -99,7 +103,8 @@ unlinkables honoured, no pins — [testing.md](testing.md) § "The proposal test
   count means the prepare step, not a regression.
 - **`deno task translate-eh`** splits the testsuite's `legacy/` itself (upstream `wast2json`, so it
   needs that installed) into `<outDir>`. Expect **6 modules, 70 / 70 in all three worlds** (legacy,
-  translated, translated `-Oz`). It is not in CI: CI has neither the sibling testsuite nor `wast2json`.
+  translated, translated `-Oz`). It is not in CI: CI has neither the sibling testsuite nor
+  `wast2json`.
 
 ## Tests, measurements and records
 
