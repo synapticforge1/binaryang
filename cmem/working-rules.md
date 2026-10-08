@@ -38,9 +38,12 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 and `bun …`; all must print the same hash)
 
 then the project's own: `deno task operators` · `deno task spec <corpus>` ·
-`deno task spec-behaviour <corpus>` · `deno task interp <corpus>` · `deno task direct` ·
+`deno task spec-behaviour <corpus>` · `deno task direct` ·
 `deno task direct-behaviour` · `deno task translate-eh <testsuite-main>/legacy <outDir>` ·
-`deno task optimize-corpus` · `deno task proposals <testsuite-main> <outDir>` (since 2026-09-29:
+`deno task optimize-corpus` · `deno task proposals <testsuite-main> <outDir>` · then, AFTER
+`proposals` (it prepares their corpora), `deno task interp <corpus> <legacy corpus>
+<outDir>/custom-descriptors <outDir>/custom-page-sizes <outDir>/threads <outDir>/wide-arithmetic`
+(below) (since 2026-09-29:
 `proposals/`, validity and behaviour, V8 experimental flags per `scripts/proposals.ts`; expect every
 proposal to hold, custom-page-sizes judged on V8 through `LowerCustomPageSizes` — 31 assertions in 7
 worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The proposal testsuites").
@@ -67,6 +70,16 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   at E3b: 25,811 pass, 31,819 stopped; at E3c: 32,618 pass, 25,012 stopped (15 s in the gate
   run, from 3 s at E3b — not yet attributed); at E3d-1: 32,687 pass, 24,961 stopped; at E3d-2:
   **33,268 pass, 24,380 stopped**.
+  - **Every corpus, since 2026-10-07 (owner: "Yes (runs everywhere)").** One `interp` run takes
+    the core corpus, the LEGACY-EH corpus and the four `proposals/` corpora, and prints each one's
+    totals: the legacy and custom-descriptors corpora found three defects the core one was green
+    on. The legacy corpus is prepared each session like the core one —
+    `deno task spec:prepare <testsuite-main>/legacy <dir>` (`translate-eh`'s output is flat, not
+    this layout) — and the proposal corpora are the `proposals` step's output, so `interp` runs
+    after it. Expect at E3d-2: core 33,268 / 0 / 24,380; legacy 70 / 0 / 0; custom-descriptors
+    170 / 0 / 317; custom-page-sizes 31 / 0 / 0; threads 80 / 0 / 187; wide-arithmetic 0 / 0 / 99
+    (pass / FAIL / stopped). CI does not run it — like `spec` and `spec-behaviour`, it needs the
+    sibling repo's testsuite and `wast2json`; the gate run here is where it runs.
 
 - ⚠️ **A corpus hash says output CHANGED, not that it is VALID.** Two -O3 defects sat unseen
   (2026-09-14) because optimizer checks hashed the output. `deno task optimize-corpus` optimizes all
