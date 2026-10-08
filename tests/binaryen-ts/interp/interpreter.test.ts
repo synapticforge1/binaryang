@@ -620,3 +620,243 @@ describe('exceptions (E3d)', () => {
     expect(b.invoke('f', [])).toEqual([i32(5)]);
   });
 });
+
+describe('GC (E3d-2)', () => {
+  const TYPES = `
+    (type $pt (sub (struct (field $x (mut i32)) (field $y (mut i8)))))
+    (type $pt3 (sub $pt (struct (field $x (mut i32)) (field $y (mut i8)) (field $z i64))))
+    (type $other (struct (field i32) (field i8)))
+    (type $bytes (array (mut i8)))
+    (type $refs (array (mut (ref null $pt))))
+    (type $fns (array (mut funcref)))
+    (data $d "\\01\\ff\\80\\7f")`;
+  const F = (body: string, params = '(param i32)') =>
+    `(module ${TYPES} (elem $e func $id) (func $id) (func (export "f") ${params} (result i32) ${body}))`;
+
+  it('struct.new / get / set, a packed field read signed and unsigned, defaults', async () => {
+    for (const x of [0, 1, 127, 128, 255, 256, -1]) {
+      for (const get of ['struct.get_s', 'struct.get_u']) {
+        await agree(F(`(${get} $pt $y (struct.new $pt (i32.const 1) (local.get 0)))`), x);
+      }
+      await agree(
+        F(`(local $p (ref $pt)) (local.set $p (struct.new_default $pt))
+        (struct.set $pt $y (local.get $p) (local.get 0))
+        (i32.add (struct.get $pt $x (local.get $p)) (struct.get_s $pt $y (local.get $p)))`),
+        x,
+      );
+    }
+  });
+
+  it('a null struct, array and i31 trap with their own messages', async () => {
+    await agree(F('(struct.get $pt $x (ref.null $pt))', ''));
+    await agree(F('(array.len (ref.null $bytes))', ''));
+    await agree(F('(i31.get_s (ref.null i31))', ''));
+  });
+
+  it('arrays: new / default / fixed / data / elem, get, set, len, bounds', async () => {
+    for (const i of [0, 3, 4, -1]) {
+      await agree(
+        F('(array.get_s $bytes (array.new_data $bytes $d (i32.const 0) (i32.const 4)) (local.get 0))'),
+        i,
+      );
+      await agree(
+        F('(array.get_u $bytes (array.new $bytes (i32.const 300) (i32.const 4)) (local.get 0))'),
+        i,
+      );
+      await agree(
+        F('(array.get_u $bytes (array.new_fixed $bytes 2 (i32.const 7) (i32.const 8)) (local.get 0))'),
+        i,
+      );
+    }
+    for (const n of [0, 4, 5]) {
+      await agree(F('(array.len (array.new_data $bytes $d (i32.const 0) (local.get 0)))'), n);
+    }
+    for (const n of [0, 1, 2]) {
+      await agree(F('(array.len (array.new_elem $fns $e (i32.const 0) (local.get 0)))'), n);
+    }
+  });
+
+  it('array.fill / copy (overlapping both ways) / init_data / init_elem, and their bounds', async () => {
+    const A = '(array.new_data $bytes $d (i32.const 0) (i32.const 4))';
+    for (const [d, s] of [[1, 0], [0, 1]]) {
+      for (const read of [0, 1, 2, 3]) {
+        await agree(F(
+          `(local $a (ref $bytes)) (local.set $a ${A})
+          (array.copy $bytes $bytes (local.get $a) (i32.const ${d}) (local.get $a) (i32.const ${s}) (i32.const 3))
+          (array.get_u $bytes (local.get $a) (i32.const ${read}))`,
+          '',
+        ));
+      }
+    }
+    for (const n of [0, 2, 3]) {
+      await agree(
+        F(`(local $a (ref $bytes)) (local.set $a ${A})
+        (array.fill $bytes (local.get $a) (i32.const 2) (i32.const 9) (local.get 0))
+        (array.get_u $bytes (local.get $a) (i32.const 3))`),
+        n,
+      );
+      await agree(
+        F(`(local $a (ref $bytes)) (local.set $a ${A})
+        (array.init_data $bytes $d (local.get $a) (i32.const 1) (i32.const 1) (local.get 0))
+        (array.get_u $bytes (local.get $a) (i32.const 1))`),
+        n,
+      );
+    }
+  });
+
+  it('i31: the low 31 bits, read back signed and unsigned; ref.eq by value', async () => {
+    for (const x of [0, 1, 0x3fffffff, 0x40000000, -1, 0x7fffffff]) {
+      await agree(F('(i31.get_s (ref.i31 (local.get 0)))'), x);
+      await agree(F('(i31.get_u (ref.i31 (local.get 0)))'), x);
+      await agree(
+        F('(ref.eq (ref.i31 (local.get 0)) (ref.i31 (i32.and (local.get 0) (i32.const 0x7fffffff))))'),
+        x,
+      );
+    }
+  });
+
+  it('ref.eq: the same struct, not an equal one', async () => {
+    await agree(F(
+      `(local $p (ref $pt)) (local.set $p (struct.new_default $pt))
+      (i32.add (i32.mul (ref.eq (local.get $p) (local.get $p)) (i32.const 10))
+               (ref.eq (local.get $p) (struct.new_default $pt)))`,
+      '',
+    ));
+  });
+
+  it('casts along a subtype chain, and a structurally equal type that is not a supertype', async () => {
+    const make = [
+      '(struct.new_default $pt)',
+      '(struct.new $pt3 (i32.const 1) (i32.const 2) (i64.const 3))',
+    ];
+    for (const v of make) {
+      for (const t of ['$pt', '$pt3', '$other', 'struct', 'eq', 'any', 'array', 'i31']) {
+        await agree(F(`(ref.test (ref ${t}) ${v})`, ''));
+        await agree(F(`(ref.is_null (ref.cast (ref null ${t}) ${v}))`, ''));
+      }
+    }
+    for (const t of ['$pt', 'none']) {
+      await agree(F(`(ref.test (ref null ${t}) (ref.null none))`, ''));
+    }
+  });
+
+  it('br_on_cast / br_on_cast_fail / br_on_null / br_on_non_null', async () => {
+    for (
+      const v of [
+        '(struct.new_default $pt)',
+        '(struct.new $pt3 (i32.const 1) (i32.const 2) (i64.const 3))',
+        '(ref.null $pt)',
+      ]
+    ) {
+      await agree(F(
+        `(block $hit (result (ref $pt3))
+          (drop (br_on_cast $hit (ref null $pt) (ref $pt3) ${v}))
+          (return (i32.const 0)))
+        (drop) (i32.const 1)`,
+        '',
+      ));
+      await agree(F(
+        `(block $miss (result (ref null $pt))
+          (drop (br_on_cast_fail $miss (ref null $pt) (ref $pt3) ${v}))
+          (return (i32.const 0)))
+        (drop) (i32.const 1)`,
+        '',
+      ));
+      await agree(
+        F(`(block $null (drop (br_on_null $null ${v})) (return (i32.const 0))) (i32.const 1)`, ''),
+      );
+      await agree(F(
+        `(block $nn (result (ref $pt)) (br_on_non_null $nn ${v}) (return (i32.const 0)))
+        (drop) (i32.const 1)`,
+        '',
+      ));
+    }
+  });
+
+  it('call_indirect matches by type identity: a different rec group is a different type', async () => {
+    const wat = `(module
+      (rec (type $f1 (func (result i32))) (type (struct)))
+      (type $f2 (func (result i32)))
+      (type $sub (sub (func (result i32))))
+      (type $subsub (sub $sub (func (result i32))))
+      (table 3 funcref) (elem (i32.const 0) func $a $b $c)
+      (func $a (type $f1) (i32.const 1))
+      (func $b (type $f2) (i32.const 2))
+      (func $c (type $subsub) (i32.const 3))
+      (func (export "f") (param i32) (result i32) (call_indirect (type $f2) (local.get 0))))`;
+    for (const i of [0, 1, 2]) await agree(wat, i);
+    const viaSuper = wat.replace('(call_indirect (type $f2)', '(call_indirect (type $sub)');
+    for (const i of [0, 1, 2]) await agree(viaSuper, i);
+  });
+
+  it('(exact $t) admits $t and none of its subtypes (custom descriptors)', () => {
+    // V8 runs exact types only behind an experimental flag, so the expectation is
+    // the proposal's rule itself: exact excludes declared subtypes. (A mutant that
+    // ignored `exact` passed every other test and the whole core suite.)
+    const m = interp(`(module ${TYPES}
+      (func (export "f") (param i32) (result i32)
+        (ref.test (ref (exact $pt))
+          (if (result (ref $pt)) (local.get 0)
+            (then (struct.new $pt3 (i32.const 1) (i32.const 2) (i64.const 3)))
+            (else (struct.new_default $pt))))))`);
+    expect(m.invoke('f', [i32(0)])).toEqual([i32(1)]); // a $pt
+    expect(m.invoke('f', [i32(1)])).toEqual([i32(0)]); // a $pt3, a subtype of $pt
+  });
+
+  it("a reference to an IMPORTED function is the function itself, with the exporter's type", async () => {
+    // B imports A's $sub-typed function declared as its supertype $super; a
+    // cast to $sub must still succeed (the reference is A's function). The
+    // interpreter minted one typed by B's declaration until the custom-
+    // descriptors corpus showed it; V8 is the oracle here.
+    const A =
+      `(module (type $super (sub (func (result i32)))) (type $sub (sub $super (func (result i32))))
+      (func (export "f") (type $sub) (i32.const 9)))`;
+    const B =
+      `(module (type $super (sub (func (result i32)))) (type $sub (sub $super (func (result i32))))
+      (import "a" "f" (func $f (type $super))) (elem declare func $f)
+      (func (export "t") (result i32) (ref.test (ref $sub) (ref.func $f)))
+      (func (export "c") (result i32) (call_ref $sub (ref.cast (ref $sub) (ref.func $f)))))`;
+    const engineA = await WebAssembly.instantiate(
+      wat2wasm(A, { textForm: false }).binary as BufferSource,
+    );
+    const engineB = await WebAssembly.instantiate(
+      wat2wasm(B, { textForm: false }).binary as BufferSource,
+      {
+        a: { f: engineA.instance.exports.f },
+      },
+    );
+    const a = interp(A);
+    const b = interp(B, {
+      imports: () => ({
+        kind: 'func' as const,
+        call: (args: Value[]) => a.invoke('f', args),
+        func: a.funcRefOf('f'),
+      }),
+    });
+    for (const name of ['t', 'c']) {
+      const want = (engineB.instance.exports[name] as () => number)();
+      expect(b.invoke(name, [])).toEqual([i32(want)]);
+    }
+  });
+
+  it('two modules with the same rec group share its types: a cast across them succeeds', () => {
+    const GROUP = '(rec (type $s (struct (field i32))) (type (func)))';
+    const a = interp(
+      `(module ${GROUP} (global (export "g") (ref $s) (struct.new $s (i32.const 7))))`,
+    );
+    const b = interp(
+      `(module ${GROUP} (import "a" "g" (global $g (ref $s)))
+        (func (export "f") (result i32) (struct.get $s 0 (ref.cast (ref $s) (global.get $g)))))`,
+      { imports: () => ({ kind: 'global', cell: a.globalCell('g') }) },
+    );
+    expect(b.invoke('f', [])).toEqual([i32(7)]);
+  });
+
+  it('extern.convert_any then any.convert_extern gives back the very value', async () => {
+    await agree(F(
+      `(local $p (ref $pt)) (local.set $p (struct.new_default $pt))
+      (ref.eq (local.get $p) (ref.cast (ref $pt) (any.convert_extern (extern.convert_any (local.get $p)))))`,
+      '',
+    ));
+  });
+});
