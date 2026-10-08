@@ -20,7 +20,7 @@
  * Verdict: exit 1 on any FAIL — a wrong value, a missing or wrong trap, a JS
  * error out of the interpreter.
  *
- * Usage: `deno task interp <prepared spec dir> [--verbose]` — the corpus
+ * Usage: `deno task interp <prepared spec dir> [--verbose] [--only=a,b]` — the corpus
  * `deno task spec:prepare` writes.
  */
 
@@ -34,6 +34,7 @@ import {
   TableCell,
   Trap,
   type Value,
+  WasmException,
 } from '../src/binaryen-ts/interp/interpreter.ts';
 import { ExternalKind } from '../src/wabt-ts/core/binary.ts';
 import { ValType } from '../src/binaryen-ts/ir/types.ts';
@@ -65,6 +66,8 @@ const FUEL = 50_000_000;
 
 const root = Deno.args.find((a) => !a.startsWith('--'));
 const verbose = Deno.args.includes('--verbose');
+/** `--only=a,b`: just those manifests — to read one area's numbers (never in the gate). */
+const only = Deno.args.find((a) => a.startsWith('--only='))?.slice(7).split(',');
 if (root === undefined) {
   console.error('usage: deno task interp <prepared spec dir> [--verbose]');
   Deno.exit(2);
@@ -212,7 +215,8 @@ const stopKey = (s: Stop): string =>
     ? 'state shared with code that stopped (any reason)'
     : s.message.replace(/ 0x[0-9a-f]+$/, ' …');
 
-const dirs = [...Deno.readDirSync(root)].filter((e) => e.isDirectory).map((e) => e.name).sort();
+const dirs = [...Deno.readDirSync(root)].filter((e) => e.isDirectory).map((e) => e.name)
+  .filter((d) => only === undefined || only.includes(d)).sort();
 for (const dir of dirs) {
   let manifest: { commands: Command[] };
   try {
@@ -242,6 +246,8 @@ for (const dir of dirs) {
         return { kind: 'func', call: (args) => inst.invoke(field, args) };
       case ExternalKind.Global:
         return { kind: 'global', cell: inst.globalCell(field) };
+      case ExternalKind.Tag:
+        return { kind: 'tag', cell: inst.tagCell(field) };
       case ExternalKind.Table:
         return { kind: 'table', cell: inst.tableCell(field) };
       case ExternalKind.Memory:
@@ -356,7 +362,9 @@ for (const dir of dirs) {
       continue;
     }
     if (
-      !['assert_return', 'assert_trap', 'assert_exhaustion', 'action'].includes(cmd.type) ||
+      !['assert_return', 'assert_trap', 'assert_exhaustion', 'assert_exception', 'action'].includes(
+        cmd.type,
+      ) ||
       !cmd.action
     ) continue;
 
@@ -381,7 +389,7 @@ for (const dir of dirs) {
       );
       continue;
     }
-    let outcome: { values: Value[] } | { trap: string };
+    let outcome: { values: Value[] } | { trap: string } | { exception: string };
     target.refuel(FUEL);
     try {
       outcome = cmd.action.type === 'get'
@@ -400,6 +408,7 @@ for (const dir of dirs) {
         continue;
       }
       if (e instanceof Trap) outcome = { trap: e.message };
+      else if (e instanceof WasmException) outcome = { exception: e.tag.name };
       else {
         tally.fail++;
         failures.push(
@@ -408,11 +417,16 @@ for (const dir of dirs) {
         continue;
       }
     }
+    const got = 'trap' in outcome
+      ? `trapped "${outcome.trap}"`
+      : 'exception' in outcome
+      ? `threw an exception (tag ${outcome.exception})`
+      : `returned [${outcome.values.map(show).join(' ')}]`;
     if (cmd.type === 'action') {
       // A bare action must complete: the suite has no expectation for it to fail.
-      if ('trap' in outcome) {
+      if (!('values' in outcome)) {
         tally.fail++;
-        failures.push(`${where} ${cmd.action.field}: the action trapped "${outcome.trap}"`);
+        failures.push(`${where} ${cmd.action.field}: the action ${got}`);
       }
       continue;
     }
@@ -427,18 +441,16 @@ for (const dir of dirs) {
       }
       ok = 'values' in outcome && outcome.values.length === want.length &&
         want.every((w, i) => matches(w, (outcome as { values: Value[] }).values[i]!));
-      detail = 'trap' in outcome
-        ? `trapped "${outcome.trap}"`
-        : `got [${outcome.values.map(show).join(' ')}] want [${
-          want.map((w) => `${w.type}:${w.value}`).join(' ')
-        }]`;
+      detail = `${got}, want [${want.map((w) => `${w.type}:${w.value}`).join(' ')}]`;
+    } else if (cmd.type === 'assert_exception') {
+      // An exception that leaves the invocation uncaught — not a trap.
+      ok = 'exception' in outcome;
+      detail = `${got}, want an uncaught exception`;
     } else {
       // assert_trap / assert_exhaustion: a trap whose message STARTS with the
       // expected text (the spec's convention; D3's prefix rule).
       ok = 'trap' in outcome && outcome.trap.startsWith(cmd.text ?? '');
-      detail = 'trap' in outcome
-        ? `trapped "${outcome.trap}", want "${cmd.text}"`
-        : `returned [${outcome.values.map(show).join(' ')}], want trap "${cmd.text}"`;
+      detail = `${got}, want trap "${cmd.text}"`;
     }
     if (ok) tally.pass++;
     else {
