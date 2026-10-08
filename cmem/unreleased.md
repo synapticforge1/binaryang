@@ -55,6 +55,12 @@ contains ([handoffs.md](handoffs.md)).
   zero counted; numeric and `v128` only; no evaluation — that is item 23). Scheduled at -O2 and up
   after OptimizeInstructions, with OptimizeInstructions again. Corpus −2.3 KB at -O2 / -Os / -Oz,
   −3.4 KB at -O3; -O1 unchanged; behaviour unchanged.
+- **NEW / Behaviour — `Precompute` pass** (open-work 23, E2, 2026-10-07): an expression whose value
+  is known becomes it — a tree of constants; an `if` / `select` / `br_if` / `br_table` with a
+  constant condition takes its arm (a `select`'s other operand only when it has no effect and cannot
+  trap). On the evaluator, under the same fold rule as OI (never a trap; a NaN only from a bit-exact
+  operator). In the function passes at -O2 and up, twice with ConstantPropagation. Corpus −4.4 KB at
+  -O2 / -Os / -Oz, −6.0 KB at -O3; -O1 unchanged; behaviour unchanged.
 - **Behaviour — `OptimizeInstructions` folds through the evaluator** (open-work 23, E1, 2026-10-07):
   every scalar operator now folds — floats, division, conversions — through one numeric core
   (`interp/numeric.ts`, V8-checked on all 136 scalar instructions); never a trap, and a NaN only
