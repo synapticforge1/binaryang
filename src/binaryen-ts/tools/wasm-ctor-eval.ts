@@ -180,8 +180,12 @@ function unwritable(
 // Writing the state back
 // ---------------------------------------------------------------------------
 
-/** Zero bytes between two runs of data for them to become separate segments. */
-const GAP = 32;
+/**
+ * Zero bytes between two runs of data for them to become separate segments:
+ * about what a segment's header costs (flags, `i32.const offset end`, size),
+ * so a shorter run of zeros is cheaper written inline.
+ */
+const GAP = 8;
 
 /** The non-zero runs of `bytes` as `[offset, data]` pairs, runs closer than {@link GAP} merged. */
 export function packMemory(bytes: Uint8Array, gap = GAP): { offset: number; data: Uint8Array }[] {
@@ -361,6 +365,12 @@ export function ctorEval(
   }
   const state = inst.state();
   const init = snapshot(state, imported.globals);
+  // The state at instantiation is written back first, whatever the
+  // constructors then do: the same memory image, repacked (adjacent and
+  // zero-padded segments merged or split by {@link packMemory}), and each
+  // global's constant initialiser folded to its value. Upstream does the
+  // same by flattening memory before it evaluates anything.
+  if (unwritable(init, init, inst, module, []) === null) applyToModule(module, init, imported);
 
   for (const [c, ctor] of ctors.entries()) {
     // A constructor that did not complete still has code that runs at start,

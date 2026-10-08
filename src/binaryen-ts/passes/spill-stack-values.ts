@@ -221,6 +221,15 @@ function rewriteRegion(
   const children = holder.children;
   const indexOf = new Map<Expression, number>();
   children.forEach((c, i) => indexOf.set(c, i));
+  /** The statement whose operands hold a node (not an owned sequence's): where a nested producer's extra values come from. */
+  const statementOf = new Map<Expression, number>();
+  children.forEach((c, i) => {
+    const walk = (n: Expression): void => {
+      statementOf.set(n, i);
+      for (const o of operandsIn(n)) walk(o);
+    };
+    walk(c);
+  });
 
   /** Every `pop` in child `j`'s own operands (not in a sequence it owns). */
   const popsIn = (e: Expression): Expression[] => {
@@ -249,7 +258,33 @@ function rewriteRegion(
   const spilled = new Map<number, number>(); // producer index -> local slot
   const nested = new Set<number>(); // producer indices moved into their consumer
   for (const [j, child] of children.entries()) {
-    for (const pop of popsIn(child)) {
+    const pops = popsIn(child);
+    /**
+     * Whether `pop` must stay a `pop` — its value stays on the stack: an entry
+     * value, a tuple's value, one a `br_on` carries. A phantom is not one (it
+     * becomes `unreachable`, which pushes nothing and ends the stack).
+     */
+    const stays = (pop: Expression): boolean => {
+      const from = sources.get(pop);
+      if (from === undefined) return false;
+      if (from === 'entry') return true;
+      const s = statementOf.get(from);
+      if (s === undefined || s >= j) return false; // a sibling operand: produced in place
+      // A value an earlier statement left: a tuple's, a nested producer's
+      // extra result, one a `br_on` carries — or a statement's own, which is
+      // spilled below unless it, too, is kept.
+      return indexOf.get(from) === undefined || producedCount(from) !== 1 || underBrOn(s, j);
+    };
+    // 🔧 The pops of one statement are consumed in evaluation order, the
+    // deeper stack slot first. A `local.get` (or a nested producer) put in for
+    // an EARLIER pop pushes its value on top of what a LATER one that stays
+    // was to take, and the later one takes the wrong value — `i32.add (pop)
+    // (… (local.tee (pop)) …)` over `i32.const 4; call $two_results;
+    // local.set`: the first pop became `local.get`, the `local.tee` took that
+    // i32 for its f64. So once any pop stays, every pop before it stays too
+    // (found by E4: upstream's `wasm-ctor-eval` output, -Oz, V8 refused it).
+    const lastStay = pops.reduce((last, pop, k) => (stays(pop) ? k : last), -1);
+    for (const [k, pop] of pops.entries()) {
       const from = sources.get(pop);
       if (from === undefined) {
         // Nothing behind it: stack-polymorphic code, where the phantom value is
@@ -257,6 +292,7 @@ function rewriteRegion(
         replacement.set(pop, makeUnreachable());
         continue;
       }
+      if (k <= lastStay) continue; // it, or a pop after it, keeps the stack
       if (from === 'entry') continue; // a parameter or a caught payload
       const i = indexOf.get(from);
       if (i === undefined || i >= j) continue; // a sibling operand, not a statement

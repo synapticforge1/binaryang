@@ -242,3 +242,48 @@ describe('a `pop` with nothing behind it becomes `unreachable`', () => {
     assert(WebAssembly.validate(out as BufferSource), 'and the module is still valid');
   });
 });
+
+// 🔧 Found by open-work 23 E4 (2026-10-08): upstream `wasm-ctor-eval`'s output
+// through our -Oz, which V8 refused — "local.tee[0] expected type f64, found
+// local.get of type i32". The shape, as binaryen writes it: an i32 left on the
+// stack, then a TWO-result call whose last result a `local.set` takes and whose
+// first a later `local.tee` takes, then the i32 consumed. The tree: `i32.add
+// (pop) (i32.trunc_f64_s (f64.add (local.tee $a (pop)) …))`. The first pop's
+// value (the i32, a statement of its own) was spilled to a local and the pop
+// became `local.get`; the second (the call's first result — a tuple's, which
+// stays on the stack) stayed a pop. But the `local.get` is evaluated BEFORE
+// the `local.tee`, so it pushed the i32 on top of the f64 the tee was to take.
+describe('a pop that stays keeps every pop evaluated before it on the stack too', () => {
+  const bytes = asm(`(module
+    (func $two (param f64) (result f64 f64) (local.get 0) (f64.add (local.get 0) (f64.const 1)))
+    (func (export "f") (param i32) (result i32) (local $a f64) (local $b f64)
+      local.get 0
+      f64.const 100
+      call $two
+      local.set $b
+      local.tee $a
+      local.get $b
+      f64.add
+      i32.trunc_f64_s
+      i32.add))`);
+
+  it('the fixture holds both pops, in that order', () => {
+    assertEquals(pops(routeB(bytes)), 2);
+  });
+
+  it('the spill leaves the module valid, computing the same', () => {
+    const m = routeB(bytes);
+    spillStackValues(m);
+    const out = writeWasm(m);
+    assert(WebAssembly.validate(out as BufferSource), 'valid after the spill');
+    assertEquals(results(out), results(bytes));
+  });
+
+  it('and so does -Oz', () => {
+    const m = routeB(bytes);
+    new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 2 }).addDefaultOptimizationPasses().run();
+    const out = writeWasm(m);
+    assert(WebAssembly.validate(out as BufferSource), 'valid after -Oz');
+    assertEquals(results(out), results(bytes));
+  });
+});
