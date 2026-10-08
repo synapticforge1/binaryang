@@ -1,0 +1,320 @@
+// Copyright (c) 2026 Jon Marcum
+// Licensed under the MIT License. See LICENSE-MIT in the repository root.
+
+/**
+ * @module
+ * The interpreter against the spec testsuite (open-work 23, stage E3).
+ *
+ * Every manifest's `assert_return`, `assert_trap` and `assert_exhaustion` is
+ * replayed on `interp/interpreter.ts`, and the outcome compared with what the
+ * MANIFEST expects — here the testsuite is the oracle, not an engine: the
+ * interpreter is a second implementation of the spec, and its result must be
+ * the spec's. Values compare by bits; `nan:canonical` / `nan:arithmetic` as the
+ * spec defines them; a trap by its message.
+ *
+ * An assertion the interpreter cannot run — it STOPPED (an instruction it does
+ * not run yet, a host import it was not given) — is counted by reason, never
+ * as a pass and never as a failure. The counts are its coverage, and they
+ * should only fall as increments land.
+ *
+ * Verdict: exit 1 on any FAIL — a wrong value, a missing or wrong trap, a JS
+ * error out of the interpreter.
+ *
+ * Usage: `deno task interp <prepared spec dir> [--verbose]` — the corpus
+ * `deno task spec:prepare` writes.
+ */
+
+import { readForPasses } from '../src/binaryen-ts/ir/prepare.ts';
+import {
+  type HostImport,
+  Interpreter,
+  Stop,
+  Trap,
+  type Value,
+} from '../src/binaryen-ts/interp/interpreter.ts';
+import { ValType } from '../src/binaryen-ts/ir/types.ts';
+import { f32BitsOf, f64BitsOf } from '../src/binaryen-ts/ir/expressions.ts';
+
+interface Arg {
+  type: string;
+  value?: string | string[];
+}
+interface Action {
+  type: 'invoke' | 'get';
+  module?: string;
+  field: string;
+  args?: Arg[];
+}
+interface Command {
+  type: string;
+  line: number;
+  filename?: string;
+  name?: string;
+  as?: string;
+  action?: Action;
+  expected?: Arg[];
+  text?: string;
+}
+
+/** Instructions one invocation may run. The suite's longest takes far fewer. */
+const FUEL = 50_000_000;
+
+const root = Deno.args.find((a) => !a.startsWith('--'));
+const verbose = Deno.args.includes('--verbose');
+if (root === undefined) {
+  console.error('usage: deno task interp <prepared spec dir> [--verbose]');
+  Deno.exit(2);
+}
+
+// ---------------------------------------------------------------------------
+// Values
+// ---------------------------------------------------------------------------
+
+/** A manifest value as a runtime value, or `null` for a type not run yet. */
+function toValue(a: Arg): Value | null {
+  if (typeof a.value !== 'string' || a.value.startsWith('nan:')) return null;
+  switch (a.type) {
+    case 'i32':
+      return { type: ValType.I32, value: Number(BigInt.asIntN(32, BigInt(a.value))) };
+    case 'i64':
+      return { type: ValType.I64, value: BigInt.asIntN(64, BigInt(a.value)) };
+    case 'f32':
+      return { type: ValType.F32, bits: Number(BigInt.asUintN(32, BigInt(a.value))) };
+    case 'f64':
+      return { type: ValType.F64, bits: BigInt.asUintN(64, BigInt(a.value)) };
+    default:
+      return null;
+  }
+}
+
+/** Whether `got` is what `want` asks for — bits, or a NaN pattern. */
+function matches(want: Arg, got: Value): boolean {
+  if (typeof want.value !== 'string') return false;
+  const nan = want.value.startsWith('nan:') ? want.value.slice(4) : null;
+  if (want.type === 'f32' && got.type === ValType.F32) {
+    const bits = got.bits >>> 0;
+    if (nan === 'canonical') return (bits & 0x7fffffff) === 0x7fc00000;
+    if (nan === 'arithmetic') return (bits & 0x7fc00000) === 0x7fc00000;
+  }
+  if (want.type === 'f64' && got.type === ValType.F64) {
+    const bits = BigInt.asUintN(64, got.bits);
+    if (nan === 'canonical') return (bits & 0x7fffffffffffffffn) === 0x7ff8000000000000n;
+    if (nan === 'arithmetic') return (bits & 0x7ff8000000000000n) === 0x7ff8000000000000n;
+  }
+  const w = toValue(want);
+  if (w === null || w.type !== got.type) return false;
+  switch (w.type) {
+    case ValType.I32:
+      return (w.value | 0) === ((got as typeof w).value | 0);
+    case ValType.I64:
+      return w.value === BigInt.asIntN(64, (got as typeof w).value);
+    case ValType.F32:
+      return w.bits >>> 0 === (got as typeof w).bits >>> 0;
+    case ValType.F64:
+      return w.bits === BigInt.asUintN(64, (got as typeof w).bits);
+    default:
+      return false;
+  }
+}
+
+const show = (v: Value): string =>
+  v.type === ValType.I32 || v.type === ValType.I64
+    ? `${v.type === ValType.I32 ? 'i32' : 'i64'}:${v.value}`
+    : v.type === ValType.F32
+    ? `f32:0x${(v.bits >>> 0).toString(16)}`
+    : v.type === ValType.F64
+    ? `f64:0x${BigInt.asUintN(64, v.bits).toString(16)}`
+    : '?';
+
+// ---------------------------------------------------------------------------
+// Imports: `spectest`, and what `register` names
+// ---------------------------------------------------------------------------
+
+function spectest(field: string): HostImport | undefined {
+  switch (field) {
+    case 'global_i32':
+      return { kind: 'global', cell: { value: { type: ValType.I32, value: 666 } } };
+    case 'global_i64':
+      return { kind: 'global', cell: { value: { type: ValType.I64, value: 666n } } };
+    case 'global_f32':
+      return { kind: 'global', cell: { value: { type: ValType.F32, bits: f32BitsOf(666.6) } } };
+    case 'global_f64':
+      return { kind: 'global', cell: { value: { type: ValType.F64, bits: f64BitsOf(666.6) } } };
+    default:
+      return field.startsWith('print') ? { kind: 'func', call: () => [] } : undefined;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The run
+// ---------------------------------------------------------------------------
+
+const tally = { pass: 0, fail: 0, stopped: 0, modules: 0, modulesStopped: 0 };
+const stops = new Map<string, number>();
+const failures: string[] = [];
+const stopKey = (s: Stop): string => s.message.replace(/ 0x[0-9a-f]+$/, ' …');
+
+const dirs = [...Deno.readDirSync(root)].filter((e) => e.isDirectory).map((e) => e.name).sort();
+for (const dir of dirs) {
+  let manifest: { commands: Command[] };
+  try {
+    manifest = JSON.parse(Deno.readTextFileSync(`${root}/${dir}/${dir}.json`));
+  } catch {
+    continue;
+  }
+  const named = new Map<string, Interpreter | Stop>();
+  const registered = new Map<string, Interpreter>();
+  let current: Interpreter | Stop | null = null;
+
+  const imports = (module: string, field: string): HostImport | undefined => {
+    if (module === 'spectest') return spectest(field);
+    const inst = registered.get(module);
+    if (inst === undefined) return undefined;
+    const ex = inst.module.exports.find((e) => e.name === field);
+    if (ex === undefined) return undefined;
+    try {
+      return { kind: 'global', cell: inst.globalCell(field) };
+    } catch {
+      return { kind: 'func', call: (args) => inst.invoke(field, args) };
+    }
+  };
+
+  for (const cmd of manifest.commands) {
+    const where = `${dir}:${cmd.line}`;
+    if (cmd.type === 'module' && cmd.filename) {
+      tally.modules++;
+      try {
+        current = new Interpreter(
+          readForPasses(Deno.readFileSync(`${root}/${dir}/${cmd.filename}`)),
+          { imports },
+        );
+      } catch (e) {
+        if (!(e instanceof Stop)) {
+          // A module the reader takes and the interpreter cannot set up is a
+          // stop of its own kind, not a pass: count it.
+          current = new Stop(
+            'unsupported',
+            `instantiate: ${e instanceof Error ? e.message.slice(0, 60) : e}`,
+          );
+        } else current = e;
+        tally.modulesStopped++;
+      }
+      if (cmd.name) named.set(cmd.name, current);
+      continue;
+    }
+    if (cmd.type === 'register' && cmd.as) {
+      const inst = cmd.name ? named.get(cmd.name) : current;
+      if (inst instanceof Interpreter) registered.set(cmd.as, inst);
+      continue;
+    }
+    if (
+      !['assert_return', 'assert_trap', 'assert_exhaustion', 'action'].includes(cmd.type) ||
+      !cmd.action
+    ) continue;
+
+    const target = cmd.action.module ? named.get(cmd.action.module) : current;
+    const stopped = (s: Stop) => {
+      if (cmd.type === 'action') return;
+      tally.stopped++;
+      const k = stopKey(s);
+      stops.set(k, (stops.get(k) ?? 0) + 1);
+    };
+    if (!(target instanceof Interpreter)) {
+      if (target instanceof Stop) stopped(target);
+      continue;
+    }
+    const args = (cmd.action.args ?? []).map(toValue);
+    if (args.some((a) => a === null)) {
+      stopped(
+        new Stop(
+          'unsupported',
+          `a ${cmd.action.args!.find((a) => toValue(a) === null)!.type} argument`,
+        ),
+      );
+      continue;
+    }
+    let outcome: { values: Value[] } | { trap: string };
+    target.refuel(FUEL);
+    try {
+      outcome = cmd.action.type === 'get'
+        ? { values: [target.global(cmd.action.field)] }
+        : { values: target.invoke(cmd.action.field, args as Value[]) };
+    } catch (e) {
+      // Out of fuel is NOT a stop here: every testsuite invocation finishes, so
+      // one that does not is wrong — and without the limit it hangs the run.
+      if (e instanceof Stop && e.reason !== 'fuel') {
+        stopped(e);
+        continue;
+      }
+      if (e instanceof Trap) outcome = { trap: e.message };
+      else {
+        if (cmd.type === 'action') continue;
+        tally.fail++;
+        failures.push(
+          `${where} ${cmd.action.field}: interpreter threw ${e instanceof Error ? e.message : e}`,
+        );
+        continue;
+      }
+    }
+    if (cmd.type === 'action') continue;
+
+    let ok: boolean;
+    let detail = '';
+    if (cmd.type === 'assert_return') {
+      const want = cmd.expected ?? [];
+      if (
+        want.some((w) =>
+          toValue(w) === null && !(typeof w.value === 'string' && w.value.startsWith('nan:'))
+        )
+      ) {
+        stopped(
+          new Stop('unsupported', `an expected ${want.find((w) => toValue(w) === null)!.type}`),
+        );
+        continue;
+      }
+      ok = 'values' in outcome && outcome.values.length === want.length &&
+        want.every((w, i) => matches(w, (outcome as { values: Value[] }).values[i]!));
+      detail = 'trap' in outcome
+        ? `trapped "${outcome.trap}"`
+        : `got [${outcome.values.map(show).join(' ')}] want [${
+          want.map((w) => `${w.type}:${w.value}`).join(' ')
+        }]`;
+    } else {
+      // assert_trap / assert_exhaustion: a trap whose message STARTS with the
+      // expected text (the spec's convention; D3's prefix rule).
+      ok = 'trap' in outcome && outcome.trap.startsWith(cmd.text ?? '');
+      detail = 'trap' in outcome
+        ? `trapped "${outcome.trap}", want "${cmd.text}"`
+        : `returned [${outcome.values.map(show).join(' ')}], want trap "${cmd.text}"`;
+    }
+    if (ok) tally.pass++;
+    else {
+      tally.fail++;
+      failures.push(`${where} ${cmd.action.field}: ${detail}`);
+    }
+  }
+}
+
+const run = tally.pass + tally.fail;
+console.log(`interpreter vs spec testsuite — ${dirs.length} manifests, ${tally.modules} modules`);
+console.log(
+  `  pass ${tally.pass}   FAIL ${tally.fail}   stopped ${tally.stopped}   (ran ${run} of ${
+    run + tally.stopped
+  })`,
+);
+console.log(`  modules the interpreter could not set up: ${tally.modulesStopped}`);
+const top = [...stops].sort((a, b) => b[1] - a[1]);
+console.log('  stopped, by reason:');
+for (const [k, n] of verbose ? top : top.slice(0, 15)) {
+  console.log(`    ${String(n).padStart(6)}  ${k}`);
+}
+if (failures.length > 0) {
+  console.log(`\nFAILURES (${failures.length}):`);
+  for (const f of failures.slice(0, verbose ? Infinity : 40)) console.log(`  ${f}`);
+}
+console.log(
+  tally.fail === 0
+    ? '\nTOTAL — every assertion the interpreter ran holds.'
+    : `\n${tally.fail} FAILED`,
+);
+Deno.exit(tally.fail === 0 ? 0 : 1);

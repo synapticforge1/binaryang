@@ -11,9 +11,10 @@ release is a MINOR, 1.9.0) — NOT PUSHED. The owner's order (2026-10-06): finis
 the wasmtk list before publishing — 22 is done (closes with the release and its letter), 24 has its
 design decided and waits to be built. Item 2 is PARKED (owner, 2026-10-07: the delta to upstream is
 judged after item 23; 3.8% after E2). **Next: item 23** — E1 (the numeric evaluator) and E2
-(Precompute) done; E3, the interpreter, next (see its "Plan" line), then 24, 21, and the rounds 13 /
-14, and item 2's remaining steps once 23 is done. **8 open items, none blocking**; numbers 3–7,
-9–12, 16, 17 are gone and kept free. Re-derive any number before quoting it.
+(Precompute) done; E3, the interpreter, under way — E3a done, E3b (memory) next (see its "Plan"
+line), then 24, 21, and the rounds 13 / 14, and item 2's remaining steps once 23 is done. **8 open
+items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free. Re-derive any number
+before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -387,10 +388,24 @@ mismatches and the reader prints that function as predicted — plainly, never w
         854,686 → 848,683. `precompute.test.ts`, 9 / 9 mutants killed. Gate green. Item 2's gap
         re-derived: **30,844 (3.8%)** (ours 847,329, upstream 816,485; functions 2,706 / 2,663) —
         judged when item 23 is done (owner).
-      - 📏 **Resume here: E3 (the interpreter).**
       - **E3 — the interpreter**: bodies, locals, control, memory, globals, tables, calls; a host
         call or anything non-deterministic STOPS it. Oracles: the spec testsuite's `assert_return` /
-        `assert_trap`, and V8.
+        `assert_trap`, and V8. In increments (owner, 2026-10-07: "proceed"): E3a numbers, locals,
+        control; E3b memory, globals; E3c tables, calls; E3d exceptions, GC.
+        - ✅ **E3a done 2026-10-07** (`interp/interpreter.ts`, a stack machine over the tree: a
+          `pop` is nothing, a branch carries the top values its TARGET takes — so the reader's stack
+          shapes run as they are; `Trap` vs `Stop`, never confused). Harness
+          `scripts/check-interp.ts`, `deno task interp <prepared spec dir>` — the MANIFEST is the
+          oracle: **15,432 pass, 0 FAIL, 42,144 stopped** (by reason: 23,508 v128 arguments, 10,618
+          `load`, 4,992 `call_indirect`, 765 `store`, …; 50 modules not set up); ~2 s; 50 M fuel per
+          invocation (clean at 5 M). First run found 2 defects: the exhaustion check overflowed in
+          its own regex (`fac-rec`); an imported mutable global was copied, not shared (`linking`
+          `Mg.mut_glob`). `interpreter.test.ts` against V8; 11 / 11 mutants (one only after a test
+          with a value BELOW a block's parameters — the whole spec suite missed it). ⚠️ **For the
+          owner: should `deno task interp` join the gate?** Green in today's gate runs as a proposed
+          step; the rule is a FAIL count of 0, and the stopped count should only fall.
+        - 📏 **Resume here: E3b (memory).** `load` / `store` / `memory.*` and data segments — the
+          10,618 + 765 + 113 + 96 stops above.
       - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
         combination — MEASURED.
 
