@@ -211,7 +211,8 @@ describe('the two ways to stop, never a result', () => {
   });
 
   it('an instruction not run yet', () => {
-    const wat = `(module (table 1 funcref) (func (export "f") (result i32) (table.size 0)))`;
+    const wat =
+      `(module (func (export "f") (result i32) (i32x4.extract_lane 0 (v128.const i32x4 1 2 3 4))))`;
     try {
       interp(wat).invoke('f', []);
       throw new Error('ran?');
@@ -358,5 +359,135 @@ describe('linear memory (E3b)', () => {
       )
     ).toThrow(Trap);
     expect(shared.bytes[0]).toBe(1);
+  });
+});
+
+describe('tables, references and indirect calls (E3c)', () => {
+  const TABLE = `(module
+    (type $ii (func (param i32) (result i32)))
+    (type $v (func (result i32)))
+    (table $t 4 8 funcref)
+    (elem (table $t) (i32.const 0) func $double $seven)
+    (elem $pass func $seven $double)
+    (func $double (type $ii) (i32.mul (local.get 0) (i32.const 2)))
+    (func $seven (type $v) (i32.const 7))`;
+
+  it("call_indirect: a match, then each trap in the spec's order", async () => {
+    const wat = `${TABLE}
+      (func (export "f") (param i32) (result i32)
+        (call_indirect $t (type $ii) (i32.const 21) (local.get 0))))`;
+    // 0: $double; 1: $seven (type mismatch); 2: empty; 4: past the end; -1: past the end.
+    for (const i of [0, 1, 2, 4, -1]) await agree(wat, i);
+  });
+
+  it('the bare prefix, and the slot, in "uninitialized element N"', () => {
+    const m = interp(`${TABLE}
+      (func (export "f") (param i32) (result i32)
+        (call_indirect $t (type $v) (local.get 0))))`);
+    expect(() => m.invoke('f', [i32(3)])).toThrow('uninitialized element 3');
+  });
+
+  it('table.get / set / size / grow / fill, and their bounds', async () => {
+    const ops = [
+      '(table.size $t)',
+      '(table.grow $t (ref.null func) (local.get 0))',
+      '(i32.add (table.grow $t (ref.func $seven) (local.get 0)) (table.size $t))',
+      '(table.set $t (local.get 0) (ref.func $seven)) (call_indirect $t (type $v) (local.get 0))',
+      '(ref.is_null (table.get $t (local.get 0)))',
+      '(table.fill $t (local.get 0) (ref.func $seven) (i32.const 2)) (call_indirect $t (type $v) (i32.const 3))',
+    ];
+    for (const op of ops) {
+      const wat = `${TABLE} (func (export "f") (param i32) (result i32) ${op}))`;
+      for (const x of [0, 2, 3, 4, 5, -1]) await agree(wat, x);
+    }
+  });
+
+  it('table.copy (overlapping both ways), table.init, elem.drop', async () => {
+    // The table is [$double, $seven, null, null]. Slot d + 1 is where an
+    // overlapping copy done naively forward differs: copying 0..1 to 1..2 must
+    // leave $seven in slot 2, and a forward copy leaves $double there (a mutant
+    // that did that passed the slot-d read this test made at first).
+    for (const [d, s] of [[1, 0], [0, 1], [2, 0]]) {
+      for (const read of [d, d + 1]) {
+        await agree(`${TABLE} (func (export "f") (result i32)
+          (table.copy $t $t (i32.const ${d}) (i32.const ${s}) (i32.const 2))
+          (call_indirect $t (type $v) (i32.const ${read}))))`);
+      }
+    }
+    const init = (drop: boolean, n: number) =>
+      `${TABLE} (func (export "f") (result i32)
+        ${drop ? '(elem.drop $pass)' : ''}
+        (table.init $t $pass (i32.const 2) (i32.const 0) (i32.const ${n}))
+        (call_indirect $t (type $v) (i32.const 2))))`;
+    for (const drop of [false, true]) for (const n of [0, 1, 2]) await agree(init(drop, n));
+  });
+
+  it('an active element segment is dropped once written', async () => {
+    await agree(
+      `${TABLE} (elem $a (table $t) (i32.const 2) func $seven)
+      (func (export "f") (param i32) (result i32)
+        (table.init $t $a (i32.const 3) (i32.const 0) (local.get 0))
+        (i32.const 1)))`,
+      0,
+    );
+    await agree(
+      `${TABLE} (elem $a (table $t) (i32.const 2) func $seven)
+      (func (export "f") (param i32) (result i32)
+        (table.init $t $a (i32.const 3) (i32.const 0) (local.get 0))
+        (i32.const 1)))`,
+      1,
+    );
+  });
+
+  it('call_ref, and a null one', async () => {
+    const wat = `${TABLE}
+      (func (export "f") (param i32) (result i32)
+        (call_ref $v (if (result (ref null $v)) (local.get 0)
+          (then (ref.func $seven)) (else (ref.null $v))))))`;
+    for (const x of [0, 1]) await agree(wat, x);
+  });
+
+  it('ref.as_non_null traps on null', async () => {
+    for (const x of [0, 1]) {
+      await agree(
+        `${TABLE} (func (export "f") (param i32) (result i32)
+        (ref.is_null (ref.as_non_null (table.get $t (local.get 0))))))`,
+        x + 1,
+      );
+    }
+  });
+
+  it('a tail call runs in one frame: a million deep under a depth limit of 100', () => {
+    const m = interp(
+      `(module (func $down (export "f") (param i32) (result i32)
+        (if (result i32) (i32.eqz (local.get 0)) (then (i32.const 42))
+          (else (return_call $down (i32.sub (local.get 0) (i32.const 1)))))))`,
+      { maxDepth: 100 },
+    );
+    expect(m.invoke('f', [i32(1_000_000)])).toEqual([i32(42)]);
+  });
+
+  it('a table shared between two modules, and a function reference that runs in its own', () => {
+    const a = interp(`(module (table (export "t") 2 funcref) (global $g (mut i32) (i32.const 5))
+      (func $get (result i32) (global.get $g)) (elem (i32.const 0) func $get))`);
+    const b = interp(
+      `(module (type $v (func (result i32))) (import "a" "t" (table 2 funcref))
+        (global $g (mut i32) (i32.const 99))
+        (func (export "f") (result i32) (call_indirect (type $v) (i32.const 0))))`,
+      { imports: () => ({ kind: 'table', cell: a.tableCell('t') }) },
+    );
+    expect(b.invoke('f', [])).toEqual([i32(5)]); // a's $get reads a's global, not b's
+  });
+
+  it('an element segment out of bounds traps instantiation, after the ones before it', () => {
+    const shared = interp(`(module (table (export "t") 2 funcref))`).tableCell('t');
+    expect(() =>
+      interp(
+        `(module (import "a" "t" (table 2 funcref)) (func $f)
+          (elem (i32.const 0) func $f) (elem (i32.const 2) func $f))`,
+        { imports: () => ({ kind: 'table', cell: shared }) },
+      )
+    ).toThrow(Trap);
+    expect(shared.elems[0]!.type === 'ref' && shared.elems[0]!.kind).toBe('func');
   });
 });

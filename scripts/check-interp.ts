@@ -29,7 +29,9 @@ import {
   type HostImport,
   Interpreter,
   MemoryCell,
+  NULL,
   Stop,
+  TableCell,
   Trap,
   type Value,
 } from '../src/binaryen-ts/interp/interpreter.ts';
@@ -84,13 +86,53 @@ function toValue(a: Arg): Value | null {
       return { type: ValType.F32, bits: Number(BigInt.asUintN(32, BigInt(a.value))) };
     case 'f64':
       return { type: ValType.F64, bits: BigInt.asUintN(64, BigInt(a.value)) };
-    default:
+    default: {
+      const r = refExpectation(a);
+      if (r === 'null') return NULL;
+      if (r !== null && typeof r === 'object') {
+        return { type: 'ref', kind: 'extern', host: r.extern };
+      }
       return null;
+    }
   }
 }
 
-/** Whether `got` is what `want` asks for — bits, or a NaN pattern. */
+/** The reference types whose values E3c runs; the GC ones (`anyref`, `i31ref`, …) are E3d's. */
+const NULL_TYPES = new Set(['nullref', 'nullfuncref', 'nullexternref', 'nullexnref', 'refnull']);
+
+/**
+ * What a manifest reference value asks for: `null`; `func` (no value on a
+ * `funcref`: any non-null function reference); an extern host value, by its
+ * string; or `null` (the JS value) for one this harness cannot judge yet.
+ */
+function refExpectation(a: Arg): 'null' | 'func' | { extern: string } | null {
+  if (
+    a.value === 'null' && (a.type === 'funcref' || a.type === 'externref' || NULL_TYPES.has(a.type))
+  ) {
+    return 'null';
+  }
+  if (a.value === undefined && NULL_TYPES.has(a.type)) return 'null';
+  if (a.value === undefined && a.type === 'funcref') return 'func';
+  if (a.type === 'externref' && typeof a.value === 'string' && /^\d+$/.test(a.value)) {
+    return { extern: a.value };
+  }
+  return null;
+}
+
+/** Whether the harness can judge an expected value at all. */
+const checkable = (w: Arg): boolean =>
+  toValue(w) !== null || refExpectation(w) !== null ||
+  (typeof w.value === 'string' && w.value.startsWith('nan:'));
+
+/** Whether `got` is what `want` asks for — bits, a NaN pattern, or a reference. */
 function matches(want: Arg, got: Value): boolean {
+  const ref = refExpectation(want);
+  if (ref !== null) {
+    if (got.type !== 'ref') return false;
+    if (ref === 'null') return got.kind === 'null';
+    if (ref === 'func') return got.kind === 'func';
+    return got.kind === 'extern' && got.host === ref.extern;
+  }
   if (typeof want.value !== 'string') return false;
   const nan = want.value.startsWith('nan:') ? want.value.slice(4) : null;
   if (want.type === 'f32' && got.type === ValType.F32) {
@@ -120,7 +162,9 @@ function matches(want: Arg, got: Value): boolean {
 }
 
 const show = (v: Value): string =>
-  v.type === ValType.I32 || v.type === ValType.I64
+  v.type === 'ref'
+    ? (v.kind === 'extern' ? `ref.extern ${v.host}` : `ref.${v.kind}`)
+    : v.type === ValType.I32 || v.type === ValType.I64
     ? `${v.type === ValType.I32 ? 'i32' : 'i64'}:${v.value}`
     : v.type === ValType.F32
     ? `f32:0x${(v.bits >>> 0).toString(16)}`
@@ -133,8 +177,14 @@ const show = (v: Value): string =>
 // ---------------------------------------------------------------------------
 
 /** `spectest`, as `spec/interpreter` defines it; one instance per script, so its memory is shared. */
-function spectest(field: string, memory: () => MemoryCell): HostImport | undefined {
+function spectest(
+  field: string,
+  memory: () => MemoryCell,
+  table: () => TableCell<Value>,
+): HostImport | undefined {
   switch (field) {
+    case 'table':
+      return { kind: 'table', cell: table() };
     case 'memory':
       return { kind: 'memory', cell: memory() };
     case 'global_i32':
@@ -157,7 +207,10 @@ function spectest(field: string, memory: () => MemoryCell): HostImport | undefin
 const tally = { pass: 0, fail: 0, stopped: 0, modules: 0, modulesStopped: 0 };
 const stops = new Map<string, number>();
 const failures: string[] = [];
-const stopKey = (s: Stop): string => s.message.replace(/ 0x[0-9a-f]+$/, ' …');
+const stopKey = (s: Stop): string =>
+  s.message.startsWith('unsupported: state shared with code that stopped')
+    ? 'state shared with code that stopped (any reason)'
+    : s.message.replace(/ 0x[0-9a-f]+$/, ' …');
 
 const dirs = [...Deno.readDirSync(root)].filter((e) => e.isDirectory).map((e) => e.name).sort();
 for (const dir of dirs) {
@@ -174,8 +227,14 @@ for (const dir of dirs) {
   let spectestMemory: MemoryCell | undefined;
   const memory = () =>
     spectestMemory ??= new MemoryCell({ initial: 1n, max: 2n, isShared: false, is64: false });
+  let spectestTable: TableCell<Value> | undefined;
+  const table = () =>
+    spectestTable ??= new TableCell<Value>(
+      { initial: 10n, max: 20n, isShared: false, is64: false },
+      NULL,
+    );
   const imports = (module: string, field: string): HostImport | undefined => {
-    if (module === 'spectest') return spectest(field, memory);
+    if (module === 'spectest') return spectest(field, memory, table);
     const inst = registered.get(module);
     if (inst === undefined) return undefined;
     switch (inst.exportKind(field)) {
@@ -183,6 +242,8 @@ for (const dir of dirs) {
         return { kind: 'func', call: (args) => inst.invoke(field, args) };
       case ExternalKind.Global:
         return { kind: 'global', cell: inst.globalCell(field) };
+      case ExternalKind.Table:
+        return { kind: 'table', cell: inst.tableCell(field) };
       case ExternalKind.Memory:
         return { kind: 'memory', cell: inst.memoryCell(field) };
       default:
@@ -195,24 +256,46 @@ for (const dir of dirs) {
   // function traps) — so their state is no longer the spec's, and every later
   // assertion on them is stopped too, never a pass or a failure.
   const touched = new Set<Interpreter>();
-  const taint = (why: Stop) => {
-    const stop = new Stop(why.reason, `state shared with a module that stopped (${why.message})`);
-    for (const inst of touched) {
+  // Which instances share state — an importer and every instance it imported
+  // from, both ways. A partial write through a shared memory, table or global
+  // reaches every instance in the group, so a taint does too.
+  const links = new Map<Interpreter, Set<Interpreter>>();
+  const link = (a: Interpreter, b: Interpreter) => {
+    if (!links.has(a)) links.set(a, new Set());
+    if (!links.has(b)) links.set(b, new Set());
+    links.get(a)!.add(b);
+    links.get(b)!.add(a);
+  };
+  const taintAll = (start: Iterable<Interpreter>, why: Stop) => {
+    const stop = new Stop(why.reason, `state shared with code that stopped (${why.message})`);
+    const group = new Set<Interpreter>();
+    const todo = [...start];
+    while (todo.length > 0) {
+      const inst = todo.pop()!;
+      if (group.has(inst)) continue;
+      group.add(inst);
+      todo.push(...(links.get(inst) ?? []));
+    }
+    for (const inst of group) {
       for (const [k, v] of registered) if (v === inst) registered.delete(k);
       for (const [k, v] of named) if (v === inst) named.set(k, stop);
       if (current === inst) current = stop;
     }
   };
+  const taint = (why: Stop) => taintAll(touched, why);
+  const taintInstance = (inst: Interpreter, why: Stop) => taintAll([inst], why);
   const load = (filename: string) => {
     touched.clear();
     try {
-      return new Interpreter(readForPasses(Deno.readFileSync(`${root}/${dir}/${filename}`)), {
+      const inst = new Interpreter(readForPasses(Deno.readFileSync(`${root}/${dir}/${filename}`)), {
         imports: (m, f) => {
-          const inst = registered.get(m);
-          if (inst !== undefined) touched.add(inst);
+          const from = registered.get(m);
+          if (from !== undefined) touched.add(from);
           return imports(m, f);
         },
       });
+      for (const from of touched) link(inst, from);
+      return inst;
     } catch (e) {
       if (e instanceof Stop) taint(e);
       throw e;
@@ -308,12 +391,16 @@ for (const dir of dirs) {
       // Out of fuel is NOT a stop here: every testsuite invocation finishes, so
       // one that does not is wrong — and without the limit it hangs the run.
       if (e instanceof Stop && e.reason !== 'fuel') {
+        // It stopped PART WAY: whatever it wrote before stopping — memory, a
+        // table, a global — is not the state the suite's next commands assume
+        // (`ref_eq.wast`'s `(invoke "init")` stopped on `struct.new`, and every
+        // `eq` after it compared nulls). Its instance is stopped from here on.
         stopped(e);
+        taintInstance(target, e);
         continue;
       }
       if (e instanceof Trap) outcome = { trap: e.message };
       else {
-        if (cmd.type === 'action') continue;
         tally.fail++;
         failures.push(
           `${where} ${cmd.action.field}: interpreter threw ${e instanceof Error ? e.message : e}`,
@@ -321,20 +408,21 @@ for (const dir of dirs) {
         continue;
       }
     }
-    if (cmd.type === 'action') continue;
+    if (cmd.type === 'action') {
+      // A bare action must complete: the suite has no expectation for it to fail.
+      if ('trap' in outcome) {
+        tally.fail++;
+        failures.push(`${where} ${cmd.action.field}: the action trapped "${outcome.trap}"`);
+      }
+      continue;
+    }
 
     let ok: boolean;
     let detail = '';
     if (cmd.type === 'assert_return') {
       const want = cmd.expected ?? [];
-      if (
-        want.some((w) =>
-          toValue(w) === null && !(typeof w.value === 'string' && w.value.startsWith('nan:'))
-        )
-      ) {
-        stopped(
-          new Stop('unsupported', `an expected ${want.find((w) => toValue(w) === null)!.type}`),
-        );
+      if (!want.every(checkable)) {
+        stopped(new Stop('unsupported', `an expected ${want.find((w) => !checkable(w))!.type}`));
         continue;
       }
       ok = 'values' in outcome && outcome.values.length === want.length &&
