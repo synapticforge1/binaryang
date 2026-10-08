@@ -74,6 +74,16 @@ try {
   copyFileSync(f('t.wasm'), f('s.wasm'));
   must(['wasm-strip', f('s.wasm')]);
   must(['wasm-opt', f('t.wasm'), '-o', f('o.wasm'), '-Oz']);
+  must(['wasm-interp', f('t.wasm'), '--run-export=add', '--argument=2', '--argument=3']);
+  must([
+    'wasm-ctor-eval',
+    f('t.wasm'),
+    '-o',
+    f('c.wasm'),
+    '--ctors=add',
+    '--ignore-external-input',
+    '-q',
+  ]);
   // wasm2ts is a deliberate stub: it must exit non-zero with a one-line message.
   if (cli(['wasm2ts', f('t.wasm')], 'ignore') === 0) {
     throw new Error('wasm2ts unexpectedly succeeded');

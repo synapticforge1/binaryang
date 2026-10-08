@@ -56,6 +56,8 @@ import { main as wasmValidateMain } from './src/wabt-ts/tools/wasm-validate.ts';
 import { main as wasmObjdumpMain } from './src/wabt-ts/tools/wasm-objdump.ts';
 import { main as wasmStripMain } from './src/wabt-ts/tools/wasm-strip.ts';
 import { main as wasm2tsMain } from './src/wabt-ts/tools/wasm2ts.ts';
+import { main as wasmCtorEvalMain } from './src/binaryen-ts/tools/wasm-ctor-eval.ts';
+import { main as wasmInterpMain } from './src/binaryen-ts/tools/wasm-interp.ts';
 
 export * from './src/index.ts';
 
@@ -88,6 +90,8 @@ const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
   'wasm-objdump': wasmObjdumpMain,
   'wasm-strip': wasmStripMain,
   'wasm2ts': wasm2tsMain,
+  'wasm-ctor-eval': wasmCtorEvalMain,
+  'wasm-interp': wasmInterpMain,
 };
 
 async function main(): Promise<void> {
@@ -140,6 +144,16 @@ COMMANDS:
                         -o <file>     Output file (default: in place)
                         -s <section>  Section to strip
   wasm2ts <input>       Emit TypeScript from a WASM binary (not yet implemented)
+  wasm-ctor-eval <input> Run constructors at build time and write their state into the module
+                        -o <file>                 Output file (default: output.wasm)
+                        --ctors=a,b               Exported functions to evaluate, in order
+                        --kept-exports=a,b        Keep these exports once fully evaluated
+                        --ignore-external-input   Assume no arguments or environment
+                        -S                        Emit WAT text
+  wasm-interp <input>   Run exported functions on the interpreter and print the results
+                        --run-all-exports         Every exported function, zero arguments
+                        --run-export=NAME         One export, with --argument=V (repeat)
+                        --dummy-import-func       Imported functions return zeros
 
 OPTIONS:
   --help, -h            Show this help

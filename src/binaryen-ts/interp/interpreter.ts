@@ -209,6 +209,25 @@ export interface InterpreterOptions {
   maxDepth?: number;
   /** Instructions to run before stopping with `fuel`. Default: unlimited. */
   fuel?: number;
+  /**
+   * Whether instantiation runs the start function. Default `true`, as the
+   * spec says; `wasm-ctor-eval` runs it itself, statement by statement.
+   */
+  runStart?: boolean;
+}
+
+/**
+ * An instance's state, in index-space order (imports first), for a tool that
+ * snapshots, compares and writes it back (`wasm-ctor-eval`). The arrays and
+ * cells are the LIVE ones: a memory's `bytes`, a global's `value`, a table's
+ * `elems`; a data or element segment's entry is empty once dropped.
+ */
+export interface InstanceState {
+  readonly memories: readonly MemoryCell[];
+  readonly globals: readonly GlobalCell[];
+  readonly tables: readonly TableCell<Value>[];
+  readonly data: Uint8Array[];
+  readonly elems: Value[][];
 }
 
 // ---------------------------------------------------------------------------
@@ -737,7 +756,7 @@ export class Interpreter {
       }
       this.data[this.data.length - 1] = EMPTY;
     }
-    if (module.start !== undefined) {
+    if (module.start !== undefined && (options.runStart ?? true)) {
       this.call(resolve(module.start, this.funcs, this.funcNames, 'function'), []);
     }
   }
@@ -747,6 +766,81 @@ export class Interpreter {
     const ex = this.module.exports.find((e) => e.name === name && e.kind === ExternalKind.Func);
     if (ex === undefined) throw new Error(`interp: no exported function "${name}"`);
     return this.call(resolve(ex.var, this.funcs, this.funcNames, 'function'), args);
+  }
+
+  /** The index-space index of the function `v` names. */
+  functionIndex(v: Var): number {
+    const i = v.kind === 'index' ? v.value : this.funcNames.indexOf(v.name);
+    if (this.funcs[i] === undefined) throw new Error('interp: unknown function');
+    return i;
+  }
+
+  /** This instance's live state — see {@link InstanceState}. */
+  state(): InstanceState {
+    return {
+      memories: this.memories,
+      globals: this.globals,
+      tables: this.tables,
+      data: this.data,
+      elems: this.elems,
+    };
+  }
+
+  /**
+   * Runs function `index`'s body one top-level statement at a time, for
+   * `wasm-ctor-eval`: after each statement that completes, `after` is told
+   * which one, the locals as they stand, and whether the operand stack is
+   * empty there (a point the body can be cut at). A trap, a {@link Stop}, an
+   * exception — or a Stop `after` throws — leaves the state as it is at that
+   * moment; the caller holds its own snapshot. Returns the results when the
+   * body completes (by falling off its end or by `return`); a tail call from
+   * the body is a Stop.
+   */
+  runStatements(
+    index: number,
+    args: Value[],
+    after: (statement: number, locals: readonly Value[], stackEmpty: boolean) => void,
+  ): Value[] {
+    const f = this.funcs[index];
+    if (f === undefined) throw new Error(`interp: no function ${index}`);
+    if (f.kind === 'host') throw new Stop('host', f.name);
+    const { fn, sig } = f;
+    const locals: Value[] = [...args];
+    for (let i = sig.params.length; i < fn.locals.length; i++) {
+      const z = zeroOf(fn.locals[i]!.type);
+      if (z === undefined) {
+        throw new Stop('unsupported', `a local of type ${String(fn.locals[i]!.type)}`);
+      }
+      locals.push(z);
+    }
+    const base = this.stack.length;
+    const n = sig.results.length;
+    this.depth++;
+    try {
+      for (const [k, e] of fn.body.children.entries()) {
+        this.exec(e, locals);
+        after(k, locals, this.stack.length === base);
+      }
+    } catch (t) {
+      if (t instanceof TailCall) {
+        this.stack.length = base;
+        throw new Stop('unsupported', 'a tail call from a constructor');
+      }
+      const frame = t instanceof Branch && (t.label === '' || t.label === fn.bodyFrameLabel);
+      if (t !== RETURN && !frame) {
+        this.stack.length = base;
+        if (t instanceof Delegate && (t.label === '' || t.label === fn.bodyFrameLabel)) throw t.exn;
+        if (t instanceof RangeError && t.message.includes('call stack')) {
+          throw new Trap('call stack exhausted');
+        }
+        throw t;
+      }
+    } finally {
+      this.depth--;
+    }
+    const results = this.stack.splice(this.stack.length - n, n);
+    this.stack.length = base;
+    return results;
   }
 
   /** Sets the instructions left to run before a {@link Stop} with `fuel` — per call, for a caller that wants it. */
