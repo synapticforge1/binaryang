@@ -231,9 +231,13 @@ export function fma(a: number, b: number, c: number, f32: boolean): number {
     return p;
   }
   if (!Number.isFinite(c)) return c;
-  // A zero product: the sum is `(±0) + c`, which JS computes exactly, sign rules
+  // A zero OPERAND: the sum is `(±0) + c`, which JS computes exactly, sign rules
   // included. A zero addend: the product correctly rounded is the answer.
-  if (p === 0 || a === 0 || b === 0) return f32 ? Math.fround(p + c) : p + c;
+  // 🔧 `p === 0` was tested too, and a product that UNDERFLOWS to zero
+  // (2^-1000 × 2^-75) then lost its contribution to the sum — a tie the exact
+  // path rounds to even; found when the unit test's expected value, itself
+  // computed with an underflowing `2 ** -1075`, was rewritten by hand.
+  if (a === 0 || b === 0) return f32 ? Math.fround(p + c) : p + c;
   if (c === 0) return f32 ? Math.fround(p) : p;
   const A = decompose(a), B = decompose(b), C = decompose(c);
   const ep = A.e + B.e;

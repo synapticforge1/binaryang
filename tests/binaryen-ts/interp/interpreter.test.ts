@@ -215,8 +215,9 @@ describe('the two ways to stop, never a result', () => {
   });
 
   it('an instruction not run yet', () => {
+    // Atomics (E3e ran the last of `v128`; the SIMD lane this used now runs).
     const wat =
-      `(module (func (export "f") (result i32) (i32x4.extract_lane 0 (v128.const i32x4 1 2 3 4))))`;
+      `(module (memory 1) (func (export "f") (result i32) (i32.atomic.load (i32.const 0))))`;
     try {
       interp(wat).invoke('f', []);
       throw new Error('ran?');
