@@ -23,10 +23,12 @@
  *   result about the program — a caller that evaluates at compile time keeps
  *   the code as it was.
  *
- * Runs today (E3a): numeric code, locals, globals, control flow (`block`,
- * `loop`, `if`, `br`, `br_if`, `br_table`, `return`, `select`, `drop`), direct
- * calls, host functions. Everything else is a {@link Stop} — memory, tables,
- * references, exceptions, GC and `v128` come in later increments.
+ * Runs today: numeric code, locals, globals, control flow (`block`, `loop`,
+ * `if`, `br`, `br_if`, `br_table`, `return`, `select`, `drop`), direct calls,
+ * host functions (E3a); linear memory — loads, stores, `memory.*`, data
+ * segments, imported and exported memories (E3b, `memory.ts`). Everything else
+ * is a {@link Stop} — tables, references, exceptions, GC, atomics and `v128`
+ * come in later increments.
  *
  * @license MIT
  */
@@ -42,7 +44,11 @@ import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 import type { BlockResult, FuncSignature, ValueType, Var } from '../../wabt-ts/ir/ir.ts';
+import { loadShape, storeShape } from '../ir/memory-access.ts';
 import { evalBinary, evalUnary } from './numeric.ts';
+import { MemoryCell, OutOfBounds, TooLarge } from './memory.ts';
+
+export { MemoryCell } from './memory.ts';
 
 // ---------------------------------------------------------------------------
 // Values and outcomes
@@ -85,7 +91,8 @@ export interface GlobalCell {
 /** What the host supplies for one import, by its kind. */
 export type HostImport =
   | { kind: 'func'; call: HostFunction }
-  | { kind: 'global'; cell: GlobalCell };
+  | { kind: 'global'; cell: GlobalCell }
+  | { kind: 'memory'; cell: MemoryCell };
 
 /** Options for {@link Interpreter}. */
 export interface InterpreterOptions {
@@ -114,6 +121,96 @@ const RETURN = new Return();
 type FuncSlot =
   | { kind: 'defined'; fn: WasmFunction; sig: FuncSignature }
   | { kind: 'host'; name: string; call: HostFunction | undefined; sig: FuncSignature };
+
+const EMPTY = new Uint8Array(0);
+
+/** An address operand, unsigned: an `i32` read `>>> 0`, an `i64` as `asUintN(64)`. */
+function address(v: Value): bigint {
+  if (v.type === ValType.I32) return BigInt(v.value >>> 0);
+  if (v.type === ValType.I64) return BigInt.asUintN(64, v.value);
+  throw new Error('interp: an address must be i32 or i64');
+}
+
+/** A memory size or grow result, in the memory's address type. */
+const sizeValue = (n: bigint, is64: boolean): Value =>
+  is64
+    ? { type: ValType.I64, value: BigInt.asIntN(64, n) }
+    : { type: ValType.I32, value: Number(BigInt.asIntN(32, n)) };
+
+/** Runs a memory operation; an access out of bounds is the spec's trap, too large a Stop. */
+function memoryOp<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (e) {
+    if (e instanceof OutOfBounds) throw new Trap('out of bounds memory access');
+    if (e instanceof TooLarge) throw new Stop('unsupported', e.message);
+    throw e;
+  }
+}
+
+/** A load's bytes as its value. */
+function readValue(mem: MemoryCell, at: number, opcode: number): Value {
+  const { bytes, signed, type } = loadShape(opcode);
+  const v = mem.view;
+  switch (type) {
+    case ValType.I32:
+      return {
+        type,
+        value: bytes === 1
+          ? (signed ? v.getInt8(at) : v.getUint8(at))
+          : bytes === 2
+          ? (signed ? v.getInt16(at, true) : v.getUint16(at, true))
+          : v.getInt32(at, true),
+      };
+    case ValType.I64:
+      return {
+        type,
+        value: bytes === 8 ? v.getBigInt64(at, true) : BigInt(
+          bytes === 1
+            ? (signed ? v.getInt8(at) : v.getUint8(at))
+            : bytes === 2
+            ? (signed ? v.getInt16(at, true) : v.getUint16(at, true))
+            : (signed ? v.getInt32(at, true) : v.getUint32(at, true)),
+        ),
+      };
+    case ValType.F32:
+      return { type, bits: v.getUint32(at, true) };
+    case ValType.F64:
+      return { type, bits: v.getBigUint64(at, true) };
+    default:
+      throw new Stop('unsupported', 'a v128 load');
+  }
+}
+
+/** A store's value as its bytes — the low `bytes` of it for a narrow store. */
+function writeValue(mem: MemoryCell, at: number, opcode: number, value: Value): void {
+  const { bytes } = storeShape(opcode);
+  const v = mem.view;
+  switch (value.type) {
+    case ValType.I32:
+      if (bytes === 1) v.setUint8(at, value.value & 0xff);
+      else if (bytes === 2) v.setUint16(at, value.value & 0xffff, true);
+      else v.setUint32(at, value.value >>> 0, true);
+      return;
+    case ValType.I64:
+      if (bytes === 8) v.setBigUint64(at, BigInt.asUintN(64, value.value), true);
+      else {
+        const low = Number(BigInt.asUintN(bytes * 8, value.value));
+        if (bytes === 1) v.setUint8(at, low);
+        else if (bytes === 2) v.setUint16(at, low, true);
+        else v.setUint32(at, low, true);
+      }
+      return;
+    case ValType.F32:
+      v.setUint32(at, value.bits >>> 0, true);
+      return;
+    case ValType.F64:
+      v.setBigUint64(at, BigInt.asUintN(64, value.bits), true);
+      return;
+    default:
+      throw new Stop('unsupported', 'a v128 store');
+  }
+}
 
 /** The zero a local of `type` starts with; `undefined` for a type not run yet. */
 function zeroOf(type: ValueType): Value | undefined {
@@ -153,6 +250,10 @@ export class Interpreter {
   private readonly funcNames: string[] = [];
   private readonly globals: GlobalCell[] = [];
   private readonly globalNames: string[] = [];
+  private readonly memories: MemoryCell[] = [];
+  private readonly memoryNames: string[] = [];
+  /** Each data segment's bytes; a dropped one is empty. */
+  private readonly data: Uint8Array[] = [];
   private readonly stack: Value[] = [];
   private readonly maxDepth: number;
   private depth = 0;
@@ -178,11 +279,33 @@ export class Interpreter {
         if (h?.kind !== 'global') throw new Stop('host', `global ${imp.module}.${imp.field}`);
         this.globals.push(h.cell);
         this.globalNames.push(imp.global.name);
+      } else if (imp.kind === ExternalKind.Memory) {
+        const h = host(imp.module, imp.field);
+        if (h?.kind !== 'memory') throw new Stop('host', `memory ${imp.module}.${imp.field}`);
+        this.memories.push(h.cell);
+        this.memoryNames.push(imp.memory.name);
       }
+      // An imported table or tag is not set up yet (E3c / E3d): an instruction
+      // that uses one stops; a module that only declares one still runs.
+    }
+    // An active element segment writes a table at instantiation, and may trap
+    // doing it: skipping it would set up a different module (E3c runs it).
+    if (module.elements.some((s) => s.kind === 'active')) {
+      throw new Stop('unsupported', 'an active element segment');
     }
     for (const fn of module.functions) {
       this.funcs.push({ kind: 'defined', fn, sig: fn.sig });
       this.funcNames.push(fn.name);
+    }
+    for (const m of module.memories) {
+      if (m.limits.isShared) throw new Stop('unsupported', 'a shared memory');
+      try {
+        this.memories.push(new MemoryCell(m.limits));
+      } catch (e) {
+        if (e instanceof TooLarge) throw new Stop('unsupported', e.message);
+        throw e;
+      }
+      this.memoryNames.push(m.name);
     }
     for (const g of module.globals) {
       // An initialiser is a constant expression: it may read the globals
@@ -190,6 +313,22 @@ export class Interpreter {
       const [value] = this.evaluate(g.init?.children ?? [], 1);
       this.globals.push({ value: value! });
       this.globalNames.push(g.name);
+    }
+    // Data segments, in order: an active one is written and then dropped; one
+    // out of bounds traps, keeping what the segments before it wrote (the
+    // spec's order since bulk memory — observable through a shared memory).
+    for (const d of module.dataSegments) {
+      this.data.push(d.data);
+      if (d.kind !== 'active') continue;
+      const [offset] = this.evaluate(d.offset?.children ?? [], 1);
+      const mem = resolve(d.memoryVar, this.memories, this.memoryNames, 'memory');
+      try {
+        mem.init(address(offset!), d.data, 0n, BigInt(d.data.length));
+      } catch (e) {
+        if (e instanceof OutOfBounds) throw new Trap('out of bounds memory access');
+        throw e;
+      }
+      this.data[this.data.length - 1] = EMPTY;
     }
     if (module.start !== undefined) {
       this.call(resolve(module.start, this.funcs, this.funcNames, 'function'), []);
@@ -211,6 +350,18 @@ export class Interpreter {
   /** The current value of the exported global `name`. */
   global(name: string): Value {
     return this.globalCell(name).value;
+  }
+
+  /** The exported memory `name`'s cell — what another module importing it shares. */
+  memoryCell(name: string): MemoryCell {
+    const ex = this.module.exports.find((e) => e.name === name && e.kind === ExternalKind.Memory);
+    if (ex === undefined) throw new Error(`interp: no exported memory "${name}"`);
+    return resolve(ex.var, this.memories, this.memoryNames, 'memory');
+  }
+
+  /** What the export `name` is — for a host wiring one module's exports to another's imports. */
+  exportKind(name: string): ExternalKind | undefined {
+    return this.module.exports.find((e) => e.name === name)?.kind;
   }
 
   /** The exported global `name`'s cell — what another module importing it shares. */
@@ -447,9 +598,90 @@ export class Interpreter {
         return;
       }
 
+      // -------------------------------------------------------------------
+      // Linear memory (E3b)
+      // -------------------------------------------------------------------
+      case ExpressionKind.Load: {
+        this.exec(e.address, locals);
+        const mem = this.memory(e.memidx);
+        const shape = loadShape(e.opcode);
+        const at = memoryOp(() => mem.at(address(this.pop()), e.offset, shape.bytes));
+        s.push(readValue(mem, at, e.opcode));
+        return;
+      }
+      case ExpressionKind.Store: {
+        this.exec(e.address, locals);
+        this.exec(e.value, locals);
+        const mem = this.memory(e.memidx);
+        const value = this.pop();
+        const at = memoryOp(() =>
+          mem.at(address(this.pop()), e.offset, storeShape(e.opcode).bytes)
+        );
+        writeValue(mem, at, e.opcode, value);
+        return;
+      }
+      case ExpressionKind.MemorySize: {
+        const mem = this.memory(e.memidx);
+        s.push(sizeValue(mem.pages, mem.is64));
+        return;
+      }
+      case ExpressionKind.MemoryGrow: {
+        this.exec(e.delta, locals);
+        const mem = this.memory(e.memidx);
+        const delta = address(this.pop());
+        s.push(sizeValue(memoryOp(() => mem.grow(delta)), mem.is64));
+        return;
+      }
+      case ExpressionKind.MemoryFill: {
+        this.exec(e.dest, locals);
+        this.exec(e.value, locals);
+        this.exec(e.size, locals);
+        const mem = this.memory(e.memidx);
+        const n = address(this.pop()), value = this.i32(), dest = address(this.pop());
+        memoryOp(() => mem.fill(dest, value, n));
+        return;
+      }
+      case ExpressionKind.MemoryCopy: {
+        this.exec(e.dest, locals);
+        this.exec(e.source, locals);
+        this.exec(e.size, locals);
+        const to = this.memory(e.destMemidx), from = this.memory(e.srcMemidx);
+        // The size is in the SMALLER address type of the two (memory64).
+        const n = address(this.pop()), src = address(this.pop()), dest = address(this.pop());
+        memoryOp(() => MemoryCell.copy(to, dest, from, src, n));
+        return;
+      }
+      case ExpressionKind.MemoryInit: {
+        this.exec(e.dest, locals);
+        this.exec(e.source, locals);
+        this.exec(e.size, locals);
+        const mem = this.memory(e.memidx);
+        const data = resolve(e.segment, this.data, this.dataNames(), 'data segment');
+        const n = address(this.pop()), src = address(this.pop()), dest = address(this.pop());
+        memoryOp(() => mem.init(dest, data, src, n));
+        return;
+      }
+      case ExpressionKind.DataDrop: {
+        const i = e.segment.kind === 'index'
+          ? e.segment.value
+          : this.dataNames().indexOf(e.segment.name);
+        if (this.data[i] === undefined) throw new Error('interp: unknown data segment');
+        this.data[i] = EMPTY;
+        return;
+      }
+
       default:
         throw new Stop('unsupported', e.kind);
     }
+  }
+
+  private memory(v: Var): MemoryCell {
+    if (this.memories.length === 0) throw new Error('interp: no memory');
+    return resolve(v, this.memories, this.memoryNames, 'memory');
+  }
+
+  private dataNames(): string[] {
+    return this.module.dataSegments.map((d) => d.name);
   }
 
   /** Evaluates a carrier's parameter values; returns how many it takes. */

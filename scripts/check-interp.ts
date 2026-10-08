@@ -28,10 +28,12 @@ import { readForPasses } from '../src/binaryen-ts/ir/prepare.ts';
 import {
   type HostImport,
   Interpreter,
+  MemoryCell,
   Stop,
   Trap,
   type Value,
 } from '../src/binaryen-ts/interp/interpreter.ts';
+import { ExternalKind } from '../src/wabt-ts/core/binary.ts';
 import { ValType } from '../src/binaryen-ts/ir/types.ts';
 import { f32BitsOf, f64BitsOf } from '../src/binaryen-ts/ir/expressions.ts';
 
@@ -130,8 +132,11 @@ const show = (v: Value): string =>
 // Imports: `spectest`, and what `register` names
 // ---------------------------------------------------------------------------
 
-function spectest(field: string): HostImport | undefined {
+/** `spectest`, as `spec/interpreter` defines it; one instance per script, so its memory is shared. */
+function spectest(field: string, memory: () => MemoryCell): HostImport | undefined {
   switch (field) {
+    case 'memory':
+      return { kind: 'memory', cell: memory() };
     case 'global_i32':
       return { kind: 'global', cell: { value: { type: ValType.I32, value: 666 } } };
     case 'global_i64':
@@ -166,30 +171,90 @@ for (const dir of dirs) {
   const registered = new Map<string, Interpreter>();
   let current: Interpreter | Stop | null = null;
 
+  let spectestMemory: MemoryCell | undefined;
+  const memory = () =>
+    spectestMemory ??= new MemoryCell({ initial: 1n, max: 2n, isShared: false, is64: false });
   const imports = (module: string, field: string): HostImport | undefined => {
-    if (module === 'spectest') return spectest(field);
+    if (module === 'spectest') return spectest(field, memory);
     const inst = registered.get(module);
     if (inst === undefined) return undefined;
-    const ex = inst.module.exports.find((e) => e.name === field);
-    if (ex === undefined) return undefined;
+    switch (inst.exportKind(field)) {
+      case ExternalKind.Func:
+        return { kind: 'func', call: (args) => inst.invoke(field, args) };
+      case ExternalKind.Global:
+        return { kind: 'global', cell: inst.globalCell(field) };
+      case ExternalKind.Memory:
+        return { kind: 'memory', cell: inst.memoryCell(field) };
+      default:
+        return undefined;
+    }
+  };
+  // The instances a module being loaded imports from. If it STOPS while being
+  // set up, it may have stopped before writes the spec says land in their
+  // shared memory or globals (`linking.wast`: data written, then the start
+  // function traps) — so their state is no longer the spec's, and every later
+  // assertion on them is stopped too, never a pass or a failure.
+  const touched = new Set<Interpreter>();
+  const taint = (why: Stop) => {
+    const stop = new Stop(why.reason, `state shared with a module that stopped (${why.message})`);
+    for (const inst of touched) {
+      for (const [k, v] of registered) if (v === inst) registered.delete(k);
+      for (const [k, v] of named) if (v === inst) named.set(k, stop);
+      if (current === inst) current = stop;
+    }
+  };
+  const load = (filename: string) => {
+    touched.clear();
     try {
-      return { kind: 'global', cell: inst.globalCell(field) };
-    } catch {
-      return { kind: 'func', call: (args) => inst.invoke(field, args) };
+      return new Interpreter(readForPasses(Deno.readFileSync(`${root}/${dir}/${filename}`)), {
+        imports: (m, f) => {
+          const inst = registered.get(m);
+          if (inst !== undefined) touched.add(inst);
+          return imports(m, f);
+        },
+      });
+    } catch (e) {
+      if (e instanceof Stop) taint(e);
+      throw e;
     }
   };
 
   for (const cmd of manifest.commands) {
     const where = `${dir}:${cmd.line}`;
+    if (cmd.type === 'assert_uninstantiable' && cmd.filename) {
+      // The module links and its instantiation TRAPS — a data segment out of
+      // bounds, a start function that traps.
+      try {
+        load(cmd.filename);
+        tally.fail++;
+        failures.push(`${where}: instantiated, want trap "${cmd.text}"`);
+      } catch (e) {
+        if (e instanceof Stop) {
+          tally.stopped++;
+          stops.set(stopKey(e), (stops.get(stopKey(e)) ?? 0) + 1);
+        } else if (e instanceof Trap && e.message.startsWith(cmd.text ?? '')) tally.pass++;
+        else {
+          tally.fail++;
+          failures.push(
+            `${where}: ${
+              e instanceof Trap ? `trapped "${e.message}"` : `threw ${e}`
+            }, want "${cmd.text}"`,
+          );
+        }
+      }
+      continue;
+    }
     if (cmd.type === 'module' && cmd.filename) {
       tally.modules++;
       try {
-        current = new Interpreter(
-          readForPasses(Deno.readFileSync(`${root}/${dir}/${cmd.filename}`)),
-          { imports },
-        );
+        current = load(cmd.filename);
       } catch (e) {
-        if (!(e instanceof Stop)) {
+        if (e instanceof Trap) {
+          // The suite instantiates every plain `module`: a trap here is wrong.
+          tally.fail++;
+          failures.push(`${where}: instantiation trapped "${e.message}"`);
+          current = new Stop('unsupported', 'a module whose instantiation trapped');
+        } else if (!(e instanceof Stop)) {
           // A module the reader takes and the interpreter cannot set up is a
           // stop of its own kind, not a pass: count it.
           current = new Stop(
