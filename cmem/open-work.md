@@ -495,7 +495,9 @@ mismatches and the reader prints that function as predicted — plainly, never w
             of results and the suite writes `either`. Proposed: the interpreter computes the
             spec's deterministic profile and the harness accepts any listed alternative; the
             folding passes NEVER fold a relaxed operator (the engine picks — E1's NaN reasoning).
-            To confirm with the owner before E3e-2.
+            ✅ **Owner, 2026-10-07: "I agree with your proposal on the SIMD."** Decided as above:
+            the deterministic profile in the interpreter, any listed alternative accepted by the
+            harness, no relaxed operator ever folded.
           - Small, optional, beside it: wide-arithmetic's four `quaternary` instructions
             (`i64.add128` / `sub128` / `mul_wide_s` / `_u`) — the 99 stops in that corpus.
           - Start-of-day checklist: `spec:prepare` the core corpus AND the legacy corpus into the
