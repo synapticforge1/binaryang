@@ -10,12 +10,13 @@ the optimizer steps (item 2: 1–5, LocalCSE, ConstantPropagation; item 23: OI f
 evaluator, Precompute — the interpreter itself is internal), `./definitions` (D1 / D2 / D3,
 item 22), items 3–8 and 10 closed, six silent fixes ([unreleased.md](unreleased.md): the next
 release is a MINOR, 1.9.0) — NOT PUSHED. 22 is done (closes with the release and its letter), 24
-has its design decided and waits to be built. **Now: item 23** — E1, E2 and all of E3 done (E3e,
-`v128`, landed 2026-10-08: core 57,608 / 0 / 40); **E4 next** (`wasm-ctor-eval`, `wasm-interp`,
-the combination measured), **then item 2** (the gap, 3.8% after E2, re-derived then; RemoveUnusedBrs
-and CodeFolding first), then the release and wasmtk's letter; 24, 21 and the rounds 13 / 14
-after. **8 open items, none blocking**; numbers 3–7, 9–12, 16, 17 are gone and kept free.
-Re-derive any number before quoting it.
+has its design decided and waits to be built. **Item 23 CLOSED 2026-10-08** — the interpreter,
+the evaluator, `wasm-ctor-eval` and `wasm-interp`, all four stages landed and measured
+([interpreter.md](interpreter.md); its number is kept free). **Now: item 2** (the gap, 3.8% after
+E2 — re-derive first; RemoveUnusedBrs and CodeFolding next, then the delta judged), then the
+release and wasmtk's letter; 24, 21 and the rounds 13 / 14 after. **7 open items, none
+blocking**; numbers 3–7, 9–12, 16, 17, 23 are gone and kept free. Re-derive any number before
+quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -275,7 +276,12 @@ every prepared spec module, at -O1 … -Oz). The hand-written traversals (`deriv
      list). Not decided; measure after the two steps. ✅ **Owner, 2026-10-07: "Lets worry about the
      delta with upstream after item 23 is done. For now move on to the next item."** Item 2 is
      PARKED at 4.6% — RemoveUnusedBrs and CodeFolding wait; the gap is re-measured once item 23
-     (with Precompute) is done, and the target judged then.
+     (with Precompute) is done, and the target judged then. ✅ **Item 23 is done (2026-10-08,
+     [interpreter.md](interpreter.md))**: Precompute landed in its E2 and the gap after it was
+     **30,844 (3.8%)** (ours 847,329, upstream 816,485, 2026-10-07) — re-derive first, then
+     RemoveUnusedBrs, CodeFolding, and the delta judged. `wasm-ctor-eval` is opt-in and outside
+     this gap (it takes 58.8 KB more off our -Oz, 66.2 KB with upstream's tool — a 7.4 KB
+     difference unattributed, a candidate for this round).
    - 📏 **Where item 2 stands, 2026-10-06:** upstream `wasm-opt -Oz` on each ORIGINAL corpus module
      totals 816,485; ours 859,534 — **the gap is 43,049 (5.0%)**, from 109.5 KB on 2026-09-19.
      Functions kept: ours 2,705, upstream 2,663 (was 3,943). No single upstream pass saves more than
@@ -337,190 +343,6 @@ hand: `wat2wasm` over the corpus 1,546 → 1,362 ms (−12%; the item's 26–35%
 bytes identical. An INVALID module (validation off) may still predict differently; its hash then
 mismatches and the reader prints that function as predicted — plainly, never wrongly.
 `tests/wabt-ts/parser/tree_matches_reader.test.ts`, 4 mutants killed.)
-
-23. ⬚ 🗓️ **An interpreter, and `wasm-ctor-eval` on it — AFTER the optimizer steps** (owner,
-    2026-09-30: "yes add as open item after the optimizer steps … the wasm-ctor-eval then the -Oz
-    seems to be the right path"). The owner's question: could an interpreter precompute DATA OBJECTS
-    — memory, globals, what a program builds at start — as part of optimization? Yes; that is
-    upstream's `wasm-ctor-eval`: run an entry point at build time up to the first host call, then
-    write memory into data segments, globals into their initializers, and what is left back as the
-    body. wabt-ts has NO interpreter today (upstream wabt's `wasm-interp` was never ported).
-    - **Priced 2026-09-30** on our -Oz output (421 modules, 419 export `_start` — WASI commands,
-      `proc_exit` / `fd_write`), with upstream's tool
-      (`--ctors=_start --kept-exports=_start
-      --ignore-external-input`): ours 898,608 →
-      ctor-eval **843,920** (366 changed, 80 grew, 2 refused); upstream `-Oz` on ours without it
-      **810,895**, with it first **758,362** — worth **52.5 KB on top of full optimization**, more
-      than inlining. Scratch: `ctoreval.ts`.
-    - **Shape:** ONE evaluator shared by a Precompute pass, the ctor-eval tool and a `wasm-interp`
-      CLI; the spec testsuite's `assert_return` / `assert_trap` its tests, V8 a second oracle. A
-      wrong evaluator is a SILENT miscompile (valid module, wrong result), so the behaviour gates
-      apply as to any pass.
-    - **Rules:** stop at any host call and anything non-deterministic; never fold a trap away.
-      **Opt-in, never part of `-O`** — upstream keeps it a separate tool, and
-      `--ignore-external-input` assumes empty args / environment (2 corpus modules read their
-      environment): an explicit caller decision.
-    - **Owner, 2026-09-30:** "maybe wasm-ctor-eval is the better tool … but maybe a combination of
-      wasm-ctor-eval and wasm-interp could be ideal also. we will need to measure and see." Which
-      combination is an open question to MEASURE, not a decided shape.
-    - **Precompute joins this item** (owner-agreed 2026-10-06, item 2): `precompute-propagate` was
-      worth 1,134 on our -Oz output after step 3c — built on this item's evaluator, so constant
-      folding has one semantics, not two.
-    - 🗺️ **Plan (2026-10-07, started on the owner's "move on to the next item").** Each stage gated
-      and merged on its own:
-      - **E1 — the evaluator's numeric core**: every scalar unary / binary / compare / conversion on
-        `Literal`s, exact (float BITS, NaN payloads as the spec allows, a trap as a RESULT, never a
-        throw). Oracle: V8, differentially, per opcode over edge and random operands. OI's
-        `_foldBinary` / `_foldUnary` then call it — one semantics. `v128` later, recorded as a
-        limit. ✅ **Done 2026-10-07** (`interp/numeric.ts`; `numeric_differential.test.ts`, all 136
-        scalar instructions D1 lists, coverage asserted; `fold_through_evaluator.test.ts`). The V8
-        differential found one defect first run: `f64.ceil` / `floor` returned a signalling NaN
-        unchanged — results that are NaN are now written canonical explicitly. 14 / 15 mutants
-        killed (the survivor is equivalent: JS masks shift counts). OI now folds every scalar
-        operator — never a trap; a NaN only from a bit-exact operator (`isBitExact`). Corpus -Oz
-        854,227 → **851,764 (−2,463)**, -O3 −4,409. Gate green. **LIMIT: `v128` operators are not
-        evaluated** (`null`); E2 / E3 must treat them as unknown.
-      - **E2 — Precompute** on it: an expression of constants with no other effect becomes its
-        value; a trap is never folded away; a constant condition picks its arm. In -O, as upstream.
-        Measured on the corpus; item 2's gap re-measured. ✅ **Done 2026-10-07** (`precompute.ts`;
-        the fold rule is now ONE function, `foldedLiteral`, shared with OI). Scheduled
-        ConstantPropagation, Precompute, ConstantPropagation, Precompute (one round −3,862, two
-        −4,435; DCE right after it: −66 more, not taken). Corpus -Oz 851,764 → **847,329**, -O3
-        854,686 → 848,683. `precompute.test.ts`, 9 / 9 mutants killed. Gate green. Item 2's gap
-        re-derived: **30,844 (3.8%)** (ours 847,329, upstream 816,485; functions 2,706 / 2,663) —
-        judged when item 23 is done (owner).
-      - **E3 — the interpreter**: bodies, locals, control, memory, globals, tables, calls; a host
-        call or anything non-deterministic STOPS it. Oracles: the spec testsuite's `assert_return` /
-        `assert_trap`, and V8. In increments (owner, 2026-10-07: "proceed"): E3a numbers, locals,
-        control; E3b memory, globals; E3c tables, calls; E3d exceptions, GC.
-        - ✅ **E3a done 2026-10-07** (`interp/interpreter.ts`, a stack machine over the tree: a
-          `pop` is nothing, a branch carries the top values its TARGET takes — so the reader's stack
-          shapes run as they are; `Trap` vs `Stop`, never confused). Harness
-          `scripts/check-interp.ts`, `deno task interp <prepared spec dir>` — the MANIFEST is the
-          oracle: **15,432 pass, 0 FAIL, 42,144 stopped** (by reason: 23,508 v128 arguments, 10,618
-          `load`, 4,992 `call_indirect`, 765 `store`, …; 50 modules not set up); ~2 s; 50 M fuel per
-          invocation (clean at 5 M). First run found 2 defects: the exhaustion check overflowed in
-          its own regex (`fac-rec`); an imported mutable global was copied, not shared (`linking`
-          `Mg.mut_glob`). `interpreter.test.ts` against V8; 11 / 11 mutants (one only after a test
-          with a value BELOW a block's parameters — the whole spec suite missed it). ⚠️ **For the
-          owner: should `deno task interp` join the gate?** Green in today's gate runs as a proposed
-          step; the rule is a FAIL count of 0, and the stopped count should only fall. ✅ **Owner,
-          2026-10-07: "yes on deno task interp"** — in the gate
-          ([working-rules.md](working-rules.md) § "The gate").
-        - ✅ **E3b done 2026-10-07** (`interp/memory.ts`: a shared `MemoryCell`, bounds-checked,
-          floats as bits; `memory.grow` −1 where the spec allows, a STOP past 1 GiB). Loads /
-          stores, `memory.*`, data segments (in order, an OOB one trapping after the ones before it,
-          active ones dropped), imported / exported memories. `deno task interp`: **25,811 pass, 0
-          FAIL, 31,819 stopped** (23,508 v128 arguments, 5,592 active element segment — a module
-          with one now STOPS at instantiation until E3c, it was set up as if its tables were empty —
-          932 `call_indirect`, …). The harness checks `assert_uninstantiable`, fails a plain module
-          whose instantiation traps, and marks instances a STOPPED importer may have left short of
-          the spec's state as stopped (`linking.wast`). 13 / 13 non-equivalent mutants (one after a
-          test was added); `copyWithin` vs `set` was equivalent — `set` alone now.
-        - ✅ **E3c done 2026-10-07** (`interp/table.ts`: a shared `TableCell`, grow −1 where the
-          spec allows, a STOP past 10 M elements). References are values — one null, a function
-          reference that runs in its OWN instance, an extern host value. Runs `ref.*`, `table.*`,
-          `elem.drop`, element segments (same order rules as data), imported / exported tables,
-          `call_indirect` (undefined element → `uninitialized element N` → type mismatch),
-          `call_ref`, and TAIL calls (the frame is replaced: 10^6 deep under a depth limit of 100).
-          `deno task interp`: **32,618 pass, 0 FAIL, 25,012 stopped** (21,868 of them v128
-          arguments; 2,601 tainted — below). Harness rule made general: an invocation that STOPS
-          part way taints every instance sharing state with it (`ref_eq.wast`'s `init` action
-          stopped on `struct.new`, and the `eq` assertions after it compared nulls); a bare action
-          that traps is a FAIL. 15 / 15 mutants (one by the spec suite alone until the unit test
-          read the table slot where the two copies differ). Gate green.
-          ⚠️ **Deferred to E3d, as a STOP:** a `call_indirect` in a module with a rec group or
-          explicit subtyping, or with typed references — types then match by IDENTITY
-          (`type-rec.wast`, `type-subtyping.wast`), which structural `sigEquals` cannot decide.
-        - E3d split in two (2026-10-07): **E3d-1 exceptions**, then **E3d-2 GC**.
-        - ✅ **E3d-1 done 2026-10-07.** Tags are identity cells (an imported tag IS the
-          exporter's); a `WasmException` is never a `Trap` (no `catch_all` catches a trap).
-          `throw`, `throw_ref`, `try_table` (first matching clause), legacy `try` / `catch` /
-          `rethrow` (innermost by label — matters under recursion) / `delegate` (a `try` with the
-          label handles it, any other construct passes it outward, the frame lets it leave).
-          `deno task interp`: core **32,687 pass, 0 FAIL, 24,961 stopped**; the LEGACY suite
-          (`testsuite-main/legacy`, its own `spec:prepare` corpus) **70 / 70, 0 stopped**. 11
-          mutants: 10 killed (one only after a recursion test was added; clause order killed by the
-          core corpus alone, `delegate` by the legacy corpus alone), 1 equivalent and removed. Gate
-          green (with the legacy corpus run as a proposed step).
-          ⚠️ **For the owner: should the gate run `deno task interp` on the legacy corpus too?**
-          Today it does not, and it is the only thing that killed the `delegate` mutant. It would
-          need `spec:prepare <testsuite-main>/legacy <dir>` beside the core corpus.
-        - ✅ **E3d-2 done 2026-10-07** (`interp/types.ts`: iso-recursive canonicalisation — a rec
-          group keyed by its structure, in-group references relative, earlier ones by THEIR keys,
-          interned process-wide, so identical groups in two modules are one `RttType` and identity
-          is `===`; a singleton group IS the bare type). Structs, arrays (packed `i8` / `i16`),
-          `i31`, `ref.test` / `ref.cast` / `br_on_*`, the extern ↔ any round trip; `call_indirect`
-          by canonical subtyping (E3c's Stop gone). A reference to an IMPORTED function is the
-          function itself, with the exporter's type (it was minted with the importer's declared
-          type — found by the custom-descriptors corpus). Descriptor operations and exact function
-          imports STOP (they ran as plain ones: 85 FAILs in that corpus first). `deno task interp`:
-          core **33,268 pass, 0 FAIL, 24,380 stopped** (21,868 v128 arguments); legacy 70 / 70;
-          proposals, NOT in the gate: custom-descriptors 170 / 0 FAIL, custom-page-sizes 31 / 0,
-          threads 80 / 0 (shared memory stops), wide-arithmetic 0 run (stops). 15 / 15 GC mutants
-          (exact only after an interpreter-only test) plus the imported-identity one. Gate green,
-          with the legacy and four proposal corpora run as proposed steps.
-          ⚠️ **For the owner, widening the earlier question:** should the gate's `interp` step
-          also run the legacy-EH corpus and the four `proposals/` corpora the `proposals` step
-          already prepares? The custom-descriptors corpus is what found both of E3d-2's defects.
-          ✅ **Owner, 2026-10-07: "Yes (runs everywhere)."** One `interp` run takes all six
-          corpora ([working-rules.md](working-rules.md) § "The gate"); CI cannot run it (it needs
-          the testsuite and `wast2json`), as with `spec`.
-        - **E3 is complete except `v128`** — every SIMD operator still stops (E1's limit), and that
-          is most of what `stopped` counts. Owner's choice whether it comes before E4.
-          ✅ **Owner, 2026-10-07: "SIMD first."**
-        - ✅ **E3e done 2026-10-08 — `v128`**, in one increment (`interp/simd.ts`; the
-          interpreter's SIMD loads, stores, lane and ternary nodes; the harness's `v128` values).
-          Every SIMD operator D1 lists (233 of its 234 `simd`-class entries; `v128.const` is a
-          value) on 16-byte vectors, lanes as little-endian views; where the spec defines a lane
-          as the scalar operator, each lane goes through `numeric.ts` — one semantics. `evalUnary`
-          / `evalBinary` dispatch to it for a `v128` operand or a splat, so OI and Precompute fold
-          SIMD constants through `foldedLiteral`, extended: a NaN LANE from float-arithmetic is
-          not folded, a relaxed operator never (`precompute.test.ts`). **Measured on the corpus:
-          not one byte moved** at any level — it holds no foldable SIMD constant.
-          - **Relaxed SIMD, decided (owner 2026-10-07) and built:** `relaxed_swizzle` as
-            `swizzle`, the relaxed truncations saturating, `relaxed_madd` / `nmadd` FUSED (one
-            rounding, exact through `bigint` — `fma` in `simd.ts`), `relaxed_laneselect` as
-            `bitselect`, `relaxed_min` / `max` as `min` / `max`, `relaxed_q15mulr_s` saturating,
-            the relaxed dot products with every lane signed and a wrapping i16 intermediate. The
-            harness accepts any alternative of an `either`. ⚠️ The suite's `either` lists are
-            not a profile: on three of them (`i16x8_relaxed_q15mulr_s:13`,
-            `relaxed_dot_product:32` / `:62`) ours is a LATER alternative — upstream binaryen's
-            interpreter (`upstream/src/wasm/literal.cpp`: `q15MulrSatSI16`, `madd` via `fmaf`,
-            `dotSI8x16toI16x8`) computes the same three. Its `nmadd` is unfused ("not an actual
-            fused", its own comment); ours is fused — [divergences.md](divergences.md) D-row.
-          - Beside it, **wide arithmetic**: `i64.add128` / `sub128` (`quaternary`) and
-            `i64.mul_wide_s` / `_u` (the two-result `binary`) run; that corpus is 99 / 0 / 0.
-          - `deno task interp`: core **57,608 pass, 0 FAIL, 40 stopped** (from 33,268 / 24,380;
-            what is left: 15 expected `funcref` values, shared-state taints, two 2^31-element
-            arrays); legacy 70 / 0 / 0; custom-descriptors 170 / 0 / 317; custom-page-sizes
-            31 / 0 / 0; threads 80 / 0 / 187; wide-arithmetic 99 / 0 / 0.
-          - `simd_differential.test.ts`: every non-relaxed operator against V8 over edge and
-            random vectors (a vector crosses as two `i64` through a wrapper, as the behaviour
-            differential's), coverage asserted against D1 (233), NaN lanes under E1's rule; the
-            fused madd on cases that tell one rounding from two; the fold rule on `v128`. Green
-            first run — the differential and the suite agreed on all 24,340 new assertions, so the
-            inversion carried the weight: **18 / 18 non-equivalent mutants killed** (12 core, 5
-            interpreter, the unfused madd by the unit test alone — the suite accepts either by
-            design); the two harness-JUDGEMENT mutants (a NaN pattern matching any lane; lanes
-            after the first ignored) survive alone, as they must on a correct interpreter, and
-            each was shown to hide a planted core defect (82 → 44 FAILs; 121 → 0).
-          - 🔧 **One defect, found by the gate's `ci` step, not by the suite:** `fma` tested the
-            double product for zero before the exact path, so a product that UNDERFLOWS
-            (2^-1000 × 2^-75) dropped out of the sum — a tie the exact path rounds to even. The
-            unit test had agreed because its expected value was computed with the same
-            underflowing `2 ** -1075`; rewriting the expectation by hand exposed it. Only a zero
-            OPERAND short-circuits now.
-          - Lessons, for [best-practices.md](best-practices.md) if they recur: **a harness mutant
-            needs a defect to judge** — mutate the judge and the judged together; and **an
-            expected value computed in the arithmetic under test shares its defects** — write the
-            expectation by hand, or from a different arithmetic.
-      - 📏 **Resume here: E4** — `wasm-ctor-eval` and `wasm-interp` on the interpreter, opt-in;
-        then the owner's question (which combination) MEASURED. Start-of-day: `spec:prepare` the
-        core and legacy corpora, `proposals` for the four, run `interp` to confirm core
-        57,608 / 0 / 40, then branch.
-      - **E4 — `wasm-ctor-eval` and `wasm-interp`** on it, opt-in; then the owner's question — which
-        combination — MEASURED.
 
 ## Conformance
 
