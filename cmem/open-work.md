@@ -106,9 +106,11 @@ fatigue.
     `./ir`** (open-work 21 phase 4, owner 2026-10-09: "I agree with your suggestion. Proceed").
     Remove `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` from `deno.json` (the files stay
     as `./ir`'s internal barrels or fold into `src/ir/index.ts`), and the deprecated `Type` alias
-    of `ExprType` in `src/ir/binaryen-ts.ts` and `src/api/index.ts`; `ir_subpath.test.ts` then
-    pins the new surface. A letter to wasmtk first: they pin `compat/*` and `wasm-validate`, not
-    these, but say so. **When is the owner's call** — not before the `./ir` release is out.
+    of `ExprType` in `src/ir/binaryen-ts.ts` and `src/api/index.ts`, and the deprecated `Features`
+    / `WasmModule` aliases in `src/compat/wabt-compat.ts`; `ir_subpath.test.ts` and
+    `compat_type_names.test.ts` then pin the new surface. A letter to wasmtk first: they pin
+    `compat/*` and `wasm-validate`, not the IR subpaths, and declare their own types for the
+    compat names, but say so. **When is the owner's call** — not before the `./ir` release is out.
 
 (Item 21 closed 2026-10-09: one `src/` tree by concept, one declaration per name, one IR
 subpath — [one-tree.md](one-tree.md): the four phases, the decisions, what the gate found. Its

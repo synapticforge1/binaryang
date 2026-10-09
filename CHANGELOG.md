@@ -19,6 +19,10 @@
 - `./ir/binaryen-ts`, `./ir/wabt-ts` and `./core/wabt-ts`: import from `./ir`. They remain for
   this release and are removed in a later minor. So is `Type` as the name of the node-type union
   in `./ir/binaryen-ts` and `./api` (use `ExprType`).
+- `./compat/wabt`'s `Features` and `WasmModule` type names: use `WabtFeatures` and
+  `WabtWasmModule` (the same types). Each name now has one meaning in binaryang — `Features` is
+  the validator's feature set and `WasmModule` the IR's module record, both in `./ir`. The old
+  names remain for this release. Nothing changes at run time.
 
 ### Changed
 

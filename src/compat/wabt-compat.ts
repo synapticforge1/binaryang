@@ -83,7 +83,7 @@ import type { Module as WabtIrModule } from '../ir/ir.ts';
  * The well-known keys are documented for editor autocomplete. Set
  * `enable_all: true` to opt into every proposal wabt-ts supports.
  */
-export interface Features {
+export interface WabtFeatures {
   /** Enable every supported proposal. Overrides individual flags below. */
   enable_all?: boolean;
   /** Exception-handling proposal (try / try_table / throw). */
@@ -144,7 +144,7 @@ export interface ToBinaryOptions {
  * Compat-facing module handle returned by `parseWat` / `readWasm`. Wraps the
  * underlying wabt-ts IR and provides the libwabt.js-shaped methods.
  */
-export interface WasmModule {
+export interface WabtWasmModule {
   /** Encode the IR as a wasm binary, returning `{ buffer }` to match upstream's shape. */
   toBinary(opts?: ToBinaryOptions): { buffer: ArrayBuffer; log?: string };
   /** Render the IR as a WAT text module. */
@@ -155,6 +155,19 @@ export interface WasmModule {
   destroy(): void;
 }
 
+/**
+ * @deprecated Use `WabtFeatures` — the same type. Renamed in 1.11.0 so the name
+ * `Features` has one meaning in binaryang (the validator's feature set,
+ * `@jrmarcum/binaryang/ir`); this alias goes in a later minor.
+ */
+export type { WabtFeatures as Features };
+/**
+ * @deprecated Use `WabtWasmModule` — the same type. Renamed in 1.11.0 so the name
+ * `WasmModule` has one meaning in binaryang (the IR's module record,
+ * `@jrmarcum/binaryang/ir`); this alias goes in a later minor.
+ */
+export type { WabtWasmModule as WasmModule };
+
 /** The factory return value — equivalent to upstream's `WabtModule`. */
 export interface WabtModule {
   /**
@@ -162,21 +175,21 @@ export interface WabtModule {
    *
    * @throws On any parse error, with the formatted error list as the message.
    */
-  parseWat(filename: string, source: string | Uint8Array, features?: Features): WasmModule;
+  parseWat(filename: string, source: string | Uint8Array, features?: WabtFeatures): WabtWasmModule;
 
   /**
    * Decode a wasm binary into a module handle.
    *
    * @throws On any decode error, with the formatted error list as the message.
    */
-  readWasm(buffer: ArrayBuffer | Uint8Array, opts?: ReadWasmOptions): WasmModule;
+  readWasm(buffer: ArrayBuffer | Uint8Array, opts?: ReadWasmOptions): WabtWasmModule;
 }
 
 // ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
 
-function makeWasmModuleHandle(ir: WabtIrModule | null): WasmModule {
+function makeWasmModuleHandle(ir: WabtIrModule | null): WabtWasmModule {
   // Captured-by-closure ref; destroy() nulls it out and the other methods
   // throw on null. Matches the libwabt.js destroy() semantics where the
   // wasm-side allocation is freed and further calls are undefined behavior.
@@ -252,7 +265,11 @@ function makeWasmModuleHandle(ir: WabtIrModule | null): WasmModule {
  */
 export default function wabt(): Promise<WabtModule> {
   const api: WabtModule = {
-    parseWat(filename: string, source: string | Uint8Array, _features?: Features): WasmModule {
+    parseWat(
+      filename: string,
+      source: string | Uint8Array,
+      _features?: WabtFeatures,
+    ): WabtWasmModule {
       // wabt-ts already understands every proposal it implements; the
       // Features flag bag is accepted for shape parity but the parser does
       // not gate on it. Future per-proposal validation can read this object.
@@ -271,7 +288,7 @@ export default function wabt(): Promise<WabtModule> {
       return makeWasmModuleHandle(module);
     },
 
-    readWasm(buffer: ArrayBuffer | Uint8Array, opts: ReadWasmOptions = {}): WasmModule {
+    readWasm(buffer: ArrayBuffer | Uint8Array, opts: ReadWasmOptions = {}): WabtWasmModule {
       const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
       const errors = makeErrorList();
       const module = readBinaryIr(bytes, errors, {

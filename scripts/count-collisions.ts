@@ -84,9 +84,10 @@ if (unknown.length > 0) {
 // The one-tree rule gives 88 on the same code — the 86, plus two names wabt-ts had
 // already declared twice INSIDE itself, which the per-tree rule could not see:
 // `Features` (core/feature.ts, compat/wabt-compat.ts) and `LiteralType`
-// (core/literal.ts, parser/token.ts). After open-work 21's phases 2–4: 2 — the
-// compat layer's `WasmModule` and `Features`, upstream wabt.js's names, which stay
-// by the owner's decision (2026-10-09). A third is news.
+// (core/literal.ts, parser/token.ts). After open-work 21's phases 2–4: 2, the
+// compat layer's `WasmModule` and `Features`; renamed `WabtWasmModule` /
+// `WabtFeatures` the same day (owner), with the old names as deprecated
+// re-exports. **0 since 2026-10-09: any duplicate is news.**
 const names = await exportedTypeNames(TREE);
 const collisions = [...names.entries()].filter(([, files]) => files.length > 1).map(([n]) => n)
   .sort();
