@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.10.0
+
+A minor release: **`wasm-bundle`** — one module from many, with ONE memory relocated exactly
+through the producers' own relocation entries, the `.wit` written beside it — and the
+`(@reloc data)` annotation that lets a text producer mark its addresses. No valid module's bytes
+change through `wat2wasm`, `wasm2wat`, a plain read and write, or the optimizer at any level
+(the gate's optimize-corpus number is 1.9.0's).
 
 ### New
 
