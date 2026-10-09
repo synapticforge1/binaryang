@@ -48,6 +48,8 @@
     input.
 - New: `readValidForPasses`, `readValidWat`, and `isStackExhausted`, `NESTING_TOO_DEEP`,
   `nestingTooDeep` in `./ir`.
+- `wat2wasm`, `writeWasm` and `writeWat` follow about twice as much block nesting as before (name
+  resolution was the shallowest stage, near 384 nested blocks; now about 700 on a cold call).
 
 ## 1.10.0
 

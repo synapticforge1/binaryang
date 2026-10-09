@@ -114,6 +114,33 @@ describe('hardening: a module nested deeper than the walkers can follow', () => 
   });
 });
 
+describe('hardening: the nesting the text route and the writers can FOLLOW (pass 2)', () => {
+  // Name resolution recursed through one 700-line switch, whose frame V8
+  // sizes for every case, and gave up between 300 and 400 nested blocks on a
+  // COLD call — the lowest ceiling of any stage. Split into a dispatcher (pass
+  // 2) it follows 700 cold (and ~1,500 once the JIT has warmed it). Pinned at
+  // 600, cold-safe, which the unsplit resolver fails — a change that brings
+  // back the old frame shows here.
+  const DEPTH = 600;
+  const built = (n: number) => {
+    let body = makeBlock([]);
+    for (let i = 1; i < n; i++) body = makeBlock([body]);
+    return new ModuleBuilder().addFunction('f', [], [], body).addExport('f', 'f').build();
+  };
+
+  it(`the writers write ${DEPTH} nested blocks`, () => {
+    expect(WebAssembly.validate(writeWasm(built(DEPTH)) as BufferSource)).toBe(true);
+    expect(writeWat(built(DEPTH)).length).toBeGreaterThan(DEPTH);
+  });
+
+  it(`wat2wasm assembles ${DEPTH} nested blocks, linear and folded`, () => {
+    expect(wat2wasm(`(module (func ${'block '.repeat(DEPTH)}${'end '.repeat(DEPTH)}))`).errors)
+      .toEqual([]);
+    expect(wat2wasm(`(module (func ${'(block '.repeat(DEPTH)}${')'.repeat(DEPTH)}))`).errors)
+      .toEqual([]);
+  });
+});
+
 describe('hardening: an invalid module the reader can decode', () => {
   // The reader decodes structure; it does not validate. These read, and then
   // failed inside preparation in its own words ("derive-types: no local …").

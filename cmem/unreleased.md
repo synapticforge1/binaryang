@@ -82,6 +82,10 @@ public summary is `CHANGELOG.md` § 1.10.0.
     `Stop(invalid)`, a new `StopReason`.
   - `wasm-interp` and `wasm-ctor-eval` validate their input file and refuse an invalid one (they ran
     it). `wasm-bundle`: a malformed `linking` / `reloc.*` section is a `BundleError` naming the input.
+- **Behaviour — deeper nesting through the text route and the writers** (2026-10-09, open-work 13
+  pass 2): name resolution's recursion was its lowest ceiling (~384 nested blocks); split into a
+  dispatcher it follows ~700 cold / ~1,500 warm, so `wat2wasm`, `writeWasm`, `writeWat` and
+  `wasm-opt`'s output accept modules nested about twice as deep. No output byte changes.
 - **NEW** — `readValidForPasses` (from `ir/prepare.ts`), `readValidWat` (`tools/read-wat.ts`), and
   `isStackExhausted` / `NESTING_TOO_DEEP` / `nestingTooDeep` (`core/error.ts`, public through
   `./ir` and `./core/wabt-ts`); `deno task hostile` (repo only).

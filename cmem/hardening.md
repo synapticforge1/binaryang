@@ -83,6 +83,34 @@ per case, so hundreds are reachable. The weakest is name resolution (`ir/resolve
 nesting level pays the whole frame. Splitting it into a small dispatcher and per-kind helpers is the
 first move; then the reader's preparation, the validator, the passes' walkers.
 
+## Pass 2 — 2026-10-09: the weakest ceiling
+
+**Changed:** `ResolveContext.resolveExpr` (`ir/resolve-names.ts`) is now a five-way DISPATCHER;
+`block`, `loop`, `if`, `try`, `try_table` moved verbatim into `resolveBlock` … `resolveTryTable`,
+and the 700-line switch became `resolveOperator`. Nesting now recurses through small frames.
+`baseline` IDENTICAL, suite unchanged.
+
+**Measured** (`scratch hostile/ceiling.ts`; warm = after JIT warm-up by a binary search, cold =
+one fresh process per depth — the honest number for a real call):
+
+| stage | before (warm) | after (warm) | before (cold) | after (cold) |
+| --- | --- | --- | --- | --- |
+| `writeWasm` / `writeWat` | ~384 | ~1,500 / ~1,600 | 300 ✓ 400 ✗ | 700 ✓ 1,000 ✗ |
+| `wat2wasm` linear | ~384 | ~1,760 | 300 ✓ 400 ✗ | 700 ✓ 1,000 ✗ |
+| `wat2wasm` folded | ~384 | ~930 | 300 ✓ 400 ✗ | 700 ✓ 1,000 ✗ |
+| `readForPasses` | ~1,400 | ~1,400 | — | — |
+| interpreter | ~1,000 | ~1,000 | — | — |
+| `wasm2wat`, validator, optimizer | ~2,000–4,000 | unchanged (noise) | — | — |
+
+The floor across all stages rose from ~384 to ~930 warm (to ~700 cold). Pinned at 600 nested
+blocks, cold-safe, in `hostile_input.test.ts` (the unsplit resolver fails it).
+
+**Stopped here, deliberately.** The next ceilings are the folded-text parser, the interpreter's
+evaluator and the reader's preparation (`nameReferences` / `deriveTypes` through `ExprVisitor`) —
+each its own restructuring of a large recursive function. Real modules peak at depth 25 today; a
+large `switch` reaches hundreds. Whether to push every stage past a few thousand is the OWNER's
+priority call, not a defect: every stage already refuses beyond its ceiling in its own words.
+
 **Also for the owner:** the interpreter's default fuel is 1,000,000,000 instructions; at the
 measured ~760k instructions/s (a counted loop) or 63k–117k fuel/s (a bare `(loop (br 0))`), an
 infinite loop under `wasm-interp` runs 22 minutes to 4 hours before fuel stops it. A default to
