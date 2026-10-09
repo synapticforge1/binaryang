@@ -20,15 +20,15 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm, writeWat } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { elemFuncEntry, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { makeDrop, makeRefFunc } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { AbstractHeapType } from '../../../src/binaryen-ts/ir/gc-types.ts';
-import { heapAbstract, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { hasErrors } from '../../../src/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { WasmEncodeError, writeWasm, writeWat } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { elemFuncEntry, ModuleBuilder } from '../../../src/ir/module.ts';
+import { makeDrop, makeRefFunc } from '../../../src/ir/expressions.ts';
+import { AbstractHeapType } from '../../../src/ir/gc-types.ts';
+import { heapAbstract, varName } from '../../../src/ir/ir.ts';
 
 const asm = (wat: string) => {
   const r = wat2wasm(wat, { textForm: false });

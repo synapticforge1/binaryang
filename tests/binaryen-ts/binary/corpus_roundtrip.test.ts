@@ -30,10 +30,10 @@ import { assert, assertEquals } from '@std/assert';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
 
 // `path.fromFileUrl` is Deno-std; this file uses `node:path` for cross-runtime
 // parity with the rest of the tree, so convert the URL by hand (matching

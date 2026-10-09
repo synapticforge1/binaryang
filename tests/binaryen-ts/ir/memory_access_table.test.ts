@@ -26,9 +26,9 @@ import {
   MEMORY_ACCESS_TABLE,
   storeByName,
   withSigned,
-} from '../../../src/binaryen-ts/ir/memory-access.ts';
-import { anyOpcodeName, Opcode } from '../../../src/wabt-ts/core/opcode.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+} from '../../../src/ir/memory-access.ts';
+import { anyOpcodeName, Opcode } from '../../../src/core/opcode.ts';
+import { ValType } from '../../../src/ir/types.ts';
 
 /** The width a mnemonic states: `load8`/`store16` explicitly, else the type's. */
 function widthFromName(name: string): number {

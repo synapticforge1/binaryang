@@ -25,12 +25,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { readWat, WatInputError } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import {
-  AbstractHeapType,
-  heapAbstract,
-  refTypeToString,
-} from '../../../src/binaryen-ts/ir/gc-types.ts';
+import { readWat, WatInputError } from '../../../src/tools/read-wat.ts';
+import { AbstractHeapType, heapAbstract, refTypeToString } from '../../../src/ir/gc-types.ts';
 
 /** Every abstract heap type the text format defines. */
 const SPEC_KEYWORDS: ReadonlyArray<readonly [string, AbstractHeapType]> = [

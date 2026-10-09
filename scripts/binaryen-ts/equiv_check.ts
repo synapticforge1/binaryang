@@ -27,13 +27,13 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import * as ours from '../../src/binaryen-ts/api/binaryen-compat.ts';
-import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../src/binaryen-ts/ir/types.ts';
-import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';
-import { requireName } from '../../src/wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import * as ours from '../../src/compat/binaryen-compat.ts';
+import type { WasmModule } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import type { ValueType } from '../../src/ir/gc-types.ts';
+import { requireName } from '../../src/ir/ir.ts';
+import { ExternalKind } from '../../src/core/binary.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 

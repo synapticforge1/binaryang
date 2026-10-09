@@ -23,13 +23,13 @@
  * Usage: `deno task direct`
  */
 
-import { parseWatModule } from '../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../src/wabt-ts/ir/synthesize-types.ts';
-import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
-import { prepareForPasses } from '../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../src/binaryen-ts/passes/index.ts';
+import { parseWatModule } from '../src/parser/wast-parser.ts';
+import { resolveNames } from '../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../src/ir/synthesize-types.ts';
+import { wat2wasm } from '../src/tools/wat2wasm.ts';
+import { prepareForPasses } from '../src/ir/prepare.ts';
+import { writeWasm } from '../src/ir/write-wasm.ts';
+import { PassRunner } from '../src/passes/index.ts';
 import { directInputs } from './direct-inputs.ts';
 
 const LEVELS = [

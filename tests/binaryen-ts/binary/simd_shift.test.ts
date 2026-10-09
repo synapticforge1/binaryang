@@ -24,25 +24,25 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   type BinaryExpr,
   BinaryOp,
   type Expression,
   ExpressionKind,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+} from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { prepareForPasses, readForPasses } from '../../../src/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 type Lane = 'i8x16' | 'i16x8' | 'i32x4' | 'i64x2';
 type Op = 'shl' | 'shr_s' | 'shr_u';

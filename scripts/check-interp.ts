@@ -26,7 +26,7 @@
  * (owner, 2026-10-07: "Yes (runs everywhere)"). Totals are per corpus and overall.
  */
 
-import { readForPasses } from '../src/binaryen-ts/ir/prepare.ts';
+import { readForPasses } from '../src/ir/prepare.ts';
 import {
   type HostImport,
   Interpreter,
@@ -37,10 +37,10 @@ import {
   Trap,
   type Value,
   WasmException,
-} from '../src/binaryen-ts/interp/interpreter.ts';
-import { ExternalKind } from '../src/wabt-ts/core/binary.ts';
-import { ValType } from '../src/binaryen-ts/ir/types.ts';
-import { f32BitsOf, f64BitsOf } from '../src/binaryen-ts/ir/expressions.ts';
+} from '../src/interp/interpreter.ts';
+import { ExternalKind } from '../src/core/binary.ts';
+import { ValType } from '../src/ir/types.ts';
+import { f32BitsOf, f64BitsOf } from '../src/ir/expressions.ts';
 
 interface Arg {
   type: string;

@@ -10,14 +10,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import type * as W from '../../src/wabt-ts/ir/ir.ts';
-import { varIndex } from '../../src/wabt-ts/ir/ir.ts';
-import {
-  makeCall,
-  makeCallIndirect,
-  makeCallRef,
-  makeI32Const,
-} from '../../src/binaryen-ts/ir/expressions.ts';
+import type * as W from '../../src/ir/ir.ts';
+import { varIndex } from '../../src/ir/ir.ts';
+import { makeCall, makeCallIndirect, makeCallRef, makeI32Const } from '../../src/ir/expressions.ts';
 
 describe('M8a2 — isReturn is true or absent, never false', () => {
   it('`false` does not type-check (compile-time)', () => {

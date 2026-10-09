@@ -17,9 +17,9 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { createModule } from '../../src/binaryen-ts/api/index.ts';
-import { readWat } from '../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWat } from '../../src/binaryen-ts/ir/write-wasm.ts';
+import { createModule } from '../../src/api/index.ts';
+import { readWat } from '../../src/tools/read-wat.ts';
+import { writeWat } from '../../src/ir/write-wasm.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 
 async function wasmOptOnPath(): Promise<boolean> {

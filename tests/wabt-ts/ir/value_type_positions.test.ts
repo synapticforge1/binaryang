@@ -21,13 +21,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { Type, type ValType } from '../../../src/wabt-ts/core/types.ts';
-import type { StorageType, ValueType } from '../../../src/wabt-ts/ir/ir.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { Type, type ValType } from '../../../src/core/types.ts';
+import type { StorageType, ValueType } from '../../../src/ir/ir.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 /** `(func)` bodies over `typeSec`, byte for byte. */
 function moduleWith(typeSec: number[], code: number[]): Uint8Array {

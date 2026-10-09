@@ -15,9 +15,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import type { Expr } from '../../src/wabt-ts/ir/ir.ts';
-import type { Expression, NopExpr } from '../../src/binaryen-ts/ir/expressions.ts';
-import { ExpressionKind } from '../../src/binaryen-ts/ir/expressions.ts';
+import type { Expr } from '../../src/ir/ir.ts';
+import type { Expression, NopExpr } from '../../src/ir/expressions.ts';
+import { ExpressionKind } from '../../src/ir/expressions.ts';
 
 type Same<A, C> = [A] extends [C] ? ([C] extends [A] ? true : false) : false;
 const same = <A, C>(v: Same<A, C>): Same<A, C> => v;

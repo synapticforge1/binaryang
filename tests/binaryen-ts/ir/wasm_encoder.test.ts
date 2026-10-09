@@ -9,10 +9,10 @@
  */
 
 import { assert, assertEquals, assertInstanceOf, assertThrows } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { None, Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/ir/write-wasm.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import { None, Unreachable, ValType } from '../../../src/ir/types.ts';
 import {
   BinaryOp,
   type Expression,
@@ -25,12 +25,12 @@ import {
   makeSelect,
   makeStore,
   makeUnreachable,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+} from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
+import { varName } from '../../../src/ir/ir.ts';
+import { Opcode } from '../../../src/core/opcode.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Shared binary fixtures (same as parser tests)

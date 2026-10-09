@@ -24,24 +24,24 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   makeArrayGet,
   makeArrayNewFixed,
   makeI32Const,
   makeStructGet,
   makeStructNew,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { Packed, type StorageType } from '../../../src/binaryen-ts/ir/gc-types.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { Packed, type StorageType } from '../../../src/ir/gc-types.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { hasErrors } from '../../../src/core/error.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
 
 /** A one-field mutable struct holding `value`, read back via struct.get. */
 function structModule(storage: StorageType, value: number, signed: boolean): Uint8Array {

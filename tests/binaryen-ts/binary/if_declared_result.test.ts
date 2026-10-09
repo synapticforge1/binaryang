@@ -27,10 +27,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { hasErrors } from '../../../src/core/error.ts';
 
 /** Assemble, read the BINARY into binaryen-ts IR, re-encode, and require validity. */
 function binaryRoundTrip(wat: string): Uint8Array {

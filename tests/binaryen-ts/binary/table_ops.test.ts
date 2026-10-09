@@ -8,17 +8,17 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   type Expression,
   ExpressionKind,
   type TableGetExpr,
   type TableSetExpr,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { elemFuncNames } from '../../../src/binaryen-ts/ir/module.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/expressions.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { elemFuncNames } from '../../../src/ir/module.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
 
 Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode + table-index slot', () => {
   // funcref table at index 0; `f` reads element 0 and returns it.

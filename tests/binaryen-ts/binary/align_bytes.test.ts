@@ -10,12 +10,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import * as binaryen from '../../../src/binaryen-ts/api/binaryen-compat.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { makeDrop, makeI32Const, makeLoad } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+import * as binaryen from '../../../src/compat/binaryen-compat.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { makeDrop, makeI32Const, makeLoad } from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { Opcode } from '../../../src/core/opcode.ts';
 import { soleInstr } from '../region_helpers.ts';
 
 /** `(func (drop (i32.load <memarg> (i32.const 0))))` with a raw alignment exponent. */

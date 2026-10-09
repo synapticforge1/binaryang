@@ -18,22 +18,18 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import {
-  prepareForPasses,
-  readForPasses,
-  WasmBinaryError,
-} from '../../../src/binaryen-ts/ir/prepare.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { limitsOf, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import { createModule } from '../../../src/binaryen-ts/api/index.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { prepareForPasses, readForPasses, WasmBinaryError } from '../../../src/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import { limitsOf, ModuleBuilder } from '../../../src/ir/module.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
+import { createModule } from '../../../src/api/index.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);

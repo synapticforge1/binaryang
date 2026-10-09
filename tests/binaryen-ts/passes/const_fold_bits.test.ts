@@ -17,12 +17,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
 import {
   BinaryOp,
   makeBinary,
@@ -30,8 +30,8 @@ import {
   makeLocalGet,
   makeLocalSet,
   makeRegion,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/expressions.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
 
 /** `-O2` over the module, as `Module.optimize('-O2')` runs it. */
 function optimized(bytes: Uint8Array): Uint8Array {

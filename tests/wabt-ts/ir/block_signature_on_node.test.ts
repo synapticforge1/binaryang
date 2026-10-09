@@ -25,16 +25,16 @@ import {
   type Expr,
   type Module,
   UNASSIGNED_TYPE_INDEX,
-} from '../../../src/wabt-ts/ir/ir.ts';
-import { Type } from '../../../src/wabt-ts/core/types.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { ModuleContext } from '../../../src/wabt-ts/ir/ir-util.ts';
+} from '../../../src/ir/ir.ts';
+import { Type } from '../../../src/core/types.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { validateModule } from '../../../src/validator/validator.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { ModuleContext } from '../../../src/ir/ir-util.ts';
 
 function compile(wat: string): Uint8Array {
   const r = wat2wasm(wat);

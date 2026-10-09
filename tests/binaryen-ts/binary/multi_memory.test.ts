@@ -32,11 +32,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
 
 /** Assemble with wabt-ts, which round-trips multi-memory correctly today. */
 function assemble(wat: string): Uint8Array {

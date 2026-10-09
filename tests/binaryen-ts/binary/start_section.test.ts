@@ -18,14 +18,14 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { makeGlobalSet, makeI32Const } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: registers the pass registry
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/ir/write-wasm.ts';
+import { makeGlobalSet, makeI32Const } from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { PassRunner } from '../../../src/passes/pass.ts';
+import { varName } from '../../../src/ir/ir.ts';
+import '../../../src/passes/index.ts'; // side-effect: registers the pass registry
 
 /**
  * Hand-built module: `global $g (mut i32) = 0`, `func $init { $g = 42 }`,

@@ -14,8 +14,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 const WAT = `(module
   (func (export "f") (param i32) (result i32)

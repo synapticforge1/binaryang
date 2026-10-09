@@ -1,0 +1,231 @@
+// Copyright (c) 2026 Jon Marcum
+// Licensed under the MIT License. See LICENSE-MIT in the repository root.
+
+/**
+ * @module
+ * `wasm2wat` — decode a `.wasm` binary and render it as WebAssembly text format.
+ *
+ * Library entry point ({@link wasm2wat}) returns `{ text, errors, result }`.
+ * On decode error the text is empty and `result === Result.Error`; the
+ * decoder accumulates errors rather than throwing.
+ *
+ * CLI form, through the package root's dispatcher (`main.ts`):
+ *
+ * ```sh
+ * deno run -A jsr:@jrmarcum/binaryang wasm2wat input.wasm > output.wat
+ * ```
+ *
+ * Library usage:
+ *
+ * ```ts
+ * import { wasm2wat } from "jsr:@jrmarcum/binaryang/wasm2wat";
+ *
+ * const bytes = await Deno.readFile("module.wasm");
+ * const { text } = wasm2wat(bytes, { readDebugNames: true });
+ * console.log(text);
+ * ```
+ *
+ * Pipeline: `readBinaryIr` (with `readDebugNames: true` by default, so the
+ * names the binary carries are the names printed) → `generateNames` only
+ * when asked (`generateNames: true` / `--generate-names`) → `writeWatModule`.
+ * The `inlineExport` option controls whether exports are rendered inline
+ * inside their defining item (default `true`).
+ */
+
+import { readBinaryIr } from '../reader/binary-reader.ts';
+import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
+import { writeWatModule } from '../writer/wat-writer.ts';
+import { generateNames } from '../ir/generate-names.ts';
+import { Result } from '../core/result.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
+import type { ErrorList } from '../core/error.ts';
+import { cliRead, cliWrite } from '../cli/io.ts';
+import process from 'node:process';
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/** Options for {@link wasm2wat}. */
+export interface Wasm2WatOptions {
+  /** Source filename shown in error messages. Default: `'<input>'`. */
+  filename?: string;
+  /** Parse the name section and apply symbolic names. Default: `true`. */
+  readDebugNames?: boolean;
+  /** Emit inline exports. Default: `true` (passed to wat-writer). */
+  inlineExport?: boolean;
+  /**
+   * Emit folded s-expressions rather than a flat instruction sequence.
+   * Default: `true`. Pass `false` for linear.
+   *
+   * Both assemble to identical bytes; this is a readability choice. Linear
+   * shows the stack machine as it executes, which is what you want when
+   * inspecting execution order; folded shows the expression tree.
+   *
+   * 🔧 The default flipped to folded in 1.5.4. Nothing that consumes folded
+   * WAT could consume our linear output: binaryen-ts re-read 1 of 421 corpus
+   * modules, and `wasm-opt` could not read `wasm2wat` output at all. Folded,
+   * that is 421 of 421.
+   *
+   * ⚠️ The two forms assemble to IDENTICAL bytes on all 421 corpus modules,
+   * which is what makes this a default change rather than a behaviour change.
+   * Linear stays fully supported and is pinned by the same baseline.
+   */
+  fold?: boolean;
+  /**
+   * Write each function in the form it was WRITTEN, where the binary records it
+   * (S7: the `binaryang.text-form` section our `wat2wasm` writes — every
+   * instruction bare or folded, grouped as in the source, so linear stays
+   * linear and a mix stays the same mix). `false` ignores the record and lets
+   * `fold` decide every function. A function the binary records nothing for —
+   * written as the plain nested fold, or from any other tool, or optimized — is
+   * written by `fold` either way.
+   *
+   * Default: **`true` unless `fold` is given** — `wat2wasm` → `wasm2wat`
+   * transpiles verbatim (owner, 2026-09-19), and NAMING a form asks for that
+   * form everywhere. CLI: `--fold` folds every function, `--linear` writes
+   * every one flat.
+   */
+  asWritten?: boolean;
+  /**
+   * Invent names (`$f0`, `$g0`, `$t0`, …) for the entities that have none.
+   * Default: **`false`**, as upstream `wasm2wat`, where it is
+   * `--generate-names`.
+   *
+   * 🔧 This used to happen ALWAYS. Once the binary carries its names (N1,
+   * cmem/names.md) an invented name is indistinguishable from a real one in
+   * the text, so WAT → `wat2wasm` → `wasm2wat` no longer gave back the WAT it
+   * started from — `(func …)` came back as `(func $f0 …)`, and the next
+   * `wat2wasm` wrote `f0` into the name section as if the author had.
+   * Unnamed entities now print as upstream prints them: `(;0;)`, referenced
+   * by index.
+   */
+  generateNames?: boolean;
+}
+
+/** Return value from {@link wasm2wat}. */
+export interface Wasm2WatResult {
+  /** The rendered WAT text. Empty string on error. */
+  text: string;
+  /** Accumulated decode errors. */
+  errors: ErrorList;
+  /** `Result.Ok` on success; `Result.Error` if `errors` is non-empty. */
+  result: Result;
+}
+
+/**
+ * Decode a wasm binary and render it as a WAT text module.
+ *
+ * On decode errors `text` is empty and `result` is `Result.Error`.
+ */
+export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2WatResult {
+  const errors = makeErrorList();
+  const readDebugNames = opts.readDebugNames !== false;
+  const readOpts: ReadBinaryOptions = { readDebugNames };
+  if (opts.filename !== undefined) readOpts.filename = opts.filename;
+
+  const module = readBinaryIr(binary, errors, readOpts);
+
+  if (hasErrors(errors)) {
+    return { text: '', errors, result: Result.Error };
+  }
+
+  // Only on request — see `Wasm2WatOptions.generateNames`.
+  if (opts.generateNames === true) generateNames(module);
+
+  const text = writeWatModule(module, {
+    inlineExport: opts.inlineExport !== false,
+    fold: opts.fold !== false,
+    asWritten: opts.asWritten ?? opts.fold === undefined,
+    // This module came from a BINARY, where a branch target is a depth and the
+    // author's spelling was never in the file — so a label's name (N2) is the
+    // best text there is, and `br $outer` beats `br 1 (;@1;)` beside a block
+    // already printed as `$outer`. A caller that PARSED text must not set this:
+    // there an index is what the author wrote.
+    namedLabelTargets: true,
+    // The same reasoning for every other reference: from a binary an index is
+    // all there is, so `call $f` beside `(func $f …)` — upstream `wasm2wat`
+    // runs `ApplyNames` for exactly this, and `wasm-tools print` agrees.
+    namedReferences: true,
+  });
+
+  return { text, errors, result: Result.Ok };
+}
+
+// ---------------------------------------------------------------------------
+// CLI
+// ---------------------------------------------------------------------------
+
+/**
+ * CLI entry point for `wasm2wat`, registered in the top-level command dispatcher.
+ *
+ * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
+ * pass `args` explicitly to drive it from a test or another tool.
+ */
+export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+  args = args.slice();
+  let input: string | undefined;
+  let output: string | undefined;
+  let fold = true;
+  let asWritten = true;
+  let generateNames = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '-o' || arg === '--output') {
+      output = args[++i];
+    } else if (arg === '--generate-names') {
+      generateNames = true;
+    } else if (arg === '--fold' || arg === '-f') {
+      // Explicit, even though folded is the default since 1.5.4: a script
+      // that needs folded output should be able to ASK for it rather than rely
+      // on the default staying put. Asked for, it means EVERY function —
+      // including those the binary records as written otherwise (S7).
+      fold = true;
+      asWritten = false;
+    } else if (arg === '--linear' || arg === '-l') {
+      // The stack-machine view: one line per instruction, in execution
+      // order. No longer the default, but its reason for existing is
+      // unchanged. Every function, as `--fold`.
+      fold = false;
+      asWritten = false;
+    } else if (arg && !arg.startsWith('-')) {
+      input = arg;
+    }
+  }
+
+  if (!input) {
+    console.error(
+      'usage: wasm2wat <input.wasm> [-o <output.wat>] [--linear|-l] [--fold|-f] [--generate-names]',
+    );
+    console.error(
+      '  every instruction is written in the form it was written (our wat2wasm records it),\n' +
+        '  otherwise FOLDED; --fold folds every function, --linear writes every one flat',
+    );
+    console.error(
+      '  --generate-names invents $f0, $g0, ... for entities the binary does not name',
+    );
+    process.exit(1);
+  }
+
+  const binary = await cliRead('wasm2wat', input);
+  const { text, errors, result } = wasm2wat(binary, {
+    filename: input,
+    fold,
+    asWritten,
+    generateNames,
+  });
+
+  if (errors.length > 0) {
+    console.error(formatErrors(errors));
+  }
+  if (result !== Result.Ok) {
+    process.exit(1);
+  }
+
+  if (output) {
+    await cliWrite('wasm2wat', output, text);
+  } else {
+    console.log(text);
+  }
+}

@@ -14,9 +14,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
-import initWabt from '../../../src/wabt-ts/api/wabt-compat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { formatErrors } from '../../../src/core/error.ts';
+import initWabt from '../../../src/compat/wabt-compat.ts';
 
 const module = (call: string) =>
   `(module

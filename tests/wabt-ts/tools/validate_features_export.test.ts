@@ -10,10 +10,10 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import * as validate from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import * as core from '../../../src/wabt-ts/core/index.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { Result } from '../../../src/wabt-ts/core/result.ts';
+import * as validate from '../../../src/tools/wasm-validate.ts';
+import * as core from '../../../src/core/index.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { Result } from '../../../src/core/result.ts';
 
 Deno.test('allFeatures / defaultFeatures are exported where wasmValidate is', () => {
   for (const [where, mod] of [['./wasm-validate', validate], ['./core/wabt-ts', core]] as const) {

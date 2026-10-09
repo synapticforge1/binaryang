@@ -10,15 +10,15 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { Type } from '../../../src/wabt-ts/core/types.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import type { CallIndirectExpr, Module } from '../../../src/wabt-ts/ir/ir.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { Type } from '../../../src/core/types.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import type { CallIndirectExpr, Module } from '../../../src/ir/ir.ts';
 
 function prepared(wat: string): Module {
   const { module, errors } = parseWatModule(new LexerSource(wat, '<m8a3>'));

@@ -9,7 +9,7 @@ import {
   isReferenceType,
   Type,
   typeName,
-} from '../../../src/wabt-ts/core/types.ts';
+} from '../../../src/core/types.ts';
 
 describe('Type constants', () => {
   it('INVALID_INDEX is 0xffffffff', () => assertEquals(INVALID_INDEX, 0xffffffff));

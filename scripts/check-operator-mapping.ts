@@ -137,7 +137,7 @@ if (known.size < 100) {
 // UnaryOp and BinaryOp, checking 315 of 371 members, which is why two BrOnOp
 // members with no resolvable name went unnoticed until the conversion.
 const exprSrc = await Deno.readTextFile(
-  new URL('../src/binaryen-ts/ir/expressions.ts', import.meta.url),
+  new URL('../src/ir/expressions.ts', import.meta.url),
 );
 
 /** Every operator constant, as `EnumName.Member` -> numeric value. */
@@ -259,7 +259,7 @@ const ONE_SIDED_BUDGET = {
 };
 
 const wabtKinds = wabtExprKinds(
-  await Deno.readTextFile(new URL('../src/wabt-ts/ir/ir.ts', import.meta.url)),
+  await Deno.readTextFile(new URL('../src/ir/ir.ts', import.meta.url)),
 );
 const binKinds = new Set(
   expressionKindMembers(exprSrc)

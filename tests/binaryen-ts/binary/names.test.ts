@@ -19,22 +19,22 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
 import {
   elemFuncNames,
   importName,
   ModuleBuilder,
   type WasmModule,
-} from '../../../src/binaryen-ts/ir/module.ts';
-import { makeBlock, makeNop, makeRegion } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/module.ts';
+import { makeBlock, makeNop, makeRegion } from '../../../src/ir/expressions.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { type Var, varName } from '../../../src/ir/ir.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);

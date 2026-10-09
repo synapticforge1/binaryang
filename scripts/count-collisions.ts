@@ -2,10 +2,11 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * Counts the exported type names that collide between the two `src/` trees.
+ * Counts the exported type names declared in more than one file of `src/`.
  *
- * This is binaryang's stated measure of convergence: two IRs are retained by
- * decision, and the number only falls when they genuinely converge.
+ * This is binaryang's measure of convergence. It counted the names the two
+ * `src/` trees both declared until open-work 21 merged the trees into one; one
+ * tree needs one name each, so the number falls as the names converge.
  *
  * ## The counting rule is the point
  *
@@ -37,8 +38,8 @@
 import { walk } from '@std/fs/walk';
 import { relative, SEPARATOR } from '@std/path';
 
-/** The two namespaced trees. A third tree would be added here, not inferred. */
-const TREES = ['src/binaryen-ts', 'src/wabt-ts'] as const;
+/** The one source tree (open-work 21 merged `src/binaryen-ts/` and `src/wabt-ts/` into it). */
+const TREE = 'src';
 
 /**
  * Exported `type` / `interface` / `enum` declarations.
@@ -77,21 +78,25 @@ if (unknown.length > 0) {
   Deno.exit(2);
 }
 
-const [a, b] = await Promise.all(TREES.map(exportedTypeNames));
-const collisions = [...a!.keys()].filter((n) => b!.has(n)).sort();
+// Open-work item 21, phase 1 (2026-10-09): the two trees are ONE `src/` now, so the
+// indicator counts what one tree must not have — an exported type name DECLARED IN
+// MORE THAN ONE FILE. Before the move it counted names declared in both trees: 86.
+// The one-tree rule gives 88 on the same code — the 86, plus two names wabt-ts had
+// already declared twice INSIDE itself, which the per-tree rule could not see:
+// `Features` (core/feature.ts, compat/wabt-compat.ts) and `LiteralType`
+// (core/literal.ts, parser/token.ts).
+const names = await exportedTypeNames(TREE);
+const collisions = [...names.entries()].filter(([, files]) => files.length > 1).map(([n]) => n)
+  .sort();
 
 if (!quiet) {
-  console.log(`Exported type names, rule = type|interface|enum, exported, per tree:\n`);
-  for (const [i, t] of TREES.entries()) {
-    console.log(`  ${t.padEnd(18)} ${(i === 0 ? a! : b!).size}`);
-  }
-  console.log(`\n${collisions.length} name(s) declared in BOTH trees:\n`);
-  const w = Math.max(...collisions.map((n) => n.length));
-  for (const n of collisions) {
-    console.log(`  ${n.padEnd(w)}  ${a!.get(n)!.join(' ')}  |  ${b!.get(n)!.join(' ')}`);
-  }
+  console.log(`Exported type names, rule = type|interface|enum, exported, in ${TREE}/:\n`);
+  console.log(`  ${names.size} distinct names`);
+  console.log(`\n${collisions.length} name(s) declared in more than one file:\n`);
+  const w = Math.max(0, ...collisions.map((n) => n.length));
+  for (const n of collisions) console.log(`  ${n.padEnd(w)}  ${names.get(n)!.join('  |  ')}`);
   console.log('');
-  console.log('Reported, not gated. This falls only when the two IRs converge; gating it');
+  console.log('Reported, not gated. This falls only when the names converge; gating it');
   console.log('would reward renaming, which moves the number without converging anything.');
 }
 console.log(`collisions=${collisions.length}`);

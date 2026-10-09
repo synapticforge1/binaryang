@@ -14,8 +14,8 @@
  * @module
  */
 
-import { defaultFeatures } from '../wabt-ts/core/feature.ts';
-import type { Features } from '../wabt-ts/core/feature.ts';
+import { defaultFeatures } from '../core/feature.ts';
+import type { Features } from '../core/feature.ts';
 
 /** A feature set being built from flags, starting at upstream's defaults. */
 export class FeatureFlags {

@@ -7,8 +7,8 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   type BinaryExpr,
   BinaryOp,
@@ -27,8 +27,8 @@ import {
   SIMDTernaryOp,
   type UnaryExpr,
   UnaryOp,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+} from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
 import { soleInstr } from '../region_helpers.ts';
 // ---------------------------------------------------------------------------
 // Helpers

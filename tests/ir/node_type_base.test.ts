@@ -23,7 +23,7 @@ import type {
   CallExpr as WCallExpr,
   ExprType,
   IfExpr as WIfExpr,
-} from '../../src/wabt-ts/ir/ir.ts';
+} from '../../src/ir/ir.ts';
 import type {
   BlockExpr,
   BrOnExpr,
@@ -32,8 +32,8 @@ import type {
   LoopExpr,
   TryExpr,
   TryTableExpr,
-} from '../../src/binaryen-ts/ir/expressions.ts';
-import type { Type } from '../../src/binaryen-ts/ir/types.ts';
+} from '../../src/ir/expressions.ts';
+import type { Type } from '../../src/ir/types.ts';
 
 type Same<A, C> = [A] extends [C] ? ([C] extends [A] ? true : false) : false;
 const same = <A, C>(v: Same<A, C>): Same<A, C> => v;

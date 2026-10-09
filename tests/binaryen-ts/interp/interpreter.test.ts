@@ -13,16 +13,16 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
 import {
   Interpreter,
   Stop,
   Trap,
   type Value,
   WasmException,
-} from '../../../src/binaryen-ts/interp/interpreter.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+} from '../../../src/interp/interpreter.ts';
+import { ValType } from '../../../src/ir/types.ts';
 
 const i32 = (value: number): Value => ({ type: ValType.I32, value });
 

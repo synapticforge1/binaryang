@@ -28,10 +28,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 // wabt-ts's bytes without the name section: parseWat carries none (W4) -- see ../nameless_reference.ts.
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 /** Export set of a binary, as `name:kind`, sorted — the property that matters. */
 function exportsOf(bytes: Uint8Array): string[] {

@@ -20,17 +20,17 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { spillStackValues } from '../../../src/binaryen-ts/passes/spill-stack-values.ts';
-import { ExpressionKind, typeOf } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { prepareForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { spillStackValues } from '../../../src/passes/spill-stack-values.ts';
+import { ExpressionKind, typeOf } from '../../../src/ir/expressions.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import type { Expression } from '../../../src/ir/expressions.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
 
 const asm = (wat: string) => {
   const r = wat2wasm(wat, { textForm: false });

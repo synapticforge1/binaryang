@@ -14,13 +14,13 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
-import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/wabt-ts/tools/wasm2wat.ts';
-import { allFeatures, wasmValidate } from '../../src/wabt-ts/tools/wasm-validate.ts';
-import { defaultFeatures } from '../../src/wabt-ts/core/feature.ts';
-import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
-import { formatErrors } from '../../src/wabt-ts/core/error.ts';
-import { Result } from '../../src/wabt-ts/core/result.ts';
+import { wat2wasm } from '../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../src/tools/wasm2wat.ts';
+import { allFeatures, wasmValidate } from '../../src/tools/wasm-validate.ts';
+import { defaultFeatures } from '../../src/core/feature.ts';
+import { parseWatModule } from '../../src/parser/wast-parser.ts';
+import { formatErrors } from '../../src/core/error.ts';
+import { Result } from '../../src/core/result.ts';
 
 /** Text to bytes, failing loudly on a parse or encode error. */
 function asm(text: string): Uint8Array {

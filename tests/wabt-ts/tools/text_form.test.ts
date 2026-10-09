@@ -17,22 +17,22 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { wasmStrip } from '../../../src/wabt-ts/tools/wasm-strip.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { wasmStrip } from '../../../src/tools/wasm-strip.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { makeErrorList } from '../../../src/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
 import {
   decodeTextForm,
   formNodes,
   predictionHash,
   TEXT_FORM_SECTION,
   writtenForms,
-} from '../../../src/wabt-ts/ir/text-form.ts';
+} from '../../../src/ir/text-form.ts';
 
 const MIXED_FILE = `(module
   (import "env" "log" (func $log (param i32)))

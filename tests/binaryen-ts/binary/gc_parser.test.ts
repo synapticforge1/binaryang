@@ -7,14 +7,14 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { type Var, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { type Var, varIndex } from '../../../src/ir/ir.ts';
 import { soleInstr } from '../region_helpers.ts';
-import type { RefType } from '../../../src/binaryen-ts/ir/gc-types.ts';
+import type { RefType } from '../../../src/ir/gc-types.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -23,18 +23,15 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import {
-  hasBlockParams,
-  lowerBlockParams,
-} from '../../../src/binaryen-ts/passes/lower-block-params.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { prepareForPasses, readForPasses } from '../../../src/ir/prepare.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { hasBlockParams, lowerBlockParams } from '../../../src/passes/lower-block-params.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
+import { varName } from '../../../src/ir/ir.ts';
 
 const asm = (wat: string) => {
   const r = wat2wasm(wat, { textForm: false });

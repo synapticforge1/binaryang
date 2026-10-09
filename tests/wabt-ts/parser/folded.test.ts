@@ -25,16 +25,16 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { Result } from '../../../src/wabt-ts/core/result.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { validateModule } from '../../../src/validator/validator.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { Result } from '../../../src/core/result.ts';
+import { prepareForPasses } from '../../../src/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 
 function parseClean(wat: string): { module: ReturnType<typeof parseWatModule>['module'] } {
   const { module, errors } = parseWatModule(new LexerSource(wat, '<folded>'));

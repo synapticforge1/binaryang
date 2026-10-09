@@ -216,7 +216,7 @@ Triggers — the day X happens, Y is exposed
   reader (blocks in statement position) and unnamed labels are legal. If either changes, re-check (T13.21).
 - [trigger] `varArityForTok` resolves `call`/`return_call`/`array.new_fixed`; `br`, `return`, `throw`,
   `call_indirect`, `call_ref`, `struct.new` still drain the stack (-1). Extend it the day a measurement
-  shows one (T10.5; verified in `src/wabt-ts/parser/wast-parser.ts:1406`).
+  shows one (T10.5; verified in `src/parser/wast-parser.ts:1406`).
 - [trigger] wasmtk's Go-leaf memory floor "two pages so byte 65536 exists" (TinyGo's init flag) is false
   under `(pagesize 1)`; its WAT regex `\(memory\s+\(export "memory"\)\s+(\d+)\)` never matches our writer's
   `(memory (;0;) …)` spelling. Carried to wasmtk; not ours to fix, status there not re-checked.
@@ -244,7 +244,7 @@ Corrections someone could re-derive wrongly
   six; adding limits would reject valid modules (T13.35).
 - [correction] Diagnostic offsets: T13.35's "offset must not precede the corruption" oracle is false for any
   multi-byte construct — reporting a LEB's start is better → measured since as A3 (core).
-- [correction] `ModuleContext.getExprArity` (published via `src/wabt-ts/ir/ir-util.ts`) has no production
+- [correction] `ModuleContext.getExprArity` (published via `src/ir/ir-util.ts`) has no production
   caller — only `tests/wabt-ts/audit/silent_corruption_fixes.test.ts` — so its precomputed maps are NOT a
   hot path, and are kept only because `ir-util.ts` is public API. T13.28 corrected the wing, not the code:
   the class doc ("reused across validator, binary writer, and bridge") and the field comment at
@@ -767,15 +767,15 @@ is only what the core does not hold.
   `synthesizeTypes` inventing types, it explained the last 19 `assert_invalid` misses (T13.2). The
   signed LEB pair followed (T13.12).
 - [decision] Coarsen at the CONSUMER's boundary, never in an encoder — `coarsenValueType` at entry of
-  `src/wabt-ts/validator/type-checker.ts`, `src/bridge/type-map.ts`.
+  `src/validator/type-checker.ts`, `src/bridge/type-map.ts`.
 - [lesson] A scoping off-by-one recurs in every layer: `try_table` catch target, parser T7.6 → validator T9.8.
 - [lesson] One-sided rule: writer's "only valid value" `0x00` vs a reader discarding the byte (T13.5).
 - [lesson] Two parsers of one rule; the printer inverts the wrong one — quiet NaN became signalling
-  (`src/wabt-ts/core/literal.ts`). Assert print∘parse = identity.
+  (`src/core/literal.ts`). Assert print∘parse = identity.
 - [lesson] A stub on the form the other side emits is a round-trip hole (`try_table` linear branch).
 - [lesson] Read a decode beside its encode, for every value the FORMAT allows (T13.26).
 - [lesson] Port the upstream option's DEFAULT: `canonicalize_lebs` true, port shipped fixed-width
-  (T13.40; `src/wabt-ts/writer/stream.ts`, `tests/wabt-ts/writer/minimal_section_size.test.ts`).
+  (T13.40; `src/writer/stream.ts`, `tests/wabt-ts/writer/minimal_section_size.test.ts`).
 
 ### Audit a manual walk against the TYPE, not against a corpus
 
@@ -783,7 +783,7 @@ is only what the core does not hold.
 
 - [reference] Enumerate every `Var`-bearing field of every Expr interface; check each kind's case
   body names it (~30 lines). Found atomic `memidx` unresolved — wrong memory, no corpus reaches it.
-- [baseline] Every KIND of member: 2026-08-25 over `src/wabt-ts/ir/ir.ts` — `Var` 64 interfaces / 0,
+- [baseline] Every KIND of member: 2026-08-25 over `src/ir/ir.ts` — `Var` 64 interfaces / 0,
   `Expr` 75 / **1** (`table.get.index`, T13.11). Re-run after adding an IR variant.
 - [lesson] Enumerate the SIGNATURE, not the parameter: T9.11 fixed `offset`; T13.15 found `is64`
   dropped in two of the same twelve handlers.
@@ -858,7 +858,7 @@ is only what the core does not hold.
 - [lesson] Observable = not cosmetic (export order, T10.1); ask if repeating is a FIXED POINT (+4
   bytes per round trip, T10.5).
 - [trigger] "Unreachable" is today's code: `getMiscOpcodeTypeInfo`'s benign default
-  (`src/wabt-ts/validator/type-checker.ts`) was reached one commit later. Record what WOULD reach a trap.
+  (`src/validator/type-checker.ts`) was reached one commit later. Record what WOULD reach a trap.
 - [lesson] Rank a category by its RULE wherever it applies (UTF-8: quoted +176, binary +528, T12.5);
   test the exemption with the rule (data segments).
 - [lesson] A half-built feature no corpus reaches is worse than none (page sizes, T13.4); size by
@@ -1115,7 +1115,7 @@ Full text: `git show 9758fc736:cmem/wabt-ts/licensing.md`
 
 ## `wabt-ts/INDEX.md` (215 lines) — the wabt-ts memory index, binding triggers, and the audit definition
 
-Covered the cmem policy (superseded by cmem/INDEX.md), two notation rules, the "update the project memory" trigger, the "look for code issues" trigger with its audit definition, the regression-gate trigger, and the files table. The audit definition is cited from `tests/wabt-ts/audit/source_hygiene.test.ts:20` and `src/wabt-ts/ir/resolve-names.ts:312`.
+Covered the cmem policy (superseded by cmem/INDEX.md), two notation rules, the "update the project memory" trigger, the "look for code issues" trigger with its audit definition, the regression-gate trigger, and the files table. The audit definition is cited from `tests/wabt-ts/audit/source_hygiene.test.ts:20` and `src/ir/resolve-names.ts:312`.
 
 ### The audit definition
 

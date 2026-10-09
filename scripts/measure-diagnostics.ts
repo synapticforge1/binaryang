@@ -58,12 +58,12 @@
  * ```
  */
 
-import { formatErrors, hasErrors, makeErrorList } from '../src/wabt-ts/core/error.ts';
-import { readBinaryIr } from '../src/wabt-ts/reader/binary-reader-ir.ts';
-import type { ErrorList } from '../src/wabt-ts/core/error.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../src/core/error.ts';
+import { readBinaryIr } from '../src/reader/binary-reader-ir.ts';
+import type { ErrorList } from '../src/core/error.ts';
 import { suiteFeatures } from './proposals.ts';
-import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
-import { wasmValidate } from '../src/wabt-ts/tools/wasm-validate.ts';
+import { wat2wasm } from '../src/tools/wat2wasm.ts';
+import { wasmValidate } from '../src/tools/wasm-validate.ts';
 
 /** The spec harness's feature set, for the same reason (see spec-testsuite.ts). */
 const FEATURES = suiteFeatures('');

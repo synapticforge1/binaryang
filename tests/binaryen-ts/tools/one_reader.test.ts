@@ -17,11 +17,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
-import { readBinary } from '../../../src/binaryen-ts/api/binaryen-compat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { hasErrors } from '../../../src/core/error.ts';
+import { readForPasses, WasmBinaryError } from '../../../src/ir/prepare.ts';
+import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
+import { readBinary } from '../../../src/compat/binaryen-compat.ts';
 
 /** `(func (export "f") (param v128 v128) (result i32) … i8x16.relaxed_swizzle …)` */
 const RELAXED = (() => {

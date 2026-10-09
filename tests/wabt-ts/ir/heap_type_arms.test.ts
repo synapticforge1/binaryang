@@ -26,13 +26,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { heapTypeNameToType } from '../../../src/wabt-ts/core/types.ts';
-import { isRefValueType } from '../../../src/wabt-ts/ir/ir.ts';
-import type { HeapTypeRef, Module } from '../../../src/wabt-ts/ir/ir.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { makeErrorList } from '../../../src/core/error.ts';
+import { heapTypeNameToType } from '../../../src/core/types.ts';
+import { isRefValueType } from '../../../src/ir/ir.ts';
+import type { HeapTypeRef, Module } from '../../../src/ir/ir.ts';
 
 /**
  * Every heap type reachable in a module, by brute-force structural walk.

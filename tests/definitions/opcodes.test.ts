@@ -15,19 +15,13 @@ import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
 import { OPCODE_DEFINITIONS, opcodeKey } from '../../src/definitions/mod.ts';
 import type { OpcodeDefinition } from '../../src/definitions/mod.ts';
-import {
-  GcOpcode,
-  MiscOpcode,
-  Opcode,
-  PREFIX_GC,
-  PREFIX_MISC,
-} from '../../src/wabt-ts/core/opcode.ts';
-import { readBinaryIr } from '../../src/wabt-ts/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../src/wabt-ts/writer/binary-writer.ts';
-import { formatErrors, makeErrorList } from '../../src/wabt-ts/core/error.ts';
-import { wasmValidate } from '../../src/wabt-ts/tools/wasm-validate.ts';
-import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
-import { allFeatures } from '../../src/wabt-ts/core/feature.ts';
+import { GcOpcode, MiscOpcode, Opcode, PREFIX_GC, PREFIX_MISC } from '../../src/core/opcode.ts';
+import { readBinaryIr } from '../../src/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../src/writer/binary-writer.ts';
+import { formatErrors, makeErrorList } from '../../src/core/error.ts';
+import { wasmValidate } from '../../src/tools/wasm-validate.ts';
+import { wat2wasm } from '../../src/tools/wat2wasm.ts';
+import { allFeatures } from '../../src/core/feature.ts';
 
 const ENTRIES = OPCODE_DEFINITIONS.entries;
 

@@ -22,7 +22,7 @@ retirement completed when wasmtk republished — not when the signposts went up.
 
 | # | decision                                                                          | why                                                                                                                                                       |
 | - | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 | **Two IRs are retained.**                                                         | They do different jobs, and wabt's round-trip fidelity is load-bearing. Convergence is gradual and open-ended, alongside ongoing work — not a merge task. |
+| 1 | ~~**Two IRs are retained.**~~ **Re-decided 2026-09-30 / done 2026-10-09: ONE `src/` tree** (open-work 21). | The premise no longer described the code: there was ONE IR already (binaryen-ts's `ir/` aliased wabt-ts's), so the trees were layers, not two IRs. Phase 1 moved the files into one tree by concept; the duplicate NAMES (`deno task collisions`) are what remains to converge. wabt's round-trip fidelity stays load-bearing — it lives in the one IR. |
 | 2 | **Both histories are preserved.**                                                 | `git remote add` plus `merge --allow-unrelated-histories` into subdirectories, so both logs survive and `git log --follow` keeps working.                 |
 | 3 | **wasmtk does not merge.**                                                        | It stays a consumer.                                                                                                                                      |
 | 4 | **Start at 1.5.1.**                                                               | The next version of two packages both at 1.5.0 — continuous with each predecessor's number, not a patch on either.                                        |
@@ -77,12 +77,27 @@ gives 19 and 24 commits respectively. Both "preserve history"; only one keeps it
 - **`minimumDependencyAge: "0"` is carried consciously** — a supply-chain default waived, because
   every dependency is our own scope plus `@std`. It must not be inherited silently by a union.
 
-## Layout and the promotion rule
+## Layout — one tree by concept (open-work 21, 2026-10-09)
 
-One `main.ts` at the root; `src/binaryen-ts/` and `src/wabt-ts/` hold each predecessor's structure,
-and modules move into common `src/` folders as they converge. **Promotion is provable, not
-asserted**: a module earns a common folder when nothing in either namespaced tree still imports it
-from the other side — the import graph answers that. "It felt shared" is not the test.
+One `main.ts` at the root; ONE `src/` tree, folders by concept, not by predecessor:
+
+| folder | holds |
+| --- | --- |
+| `core/` | binary constants, opcodes, types, features, LEB128, literals, errors, the Linking format |
+| `ir/` | the one IR (`ir.ts`, binaryen-ts's view in `expressions.ts` / `module.ts` / `types.ts`), naming, typing, walking, `prepare.ts` (bytes → passes) and `write-wasm.ts`; the barrels `binaryen-ts.ts` and `wabt-ts.ts` behind the `./ir/binaryen-ts` and `./ir/wabt-ts` subpaths |
+| `parser/`, `reader/`, `writer/`, `validator/` | text in, binary in, binary and text out, validation |
+| `passes/` | the optimizer and its pass registry |
+| `interp/` | the evaluator and the interpreter |
+| `tools/` | every CLI tool as a library (`wasm-opt`, `wat2wasm`, … `wasm-bundle`, `witgen`) |
+| `compat/` | the upstream API shapes (`binaryen-compat.ts`, `wabt-compat.ts`) |
+| `api/`, `wasm/`, `wasm-runtime.ts`, `cli/`, `definitions/` | the builder API, the parked kernels, the CLI helpers, `./definitions` |
+
+Every public subpath kept its name when the files moved (they are a map in `deno.json`); only the
+three that name a predecessor (`./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts`) are still to
+be decided, phase 4 of the item. 🗄️ **The promotion rule is retired with the two trees.** It said a
+module earns a common folder when nothing in either namespaced tree imports it from the other side;
+with one tree there is no other side. What it measured is now `deno task collisions` — an exported
+type name declared in more than one file.
 
 🔓 **There was one exception: the bridge**, at `src/bridge/` (decided 2026-08-27; tests at
 `tests/bridge/`) — ✅ **deleted 2026-09-18** (S6 step 5, M8e), so no exception stands today. The
@@ -92,17 +107,18 @@ cross-tree is its job. **When the proxy and the intent disagree, the intent gove
 disagreement is written down.** A second exception would be a sign the rule needs rewriting. (S6
 deleted the bridge — [ir-convergence.md](ir-convergence.md) § "Item 6 — the MODULE half".)
 
-**`src/binaryen-ts/interp/`** (2026-10-07 → 2026-10-08, open-work 23, closed —
+**`src/interp/`** (2026-10-07 → 2026-10-08, open-work 23, closed —
 [interpreter.md](interpreter.md)) holds the evaluator and the interpreter: `numeric.ts` and
 `simd.ts` (every operator on `Literal`s — the ONE semantics OptimizeInstructions, Precompute, the
 interpreter and `wasm-ctor-eval` share), `interpreter.ts`, `memory.ts`, `table.ts`, `types.ts`. It
 works on the converged IR and is reached from outside only through the two tools in
-`src/binaryen-ts/tools/` — `wasm-ctor-eval.ts`, `wasm-interp.ts` (`./tools/*` subpaths, CLI
+`src/tools/` — `wasm-ctor-eval.ts`, `wasm-interp.ts` (`./tools/*` subpaths, CLI
 commands); the interpreter's own classes are not a published API. `scripts/check-interp.ts`
 (`deno task interp`) is its gate step.
 
-Two namespaced trees with a working bridge is a _stable_ arrangement — nothing breaks if convergence
-never happens — which is what made it safe to start this way, and why it needs counter-pressure.
+Two namespaced trees with a working bridge was a _stable_ arrangement — nothing broke while
+convergence had not happened — which is what made it safe to start that way, and why it needed
+counter-pressure. The counter-pressure won: the bridge went in S6, the trees in open-work 21.
 
 ## Binding rules — enforced in CI
 
@@ -336,7 +352,7 @@ it here loses nothing: the commits above, and the file at `1672c2a5a`, are the p
 
 | gap                                                   | where                          | state                                                                                                                                              |
 | ----------------------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`wasm2ts` is a stub that throws** (wabt-ts Phase 8) | `src/wabt-ts/tools/wasm2ts.ts` | the long-term goal — WASI Preview 1 capable TypeScript output; blocked on wasmtk ([open-work.md](open-work.md), A2)                                |
+| **`wasm2ts` is a stub that throws** (wabt-ts Phase 8) | `src/tools/wasm2ts.ts` | the long-term goal — WASI Preview 1 capable TypeScript output; blocked on wasmtk ([open-work.md](open-work.md), A2)                                |
 | ~~**TranslateEH**~~                                   | binaryen-ts                    | ✅ CLOSED 2026-09-14 — implemented as `TranslateToExnref` (owner decision 7); [binaryen-ts.md](binaryen-ts.md) § "TranslateEH" |
 | **Phase 10 kernel selection**                         | binaryen-ts                    | PARKED (owner, 2026-09-29) until optimizer speed is on the table; profile the corpus first — single-op dispatch regresses ([open-work.md](open-work.md) § "Not tasks")                                                                                 |
 | **Diagnostic wording**                                | wabt-ts                        | at close: reader 689/711, validator 2446/2683, parser 816/1229 — none at ceiling; much of the parser's remainder is where OUR message is better    |

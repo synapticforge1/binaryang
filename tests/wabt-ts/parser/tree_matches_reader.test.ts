@@ -11,20 +11,20 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { formNodes } from '../../../src/wabt-ts/ir/text-form.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { prepareForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import type { Module } from '../../../src/wabt-ts/ir/ir.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { makeErrorList } from '../../../src/core/error.ts';
+import { formNodes } from '../../../src/ir/text-form.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { prepareForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import type { Module } from '../../../src/ir/ir.ts';
 
 function parsed(wat: string): Module {
   const p = parseWatModule(new LexerSource(wat, 'test.wat'));

@@ -12,11 +12,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
 
 const WAT = `(module
   (type $s (struct))

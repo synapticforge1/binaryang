@@ -14,7 +14,7 @@ import {
   VERDICT_DEFINITIONS,
   verdictClass,
 } from '../../src/definitions/mod.ts';
-import { allFeatures, defaultFeatures } from '../../src/wabt-ts/core/feature.ts';
+import { allFeatures, defaultFeatures } from '../../src/core/feature.ts';
 import { FeatureFlags } from '../../src/cli/feature-flags.ts';
 import { contentHash } from '../../scripts/definitions.ts';
 

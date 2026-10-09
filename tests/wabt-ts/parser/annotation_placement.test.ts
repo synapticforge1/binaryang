@@ -17,9 +17,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { allFeatures, wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { allFeatures, wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { formatErrors } from '../../../src/core/error.ts';
 
 const BODY = '(type (;0;) (func (param i32))) (memory (;0;) 1 1)';
 const hinted = (before: string, after: string) =>

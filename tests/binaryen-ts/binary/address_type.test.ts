@@ -12,13 +12,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { Module as CompatModule } from '../../../src/binaryen-ts/api/binaryen-compat.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { prepareForPasses, readForPasses } from '../../../src/ir/prepare.ts';
+import { Module as CompatModule } from '../../../src/compat/binaryen-compat.ts';
+import { ValType } from '../../../src/ir/types.ts';
 
 const WAT = `(module
   (import "m" "mem32" (memory 1))

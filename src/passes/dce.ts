@@ -1,0 +1,124 @@
+/**
+ * @module passes/dce
+ *
+ * Dead Code Elimination (DCE) pass.
+ *
+ * Removes expressions that provably cannot be reached at runtime.
+ * Specifically, any expression that follows an `unreachable`, `return`,
+ * `throw`, `throw_ref`, or `rethrow` within a block is dead and can be
+ * dropped. The pass recurses into the bodies of `if`, `loop`, `try`, and
+ * `try_table` so dead code buried in nested control flow is reached too.
+ *
+ * This mirrors the `DeadCodeElimination` pass in `WebAssembly/binaryen/src/passes/DeadCodeElimination.cpp`
+ * in the upstream Binaryen C++ library (the simplified post-order tail-trim
+ * variant — full liveness-based DCE is deferred).
+ *
+ * @license MIT
+ */
+
+import {
+  type BlockExpr,
+  type Expression,
+  ExpressionKind,
+  neverFallsThrough,
+  type RegionExpr,
+} from '../ir/expressions.ts';
+import type { WasmModule } from '../ir/module.ts';
+import { type Pass, type PassOptions, registerPass } from './pass.ts';
+
+/**
+ * Dead Code Elimination pass.
+ *
+ * After a child expression has type `unreachable`, any sibling expressions
+ * later in the same block are unreachable and may be removed. `throw`,
+ * `throw_ref`, and `rethrow` are typed `unreachable` so they trim the block
+ * tail the same way `unreachable` and `return` do.
+ */
+export class DCEPass implements Pass {
+  readonly name = 'DCE';
+  readonly description =
+    'Removes dead code — expressions that follow unreachable instructions in a block.';
+  readonly requiresNonNullableLocalFixups = true;
+
+  run(module: WasmModule, _options: PassOptions): void {
+    for (const fn of module.functions) {
+      fn.body = eliminateDeadList(fn.body);
+    }
+  }
+}
+
+registerPass(DCEPass);
+
+// ---------------------------------------------------------------------------
+// Implementation
+// ---------------------------------------------------------------------------
+
+function eliminateDeadCode(expr: Expression): Expression {
+  switch (expr.kind) {
+    // ⚠️ Region and Block are the same operation on the same field. Region MUST
+    // be listed: every loop / if / try / function body is one, and before
+    // regions were a kind those bodies were unnamed Blocks and got trimmed here.
+    // With only `Block` listed, `default` below returned them untouched — DCE
+    // would have quietly stopped working on every region, and nothing typed
+    // would have said so.
+    case ExpressionKind.Block:
+    case ExpressionKind.Region:
+      return eliminateDeadList(expr);
+
+    case ExpressionKind.If:
+      return {
+        ...expr,
+        condition: eliminateDeadCode(expr.condition),
+        ifTrue: eliminateDeadList(expr.ifTrue),
+        ifFalse: expr.ifFalse ? eliminateDeadList(expr.ifFalse) : null,
+      };
+
+    case ExpressionKind.Loop:
+      return { ...expr, body: eliminateDeadList(expr.body) };
+
+    case ExpressionKind.Try:
+      return {
+        ...expr,
+        body: eliminateDeadList(expr.body),
+        catches: expr.catches.map((c) => ({ ...c, body: eliminateDeadList(c.body) })),
+      };
+
+    case ExpressionKind.TryTable:
+      return { ...expr, body: eliminateDeadList(expr.body) };
+
+    default:
+      return expr;
+  }
+}
+
+function eliminateDeadList<T extends BlockExpr | RegionExpr>(block: T): T {
+  const newChildren: Expression[] = [];
+  let trimmed = false;
+  for (let i = 0; i < block.children.length; i++) {
+    // Recurse before deciding the tail — a child may contain inner dead code
+    // (e.g. unreachable buried in a Try body) without itself being typed
+    // unreachable, but we still want to clean inside it.
+    const processed = eliminateDeadCode(block.children[i]!); // bounded by the loop header
+    newChildren.push(processed);
+    // 🔧 This asked whether the child's TYPE is unreachable. A node with an
+    // unreachable OPERAND is typed unreachable and still pushes its value in
+    // the bytes, so the tail it trimmed was carrying that value to the
+    // enclosing `end`: `(select (unreachable) …)` in the spec's
+    // `unreached-valid.0` left "1 element for fallthru" where 0 were expected
+    // — invalid output from `wasm-opt` (see `neverFallsThrough`).
+    if (neverFallsThrough(processed) && i < block.children.length - 1) {
+      trimmed = true;
+      // Everything after this point is dead — stop collecting.
+      break;
+    }
+  }
+  // Reference-equality short-circuit: only rebuild when something changed.
+  if (
+    !trimmed &&
+    newChildren.length === block.children.length &&
+    newChildren.every((c, i) => c === block.children[i])
+  ) {
+    return block;
+  }
+  return { ...block, children: newChildren };
+}

@@ -20,9 +20,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
-import { readWat, WatInputError } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
+import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
+import { readWat, WatInputError } from '../../../src/tools/read-wat.ts';
+import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
 
 const PRE = '(module (import "env" "g" (func $g (param i32) (result i32))) ' +
   '(func (export "f") (result i32) (local i32)';

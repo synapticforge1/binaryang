@@ -156,10 +156,11 @@ binaryen) are used only by the repository's tests and its separate comparison su
 the published package. The `compat/*` subpaths reproduce upstream's API *shapes*; they do not load
 upstream.
 
-**Two IRs, each explicitly named.** They do different jobs — WABT's round-trip fidelity is exact,
-Binaryen's IR is what the optimisation passes operate on — so both are kept, and neither is called
-`./ir`. There is deliberately no `./ir` subpath: it would read as "the IR" while meaning one of
-them.
+**One IR, two sets of names, each subpath explicitly named.** The reader, writers and validator
+and the optimisation passes all work on one IR. `./ir/wabt-ts` exports it under WABT's names
+(`Expr`, `Module`) and `./ir/binaryen-ts` under Binaryen's (`Expression`, `WasmModule`). There is
+deliberately no `./ir` subpath while both sets of names exist: it would read as "the IR" while
+meaning one of them.
 
 ## Runtime support
 

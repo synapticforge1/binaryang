@@ -101,7 +101,15 @@ fatigue.
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
-21. ⬚ 🗓️ **Merge `src/binaryen-ts/` and `src/wabt-ts/` into `src/` — SCOPE after the IR work**
+21. ◐ **Merge `src/binaryen-ts/` and `src/wabt-ts/` into `src/`** — 🚧 **started 2026-10-09** (owner:
+    "proceed with item 21"). **Phase 1 DONE on branch `one-src-tree`:** 105 files moved by concept
+    with `git mv` (the layout: [project.md](project.md) § "Layout"), 2,162 relative path literals
+    rewritten by a resolver (scratch `merge-trees.ts`), 19 `deno.json` exports retargeted, every
+    subpath kept; the orphan `src/wabt-ts/index.ts` barrel and 7 `.gitkeep`s removed; 62 `@module`
+    tags retargeted; `deno task collisions` now counts across ONE tree — **88** (the 86 cross-tree
+    names plus `Features` and `LiteralType`, which wabt-ts already declared twice). `baseline`
+    IDENTICAL (421 / 421). Phases 2 (one name each), 3 (logic that exists twice) and 4 (the three
+    tree-named subpaths — the OWNER's call) remain. The scoping record as it stood:
     (owner, 2026-09-30: "It looks like we can now phase a merge of the binaryen-ts and wabt-ts
     folders into the src folder … I would like to scope that after our IR work is completed"). Facts
     measured that day, for the scoping:
@@ -167,7 +175,7 @@ sent and answered (their reply reached us 2026-09-29) — closed in [handoffs.md
     ([names.md](names.md)).
 - **WASM kernels (binaryen-ts Phase 10) — parked** (owner, 2026-09-29: "we may reevaluate way down
   the road when we start talking about optimization and speed of processing").
-  - The code stays as it is: `wasm-runtime.ts`, the demo kernel in `src/binaryen-ts/wasm/`, the
+  - The code stays as it is: `wasm-runtime.ts`, the demo kernel in `src/wasm/`, the
     published `./wasm` and `./wasm-runtime`. Only a test and a bench call them.
   - What was never built is kernel SELECTION: which optimizer operations are worth moving to wasm.
     The baseline is a ~2–3 ns boundary cost per call (`add_i32` ~3.6 ns as a kernel vs ~0.34 ns in

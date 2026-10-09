@@ -38,15 +38,15 @@
  * @license MIT
  */
 
-import { readForPasses } from '../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../src/binaryen-ts/ir/write-wasm.ts';
-import { ExpressionKind } from '../src/binaryen-ts/ir/expressions.ts';
-import { walkExpression } from '../src/binaryen-ts/ir/walk.ts';
-import { PassRunner } from '../src/binaryen-ts/passes/index.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../src/wabt-ts/core/error.ts';
-import { allFeatures } from '../src/wabt-ts/core/feature.ts';
-import { readBinaryIr } from '../src/wabt-ts/reader/binary-reader-ir.ts';
-import { validateModule } from '../src/wabt-ts/validator/validator.ts';
+import { readForPasses } from '../src/ir/prepare.ts';
+import { writeWasm } from '../src/ir/write-wasm.ts';
+import { ExpressionKind } from '../src/ir/expressions.ts';
+import { walkExpression } from '../src/ir/walk.ts';
+import { PassRunner } from '../src/passes/index.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../src/core/error.ts';
+import { allFeatures } from '../src/core/feature.ts';
+import { readBinaryIr } from '../src/reader/binary-reader-ir.ts';
+import { validateModule } from '../src/validator/validator.ts';
 
 const [srcDir, outDir] = Deno.args;
 if (!srcDir || !outDir) {

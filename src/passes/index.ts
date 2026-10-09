@@ -1,0 +1,67 @@
+/**
+ * @module passes/index
+ *
+ * Optimization pass registry and runner.
+ *
+ * Import this module to get access to all built-in passes and the
+ * {@link PassRunner} that applies them to a {@link WasmModule}.
+ *
+ * Importing this module has the side effect of registering all built-in passes
+ * with the pass registry. Custom passes can be added via {@link registerPass}.
+ *
+ * @example
+ * ```ts
+ * import { PassRunner, listPasses } from "@jrmarcum/binaryang/passes";
+ *
+ * console.log(listPasses()); // ["CoalesceLocals", "DCE", "LocalCSE", ...]
+ *
+ * const runner = new PassRunner(module, { optimizeLevel: 2, shrinkLevel: 1 });
+ * runner.addDefaultOptimizationPasses().run();
+ * ```
+ *
+ * @license MIT
+ */
+
+export {
+  createPass,
+  defaultPassOptions,
+  listPasses,
+  PassRunner,
+  registerPass,
+  shrinkPassOptions,
+} from './pass.ts';
+export type { Pass, PassCtor, PassOptions } from './pass.ts';
+export { defaultConvergeOptions, optimizeToConvergence } from './converge.ts';
+export type { ConvergeOptions, ConvergeReport, ConvergeResult, ConvergeStop } from './converge.ts';
+export {
+  formatMinifyMap,
+  MINIFIED_MODULE,
+  minifyImportsAndExports,
+  takeMinifyMap,
+} from './minify-imports-and-exports.ts';
+export type { MinifyMap, MinifyOptions } from './minify-imports-and-exports.ts';
+
+// Side-effect imports: register all built-in passes.
+import './dce.ts';
+import './vacuum.ts';
+import './optimize-instructions.ts';
+import './remove-unused-brs.ts';
+import './simplify-locals.ts';
+import './coalesce-locals.ts';
+import './local-cse.ts';
+import './constant-propagation.ts';
+import './precompute.ts';
+import './remove-unused-module-elements.ts';
+import './pick-load-signs.ts';
+import './inlining.ts';
+import './remove-unused-names.ts';
+import './strip-eh.ts';
+import './translate-eh.ts';
+import './lower-custom-page-sizes.ts';
+import './remove-unused-types.ts';
+import './dead-argument-elimination.ts';
+import './flatten.ts';
+import './asyncify.ts';
+import './minify-imports-and-exports.ts';
+import './code-folding.ts';
+import './memory-packing.ts';

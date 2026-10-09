@@ -11,13 +11,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import type * as W from '../../src/wabt-ts/ir/ir.ts';
-import { varIndex } from '../../src/wabt-ts/ir/ir.ts';
-import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../src/wabt-ts/ir/synthesize-types.ts';
-import { nameEveryEntity } from '../../src/wabt-ts/ir/made-up-names.ts';
-import { nameReferences } from '../../src/wabt-ts/ir/name-references.ts';
+import type * as W from '../../src/ir/ir.ts';
+import { varIndex } from '../../src/ir/ir.ts';
+import { parseWatModule } from '../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../src/ir/synthesize-types.ts';
+import { nameEveryEntity } from '../../src/ir/made-up-names.ts';
+import { nameReferences } from '../../src/ir/name-references.ts';
 
 /** The optimizer route up to M8c: parse, resolve, synthesize, name. */
 function load(wat: string, name = true): W.Module {

@@ -17,13 +17,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
 
 const WAT = `(module
   (type $s (struct (field i32) (field i8)))

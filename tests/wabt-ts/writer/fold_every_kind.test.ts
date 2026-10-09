@@ -21,12 +21,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
-import type { Expr } from '../../../src/wabt-ts/ir/ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { writeWatModule } from '../../../src/writer/wat-writer.ts';
+import type { Expr } from '../../../src/ir/ir.ts';
 
 const KINDS = `(module
   (type $f (func (result i32)))

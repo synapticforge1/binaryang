@@ -8,9 +8,9 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { interpModule, showInvocation } from '../../../src/binaryen-ts/tools/wasm-interp.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { interpModule, showInvocation } from '../../../src/tools/wasm-interp.ts';
 
 const MOD = readForPasses(
   wat2wasm(

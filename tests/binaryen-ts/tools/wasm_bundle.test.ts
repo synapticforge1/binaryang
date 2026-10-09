@@ -14,11 +14,11 @@ import { expect } from '@std/expect';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import {
   bundle,
   BundleError,
@@ -26,14 +26,14 @@ import {
   type BundleOptions,
   moduleNameOf,
   wasmBundle,
-} from '../../../src/binaryen-ts/tools/wasm-bundle.ts';
+} from '../../../src/tools/wasm-bundle.ts';
 import {
   emitWitBeside,
   WIT_GENERATED_HEADER,
   witFromModule,
   witSaysSomething,
-} from '../../../src/binaryen-ts/tools/witgen.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+} from '../../../src/tools/witgen.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
 
 const PAGE = 65536;
 const fixtures = join(import.meta.dirname!, 'fixtures', 'bundle');

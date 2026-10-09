@@ -21,14 +21,14 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { hasErrors } from '../../../src/core/error.ts';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import type { CallIndirectExpr, Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import type { CallIndirectExpr, Expression } from '../../../src/ir/expressions.ts';
 
 /** The first `call_indirect` in the last function of a parsed module. */
 function findCallIndirect(wat: string): CallIndirectExpr {

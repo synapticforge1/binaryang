@@ -21,12 +21,12 @@ import {
   formatErrors,
   formatLocation,
   makeErrorList,
-} from '../../../src/wabt-ts/core/error.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+} from '../../../src/core/error.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
 
 /** Assemble without validating (`wat2wasm` does not validate), so the bytes can be invalid. */
 function bytes(wat: string): Uint8Array {

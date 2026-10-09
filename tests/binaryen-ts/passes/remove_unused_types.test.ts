@@ -9,15 +9,15 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { RemoveUnusedTypesPass } from '../../../src/binaryen-ts/passes/remove-unused-types.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { RemoveUnusedTypesPass } from '../../../src/passes/remove-unused-types.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
 
 function prune(wat: string) {
   const m = readForPasses(wat2wasm(wat, { textForm: false }).binary);

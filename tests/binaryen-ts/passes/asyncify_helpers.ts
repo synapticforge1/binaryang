@@ -12,8 +12,8 @@
 
 import { assertEquals } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { buildCallResultTypes, flattenFunction } from '../../../src/binaryen-ts/passes/flatten.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { buildCallResultTypes, flattenFunction } from '../../../src/passes/flatten.ts';
 import {
   analyzeModule,
   computeRelevantLocals,
@@ -22,8 +22,8 @@ import {
   localsInstrumentFunction,
   parseAsyncifyOptions,
   synthesizeRuntimeSupport,
-} from '../../../src/binaryen-ts/passes/asyncify.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+} from '../../../src/passes/asyncify.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
 
 // ---------------------------------------------------------------------------
 // Analyzer fixtures

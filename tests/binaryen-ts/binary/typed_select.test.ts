@@ -22,18 +22,18 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { ExpressionKind, type SelectExpr } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { prepareForPasses, readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { ExpressionKind, type SelectExpr } from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { prepareForPasses, readForPasses } from '../../../src/ir/prepare.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
 
 /** Every select in the module, in walk order. */
 function selects(mod: WasmModule): SelectExpr[] {

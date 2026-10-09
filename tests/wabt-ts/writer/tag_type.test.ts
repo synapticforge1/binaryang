@@ -18,18 +18,18 @@
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm, writeWat } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm, writeWat } from '../../../src/ir/write-wasm.ts';
 
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 

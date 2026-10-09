@@ -20,22 +20,18 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import {
-  type CallExpr,
-  type Expression,
-  ExpressionKind,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { buildCallResultTypes, flattenFunction } from '../../../src/binaryen-ts/passes/flatten.ts';
+import { type CallExpr, type Expression, ExpressionKind } from '../../../src/ir/expressions.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { buildCallResultTypes, flattenFunction } from '../../../src/passes/flatten.ts';
 import {
   analyzeModule,
   type FlowCtx,
   flowInstrumentFunction,
   parseAsyncifyOptions,
-} from '../../../src/binaryen-ts/passes/asyncify.ts';
-import type { WasmFunction, WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-import { nameOf, sameVar, type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/passes/asyncify.ts';
+import type { WasmFunction, WasmModule } from '../../../src/ir/module.ts';
+import { nameOf, sameVar, type Var, varName } from '../../../src/ir/ir.ts';
 import { region } from '../region_helpers.ts';
 
 // ---------------------------------------------------------------------------

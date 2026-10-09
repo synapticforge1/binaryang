@@ -11,13 +11,13 @@
  * @license MIT
  */
 
-import { ValType } from '../../src/binaryen-ts/ir/types.ts';
+import { ValType } from '../../src/ir/types.ts';
 import * as fs from 'node:fs/promises';
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
-import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
-import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
-import '../../src/binaryen-ts/passes/index.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
+import { createPass, PassRunner } from '../../src/passes/pass.ts';
+import { ExternalKind } from '../../src/core/binary.ts';
+import '../../src/passes/index.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const orig = new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm'));

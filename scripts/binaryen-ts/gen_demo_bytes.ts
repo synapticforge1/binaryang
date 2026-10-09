@@ -16,12 +16,12 @@
  * @license MIT
  */
 
-import { readWat } from '../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
+import { readWat } from '../../src/tools/read-wat.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
 
-const WAT_PATH = new URL('../../src/binaryen-ts/wasm/demo.wat', import.meta.url);
-const WASM_PATH = new URL('../../src/binaryen-ts/wasm/demo.wasm', import.meta.url);
-const BYTES_TS_PATH = new URL('../../src/binaryen-ts/wasm/demo_bytes.ts', import.meta.url);
+const WAT_PATH = new URL('../../src/wasm/demo.wat', import.meta.url);
+const WASM_PATH = new URL('../../src/wasm/demo.wasm', import.meta.url);
+const BYTES_TS_PATH = new URL('../../src/wasm/demo_bytes.ts', import.meta.url);
 
 const wat = await Deno.readTextFile(WAT_PATH);
 const mod = readWat(wat, 'demo.wat');

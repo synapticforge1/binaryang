@@ -39,10 +39,10 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/pass.ts';
+import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
 import {
   BinaryOp,
   makeBinary,
@@ -53,10 +53,10 @@ import {
   makeLocalSet,
   makeLocalTee,
   makeReturn,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
 
 // wabt-ts/compat@1.2.9 wasic output for 46_TemplateEscapes.ts (1543 bytes).
 const FIXTURE_B64 =

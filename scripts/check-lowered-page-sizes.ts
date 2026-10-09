@@ -29,12 +29,12 @@
  * (`deno task proposals` runs it).
  */
 
-import { readForPasses } from '../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../src/binaryen-ts/passes/index.ts';
-import { hasErrors } from '../src/wabt-ts/core/error.ts';
-import { allFeatures } from '../src/wabt-ts/core/feature.ts';
-import { wasmValidate } from '../src/wabt-ts/tools/wasm-validate.ts';
+import { readForPasses } from '../src/ir/prepare.ts';
+import { writeWasm } from '../src/ir/write-wasm.ts';
+import { PassRunner } from '../src/passes/index.ts';
+import { hasErrors } from '../src/core/error.ts';
+import { allFeatures } from '../src/core/feature.ts';
+import { wasmValidate } from '../src/tools/wasm-validate.ts';
 
 const dir = Deno.args[0];
 if (!dir) {

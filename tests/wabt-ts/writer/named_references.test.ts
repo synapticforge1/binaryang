@@ -18,12 +18,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { formatErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import wabt from '../../../src/wabt-ts/api/wabt-compat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { writeWatModule } from '../../../src/writer/wat-writer.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { formatErrors, makeErrorList } from '../../../src/core/error.ts';
+import wabt from '../../../src/compat/wabt-compat.ts';
 
 /** Every known section, as `id: hex` — custom sections (names, text-form) aside. */
 function sections(bytes: Uint8Array): string[] {

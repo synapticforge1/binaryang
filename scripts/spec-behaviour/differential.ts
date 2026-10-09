@@ -46,16 +46,16 @@
  * that failure too.
  */
 
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
 import {
   type MinifyMap,
   optimizeToConvergence,
   type PassOptions,
   PassRunner,
   takeMinifyMap,
-} from '../../src/binaryen-ts/passes/index.ts';
-import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
+} from '../../src/passes/index.ts';
+import type { WasmModule } from '../../src/ir/module.ts';
 import { type Sig, v128Lanes, withV128Wrappers, wrapperName } from './v128.ts';
 
 /** One `invoke` from a manifest: an export, its arguments as the manifest spells them. */

@@ -13,14 +13,14 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import { formatErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
-import type { Module } from '../../../src/wabt-ts/ir/ir.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
+import { formatErrors, makeErrorList } from '../../../src/core/error.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { validateModule } from '../../../src/validator/validator.ts';
+import type { Module } from '../../../src/ir/ir.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 
 const HEADER = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 

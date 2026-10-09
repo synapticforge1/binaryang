@@ -4,21 +4,21 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertExists } from '@std/assert';
 
-import { Type } from '../../../src/wabt-ts/core/types.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+import { Type } from '../../../src/core/types.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
+import { Opcode } from '../../../src/core/opcode.ts';
 import {
   formatErrors,
   hasErrors,
   makeErrorList,
   unknownLocation,
-} from '../../../src/wabt-ts/core/error.ts';
+} from '../../../src/core/error.ts';
 
-import { constI32, constI64, makeModule, region, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import type { Module } from '../../../src/wabt-ts/ir/ir.ts';
+import { constI32, constI64, makeModule, region, varIndex } from '../../../src/ir/ir.ts';
+import type { Module } from '../../../src/ir/ir.ts';
 
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
 
 const LOC = unknownLocation();
 

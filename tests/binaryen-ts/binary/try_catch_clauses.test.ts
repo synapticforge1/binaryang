@@ -27,8 +27,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   asRegion,
   makeI32Const,
@@ -37,11 +37,11 @@ import {
   tryCatch,
   tryCatchAll,
   type TryExpr,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
+} from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { None, ValType } from '../../../src/ir/types.ts';
+import { varName } from '../../../src/ir/ir.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
 import { soleInstr } from '../region_helpers.ts';
 
 /**

@@ -30,8 +30,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   type Expression,
   ExpressionKind,
@@ -45,11 +45,11 @@ import {
   makeLocalGet,
   makeLocalSet,
   makeRefAsNonNull,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
 
 /** i32 array heap type + a `() -> i32` func type, in that order. */
 function gcBuilder(): { m: ModuleBuilder; arrayType: number } {

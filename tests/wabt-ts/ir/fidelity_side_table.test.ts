@@ -27,14 +27,14 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { blockTypeOf, makeModule, UNASSIGNED_TYPE_INDEX } from '../../../src/wabt-ts/ir/ir.ts';
-import { FidelityTable } from '../../../src/wabt-ts/ir/fidelity.ts';
-import type { BlockExpr, Expr, Module, SelectExpr } from '../../../src/wabt-ts/ir/ir.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { makeErrorList } from '../../../src/core/error.ts';
+import { blockTypeOf, makeModule, UNASSIGNED_TYPE_INDEX } from '../../../src/ir/ir.ts';
+import { FidelityTable } from '../../../src/ir/fidelity.ts';
+import type { BlockExpr, Expr, Module, SelectExpr } from '../../../src/ir/ir.ts';
 
 const CORPUS = new URL('../wasmtk/', import.meta.url);
 

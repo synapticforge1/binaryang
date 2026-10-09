@@ -17,8 +17,8 @@ through 3", item 3; a new export, so the release was a MINOR. wasmtk's letter is
 
 | piece                                         | lives in                                                                                                                    |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| the Linking format codec (`linking`, `reloc.*`) | `src/wabt-ts/core/linking.ts` — decode / encode, the type and flag constants, `listSections`                              |
-| the bundler, its file entry and its CLI       | `src/binaryen-ts/tools/wasm-bundle.ts` — `bundle(inputs, options)`, `wasmBundle(paths, options)`, `main(args)`              |
+| the Linking format codec (`linking`, `reloc.*`) | `src/core/linking.ts` — decode / encode, the type and flag constants, `listSections`                              |
+| the bundler, its file entry and its CLI       | `src/tools/wasm-bundle.ts` — `bundle(inputs, options)`, `wasmBundle(paths, options)`, `main(args)`              |
 | the `(@reloc data)` annotation                | lexer (`reloc` → `LparAnn`), parser (`parseRelocInstr`, `parseDataChunks`), IR (`ConstExpr.reloc`, `DataSegment.relocs`), binary writer (`writeRelocSections`) |
 | the reader's one addition                     | `DataSegment.dataLoc` — where a segment's bytes begin; a `reloc.DATA` offset points into them                               |
 | the CLI command and the subpath               | `main.ts` `wasm-bundle`; `deno.json` `./tools/wasm-bundle`                                                                  |
@@ -130,7 +130,7 @@ shrink, the sections stay) is refused at its second entry, which is exactly Tiny
 - **Released** in 1.10.0, 2026-10-09; the public note is `CHANGELOG.md` § 1.10.0.
 - ✅ **The `.wit` is written beside the bundle BY DEFAULT** (owner, 2026-10-08: "automatically
   generate the wit file when a bundled wasm file is created as a default feature"; the first
-  answer that day — "witgen stays wasmtk's" — is superseded). `src/binaryen-ts/tools/witgen.ts`
+  answer that day — "witgen stays wasmtk's" — is superseded). `src/tools/witgen.ts`
   is wasmtk's `witgen` on our IR: core signatures only (`s32` / `s64` / `f32` / `f64`), the same
   kebab-casing and world layout, exports with no WIT form or name listed in a comment, plumbing
   left out, non-WASI host imports named; a `.wit` already there that was not generated from core

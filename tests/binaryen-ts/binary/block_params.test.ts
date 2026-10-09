@@ -17,23 +17,20 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   type BlockExpr,
   type BreakExpr,
   type Expression,
   ExpressionKind,
   type LoopExpr,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
-import {
-  hasBlockParams,
-  lowerBlockParams,
-} from '../../../src/binaryen-ts/passes/lower-block-params.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
+} from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { PassRunner } from '../../../src/passes/pass.ts';
+import { hasBlockParams, lowerBlockParams } from '../../../src/passes/lower-block-params.ts';
+import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
 
 /**
  * `(func (export "f") (result i32) <body>)` in a module whose types are

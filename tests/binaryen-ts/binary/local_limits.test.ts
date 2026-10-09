@@ -11,8 +11,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { MAX_MATERIALIZED_LOCALS } from '../../../src/wabt-ts/reader/binary-reader.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { MAX_MATERIALIZED_LOCALS } from '../../../src/reader/binary-reader.ts';
 
 /** Unsigned LEB128. */
 function leb(n: number): number[] {

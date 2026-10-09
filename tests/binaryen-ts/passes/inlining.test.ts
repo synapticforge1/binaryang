@@ -22,23 +22,23 @@ import {
   makeNop,
   makeReturn,
   makeUnreachable,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
+} from '../../../src/ir/expressions.ts';
 import {
   ModuleBuilder,
   noAsWrittenMetadata,
   type WasmFunction,
   type WasmModule,
-} from '../../../src/binaryen-ts/ir/module.ts';
-import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { deepCopy, measureSize } from '../../../src/binaryen-ts/passes/inlining.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { nameOf } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/module.ts';
+import { None, ValType } from '../../../src/ir/types.ts';
+import { listPasses, PassRunner } from '../../../src/passes/index.ts';
+import { deepCopy, measureSize } from '../../../src/passes/inlining.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
+import { varName } from '../../../src/ir/ir.ts';
+import { nameOf } from '../../../src/ir/ir.ts';
 import { region, soleOf } from '../region_helpers.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

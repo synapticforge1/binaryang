@@ -23,11 +23,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { readWat, WatInputError } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { MEMORY_ACCESS_TABLE } from '../../../src/binaryen-ts/ir/memory-access.ts';
-import { ValType, valTypeName } from '../../../src/binaryen-ts/ir/types.ts';
+import { readWat, WatInputError } from '../../../src/tools/read-wat.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import { MEMORY_ACCESS_TABLE } from '../../../src/ir/memory-access.ts';
+import { ValType, valTypeName } from '../../../src/ir/types.ts';
 
 const MALFORMED: [string, string][] = [
   ['i32.load32_s', '(drop (i32.load32_s (i32.const 0)))'],
