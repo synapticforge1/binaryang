@@ -83,7 +83,8 @@ import {
   typeOf,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
-import { None, type Type, Unreachable, type ValType } from '../ir/types.ts';
+import type { ExprType } from '../ir/ir.ts';
+import { None, Unreachable, type ValType } from '../ir/types.ts';
 import type { ValueType } from '../ir/gc-types.ts';
 import { mapChildrenShallow } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
@@ -95,7 +96,7 @@ import { ExternalKind } from '../core/binary.ts';
 // ---------------------------------------------------------------------------
 
 /** The value types a type stands for: none for `none` / `unreachable`, N for a tuple. */
-function valTypes(t: Type): ValType[] {
+function valTypes(t: ExprType): ValType[] {
   if (t === None || t === Unreachable || t === undefined) return [];
   return Array.isArray(t) ? (t as ValType[]) : [t as ValType];
 }
@@ -156,7 +157,7 @@ interface Ctx {
    * flatten must resolve it here to know whether a call produces a value that
    * needs hoisting into a local.
    */
-  callResultTypes: Map<string, Type>;
+  callResultTypes: Map<string, ExprType>;
   /** A tag's parameter types, by name — a legacy `catch`'s payload. */
   tagParams: Map<string, ValType[]>;
   /**
@@ -189,7 +190,7 @@ interface Ctx {
  * a miss means a dangling target, and typing it `none` silently discarded the
  * call's value.
  */
-function callEffectiveType(e: Expression, ctx: Ctx): Type {
+function callEffectiveType(e: Expression, ctx: Ctx): ExprType {
   if (e.kind === ExpressionKind.Call) {
     const target = requireName((e as CallExpr).func, 'call target');
     const t = ctx.callResultTypes.get(target);
@@ -200,7 +201,7 @@ function callEffectiveType(e: Expression, ctx: Ctx): Type {
   }
   if (e.kind === ExpressionKind.CallIndirect) {
     const r = (e as CallIndirectExpr).sig.results;
-    return r.length === 0 ? None : r.length === 1 ? r[0]! : (r as Type);
+    return r.length === 0 ? None : r.length === 1 ? r[0]! : (r as ExprType);
   }
   return typeOf(e);
 }
@@ -306,7 +307,7 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   // sibling operands) → the parent read the wrong value. Capture into a temp
   // that nothing else writes, mirroring the general-case hoist below.
   if (e.kind === ExpressionKind.LocalTee) {
-    const tee = e as { var: Var; value: Expression; type: Type };
+    const tee = e as { var: Var; value: Expression; type: ExprType };
     const inner = flattenOperands([tee.value], ctx);
     const [temp] = allocTemps(ctx, [tee.type as ValType]);
     return {
@@ -620,7 +621,7 @@ function resultFlat(pre: Expression[], t: Temps): Flat {
 /** A block (or a region in operand position): its value through temps; a branch to its label fills the same ones. */
 function flattenBlockLike(
   children: readonly Expression[],
-  type: Type,
+  type: ExprType,
   label: string,
   ctx: Ctx,
 ): Flat {
@@ -708,11 +709,11 @@ function flattenTry(tr: TryExpr, ctx: Ctx): Flat {
  * {@link flattenFunction}; the {@link FlattenPass} builds it automatically.
  * A multi-result signature is kept WHOLE, as a tuple.
  */
-export function buildCallResultTypes(module: WasmModule): Map<string, Type> {
-  const map = new Map<string, Type>();
-  const resultType = (results: ValueType[] | undefined): Type => {
+export function buildCallResultTypes(module: WasmModule): Map<string, ExprType> {
+  const map = new Map<string, ExprType>();
+  const resultType = (results: ValueType[] | undefined): ExprType => {
     if (results === undefined || results.length === 0) return None;
-    return results.length === 1 ? results[0]! : (results as Type);
+    return results.length === 1 ? results[0]! : (results as ExprType);
   };
   for (const imp of module.imports) {
     if (imp.kind === ExternalKind.Func) map.set(imp.func.name, resultType(imp.func.sig.results));
@@ -742,7 +743,7 @@ export function buildTagParams(module: WasmModule): Map<string, ValType[]> {
  */
 export function flattenFunction(
   func: WasmFunction,
-  callResultTypes: Map<string, Type> = new Map(),
+  callResultTypes: Map<string, ExprType> = new Map(),
   tagParams: Map<string, ValType[]> = new Map(),
 ): void {
   const ctx: Ctx = {

@@ -5,6 +5,7 @@
   "minimumDependencyAge": "0",
   "exports": {
     ".": "./main.ts",
+    "./ir": "./src/ir/index.ts",
     "./ir/binaryen-ts": "./src/ir/binaryen-ts.ts",
     "./ir/wabt-ts": "./src/ir/wabt-ts.ts",
     "./core/wabt-ts": "./src/core/index.ts",

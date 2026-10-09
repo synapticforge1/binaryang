@@ -2,6 +2,11 @@
  * @module
  * wabt-ts IR — entry point for the `./ir/wabt-ts` subpath.
  *
+ * ⚠️ **Deprecated since 1.11.0 — import from `@jrmarcum/binaryang/ir`**, which
+ * exports everything this subpath does, under the same names (`Type` included:
+ * core's value-type enum). This subpath stays for one release and is removed in a
+ * later minor.
+ *
  * Authored during the binaryang merge. wabt-ts had no `ir/index.ts` because its
  * IR reached consumers through the package root (`src/index.ts` re-exported
  * these six modules). binaryang's root is deliberately narrow — with two IRs

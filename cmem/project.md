@@ -84,7 +84,7 @@ One `main.ts` at the root; ONE `src/` tree, folders by concept, not by predecess
 | folder | holds |
 | --- | --- |
 | `core/` | binary constants, opcodes, types, features, LEB128, literals, errors, the Linking format |
-| `ir/` | the one IR (`ir.ts`, binaryen-ts's view in `expressions.ts` / `module.ts` / `types.ts`), naming, typing, walking, `prepare.ts` (bytes → passes) and `write-wasm.ts`; the barrels `binaryen-ts.ts` and `wabt-ts.ts` behind the `./ir/binaryen-ts` and `./ir/wabt-ts` subpaths |
+| `ir/` | the one IR (`ir.ts`, binaryen-ts's view in `expressions.ts` / `module.ts` / `types.ts`), naming, typing, walking, `prepare.ts` (bytes → passes) and `write-wasm.ts`; `index.ts` behind the `./ir` subpath, and the barrels `binaryen-ts.ts` / `wabt-ts.ts` behind the deprecated `./ir/binaryen-ts` / `./ir/wabt-ts` |
 | `parser/`, `reader/`, `writer/`, `validator/` | text in, binary in, binary and text out, validation |
 | `passes/` | the optimizer and its pass registry |
 | `interp/` | the evaluator and the interpreter |
@@ -92,13 +92,15 @@ One `main.ts` at the root; ONE `src/` tree, folders by concept, not by predecess
 | `compat/` | the upstream API shapes (`binaryen-compat.ts`, `wabt-compat.ts`) |
 | `api/`, `wasm/`, `wasm-runtime.ts`, `cli/`, `definitions/` | the builder API, the parked kernels, the CLI helpers, `./definitions` |
 
-Every public subpath kept its name when the files moved (they are a map in `deno.json`); only the
-three that name a predecessor (`./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts`) are still to
-be decided, phase 4 of the item. 🗄️ **The promotion rule is retired with the two trees.** It said a
-module earns a common folder when nothing in either namespaced tree imports it from the other side;
-with one tree there is no other side. What it measured is now `deno task collisions` — an exported
-type name declared in more than one file: 88 after the move, **3** after phase 2 (`Type`, and the
-compat layer's upstream `WasmModule` and `Features`; open-work 21 says what is left to decide).
+Every public subpath kept its name when the files moved (they are a map in `deno.json`). The three
+that named a predecessor gave way to ONE, **`./ir`** (phase 4): `./ir/binaryen-ts`, `./ir/wabt-ts`
+and `./core/wabt-ts` stay one release, deprecated, and go in a later minor (open-work 25). In `./ir`,
+`Type` is core's value-type enum and the node-type union is `ExprType` ([one-tree.md](one-tree.md)).
+🗄️ **The promotion rule is retired with the two trees.** It said a module earns a common folder when
+nothing in either namespaced tree imports it from the other side; with one tree there is no other
+side. What it measured is now `deno task collisions` — an exported type name declared in more than
+one file: 88 after the move, 3 after phase 2, **2** after phase 4 — the compat layer's upstream
+`WasmModule` and `Features`, which stay by the owner's decision (2026-10-09).
 
 🔓 **There was one exception: the bridge**, at `src/bridge/` (decided 2026-08-27; tests at
 `tests/bridge/`) — ✅ **deleted 2026-09-18** (S6 step 5, M8e), so no exception stands today. The

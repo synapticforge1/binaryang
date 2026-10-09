@@ -258,4 +258,10 @@ export type {
   WasmImport,
   WasmModule,
 } from '../ir/module.ts';
-export type { Type } from '../ir/types.ts';
+// The union a node's `type` field holds — declared once, as `ExprType`, in ../ir/ir.ts.
+export type { ExprType } from '../ir/ir.ts';
+/**
+ * @deprecated Use `ExprType` — the same type. `Type` in `@jrmarcum/binaryang/ir` is
+ * core's value-type enum; this alias goes in a later minor.
+ */
+export type { ExprType as Type } from '../ir/ir.ts';

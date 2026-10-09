@@ -61,7 +61,8 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import { elemFuncNames, type Local, type WasmFunction, type WasmModule } from '../ir/module.ts';
-import { isRef, None, type Type, Unreachable, ValType } from '../ir/types.ts';
+import type { ExprType } from '../ir/ir.ts';
+import { isRef, None, Unreachable, ValType } from '../ir/types.ts';
 import { isRefType, type ValueType } from '../ir/gc-types.ts';
 import { mapExpression, mapWithSequences, type Sequence, walkExpression } from '../ir/walk.ts';
 import { operandsInOrder } from '../ir/phantoms.ts';
@@ -751,7 +752,7 @@ function inlineCallSite(
   //    upstream (`block->type = retType`). 🔧 It was `results[0]`, so a
   //    `(result i32 i32)` callee sat in a block declaring one value and the
   //    module was refused — 16 corpus modules at -O3 (`inlining_multivalue.test.ts`).
-  const retType: Type = callee.sig.results.length === 0
+  const retType: ExprType = callee.sig.results.length === 0
     ? None
     : callee.sig.results.length === 1
     ? callee.sig.results[0]!

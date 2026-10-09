@@ -8,7 +8,9 @@
 //   wabt-ts's. Nothing is left to derive.
 // - (4d) br_on's `from` / `to` are `?: T`, not `?: T | undefined`.
 // - (4b) Every other node carries `type?` in both IRs (step 3: absent means "not
-//   derived yet"). wabt-ts's is `ExprType`, which IS binaryen-ts's `Type`.
+//   derived yet"). wabt-ts's is `ExprType`, which IS binaryen-ts's `Type` — so
+//   since open-work 21 phase 4 binaryen-ts says `ExprType` too, and `Type` is
+//   only the deprecated `./ir/binaryen-ts` alias of it.
 //
 // The alias trial (binaryen-ts's `Expression` := wabt-ts's `Expr`) went 305 →
 // 73 errors: 248 of them were these two facts.
@@ -17,6 +19,7 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
+import type { Type as DeprecatedBType } from '../../src/ir/binaryen-ts.ts';
 
 import type {
   BlockResult,
@@ -33,7 +36,6 @@ import type {
   TryExpr,
   TryTableExpr,
 } from '../../src/ir/expressions.ts';
-import type { Type } from '../../src/ir/types.ts';
 
 type Same<A, C> = [A] extends [C] ? ([C] extends [A] ? true : false) : false;
 const same = <A, C>(v: Same<A, C>): Same<A, C> => v;
@@ -55,10 +57,12 @@ describe('the node base: `type`', () => {
   });
 
   it("(4b) any other node's type is optional in both, and one type", () => {
-    same<ExprType, Type>(true);
+    // binaryen-ts's union, still offered as `Type` by the deprecated subpath, IS `ExprType`.
+    same<DeprecatedBType, ExprType>(true);
+    same<NonNullable<CallExpr['type']>, ExprType>(true);
     same<IsRequired<CallExpr, 'type'>, false>(true);
     same<IsRequired<WCallExpr, 'type'>, false>(true);
-    same<NonNullable<WCallExpr['type']>, Type>(true);
+    same<NonNullable<WCallExpr['type']>, ExprType>(true);
   });
 });
 

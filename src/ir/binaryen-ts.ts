@@ -1,11 +1,14 @@
 /**
  * @module ir/binaryen-ts
  *
- * Re-exports all public IR symbols from sub-modules.
+ * ⚠️ **Deprecated since 1.11.0 — import from `@jrmarcum/binaryang/ir`**, which
+ * exports everything this subpath does (and `./ir/wabt-ts` and `./core/wabt-ts`
+ * with it). This subpath stays for one release and is removed in a later minor.
+ * One name differs: the union of a node's `type` field, which this subpath also
+ * calls `Type`, is `ExprType` there — `Type` in `./ir` is core's value-type enum.
  *
- * This is the primary entry point for the IR layer. Import from
- * `@jrmarcum/binaryang/ir/binaryen-ts` for access to types, expressions, and the module
- * builder.
+ * Re-exports binaryen-ts's view of the IR: the expression factories, the module
+ * builder, the value and GC types.
  *
  * @example
  * ```ts
@@ -17,8 +20,8 @@
  *   makeLocalGet,
  *   makeBinary,
  *   makeReturn,
- * } from "@jrmarcum/binaryang/ir/binaryen-ts";
- * import { varIndex } from "@jrmarcum/binaryang/ir/wabt-ts";
+ *   varIndex,
+ * } from "@jrmarcum/binaryang/ir";
  *
  * const mod = new ModuleBuilder()
  *   .addFunction("add", [ValType.I32, ValType.I32], [ValType.I32],
@@ -37,6 +40,13 @@
 
 export * from './gc-types.ts';
 export * from './types.ts';
+// The union a node's `type` field holds — declared once, as `ExprType`, in ./ir.ts.
+export type { ExprType } from './ir.ts';
+/**
+ * @deprecated Use `ExprType` — the same type. `Type` is core's value-type enum in
+ * `@jrmarcum/binaryang/ir`; this alias goes with this subpath.
+ */
+export type { ExprType as Type } from './ir.ts';
 export * from './expressions.ts';
 export * from './memory-access.ts';
 export * from './module.ts';

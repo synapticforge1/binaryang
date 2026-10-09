@@ -32,7 +32,8 @@ import {
   type RegionInput,
 } from './expressions.ts';
 import { visitChildren } from './walk.ts';
-import { None, type Type, ValType } from './types.ts';
+import type { ExprType } from './ir.ts';
+import { None, ValType } from './types.ts';
 import type { ValueType } from './gc-types.ts';
 import type { TypeDef } from './gc-types.ts';
 import { type Limits, type SegmentKind, type Var, varFromToken, varIndex } from './ir.ts';
@@ -964,5 +965,5 @@ export class ModuleBuilder {
    * Returns a new module with the `void` (`none`) return type sentinel for convenience.
    * @deprecated Prefer using `None` from `@jrmarcum/binaryang/ir/binaryen-ts` directly.
    */
-  static readonly Void: Type = None;
+  static readonly Void: ExprType = None;
 }

@@ -67,19 +67,16 @@ export type None = typeof None;
 export type TupleType = (ValType | RefType)[];
 
 // ---------------------------------------------------------------------------
-// Top-level Type alias
+// The type of a node's `type` field: `ExprType`, declared once in ./ir.ts
 // ---------------------------------------------------------------------------
 
-/**
- * The union of all types that can appear in a binaryen-ts IR node's `type` field.
- *
- * - A single {@link ValType} for most expressions.
- * - A {@link TupleType} (array) for multi-value blocks and calls.
- * - {@link None} (`"none"`) for void / empty returns.
- * - {@link Unreachable} (`"unreachable"`) for diverging expressions.
- * - A {@link RefType} for GC reference-typed expressions (`ref.cast`, `struct.new`, etc.).
- */
-export type Type = ValType | TupleType | None | Unreachable | RefType;
+// binaryen-ts called this union `Type`: a single `ValType`, a `TupleType` for
+// multi-value, `None`, `Unreachable`, or a `RefType`. It is EXACTLY the IR's
+// `ExprType` (proven at compile time, open-work 21 phase 4), and core's `Type`
+// enum is a different thing under the same name — so the union is `ExprType`
+// everywhere now. `./ir/binaryen-ts` still offers it as `Type`, deprecated, for
+// one release.
+import type { ExprType } from './ir.ts';
 
 // ---------------------------------------------------------------------------
 // Names — the ONE table between a scalar value type and its text spelling
@@ -126,7 +123,7 @@ export function valTypeFromName(name: string): ValType | undefined {
  * typeToString(Unreachable)              // → "unreachable"
  * ```
  */
-export function typeToString(t: Type): string {
+export function typeToString(t: ExprType): string {
   if (t === None) return '';
   if (t === Unreachable) return 'unreachable';
   if (Array.isArray(t)) {
@@ -142,28 +139,28 @@ export function typeToString(t: Type): string {
 /**
  * Returns `true` if the type is concrete (not `none` or `unreachable`).
  */
-export function isConcrete(t: Type): t is ValType | TupleType {
+export function isConcrete(t: ExprType): t is ValType | TupleType {
   return t !== None && t !== Unreachable;
 }
 
 /**
  * Returns `true` if the type is an integer type (`i32` or `i64`).
  */
-export function isInteger(t: Type): boolean {
+export function isInteger(t: ExprType): boolean {
   return t === ValType.I32 || t === ValType.I64;
 }
 
 /**
  * Returns `true` if the type is a floating-point type (`f32` or `f64`).
  */
-export function isFloat(t: Type): boolean {
+export function isFloat(t: ExprType): boolean {
   return t === ValType.F32 || t === ValType.F64;
 }
 
 /**
  * Returns `true` if the type is a reference type (abstract ValType ref or GC RefType).
  */
-export function isRef(t: Type): boolean {
+export function isRef(t: ExprType): boolean {
   if (isRefType(t)) return true;
   if (Array.isArray(t) || t === None || t === Unreachable) return false;
   return (

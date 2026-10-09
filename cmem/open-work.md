@@ -4,19 +4,19 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-10-09 (owner: "lets do the 1.10.0 release. Then list the remaining open items and
-type the letter to wasmtk team"):** ✅ **`binaryang@1.10.0` PUBLISHED 2026-10-09** — `wasm-bundle`
-(item 24, [bundle.md](bundle.md)), `(@reloc data)`, the `.wit` beside every bundle by default;
-the first CI run was red on fixture binaries `.gitignore` had kept out of the commit, fixed and
-proven from a fresh clone before the bump ([publishing.md](publishing.md) § 1.10.0). Nothing
-unreleased ([unreleased.md](unreleased.md)). wasmtk's letter [handoffs.md](handoffs.md) § 27
-SENT by the owner 2026-10-09; it asks their measurement once wasic marks its addresses. Closed in the last two days, each with its topic file:
-items 23 ([interpreter.md](interpreter.md)), 2 ([optimizer.md](optimizer.md)), 22
-([definitions.md](definitions.md)) with 1.9.0, 24 ([bundle.md](bundle.md)) with 1.10.0. **Item 21
-(one `src/` tree) is phases 1–3 DONE 2026-10-09, unreleased; it waits on the OWNER for `Type`
-and phase 4 (the item says which).** Next in the agreed order: the rounds 13 / 14 (hardening,
-security); 15 stays blocked on wasmtk. **4 open items, none blocking**; numbers 2–7, 9–12, 16, 17, 22, 23, 24 are
-gone and kept free. Re-derive any number before quoting it.
+**State, 2026-10-09 (owner: "proceed with item 21"; phase 4 "I agree with your suggestion.
+Proceed"):** `binaryang@1.10.0` is the last release (PUBLISHED 2026-10-09, `wasm-bundle` —
+[bundle.md](bundle.md), [publishing.md](publishing.md) § 1.10.0). **Item 21 CLOSED the same day,
+UNRELEASED** — one `src/` tree, one declaration per name, one IR subpath `./ir` with the three old
+ones deprecated ([one-tree.md](one-tree.md)); its follow-up is item 25. The next release is a
+MINOR, 1.11.0 (a new export, and one type-level breaking change — [unreleased.md](unreleased.md)),
+typed by hand when the owner says. wasmtk's letter [handoffs.md](handoffs.md) § 27 SENT by the
+owner 2026-10-09; it asks their measurement once wasic marks its addresses. Closed since
+2026-10-08, each with its topic file: items 23 ([interpreter.md](interpreter.md)), 2
+([optimizer.md](optimizer.md)), 22 ([definitions.md](definitions.md)), 24, 21. **Next in the
+agreed order: the rounds 13 / 14 (hardening, security), which now audit the one tree; 25 after
+the `./ir` release; 15 stays blocked on wasmtk. 4 open items, none blocking**; numbers 2–7, 9–12,
+16, 17, 21, 22, 23, 24 are gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -102,78 +102,17 @@ fatigue.
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
-21. ◐ **Merge `src/binaryen-ts/` and `src/wabt-ts/` into `src/`** — 🚧 **started 2026-10-09** (owner:
-    "proceed with item 21"). **Phases 1–3 DONE; phase 4 and three names wait on the OWNER.**
-    - **Phase 1 — one tree** (merged `3e9d03b88`, gate green 21 / 21): 105 files moved by concept
-      with `git mv` (the layout: [project.md](project.md) § "Layout"), 2,162 relative path literals
-      rewritten by a resolver (scratch `merge-trees.ts`), 19 `deno.json` exports retargeted, every
-      subpath kept; the orphan `src/wabt-ts/index.ts` barrel and 7 `.gitkeep`s removed; 62
-      `@module` tags retargeted; `deno task collisions` counts across ONE tree — **88** (the 86
-      cross-tree names plus `Features` and `LiteralType`, which wabt-ts already declared twice).
-      `baseline` IDENTICAL (421 / 421).
-    - **Phase 2 — one name each: 88 → 3.** 78 names were PROVEN the same type name by name (a
-      compile-time `Same<A, B>` probe, scratch `gen-identity.ts`) and became re-exports of the one
-      declaration in `ir/ir.ts`. Six more (`ValueType`, `StorageType`, `FuncSignature`,
-      `BlockParams`, `Catch`, `TableCatch`) differed only because binaryen-ts's `RefType` had
-      WRITABLE fields where the IR's `RefValueType` is read-only; `RefType` is now
-      `RefValueType` — ⚠️ type-level BREAKING for code that assigns those fields, none here
-      ([unreleased.md](unreleased.md)) — and the six joined the re-exports.
-      `table_catch_shape.test.ts`'s "equal but for `loc`" pins became identity pins. The gate's
-      `operators` step went RED on it: it found a kind's node by the alias TEXT the phase removed;
-      it now reads the `readonly kind:` arms in `ir/ir.ts`, checked against a planted orphan kind
-      (exit 1, named). Phases 2–3 merged on a green gate (21 / 21, on `3071869e5`).
-    - **Phase 3 — logic twice.** A survey by name and by purpose found the machinery already
-      single (S6 and One front end folded it); the duplicates left were (a) core's `LiteralType`,
-      read by nothing and published by no subpath — removed (the lexer's is the one); (b) three
-      private copies of "the function a reference names, and its signature" in `wasm-interp`,
-      `witgen` and `wasm-bundle` — now `funcAt` / `funcSignature` in `ir/ir.ts`, with
-      `tests/ir/func_lookup.test.ts`. Thin public wrappers (`heapTypeToString`,
-      `isAbstractHeapType`) stay: they are binaryen-ts's public names over one implementation.
-    - **For the OWNER — the three names left, and phase 4:** `Type` is two different things,
-      core's enum (`./core/wabt-ts`) and binaryen-ts's type union (`./ir/binaryen-ts`), both
-      public, so one name changes or a release carries both (BREAKING either way);
-      ✅ `WasmModule` and `Features` in `compat/wabt-compat.ts` STAY (owner, 2026-10-09: "The
-      WasmModule and Features for the compat layer we will keep") — upstream wabt.js's names,
-      which the compat layer exists to reproduce. Measured the same day for the owner's phase-4
-      question ("can we merge the three subpaths, and how does that impact the Type"): the three
-      export 288 / 195 / 20 names; 88 appear in more than one, every one from ONE declaration;
-      the ONLY clash is `Type`. And binaryen-ts's `Type` union is EXACTLY the IR's `ExprType`
-      (compile-time identity, with a failing negative control) — so a merged subpath keeps core's
-      `Type` enum and offers the union as `ExprType`, no new name needed. Phase 4: the three
-      tree-named subpaths (`./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts`) — keep, or add
-      new names beside them as deprecated aliases for a release, as agreed 2026-09-30.
-    The scoping record as it stood:
-    (owner, 2026-09-30: "It looks like we can now phase a merge of the binaryen-ts and wabt-ts
-    folders into the src folder … I would like to scope that after our IR work is completed"). Facts
-    measured that day, for the scoping:
-    - **There is ONE IR already**: `Expression = Expr`, `WasmModule = W.Module`,
-      `WasmFunction =
-      W.Func` (binaryen-ts `ir/` aliases wabt-ts `ir/ir.ts`). The trees are
-      LAYERS, not two IRs: 30 binaryen-ts files import wabt-ts, 0 the other way (wabt-ts 52 files /
-      37k lines — IR, reader, writer, validator, text tools; binaryen-ts 43 / 19k — passes, compat,
-      `wasm-opt`).
-    - **Decision 1** ([project.md](project.md)) says "Two IRs are retained … not a merge task" — its
-      premise no longer describes the code; the merge re-decides it.
-    - `deno task collisions` = **86** names declared in both trees — the aliases; one tree needs one
-      name each, and the indicator itself (it counts per tree) retires with the merge.
-    - PUBLIC subpaths name the trees: `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` — moving
-      files keeps them working (they map to paths), renaming them is BREAKING.
-    - Mirrors to move with it: `tests/binaryen-ts|wabt-ts|ir`, `scripts/binaryen-ts|wabt-ts`
-      (workspace members with their own `deno.json`), and cmem's path citations (retargeting is part
-      of the move — working-rules.md).
-    - 🗓️ **Agreed with the owner, 2026-09-30** — worth doing, for simpler optimization, bug finding,
-      hardening and security work: one name and one place per concept, one layout for the lens
-      rounds to audit. The shape agreed:
-      - **Mostly NOT breaking.** Consumers import SUBPATHS, a map in `deno.json`; moving files
-        behind them breaks no one (wasmtk uses `compat/wabt`, `compat/binaryen`, `wasm-validate`).
-        Only the three tree-named subpaths raise it: keep them as deprecated aliases for a release
-        beside new names, remove them in a later MINOR.
-      - **Phased:** (1) move files into one tree by concept (`ir/`, `reader/`, `writer/`,
-        `validator/`, `passes/`, `tools/`, `compat/`), every subpath kept — the gate green and
-        output bytes IDENTICAL; (2) collapse the aliases into single names; (3) remove logic that
-        exists twice; (4) then decide the three tree-named subpaths.
-      - **Timing:** after the IR work (owner) and BEFORE the hardening and security rounds (items
-        13, 14), so those audit the final structure once.
+25. ⬚ 🗓️ **Remove the deprecated IR subpaths and names — in a minor AFTER the one that ships
+    `./ir`** (open-work 21 phase 4, owner 2026-10-09: "I agree with your suggestion. Proceed").
+    Remove `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` from `deno.json` (the files stay
+    as `./ir`'s internal barrels or fold into `src/ir/index.ts`), and the deprecated `Type` alias
+    of `ExprType` in `src/ir/binaryen-ts.ts` and `src/api/index.ts`; `ir_subpath.test.ts` then
+    pins the new surface. A letter to wasmtk first: they pin `compat/*` and `wasm-validate`, not
+    these, but say so. **When is the owner's call** — not before the `./ir` release is out.
+
+(Item 21 closed 2026-10-09: one `src/` tree by concept, one declaration per name, one IR
+subpath — [one-tree.md](one-tree.md): the four phases, the decisions, what the gate found. Its
+number is kept free; the follow-up is item 25 above.)
 
 (Item 22 closed 2026-10-08 with the 1.9.0 release and its letter, [handoffs.md](handoffs.md)
 § 26: [definitions.md](definitions.md) — what shipped, the decisions, what the proof found. Its

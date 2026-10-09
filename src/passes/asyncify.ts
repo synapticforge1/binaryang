@@ -84,7 +84,8 @@ import {
   type WasmImport,
   type WasmModule,
 } from '../ir/module.ts';
-import { None, type Type, typeToString, ValType } from '../ir/types.ts';
+import type { ExprType } from '../ir/ir.ts';
+import { None, typeToString, ValType } from '../ir/types.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { buildCFG, computeLiveness } from './cfg.ts';
 import { buildCallResultTypes, flattenFunction } from './flatten.ts';
@@ -765,7 +766,7 @@ export interface FlowCtx {
   /** Mutable running call index. */
   callIndex: { n: number };
   /** Fake globals created per call-result type (name keyed by type). */
-  fakeGlobals: Map<Type, string>;
+  fakeGlobals: Map<ExprType, string>;
   /**
    * Locals THIS flow pass adds (the two-arm-`if` condition temps) that live
    * across a suspend and therefore MUST be saved. Liveness on the pre-flow body
@@ -817,7 +818,7 @@ function doesCall(curr: Expression): boolean {
 }
 
 /** The fake global name for a call-result `type` (created lazily). */
-function fakeGlobalFor(ctx: FlowCtx, type: Type): string {
+function fakeGlobalFor(ctx: FlowCtx, type: ExprType): string {
   // NOTE: fake globals are never materialized into `module.globals`, by design.
   // The pipeline runs flow -> locals back-to-back per function, and Stage 4
   // `lowerIntrinsics` rewrites every fake `global.get`/`global.set` into a
@@ -833,7 +834,7 @@ function fakeGlobalFor(ctx: FlowCtx, type: Type): string {
 }
 
 /** A zero constant of `type` (for fake-global initializers). */
-function makeZero(type: Type): Expression {
+function makeZero(type: ExprType): Expression {
   switch (type) {
     case ValType.I32:
       return makeI32Const(0);
@@ -1119,7 +1120,7 @@ function makeIncStackPos(by: number): Expression {
 }
 
 /** The byte size of a (numeric) value type. */
-function byteSize(type: Type): number {
+function byteSize(type: ExprType): number {
   switch (type) {
     case ValType.I32:
     case ValType.F32:
@@ -1142,7 +1143,7 @@ function byteSize(type: Type): number {
  * at every call site — and, once `makeStore` took an opcode, a width passed
  * where the opcode goes still type-checked, because 4 is `Opcode.If`.
  */
-function localLoadOp(type: Type): Opcode {
+function localLoadOp(type: ExprType): Opcode {
   switch (type) {
     case ValType.I32:
       return Opcode.I32Load;
@@ -1160,7 +1161,7 @@ function localLoadOp(type: Type): Opcode {
 }
 
 /** The full-width store that saves a local of `type`. See {@link localLoadOp}. */
-function localStoreOp(type: Type): Opcode {
+function localStoreOp(type: ExprType): Opcode {
   switch (type) {
     case ValType.I32:
       return Opcode.I32Store;
@@ -1181,20 +1182,20 @@ function localStoreOp(type: Type): Opcode {
 interface LocalsCtx {
   func: WasmFunction;
   /** Reverse of the flow's fake-global map: fake global name → value type. */
-  fakeNameToType: Map<string, Type>;
+  fakeNameToType: Map<string, ExprType>;
   /** Fake-call scratch locals, allocated per type on demand. */
-  fakeCallLocals: Map<Type, number>;
+  fakeCallLocals: Map<ExprType, number>;
   /** Local holding the popped call index during a rewind. */
   rewindIndex: number;
 }
 
-function allocLocal(func: WasmFunction, type: Type): number {
+function allocLocal(func: WasmFunction, type: ExprType): number {
   const idx = func.locals.length;
   func.locals.push({ type: type as ValType });
   return idx;
 }
 
-function fakeCallLocal(ctx: LocalsCtx, type: Type): number {
+function fakeCallLocal(ctx: LocalsCtx, type: ExprType): number {
   let idx = ctx.fakeCallLocals.get(type);
   if (idx === undefined) {
     idx = allocLocal(ctx.func, type);
@@ -1320,7 +1321,7 @@ function makeLocalSaving(func: WasmFunction, saved: number[]): Expression {
  */
 export function localsInstrumentFunction(
   func: WasmFunction,
-  fakeGlobals: Map<Type, string>,
+  fakeGlobals: Map<ExprType, string>,
   savedLocals?: Iterable<number>,
 ): void {
   // Locals to save/restore. Prefer the caller's liveness-minimized set; else
@@ -1330,7 +1331,7 @@ export function localsInstrumentFunction(
     ? [...new Set(savedLocals)].filter((i) => i >= 0 && i < numOriginalLocals).sort((a, b) => a - b)
     : Array.from({ length: numOriginalLocals }, (_v, i) => i);
 
-  const fakeNameToType = new Map<string, Type>();
+  const fakeNameToType = new Map<string, ExprType>();
   for (const [type, name] of fakeGlobals) fakeNameToType.set(name, type);
 
   const rewindIndex = allocLocal(func, ValType.I32);
