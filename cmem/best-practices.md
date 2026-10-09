@@ -1575,7 +1575,7 @@ propagation ENABLES, not propagation. Re-measured on the new output, the same up
 saved 9.5 KB, all of it evaluation. **How to apply:** price a pass by building the smallest
 version of it and measuring, or by an upstream pass that does ONLY that; a difference of two
 composite passes prices their interaction too. Say so when an estimate a decision rests on turns
-out wrong (open-work 2 records it).
+out wrong ([optimizer.md](optimizer.md) records it).
 
 ### An oracle suite has blind spots too — a mutant that survives it names one
 
