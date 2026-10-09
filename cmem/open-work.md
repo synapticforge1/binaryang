@@ -10,7 +10,7 @@ type the letter to wasmtk team"):** ✅ **`binaryang@1.10.0` PUBLISHED 2026-10-0
 the first CI run was red on fixture binaries `.gitignore` had kept out of the commit, fixed and
 proven from a fresh clone before the bump ([publishing.md](publishing.md) § 1.10.0). Nothing
 unreleased ([unreleased.md](unreleased.md)). wasmtk's letter [handoffs.md](handoffs.md) § 27
-typed in full for their session to pull. Closed in the last two days, each with its topic file:
+SENT by the owner 2026-10-09; it asks their measurement once wasic marks its addresses. Closed in the last two days, each with its topic file:
 items 23 ([interpreter.md](interpreter.md)), 2 ([optimizer.md](optimizer.md)), 22
 ([definitions.md](definitions.md)) with 1.9.0, 24 ([bundle.md](bundle.md)) with 1.10.0. **Next,
 in the agreed order: 21 (one `src/` tree), then the rounds 13 / 14 (hardening, security); 15
