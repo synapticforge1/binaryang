@@ -4,31 +4,18 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-10-08 (owner: "finish item 23 then move to item 2. once complete we will publish and
-notify wasmtk team"):** `binaryang@1.8.1` is the last release; `main` holds a large UNRELEASED set —
-the optimizer steps (item 2: 1–5, LocalCSE, ConstantPropagation; item 23: OI folding through the
-evaluator, Precompute — the interpreter itself is internal), `./definitions` (D1 / D2 / D3,
-item 22), items 3–8 and 10 closed, six silent fixes ([unreleased.md](unreleased.md): the next
-release is a MINOR, 1.9.0) — NOT PUSHED. 22 is done (closes with the release and its letter), 24
-has its design decided and waits to be built. **Item 23 CLOSED 2026-10-08** — the interpreter,
-the evaluator, `wasm-ctor-eval` and `wasm-interp`, all four stages landed and measured
-([interpreter.md](interpreter.md); its number is kept free). **Item 2 CLOSED 2026-10-08** at 1.86%
-of upstream `-Oz` on the corpus, the owner's ≤ 2% ([optimizer.md](optimizer.md); its number is
-kept free). ✅ **1.9.0 PUBLISHED 2026-10-08** (the owner's "perform items 1 through 3": `main`
-pushed, CI green, the bump typed by hand; auto-tag's dispatch FAILED as documented and the tag
-re-pushed by hand published — [publishing.md](publishing.md)); wasmtk's letter
-[handoffs.md](handoffs.md) § 26 SENT; **item 22
-CLOSED** with it ([definitions.md](definitions.md)). **Item 24 BUILT 2026-10-08** (`wasm-bundle`,
-the owner's item 3), UNRELEASED: a new export, so the next release is a MINOR, 1.10.0,
-typed by hand when the owner says ([bundle.md](bundle.md); its number is kept free); wasmtk's
-letter [handoffs.md](handoffs.md) § 27 is DRAFTED, to send with that release. The `.wit` beside
-every bundle is a DEFAULT (owner, 2026-10-08; `witgen.ts`, `--no-wit`). ✅ **Gate GREEN on the
-branch head `3ba63a8d8` (21 steps, every exit 0; the numbers in [bundle.md](bundle.md)) and
-MERGED into `main` 2026-10-09.** 🚀 **Owner's go 2026-10-09: "lets do the 1.10.0 release"** — the
-sequence of [publishing.md](publishing.md) (push `main` unbumped, CI green, the MINOR typed by
-hand, push, the tag re-pushed by hand), then the letter § 27 goes to wasmtk, then the open items
-are listed. **Then: 21 and the rounds 13 / 14. 4 open items, none blocking**; numbers 2–7, 9–12,
-16, 17, 22, 23, 24 are gone and kept free. Re-derive any number before quoting it.
+**State, 2026-10-09 (owner: "lets do the 1.10.0 release. Then list the remaining open items and
+type the letter to wasmtk team"):** ✅ **`binaryang@1.10.0` PUBLISHED 2026-10-09** — `wasm-bundle`
+(item 24, [bundle.md](bundle.md)), `(@reloc data)`, the `.wit` beside every bundle by default;
+the first CI run was red on fixture binaries `.gitignore` had kept out of the commit, fixed and
+proven from a fresh clone before the bump ([publishing.md](publishing.md) § 1.10.0). Nothing
+unreleased ([unreleased.md](unreleased.md)). wasmtk's letter [handoffs.md](handoffs.md) § 27
+typed in full for their session to pull. Closed in the last two days, each with its topic file:
+items 23 ([interpreter.md](interpreter.md)), 2 ([optimizer.md](optimizer.md)), 22
+([definitions.md](definitions.md)) with 1.9.0, 24 ([bundle.md](bundle.md)) with 1.10.0. **Next,
+in the agreed order: 21 (one `src/` tree), then the rounds 13 / 14 (hardening, security); 15
+stays blocked on wasmtk. 4 open items, none blocking**; numbers 2–7, 9–12, 16, 17, 22, 23, 24 are
+gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
