@@ -64,3 +64,4 @@ import './flatten.ts';
 import './asyncify.ts';
 import './minify-imports-and-exports.ts';
 import './code-folding.ts';
+import './memory-packing.ts';

@@ -61,8 +61,12 @@ contains ([handoffs.md](handoffs.md)).
   …))` becomes `(loop $in (if (i32.eqz c) …))`; what both arms of an `if` end with is written
   once after it. `CodeFolding` runs at -O2 and above (the function passes). `Precompute` folds a
   read of an immutable, defined global with a constant initialiser into that constant (6d), and
-  `DeadArgumentElimination` runs once more before `Inlining`. Corpus -Oz 847,329 → 833,291
-  (−14,038), -O2 / -O3 likewise, -O1 unmoved; behaviour unchanged (the gates).
+  `DeadArgumentElimination` runs once more before `Inlining`. NEW pass `MemoryPacking` (6e), in
+  the post passes at every level: the data segments rewritten as the fewest bytes that build the
+  same memory image (adjacent segments merged, zero runs dropped), only where that image is
+  provably the same at every instantiation (one defined memory, active constant-offset segments,
+  nothing naming a segment, the image within the initial size). Corpus -Oz 847,329 → 825,077
+  (−22,252), -O2 / -O3 likewise, -O1 −8,214 (the packing); behaviour unchanged (the gates).
 - **NEW — `wasm-ctor-eval` and `wasm-interp`** (open-work 23, E4, 2026-10-08): two CLI commands
   and two subpaths, `./tools/wasm-ctor-eval` (`ctorEval(module, options)`) and
   `./tools/wasm-interp` (`interpModule(module, options)`), on the interpreter. `wasm-ctor-eval` runs

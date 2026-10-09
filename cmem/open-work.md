@@ -329,6 +329,18 @@ every prepared spec module, at -O1 … -Oz). The hand-written traversals (`deriv
        **833,291 (−1,265 more)**; -O2 −3,780, -O3 −3,376. `1_if-else` 3,337 → 2,532 (upstream
        2,153). `precompute.test.ts`, the mutability mutant killed. Gate green; the gap re-derived
        **23,305 (2.88%)**, code +20,390, data +2,833, global +116.
+     - ✅ **6e — MemoryPacking** (`passes/memory-packing.ts`, new; the post passes at every
+       level, as upstream): every active segment applied in order to an image, the image written
+       back through `wasm-ctor-eval`'s `packMemory` (adjacent segments merge, zero runs longer
+       than a header go). Only where the image is provably the same at every instantiation: one
+       DEFINED memory, active constant-`i32`-offset segments, no passive segment, nothing in code
+       naming a segment, the image within the initial size (the original traps past it). Measured
+       first (`memshapes.ts`): 421 / 421 eligible, 38,058 data-entry bytes in 1,381 segments →
+       29,901 in 390. -Oz 833,291 → **825,077 (−8,214)**, the same at every level.
+       `memory_packing.test.ts` compares the whole memory before and after; 3 / 3 mutants killed.
+       Gate green; the gap re-derived **15,091 (1.86%)** — ours 825,077, upstream 809,986; code
+       +20,390, data −5,381 (ours is now the smaller), datacount −798, global +116. **≤ 2%: the
+       item's "Done when" (owner, 2026-10-06) is met.**
        then the ranked rest for the owner's judgement — on the re-rank above, after this round:
        precompute's remainder (immutable-global reads: −75 `global.get`, −397 `const`), `rse`
        (−922 `local.set`: redundant sets of a value the local already holds), SimplifyGlobals
