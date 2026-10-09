@@ -118,6 +118,26 @@ Deno.test('br_on_cast_fail takes an operand of its source type', () => {
   refusedBoth(asm(wat('anyref')), 'type mismatch in br_on_cast_fail');
 });
 
+// `(0xfd << 16) | op` is one key only below 0x10000: a SIMD sub-opcode LEB
+// stretched to 0x80060 ORed into 0xfd0060, a real opcode, and the validator
+// then THREW from an opcode table (a `spec/simd_f32x4` mutant).
+Deno.test('a SIMD sub-opcode past 0xffff is unknown, not an alias of a real one', () => {
+  const bytes = asm(
+    '(module (func (param v128 i32) (result v128) (f32x4.abs (local.get 0)) (local.get 1) (drop)))',
+  );
+  assertEquals(verdicts(bytes), { ours: true, v8: true }, 'control');
+  const at = bytes.findIndex((b, i) =>
+    b === 0xfd && bytes[i + 1] === 0xe0 && bytes[i + 2] === 0x01
+  );
+  assert(at > 0, 'found f32x4.abs');
+  // e0 01 → e0 80 (20): the LEB runs on into the next byte, 0x80060.
+  const mutant = patched(bytes, at + 2, 0x80);
+  let said: string[] = [];
+  said = wasmValidate(mutant, { features: allFeatures() }).errors.map((e) => e.message);
+  assert(said.some((m) => m.includes('unknown SIMD opcode: 0xfd 0x80060')), said.join(' | '));
+  assertEquals(WebAssembly.validate(mutant as BufferSource), false);
+});
+
 Deno.test('ref.null names a type that exists', () => {
   assertEquals(
     verdicts(asm('(module (type (func)) (func (drop (ref.null 0))))')),

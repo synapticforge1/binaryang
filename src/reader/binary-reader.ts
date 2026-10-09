@@ -2759,6 +2759,14 @@ export class BinaryReader {
   // ---------------------------------------------------------------------------
 
   private decodeSimdOp(op: number, stack: Expr[], stmts: Expr[], _m: Module, loc: Location): void {
+    // 🔧 `(prefix << 16) | op` is one key only for op < 0x10000: 0x80060 ORs
+    // into 0xfd0060, a real opcode, and passed as it — then an opcode table
+    // that did not fit THREW from the validator (open-work 13, the code lens:
+    // a `spec/simd_f32x4` mutant; V8 says "Invalid prefixed opcode 524384").
+    if (op > 0xffff) {
+      this.err(`unknown SIMD opcode: 0xfd 0x${op.toString(16)}`);
+      return;
+    }
     const opcode = (PREFIX_SIMD << 16) | op;
 
     // v128.load + extending loads (0x00-0x06): memarg, 1 pop (address),
@@ -2978,6 +2986,11 @@ export class BinaryReader {
     _m: Module,
     loc: Location,
   ): void {
+    if (op > 0xffff) {
+      // As for SIMD: past 0xffff the combined key would alias a real opcode.
+      this.err(`unknown atomic opcode: 0xfe 0x${op.toString(16)}`);
+      return;
+    }
     const opcode = (PREFIX_THREADS << 16) | op;
 
     if (op === 0x03) {

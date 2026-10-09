@@ -77,7 +77,9 @@
   `wasm-validate` passed them and a later writer failed: a heap type byte that is not one (`0x7f`,
   i32's code); a negative heap type in more than one byte, which was also mis-decoded (a padded
   `func` read wrongly, and an out-of-range value read as `func`); and an unknown SIMD sub-opcode,
-  read as a two-operand instruction. Each is now reported where it is read.
+  read as a two-operand instruction. Each is now reported where it is read. A SIMD or atomic
+  sub-opcode of 0x10000 or more could also alias a real one and make the validator throw; it is
+  reported as unknown.
 - **The validator accepted five more invalid or malformed constructs that V8 refuses**: data and
   element segment flags with an undefined bit (each bit was read alone and the rest ignored);
   `br_on_cast` flags with an undefined bit; `br_on_null` / `br_on_non_null` of a value that is not
