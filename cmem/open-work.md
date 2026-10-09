@@ -282,6 +282,51 @@ every prepared spec module, at -O1 … -Oz). The hand-written traversals (`deriv
      RemoveUnusedBrs, CodeFolding, and the delta judged. `wasm-ctor-eval` is opt-in and outside
      this gap (it takes 58.8 KB more off our -Oz, 66.2 KB with upstream's tool — a 7.4 KB
      difference unattributed, a candidate for this round).
+   - 📏 **Round 6, 2026-10-08 (owner: "move to item 2 … once complete we will publish").** The
+     gap re-derived first — ⚠️ **binaryen is 133 on this machine now** (the scoop shim; cmem said
+     132), and its -Oz got 6.5 KB better: upstream 809,986 on the originals, ours 847,329, **gap
+     37,343 (4.61%)**, code +33,950, data +2,833, type +59 (`gap.ts`). ≤ 2% is ~16.2 KB.
+     Re-ranked, each upstream pass alone on our -Oz output then our -Oz again, over ours twice
+     (2,098): precompute 6,693 · rse 6,176 · simplify-globals-optimizing 5,767 · code-folding
+     5,589 · remove-unused-brs 5,253 · memory-packing 5,048 · inlining-optimizing 3,764 ·
+     optimize-instructions 3,478 · dae 3,353 · merge-blocks 2,325. ⚠️ **The proper control is
+     upstream's bare READ AND WRITE of our output, then our -Oz: 4,400** (`control.ts`) — every
+     number above carries ~2,300 of it. By opcode (`opdelta.ts`), the bare re-encode changes one
+     thing: −1,323 `block` — binaryen's writer drops every UNNAMED block, and our later passes then
+     find the straight-line code they had hidden (−139 `local.get`, −111 `local.set`). (Its
+     +2,534 `unreachable` after a loop that never falls through is its own writer's habit, a cost.)
+     `precompute`'s 6.7 KB is mostly that re-encode plus loop shapes, not evaluation.
+     - ✅ **6a — Vacuum splices an unnamed, parameterless block into its sequence** (1,321 in our
+       output). -Oz 847,329 → **844,251 (−3,078)**, -O2 −3,075, -O3 −3,552, -O1 unmoved (its
+       blocks keep the reader's names). `vacuum_splice.test.ts`, mutant killed.
+     - ✅ **6b — RemoveUnusedBrs: a block whose only branch is a `br_if` to itself as its first
+       statement is an `if (i32.eqz c)`** — bare (380) or at the head of the loop it wraps
+       (2,529: how every counted loop tests its exit; `brshapes.ts`). Not with parameters (the
+       runner lowers them first anyway). -Oz 844,251 → **840,079 (−4,172)**, -O2 / -O3 −4,160.
+       `remove_unused_brs_6b.test.ts`, 2 / 2 non-equivalent mutants killed; two type-check mutants
+       were equivalent (a block opening with a valueless `br_if` to itself cannot carry a result)
+       and the checks went. Upstream's loop flip (`br_if $out` then `br $in` at the END of the
+       body) exists 4 times in our output — not built.
+     - ✅ **6c — CodeFolding** (`passes/code-folding.ts`, new; after the second CoalesceLocals, as
+       upstream places it): the statements both arms of an `if` end with, structurally equal
+       (labels by POSITION — the reader names every block and `if` it reads), move to after the
+       `if` in the same sequence, no block added. Not out of an `if` with a result, nor one whose
+       label a branch in either arm names (🔧 such a branch leaves the `if` and runs what follows
+       — the moved tail, on a path that skipped it; found by the test). -Oz 840,079 →
+       **836,929 (−3,150)**, -O2 / -O3 −3,150. `code_folding.test.ts`, 3 / 3 observable mutants
+       killed. ⚠️ Two guards in the new passes are UNOBSERVABLE through the runner and kept as
+       defence: CodeFolding's `pop` guard (the spill makes every stack value a local before a
+       pass runs) and 6b's block-parameter guard (`lowerBlockParams` runs first); a rule against
+       branches to an arm's other labels was dropped as dead (a label is in scope only inside its
+       own construct). Not built: tails before several `br`s to one block, `return` tails.
+     - **Round 6 total: -Oz 847,329 → 836,929 (−10,400); the gap re-derived: 26,943 (3.33%),
+       code +23,550, data +2,833, global +549 (`gap.ts`); ≤ 2% is ~16.2 KB, so ~10.7 KB to find.**
+       Next (`1_if-else`, +1,180: upstream folded five reads of an immutable `f64` global into
+       its constant, then its DAE and Precompute collapsed a function called thrice with it):
+       then the ranked rest for the owner's judgement — on the re-rank above, after this round:
+       precompute's remainder (immutable-global reads: −75 `global.get`, −397 `const`), `rse`
+       (−922 `local.set`: redundant sets of a value the local already holds), SimplifyGlobals
+       (the item's original list), MemoryPacking (data +2,833 to upstream), merge-blocks' rest.
    - 📏 **Where item 2 stands, 2026-10-06:** upstream `wasm-opt -Oz` on each ORIGINAL corpus module
      totals 816,485; ours 859,534 — **the gap is 43,049 (5.0%)**, from 109.5 KB on 2026-09-19.
      Functions kept: ours 2,705, upstream 2,663 (was 3,943). No single upstream pass saves more than
