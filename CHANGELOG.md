@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **`wasm-bundle`** (a CLI command and `@jrmarcum/binaryang/tools/wasm-bundle`): N standalone
+  modules — WASI programs or libraries — into one module with ONE memory. Each input's whole
+  memory image is laid out at its own base, in input order, and every address the producer
+  marked moves with it: the tool-conventions Linking format (`linking` + `reloc.CODE` /
+  `reloc.DATA`, what `wasm-ld --emit-relocs` writes; rustc with `-C link-arg=--emit-relocs`,
+  `zig wasm-ld --emit-relocs`), consumed as the module is read, each entry tied to the
+  instruction at its byte and VERIFIED against the value the code holds — a stale entry (the
+  code was rewritten after the link; TinyGo runs `wasm-opt` after `wasm-ld`) is refused like a
+  missing one. A module with no marks is refused, or relocated by its data's address range with
+  `--unmarked=guess` and a printed warning. The linker's address globals (`__stack_pointer`,
+  `__heap_base`, `__heap_end`, `__data_end`, `__memory_base`) move with the image. Exports of
+  one name from two inputs: `--on-conflict=prefix|alias|exclude` (`--alias a.wasm=m` names an
+  input; `--start=NAME` keeps one `_start`). An import the same in two inputs is declared once;
+  an import whose module name is another input's name links to that input's export (as
+  `wasm-merge`). Several `start` sections run in input order. Each module keeps its own tables.
+  Library: `bundle(inputs, options)` on modules, `wasmBundle(paths, options)` on files. Bundle
+  BEFORE optimising; run `-Oz` on the result.
+- **`(@reloc data)` in WAT** — a relocation mark the assembler turns into the same Linking
+  sections. Before an `i32.const` (linear or folded, in a function or a global's initializer),
+  the constant is an address in this module's memory; before a data string, every 4-byte word
+  of it is. `(@reloc data $sym)` names the symbol. A mark anywhere else, or on a string that is
+  not whole words, is an error. Written as `reloc.CODE`, `reloc.GLOBAL` and `reloc.DATA`
+  entries against undefined data symbols (the addend is the address), which `wasm-objdump -x`
+  reads. This is how a producer that emits WAT (wasmtk's `wasic`) marks its addresses.
+- IR: `ConstExpr.reloc` and `DataSegment.relocs` carry the marks; `DataSegment.dataLoc` (set by
+  the binary reader) records where a segment's bytes began, which a `reloc.DATA` entry's
+  offset points into. `src/wabt-ts/core/linking.ts` decodes and encodes the format.
+
 ## 1.9.0
 
 A minor release: **an interpreter and the tools on it, `./definitions` for other projects to

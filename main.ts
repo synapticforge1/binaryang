@@ -58,6 +58,7 @@ import { main as wasmStripMain } from './src/wabt-ts/tools/wasm-strip.ts';
 import { main as wasm2tsMain } from './src/wabt-ts/tools/wasm2ts.ts';
 import { main as wasmCtorEvalMain } from './src/binaryen-ts/tools/wasm-ctor-eval.ts';
 import { main as wasmInterpMain } from './src/binaryen-ts/tools/wasm-interp.ts';
+import { main as wasmBundleMain } from './src/binaryen-ts/tools/wasm-bundle.ts';
 
 export * from './src/index.ts';
 
@@ -92,6 +93,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
   'wasm2ts': wasm2tsMain,
   'wasm-ctor-eval': wasmCtorEvalMain,
   'wasm-interp': wasmInterpMain,
+  'wasm-bundle': wasmBundleMain,
 };
 
 async function main(): Promise<void> {
@@ -154,6 +156,13 @@ COMMANDS:
                         --run-all-exports         Every exported function, zero arguments
                         --run-export=NAME         One export, with --argument=V (repeat)
                         --dummy-import-func       Imported functions return zeros
+  wasm-bundle <in>...   Bundle modules into one, with one memory relocated exactly
+                        -o <file>                 Output file (default: bundle.wasm)
+                        --on-conflict=MODE        Same export in two inputs: prefix | alias | exclude
+                        --alias a.wasm=m,...      Name inputs (the prefix; what others import from)
+                        --unmarked=guess          Relocate an unmarked input by address range
+                        --start=NAME              Whose _start stays _start
+                        -S                        Emit WAT text
 
 OPTIONS:
   --help, -h            Show this help

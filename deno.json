@@ -17,6 +17,7 @@
     "./tools/wasm-opt": "./src/binaryen-ts/tools/wasm-opt.ts",
     "./tools/wasm-ctor-eval": "./src/binaryen-ts/tools/wasm-ctor-eval.ts",
     "./tools/wasm-interp": "./src/binaryen-ts/tools/wasm-interp.ts",
+    "./tools/wasm-bundle": "./src/binaryen-ts/tools/wasm-bundle.ts",
     "./wat2wasm": "./src/wabt-ts/tools/wat2wasm.ts",
     "./wasm2wat": "./src/wabt-ts/tools/wasm2wat.ts",
     "./wasm-validate": "./src/wabt-ts/tools/wasm-validate.ts",

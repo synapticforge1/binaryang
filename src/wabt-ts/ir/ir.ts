@@ -836,12 +836,29 @@ export interface BrOnExpr {
 }
 
 // --- Constants ---
+/**
+ * A relocation mark (open-work 24, `wasm-bundle`): the text's `(@reloc data)`
+ * annotation, which says the constant it stands before — or the data words it
+ * stands before — is an ADDRESS in this module's memory, so a tool that moves
+ * the memory image must move it too. The binary writer turns every mark into
+ * a `linking` symbol and a `reloc.*` entry (the tool-conventions Linking
+ * format, `core/linking.ts`), which is how `wasm-ld --emit-relocs` marks the
+ * same thing; `wasm-bundle` reads either. `symbol` names the entry's symbol
+ * (default `__memory_image`); it changes nothing but the name.
+ */
+export interface RelocMark {
+  readonly kind: 'data';
+  readonly symbol?: string;
+}
+
 /** `*.const` (0x41 / 0x42 / 0x43 / 0x44 / 0xfd 0x0c) — pushes a literal value. */
 export interface ConstExpr {
   readonly kind: 'const';
   readonly value: Const;
   readonly type?: ExprType;
   readonly loc?: Location;
+  /** The constant is a memory address — `(@reloc data)` stood before it. Only on an `i32.const`. */
+  readonly reloc?: RelocMark;
 }
 
 // --- Locals ---
@@ -2314,6 +2331,21 @@ export interface DataSegment {
    */
   offset?: RegionExpr;
   data: Uint8Array;
+  /**
+   * Where `data`'s FIRST BYTE sat in the binary this was read from — absent
+   * on a segment the reader did not produce. `loc` is the segment's start
+   * (its flags); the bytes begin after the offset expression and the length,
+   * and a `reloc.DATA` entry's offset points INTO the bytes, so the bundler
+   * needs this to tie the entry to the segment (open-work 24).
+   */
+  dataLoc?: Location;
+  /**
+   * Which 4-byte words of `data` are memory addresses — the text's
+   * `(@reloc data)` before a data string marks every word of that string
+   * (open-work 24, {@link RelocMark}). Byte offsets into `data`, each the
+   * start of a little-endian i32.
+   */
+  relocs?: { readonly offset: number; readonly mark: RelocMark }[];
 }
 
 /** An import entry. */

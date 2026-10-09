@@ -1473,6 +1473,9 @@ export class BinaryReader {
       }
 
       const dataLen = this.readU32Leb();
+      // Where the bytes begin: a `reloc.DATA` entry's offset points into them
+      // (open-work 24, `DataSegment.dataLoc`).
+      const dataLoc = this.loc();
       const data = this.readBytes(dataLen);
 
       m.dataSegments.push({
@@ -1482,6 +1485,7 @@ export class BinaryReader {
         memoryVar,
         ...(offset === undefined ? {} : { offset }),
         data,
+        dataLoc,
       });
     }
   }
