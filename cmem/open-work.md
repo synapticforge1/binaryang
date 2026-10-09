@@ -14,12 +14,13 @@ has its design decided and waits to be built. **Item 23 CLOSED 2026-10-08** — 
 the evaluator, `wasm-ctor-eval` and `wasm-interp`, all four stages landed and measured
 ([interpreter.md](interpreter.md); its number is kept free). **Item 2 CLOSED 2026-10-08** at 1.86%
 of upstream `-Oz` on the corpus, the owner's ≤ 2% ([optimizer.md](optimizer.md); its number is
-kept free). **Now: the 1.9.0 release** — prepared (`CHANGELOG.md` § 1.9.0, wasmtk's letter
-[handoffs.md](handoffs.md) § 26 drafted). ✅ **Owner, 2026-10-08: "perform items 1 through 3"** —
-push `main`, verify CI, bump to 1.9.0 (typed by hand: MINOR), push (auto-tag publishes); then the
-letter goes as SENT; then **item 24** (`wasm-bundle`) is built. Then 21 and the rounds 13 / 14.
-**6 open items, none blocking**; numbers 2–7, 9–12, 16, 17, 23 are gone and kept free. Re-derive
-any number before quoting it.
+kept free). ✅ **1.9.0 PUBLISHED 2026-10-08** (the owner's "perform items 1 through 3": `main`
+pushed, CI green, the bump typed by hand; auto-tag's dispatch FAILED as documented and the tag
+re-pushed by hand published — [publishing.md](publishing.md)); wasmtk's letter
+[handoffs.md](handoffs.md) § 26 SENT; **item 22
+CLOSED** with it ([definitions.md](definitions.md)). **Now: item 24** (`wasm-bundle`, the owner's
+item 3). Then 21 and the rounds 13 / 14. **5 open items, none blocking**; numbers 2–7, 9–12, 16,
+17, 22, 23 are gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -137,106 +138,11 @@ fatigue.
         exists twice; (4) then decide the three tree-named subpaths.
       - **Timing:** after the IR work (owner) and BEFORE the hardening and security rounds (items
         13, 14), so those audit the final structure once.
-22. ⬚ **H9 — publish the shared definitions D2 / D3 / D1 as a `./definitions` subpath** (placed on
-    the list by the owner 2026-09-30, from wasmtk's letter [§ 23](handoffs.md); the design is the
-    workspace's `../cmem/divergences.md` § "The shared definitions", letter H9 in
-    `../cmem/handoffs.md`). wasmtk is ready to start H10 (generating their copies) as soon as there
-    is a version to pin. What they asked, narrowed to their use:
-    - **Order: D2 and D3 first, D1 later.** Their runner uses D2 / D3 today; D1 matters to them only
-      when their WAT regexes give way to our parser (I2, after one-front-end stage 5). ⚠️ This
-      REVERSES the workspace plan (D1 first, proved by regenerating our own opcode table; D3 last,
-      after C1). ✅ **Decided 2026-10-06, owner: "I approve the wasmtk order for definitions"** — D2
-      and D3 first, D1 later. (The workspace's `../cmem/divergences.md` still reads D1-first; the
-      workspace session updates it, not this one.)
-    - **Delivery:** a `./definitions` subpath in a normal release (a new export = MINOR), pinned at
-      the same exact version as their other three. A TS module of typed constants, and/or the JSON
-      sources in the package at a stable path (for the Rust / Zig consumers). **The content hash and
-      the version IN the data**, so their generated copy's header quotes them and their gate proves
-      the copy matches.
-    - **D2, per feature:** the canonical name (the one `allFeatures()` / `Features` uses); the
-      spec-testsuite directories it gates, relative to the testsuite root; whether it CHANGES core
-      semantics, not only adds (why they scope `custom-descriptors`: on everywhere it relaxes
-      `br_on_cast`, and core `br_on_cast.wast` / `br_on_cast_fail.wast` lose 3 `assert_invalid` each
-      — possibly the same fact as D2's "snapshots that must NOT receive it" column); the date it
-      entered the list. Engine flag spellings stay theirs, keyed by our name.
-    - **D3, per verdict class:** for traps a class key and the testsuite's exact `assert_trap`
-      message, with the PREFIX rule stated (`"uninitialized element 2"` matches
-      `"uninitialized
-      element"`); the same for `assert_invalid` / `assert_malformed` later;
-      nothing engine-specific. Entries they filed now (H10 asks for it): `unreachable`,
-      `out of bounds memory access`, `out
-      of bounds table access`,
-      `out of bounds array access`, `undefined element`, `uninitialized
-      element`,
-      `indirect call type mismatch`, `integer divide by zero`, `integer overflow`,
-      `invalid conversion to integer`, `cast failure`, `descriptor cast failure`, `null reference`,
-      `null structure reference`, `null array reference`, `null i31 reference`,
-      `null function
-      reference`, `null descriptor reference`, `unaligned atomic`;
-      `call stack exhausted` for `assert_exhaustion`. Proposals their gate treats specially:
-      `wide-arithmetic` (every file), `custom-descriptors` (scoped), `custom-page-sizes` (through
-      `LowerCustomPageSizes`).
-    - **D1, later:** mnemonic and legal shorthands, immediate syntax (`offset=` / `align=`), stack
-      signature, gating feature; a coarse operator class ("numeric binary") would let them DERIVE
-      their 13 never-a-pointer `i32` operators — that judgment stays theirs.
-    - Their side (H10), for reference: `scripts/gen-definitions.ts` → committed
-      `src/definitions.generated.ts`; their gate regenerates and diffs, inverted once.
-    - ✅ **D2 and D3 built 2026-10-06 (unreleased; D1 is what is left of this item).** Sources
-      `src/definitions/features.json` (D2: 22 entries — `name` = the `Features` key, `cli`,
-      `defaultOn`, `implemented`, `testsuiteDirs`, `onlyIn` / `offIn` for a feature that changes
-      core semantics, `note`, `since`) and `verdicts.json` (D3: 19 trap classes +
-      `call stack
-      exhausted`, `key` / `message`, the PREFIX rule stated in the data). Each
-      carries `dataVersion` and a `sha256` of its canonical content (keys sorted, the hash field
-      empty). `deno task
-      definitions` stamps the hashes and GENERATES
-      `src/definitions/data.ts`; `--check` changes nothing and fails on a stale hash or a generated
-      module that differs; `--prepared <roots>` also proves D3 has a class for every trap /
-      exhaustion message the prepared suites write (21 distinct across core, the four proposals and
-      legacy EH — inverted once: dropping `unaligned-atomic` trips all three checks). Subpath
-      `./definitions` (`mod.ts`: `FEATURE_DEFINITIONS`, `VERDICT_DEFINITIONS`, `verdictClass(text)`,
-      `featuresForSuite(dir)`) — a new export, so the release is a MINOR; the JSON ships in the
-      package. binaryang is the first consumer: `scripts/proposals.ts`, the core spec harness and
-      `measure-diagnostics.ts` take their feature sets from D2 (`suiteFeatures`), with `spec` and
-      `proposals` green on it (custom-descriptors is now off in `threads` / `wide-arithmetic` /
-      `custom-page-sizes` too, per its `onlyIn`; none of those suites tests `br_on_cast`).
-      `tests/definitions/` asserts the data against the code: one entry per `Features` key in order,
-      `defaultOn` = `defaultFeatures()`, every `cli` accepted by `FeatureFlags`, only
-      `compactImports` unimplemented. Gate step `definitions`. A letter to wasmtk goes WITH the
-      release (§ 24 in [handoffs.md](handoffs.md), to draft then): the version to pin, the field
-      list, the prefix rule. **Next: D1** (the opcode + immediate table; their I2 trigger).
-    - ✅ **D1 built 2026-10-06 — the item's three definitions are done (unreleased); it closes with
-      the release and the letter.** `src/definitions/opcodes.json`, 582 entries: `name`, `encoding`
-      (hex, LEB sub-opcode), `prefix`, `opcode`, `immediates` (kinds in binary order — the
-      vocabulary is in the data's `rules`), `align` (memarg width), `signature` (fixed stack types,
-      `addr` = the memory's index type; 498 of 582 — null where an immediate or the stack decides),
-      `feature` (a D2 name), `class` (coarse: wasmtk's "numeric binary" ask). Populated once from
-      `opcode.ts` plus rules by mnemonic (scratch `d1populate.ts`), then PROVED, as the data's
-      `proof` rule says (`tests/definitions/opcodes.test.ts`): every entry decodes as ONE
-      instruction and re-encodes to its bytes; every signature validates (addr i32, and i64 on
-      memory64) and is refused with its first or its last operand changed; align is exactly natural
-      (one step above is refused); every gated instruction with a signature is refused with its
-      feature off. Each check inverted when written (a dropped / extra immediate, a wrong operand, a
-      wrong align, a gate removed — the extra immediate survived until the one-instruction count was
-      added: its sample byte decoded as `unreachable`). **binaryang now reads D1:** `opcode.ts`'s
-      name tables and `naturalAlignForOpcode` (~790 hand-kept lines) are built from it;
-      `check-operator-mapping.ts` reads it. What the proof found, all fixed:
-      - 🔧 **Five features were gated NOWHERE** — `simd`, `signExtension`, `satFloatToInt`,
-        `bulkMemory`, `referenceTypes`: with the feature off, `v128.load`, `i32.extend8_s`,
-        `memory.copy`, `table.get`, `ref.null` … validated (254 of 345 gated instructions with a
-        signature). They are wabt's default-ON features, which hid it. Now one gate in the validator
-        (`everyExpr`, a new `ExprVisitorDelegate` hook) asks D1 for each instruction's feature; the
-        other features keep their dedicated handlers, so nothing reports twice. ⚠️ The hook is NOT
-        named `on…`: three delegates (text-form, WAT writer, binary writer) are Proxies answering
-        every `on…` / `begin…` / `end…` name — named `onAnyExpr` it broke 18 test files, each
-        recording every instruction twice.
-      - 🔧 **`i64.add128` / `i64.sub128` checked three operands and dropped the fourth** — the FIRST
-        — unchecked: an `i32` there validated. A test had pinned the three-type message.
-      - 🔧 `delegate`, `catch_all`, `try_table` had no name (a disassembly printed `<opcode:0x1f>`);
-        and the lexer gave `delegate` no opcode, unlike `else` / `catch_all`. What D1 does NOT
-        prove: the NAME of an index space in an immediate (a `memidx` and a `tableidx` are both one
-        LEB) beyond what the signature check resolves; text shorthands (wasmtk's I2 list) beyond the
-        mnemonic and the memarg's `offset=` / `align=`.
+
+(Item 22 closed 2026-10-08 with the 1.9.0 release and its letter, [handoffs.md](handoffs.md)
+§ 26: [definitions.md](definitions.md) — what shipped, the decisions, what the proof found. Its
+number is kept free.)
+
 24. ⬚ 🗓️ **`wasm-bundle` — take wasmtk's `wasmbundle` into our tools, and wasmtk imports it back**
     (owner, 2026-09-30: "incorporating wasmtk's wasmbundle into our cli tools and offload that from
     wasmtk. And import it back for use there"; "we will probably want to call it wasm-bundle in our

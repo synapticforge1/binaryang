@@ -55,7 +55,10 @@ the bump a separate commit puts the decision where it cannot be skimmed past.
 2. push main                        # CI runs on the integrated tree; nothing publishes
 3. verify main is green
 4. bump deno.json AND main.ts       # its own commit — this is the arming step
-5. push main                        # auto-tag tags vX.Y.Z and the release goes out
+5. push main                        # auto-tag tags vX.Y.Z — and, with no RELEASE_PAT, DISPATCHES
+                                    # publish.yml, which FAILS (0-for-4; 1.9.0 below)
+6. git fetch origin --tags && git push origin :refs/tags/vX.Y.Z && git push origin vX.Y.Z
+                                    # YOUR tag push is what publishes (a push event by a member)
 ```
 
 Both files, together: `tests/binaryen-ts/version_sync.test.ts` fails the publish otherwise, and
@@ -759,3 +762,29 @@ The flow, as for 1.6.0:
 Asked the same day to "bump and publish 1.6.0" again, the answer was that it already was — check
 `https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
 arming anything.
+
+## 1.9.0 — a MINOR from `main` (2026-10-08) — 🚀 PUBLISHED by the hand-pushed tag; the dispatch path failed, 0-for-4 now
+
+The owner's go ("perform items 1 through 3"), after items 23 and 2 closed. Every step verified
+through the GitHub API (`gh` is not installed; a Deno poll on `actions/runs?head_sha=`):
+
+1. `main` pushed unbumped at `9907fdc82` (115 commits past `v1.8.1`); CI green on Deno, Node 22 /
+   24 and Bun; auto-tag a no-op (`v1.8.1` existed).
+2. The version typed BY HAND in `deno.json` and `main.ts` — 1.9.0, a MINOR for the new exports
+   (`./definitions`, `./tools/wasm-ctor-eval`, `./tools/wasm-interp`) — its own commit on a
+   branch, merged `--no-ff`, pushed (`82113369e`); `version_sync.test.ts` run first.
+3. ⚠️ **Auto-tag tagged `v1.9.0` with `GITHUB_TOKEN` and DISPATCHED `publish.yml`** (no
+   `RELEASE_PAT`): check and test green, then "Publish to JSR (with provenance)" FAILED — the
+   `actorNotScopeMember` path, now 0-for-4 (the 2026-09-29 "this flow never dispatches" was
+   wrong: it dispatches whenever a bump reaches `main` without a developer tag push). JSR had no
+   1.9.0 (cache-busted versions API: `packageVersionNotFound`).
+4. **Recovery, as the workflow's own warning says:** `git fetch origin --tags`, confirm the tag
+   names the bump commit, `git push origin :refs/tags/v1.9.0 && git push origin v1.9.0` from the
+   developer's machine — a PUSH event by a scope member; `publish.yml` ran on it and went GREEN
+   end to end (version-vs-tag check, type-check, test, OIDC, "Publish to JSR (with provenance)",
+   "Create GitHub Release", "Verify provenance was recorded on JSR"). JSR: 1.9.0 created
+   2026-10-09T01:04:50Z (UTC), not yanked, a Rekor log id present; `latestVersion` 1.9.0.
+
+**The rule this settles:** after a bump reaches `main`, push the tag yourself (or run
+`deno task release`, which pushes it); the auto-tag dispatch will fail and say so. Or set
+`RELEASE_PAT`.
