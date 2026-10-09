@@ -113,7 +113,8 @@ import {
   type WasmFunction,
   type WasmModule,
 } from '../ir/module.ts';
-import { None, type Type, Unreachable, ValType } from '../ir/types.ts';
+import type { ExprType } from '../ir/ir.ts';
+import { None, Unreachable, ValType } from '../ir/types.ts';
 import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
 import { createPass, listPasses as _listPasses, PassRunner } from '../passes/index.ts';
 import {
@@ -263,7 +264,7 @@ function _valTypeToId(t: ValueType | undefined): number {
  * infer a construct's type from its contents; the IR's constructs declare theirs
  * (S6 step 5 item 5 (3)), and one that never falls through declares nothing.
  */
-function concreteOrNone(t: Type | undefined): BlockResult {
+function concreteOrNone(t: ExprType | undefined): BlockResult {
   return t === undefined || t === Unreachable ? None : t;
 }
 
@@ -1404,14 +1405,14 @@ export class Module {
   /** `call $target operands` — direct call. */
   call(target: string, operands: Expression[], returnType: number | number[]): Expression {
     const resultVts = _idToValTypeArray(returnType);
-    const resultType: Type = resultVts[0] ?? None;
+    const resultType: ExprType = resultVts[0] ?? None;
     return makeCall(varName(target), operands, resultType);
   }
 
   /** `return_call $target operands` — tail call (returns directly from caller). */
   return_call(target: string, operands: Expression[], returnType: number | number[]): Expression {
     const resultVts = _idToValTypeArray(returnType);
-    const resultType: Type = resultVts[0] ?? None;
+    const resultType: ExprType = resultVts[0] ?? None;
     return makeCall(varName(target), operands, resultType, true);
   }
 

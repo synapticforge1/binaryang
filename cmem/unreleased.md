@@ -54,3 +54,11 @@ public summary is `CHANGELOG.md` § 1.10.0.
 - **NEW — `funcAt(module, var)` and `funcSignature(module, func)`** in `./ir/wabt-ts`
   (2026-10-09, open-work 21 phase 3): the function a reference names (imports first) and its
   declared signature; three tools had a private copy each.
+- **NEW — `./ir`** (2026-10-09, open-work 21 phase 4, [one-tree.md](one-tree.md)): one subpath
+  exporting everything `./ir/wabt-ts`, `./ir/binaryen-ts` and `./core/wabt-ts` export, proven by
+  `ir_subpath.test.ts`. **A new export: the release is a MINOR, 1.11.0.** `Type` there is core's
+  enum; binaryen-ts's union is `ExprType` (the same type).
+- **DEPRECATED — `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts`**, and `Type` as the union's
+  name in `./ir/binaryen-ts` and `./api` (now an alias of `ExprType`): they stay this release and go
+  in a later minor (open-work item 25). Say "import from `./ir`" in the note, with the `Type` →
+  `ExprType` line for `./ir/binaryen-ts` users.

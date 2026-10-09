@@ -47,7 +47,8 @@ import {
 } from './ir.ts';
 import type { Location } from '../core/error.ts';
 import type { BlockResult, Expr } from './ir.ts';
-import { None, type TupleType, type Type, typeToString, Unreachable, ValType } from './types.ts';
+import type { ExprType } from './ir.ts';
+import { None, type TupleType, typeToString, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
 import { loadShape, storeShape } from './memory-access.ts';
 
@@ -927,7 +928,7 @@ export interface ExprBase {
    * that needs a type should fail at the node that lacks one, naming it, rather
    * than propagate `undefined` into a decision.
    */
-  type?: Type;
+  type?: ExprType;
 
   /**
    * Source position, where something recorded it.
@@ -983,7 +984,7 @@ export function neverFallsThrough(e: Expression): boolean {
   }
 }
 
-export function typeOf(e: ExprBase): Type {
+export function typeOf(e: ExprBase): ExprType {
   if (e.type === undefined) {
     throw new Error(
       `expression of kind "${e.kind}" has no computed type, and reached code that ` +
@@ -1266,7 +1267,7 @@ export function makeUnary(opcode: UnaryOp, value: Expression): UnaryExpr {
  * contributes all its components; an `unreachable` entry makes the whole
  * unreachable, as upstream `Break::finalize` does for its one value.
  */
-export function valuesType(values: readonly Expression[]): Type {
+export function valuesType(values: readonly Expression[]): ExprType {
   if (values.length === 0) return None;
   // The value's own type object, exactly as the one-`value` node had it.
   if (values.length === 1) return typeOf(values[0]!);
@@ -1295,7 +1296,7 @@ export function makeReturn(values: Expression[] = []): ReturnExpr {
 export function makeCall(
   target: Var,
   operands: Expression[],
-  resultType: Type,
+  resultType: ExprType,
   isReturn = false,
 ): CallExpr {
   // `isReturn` is written only when true — absent is the one spelling of a
@@ -1363,7 +1364,7 @@ export function makeBlock(
  * which hold the list as written. The type is `type` when given (a parser knows
  * the declared one), else inferred as {@link makeBlock} does.
  */
-export function makeRegion(children: Expression[], type?: Type): RegionExpr {
+export function makeRegion(children: Expression[], type?: ExprType): RegionExpr {
   const last = children[children.length - 1];
   return {
     kind: ExpressionKind.Region,
@@ -1586,7 +1587,7 @@ export function makeBreak(
   // removes what follows an unreachable-typed node (One front end, stage 1,
   // 2026-09-19). An unreachable VALUE already came out unreachable through
   // `valuesType`.
-  const type: Type = condition == null || typeOf(condition) === Unreachable
+  const type: ExprType = condition == null || typeOf(condition) === Unreachable
     ? Unreachable
     : valuesType(values);
   return {
@@ -1640,7 +1641,7 @@ export function makeSelect(
   // blindly mistyped a select whose `ifTrue` is `unreachable` (e.g. it ends in
   // a trap/branch) even though `ifFalse` yields a real value, the same hazard
   // `makeIf` was fixed for.
-  const type: Type = (resultType.length === 1 ? resultType[0] : undefined) ??
+  const type: ExprType = (resultType.length === 1 ? resultType[0] : undefined) ??
     (typeOf(ifTrue) === Unreachable ? typeOf(ifFalse) : typeOf(ifTrue));
   return { kind: ExpressionKind.Select, type, val1: ifTrue, val2: ifFalse, condition, resultType };
 }
@@ -1656,7 +1657,7 @@ export function makeCallIndirect(
   // Every result, as `makeCall` and `makeCallRef` type theirs. 🔧 It was
   // `sig.results[0] ?? None`: a multi-value `call_indirect` was typed by its
   // first result alone (found by M8d, 2026-09-18).
-  const type: Type = sig.results.length <= 1 ? (sig.results[0] ?? None) : [...sig.results];
+  const type: ExprType = sig.results.length <= 1 ? (sig.results[0] ?? None) : [...sig.results];
   return {
     kind: ExpressionKind.CallIndirect,
     type,
@@ -1844,7 +1845,7 @@ export function makeCallRef(
   results: readonly ValueType[],
   isReturn = false,
 ): CallRefExpr {
-  const type: Type = results.length === 0
+  const type: ExprType = results.length === 0
     ? None
     : results.length === 1
     ? results[0]!
@@ -2089,7 +2090,7 @@ export function makeRefIsNull(value: Expression): RefIsNullExpr {
  * passed rather than derived because the non-nullable form of a reference type
  * is not recoverable from `value.type` alone once a heap type is concrete.
  */
-export function makeRefAsNonNull(value: Expression, resultType: Type): RefAsExpr {
+export function makeRefAsNonNull(value: Expression, resultType: ExprType): RefAsExpr {
   return { kind: ExpressionKind.RefAs, type: resultType, value };
 }
 
@@ -2099,7 +2100,7 @@ export function makeRefEq(left: Expression, right: Expression): RefEqExpr {
 }
 
 /** Creates a ref.i31 expression. */
-export function makeRefI31(value: Expression, resultType: Type): RefI31Expr {
+export function makeRefI31(value: Expression, resultType: ExprType): RefI31Expr {
   return { kind: ExpressionKind.RefI31, type: resultType, value };
 }
 
@@ -2129,7 +2130,7 @@ export function makeI31Get(i31: Expression, signed: boolean): I31GetExpr {
 export function makeStructNew(
   typeVar: Var,
   operands: Expression[],
-  resultType: Type,
+  resultType: ExprType,
 ): StructNewExpr {
   return {
     kind: ExpressionKind.StructNew,
@@ -2140,7 +2141,7 @@ export function makeStructNew(
 }
 
 /** Creates a struct.new_default expression. */
-export function makeStructNewDefault(typeVar: Var, resultType: Type): StructNewExpr {
+export function makeStructNewDefault(typeVar: Var, resultType: ExprType): StructNewExpr {
   return {
     kind: ExpressionKind.StructNew,
     type: resultType,
@@ -2155,7 +2156,7 @@ export function makeStructGet(
   typeVar: Var,
   fieldVar: Var,
   ref: Expression,
-  resultType: Type,
+  resultType: ExprType,
   signed?: boolean,
 ): StructGetExpr {
   return {
@@ -2183,7 +2184,7 @@ export function makeArrayNew(
   typeVar: Var,
   init: Expression,
   length: Expression,
-  resultType: Type,
+  resultType: ExprType,
 ): ArrayNewExpr {
   return { kind: ExpressionKind.ArrayNew, type: resultType, typeVar, init, length };
 }
@@ -2192,7 +2193,7 @@ export function makeArrayNew(
 export function makeArrayNewDefault(
   typeVar: Var,
   length: Expression,
-  resultType: Type,
+  resultType: ExprType,
 ): ArrayNewExpr {
   return { kind: ExpressionKind.ArrayNew, type: resultType, typeVar, length };
 }
@@ -2201,7 +2202,7 @@ export function makeArrayNewDefault(
 export function makeArrayNewFixed(
   typeVar: Var,
   operands: Expression[],
-  resultType: Type,
+  resultType: ExprType,
 ): ArrayNewFixedExpr {
   return { kind: ExpressionKind.ArrayNewFixed, type: resultType, typeVar, operands };
 }
@@ -2212,7 +2213,7 @@ export function makeArrayNewData(
   dataVar: Var,
   offset: Expression,
   length: Expression,
-  resultType: Type,
+  resultType: ExprType,
 ): ArrayNewDataExpr {
   return {
     kind: ExpressionKind.ArrayNewData,
@@ -2230,7 +2231,7 @@ export function makeArrayNewElem(
   elemVar: Var,
   offset: Expression,
   length: Expression,
-  resultType: Type,
+  resultType: ExprType,
 ): ArrayNewElemExpr {
   return {
     kind: ExpressionKind.ArrayNewElem,
@@ -2247,7 +2248,7 @@ export function makeArrayGet(
   typeVar: Var,
   ref: Expression,
   index: Expression,
-  resultType: Type,
+  resultType: ExprType,
   signed?: boolean,
 ): ArrayGetExpr {
   return {
@@ -2361,7 +2362,7 @@ export function makeRefCast(
   ref: Expression,
   castType: HeapType,
   nullable: boolean,
-  resultType: Type,
+  resultType: ExprType,
 ): RefCastExpr {
   return { kind: ExpressionKind.RefCast, type: resultType, ref, heapType: castType, nullable };
 }
@@ -2371,7 +2372,7 @@ export function makeBrOn(
   opcode: BrOnOp,
   label: string,
   ref: Expression,
-  resultType: Type,
+  resultType: ExprType,
   castType?: HeapType,
   castNullable?: boolean,
   srcType?: HeapType,
@@ -2455,7 +2456,7 @@ export function makeRethrow(target: string): RethrowExpr {
 }
 
 /** Creates a `pop` pseudo-instruction. */
-export function makePop(type: Type): PopExpr {
+export function makePop(type: ExprType): PopExpr {
   return { kind: ExpressionKind.Pop, type };
 }
 
@@ -2572,7 +2573,7 @@ export function makeSIMDLoadStoreLane(
 // Internal type inference helpers
 // ---------------------------------------------------------------------------
 
-function inferBinaryType(opcode: BinaryOp): Type {
+function inferBinaryType(opcode: BinaryOp): ExprType {
   // The wide multiplies take two i64s and give TWO (lo, hi) — a tuple, as a
   // quaternary's is. 🔧 They fell through to the prefix rule below and were
   // typed a single i64; binaryen-ts's decoder set the tuple itself while

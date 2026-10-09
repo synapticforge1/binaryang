@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **`@jrmarcum/binaryang/ir`** — ONE subpath for the IR. It exports everything `./ir/wabt-ts`,
+  `./ir/binaryen-ts` and `./core/wabt-ts` export: the IR's records under both sets of names
+  (`Expr` and `Expression`, `Module` and `WasmModule`, … — the same types), the expression
+  factories, the module builder, the value and GC types, and `Result`, `ErrorList`,
+  `formatErrors`, the feature sets. **One name means one thing there:** `Type` is the value-type
+  enum (`Type.I32`), and the union a node's `type` field holds — `Type` in `./ir/binaryen-ts` and
+  `./api` — is `ExprType`, the same type.
+- `funcAt(module, var)` and `funcSignature(module, func)`: the function a reference names
+  (imports first in the index space) and its declared signature.
+
+### Deprecated
+
+- `./ir/binaryen-ts`, `./ir/wabt-ts` and `./core/wabt-ts`: import from `./ir`. They remain for
+  this release and are removed in a later minor. So is `Type` as the name of the node-type union
+  in `./ir/binaryen-ts` and `./api` (use `ExprType`).
+
+### Changed
+
+- ⚠️ **Type-level breaking:** `RefType`'s `heapType` and `nullable`, and `BlockParams`' fields,
+  are read-only — `RefType` is now the IR's own reference record, which is. Code that assigns to
+  those fields stops compiling; nothing that reads or builds them changes, and nothing changes at
+  run time.
+- The source tree is one `src/` organised by concept (it was `src/binaryen-ts/` and
+  `src/wabt-ts/`). Every subpath keeps its module; no output byte changes.
+
 ## 1.10.0
 
 A minor release: **`wasm-bundle`** — one module from many, with ONE memory relocated exactly

@@ -60,7 +60,8 @@ import {
 } from './expressions.ts';
 import { AbstractHeapType, isRefType, Packed, type ValueType } from './gc-types.ts';
 import { heapAbstract, heapExact } from './ir.ts';
-import { None, type Type, Unreachable, ValType } from './types.ts';
+import type { ExprType } from './ir.ts';
+import { None, Unreachable, ValType } from './types.ts';
 import { BrOnOp } from './ir.ts';
 import { visitChildren } from './walk.ts';
 import type { WasmModule } from './module.ts';
@@ -68,13 +69,13 @@ import type { WasmModule } from './module.ts';
 type Mut<T> = { -readonly [K in keyof T]: T[K] };
 
 /** The types a result denotes, one per stack slot. Shared with the spill step. */
-export function slots(t: Type): ValueType[] {
+export function slots(t: ExprType): ValueType[] {
   if (t === None || t === Unreachable) return [];
   return Array.isArray(t) ? [...t] : [t];
 }
 
 /** A result list as one `Type`: none, the one value, or the tuple. */
-function resultOf(results: readonly ValueType[]): Type {
+function resultOf(results: readonly ValueType[]): ExprType {
   if (results.length === 0) return None;
   return results.length === 1 ? results[0]! : [...results];
 }
@@ -118,10 +119,12 @@ class Stack {
    * The top `n` values, deepest first, WITHOUT removing them — `unreachable`
    * for each one a dead stack lacks. A live stack that lacks one is refused.
    */
-  peek(n: number, what: string): Type[] {
-    const got: Type[] = this.values.slice(Math.max(0, this.values.length - n)).map((v) => v.type);
+  peek(n: number, what: string): ExprType[] {
+    const got: ExprType[] = this.values.slice(Math.max(0, this.values.length - n)).map((v) =>
+      v.type
+    );
     this.require(n, got.length, what);
-    return [...new Array<Type>(n - got.length).fill(Unreachable), ...got];
+    return [...new Array<ExprType>(n - got.length).fill(Unreachable), ...got];
   }
   /** Where the top `n` values came from, deepest first, padded like {@link peek}. */
   peekFrom(n: number): (Origin | undefined)[] {
@@ -138,7 +141,7 @@ class Stack {
       throw new Error(`derive-types: ${what} consumes ${n} value(s) and the stack holds ${held}`);
     }
   }
-  push(t: Type, from?: Origin): void {
+  push(t: ExprType, from?: Origin): void {
     if (t === Unreachable) {
       this.values.length = 0;
       this.dead = true;
@@ -173,7 +176,7 @@ class Deriver {
   }
 
   /** A region's instructions, on a stack seeded with `seed`; the region's type by the factories' rule. */
-  region(children: readonly Expression[], seed: readonly ValueType[]): Type {
+  region(children: readonly Expression[], seed: readonly ValueType[]): ExprType {
     const stack = new Stack(seed);
     for (const c of children) this.emit(c, stack);
     const last = children[children.length - 1];
@@ -366,7 +369,7 @@ class Deriver {
     return t as ValueType;
   }
 
-  private typeOfNode(e: Expression): Type {
+  private typeOfNode(e: Expression): ExprType {
     switch (e.kind) {
       // Carriers declare theirs.
       case ExpressionKind.Block:

@@ -2,6 +2,10 @@
  * @module
  * wabt-ts core vocabulary — entry point for the `./core/wabt-ts` subpath.
  *
+ * ⚠️ **Deprecated since 1.11.0 — import from `@jrmarcum/binaryang/ir`**, which
+ * exports everything this subpath does, under the same names. This subpath stays
+ * for one release and is removed in a later minor.
+ *
  * Authored during the binaryang merge, to close a gap the narrow root created.
  *
  * Every wabt tool returns a result expressed in these types — `wat2wasm` hands

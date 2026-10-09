@@ -34,7 +34,7 @@
  *
  * | subpath | what |
  * | ------- | ---- |
- * | `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` | the two IRs, each explicitly named |
+ * | `./ir` | the IR, its builder and factories, and the vocabulary tool results use (`./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` are deprecated aliases since 1.11.0) |
  * | `./compat/binaryen`, `./compat/wabt` | the two upstream API shapes |
  * | `./api`, `./passes`, `./wasm` | the Binaryen side: building, optimizing |
  * | `./wat2wasm`, `./wasm2wat`, `./wasm-validate`, `./wasm-objdump`, `./wasm-strip`, `./tools/wasm-opt` | each tool as a library function (`wat2wasm(text)`, …) |
@@ -170,8 +170,7 @@ OPTIONS:
   --version, -v         Show version
 
 EXPORTS (JSR):
-  @jrmarcum/binaryang/ir/binaryen-ts    Binaryen IR and module builder
-  @jrmarcum/binaryang/ir/wabt-ts        WABT IR
+  @jrmarcum/binaryang/ir                The IR, its module builder and result types
   @jrmarcum/binaryang/compat/binaryen   upstream npm:binaryen API shape
   @jrmarcum/binaryang/compat/wabt       upstream wabt.js API shape
   @jrmarcum/binaryang/api               High-level API

@@ -35,7 +35,7 @@ import { wat2wasm } from 'jsr:@jrmarcum/binaryang/wat2wasm';
 ```ts
 import { wat2wasm } from '@jrmarcum/binaryang/wat2wasm';
 import { wasm2wat } from '@jrmarcum/binaryang/wasm2wat';
-import { formatErrors, Result } from '@jrmarcum/binaryang/core/wabt-ts';
+import { formatErrors, Result } from '@jrmarcum/binaryang/ir';
 
 const source = `
   (module
@@ -97,24 +97,24 @@ One entry point, seven commands:
 deno run -A jsr:@jrmarcum/binaryang <command> [options]
 ```
 
-| command                   | does                                                                                                                 |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `wat2wasm <in.wat>`       | assemble and validate WAT to a WASM binary, as upstream · `-o <file>` · `--no-check` · `--enable-all`, `--enable-<feature>`, `--disable-<feature>` · `--no-text-form`¹ |
-| `wasm2wat <in.wasm>`      | disassemble to WAT, every instruction in its written form¹ · `-o <file>` · `--linear` / `--fold` for one form throughout |
-| `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>`                                               |
-| `wasm-objdump <in.wasm>`  | dump sections                                                                                                        |
-| `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                                                                 |
-| `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`                                                                           |
-| `wasm-ctor-eval <in>`     | run constructors at build time and write their memory and globals into the module · `--ctors=a,b`, `--kept-exports=a,b`, `--ignore-external-input`, `-o <file>`, `-S` |
-| `wasm-interp <in>`        | run exported functions on the interpreter and print each result · `--run-all-exports`, `--run-export=NAME`, `--argument=V`, `--dummy-import-func` |
+| command                   | does                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wat2wasm <in.wat>`       | assemble and validate WAT to a WASM binary, as upstream · `-o <file>` · `--no-check` · `--enable-all`, `--enable-<feature>`, `--disable-<feature>` · `--no-text-form`¹                                                                                                                                                                                                       |
+| `wasm2wat <in.wasm>`      | disassemble to WAT, every instruction in its written form¹ · `-o <file>` · `--linear` / `--fold` for one form throughout                                                                                                                                                                                                                                                     |
+| `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>`                                                                                                                                                                                                                                                                                                       |
+| `wasm-objdump <in.wasm>`  | dump sections                                                                                                                                                                                                                                                                                                                                                                |
+| `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                                                                                                                                                                                                                                                                                                                         |
+| `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`                                                                                                                                                                                                                                                                                                                                   |
+| `wasm-ctor-eval <in>`     | run constructors at build time and write their memory and globals into the module · `--ctors=a,b`, `--kept-exports=a,b`, `--ignore-external-input`, `-o <file>`, `-S`                                                                                                                                                                                                        |
+| `wasm-interp <in>`        | run exported functions on the interpreter and print each result · `--run-all-exports`, `--run-export=NAME`, `--argument=V`, `--dummy-import-func`                                                                                                                                                                                                                            |
 | `wasm-bundle <in>...`     | bundle modules into one with ONE memory, each image relocated exactly through its `linking` / `reloc.*` sections (`wasm-ld --emit-relocs`, or `(@reloc data)` marks in WAT) · `-o <file>`, `--on-conflict=prefix\|alias\|exclude`, `--alias a.wasm=m`, `--unmarked=guess`, `--start=NAME`, `-S` · writes `<out>.wit` (the interface, from core signatures) unless `--no-wit` |
-| `wasm2ts <in.wasm>`       | emit TypeScript — **not yet implemented**                                                                            |
+| `wasm2ts <in.wasm>`       | emit TypeScript — **not yet implemented**                                                                                                                                                                                                                                                                                                                                    |
 
-¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records how each instruction was written
-— bare or folded, and grouped how — in a `binaryang.text-form` custom section, and `wasm2wat` gives
-it back that way: linear stays linear, folded stays folded, a mix stays the same mix (the plain
-nested fold where nothing is recorded, as for any other tool's binary). `--no-text-form` omits the
-record — upstream `wat2wasm`'s bytes exactly. Optimizing drops it, and so does `wasm-strip`.
+¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records how each instruction was written —
+bare or folded, and grouped how — in a `binaryang.text-form` custom section, and `wasm2wat` gives it
+back that way: linear stays linear, folded stays folded, a mix stays the same mix (the plain nested
+fold where nothing is recorded, as for any other tool's binary). `--no-text-form` omits the record —
+upstream `wat2wasm`'s bytes exactly. Optimizing drops it, and so does `wasm-strip`.
 
 ```sh
 deno run -A jsr:@jrmarcum/binaryang wat2wasm add.wat -o add.wasm
@@ -133,34 +133,32 @@ bun node_modules/@jrmarcum/binaryang/main.ts wat2wasm add.wat
 
 ## What's in the package
 
-| import                                       | contents                                                                |
-| -------------------------------------------- | ----------------------------------------------------------------------- |
-| `@jrmarcum/binaryang/wat2wasm` … `/wasm2ts`  | the six WABT tools, one subpath each                                    |
-| `@jrmarcum/binaryang/core/wabt-ts`           | `Result`, `ErrorList`, `formatErrors` — the vocabulary tool results use |
-| `@jrmarcum/binaryang/ir/wabt-ts`             | the WABT IR                                                             |
-| `@jrmarcum/binaryang/ir/binaryen-ts`         | the Binaryen IR and module builder                                      |
-| `@jrmarcum/binaryang/api`                    | high-level builder API                                                  |
-| `@jrmarcum/binaryang/passes`                 | optimisation pass registry and runner                                   |
-| `@jrmarcum/binaryang/wasm` · `/wasm-runtime` | WASM helpers and a small runtime                                        |
-| `@jrmarcum/binaryang/tools/wasm-opt`         | `wasm-opt` as a library                                                 |
-| `@jrmarcum/binaryang/tools/wasm-ctor-eval`   | `wasm-ctor-eval` as a library (`ctorEval(module, options)`)             |
-| `@jrmarcum/binaryang/tools/wasm-interp`      | `wasm-interp` as a library (`interpModule(module, options)`)            |
-| `@jrmarcum/binaryang/tools/wasm-bundle`      | `wasm-bundle` as a library (`bundle(inputs, options)`, `wasmBundle(paths, options)`) |
-| `@jrmarcum/binaryang/compat/binaryen`        | the upstream `npm:binaryen` API shape                                   |
-| `@jrmarcum/binaryang/compat/wabt`            | the upstream `wabt.js` API shape                                        |
+| import                                               | contents                                                                                                                                                               |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@jrmarcum/binaryang/wat2wasm` … `/wasm2ts`          | the six WABT tools, one subpath each                                                                                                                                   |
+| `@jrmarcum/binaryang/ir`                             | the IR: its records, the expression factories, the module builder, the value and GC types, and the vocabulary tool results use (`Result`, `ErrorList`, `formatErrors`) |
+| `…/ir/wabt-ts`, `…/ir/binaryen-ts`, `…/core/wabt-ts` | ⚠️ deprecated since 1.11.0 — `./ir` exports all of them; removed in a later minor                                                                                      |
+| `@jrmarcum/binaryang/api`                            | high-level builder API                                                                                                                                                 |
+| `@jrmarcum/binaryang/passes`                         | optimisation pass registry and runner                                                                                                                                  |
+| `@jrmarcum/binaryang/wasm` · `/wasm-runtime`         | WASM helpers and a small runtime                                                                                                                                       |
+| `@jrmarcum/binaryang/tools/wasm-opt`                 | `wasm-opt` as a library                                                                                                                                                |
+| `@jrmarcum/binaryang/tools/wasm-ctor-eval`           | `wasm-ctor-eval` as a library (`ctorEval(module, options)`)                                                                                                            |
+| `@jrmarcum/binaryang/tools/wasm-interp`              | `wasm-interp` as a library (`interpModule(module, options)`)                                                                                                           |
+| `@jrmarcum/binaryang/tools/wasm-bundle`              | `wasm-bundle` as a library (`bundle(inputs, options)`, `wasmBundle(paths, options)`)                                                                                   |
+| `@jrmarcum/binaryang/compat/binaryen`                | the upstream `npm:binaryen` API shape                                                                                                                                  |
+| `@jrmarcum/binaryang/compat/wabt`                    | the upstream `wabt.js` API shape                                                                                                                                       |
 
 **No external dependencies.** binaryang's reader, validator, writers, text tools and optimizer are
 entirely its own TypeScript; it has no external dependencies beyond the standard Node and Deno
-packages, and calls no external tool. Upstream tools (`wast2json`, `wasm-tools`, upstream
-binaryen) are used only by the repository's tests and its separate comparison suite — never by
-the published package. The `compat/*` subpaths reproduce upstream's API *shapes*; they do not load
-upstream.
+packages, and calls no external tool. Upstream tools (`wast2json`, `wasm-tools`, upstream binaryen)
+are used only by the repository's tests and its separate comparison suite — never by the published
+package. The `compat/*` subpaths reproduce upstream's API _shapes_; they do not load upstream.
 
-**One IR, two sets of names, each subpath explicitly named.** The reader, writers and validator
-and the optimisation passes all work on one IR. `./ir/wabt-ts` exports it under WABT's names
-(`Expr`, `Module`) and `./ir/binaryen-ts` under Binaryen's (`Expression`, `WasmModule`). There is
-deliberately no `./ir` subpath while both sets of names exist: it would read as "the IR" while
-meaning one of them.
+**One IR, one subpath.** The reader, writers and validator and the optimisation passes all work on
+one IR, and `./ir` exports it under both WABT's names (`Expr`, `Module`) and Binaryen's
+(`Expression`, `WasmModule`) — the same types. One name means one thing: `Type` is the value-type
+enum (`Type.I32`); the type of a node's `type` field is `ExprType` (`./ir/binaryen-ts` called it
+`Type`, and still does, deprecated).
 
 ## Runtime support
 
@@ -190,13 +188,16 @@ From either predecessor, this is a package rename plus two subpaths.
 | ------------------------------------------------------- | ------------------------------------- |
 | `@jrmarcum/binaryen-ts/compat`                          | `@jrmarcum/binaryang/compat/binaryen` |
 | `@jrmarcum/wabt-ts/compat`                              | `@jrmarcum/binaryang/compat/wabt`     |
-| `@jrmarcum/binaryen-ts/ir`                              | `@jrmarcum/binaryang/ir/binaryen-ts`  |
-| the WABT IR, via the `wabt-ts` package **root**         | `@jrmarcum/binaryang/ir/wabt-ts`      |
-| `Result`, `ErrorList`, `formatErrors`, via the **root** | `@jrmarcum/binaryang/core/wabt-ts`    |
+| `@jrmarcum/binaryen-ts/ir`                              | `@jrmarcum/binaryang/ir` ¹            |
+| the WABT IR, via the `wabt-ts` package **root**         | `@jrmarcum/binaryang/ir`              |
+| `Result`, `ErrorList`, `formatErrors`, via the **root** | `@jrmarcum/binaryang/ir`              |
 
-Everything else keeps its name: `./api`, `./passes`, `./wasm`, `./wasm-runtime`,
-`./tools/wasm-opt`, and the six WABT tool subpaths. (`./binary` and `./encoder` were removed at
-1.6.0, and `./interop` — the bridge to upstream binaryen.js — at 1.7.0.)
+¹ Binaryen's `Type` union is `ExprType` there. (Until 1.11.0 these three were `./ir/binaryen-ts`,
+`./ir/wabt-ts` and `./core/wabt-ts`, which remain for one release, deprecated.)
+
+Everything else keeps its name: `./api`, `./passes`, `./wasm`, `./wasm-runtime`, `./tools/wasm-opt`,
+and the six WABT tool subpaths. (`./binary` and `./encoder` were removed at 1.6.0, and `./interop` —
+the bridge to upstream binaryen.js — at 1.7.0.)
 
 **If you imported from the `wabt-ts` package root, you need a named subpath now.** That package
 shipped its IR and its core vocabulary through the root; binaryang's root is deliberately narrow,
@@ -207,7 +208,7 @@ because a root spanning both IRs would surface every colliding type name at one 
 import { Result, wat2wasm } from 'jsr:@jrmarcum/wabt-ts';
 // now
 import { wat2wasm } from 'jsr:@jrmarcum/binaryang/wat2wasm';
-import { Result } from 'jsr:@jrmarcum/binaryang/core/wabt-ts';
+import { Result } from 'jsr:@jrmarcum/binaryang/ir';
 ```
 
 The six WABT tools were previously separate published entry points that self-executed. They are now
