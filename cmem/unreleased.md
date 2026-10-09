@@ -35,5 +35,17 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.9.0
 
-Nothing yet (2026-10-08). The 1.9.0 notes as gathered, entry by entry, are
-`git show 82113369e:cmem/unreleased.md`; the public summary is `CHANGELOG.md` § 1.9.0.
+The 1.9.0 notes as gathered, entry by entry, are `git show 82113369e:cmem/unreleased.md`; the
+public summary is `CHANGELOG.md` § 1.9.0.
+
+- **NEW — `wasm-bundle`** (2026-10-08, open-work item 24, [bundle.md](bundle.md)): a CLI command
+  and the `./tools/wasm-bundle` subpath (`bundle`, `wasmBundle`, `BundleError`, the option and
+  report types). **A new export: the release is a MINOR, 1.10.0.** wasmtk's § 24 / § 25 item; its
+  pin moves to a fifth specifier. The public note is `CHANGELOG.md` § Unreleased.
+- **NEW — `(@reloc data)` in WAT** (same commit): the assembler writes `linking` + `reloc.CODE` /
+  `reloc.GLOBAL` / `reloc.DATA` from the marks. A text that never wrote `(@reloc …)` is unaffected;
+  one that did was "skipped as an unknown annotation" before and is now acted on — say so in the
+  note.
+- **IR** (same commit): `ConstExpr.reloc?`, `DataSegment.relocs?`, `DataSegment.dataLoc?` — all
+  optional, absent on every node the reader or parser made before. Not a BREAKING item: nothing a
+  consumer built before changes shape. `src/wabt-ts/core/linking.ts` is new.

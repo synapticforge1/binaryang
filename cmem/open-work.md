@@ -18,9 +18,12 @@ kept free). ✅ **1.9.0 PUBLISHED 2026-10-08** (the owner's "perform items 1 thr
 pushed, CI green, the bump typed by hand; auto-tag's dispatch FAILED as documented and the tag
 re-pushed by hand published — [publishing.md](publishing.md)); wasmtk's letter
 [handoffs.md](handoffs.md) § 26 SENT; **item 22
-CLOSED** with it ([definitions.md](definitions.md)). **Now: item 24** (`wasm-bundle`, the owner's
-item 3). Then 21 and the rounds 13 / 14. **5 open items, none blocking**; numbers 2–7, 9–12, 16,
-17, 22, 23 are gone and kept free. Re-derive any number before quoting it.
+CLOSED** with it ([definitions.md](definitions.md)). **Item 24 BUILT 2026-10-08** (`wasm-bundle`,
+the owner's item 3) on `main`, UNRELEASED: a new export, so the next release is a MINOR, 1.10.0,
+typed by hand when the owner says ([bundle.md](bundle.md); its number is kept free); wasmtk's
+letter [handoffs.md](handoffs.md) § 27 is DRAFTED, to send with that release. **Now: the owner's
+call on 1.10.0; then 21 and the rounds 13 / 14. 4 open items, none blocking**; numbers 2–7, 9–12,
+16, 17, 22, 23, 24 are gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -143,62 +146,9 @@ fatigue.
 § 26: [definitions.md](definitions.md) — what shipped, the decisions, what the proof found. Its
 number is kept free.)
 
-24. ⬚ 🗓️ **`wasm-bundle` — take wasmtk's `wasmbundle` into our tools, and wasmtk imports it back**
-    (owner, 2026-09-30: "incorporating wasmtk's wasmbundle into our cli tools and offload that from
-    wasmtk. And import it back for use there"; "we will probably want to call it wasm-bundle in our
-    tools section"). Nothing is written into wasmtk from here: they drop their copy and pin ours by
-    their own session, from a letter, once there is a release to pin. Facts read from their tree
-    2026-09-30 (re-derive before acting):
-    - **What it is:** `src/wasmbundle.ts` (413 lines) bundles N standalone `.wasm` (WASI programs or
-      libraries) into ONE library: export-name conflicts resolved (interactive prompt, or
-      `--on-conflict=prefix|alias|exclude`, `--alias a.wasm=m`), WASI imports deduplicated, every
-      module's data RELOCATED into one memory, `_start` kept, then `-Oz`. The merging itself is
-      `src/wasmmerge.ts` (991 lines) — REGEXES over printed WAT (`readWasm` → `toText` →
-      `parseWat`), which `wasic.ts` also uses; the data relocation decides "never a pointer" by
-      operator (`ARITH_NEVER_PTR`, 13 `i32` ops) — a heuristic. Their tests: `bundle_tests.ts` (179
-      lines), `merge_tests.ts` (245), `wasmmerge_guard_tests.ts`.
-    - **So it is a REWRITE on the IR, not a port of the text:** index spaces (types, functions,
-      globals, tables, memories, tags, data, elems) renumbered on the tree — which also retires I2's
-      regexes for this path (`../cmem/divergences.md` I2). Upstream binaryen's `wasm-merge`
-      (installed here) is the reference for the linking half.
-    - ✅ **Decided 2026-10-06, owner: ONE memory, relocated EXACTLY — no multi-memory mode, ever**
-      ("no future multiple memories that breaks 'runs everywhere'"; "exact relocation instead of
-      guessed. This is why I want it in this repository and out of wasmtk. This repository has more
-      experience with this side of the process"). Why, as weighed that day: multi-memory breaks WASI
-      (`fd_write` reads the one exported `memory`), wasmtk's host bindings (one `memory` export),
-      cross-module pointers, and wazero (it failed exactly the two multi-memory modules in wasmtk's
-      § 20 run). Exact means the PRODUCER marks its data addresses — a relocation section as
-      `wasm-ld` objects carry, or position-independent code with a `__memory_base` global — so
-      nothing is guessed; a module without the marks is refused, or relocated by today's
-      range-scoped rule with a printed warning, never silently. Which marking wasmtk's producers
-      (`wasic`, the Go / Zig / Rust wrappers) emit is settled with wasmtk by letter when this item
-      starts. **Letter § 24 SENT 2026-10-06** ([handoffs.md](handoffs.md)): proposes the
-      tool-conventions Linking format (`linking` + `reloc.*`, `wasm-ld --emit-relocs`) and asks
-      wasmtk to measure, per producer, whether it can emit it. Building waits on that answer.
-      **Answered: § 25** (2026-10-06, measured): Rust yes; Zig and TinyGo only object +
-      `wasm-ld --emit-relocs` (TinyGo's own build runs `wasm-opt` after linking, leaving STALE
-      relocations: 0/48 address sites correct); wasic needs our part first. **The design points it
-      fixes:**
-      - consume relocations as the module is READ, each tied to its instruction node, before
-        anything rewrites a byte — our own reader → writer re-encodes the padded LEBs `wasm-ld`
-        writes at relocation sites, so a byte offset is valid only against the original bytes;
-      - VERIFY every relocation against the code it names, and refuse a stale one as a missing one
-        (their site check is the start: `i32.const` + 5-byte LEB, `call` / `ref.func`);
-      - bundle BEFORE optimisation; `linking` with no `reloc.CODE` = nothing to relocate;
-      - `reloc..debug_*`: drop the DWARF sections with a printed note (proposed default) or
-        relocate;
-      - for wasic: a WAT form that marks an address and an assembler writing `linking` / `reloc.*`
-        from it. ✅ **Decided 2026-10-06, owner: an ANNOTATION in the WAT** — the text format's
-        standard annotation syntax (annotations proposal), e.g.
-        `(i32.const 1024 (@reloc data $str_0))`, one file, through our parser; we define the
-        annotation's meaning and document it for wasmtk (not a relocation list beside the WAT, not
-        wasm-ld objects only). The exact spelling is ours to propose when the item starts. (wasmtk's
-        current rule, their header: "range-scoped … but still address-based, not dataflow-exact".)
-    - **Scope questions:** whether `wasmmerge.ts`'s `wasic` path moves too or stays theirs; what
-      stays in wasmtk (`witgen`'s WIT emission beside the output; the interactive prompt belongs to
-      a CLI — ours or theirs).
-    - **Surface:** a `wasm-bundle` CLI tool and a `./wasm-bundle` subpath — a new export, so a
-      MINOR; their pin moves to four specifiers (five with item 22's `./definitions`).
+(Item 24 BUILT 2026-10-08 on `main`, unreleased — `wasm-bundle`, `./tools/wasm-bundle`, the
+`(@reloc data)` annotation: [bundle.md](bundle.md) — the rules as built, the decisions, what was
+measured, the gaps; the letter is [handoffs.md](handoffs.md) § 27. Its number is kept free.)
 
 ## The wasmtk thread — [handoffs.md](handoffs.md)
 

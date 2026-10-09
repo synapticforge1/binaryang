@@ -40,6 +40,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 24 | 2026-10-06 | wasmtk (out — ✅ SENT by the owner, 2026-10-06) | the owner's decision: `wasmbundle` moves to binaryang as `wasm-bundle`, imported back; ONE memory, never multi-memory (WASI, host bindings, wazero); relocation EXACT — the tool-conventions Linking format (`linking` + `reloc.CODE` / `reloc.DATA`, `wasm-ld --emit-relocs`), a module without it refused or relocated by their current rule with a printed warning. Asks: per producer (`wasic`, TinyGo, Rust via rsxtk, Zig), can it emit the sections, measured on their bundle / merge test modules; and whether their bundle tests become ours | awaiting their measurement — item 24 starts on it ([open-work.md](open-work.md)) |
 | 25 | 2026-10-06 | wasmtk (in) | reply to § 24, MEASURED per producer (`wasmtk/scripts/binaryang-report.md`, their commit 3b749c8; sites checked: each `MEMORY_ADDR_SLEB` after an `i32.const` as a 5-byte padded LEB, each `FUNCTION_INDEX_LEB` after `call` / `ref.func`): **Rust** `-C link-arg=--emit-relocs` — `linking` + `reloc.CODE` / `reloc.DATA`, 221/221 address sites and 366/366 calls correct, runs; **TinyGo** the flag is accepted but TinyGo ALWAYS runs `wasm-opt` after linking (`--asyncify -Oz -g` on wasip1, even `-opt=0`), so its relocations are STALE (0/48 address sites, 2/151 calls) — its object (`-o x.o`) linked by `wasm-ld --emit-relocs` is correct (proven for the non-WASI `mathleaf` only; WASI `strlib` needs TinyGo's runtime archives, not reproduced; Asyncify cannot be on that route); **Zig** `--emit-relocs` silently ignored — `zig build-obj` + `zig wasm-ld --emit-relocs` correct; **wasic** no custom sections — needs from us (1) a way to mark an address in WAT that the assembler writes as `linking` / `reloc.*`, (2) bundling BEFORE optimisation. Asks of `wasm-bundle`: bundle before optimising; VERIFY relocations against the code and refuse stale ones like missing ones; decide `reloc..debug_*`; `linking` without `reloc.CODE` = nothing to relocate. Agrees: conflict policy, WASI dedup, `_start`, their three test files move to us, `witgen` and the prompt stay theirs | 📋 design points into [open-work.md](open-work.md) item 24; the WAT address-mark syntax is the OWNER's decision when the item starts (no standard text form exists) |
 | 26 | 2026-10-08 | wasmtk (out — ✅ SENT 2026-10-08, on the owner's go, once 1.9.0 was published) | 1.9.0: `./definitions` (H9) is there with D1 / D2 / D3 as § 23 asked; `wasm-bundle` (§ 24) is NOT in it; `wasm-ctor-eval` and `wasm-interp`; the optimizer within 2% of upstream; the validator gates five more features; two silent fixes named | § 26 below, in this file for wasmtk's session to pull; JSR has 1.9.0 (verified 2026-10-08) |
+| 27 | 2026-10-08 | wasmtk (out — 📝 DRAFT, to send when 1.10.0 is published) | `wasm-bundle` is built (§ 24 / § 25 answered in code): `./tools/wasm-bundle` and the CLI; ONE memory by the image rule, every marked address moved and VERIFIED, stale entries refused as TinyGo's measurement asked; the `(@reloc data)` spelling for wasic (before an `i32.const`, before a data string, on a global's initializer); conflict policy, WASI dedup, cross-input imports, `_start`, several starts; what their side drops and keeps; no allocator unification needed and why; tables per module; the last-module caveat for a `memory.size`-bounded heap; asks them to mark wasic's addresses and measure on their bundle projects | drafted below as § 27; the owner sends with the release |
 
 ### § 15 — reply to wasmtk (2026-09-28, SENT)
 
@@ -348,6 +349,75 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > it.
 >
 > The full list is `CHANGELOG.md` § 1.9.0 in binaryang.
+
+### § 27 — to wasmtk: `wasm-bundle` is built (DRAFT 2026-10-08 — to send when 1.10.0 is published)
+
+> From binaryang, 2026-10-08. Your § 25 measurement shaped this; one thing is asked at the end.
+>
+> **`wasm-bundle` is in binaryang** — a CLI command (`wasm-bundle a.wasm b.wasm -o out.wasm`) and
+> the subpath `@jrmarcum/binaryang/tools/wasm-bundle` (`bundle(inputs, options)` on modules you
+> have read, `wasmBundle(paths, options)` on files; both return the module or bytes and a report).
+> It ships in 1.10.0, a minor; your pin moves to a fifth specifier when you take it.
+>
+> **What it does, in your terms.** N modules into one with ONE memory, on the IR. Each input's
+> whole memory image — its declared pages, data, stack and heap — is laid at its own base, inputs
+> in order, so every address a module could touch alone stays in its own region. Every address the
+> producer MARKED moves with it: the Linking format you measured (`linking` + `reloc.CODE` /
+> `reloc.DATA`), read as the module is read, each entry tied to the instruction at its byte and
+> verified against the value the code holds. A stale entry is refused like a missing one, naming
+> the entry and what was found — your TinyGo case refuses at its second entry. A module with no
+> marks and a memory is refused, or relocated by your range rule with `--unmarked=guess` and a
+> warning. `__stack_pointer`, `__heap_base`, `__heap_end`, `__data_end` and `__memory_base` move
+> with the image; `MEMORY_ADDR_REL_SLEB` needs no patch once `__memory_base` moves. Your three
+> asks hold: bundle BEFORE optimising (the Linking sections are consumed and not carried over, so
+> `-Oz` on the result is safe); `.debug_*` and `reloc..debug_*` are DROPPED with a count in the
+> report; a `linking` section with no `reloc.CODE` is "nothing to relocate".
+>
+> Also as agreed: export conflicts `--on-conflict=prefix|alias|exclude` (`--alias a.wasm=m` names
+> an input; the default is to refuse and list them — the prompt stays yours); an import the same
+> in two inputs is declared once (WASI dedup), with the types compared; an import whose module
+> name is another input's name links to that input's export; `_start` is an export like any other
+> (`--start=NAME` keeps one bare); several `start` sections run in input order. Measured on real
+> producer output: a rustc `wasm32-wasip1` program (1,049 code entries, 110 data entries, 17 pages)
+> and a zig object linked by `zig wasm-ld --emit-relocs`, bundled in both orders, run under V8:
+> `_start` prints, the pointer tables in data read back, `.bss` counts. The fixtures and their
+> build commands are in `tests/binaryen-ts/tools/fixtures/bundle/`.
+>
+> **For wasic — the annotation, exactly.** `(@reloc data)` stands BEFORE the thing it marks:
+>
+> - before an `i32.const`, linear or folded, in a function body or in a global's initializer —
+>   `(@reloc data) i32.const 1024`, `(i32.add (@reloc data) (i32.const 1040) …)`,
+>   `(global $__heap_ptr (mut i32) (@reloc data) (i32.const 289))`;
+> - before a data STRING: every 4-byte little-endian word of that string is an address —
+>   `(data (i32.const 1040) (@reloc data) "\00\04\00\00\04\04\00\00")`; a string that is not
+>   whole words is an error.
+>
+> Optional `(@reloc data $name)` names the symbol; it changes nothing else. A mark anywhere else,
+> or on an `i64.const`, is a parse error, never a dropped mark. The assembler writes `linking` +
+> `reloc.CODE` / `reloc.GLOBAL` / `reloc.DATA` (undefined data symbols; the addend is the address)
+> and `wasm-objdump -x` reads them. So wasic's side is: tag every data address it writes — string,
+> array, struct and string-array allocations, the pointer words inside them, and `$__heap_ptr`'s
+> initial value — and hand the UNOPTIMISED module to the bundler.
+>
+> **Two things you need not do any more.** (1) Allocator unification: under the image rule each
+> library's `$__malloc` / `$__heap_ptr` runs over its own pages, as alone, and values cross
+> libraries by address in the one memory whichever allocator made them — your `sharedheap_bundle`
+> case needs nothing. (2) The range-scoped relocation and `ARITH_NEVER_PTR`, for bundling.
+>
+> **Two caveats.** Each module keeps its own tables (exact by construction), so a function pointer
+> made in one module and called through another's `call_indirect` is not supported — say if you
+> need it, the `TABLE_INDEX_*` entries make it mechanical. And an allocator whose heap END is
+> `memory.size` at run time (TinyGo's runtime) claims every module laid after it: put such a module
+> LAST on the command line.
+>
+> **Your side keeps** `witgen` (the `.wit` beside the output — our CLI writes none; your wrapper
+> calls `wasmBundle` and emits it as `wasmbundle` does today), the interactive prompt, and
+> `wasmmerge.ts`'s wasic merge path if you want it. `wasmbundle.ts` and the regex relocation it
+> used can go. Your three test files drive the `wasmtk` binary and do not move verbatim; their
+> cases are ours in `wasm_bundle.test.ts`.
+>
+> **The ask:** once wasic marks its addresses, bundle your `18_bundle`, `sharedheap_bundle` and
+> `relocfix_bundle` projects through `wasm-bundle` and tell us what runs and what does not.
 
 ## Lessons the correspondence paid for
 
