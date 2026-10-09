@@ -1369,6 +1369,12 @@ export class BinaryReader {
       if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const flags = this.readU32Leb();
+      // Three flag bits are defined (0 … 7); as for data segments, an
+      // undefined one was ignored rather than refused.
+      if (flags > 7) {
+        this.err(`malformed element segment flags: ${flags}`);
+        return;
+      }
       const isPassive = (flags & 0x01) !== 0;
       const hasExplicitIndex = (flags & 0x02) !== 0;
       const usesExprs = (flags & 0x04) !== 0;
@@ -1471,6 +1477,14 @@ export class BinaryReader {
       if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const flags = this.readU32Leb();
+      // 🔧 Only 0 (active), 1 (passive) and 2 (active, explicit memory) exist.
+      // Each bit was tested alone and the rest IGNORED: `0x7f` read as passive
+      // and `wasm-validate` passed it (open-work 13, the code lens: V8 says
+      // "illegal flag value"; spec `bulk64`, `binary-leb128` mutants).
+      if (flags > 2) {
+        this.err(`malformed data segment flags: ${flags}`);
+        return;
+      }
       const isPassive = (flags & 0x01) !== 0;
       const hasExplicitMemIdx = (flags & 0x02) !== 0;
 
@@ -3647,6 +3661,9 @@ export class BinaryReader {
       case GcOpcode.BrOnCast:
       case GcOpcode.BrOnCastFail: {
         const flags = this.readU8();
+        // Two flag bits (each type nullable); an undefined one was ignored and
+        // accepted (open-work 13, the code lens: V8 says "invalid br_on_cast flags").
+        if (flags > 3) this.err(`malformed cast flags: 0x${flags.toString(16)}`);
         const depth = this.readU32Leb();
         const fromHeap = this.readHeapTypeVar();
         const toHeap = this.readHeapTypeVar();
@@ -3701,6 +3718,9 @@ export class BinaryReader {
       case GcOpcode.BrOnCastDescEqFail: {
         // As br_on_cast, with the descriptor above the ref.
         const flags = this.readU8();
+        // Two flag bits (each type nullable); an undefined one was ignored and
+        // accepted (open-work 13, the code lens: V8 says "invalid br_on_cast flags").
+        if (flags > 3) this.err(`malformed cast flags: 0x${flags.toString(16)}`);
         const depth = this.readU32Leb();
         const fromHeap = this.readHeapTypeVar();
         const toHeap = this.readHeapTypeVar();

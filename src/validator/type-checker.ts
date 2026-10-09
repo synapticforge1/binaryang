@@ -1484,7 +1484,10 @@ export class TypeChecker {
 
   onBrOnNull(depth: number): Result {
     const actual = this.peekType(0);
-    let r = this.dropTypes(1);
+    // 🔧 The operand must be a reference. It was dropped unchecked, and
+    // `br_on_null` of an i32 validated (open-work 13, the code lens: V8 says
+    // "expected object reference"; a spec `br_on_null` mutant).
+    let r = this.popAnyRef('br_on_null');
     const label = this.getLabel(depth);
     if (!label) return combineResults(r, Result.Error);
     r = combineResults(r, this.popAndCheckSignature(brTypes(label), 'br_on_null'));
@@ -1502,7 +1505,7 @@ export class TypeChecker {
 
   onBrOnNonNull(depth: number): Result {
     const actual = this.peekType(0);
-    let r = this.dropTypes(1);
+    let r = this.popAnyRef('br_on_non_null'); // a reference, as br_on_null's
     // The BRANCH carries the ref with its nullability removed — that is the
     // whole point of the instruction — so the target's `(ref $t)` slot must
     // see the non-null form, not the `(ref null $t)` that was popped.
@@ -1536,8 +1539,18 @@ export class TypeChecker {
    * this had to stand in with whatever the label declared, which proved
    * nothing; the `t*` below were checked for real and the reference was not.
    */
-  onBrOnCast(depth: number, name: string, branchRef: ValueType, fallRef: ValueType): Result {
-    let r = this.dropTypes(1); // the rt1 operand
+  onBrOnCast(
+    depth: number,
+    name: string,
+    branchRef: ValueType,
+    fallRef: ValueType,
+    operand: ValueType,
+  ): Result {
+    // 🔧 The operand must be an `rt1` — the source type the immediate names.
+    // It was dropped unchecked: `br_on_cast_fail … (ref null $t) …` of an
+    // `anyref` validated (open-work 13, the code lens: V8 says "expected type
+    // (ref null 0), found … anyref"; a spec `br_on_cast_fail` mutant).
+    let r = this.popAndCheck1Type(operand, name);
     const label = this.getLabel(depth);
     if (!label) return combineResults(r, Result.Error);
     const want = brTypes(label);

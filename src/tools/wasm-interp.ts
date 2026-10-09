@@ -95,6 +95,14 @@ function argValue(type: ValueType, text: string | undefined): Value {
       return { type, bytes: new Uint8Array(16) };
     default:
       if (text !== undefined) throw new Error(`cannot pass an argument of type ${String(type)}`);
+      // 🔧 A NON-NULLABLE reference has no default. `ref.null` was passed for
+      // `(ref extern)`, and a stand-in import returned it for one: the run went
+      // on with a value the type forbids, and printed results no valid
+      // execution has (open-work 13, the code lens: spec `local_init`,
+      // `type-equivalence`, against V8). The export is not run.
+      if (typeof type === 'object' && type !== null && 'nullable' in type && !type.nullable) {
+        throw new Stop('unsupported', 'no default value for a non-nullable reference');
+      }
       return { type: 'ref', kind: 'null' };
   }
 }
@@ -154,10 +162,11 @@ export function interpModule(
     const fn = inst.functionIndex(ex.var);
     const sig = functionSignature(module, fn);
     const given = ex.name === opts.runExport ? opts.args : [];
-    const args = sig.map((t, i) => argValue(t, given[i]));
+    let args: Value[] = [];
     inst.refuel(opts.fuel);
     let outcome: Invocation['outcome'];
     try {
+      args = sig.map((t, i) => argValue(t, given[i])); // may Stop: no default for the type
       outcome = { values: inst.invoke(ex.name, args) };
     } catch (e) {
       if (e instanceof Trap) outcome = { trap: e.message };

@@ -78,6 +78,15 @@
   i32's code); a negative heap type in more than one byte, which was also mis-decoded (a padded
   `func` read wrongly, and an out-of-range value read as `func`); and an unknown SIMD sub-opcode,
   read as a two-operand instruction. Each is now reported where it is read.
+- **The validator accepted five more invalid or malformed constructs that V8 refuses**: data and
+  element segment flags with an undefined bit (each bit was read alone and the rest ignored);
+  `br_on_cast` flags with an undefined bit; `br_on_null` / `br_on_non_null` of a value that is not
+  a reference; `br_on_cast` / `br_on_cast_fail` of an operand that is not their source type; and
+  `ref.null` of a type index past the type section. None of these changes a verdict on any module
+  of the spec or proposal testsuites.
+- `wasm-interp` passed `ref.null` for a non-nullable reference argument it defaults (and returned
+  it from a stand-in import), printing results no valid run has. Such an export is now reported
+  as stopped: there is no default for the type.
 - `wasm-interp` passed `ref.null` for a v128 argument it defaults, and for the result of a
   stand-in import returning a v128, and then stopped the run as `invalid`. It passes a v128 zero.
 
