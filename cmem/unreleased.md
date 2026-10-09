@@ -59,8 +59,10 @@ contains ([handoffs.md](handoffs.md)).
   block whose only branch is a leading `br_if` to itself into an `if`; NEW pass `CodeFolding`**
   (open-work 2, 6a / 6b / 6c, 2026-10-08): the loop shape `(block $out (loop $in (br_if $out c)
   …))` becomes `(loop $in (if (i32.eqz c) …))`; what both arms of an `if` end with is written
-  once after it. `CodeFolding` runs at -O2 and above (the function passes). Corpus -Oz 847,329 →
-  836,929 (−10,400), -O2 / -O3 likewise, -O1 unmoved; behaviour unchanged (the gates).
+  once after it. `CodeFolding` runs at -O2 and above (the function passes). `Precompute` folds a
+  read of an immutable, defined global with a constant initialiser into that constant (6d), and
+  `DeadArgumentElimination` runs once more before `Inlining`. Corpus -Oz 847,329 → 833,291
+  (−14,038), -O2 / -O3 likewise, -O1 unmoved; behaviour unchanged (the gates).
 - **NEW — `wasm-ctor-eval` and `wasm-interp`** (open-work 23, E4, 2026-10-08): two CLI commands
   and two subpaths, `./tools/wasm-ctor-eval` (`ctorEval(module, options)`) and
   `./tools/wasm-interp` (`interpModule(module, options)`), on the interpreter. `wasm-ctor-eval` runs

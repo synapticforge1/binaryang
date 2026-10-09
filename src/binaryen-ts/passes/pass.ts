@@ -473,6 +473,11 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     // does: an inlined call leaves its arguments copied into locals, constant
     // operands to fold, a wrapper block to remove (open-work 2, step 5).
     // `isInlineable` decides what -O3 adds over -O2 / -Os / -Oz.
+    // DAE again, before Inlining, as upstream's `dae-optimizing` sits: the
+    // first round turned reads of immutable constant globals into constants
+    // (Precompute, open-work 2 step 6d), so a parameter every caller now
+    // passes the same constant becomes a local — measured on the corpus.
+    passes.push('DeadArgumentElimination');
     passes.push('Inlining', ...FUNCTION_PASSES, 'Vacuum');
   }
   if (opts.shrinkLevel >= 1) {
