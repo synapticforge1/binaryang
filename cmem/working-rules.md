@@ -205,7 +205,7 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
 | tool                 | version | commands                                                                                                                             |
 | -------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | upstream wabt        | 1.0.41  | `wat2wasm` · `wasm2wat` · `wasm-validate` · `wasm-interp` · `wast2json` (installed 2026-09-02)                                       |
-| upstream binaryen    | 132     | `wasm-opt` · `wasm-as` · `wasm-dis` (installed 2026-09-02)                                                                           |
+| upstream binaryen    | 133     | `wasm-opt` · `wasm-as` · `wasm-dis` · `wasm-ctor-eval` (installed 2026-09-02 as 132; the scoop shim read 133 on 2026-10-08 — its -Oz is 6.5 KB better on the corpus, so a gap figure names the version) |
 | wasm-tools           | 1.259.0 | `parse` · `print` · `validate` · `json-from-wast` (installed 2026-09-11) — reaches GC text, label and field names, which wabt cannot |
 | `gh`                 | —       | ⬚ NOT installed                                                                                                                      |
 | the wider wasmtk set | —       | `.../wasmtk/tests` — 532 `.wat`, 511 `.wasm`, 288 `.wast`                                                                            |
