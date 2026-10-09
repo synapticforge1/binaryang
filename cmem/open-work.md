@@ -15,10 +15,11 @@ the evaluator, `wasm-ctor-eval` and `wasm-interp`, all four stages landed and me
 ([interpreter.md](interpreter.md); its number is kept free). **Item 2 CLOSED 2026-10-08** at 1.86%
 of upstream `-Oz` on the corpus, the owner's ≤ 2% ([optimizer.md](optimizer.md); its number is
 kept free). **Now: the 1.9.0 release** — prepared (`CHANGELOG.md` § 1.9.0, wasmtk's letter
-[handoffs.md](handoffs.md) § 26 drafted); the push, the version bump (the arming step, typed by
-hand: MINOR) and the letter are the owner's go. Then 24, 21 and the rounds 13 / 14. **6 open
-items, none blocking**; numbers 2–7, 9–12, 16, 17, 23 are gone and kept free. Re-derive any number
-before quoting it.
+[handoffs.md](handoffs.md) § 26 drafted). ✅ **Owner, 2026-10-08: "perform items 1 through 3"** —
+push `main`, verify CI, bump to 1.9.0 (typed by hand: MINOR), push (auto-tag publishes); then the
+letter goes as SENT; then **item 24** (`wasm-bundle`) is built. Then 21 and the rounds 13 / 14.
+**6 open items, none blocking**; numbers 2–7, 9–12, 16, 17, 23 are gone and kept free. Re-derive
+any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
