@@ -84,12 +84,16 @@ try {
     '--ignore-external-input',
     '-q',
   ]);
+  // Two inputs that export the same name, bundled under the prefix policy.
+  must(['wasm-bundle', f('t.wasm'), f('s.wasm'), '-o', f('b.wasm'), '--on-conflict=prefix', '-q']);
+  must(['wasm-validate', f('b.wasm')]);
   // wasm2ts is a deliberate stub: it must exit non-zero with a one-line message.
   if (cli(['wasm2ts', f('t.wasm')], 'ignore') === 0) {
     throw new Error('wasm2ts unexpectedly succeeded');
   }
 
-  for (const name of ['t.wasm', 's.wasm', 'o.wasm']) {
+  // `b.wit` is the bundle's interface, written beside it by default.
+  for (const name of ['t.wasm', 's.wasm', 'o.wasm', 'b.wasm', 'b.wit']) {
     let size = 0;
     try {
       size = statSync(f(name)).size;

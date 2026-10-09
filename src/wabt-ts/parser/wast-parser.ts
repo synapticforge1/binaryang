@@ -176,6 +176,7 @@ import {
 } from './token.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
 import { countImports } from '../ir/ir.ts';
+import type { RelocMark } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
 // WAST Script types
@@ -1841,6 +1842,129 @@ export class WastParser {
   private peekIsNameAnnotation(): boolean {
     const t = this.peekToken();
     return t.tokenType === TokenType.LparAnn && 'text' in t && t.text === 'name';
+  }
+
+  private peekIsRelocAnnotation(): boolean {
+    const t = this.peekToken();
+    return t.tokenType === TokenType.LparAnn && 'text' in t && t.text === 'reloc';
+  }
+
+  /**
+   * A `(@reloc …)` followed by an INSTRUCTION — as opposed to one followed
+   * by a data string, which a data field's offset expression must leave for
+   * {@link parseDataChunks}. A malformed mark counts: the instruction path
+   * reports it.
+   */
+  private peekIsRelocInstr(): boolean {
+    if (!this.peekIsRelocAnnotation()) return false;
+    let k = 2; // `(@reloc` `data`
+    if (this.peek(k) === TokenType.Var) k++;
+    if (this.peek(k) !== TokenType.Rpar) return true;
+    k++;
+    return isInstr(this.peek(k), this.peek(k + 1));
+  }
+
+  /**
+   * `(@reloc data)` or `(@reloc data $symbol)` — a relocation mark (open-work
+   * 24, `wasm-bundle`; {@link RelocMark}). What it marks is decided by where
+   * it stands: before an `i32.const` ({@link parseRelocInstr}) or before a
+   * data string ({@link parseDataChunks}). `data` is the one kind so far:
+   * the marked value is an address in this module's memory.
+   */
+  private parseRelocMark(): RelocMark | null {
+    const tok = this.consume() as { loc: Location }; // `(@reloc`
+    if (this.peek() !== TokenType.Data) {
+      this.error(tok.loc, '@reloc annotation: expected `data`');
+      return null;
+    }
+    this.drop();
+    let symbol: string | undefined;
+    if (this.peekMatchVar()) {
+      const v = this.parseVar();
+      if (v !== null && v.kind === 'name') symbol = v.name.replace(/^\$/, '');
+      else {
+        this.error(tok.loc, '@reloc annotation: the symbol must be a `$name`');
+        return null;
+      }
+    }
+    if (this.expect(TokenType.Rpar) !== Result.Ok) return null;
+    return symbol === undefined ? { kind: 'data' } : { kind: 'data', symbol };
+  }
+
+  /**
+   * A relocation mark on the NEXT instruction, which must be an `i32.const`
+   * (linear or folded — `(@reloc data) i32.const 1024`, `(@reloc data)
+   * (i32.const 1024)`): the constant is a memory address. Recorded on the
+   * node ({@link ConstExpr.reloc}); the binary writer emits it as a `linking`
+   * symbol and a `reloc.CODE` (or `reloc.GLOBAL`) entry. Any other
+   * instruction after it is an error, not a silent drop: a mark that
+   * vanished is an address that would not move.
+   */
+  private parseRelocInstr(ctx: ExprCtx): Result {
+    const loc = this.loc();
+    const mark = this.parseRelocMark();
+    if (mark === null) return Result.Error;
+    const misplaced = () => {
+      this.error(loc, '@reloc annotation: it belongs before an i32.const');
+      return Result.Error;
+    };
+    if (!this.peekIsInstr()) return misplaced();
+    const before = ctx.stack.length;
+    const r = this.parseOneInstr(ctx);
+    if (r !== Result.Ok) return r;
+    const top = ctx.stack[ctx.stack.length - 1];
+    if (
+      ctx.stack.length !== before + 1 || top === undefined || top.kind !== 'const' ||
+      top.value.type !== Type.I32
+    ) {
+      return misplaced();
+    }
+    (top as { reloc?: RelocMark }).reloc = mark;
+    return Result.Ok;
+  }
+
+  /**
+   * A data segment's strings, with `(@reloc data)` before any of them: every
+   * 4-byte word of a marked string is an address ({@link DataSegment.relocs}).
+   * A marked string that is not whole words is an error.
+   */
+  private parseDataChunks(): { data: Uint8Array; relocs: { offset: number; mark: RelocMark }[] } {
+    const chunks: Uint8Array[] = [];
+    const relocs: { offset: number; mark: RelocMark }[] = [];
+    let total = 0;
+    for (;;) {
+      if (this.peekIsRelocAnnotation()) {
+        const loc = this.loc();
+        const mark = this.parseRelocMark();
+        if (mark === null) break;
+        if (this.peek() !== TokenType.Text) {
+          this.error(loc, '@reloc annotation: in a data segment it belongs before a string');
+          break;
+        }
+        const bytes = decodeStringToken((this.consume() as StringToken).text);
+        if (bytes.length % 4 !== 0) {
+          this.error(
+            loc,
+            `@reloc annotation: the string it marks must be whole i32 words (${bytes.length} bytes)`,
+          );
+          break;
+        }
+        for (let o = 0; o < bytes.length; o += 4) relocs.push({ offset: total + o, mark });
+        chunks.push(bytes);
+        total += bytes.length;
+      } else if (this.peek() === TokenType.Text) {
+        const bytes = decodeStringToken((this.consume() as StringToken).text);
+        chunks.push(bytes);
+        total += bytes.length;
+      } else break;
+    }
+    const data = new Uint8Array(total);
+    let at = 0;
+    for (const c of chunks) {
+      data.set(c, at);
+      at += c.length;
+    }
+    return { data, relocs };
   }
 
   /**
@@ -3532,8 +3656,9 @@ export class WastParser {
       if (offset.length > 0) kind = 'active';
     }
 
-    const data = this.parseTextList();
+    const { data, relocs } = this.parseDataChunks();
     this.expect(TokenType.Rpar);
+    const marked = relocs.length > 0 ? { relocs } : {};
 
     if (kind === 'active') {
       module.dataSegments.push({
@@ -3543,6 +3668,7 @@ export class WastParser {
         offset: region(offset, loc),
         data,
         loc,
+        ...marked,
       });
     } else {
       module.dataSegments.push({
@@ -3551,6 +3677,7 @@ export class WastParser {
         memoryVar: varIndex(0),
         data,
         loc,
+        ...marked,
       });
     }
     return Result.Ok;
@@ -3764,6 +3891,8 @@ export class WastParser {
         if (this.parseOneInstr(ctx) !== Result.Ok) break;
       } else if (this.peekIsCodeMetadata()) {
         if (this.parseCodeMetadataAnnotation(ctx) !== Result.Ok) break;
+      } else if (this.peekIsRelocInstr()) {
+        if (this.parseRelocInstr(ctx) !== Result.Ok) break;
       } else {
         break;
       }
@@ -3846,6 +3975,7 @@ export class WastParser {
   }
 
   private parseOneInstr(ctx: ExprCtx): Result {
+    if (this.peekIsRelocAnnotation()) return this.parseRelocInstr(ctx);
     if (this.peek() === TokenType.Lpar) {
       // folded expression
       const next = this.peek(1);
@@ -3931,10 +4061,13 @@ export class WastParser {
     const innerCtx = newCtx();
     let inner = 0; // folded items written inside the parens (S7)
     while (
-      this.peek() === TokenType.Lpar &&
-      (isPlainInstr(this.peek(1)) || isBlockInstr(this.peek(1)))
+      (this.peek() === TokenType.Lpar &&
+        (isPlainInstr(this.peek(1)) || isBlockInstr(this.peek(1)))) ||
+      this.peekIsRelocInstr()
     ) {
-      this.parseOneInstr(innerCtx);
+      // A `(@reloc data)` among the children marks the child after it.
+      if (this.peekIsRelocInstr()) this.parseRelocInstr(innerCtx);
+      else this.parseOneInstr(innerCtx);
       inner++;
     }
     // 🔧 Collected WITH their `pop`s: among an instruction's folded children a

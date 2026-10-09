@@ -130,6 +130,33 @@ import {
   WASM_VERSION,
 } from '../core/binary.ts';
 import { MemoryStream } from './stream.ts';
+import {
+  encodeLinkingSection,
+  encodeRelocSection,
+  LINKING_SECTION_NAME,
+  type LinkingSymbol,
+  listSections,
+  RELOC_SECTION_PREFIX,
+  type RelocEntry,
+  RelocType,
+  SYM_UNDEFINED,
+  SymbolKind,
+} from '../core/linking.ts';
+
+/**
+ * One relocatable immediate written (open-work 24): where it sits relative to
+ * its section's payload, the entry type, the symbol it names and the value it
+ * holds (the addend against an undefined symbol — see {@link RelocMark}).
+ */
+interface RelocSite {
+  offset: number;
+  type: RelocType;
+  symbol: string;
+  addend: number;
+}
+
+/** The default symbol a `(@reloc data)` mark names. */
+const RELOC_DEFAULT_SYMBOL = '__memory_image';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { blockTypeOf, BrOnOp, localNameEntries } from '../ir/ir.ts';
@@ -478,6 +505,14 @@ class BodyWriter implements ExprVisitorDelegate {
   labelNames: [number, string][] = [];
   private labelCount = 0;
 
+  /**
+   * Where a `(@reloc …)` mark's entry goes while a section that can hold one
+   * is being written — the section's payload start and its entry list — or
+   * `undefined` elsewhere (open-work 24). Set by `BinaryWriter` around the
+   * code and global sections.
+   */
+  relocTarget: { start: number; sites: RelocSite[] } | undefined;
+
   constructor(s: MemoryStream, fidelity: FidelityTable) {
     this.s = s;
     this.fidelity = fidelity;
@@ -732,7 +767,24 @@ class BodyWriter implements ExprVisitorDelegate {
     const v = e.value;
     if (v.type === Type.I32) {
       this.s.writeU8(Opcode.I32Const);
+      if (e.reloc !== undefined) {
+        // The mark's entry: this immediate's offset in the section being
+        // written. A mark outside the code and global sections (an element
+        // segment's offset, say) has no section to be recorded against.
+        const t = this.relocTarget;
+        if (t === undefined) {
+          throw new Error('binary writer: a (@reloc) mark outside a function body or a global');
+        }
+        t.sites.push({
+          offset: this.s.offset - t.start,
+          type: RelocType.MemoryAddrSleb,
+          symbol: e.reloc.symbol ?? RELOC_DEFAULT_SYMBOL,
+          addend: v.value,
+        });
+      }
       this.s.writeS32Leb(v.value);
+    } else if (e.reloc !== undefined) {
+      throw new Error('binary writer: a (@reloc) mark on a constant that is not an i32');
     } else if (v.type === Type.I64) {
       this.s.writeU8(Opcode.I64Const);
       this.s.writeS64Leb(v.value);
@@ -1332,6 +1384,17 @@ class BinaryWriter {
   /** Named labels by FUNCTION INDEX, collected as the code section is written. */
   private readonly labelNames = new Map<number, [number, string][]>();
 
+  /**
+   * The relocation entries the `(@reloc …)` marks produced, per section
+   * (open-work 24), written as `linking` + `reloc.CODE` / `reloc.GLOBAL` /
+   * `reloc.DATA` at the end of the binary when any exist.
+   */
+  private readonly relocSites = {
+    [BinarySection.Code]: [] as RelocSite[],
+    [BinarySection.Global]: [] as RelocSite[],
+    [BinarySection.Data]: [] as RelocSite[],
+  };
+
   private readonly writeTextForm: boolean;
 
   constructor(m: Module, writeDebugNames: boolean, writeTextForm: boolean) {
@@ -1541,12 +1604,17 @@ class BinaryWriter {
     const { m, s } = this;
     if (m.globals.length === 0) return;
     s.writeSection(BinarySection.Global, () => {
+      this.bodyWriter.relocTarget = {
+        start: s.offset,
+        sites: this.relocSites[BinarySection.Global],
+      };
       s.writeU32Leb(m.globals.length);
       for (const g of m.globals) {
         writeValueType(s, g.type);
         s.writeU8(g.mutable ? 1 : 0);
         this.writeInitExpr(g.init, `global ${g.name || '(unnamed)'}'s initializer`);
       }
+      this.bodyWriter.relocTarget = undefined;
     });
   }
 
@@ -1692,6 +1760,7 @@ class BinaryWriter {
     const { s } = this;
     const sizePos = s.reserveU32Leb();
     const start = s.offset;
+    const sitesBefore = this.bodyWriter.relocTarget?.sites.length ?? 0;
 
     // Local declarations, genuinely run-length encoded.
     //
@@ -1746,7 +1815,17 @@ class BinaryWriter {
     // End
     s.writeU8(Opcode.End);
 
+    // The size was reserved at its widest; patching it SLIDES the body down,
+    // and every relocation entry recorded inside the body (open-work 24) was
+    // measured before the slide — section-relative, so each moves by the gap.
+    const target = this.bodyWriter.relocTarget;
+    const recorded = target === undefined ? 0 : target.sites.length;
+    const before = s.offset;
     s.patchU32Leb(sizePos, s.offset - start);
+    const gap = before - s.offset;
+    if (target !== undefined && gap > 0) {
+      for (let i = sitesBefore; i < recorded; i++) target.sites[i]!.offset -= gap;
+    }
   }
 
   private writeCodeSection(): void {
@@ -1755,8 +1834,12 @@ class BinaryWriter {
     const firstDefined = m.imports.filter((i) => i.kind === ExternalKind.Func).length;
     const codeStart = s.offset;
     s.writeSection(BinarySection.Code, () => {
+      // Relocation entries are relative to the payload, which starts here;
+      // the section's size LEB is patched BEFORE it, so they hold.
+      this.bodyWriter.relocTarget = { start: s.offset, sites: this.relocSites[BinarySection.Code] };
       s.writeU32Leb(m.functions.length);
       m.functions.forEach((f, i) => this.writeFuncBody(f, firstDefined + i));
+      this.bodyWriter.relocTarget = undefined;
     });
     this.writeCodeMetadataSections(codeStart);
   }
@@ -1812,6 +1895,7 @@ class BinaryWriter {
     const { m, s } = this;
     if (m.dataSegments.length === 0) return;
     s.writeSection(BinarySection.Data, () => {
+      const sectionStart = s.offset;
       s.writeU32Leb(m.dataSegments.length);
       for (const seg of m.dataSegments) {
         const memIdx = varIndexValue(seg.memoryVar, 'data segment memory');
@@ -1830,9 +1914,81 @@ class BinaryWriter {
           throw new Error(`binary writer: invalid data segment kind "${seg.kind}"`);
         }
         s.writeU32Leb(seg.data.length);
+        // The marked words (open-work 24): each a `reloc.DATA` entry at the
+        // word's offset in the section, holding the word as its addend.
+        for (const r of seg.relocs ?? []) {
+          if (r.offset < 0 || r.offset + 4 > seg.data.length) {
+            throw new Error(
+              `binary writer: a (@reloc) mark at ${r.offset} is outside its data segment`,
+            );
+          }
+          const word = (seg.data[r.offset]! | (seg.data[r.offset + 1]! << 8) |
+            (seg.data[r.offset + 2]! << 16) | (seg.data[r.offset + 3]! << 24)) | 0;
+          this.relocSites[BinarySection.Data].push({
+            offset: s.offset - sectionStart + r.offset,
+            type: RelocType.MemoryAddrI32,
+            symbol: r.mark.symbol ?? RELOC_DEFAULT_SYMBOL,
+            addend: word,
+          });
+        }
         s.writeBytes(seg.data);
       }
     });
+  }
+
+  /**
+   * The `linking` section and one `reloc.*` section per section that holds a
+   * `(@reloc …)` mark, appended LAST (open-work 24) — their position does not
+   * matter, and only once everything else is written are the section indices
+   * a `reloc.*` entry names known. Every symbol is an UNDEFINED data symbol:
+   * the mark says "an address in this memory", not which object, so the
+   * entry's addend IS the address, and nothing but the name distinguishes
+   * two symbols. `wasm-bundle` reads these as it reads `wasm-ld`'s.
+   */
+  private writeRelocSections(): void {
+    const { s } = this;
+    const targets: [keyof BinaryWriter['relocSites'], string][] = [
+      [BinarySection.Code, 'CODE'],
+      [BinarySection.Global, 'GLOBAL'],
+      [BinarySection.Data, 'DATA'],
+    ];
+    if (targets.every(([id]) => this.relocSites[id].length === 0)) return;
+    const symbols: LinkingSymbol[] = [];
+    const symbolIndex = new Map<string, number>();
+    const indexOf = (name: string): number => {
+      let i = symbolIndex.get(name);
+      if (i === undefined) {
+        i = symbols.length;
+        symbols.push({ kind: SymbolKind.Data, flags: SYM_UNDEFINED, name });
+        symbolIndex.set(name, i);
+      }
+      return i;
+    };
+    const sections = listSections(s.toUint8Array());
+    s.writeSection(BinarySection.Custom, () => {
+      s.writeName(LINKING_SECTION_NAME);
+      // Symbols are numbered as the entries name them, in section order.
+      for (const [id] of targets) for (const site of this.relocSites[id]) indexOf(site.symbol);
+      s.writeBytes(encodeLinkingSection(symbols));
+    });
+    for (const [id, name] of targets) {
+      const sites = this.relocSites[id];
+      if (sites.length === 0) continue;
+      const target = sections.find((x) => x.id === id);
+      if (target === undefined) {
+        throw new Error(`binary writer: no section ${id} for its reloc.${name}`);
+      }
+      const entries: RelocEntry[] = sites.map((site) => ({
+        type: site.type,
+        offset: site.offset,
+        index: indexOf(site.symbol),
+        addend: site.addend,
+      }));
+      s.writeSection(BinarySection.Custom, () => {
+        s.writeName(RELOC_SECTION_PREFIX + name);
+        s.writeBytes(encodeRelocSection(target.index, entries));
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -2121,6 +2277,7 @@ class BinaryWriter {
         s.writeBytes(textForm);
       });
     }
+    this.writeRelocSections();
 
     return s.toUint8Array();
   }
