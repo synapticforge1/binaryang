@@ -323,6 +323,12 @@ every prepared spec module, at -O1 … -Oz). The hand-written traversals (`deriv
        code +23,550, data +2,833, global +549 (`gap.ts`); ≤ 2% is ~16.2 KB, so ~10.7 KB to find.**
        Next (`1_if-else`, +1,180: upstream folded five reads of an immutable `f64` global into
        its constant, then its DAE and Precompute collapsed a function called thrice with it):
+     - ✅ **6d — a read of an immutable constant global is its constant** (Precompute; defined,
+       not imported, not mutable, initialiser one constant), **and DAE once more before
+       Inlining** (upstream's `dae-optimizing` placement): -Oz 836,929 → 834,556 (−2,373) →
+       **833,291 (−1,265 more)**; -O2 −3,780, -O3 −3,376. `1_if-else` 3,337 → 2,532 (upstream
+       2,153). `precompute.test.ts`, the mutability mutant killed. Gate green; the gap re-derived
+       **23,305 (2.88%)**, code +20,390, data +2,833, global +116.
        then the ranked rest for the owner's judgement — on the re-rank above, after this round:
        precompute's remainder (immutable-global reads: −75 `global.get`, −397 `const`), `rse`
        (−922 `local.set`: redundant sets of a value the local already holds), SimplifyGlobals
