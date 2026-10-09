@@ -13,7 +13,7 @@ deprecated names in a later minor.
 | 1 — one tree | `src/binaryen-ts/` and `src/wabt-ts/` → `src/` by concept: 105 files by `git mv`; 2,162 relative path literals rewritten by a resolver (each resolved from its file's OLD place); 19 `deno.json` exports retargeted, every subpath kept; the orphan `src/wabt-ts/index.ts` barrel and 7 `.gitkeep`s removed; 62 `@module` tags. The layout: [project.md](project.md) § "Layout". | `3e9d03b88` |
 | 2 — one name each | duplicate exported type names **88 → 3**: 78 proven the same type name by name and made re-exports of the one declaration in `ir/ir.ts`; `RefType` made the IR's read-only `RefValueType`, after which `ValueType`, `StorageType`, `FuncSignature`, `BlockParams`, `Catch`, `TableCatch` were the same types too | `efde502fc` |
 | 3 — logic twice | core's unused `LiteralType` enum removed; `funcAt` / `funcSignature` in `ir/ir.ts` replace three private copies of one walk (`wasm-interp`, `witgen`, `wasm-bundle`) | `efde502fc` |
-| 4 — one subpath | **`./ir`** exports everything `./ir/wabt-ts`, `./ir/binaryen-ts` and `./core/wabt-ts` did; the three stay one release, DEPRECATED. binaryen-ts's `Type` union is `ExprType` everywhere in the code; `./ir/binaryen-ts` and `./api` still offer `Type` as a deprecated alias of it. Duplicate names **3 → 2** (the compat names, kept). | this file's commit |
+| 4 — one subpath | **`./ir`** exports everything `./ir/wabt-ts`, `./ir/binaryen-ts` and `./core/wabt-ts` did; the three stay one release, DEPRECATED. binaryen-ts's `Type` union is `ExprType` everywhere in the code; `./ir/binaryen-ts` and `./api` still offer `Type` as a deprecated alias of it. Duplicate names **3 → 2**, then **0** with the compat rename. | this file's commit |
 
 Every phase: the full gate on its committed tree (21 / 21), the suite from a fresh clone, `baseline`
 IDENTICAL (421 / 421) — no output byte moved anywhere in the item.
@@ -25,8 +25,12 @@ IDENTICAL (421 / 421) — no output byte moved anywhere in the item.
 - **`RefType` tightened to the IR's read-only record**, not the IR loosened: a reference record may
   be shared between nodes, so the IR's `readonly` is a guard worth keeping; nothing in the repo
   assigned the fields. ⚠️ Type-level BREAKING for an outside caller that did — in the release note.
-- **The compat layer's `WasmModule` and `Features` stay** (owner, 2026-10-09): upstream wabt.js's
-  names, which `compat/wabt` exists to reproduce. They are the 2 the collision count still shows.
+- **The compat layer's `WasmModule` and `Features`: kept, then RENAMED the same day** (owner,
+  2026-10-09). First kept as upstream-shaped names. Then, weighed: they never met ours on one import
+  surface, but `./compat/wabt` IS public, so a plain rename would have broken anyone who named those
+  types; wasmtk declares its own local types and does not. Done as `Type` was: the declarations
+  became `WabtFeatures` / `WabtWasmModule`, the old names deprecated re-exports for one release
+  (`compat_type_names.test.ts`). The collision count went 2 → **0**.
 - **`Type` in `./ir` is core's enum; the union is `ExprType`** — measured before deciding: the three
   subpaths exported 288 / 195 / 20 names, 88 shared ones all from ONE declaration, and the only clash
   was `Type`; binaryen-ts's union was proven EXACTLY `ExprType` (a compile-time identity with a

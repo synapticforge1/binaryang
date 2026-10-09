@@ -62,3 +62,9 @@ public summary is `CHANGELOG.md` § 1.10.0.
   name in `./ir/binaryen-ts` and `./api` (now an alias of `ExprType`): they stay this release and go
   in a later minor (open-work item 25). Say "import from `./ir`" in the note, with the `Type` →
   `ExprType` line for `./ir/binaryen-ts` users.
+- **DEPRECATED — `./compat/wabt`'s `Features` and `WasmModule` type names** (2026-10-09, owner:
+  "renaming the compat pair seems the correct path"): renamed `WabtFeatures` / `WabtWasmModule`, the
+  old names re-exported as deprecated aliases (`compat_type_names.test.ts` pins them). Type names
+  only — nothing at run time. wasmtk declares its own local types for these
+  (`WabtWasmModule`, `WasmFeatures`), so its build does not depend on them; say so in the letter.
+  `deno task collisions` = **0**.
