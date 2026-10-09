@@ -157,7 +157,7 @@ COMMANDS:
                         --run-export=NAME         One export, with --argument=V (repeat)
                         --dummy-import-func       Imported functions return zeros
                         --hang-check=SECONDS      Stop a loop that provably never exits
-                                                  (checked every 20 s by default)
+                                                  (checked every 2 s by default)
   wasm-bundle <in>...   Bundle modules into one, with one memory relocated exactly
                         -o <file>                 Output file (default: bundle.wasm)
                         --on-conflict=MODE        Same export in two inputs: prefix | alias | exclude

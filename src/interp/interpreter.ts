@@ -319,10 +319,14 @@ export interface InterpreterOptions {
   fuel?: number;
   /**
    * Milliseconds of running before the first check for a loop that provably
-   * never exits, and between checks — `null` for none. Default 20,000 (owner,
-   * 2026-10-09: "checking for stack changes after say 20s minimum intervals";
-   * fuel stays the deterministic bound). A check costs nothing until it is
-   * due; see {@link Interpreter.backEdge}. `0` checks from the start.
+   * never exits, and between checks — `null` for none. Default 2,000 (owner,
+   * 2026-10-09; fuel stays the deterministic bound): just above the slowest
+   * real run measured — 1.36 s of 58,371 spec testsuite calls, 0.45 s of 588
+   * calls into wasmtk's producer programs — so an ordinary run is never
+   * sampled, and a stuck one is reported within seconds. The interval sets
+   * the cost and how soon, never WHETHER: the check cannot misfire. A check
+   * costs nothing until it is due; see {@link Interpreter.backEdge}. `0`
+   * checks from the start.
    */
   hangCheck?: number | null;
   /**
@@ -787,7 +791,7 @@ export class Interpreter {
     this.maxDepth = options.maxDepth ?? 1000;
     this.types = typesOf(module.types);
     this.fuel = options.fuel ?? Infinity;
-    this.hangInterval = options.hangCheck === undefined ? 20_000 : options.hangCheck;
+    this.hangInterval = options.hangCheck === undefined ? 2_000 : options.hangCheck;
     if (this.hangInterval !== null) this.hangDue = Date.now() + this.hangInterval;
     // `0`: check from the first loop back-edge, without waiting for the clock.
     this.hangArmed = this.hangInterval === 0;

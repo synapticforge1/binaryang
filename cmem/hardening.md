@@ -119,14 +119,28 @@ in values proves nothing (a counter changes every pass and may never exit). What
 loop that comes back to its top with the same locals and operand stack, having run nothing that
 could change anything else, repeats forever. The owner chose that, "after say 20s minimum
 intervals ... the best of fuel and trust but verify": fuel stays the deterministic bound; the check
-(`InterpreterOptions.hangCheck`, default 20,000 ms; `wasm-interp --hang-check=SECONDS`,
+(`InterpreterOptions.hangCheck`, default 2,000 ms — see below; `wasm-interp --hang-check=SECONDS`,
 `--no-hang-check`) samples one loop per interval and stops only on the proof — a `Stop` with the
 new reason `hang`. Sound by construction (`HANG_SAFE` lists the instructions that cannot change
 state outside the frame; anything else spoils the sample). Measured: 0–5% (noise) while no check is
 due; a spin is caught on its second pass once one is; the clock is read every 65,536 instructions,
-so a slow branch spin is noticed up to ~1 s late. My recommendation to the owner was a shorter
-interval (~2 s): the interval changes only how soon a real hang is reported, never whether, and the
-check's cost does not depend on it. Tests: `tests/binaryen-ts/interp/hang_check.test.ts`.
+so a slow branch spin is noticed up to ~1 s late. Tests: `tests/binaryen-ts/interp/hang_check.test.ts`.
+
+**The interval, set from a measurement (owner, 2026-10-09: "I agree" — 20 s → 2 s).** Every call
+timed with the check off (scratch `runtime/`):
+
+| workload | calls | mean | median | p99 | p99.9 | max | over 2 s |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| the spec testsuite (six corpora) | 58,371 | 0.30 ms | 0.002 ms | 0.13 ms | 7.5 ms | 1.36 s | 0 |
+| wasmtk's producer programs (`tests/wasi/wasm_wasi`, every export, stand-in imports) | 588 | 7.0 ms | 0.09 ms | 92 ms | 446 ms | 0.45 s | 0 |
+
+Two more calls ran to fuel (100M instructions, 11–17 s): the Zig `1_fib` programs' `_start` under
+stand-in imports — a loop through a host call (likely a read or write retried against a host that
+answers zero), which the check cannot prove by design; fuel stops it. **The interval is set from
+the TAIL, not the mean:** it decides the check's cost (an interval shorter than a run samples during
+ordinary work — at 0 a loop calling a function ran 16× slower) and how soon a stuck loop is
+reported, never WHETHER a loop is judged stuck. 2 s sits just above the slowest real run, so no
+ordinary run is ever sampled, and a stuck spin is reported in 2–3 s instead of 20.
 
 **Noted, not fixed:** a bare `(loop (br 0))` runs ~10× slower per instruction than a counted loop —
 every branch is a thrown JavaScript exception. A speed item for the interpreter, not hardening.

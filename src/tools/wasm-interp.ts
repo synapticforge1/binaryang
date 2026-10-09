@@ -62,7 +62,7 @@ const defaults: WasmInterpOptions = {
   args: [],
   dummyImportFunc: false,
   fuel: 1_000_000_000,
-  hangCheck: 20_000,
+  hangCheck: 2_000,
 };
 
 /** One call's line of output. */
@@ -191,7 +191,7 @@ function usage(): void {
     '  --hang-check=SECONDS       Check for a loop that provably never exits after this long,',
   );
   console.error(
-    '                             and every this long after (default 20; 0 from the start)',
+    '                             and every this long after (default 2; 0 from the start)',
   );
   console.error('  --no-hang-check            Do not check');
 }
