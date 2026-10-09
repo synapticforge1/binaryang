@@ -320,7 +320,146 @@ class ResolveContext {
     return result;
   }
 
+  /**
+   * One node, resolved. A five-way DISPATCHER on purpose (open-work 13, pass 2):
+   * V8 sizes a function's frame for every path through it, and the switch in
+   * {@link resolveOperator} is 700 lines, so EVERY level of nesting paid its
+   * whole frame — name resolution gave up near 400 nested blocks, the lowest
+   * ceiling of any stage. The constructs that nest now recurse through small
+   * frames: this one and `resolve<Kind>`.
+   */
   private resolveExpr(e: Expr): [Result, Expr] {
+    switch (e.kind) {
+      case 'block':
+        return this.resolveBlock(e);
+      case 'loop':
+        return this.resolveLoop(e);
+      case 'if':
+        return this.resolveIf(e);
+      case 'try':
+        return this.resolveTry(e);
+      case 'try_table':
+        return this.resolveTryTable(e);
+      default:
+        return this.resolveOperator(e);
+    }
+  }
+
+  /** `block` — split out of {@link resolveExpr}'s switch (open-work 13, pass 2). */
+  private resolveBlock(e: Extract<Expr, { kind: 'block' }>): [Result, Expr] {
+    const loc = locOf(e);
+    const type = this.resolveBlockResult(e.type, loc);
+    const [rP, params] = this.resolveEntryParams(e, loc);
+    this.labelStack.push(e.label);
+    const [r, children] = this.resolveExprArray(e.children);
+    this.labelStack.pop();
+    return [combine(rP, r), { ...e, type, ...params, children }];
+  }
+
+  /** `loop` — split out of {@link resolveExpr}'s switch (open-work 13, pass 2). */
+  private resolveLoop(e: Extract<Expr, { kind: 'loop' }>): [Result, Expr] {
+    const loc = locOf(e);
+    const type = this.resolveBlockResult(e.type, loc);
+    const [rP, params] = this.resolveEntryParams(e, loc);
+    this.labelStack.push(e.label);
+    const [r, body] = this.resolveRegion(e.body);
+    this.labelStack.pop();
+    return [combine(rP, r), { ...e, type, ...params, body }];
+  }
+
+  /** `if` — split out of {@link resolveExpr}'s switch (open-work 13, pass 2). */
+  private resolveIf(e: Extract<Expr, { kind: 'if' }>): [Result, Expr] {
+    const loc = locOf(e);
+    const type = this.resolveBlockResult(e.type, loc);
+    const [rP, params] = this.resolveEntryParams(e, loc);
+    const [rC0, cond] = this.resolveExpr(e.condition);
+    const rC = combine(rP, rC0);
+    this.labelStack.push(e.label);
+    const [rT, ifTrue] = this.resolveRegion(e.ifTrue);
+    const [rE, ifFalse] = e.ifFalse === null ? [Result.Ok, null] : this.resolveRegion(e.ifFalse);
+    this.labelStack.pop();
+    return [combine(rC, combine(rT, rE)), {
+      ...e,
+      type,
+      ...params,
+      condition: cond,
+      ifTrue,
+      ifFalse,
+    }];
+  }
+
+  /** `try` — split out of {@link resolveExpr}'s switch (open-work 13, pass 2). */
+  private resolveTry(e: Extract<Expr, { kind: 'try' }>): [Result, Expr] {
+    const loc = locOf(e);
+    const type = this.resolveBlockResult(e.type, loc);
+    const [rP, params] = this.resolveEntryParams(e, loc);
+    this.labelStack.push(e.label);
+    const [rB, body] = this.resolveRegion(e.body);
+    let result = combine(rP, rB);
+    const newCatches = [];
+    for (const c of e.catches) {
+      const [rC, catchBody] = this.resolveRegion(c.body);
+      result = combine(result, rC);
+      // Resolve the catch's tag reference ($name → tag index); the
+      // binary writer / validator read c.tag as an index. catch_all
+      // clauses carry no tag.
+      newCatches.push(
+        c.tag === undefined
+          ? { ...c, body: catchBody }
+          : { ...c, tag: this.resolveTagVar(c.tag, loc), body: catchBody },
+      );
+    }
+    this.labelStack.pop();
+    // `delegate $target` references an outer label scope (the try's own
+    // label is not in scope for it), so resolve it after the pop.
+    if (e.delegate !== undefined) {
+      return [result, {
+        ...e,
+        type,
+        ...params,
+        body,
+        catches: newCatches,
+        delegate: this.resolveLabelVar(e.delegate, loc),
+      }];
+    }
+    return [result, { ...e, type, ...params, body, catches: newCatches }];
+  }
+
+  /** `try_table` — split out of {@link resolveExpr}'s switch (open-work 13, pass 2). */
+  private resolveTryTable(e: Extract<Expr, { kind: 'try_table' }>): [Result, Expr] {
+    const loc = locOf(e);
+    // The catch clauses' tag and branch target were never resolved at all,
+    // so a `try_table (catch $e $l)` emitted tag 0 and label 0 — silently
+    // dispatching the wrong tag to the wrong block.
+    //
+    // Resolve the targets in the ENCLOSING scope, with the try_table's own
+    // label NOT yet pushed: `(block $h (try_table (catch $e $h) …))`
+    // encodes `$h` as depth 0. Verified against V8 by emitting depths
+    // 0/1/2 for that exact shape — only 0 is accepted. (An earlier pass
+    // here pushed first, which reads naturally from the spec's
+    // "C, label [t*] ⊢ catch*" rule but is off by one in the encoding.)
+    // Two arms because a `catch_all` clause OMITS the tag key
+    // (`exactOptionalPropertyTypes`); the spread carries `isRef` through.
+    const catches: TableCatch[] = e.catches.map((c) => {
+      const target = this.resolveLabelVar(c.target, loc);
+      return c.tag === undefined
+        ? { ...c, target }
+        : { ...c, tag: this.resolveTagVar(c.tag, loc), target };
+    });
+    const [rP, params] = this.resolveEntryParams(e, loc);
+    this.labelStack.push(e.label);
+    const [r, body] = this.resolveRegion(e.body);
+    this.labelStack.pop();
+    return [combine(rP, r), {
+      ...e,
+      type: this.resolveBlockResult(e.type, loc),
+      ...params,
+      catches,
+      body,
+    }];
+  }
+
+  private resolveOperator(e: Expr): [Result, Expr] {
     // INTENT OF EVERY ARM BELOW: this switch must be TOTAL on two independent
     // axes, and an arm has to satisfy both.
     //
@@ -430,107 +569,6 @@ class ResolveContext {
       // ⚠️ Two arms, not one: `block` holds `children` and `loop` holds `body`
       // (stage (d1)). A shared arm returning `{ ...e, body }` type-checks for a
       // block — the spread adds a stray key — and leaves `children` unresolved.
-      case 'block': {
-        const type = this.resolveBlockResult(e.type, loc);
-        const [rP, params] = this.resolveEntryParams(e, loc);
-        this.labelStack.push(e.label);
-        const [r, children] = this.resolveExprArray(e.children);
-        this.labelStack.pop();
-        return [combine(rP, r), { ...e, type, ...params, children }];
-      }
-      case 'loop': {
-        const type = this.resolveBlockResult(e.type, loc);
-        const [rP, params] = this.resolveEntryParams(e, loc);
-        this.labelStack.push(e.label);
-        const [r, body] = this.resolveRegion(e.body);
-        this.labelStack.pop();
-        return [combine(rP, r), { ...e, type, ...params, body }];
-      }
-      case 'if': {
-        const type = this.resolveBlockResult(e.type, loc);
-        const [rP, params] = this.resolveEntryParams(e, loc);
-        const [rC0, cond] = this.resolveExpr(e.condition);
-        const rC = combine(rP, rC0);
-        this.labelStack.push(e.label);
-        const [rT, ifTrue] = this.resolveRegion(e.ifTrue);
-        const [rE, ifFalse] = e.ifFalse === null
-          ? [Result.Ok, null]
-          : this.resolveRegion(e.ifFalse);
-        this.labelStack.pop();
-        return [combine(rC, combine(rT, rE)), {
-          ...e,
-          type,
-          ...params,
-          condition: cond,
-          ifTrue,
-          ifFalse,
-        }];
-      }
-      case 'try': {
-        const type = this.resolveBlockResult(e.type, loc);
-        const [rP, params] = this.resolveEntryParams(e, loc);
-        this.labelStack.push(e.label);
-        const [rB, body] = this.resolveRegion(e.body);
-        let result = combine(rP, rB);
-        const newCatches = [];
-        for (const c of e.catches) {
-          const [rC, catchBody] = this.resolveRegion(c.body);
-          result = combine(result, rC);
-          // Resolve the catch's tag reference ($name → tag index); the
-          // binary writer / validator read c.tag as an index. catch_all
-          // clauses carry no tag.
-          newCatches.push(
-            c.tag === undefined
-              ? { ...c, body: catchBody }
-              : { ...c, tag: this.resolveTagVar(c.tag, loc), body: catchBody },
-          );
-        }
-        this.labelStack.pop();
-        // `delegate $target` references an outer label scope (the try's own
-        // label is not in scope for it), so resolve it after the pop.
-        if (e.delegate !== undefined) {
-          return [result, {
-            ...e,
-            type,
-            ...params,
-            body,
-            catches: newCatches,
-            delegate: this.resolveLabelVar(e.delegate, loc),
-          }];
-        }
-        return [result, { ...e, type, ...params, body, catches: newCatches }];
-      }
-      case 'try_table': {
-        // The catch clauses' tag and branch target were never resolved at all,
-        // so a `try_table (catch $e $l)` emitted tag 0 and label 0 — silently
-        // dispatching the wrong tag to the wrong block.
-        //
-        // Resolve the targets in the ENCLOSING scope, with the try_table's own
-        // label NOT yet pushed: `(block $h (try_table (catch $e $h) …))`
-        // encodes `$h` as depth 0. Verified against V8 by emitting depths
-        // 0/1/2 for that exact shape — only 0 is accepted. (An earlier pass
-        // here pushed first, which reads naturally from the spec's
-        // "C, label [t*] ⊢ catch*" rule but is off by one in the encoding.)
-        // Two arms because a `catch_all` clause OMITS the tag key
-        // (`exactOptionalPropertyTypes`); the spread carries `isRef` through.
-        const catches: TableCatch[] = e.catches.map((c) => {
-          const target = this.resolveLabelVar(c.target, loc);
-          return c.tag === undefined
-            ? { ...c, target }
-            : { ...c, tag: this.resolveTagVar(c.tag, loc), target };
-        });
-        const [rP, params] = this.resolveEntryParams(e, loc);
-        this.labelStack.push(e.label);
-        const [r, body] = this.resolveRegion(e.body);
-        this.labelStack.pop();
-        return [combine(rP, r), {
-          ...e,
-          type: this.resolveBlockResult(e.type, loc),
-          ...params,
-          catches,
-          body,
-        }];
-      }
       case 'throw': {
         const [r, args] = this.resolveExprArray(e.operands);
         return [r, { ...e, tag: this.resolveTagVar(e.tag, loc), operands: args }];

@@ -82,7 +82,7 @@ names as labels only.
 | round     | lenses, in order                            | state                                                                                    |
 | --------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **1.5.5** | code                                        | ✅ passes 1–7, register empty, converged — [testing.md](testing.md) § "The 1.5.5 passes" |
-| **1.5.6** | hardening → then code again                 | 13. ◐ pass 1 (the contract) DONE 2026-10-09; pass 2 (the depth ceilings) next — [hardening.md](hardening.md) |
+| **1.5.6** | hardening → then code again                 | 13. ◐ passes 1 (the contract) and 2 (the weakest ceiling, ~384 → ~930) DONE 2026-10-09; open: the owner's call on deeper ceilings and the fuel default, then the code lens again — [hardening.md](hardening.md) |
 | **1.5.7** | security → then hardening → then code again | 14. ⬚ not started                                                                        |
 
 If a finding fits two lenses, file it under the **lowest** one that would have caught it:
