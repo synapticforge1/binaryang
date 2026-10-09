@@ -132,8 +132,14 @@ fatigue.
     - **For the OWNER — the three names left, and phase 4:** `Type` is two different things,
       core's enum (`./core/wabt-ts`) and binaryen-ts's type union (`./ir/binaryen-ts`), both
       public, so one name changes or a release carries both (BREAKING either way);
-      `WasmModule` and `Features` in `compat/wabt-compat.ts` are upstream wabt.js's names, which
-      the compat layer exists to reproduce — recommend they stay, by design. Phase 4: the three
+      ✅ `WasmModule` and `Features` in `compat/wabt-compat.ts` STAY (owner, 2026-10-09: "The
+      WasmModule and Features for the compat layer we will keep") — upstream wabt.js's names,
+      which the compat layer exists to reproduce. Measured the same day for the owner's phase-4
+      question ("can we merge the three subpaths, and how does that impact the Type"): the three
+      export 288 / 195 / 20 names; 88 appear in more than one, every one from ONE declaration;
+      the ONLY clash is `Type`. And binaryen-ts's `Type` union is EXACTLY the IR's `ExprType`
+      (compile-time identity, with a failing negative control) — so a merged subpath keeps core's
+      `Type` enum and offers the union as `ExprType`, no new name needed. Phase 4: the three
       tree-named subpaths (`./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts`) — keep, or add
       new names beside them as deprecated aliases for a release, as agreed 2026-09-30.
     The scoping record as it stood:
