@@ -1,11 +1,10 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-08: `main` = `v1.9.0`, PUBLISHED 2026-10-08 (the owner's go: "perform items 1
-through 3"; the tag-push path, unaided) — nothing unreleased** (check it rather than trust this
-line: `git log --oneline v1.9.0..main -- src/ main.ts deno.json`). `deno.json` reads 1.9.0; the
-version line arms a release, so the next bump is the owner's decision, never a side effect of
-work. The next release carrying a new export (item 24's `./wasm-bundle`) is a MINOR, 1.10.0,
-typed by hand ([publishing.md](publishing.md) § "`bump` has no minor mode").
+**As of 2026-10-09: `main` holds item 24 (`wasm-bundle`, a NEW export) past `v1.9.0`, and the
+owner's go for 1.10.0 is given** ("lets do the 1.10.0 release"; check the set rather than trust
+this line: `git log --oneline v1.9.0..main -- src/ main.ts deno.json`). A MINOR, typed by hand
+([publishing.md](publishing.md) § "`bump` has no minor mode"); the entries are under "Since
+1.9.0" below until the release folds them.
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR record
