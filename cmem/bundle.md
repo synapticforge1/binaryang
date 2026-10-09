@@ -1,6 +1,8 @@
 # `wasm-bundle` — open-work item 24, built
 
-**Built 2026-10-08 on `main`, UNRELEASED** — the owner's "perform items 1 through 3", item 3. A new
+**Built 2026-10-08, UNRELEASED — on branch `wasm-bundle`, NOT YET MERGED at the 2026-10-08 pause**
+(the gate was started on `6dc5e28c9`; `fmt` / `lint` / `check` green, the rest unread — see the
+state line in [open-work.md](open-work.md)). The owner's "perform items 1 through 3", item 3. A new
 export, so the release that carries it is a MINOR, **1.10.0, typed by hand, when the owner says**
 ([unreleased.md](unreleased.md)). wasmtk's letter is drafted as [handoffs.md](handoffs.md) § 27, to
 send with that release. The design record as it stood before building is one command away:
