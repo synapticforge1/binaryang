@@ -40,7 +40,13 @@ import { countImports } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { Features } from '../core/feature.ts';
 import { combineResults, Result } from '../core/result.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
+import {
+  formatErrors,
+  hasErrors,
+  isStackExhausted,
+  makeErrorList,
+  nestingTooDeep,
+} from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliRead } from '../cli/io.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
@@ -93,6 +99,16 @@ export function wasmValidate(
   binary: Uint8Array,
   opts: WasmValidateOptions = {},
 ): WasmValidateResult {
+  // Too deeply nested to walk: REPORTED, never a bare RangeError (open-work 13).
+  try {
+    return validate(binary, opts);
+  } catch (e) {
+    if (!isStackExhausted(e)) throw e;
+    return { errors: nestingTooDeep(opts.filename), result: Result.Error };
+  }
+}
+
+function validate(binary: Uint8Array, opts: WasmValidateOptions): WasmValidateResult {
   const errors = makeErrorList();
 
   const readOpts: ReadBinaryOptions = {};

@@ -22,7 +22,15 @@
 import type { Module } from './ir.ts';
 import { nameReferences } from './name-references.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
+import {
+  formatErrors,
+  hasErrors,
+  isStackExhausted,
+  makeErrorList,
+  NESTING_TOO_DEEP,
+} from '../core/error.ts';
+import { allFeatures } from '../core/feature.ts';
+import { validateModule } from '../validator/validator.ts';
 import { deriveTypes } from './derive-types.ts';
 import type { WasmModule } from './module.ts';
 
@@ -67,10 +75,60 @@ export function prepareForPasses(m: Module): WasmModule {
  * @throws {WasmBinaryError} with the reader's diagnostics when the bytes are
  *   not a module it can read — the error `parseWasm` threw, so callers keep
  *   their contract.
+ *
+ * 🔧 The reader decodes STRUCTURE; it does not validate. An invalid module
+ * whose structure reads — an out-of-range local, call or branch index, a
+ * stack that does not balance — went on to {@link prepareForPasses}, which
+ * threw a plain `Error` in its own words ("derive-types: no local …"): 13% of
+ * a mutation fuzz of real producer output (open-work 13). Such a failure is
+ * now answered by the VALIDATOR, on the failure path only, so a valid module
+ * pays nothing: its diagnostics, at offsets into the caller's own bytes, are
+ * the `WasmBinaryError`. Should the validator find nothing, the failure is
+ * ours, and it is rethrown as it was — never disguised as the caller's.
  */
 export function readForPasses(bytes: Uint8Array, filename = '<input>'): WasmModule {
   const errors = makeErrorList();
-  const m = readBinaryIr(bytes, errors, { filename, readDebugNames: true });
+  let m: Module;
+  try {
+    m = readBinaryIr(bytes, errors, { filename, readDebugNames: true });
+  } catch (e) {
+    if (isStackExhausted(e)) throw new WasmBinaryError(`${filename}: ${NESTING_TOO_DEEP}`);
+    throw e;
+  }
   if (hasErrors(errors)) throw new WasmBinaryError(formatErrors(errors).trim());
-  return prepareForPasses(m);
+  try {
+    return prepareForPasses(m);
+  } catch (e) {
+    if (isStackExhausted(e)) throw new WasmBinaryError(`${filename}: ${NESTING_TOO_DEEP}`);
+    const diagnostics = invalidity(bytes, filename);
+    if (diagnostics !== null) throw new WasmBinaryError(diagnostics);
+    throw e;
+  }
+}
+
+/**
+ * {@link readForPasses}, after VALIDATING the bytes — for a tool that runs or
+ * transforms what it reads, so an invalid module is refused in the validator's
+ * words, at offsets into the caller's file, before anything acts on it (as
+ * upstream's `wasm-interp` and `wasm-ctor-eval` do, and `wasm-opt` here).
+ *
+ * @throws {WasmBinaryError} with the reader's or the validator's diagnostics.
+ */
+export function readValidForPasses(bytes: Uint8Array, filename = '<input>'): WasmModule {
+  const diagnostics = invalidity(bytes, filename);
+  if (diagnostics !== null) throw new WasmBinaryError(diagnostics);
+  return readForPasses(bytes, filename);
+}
+
+/** The validator's diagnostics for `bytes`, or `null` when it finds the module valid. */
+function invalidity(bytes: Uint8Array, filename: string): string | null {
+  const errors = makeErrorList();
+  try {
+    const m = readBinaryIr(bytes, errors, { filename, readDebugNames: false });
+    if (!hasErrors(errors)) validateModule(m, errors, { features: allFeatures() });
+  } catch (e) {
+    if (isStackExhausted(e)) return `${filename}: ${NESTING_TOO_DEEP}`;
+    return null;
+  }
+  return hasErrors(errors) ? formatErrors(errors).trim() : null;
 }

@@ -84,6 +84,28 @@ export function addWarning(list: ErrorList, loc: Location, message: string): voi
 }
 
 /** Returns true if {@link list} contains at least one error-level entry. */
+/**
+ * Whether `e` is the JavaScript engine running out of call stack — what a
+ * recursive walker does on a deeply nested module (open-work 13: every stage
+ * let it escape as a bare `RangeError`, from ~400 nested blocks in the writers
+ * to ~3,000 in the validator). Each tool's boundary turns it into its own
+ * typed error with {@link NESTING_TOO_DEEP}.
+ */
+export function isStackExhausted(e: unknown): boolean {
+  return e instanceof RangeError && /call stack/i.test(e.message);
+}
+
+/** What a tool reports when {@link isStackExhausted}: actionable, and says it is a limit of the tool. */
+export const NESTING_TOO_DEEP =
+  'the module nests deeper than this tool can follow (the JavaScript call stack ran out)';
+
+/** An {@link ErrorList} holding the one {@link NESTING_TOO_DEEP} error, for a tool's result. */
+export function nestingTooDeep(filename = ''): ErrorList {
+  const list = makeErrorList();
+  addError(list, unknownLocation(filename), NESTING_TOO_DEEP);
+  return list;
+}
+
 export function hasErrors(list: ErrorList): boolean {
   return list.some((e) => e.level === ErrorLevel.Error);
 }

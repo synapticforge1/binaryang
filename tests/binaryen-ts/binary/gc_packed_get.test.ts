@@ -262,7 +262,9 @@ Deno.test('WAT: struct.get on a packed field is rejected', () => {
   assertThrows(
     () => readWat(packedWat('struct.get')),
     Error,
-    'reads a packed field without a sign',
+    // The validator's words, since open-work 13 (was the typing step's
+    // "reads a packed field without a sign").
+    'requires the _s or _u form',
   );
 });
 

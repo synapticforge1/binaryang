@@ -50,7 +50,25 @@ export class WatInputError extends Error {
 }
 
 /**
+ * External WAT as binaryen-ts IR, after VALIDATING it — for a tool that runs
+ * or transforms what it reads (open-work 13: `wasm-interp` and
+ * `wasm-ctor-eval` ran invalid modules unchecked).
+ *
+ * @throws {WatInputError} with wabt-ts's diagnostics when the text is not a
+ *   valid module.
+ */
+export function readValidWat(source: string, filename = '<input>'): WasmModule {
+  // Validated as TEXT (`validate: true`), so an invalid module is reported at
+  // its `line:col`, as `wasm-opt` does for WAT input; every feature on, as the
+  // binary route's `readValidForPasses`.
+  const { binary, errors } = wat2wasm(source, { filename, validate: true });
+  if (hasErrors(errors)) throw new WatInputError(formatErrors(errors));
+  return readForPasses(binary, filename);
+}
+
+/**
  * External WAT, in any form — folded, linear or mixed — as binaryen-ts IR.
+ * Not validated: {@link readValidWat} is the validating form.
  *
  * @throws {WatInputError} with wabt-ts's diagnostics when the text is not a
  *   module it can assemble.

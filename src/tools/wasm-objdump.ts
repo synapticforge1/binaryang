@@ -32,7 +32,13 @@ import { indexOf, locOf, valueTypeName } from '../ir/ir.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import { isRealName } from '../ir/made-up-names.ts';
 import { Result } from '../core/result.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
+import {
+  formatErrors,
+  hasErrors,
+  isStackExhausted,
+  makeErrorList,
+  nestingTooDeep,
+} from '../core/error.ts';
 import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type { Module, SectionMeta } from '../ir/ir.ts';
@@ -73,6 +79,16 @@ export function wasmObjdump(
   binary: Uint8Array,
   opts: WasmObjdumpOptions = {},
 ): WasmObjdumpResult {
+  // Too deeply nested to walk: REPORTED, never a bare RangeError (open-work 13).
+  try {
+    return dump(binary, opts);
+  } catch (e) {
+    if (!isStackExhausted(e)) throw e;
+    return { text: '', errors: nestingTooDeep(opts.filename), result: Result.Error };
+  }
+}
+
+function dump(binary: Uint8Array, opts: WasmObjdumpOptions): WasmObjdumpResult {
   const errors = makeErrorList();
   const filename = opts.filename ?? '<input>';
 

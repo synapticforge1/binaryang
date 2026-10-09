@@ -69,7 +69,8 @@ describe("table.get is typed by its table's element type", () => {
     assertThrows(
       () => readWat('(module (func (drop (table.get 3 (i32.const 0)))))'),
       Error,
-      'no table',
+      // The validator's words, since open-work 13 (was the typing step's "no table").
+      'table variable out of range',
     );
   });
 });

@@ -6,7 +6,7 @@
 
 import type { Location } from '../core/error.ts';
 import { unknownLocation } from '../core/error.ts';
-import { addError, type ErrorList } from '../core/error.ts';
+import { addError, type ErrorList, isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import {
   type AbstractHeap,
   isReferenceType,
@@ -3741,7 +3741,9 @@ export function readBinaryIr(
     addError(
       errors,
       unknownLocation(),
-      `internal decode error: ${e instanceof Error ? e.message : String(e)}`,
+      isStackExhausted(e)
+        ? NESTING_TOO_DEEP
+        : `internal decode error: ${e instanceof Error ? e.message : String(e)}`,
     );
     return makeModule();
   }

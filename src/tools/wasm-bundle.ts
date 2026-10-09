@@ -55,7 +55,7 @@ import { None } from '../ir/types.ts';
 import { BinarySection, ExternalKind } from '../core/binary.ts';
 import { Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
-import type { Location } from '../core/error.ts';
+import { isStackExhausted, type Location, NESTING_TOO_DEEP } from '../core/error.ts';
 import { ExprVisitor, type ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import { unique } from '../ir/made-up-names.ts';
@@ -89,6 +89,7 @@ import {
   decodeLinkingSection,
   decodeRelocSection,
   LINKING_SECTION_NAME,
+  LinkingFormatError,
   type LinkingSection,
   type LinkingSymbol,
   RELOC_SECTION_PREFIX,
@@ -326,11 +327,22 @@ function linkingOf(
 ): { linking: LinkingSection; relocs: Map<BinarySection, RelocEntry[]> } | undefined {
   const linkingCustom = m.customSections.find((c) => c.name === LINKING_SECTION_NAME);
   if (linkingCustom === undefined || linkingCustom.data === null) return undefined;
-  const linking = decodeLinkingSection(linkingCustom.data);
+  // A malformed `linking` / `reloc.*` payload is this input's fault: a
+  // BundleError naming it, as every other refusal here (open-work 13).
+  const decoded = <T>(f: () => T): T => {
+    try {
+      return f();
+    } catch (e) {
+      if (e instanceof LinkingFormatError) throw new BundleError(`${what}: ${e.message}`);
+      throw e;
+    }
+  };
+  const linking = decoded(() => decodeLinkingSection(linkingCustom.data!));
   const relocs = new Map<BinarySection, RelocEntry[]>();
   for (const c of m.customSections) {
     if (!c.name.startsWith(RELOC_SECTION_PREFIX) || c.data === null) continue;
-    const r = decodeRelocSection(c.data, c.name);
+    const data = c.data;
+    const r = decoded(() => decodeRelocSection(data, c.name));
     const meta = m.sectionMeta[r.section];
     if (meta === undefined) {
       throw new BundleError(
@@ -1036,10 +1048,25 @@ const kindName = (k: ExternalKind): string =>
  * renamed and rewired in place and become the result's. The result is a
  * module as `readForPasses` would give — ready for `writeWasm`, the
  * optimizer, or the interpreter.
+ *
+ * @throws {BundleError} for every refusal — including a module nested too
+ *   deeply for the walk (open-work 13: that escaped as a bare RangeError).
  */
 export function bundle(
   inputs: BundleInput[],
   options: Partial<BundleOptions> = {},
+): { module: WasmModule; report: BundleReport } {
+  try {
+    return bundleInputs(inputs, options);
+  } catch (e) {
+    if (isStackExhausted(e)) throw new BundleError(NESTING_TOO_DEEP);
+    throw e;
+  }
+}
+
+function bundleInputs(
+  inputs: BundleInput[],
+  options: Partial<BundleOptions>,
 ): { module: WasmModule; report: BundleReport } {
   const opts: BundleOptions = { ...defaults, ...options };
   const log = opts.log;

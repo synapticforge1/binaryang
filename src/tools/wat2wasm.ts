@@ -41,7 +41,16 @@ import { validateModule } from '../validator/validator.ts';
 import { allFeatures } from '../core/feature.ts';
 import type { Features } from '../core/feature.ts';
 import { Result } from '../core/result.ts';
-import { addError, ErrorFormat, formatErrors, hasErrors, unknownLocation } from '../core/error.ts';
+import {
+  addError,
+  ErrorFormat,
+  formatErrors,
+  hasErrors,
+  isStackExhausted,
+  makeErrorList,
+  NESTING_TOO_DEEP,
+  unknownLocation,
+} from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliRead, cliWrite, writeStdout } from '../cli/io.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
@@ -102,6 +111,20 @@ export interface Wat2WasmResult {
  * On parse errors `binary` is an empty array and `result` is `Result.Error`.
  */
 export function wat2wasm(source: string | Uint8Array, opts: Wat2WasmOptions = {}): Wat2WasmResult {
+  // A module nested too deeply for a recursive stage (name resolution ran out
+  // of stack from ~500 folded blocks) REPORTS, as every other failure here —
+  // it escaped as a bare RangeError (open-work 13).
+  try {
+    return assemble(source, opts);
+  } catch (e) {
+    if (!isStackExhausted(e)) throw e;
+    const errors = makeErrorList();
+    addError(errors, unknownLocation(opts.filename ?? '<input>'), NESTING_TOO_DEEP);
+    return { binary: new Uint8Array(0), errors, result: Result.Error };
+  }
+}
+
+function assemble(source: string | Uint8Array, opts: Wat2WasmOptions): Wat2WasmResult {
   const src = new LexerSource(source, opts.filename ?? '<input>');
   const { module, errors } = parseWatModule(src);
 
