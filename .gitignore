@@ -21,6 +21,10 @@ Thumbs.db
 # Generated artifacts
 *.wasm
 *.wat.out
+# ...except test FIXTURES that are producer output and cannot be regenerated in CI (rustc and zig
+# with --emit-relocs; the build commands are in the folder's README). 🔧 1.10.0's first CI run was
+# red because these were ignored: every local run passed on files that were never committed.
+!/tests/binaryen-ts/tools/fixtures/bundle/*.wasm
 
 # Local-only working notes (machine-local; cmem/ is the committed source of truth)
 CLAUDE.md
