@@ -13,6 +13,12 @@
   `./api` — is `ExprType`, the same type.
 - `funcAt(module, var)` and `funcSignature(module, func)`: the function a reference names
   (imports first in the index space) and its declared signature.
+- **A hang check for the interpreter.** After 20 seconds of running, and every 20 seconds after,
+  it samples a loop as it comes back to its top; if it comes back again with the same locals and
+  operand stack, having changed nothing else, it can never exit, and the run stops with the new
+  `Stop` reason `hang` instead of waiting for fuel. It never stops a loop that could still finish.
+  `wasm-interp --hang-check=SECONDS` (0 checks from the start) and `--no-hang-check`;
+  `InterpreterOptions.hangCheck` in milliseconds, `null` for none.
 
 ### Deprecated
 

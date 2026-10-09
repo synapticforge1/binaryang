@@ -86,6 +86,12 @@ public summary is `CHANGELOG.md` § 1.10.0.
   pass 2): name resolution's recursion was its lowest ceiling (~384 nested blocks); split into a
   dispatcher it follows ~700 cold / ~1,500 warm, so `wat2wasm`, `writeWasm`, `writeWat` and
   `wasm-opt`'s output accept modules nested about twice as deep. No output byte changes.
+- **NEW — the hang check** (2026-10-09, owner: "the cheap sound version ... after say 20s minimum
+  intervals", [hardening.md](hardening.md)): the interpreter stops a loop that PROVABLY never exits
+  — back at its top with the same locals and stack, nothing else changed in between — with a `Stop`
+  of the new reason `hang`. `InterpreterOptions.hangCheck` (ms, default 20,000; `null` off),
+  `wasm-interp --hang-check=SECONDS` / `--no-hang-check`; `wasm-ctor-eval` gets the default (a
+  stopped constructor is kept, as with fuel). Fuel is unchanged.
 - **NEW** — `readValidForPasses` (from `ir/prepare.ts`), `readValidWat` (`tools/read-wat.ts`), and
   `isStackExhausted` / `NESTING_TOO_DEEP` / `nestingTooDeep` (`core/error.ts`, public through
   `./ir` and `./core/wabt-ts`); `deno task hostile` (repo only).

@@ -49,6 +49,12 @@ export interface WasmInterpOptions {
   dummyImportFunc: boolean;
   /** Instructions one call may run before stopping. */
   fuel: number;
+  /**
+   * Milliseconds of running before each check for a loop that provably never
+   * exits (`--hang-check=SECONDS`; `null` for none, `--no-hang-check`). See
+   * `InterpreterOptions.hangCheck`.
+   */
+  hangCheck: number | null;
 }
 
 const defaults: WasmInterpOptions = {
@@ -56,6 +62,7 @@ const defaults: WasmInterpOptions = {
   args: [],
   dummyImportFunc: false,
   fuel: 1_000_000_000,
+  hangCheck: 20_000,
 };
 
 /** One call's line of output. */
@@ -123,7 +130,7 @@ export function interpModule(
     const results = imp.func.sig.results;
     return { kind: 'func', call: () => results.map((t) => argValue(t, undefined)) };
   };
-  const inst = new Interpreter(module, { imports, fuel: opts.fuel });
+  const inst = new Interpreter(module, { imports, fuel: opts.fuel, hangCheck: opts.hangCheck });
   const exports = module.exports.filter((e) => e.kind === ExternalKind.Func);
   const targets = opts.runExport !== undefined
     ? exports.filter((e) => e.name === opts.runExport)
@@ -180,6 +187,13 @@ function usage(): void {
   console.error('  --argument=V               An argument for --run-export (repeat, in order)');
   console.error('  --dummy-import-func        Every imported function returns zeros');
   console.error('  --fuel=N                   Instructions one call may run');
+  console.error(
+    '  --hang-check=SECONDS       Check for a loop that provably never exits after this long,',
+  );
+  console.error(
+    '                             and every this long after (default 20; 0 from the start)',
+  );
+  console.error('  --no-hang-check            Do not check');
 }
 
 /** The CLI: parses `args` and runs {@link wasmInterp}. */
@@ -192,6 +206,14 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     else if (a.startsWith('--argument=')) options.args!.push(a.slice(11));
     else if (a === '--dummy-import-func') options.dummyImportFunc = true;
     else if (a.startsWith('--fuel=')) options.fuel = Number(a.slice(7));
+    else if (a.startsWith('--hang-check=')) {
+      const seconds = Number(a.slice(13));
+      if (!Number.isFinite(seconds) || seconds < 0) {
+        console.error(`wasm-interp: --hang-check takes a number of seconds, not "${a.slice(13)}"`);
+        process.exit(1);
+      }
+      options.hangCheck = seconds * 1000;
+    } else if (a === '--no-hang-check') options.hangCheck = null;
     else if (a.startsWith('-')) {
       console.error(`wasm-interp: unknown option ${a}`);
       usage();

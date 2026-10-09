@@ -168,15 +168,22 @@ export class Trap extends Error {
   }
 }
 
-/** Why the interpreter could not go on — never a statement about the program. */
 /**
- * `invalid`: the module is not valid, in a way the interpreter met while
- * running it (an operand of the wrong type, an index past its space). Every
- * such check was a plain `Error`; a mutation fuzz reached five of them from
- * modules the reader accepts (open-work 13). The tools validate their input
- * first, so this is for a caller that hands the library a module unchecked.
+ * Why the interpreter did not go on. Not a trap: the program did not fail.
+ *
+ * - `host`, `unsupported`, `fuel` — the interpreter cannot, or was told not
+ *   to, run further; nothing is said about the program.
+ * - `invalid`: the module is not valid, in a way the interpreter met while
+ *   running it (an operand of the wrong type, an index past its space). Every
+ *   such check was a plain `Error`; a mutation fuzz reached five of them from
+ *   modules the reader accepts (open-work 13). The tools validate their input
+ *   first, so this is for a caller that hands the library a module unchecked.
+ * - `hang`: the program would NEVER return — a PROOF, not a guess: a loop came
+ *   back to its top with the same locals and operand stack as the time before,
+ *   and nothing in between could have changed anything else
+ *   ({@link InterpreterOptions.hangCheck}). Its next pass is the same, forever.
  */
-export type StopReason = 'host' | 'unsupported' | 'fuel' | 'invalid';
+export type StopReason = 'host' | 'unsupported' | 'fuel' | 'invalid' | 'hang';
 
 /** The interpreter cannot go on; see {@link StopReason}. */
 export class Stop extends Error {
@@ -193,6 +200,86 @@ export class Stop extends Error {
  * deeply nested function does so one or two calls deep.
  */
 const RECURSION_FLOOR = 64;
+
+/**
+ * The instructions that cannot change any state OUTSIDE the running frame's
+ * locals and the operand stack: arithmetic, locals, control, and every READ
+ * (loads, `global.get`, table and heap reads, reference tests). A hang-check
+ * sample stays clean only while nothing else runs. Everything not listed —
+ * every write, call, allocation, throw, atomic, `memory.grow` — spoils it,
+ * which can only make the check miss, never misfire.
+ */
+const HANG_SAFE: ReadonlySet<string> = new Set([
+  ExpressionKind.Nop,
+  ExpressionKind.Pop,
+  ExpressionKind.CodeMetadata,
+  ExpressionKind.Block,
+  ExpressionKind.Region,
+  ExpressionKind.If,
+  ExpressionKind.Loop,
+  ExpressionKind.Break,
+  ExpressionKind.Switch,
+  ExpressionKind.BrOn,
+  ExpressionKind.LocalGet,
+  ExpressionKind.LocalSet,
+  ExpressionKind.LocalTee,
+  ExpressionKind.GlobalGet,
+  ExpressionKind.Const,
+  ExpressionKind.Unary,
+  ExpressionKind.Binary,
+  ExpressionKind.Select,
+  ExpressionKind.Drop,
+  ExpressionKind.Load,
+  ExpressionKind.SIMDLoad,
+  ExpressionKind.MemorySize,
+  ExpressionKind.TableGet,
+  ExpressionKind.TableSize,
+  ExpressionKind.SIMDExtract,
+  ExpressionKind.SIMDReplace,
+  ExpressionKind.SIMDShuffle,
+  ExpressionKind.SIMDTernary,
+  ExpressionKind.Quaternary,
+  ExpressionKind.RefNull,
+  ExpressionKind.RefIsNull,
+  ExpressionKind.RefAs,
+  ExpressionKind.RefFunc,
+  ExpressionKind.RefEq,
+  ExpressionKind.RefI31,
+  ExpressionKind.I31Get,
+  ExpressionKind.AnyConvertExtern,
+  ExpressionKind.ExternConvertAny,
+  ExpressionKind.RefTest,
+  ExpressionKind.RefCast,
+  ExpressionKind.RefGetDesc,
+  ExpressionKind.StructGet,
+  ExpressionKind.ArrayGet,
+  ExpressionKind.ArrayLen,
+]);
+
+/**
+ * Whether two value lists are the SAME state, value by value: the same object,
+ * or the same fields (bytes compared one by one). A value this cannot see as
+ * equal counts as different — the hang check then misses, never misfires.
+ */
+function sameValues(a: readonly Value[], b: readonly Value[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] as unknown as Record<string, unknown>;
+    const y = b[i] as unknown as Record<string, unknown>;
+    if (x === y) continue;
+    const keys = Object.keys(x);
+    if (keys.length !== Object.keys(y).length) return false;
+    for (const k of keys) {
+      const u = x[k], v = y[k];
+      if (Object.is(u, v)) continue;
+      if (!(u instanceof Uint8Array) || !(v instanceof Uint8Array) || u.length !== v.length) {
+        return false;
+      }
+      for (let j = 0; j < u.length; j++) if (u[j] !== v[j]) return false;
+    }
+  }
+  return true;
+}
 
 /** A {@link Stop} for an invalid module — see {@link StopReason}. */
 export function invalid(detail: string): Stop {
@@ -230,6 +317,14 @@ export interface InterpreterOptions {
   maxDepth?: number;
   /** Instructions to run before stopping with `fuel`. Default: unlimited. */
   fuel?: number;
+  /**
+   * Milliseconds of running before the first check for a loop that provably
+   * never exits, and between checks — `null` for none. Default 20,000 (owner,
+   * 2026-10-09: "checking for stack changes after say 20s minimum intervals";
+   * fuel stays the deterministic bound). A check costs nothing until it is
+   * due; see {@link Interpreter.backEdge}. `0` checks from the start.
+   */
+  hangCheck?: number | null;
   /**
    * Whether instantiation runs the start function. Default `true`, as the
    * spec says; `wasm-ctor-eval` runs it itself, statement by statement.
@@ -666,10 +761,36 @@ export class Interpreter {
   private depth = 0;
   private fuel: number;
 
+  // --- The hang check (see `backEdge`) --------------------------------------
+  /** Milliseconds between checks, or `null` for none. */
+  private readonly hangInterval: number | null;
+  /** When the next check is due (`Date.now()` milliseconds). */
+  private hangDue = 0;
+  /** Instructions run, for reading the clock only every 65,536 of them. */
+  private ticks = 0;
+  /** A check is due: sample the next loop that comes back to its top. */
+  private hangArmed = false;
+  /**
+   * The sample: one loop, in one frame, with copies of the locals and the
+   * whole operand stack as it came back to its top — and whether anything
+   * since could have changed state OUTSIDE them (`dirty`).
+   */
+  private hangWatch: {
+    loop: Expression;
+    frame: Value[];
+    locals: Value[];
+    stack: Value[];
+    dirty: boolean;
+  } | null = null;
+
   constructor(readonly module: WasmModule, options: InterpreterOptions = {}) {
     this.maxDepth = options.maxDepth ?? 1000;
     this.types = typesOf(module.types);
     this.fuel = options.fuel ?? Infinity;
+    this.hangInterval = options.hangCheck === undefined ? 20_000 : options.hangCheck;
+    if (this.hangInterval !== null) this.hangDue = Date.now() + this.hangInterval;
+    // `0`: check from the first loop back-edge, without waiting for the clock.
+    this.hangArmed = this.hangInterval === 0;
     const host = options.imports ?? (() => undefined);
 
     for (const imp of module.imports) {
@@ -1086,8 +1207,70 @@ export class Interpreter {
     this.stack.push(...results);
   }
 
+  /**
+   * The clock, read every 65,536 instructions: a check that is due arms the
+   * next loop back-edge; a sample whose loop never came back within a further
+   * interval is dropped.
+   */
+  private hangClock(): void {
+    const now = Date.now();
+    if (this.hangWatch !== null) {
+      if (now >= this.hangDue + this.hangInterval!) this.hangReschedule(now);
+    } else if (now >= this.hangDue) this.hangArmed = true;
+  }
+
+  private hangReschedule(now: number): void {
+    this.hangWatch = null;
+    this.hangArmed = this.hangInterval === 0;
+    this.hangDue = now + this.hangInterval!;
+  }
+
+  /**
+   * A loop came back to its top. When a check is due, this is the SAMPLE: the
+   * frame's locals and the whole operand stack, copied. When this same loop in
+   * this same frame comes back next, the check: if nothing in between could
+   * change state outside them ({@link HANG_SAFE}) and both are the same, the
+   * next pass is the same — memory, globals, tables and the heap included,
+   * since nothing wrote them — so it never exits: a `hang` {@link Stop}. Any
+   * other outcome proves nothing, and the next check waits a full interval.
+   *
+   * Sound by construction — it can only miss a hang (one that changes a value
+   * each pass, cycles through several states, or calls a function), never
+   * report one that is not.
+   */
+  private backEdge(loop: Expression, frame: Value[]): void {
+    const w = this.hangWatch;
+    if (w === null) {
+      this.hangArmed = false;
+      this.hangWatch = {
+        loop,
+        frame,
+        locals: frame.slice(),
+        stack: this.stack.slice(),
+        dirty: false,
+      };
+      return;
+    }
+    if (w.loop !== loop || w.frame !== frame) return; // an inner loop's turn
+    if (!w.dirty && sameValues(frame, w.locals) && sameValues(this.stack, w.stack)) {
+      const label = (loop as { label?: string }).label;
+      throw new Stop(
+        'hang',
+        `loop${label ? ` ${label}` : ''} never exits: it came back to its top with the same ` +
+          'locals and stack as the time before, having changed nothing else',
+      );
+    }
+    this.hangReschedule(Date.now());
+  }
+
   private exec(e: Expression, locals: Value[]): void {
     if (--this.fuel < 0) throw new Stop('fuel', 'out of fuel');
+    if (this.hangInterval !== null) {
+      // While a sample is open, anything that could change state outside the
+      // frame's locals and the operand stack spoils it.
+      if (this.hangWatch !== null && !HANG_SAFE.has(e.kind)) this.hangWatch.dirty = true;
+      if ((++this.ticks & 0xffff) === 0) this.hangClock();
+    }
     const s = this.stack;
     switch (e.kind) {
       case ExpressionKind.Nop:
@@ -1268,6 +1451,7 @@ export class Interpreter {
             const carried = s.splice(s.length - params, params);
             s.length = base;
             s.push(...carried);
+            if (this.hangArmed || this.hangWatch !== null) this.backEdge(e, locals);
             continue;
           }
           break;

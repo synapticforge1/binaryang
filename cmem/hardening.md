@@ -111,10 +111,25 @@ each its own restructuring of a large recursive function. Real modules peak at d
 large `switch` reaches hundreds. Whether to push every stage past a few thousand is the OWNER's
 priority call, not a defect: every stage already refuses beyond its ceiling in its own words.
 
-**Also for the owner:** the interpreter's default fuel is 1,000,000,000 instructions; at the
-measured ~760k instructions/s (a counted loop) or 63k–117k fuel/s (a bare `(loop (br 0))`), an
-infinite loop under `wasm-interp` runs 22 minutes to 4 hours before fuel stops it. A default to
-choose, not a defect.
+**The fuel question — answered by a HANG CHECK (owner, 2026-10-09).** The default fuel is
+1,000,000,000 instructions; at ~760k instructions/s (a counted loop) or 63k–117k fuel/s (a bare
+`(loop (br 0))`), an infinite loop under `wasm-interp` ran 22 minutes to 4 hours before fuel
+stopped it. In general no interpreter can know a loop is infinite (the halting problem); a change
+in values proves nothing (a counter changes every pass and may never exit). What CAN be proven: a
+loop that comes back to its top with the same locals and operand stack, having run nothing that
+could change anything else, repeats forever. The owner chose that, "after say 20s minimum
+intervals ... the best of fuel and trust but verify": fuel stays the deterministic bound; the check
+(`InterpreterOptions.hangCheck`, default 20,000 ms; `wasm-interp --hang-check=SECONDS`,
+`--no-hang-check`) samples one loop per interval and stops only on the proof — a `Stop` with the
+new reason `hang`. Sound by construction (`HANG_SAFE` lists the instructions that cannot change
+state outside the frame; anything else spoils the sample). Measured: 0–5% (noise) while no check is
+due; a spin is caught on its second pass once one is; the clock is read every 65,536 instructions,
+so a slow branch spin is noticed up to ~1 s late. My recommendation to the owner was a shorter
+interval (~2 s): the interval changes only how soon a real hang is reported, never whether, and the
+check's cost does not depend on it. Tests: `tests/binaryen-ts/interp/hang_check.test.ts`.
+
+**Noted, not fixed:** a bare `(loop (br 0))` runs ~10× slower per instruction than a counted loop —
+every branch is a thrown JavaScript exception. A speed item for the interpreter, not hardening.
 
 **Found in my own gate runner (scratch, not the repo):** the `interp` step's legacy corpus was
 passed `translate-eh`'s flat output instead of a `spec:prepare`d corpus, so it ran **0** assertions
