@@ -40,6 +40,12 @@ import { FidelityTable } from './fidelity.ts';
 import { unknownLocation } from '../core/error.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type * as W from './ir.ts';
+
+// Open-work 21, phase 2: these names are declared ONCE, in `./ir.ts`, and this view re-exports
+// them. Each was an alias here (`Extract<Expr, { kind: … }>`, or `W.Name`) of the same type —
+// proven identical, name by name, before the alias went.
+import type { DataSegment, Local } from './ir.ts';
+export type { DataSegment, Local };
 export type { ExplicitNames } from './ir.ts';
 export type { TypeDef } from './gc-types.ts';
 
@@ -94,20 +100,6 @@ export function limitsOf(
   if (max !== null) limits.max = BigInt(max);
   return limits;
 }
-
-/**
- * A single local variable declaration inside a function.
- * Params are also represented as locals (indices 0..params.length-1).
- *
- * ONE TYPE with wabt-ts's `Local` — an alias since S6 step 5 item 6 (M8b6),
- * after M1–M8b5 converged the two declarations field by field (the ratchet,
- * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
- * own declaration said is kept below, field by field.
- *
- * - `type` — Type of the local — a scalar/abstract type or a concrete typed reference.
- * - `name` — Optional name (for WAT output readability).
- */
-export type Local = W.Local;
 
 /**
  * A WASM function definition.
@@ -226,29 +218,6 @@ export type WasmExport = W.Export;
  *   one is refused by the encoder.
  */
 export type WasmGlobal = W.Global;
-
-/**
- * A data segment (initializes a region of linear memory).
- *
- * ONE TYPE with wabt-ts's `DataSegment` — an alias since S6 step 5 item 6 (M8b6),
- * after M1–M8b5 converged the two declarations field by field (the ratchet,
- * `tests/ir/module_convergence.test.ts`, pins the identity). What binaryen-ts's
- * own declaration said is kept below, field by field.
- *
- * - `name` — Segment name (for WAT output).
- * - `loc` — Where the source defined it — wabt-ts's `loc`, optional in both (M8b3 / M8b4).
- * - `kind` — How the segment reaches its memory — wabt-ts's `SegmentKind` (M3): `active`
- *   at instantiation, `passive` for `memory.init`. (`declared` is an element
- *   segment's; the encoder refuses it here.) It was `passive: boolean`.
- * - `memoryVar` — The memory an ACTIVE segment initializes, as written — a name or an index
- *   (M3; it was `memory?: number`, omitted meaning 0). The binary distinguishes
- *   kind 0 (active, memory 0) from kind 2 (active, explicit index); the reader
- *   used to consume that index and drop it.
- * - `offset` — The offset — a constant expression as a {@link RegionExpr}, present exactly
- *   when the segment is active. ABSENT is a missing field, not `null` (M2).
- * - `data` — Raw bytes copied into linear memory.
- */
-export type DataSegment = W.DataSegment;
 
 /**
  * A linear memory definition.

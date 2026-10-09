@@ -156,21 +156,19 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 /** The clause's whole field set: no `kind` beside the tag. */
 const _twoBits: Same<keyof TableCatch, 'loc' | 'tag' | 'target' | 'isRef'> = true;
 
-/** And it is binaryen-ts's record, `loc` aside (the node-base stage). */
-const _oneClauseRecord: [
-  Same<keyof Omit<TableCatch, 'loc'>, keyof BTableCatch>,
-  Same<Omit<TableCatch, 'loc'>, BTableCatch>,
-] = [true, true];
+/**
+ * And it IS binaryen-ts's record — one declaration, re-exported by
+ * `src/ir/expressions.ts` (open-work 21, phase 2). Until then binaryen-ts
+ * declared its own, equal but for `loc`, and this pinned "equal but for `loc`".
+ */
+const _oneClauseRecord: Same<TableCatch, BTableCatch> = true;
 
 /**
- * The legacy record agrees on every field but `body` (`Expr[]` against
- * `RegionExpr`, sub-stage (d)) and `loc` — pinned so (d) has to re-pin it.
+ * The legacy record likewise: one declaration. It had differed on `loc` and,
+ * before sub-stage (d), on `body` (`Expr[]` against `RegionExpr`).
  */
-const _legacyAllButBody: [
-  Same<keyof Catch, keyof BCatch | 'loc'>,
-  Same<Omit<Catch, 'loc' | 'body'>, Omit<BCatch, 'body'>>,
-] = [true, true];
+const _legacyOneRecord: Same<Catch, BCatch> = true;
 
 void _twoBits;
 void _oneClauseRecord;
-void _legacyAllButBody;
+void _legacyOneRecord;

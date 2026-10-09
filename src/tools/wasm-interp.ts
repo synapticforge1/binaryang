@@ -27,7 +27,7 @@ import type { WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { f32BitsOf, f64BitsOf, literalFloat } from '../ir/expressions.ts';
 import { ExternalKind } from '../core/binary.ts';
-import type { ValueType } from '../ir/ir.ts';
+import { funcAt, type ValueType, varIndex } from '../ir/ir.ts';
 import {
   type HostImport,
   Interpreter,
@@ -156,13 +156,7 @@ export function interpModule(
 
 /** The parameter types of function `index` (index space: imports first). */
 function functionSignature(module: WasmModule, index: number): ValueType[] {
-  let k = 0;
-  for (const imp of module.imports) {
-    if (imp.kind !== ExternalKind.Func) continue;
-    if (k === index) return imp.func.sig.params;
-    k++;
-  }
-  const fn = module.functions[index - k];
+  const fn = funcAt(module, varIndex(index));
   if (fn === undefined) throw new Error(`no function ${index}`);
   return fn.sig.params;
 }

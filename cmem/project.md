@@ -97,7 +97,8 @@ three that name a predecessor (`./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-
 be decided, phase 4 of the item. 🗄️ **The promotion rule is retired with the two trees.** It said a
 module earns a common folder when nothing in either namespaced tree imports it from the other side;
 with one tree there is no other side. What it measured is now `deno task collisions` — an exported
-type name declared in more than one file.
+type name declared in more than one file: 88 after the move, **3** after phase 2 (`Type`, and the
+compat layer's upstream `WasmModule` and `Features`; open-work 21 says what is left to decide).
 
 🔓 **There was one exception: the bridge**, at `src/bridge/` (decided 2026-08-27; tests at
 `tests/bridge/`) — ✅ **deleted 2026-09-18** (S6 step 5, M8e), so no exception stands today. The

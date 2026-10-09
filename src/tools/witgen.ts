@@ -28,7 +28,9 @@ import type { WasmModule } from '../ir/module.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type } from '../core/types.ts';
 import {
+  funcAt,
   type FuncSignature,
+  funcSignature,
   isRefValueType,
   type Module,
   type ValueType,
@@ -98,18 +100,8 @@ function witSig(sig: FuncSignature): { sig: string } | { why: string } {
 
 /** The signature of the function `v` names, imports first in the index space. */
 function signatureOf(m: Module, v: Var): FuncSignature | undefined {
-  const funcs: { name: string; typeVar?: Var; sig: FuncSignature }[] = [];
-  for (const imp of m.imports) if (imp.kind === ExternalKind.Func) funcs.push(imp.func);
-  funcs.push(...m.functions);
-  const f = v.kind === 'index' ? funcs[v.value] : funcs.find((x) => x.name === v.name);
-  if (f === undefined) return undefined;
-  if (f.typeVar !== undefined) {
-    const t = f.typeVar.kind === 'index'
-      ? m.types[f.typeVar.value]
-      : m.types.find((x) => x.name === (f.typeVar as { name: string }).name);
-    if (t !== undefined && t.kind === 'func') return t.sig;
-  }
-  return f.sig;
+  const f = funcAt(m, v);
+  return f === undefined ? undefined : funcSignature(m, f);
 }
 
 /** A package / world name from `name`: kebab-cased, made an identifier (`bundle` if nothing is left). */

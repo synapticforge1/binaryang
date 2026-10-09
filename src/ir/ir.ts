@@ -2583,6 +2583,34 @@ export function makeModule(): Module {
 export function totalFuncs(m: Module): number {
   return countImports(m, ExternalKind.Func) + m.functions.length;
 }
+
+/**
+ * The function `v` names — imported or defined, by index in the function space
+ * (imports first) or by name — or `undefined` when it names none.
+ *
+ * Open-work 21, phase 3: three tools each had their own copy of this walk
+ * (`wasm-interp`, `witgen`, `wasm-bundle`).
+ */
+export function funcAt(m: Module, v: Var): Func | undefined {
+  const imported = m.imports.flatMap((i) => i.kind === ExternalKind.Func ? [i.func] : []);
+  if (v.kind === 'index') {
+    return v.value < imported.length ? imported[v.value] : m.functions[v.value - imported.length];
+  }
+  return imported.find((f) => f.name === v.name) ?? m.functions.find((f) => f.name === v.name);
+}
+
+/**
+ * `f`'s signature as its DECLARED type gives it — the type-section entry its
+ * `typeVar` names, when that is a function type — else its own `sig`.
+ */
+export function funcSignature(m: Module, f: Pick<Func, 'typeVar' | 'sig'>): FuncSignature {
+  const tv = f.typeVar;
+  if (tv !== undefined) {
+    const t = tv.kind === 'index' ? m.types[tv.value] : m.types.find((x) => x.name === tv.name);
+    if (t !== undefined && t.kind === 'func') return t.sig;
+  }
+  return f.sig;
+}
 /** Total number of tables in index space (imports + defined). */
 export function totalTables(m: Module): number {
   return countImports(m, ExternalKind.Table) + m.tables.length;

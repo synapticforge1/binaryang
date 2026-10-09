@@ -22,7 +22,7 @@
  * @license MIT
  */
 
-import { type ValType, valTypeName } from './types.ts';
+import { valTypeName } from './types.ts';
 import { heapAbstract, type HeapTypeRef, heapTypeText } from './ir.ts';
 import { Type } from '../core/types.ts';
 import type * as W from './ir.ts';
@@ -108,13 +108,13 @@ export type HeapType = HeapTypeRef;
  * const nonNullI31: RefType = { heapType: heapAbstract(AbstractHeapType.I31), nullable: false };
  * const userStruct: RefType = { heapType: varIndex(0), nullable: false }; // (ref $0)
  * ```
+ *
+ * The IR's own reference record, `RefValueType`, under binaryen-ts's name. ⚠️ Its two
+ * fields are READ-ONLY since open-work 21 (it was a separate interface with writable
+ * fields): a reference record may be shared between nodes, so build a new one rather
+ * than assign to `heapType` or `nullable`.
  */
-export interface RefType {
-  /** The target heap type. */
-  heapType: HeapType;
-  /** Whether a null value is allowed. */
-  nullable: boolean;
-}
+export type RefType = W.RefValueType;
 
 // ---------------------------------------------------------------------------
 // Struct / array field types
@@ -137,25 +137,13 @@ export type PackedType = typeof Type.I8 | typeof Type.I16;
  */
 export const Packed = { I8: Type.I8, I16: Type.I16 } as const;
 
-/**
- * The storage type of a struct or array field: a value type, a packed integer,
- * or a reference type.
- */
-export type StorageType = ValType | PackedType | RefType;
-
-/**
- * Any wasm *value* type — a scalar/abstract {@link ValType} or a concrete typed
- * reference {@link RefType} such as `(ref null $T)`.
- *
- * This is the type of a local, a global, a table element, a function parameter
- * or result, and a tag payload. It deliberately excludes {@link PackedType}
- * (`i8`/`i16`), which is only valid as struct/array *storage*.
- *
- * Before this existed those positions were all typed `ValType`, so a concrete
- * typed reference had to be widened to `ValType.AnyRef` — which meant a GC
- * module using `(ref null $T)` locals could not be re-encoded faithfully.
- */
-export type ValueType = ValType | RefType;
+// `StorageType` (a value type, a packed `i8` / `i16`, or a reference) and `ValueType`
+// (a scalar / abstract type or a concrete typed reference — never packed) are
+// declared ONCE, in `./ir.ts` (open-work 21, phase 2). They were `ValType | PackedType |
+// RefType` and `ValType | RefType` here, the same types once `RefType` became the IR's
+// read-only reference record above.
+import type { StorageType, ValueType } from './ir.ts';
+export type { StorageType, ValueType };
 
 /**
  * A struct or array field declaration.
