@@ -763,6 +763,29 @@ Asked the same day to "bump and publish 1.6.0" again, the answer was that it alr
 `https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
 arming anything.
 
+## 1.10.0 — a MINOR from `main` (2026-10-09) — 🚀 PUBLISHED by the hand-pushed tag; the dispatch path failed again, 0-for-5
+
+The owner's go ("lets do the 1.10.0 release"), after item 24 (`wasm-bundle`) merged on a green
+gate. Every step verified through the GitHub API:
+
+1. `main` pushed unbumped at `b74576585` — ⚠️ **CI RED on the Test step.** The job log needs admin
+   rights through the API, so it was found by reasoning instead: the three `wasm-bundle` fixture
+   binaries were never committed, because `.gitignore`'s repo-wide `*.wasm` kept them out. Every
+   local run (and the full local gate) passed on files only this disk had. Fixed by an anchored
+   exception (`!/tests/binaryen-ts/tools/fixtures/bundle/*.wasm`) plus the binaries, proven by the
+   full suite from a FRESH CLONE (exit 0), merged and pushed: `eead54ea8`, CI green.
+2. The version typed BY HAND — 1.10.0, a MINOR for `./tools/wasm-bundle` — in `deno.json` and
+   `main.ts` with the CHANGELOG heading, on `release/1.10.0`; `version_sync.test.ts` run; JSR
+   checked first (`packageVersionNotFound`, latest 1.9.0); merged `--no-ff`, pushed `23b9f36fb`.
+3. Auto-tag tagged `v1.10.0` and dispatched `publish.yml`, which FAILED as documented (0-for-5).
+4. `git fetch origin --tags`, the tag confirmed on the bump commit, deleted and re-pushed by hand:
+   the push-triggered run GREEN end to end, provenance verified. JSR: 1.10.0 created
+   2026-10-09T15:38:11Z (UTC), not yanked, a Rekor log id present; `latestVersion` 1.10.0.
+
+**The rule this adds:** before a release, run the suite from a fresh clone of the commit. A green
+gate on the working tree cannot see a file the ignore rules kept out of the commit
+([best-practices.md](best-practices.md) § "A fixture the ignore rules swallowed").
+
 ## 1.9.0 — a MINOR from `main` (2026-10-08) — 🚀 PUBLISHED by the hand-pushed tag; the dispatch path failed, 0-for-4 now
 
 The owner's go ("perform items 1 through 3"), after items 23 and 2 closed. Every step verified

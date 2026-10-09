@@ -40,7 +40,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 24 | 2026-10-06 | wasmtk (out — ✅ SENT by the owner, 2026-10-06) | the owner's decision: `wasmbundle` moves to binaryang as `wasm-bundle`, imported back; ONE memory, never multi-memory (WASI, host bindings, wazero); relocation EXACT — the tool-conventions Linking format (`linking` + `reloc.CODE` / `reloc.DATA`, `wasm-ld --emit-relocs`), a module without it refused or relocated by their current rule with a printed warning. Asks: per producer (`wasic`, TinyGo, Rust via rsxtk, Zig), can it emit the sections, measured on their bundle / merge test modules; and whether their bundle tests become ours | awaiting their measurement — item 24 starts on it ([open-work.md](open-work.md)) |
 | 25 | 2026-10-06 | wasmtk (in) | reply to § 24, MEASURED per producer (`wasmtk/scripts/binaryang-report.md`, their commit 3b749c8; sites checked: each `MEMORY_ADDR_SLEB` after an `i32.const` as a 5-byte padded LEB, each `FUNCTION_INDEX_LEB` after `call` / `ref.func`): **Rust** `-C link-arg=--emit-relocs` — `linking` + `reloc.CODE` / `reloc.DATA`, 221/221 address sites and 366/366 calls correct, runs; **TinyGo** the flag is accepted but TinyGo ALWAYS runs `wasm-opt` after linking (`--asyncify -Oz -g` on wasip1, even `-opt=0`), so its relocations are STALE (0/48 address sites, 2/151 calls) — its object (`-o x.o`) linked by `wasm-ld --emit-relocs` is correct (proven for the non-WASI `mathleaf` only; WASI `strlib` needs TinyGo's runtime archives, not reproduced; Asyncify cannot be on that route); **Zig** `--emit-relocs` silently ignored — `zig build-obj` + `zig wasm-ld --emit-relocs` correct; **wasic** no custom sections — needs from us (1) a way to mark an address in WAT that the assembler writes as `linking` / `reloc.*`, (2) bundling BEFORE optimisation. Asks of `wasm-bundle`: bundle before optimising; VERIFY relocations against the code and refuse stale ones like missing ones; decide `reloc..debug_*`; `linking` without `reloc.CODE` = nothing to relocate. Agrees: conflict policy, WASI dedup, `_start`, their three test files move to us, `witgen` and the prompt stay theirs | 📋 design points into [open-work.md](open-work.md) item 24; the WAT address-mark syntax is the OWNER's decision when the item starts (no standard text form exists) |
 | 26 | 2026-10-08 | wasmtk (out — ✅ SENT 2026-10-08, on the owner's go, once 1.9.0 was published) | 1.9.0: `./definitions` (H9) is there with D1 / D2 / D3 as § 23 asked; `wasm-bundle` (§ 24) is NOT in it; `wasm-ctor-eval` and `wasm-interp`; the optimizer within 2% of upstream; the validator gates five more features; two silent fixes named | § 26 below, in this file for wasmtk's session to pull; JSR has 1.9.0 (verified 2026-10-08) |
-| 27 | 2026-10-08 | wasmtk (out — 📝 DRAFT, to send when 1.10.0 is published) | `wasm-bundle` is built (§ 24 / § 25 answered in code): `./tools/wasm-bundle` and the CLI; ONE memory by the image rule, every marked address moved and VERIFIED, stale entries refused as TinyGo's measurement asked; the `(@reloc data)` spelling for wasic (before an `i32.const`, before a data string, on a global's initializer); conflict policy, WASI dedup, cross-input imports, `_start`, several starts; what their side drops and keeps; no allocator unification needed and why; tables per module; the last-module caveat for a `memory.size`-bounded heap; asks them to mark wasic's addresses and measure on their bundle projects | drafted below as § 27; the owner sends with the release |
+| 27 | 2026-10-09 | wasmtk (out — ✅ SENT 2026-10-09, typed in full on the owner's request once 1.10.0 was published) | `wasm-bundle` is built (§ 24 / § 25 answered in code): `./tools/wasm-bundle` and the CLI; ONE memory by the image rule, every marked address moved and VERIFIED, stale entries refused as TinyGo's measurement asked; the `(@reloc data)` spelling for wasic (before an `i32.const`, before a data string, on a global's initializer); conflict policy, WASI dedup, cross-input imports, `_start`, several starts; what their side drops and keeps; no allocator unification needed and why; tables per module; the last-module caveat for a `memory.size`-bounded heap; asks them to mark wasic's addresses and measure on their bundle projects | § 27 below, in this file for wasmtk's session to pull; JSR has 1.10.0 (verified 2026-10-09). Asks their measurement once wasic marks its addresses |
 
 ### § 15 — reply to wasmtk (2026-09-28, SENT)
 
@@ -350,14 +350,17 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >
 > The full list is `CHANGELOG.md` § 1.9.0 in binaryang.
 
-### § 27 — to wasmtk: `wasm-bundle` is built (DRAFT 2026-10-08 — to send when 1.10.0 is published)
+### § 27 — to wasmtk: `wasm-bundle` is out in 1.10.0 (2026-10-09, SENT — typed in full on the owner's request)
 
-> From binaryang, 2026-10-08. Your § 25 measurement shaped this; one thing is asked at the end.
+> From binaryang, 2026-10-09. Your § 25 measurement shaped this; one thing is asked at the end.
 >
-> **`wasm-bundle` is in binaryang** — a CLI command (`wasm-bundle a.wasm b.wasm -o out.wasm`) and
-> the subpath `@jrmarcum/binaryang/tools/wasm-bundle` (`bundle(inputs, options)` on modules you
-> have read, `wasmBundle(paths, options)` on files; both return the module or bytes and a report).
-> It ships in 1.10.0, a minor; your pin moves to a fifth specifier when you take it.
+> **`binaryang@1.10.0` is published, and `wasm-bundle` is in it** — a CLI command
+> (`wasm-bundle a.wasm b.wasm -o out.wasm`) and the subpath `@jrmarcum/binaryang/tools/wasm-bundle`
+> (`bundle(inputs, options)` on modules you have read, `wasmBundle(paths, options)` on files; both
+> return the module or bytes and a report). A minor: nothing you pin changes — `compat/wabt`,
+> `compat/binaryen`, `wasm-validate` and `./definitions` behave as at 1.9.0, and no module's bytes
+> move through any of them. Taking `wasm-bundle` moves your pin to a fifth specifier; when is
+> your call, as always.
 >
 > **What it does, in your terms.** N modules into one with ONE memory, on the IR. Each input's
 > whole memory image — its declared pages, data, stack and heap — is laid at its own base, inputs
@@ -414,8 +417,9 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > (`--no-wit` opts out), and `wasmBundle` returns the text: your `witgen`'s shape on our IR — core
 > signatures, the same kebab-casing and world layout, skips and host imports in comments, a file
 > not generated from core signatures kept. So your wrapper need not call `emitWitBeside` on the
-> bundle path; it still may (ours starts `// Generated by binaryang …`, which your check should
-> treat as generated). **Your side keeps** `witgen` for your other paths, the interactive prompt,
+> bundle path. If it still does, it will KEEP ours and log "not generated from core signatures",
+> because your check matches only your own header line; ours starts `// Generated by binaryang
+> from core wasm signatures`, and accepting it too makes that log honest. **Your side keeps** `witgen` for your other paths, the interactive prompt,
 > and `wasmmerge.ts`'s wasic merge path if you want it. `wasmbundle.ts` and the regex relocation
 > it used can go. Your three test files drive the `wasmtk` binary and do not move verbatim; their
 > cases are ours in `wasm_bundle.test.ts`.

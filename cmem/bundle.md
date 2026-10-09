@@ -1,16 +1,16 @@
 # `wasm-bundle` — open-work item 24, built
 
-**Built 2026-10-08, merged into `main` 2026-10-09, UNRELEASED.** The gate ran on the branch head
+**Built 2026-10-08, merged into `main` 2026-10-09, ✅ PUBLISHED in 1.10.0 the same day**
+([publishing.md](publishing.md) § 1.10.0; the fixture binaries were missing from the first push,
+fixed before the bump). The gate ran on the branch head
 `3ba63a8d8` (21 steps, every exit 0, the Deno runner in scratch): `test` 1,402 / 0; `spec-behaviour`
 57,808 invocations on 1,342 modules, 0 DIVERGE; `direct` 544 / 544; `optimize-corpus` -Oz 825,077
 bytes (1.9.0's number: the bundler changes no optimizer output); `interp` every assertion holds;
 `direct-behaviour` printed 1,950 calls / 650 exports in the gate run and **1,953 / 651 re-run alone
 on the same commit, the same as `main`** — one fixture times out under the gate's load, a
 coverage-count wobble, not a divergence (0 DIVERGE both times). The owner's "perform items 1
-through 3", item 3. A new
-export, so the release that carries it is a MINOR, **1.10.0, typed by hand, when the owner says**
-([unreleased.md](unreleased.md)). wasmtk's letter is drafted as [handoffs.md](handoffs.md) § 27, to
-send with that release. The design record as it stood before building is one command away:
+through 3", item 3; a new export, so the release was a MINOR. wasmtk's letter is
+[handoffs.md](handoffs.md) § 27. The design record as it stood before building is one command away:
 `git show d50073001:cmem/open-work.md` (item 24, with § 24 / § 25 of the correspondence).
 
 ## What landed, and where it lives
@@ -127,8 +127,7 @@ shrink, the sections stay) is refused at its second entry, which is exactly Tiny
 
 ## For the owner
 
-- **Release:** a MINOR, 1.10.0, by hand, when you say. The CHANGELOG's "Unreleased" section has the
-  public note.
+- **Released** in 1.10.0, 2026-10-09; the public note is `CHANGELOG.md` § 1.10.0.
 - ✅ **The `.wit` is written beside the bundle BY DEFAULT** (owner, 2026-10-08: "automatically
   generate the wit file when a bundled wasm file is created as a default feature"; the first
   answer that day — "witgen stays wasmtk's" — is superseded). `src/binaryen-ts/tools/witgen.ts`

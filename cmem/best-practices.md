@@ -1663,6 +1663,17 @@ check never looked. Found only by a whitespace-insensitive diff against the day'
 **How to apply:** never format cmem ([working-rules.md](working-rules.md) § "Tools"); when a tool
 touches a document whose numbers are IDs, compare the IDs before and after.
 
+### A fixture the ignore rules swallowed — green here, red on every clone
+
+1.10.0's first push was red on CI's Test step. The `wasm-bundle` fixtures are producer output
+(rustc, zig) committed as binaries, and the repo-wide `*.wasm` in `.gitignore` kept them out of
+the commit without a word: `git add <folder>` added the sources and the README and skipped the
+rest. Every local run, the full 21-step gate included, read the files from this disk and passed.
+**How to apply:** after adding a binary fixture, `git ls-files <folder>` must list it (or
+`git check-ignore -v <file>` must say nothing); before a release, run the suite from a fresh clone
+of the commit — `git -c safe.directory=<repo>/.git clone <repo> <scratch>` on this disk — because
+that is the only tree that sees what CI sees.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:
