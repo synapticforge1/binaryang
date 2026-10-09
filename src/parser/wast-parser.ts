@@ -12,7 +12,13 @@
  */
 
 import type { Location, WabtError } from '../core/error.ts';
-import { addError, ErrorLevel, unknownLocation } from '../core/error.ts';
+import {
+  addError,
+  ErrorLevel,
+  isStackExhausted,
+  NESTING_TOO_DEEP,
+  unknownLocation,
+} from '../core/error.ts';
 import { Result } from '../core/result.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import {
@@ -7219,7 +7225,11 @@ function runParse<T>(
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     const errors: WabtError[] = [...lexer.errors, ...(parser?.errors ?? [])];
-    addError(errors, unknownLocation(), `internal parser error: ${message}`);
+    addError(
+      errors,
+      unknownLocation(),
+      isStackExhausted(e) ? NESTING_TOO_DEEP : `internal parser error: ${message}`,
+    );
     return { value: empty(), errors };
   }
 }

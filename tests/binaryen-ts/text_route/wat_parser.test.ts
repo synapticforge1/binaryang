@@ -665,7 +665,8 @@ Deno.test('parseWat — local.get of an out-of-range index throws', () => {
     // step after the reader refuses it.
     () => readWat(`(module (func $f (result i32) (local.get 7)))`),
     Error,
-    'no local',
+    // The validator's words, since open-work 13 (was the typing step's "no local").
+    'local variable out of range',
   );
 });
 
@@ -766,7 +767,8 @@ Deno.test('WAT: a missing operand with an empty stack is caught by validation', 
   const wat = `(module (func (export "f") (result i32) (drop) (i32.const 1)))`;
   // The text route refuses it on the way in: the typing step after the reader
   // finds the `drop` with nothing to take (binaryen-ts's retired parser read it).
-  assertThrows(() => readWat(wat), Error, 'the stack holds 0');
+  // The validator's words, since open-work 13 (was the typing step's "the stack holds 0").
+  assertThrows(() => readWat(wat), Error, 'expected 1 elements on the stack but got 0');
   // The bytes as assembled — the validator and V8 refuse them too.
   const bytes = wat2wasm(wat).binary;
 

@@ -299,10 +299,12 @@ Deno.test('makeLocalGet on an out-of-range local index fails loudly', () => {
     readForPasses(bad);
   } catch (e) {
     threw = true;
-    // The one reader's words (binaryen-ts's decoder, deleted at 1.6.0, said
-    // "out of range"): the typing step finds no such local.
+    // The VALIDATOR's words since open-work 13 (hardening pass 1): the typing
+    // step that finds no such local hands the failure to the validator, which
+    // says where. (It was the typing step's "no local", and before 1.6.0
+    // binaryen-ts's decoder's "out of range".)
     assert(
-      (e as Error).message.includes('no local'),
+      (e as Error).message.includes('local variable out of range'),
       `unexpected error: ${(e as Error).message}`,
     );
   }

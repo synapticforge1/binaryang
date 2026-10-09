@@ -51,6 +51,7 @@ import { simdExtract, simdReplace, simdShuffle, simdTernary } from './simd.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { ExternalKind } from '../core/binary.ts';
+import { isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import type {
   BlockResult,
   FuncSignature,
@@ -168,7 +169,14 @@ export class Trap extends Error {
 }
 
 /** Why the interpreter could not go on — never a statement about the program. */
-export type StopReason = 'host' | 'unsupported' | 'fuel';
+/**
+ * `invalid`: the module is not valid, in a way the interpreter met while
+ * running it (an operand of the wrong type, an index past its space). Every
+ * such check was a plain `Error`; a mutation fuzz reached five of them from
+ * modules the reader accepts (open-work 13). The tools validate their input
+ * first, so this is for a caller that hands the library a module unchecked.
+ */
+export type StopReason = 'host' | 'unsupported' | 'fuel' | 'invalid';
 
 /** The interpreter cannot go on; see {@link StopReason}. */
 export class Stop extends Error {
@@ -176,6 +184,19 @@ export class Stop extends Error {
     super(`${reason}: ${detail}`);
     this.name = 'Stop';
   }
+}
+
+/**
+ * Active wasm calls at or above which a HOST stack overflow is the program's
+ * own exhaustion (a trap) rather than this interpreter's nesting limit (a
+ * stop). Recursion that runs the host out does so hundreds of calls deep; a
+ * deeply nested function does so one or two calls deep.
+ */
+const RECURSION_FLOOR = 64;
+
+/** A {@link Stop} for an invalid module — see {@link StopReason}. */
+export function invalid(detail: string): Stop {
+  return new Stop('invalid', detail);
 }
 
 /** A function the host supplies for an import: arguments in, results out. */
@@ -266,7 +287,7 @@ const EMPTY = new Uint8Array(0);
 function address(v: Value): bigint {
   if (v.type === ValType.I32) return BigInt(v.value >>> 0);
   if (v.type === ValType.I64) return BigInt.asUintN(64, v.value);
-  throw new Error('interp: an address must be i32 or i64');
+  throw invalid('an address must be i32 or i64');
 }
 
 /** A memory size or grow result, in the memory's address type. */
@@ -299,7 +320,7 @@ function tableOp<T>(run: () => T): T {
 
 /** `ref.eq`: both null, two i31s of one value, or the same struct / array. */
 function sameRef(a: Value, b: Value): boolean {
-  if (a.type !== 'ref' || b.type !== 'ref') throw new Error('interp: ref.eq of a non-reference');
+  if (a.type !== 'ref' || b.type !== 'ref') throw invalid('ref.eq of a non-reference');
   if (a.kind === 'null' || b.kind === 'null') return a.kind === b.kind;
   if (a.kind === 'i31' && b.kind === 'i31') return a.value === b.value;
   if (a.kind === 'extern' && b.kind === 'extern') return a.host === b.host;
@@ -369,7 +390,7 @@ function arrayLength(n: number): number {
 /** The index a struct field `Var` names. */
 function fieldIndex(entry: Extract<TypeEntry, { kind: 'struct' }>, v: Var): number {
   const i = v.kind === 'index' ? v.value : entry.fields.findIndex((f) => f.name === v.name);
-  if (i < 0 || i >= entry.fields.length) throw new Error('interp: unknown field');
+  if (i < 0 || i >= entry.fields.length) throw invalid('unknown field');
   return i;
 }
 
@@ -389,7 +410,7 @@ function storageBytes(type: StorageType): number {
     case ValType.V128:
       return 16;
     default:
-      throw new Error('interp: a reference element cannot come from a data segment');
+      throw invalid('a reference element cannot come from a data segment');
   }
 }
 
@@ -477,7 +498,7 @@ function writeValue(mem: MemoryCell, at: number, opcode: number, value: Value): 
       mem.bytes.set(value.bytes, at);
       return;
     default:
-      throw new Error('interp: a store of a reference');
+      throw invalid('a store of a reference');
   }
 }
 
@@ -541,7 +562,7 @@ function simdLoadValue(mem: MemoryCell, at: number, opcode: number): Value {
       o.setBigUint64(0, v.getBigUint64(at, true), true);
       break;
     default:
-      throw new Error(`interp: not a simd.load opcode 0x${opcode.toString(16)}`);
+      throw invalid(`not a simd.load opcode 0x${opcode.toString(16)}`);
   }
   return { type: ValType.V128, bytes: out };
 }
@@ -566,13 +587,13 @@ function laneAccess(opcode: number): { bytes: number; store: boolean } {
     case SIMDLoadStoreLaneOp.Store64LaneVec128:
       return { bytes: 8, store: true };
     default:
-      throw new Error(`interp: not a lane access opcode 0x${opcode.toString(16)}`);
+      throw invalid(`not a lane access opcode 0x${opcode.toString(16)}`);
   }
 }
 
 /** Pops a vector's bytes. */
 function vectorOf(v: Value): Uint8Array {
-  if (v.type !== ValType.V128) throw new Error('interp: expected a v128 operand');
+  if (v.type !== ValType.V128) throw invalid('expected a v128 operand');
   return v.bytes;
 }
 
@@ -612,7 +633,7 @@ function resolve<T>(v: Var, slots: T[], names: string[], what: string): T {
   const i = v.kind === 'index' ? v.value : names.indexOf(v.name);
   const slot = slots[i];
   if (slot === undefined) {
-    throw new Error(`interp: unknown ${what} ${v.kind === 'index' ? v.value : v.name}`);
+    throw invalid(`unknown ${what} ${v.kind === 'index' ? v.value : v.name}`);
   }
   return slot;
 }
@@ -756,8 +777,9 @@ export class Interpreter {
       }
       this.data[this.data.length - 1] = EMPTY;
     }
-    if (module.start !== undefined && (options.runStart ?? true)) {
-      this.call(resolve(module.start, this.funcs, this.funcNames, 'function'), []);
+    const start = module.start;
+    if (start !== undefined && (options.runStart ?? true)) {
+      this.entry(() => this.call(resolve(start, this.funcs, this.funcNames, 'function'), []));
     }
   }
 
@@ -765,13 +787,15 @@ export class Interpreter {
   invoke(name: string, args: Value[]): Value[] {
     const ex = this.module.exports.find((e) => e.name === name && e.kind === ExternalKind.Func);
     if (ex === undefined) throw new Error(`interp: no exported function "${name}"`);
-    return this.call(resolve(ex.var, this.funcs, this.funcNames, 'function'), args);
+    return this.entry(() =>
+      this.call(resolve(ex.var, this.funcs, this.funcNames, 'function'), args)
+    );
   }
 
   /** The index-space index of the function `v` names. */
   functionIndex(v: Var): number {
     const i = v.kind === 'index' ? v.value : this.funcNames.indexOf(v.name);
-    if (this.funcs[i] === undefined) throw new Error('interp: unknown function');
+    if (this.funcs[i] === undefined) throw invalid('unknown function');
     return i;
   }
 
@@ -801,8 +825,16 @@ export class Interpreter {
     args: Value[],
     after: (statement: number, locals: readonly Value[], stackEmpty: boolean) => void,
   ): Value[] {
+    return this.entry(() => this.statements(index, args, after));
+  }
+
+  private statements(
+    index: number,
+    args: Value[],
+    after: (statement: number, locals: readonly Value[], stackEmpty: boolean) => void,
+  ): Value[] {
     const f = this.funcs[index];
-    if (f === undefined) throw new Error(`interp: no function ${index}`);
+    if (f === undefined) throw invalid(`no function ${index}`);
     if (f.kind === 'host') throw new Stop('host', f.name);
     const { fn, sig } = f;
     const locals: Value[] = [...args];
@@ -830,9 +862,7 @@ export class Interpreter {
       if (t !== RETURN && !frame) {
         this.stack.length = base;
         if (t instanceof Delegate && (t.label === '' || t.label === fn.bodyFrameLabel)) throw t.exn;
-        if (t instanceof RangeError && t.message.includes('call stack')) {
-          throw new Trap('call stack exhausted');
-        }
+        if (t instanceof RangeError && t.message.includes('call stack')) throw this.exhausted();
         throw t;
       }
     } finally {
@@ -874,11 +904,43 @@ export class Interpreter {
     return resolve(ex.var, this.tags, this.tagNames, 'tag');
   }
 
+  /**
+   * Runs `f` — code entered from OUTSIDE (the start function, an export, a
+   * table call, a constructor's statements). A module nested too deeply for
+   * the recursive evaluator runs out of JavaScript stack: that is a limit of
+   * this interpreter, so it is a {@link Stop}, not a bare RangeError
+   * (open-work 13). Deep wasm RECURSION is not this: it traps
+   * ("call stack exhausted") at its own depth limit, as an engine does.
+   */
+  /**
+   * What the HOST's stack running out means. With many wasm calls active, the
+   * program is recursing: that is its exhaustion, as an engine reports it
+   * (spec `fac.wast`'s `fac-rec` runs the host out before {@link maxDepth}).
+   * With few, one function nests deeper than the recursive evaluator can
+   * follow — V8 runs it — so it is this interpreter's limit, a {@link Stop}.
+   * 🔧 Both were `call stack exhausted`: a valid 60,000-deep block trapped
+   * (open-work 13). The line is {@link RECURSION_FLOOR} active calls.
+   */
+  private exhausted(): Error {
+    return this.depth >= RECURSION_FLOOR
+      ? new Trap('call stack exhausted')
+      : new Stop('unsupported', NESTING_TOO_DEEP);
+  }
+
+  private entry<T>(f: () => T): T {
+    try {
+      return f();
+    } catch (e) {
+      if (isStackExhausted(e)) throw new Stop('unsupported', NESTING_TOO_DEEP);
+      throw e;
+    }
+  }
+
   /** Calls function `index` of this instance — how a {@link FuncRef} from any table runs. */
   callIndex(index: number, args: Value[]): Value[] {
     const f = this.funcs[index];
-    if (f === undefined) throw new Error(`interp: no function ${index}`);
-    return this.call(f, args);
+    if (f === undefined) throw invalid(`no function ${index}`);
+    return this.entry(() => this.call(f, args));
   }
 
   /** What the export `name` is — for a host wiring one module's exports to another's imports. */
@@ -953,9 +1015,7 @@ export class Interpreter {
           // stack's limit the regex ITSELF overflowed (spec `fac.wast`'s
           // `fac-rec`). Whatever the test throws here propagates to the caller's
           // frame, which tries again with more room.
-          if (t instanceof RangeError && t.message.includes('call stack')) {
-            throw new Trap('call stack exhausted');
-          }
+          if (t instanceof RangeError && t.message.includes('call stack')) throw this.exhausted();
           throw t;
         }
       }
@@ -968,9 +1028,9 @@ export class Interpreter {
 
   /** The function a reference names, or the trap a null one is. */
   private funcOf(r: Value, nullTrap: string): FuncRef {
-    if (r.type !== 'ref') throw new Error('interp: expected a reference');
+    if (r.type !== 'ref') throw invalid('expected a reference');
     if (r.kind === 'null') throw new Trap(nullTrap);
-    if (r.kind !== 'func') throw new Error('interp: expected a function reference');
+    if (r.kind !== 'func') throw invalid('expected a function reference');
     return r.func;
   }
 
@@ -988,26 +1048,26 @@ export class Interpreter {
 
   private pop(): Value {
     const v = this.stack.pop();
-    if (v === undefined) throw new Error('interp: operand stack underflow');
+    if (v === undefined) throw invalid('operand stack underflow');
     return v;
   }
 
   /** Pops a number — what every numeric operator takes. */
   private num(): Literal {
     const v = this.pop();
-    if (!isNumber(v)) throw new Error('interp: expected a number, found a reference');
+    if (!isNumber(v)) throw invalid('expected a number, found a reference');
     return v;
   }
 
   private i32(): number {
     const v = this.pop();
-    if (v.type !== ValType.I32) throw new Error('interp: expected an i32 operand');
+    if (v.type !== ValType.I32) throw invalid('expected an i32 operand');
     return v.value | 0;
   }
 
   private i64(): bigint {
     const v = this.pop();
-    if (v.type !== ValType.I64) throw new Error('interp: expected an i64 operand');
+    if (v.type !== ValType.I64) throw invalid('expected an i64 operand');
     return BigInt.asIntN(64, v.value);
   }
 
@@ -1077,7 +1137,7 @@ export class Interpreter {
         // Wide arithmetic: two i64 in, the 128-bit product out as two i64.
         if (e.opcode === BinaryOp.MulWideSInt64 || e.opcode === BinaryOp.MulWideUInt64) {
           if (a.type !== ValType.I64 || b.type !== ValType.I64) {
-            throw new Error('interp: i64.mul_wide of non-i64 operands');
+            throw invalid('i64.mul_wide of non-i64 operands');
           }
           const signed = e.opcode === BinaryOp.MulWideSInt64;
           const x = signed ? BigInt.asIntN(64, a.value) : BigInt.asUintN(64, a.value);
@@ -1111,7 +1171,7 @@ export class Interpreter {
       case ExpressionKind.SIMDExtract: {
         this.exec(e.vec, locals);
         const r = simdExtract(e.opcode, vectorOf(this.pop()), e.lane);
-        if (r === null || 'trap' in r) throw new Error('interp: not a lane extraction');
+        if (r === null || 'trap' in r) throw invalid('not a lane extraction');
         s.push(r.value);
         return;
       }
@@ -1120,7 +1180,7 @@ export class Interpreter {
         this.exec(e.value, locals);
         const value = this.num();
         const r = simdReplace(e.opcode, vectorOf(this.pop()), e.lane, value);
-        if (r === null || 'trap' in r) throw new Error('interp: not a lane replacement');
+        if (r === null || 'trap' in r) throw invalid('not a lane replacement');
         s.push(r.value);
         return;
       }
@@ -1381,7 +1441,7 @@ export class Interpreter {
       case ExpressionKind.ElemDrop: {
         const names = this.module.elements.map((s) => s.name);
         const i = e.segment.kind === 'index' ? e.segment.value : names.indexOf(e.segment.name);
-        if (this.elems[i] === undefined) throw new Error('interp: unknown element segment');
+        if (this.elems[i] === undefined) throw invalid('unknown element segment');
         this.elems[i] = [];
         return;
       }
@@ -1397,7 +1457,7 @@ export class Interpreter {
       case ExpressionKind.I31Get: {
         this.exec(e.i31, locals);
         const r = this.nonNull('null i31 reference');
-        if (r.kind !== 'i31') throw new Error('interp: i31.get of a non-i31');
+        if (r.kind !== 'i31') throw invalid('i31.get of a non-i31');
         s.push({ type: ValType.I32, value: e.signed ? (r.value << 1) >> 1 : r.value });
         return;
       }
@@ -1423,7 +1483,7 @@ export class Interpreter {
         this.exec(e.ref, locals);
         const { entry } = this.structType(e.typeVar);
         const r = this.nonNull('null structure reference');
-        if (r.kind !== 'struct') throw new Error('interp: struct.get of a non-struct');
+        if (r.kind !== 'struct') throw invalid('struct.get of a non-struct');
         const i = fieldIndex(entry, e.fieldVar);
         s.push(unpackField(entry.fields[i]!.type, r.fields[i]!, e.signed));
         return;
@@ -1434,7 +1494,7 @@ export class Interpreter {
         const { entry } = this.structType(e.typeVar);
         const v = this.pop();
         const r = this.nonNull('null structure reference');
-        if (r.kind !== 'struct') throw new Error('interp: struct.set of a non-struct');
+        if (r.kind !== 'struct') throw invalid('struct.set of a non-struct');
         const i = fieldIndex(entry, e.fieldVar);
         r.fields[i] = packField(entry.fields[i]!.type, v);
         return;
@@ -1615,7 +1675,7 @@ export class Interpreter {
         else if (r.kind === 'extern') {
           // An extern that `extern.convert_any` made gives back the very value.
           s.push(r.internal ?? { type: 'ref', kind: 'hostany', host: r.host });
-        } else throw new Error('interp: any.convert_extern of a non-extern');
+        } else throw invalid('any.convert_extern of a non-extern');
         return;
       }
       case ExpressionKind.ExternConvertAny: {
@@ -1638,9 +1698,9 @@ export class Interpreter {
       case ExpressionKind.ThrowRef: {
         this.exec(e.exnref, locals);
         const r = this.pop();
-        if (r.type !== 'ref') throw new Error('interp: throw_ref of a number');
+        if (r.type !== 'ref') throw invalid('throw_ref of a number');
         if (r.kind === 'null') throw new Trap('null exception reference');
-        if (r.kind !== 'exn') throw new Error('interp: throw_ref of a non-exception');
+        if (r.kind !== 'exn') throw invalid('throw_ref of a non-exception');
         throw r.exn;
       }
       case ExpressionKind.TryTable: {
@@ -1709,7 +1769,7 @@ export class Interpreter {
         for (let i = this.handling.length - 1; i >= 0; i--) {
           if (this.handling[i]!.label === label) throw this.handling[i]!.exn;
         }
-        throw new Error(`interp: rethrow to "${label}", which no catch encloses`);
+        throw invalid(`rethrow to "${label}", which no catch encloses`);
       }
 
       // -------------------------------------------------------------------
@@ -1779,7 +1839,7 @@ export class Interpreter {
         const i = e.segment.kind === 'index'
           ? e.segment.value
           : this.dataNames().indexOf(e.segment.name);
-        if (this.data[i] === undefined) throw new Error('interp: unknown data segment');
+        if (this.data[i] === undefined) throw invalid('unknown data segment');
         this.data[i] = EMPTY;
         return;
       }
@@ -1792,7 +1852,7 @@ export class Interpreter {
   /** Pops a reference, trapping with `message` on null. */
   private nonNull(message: string): Ref {
     const r = this.pop();
-    if (r.type !== 'ref') throw new Error('interp: expected a reference');
+    if (r.type !== 'ref') throw invalid('expected a reference');
     if (r.kind === 'null') throw new Trap(message);
     return r;
   }
@@ -1800,14 +1860,14 @@ export class Interpreter {
   /** Pops an array reference, trapping on null. */
   private array(): ArrayObj {
     const r = this.nonNull('null array reference');
-    if (r.kind !== 'array') throw new Error('interp: expected an array');
+    if (r.kind !== 'array') throw invalid('expected an array');
     return r;
   }
 
   private structType(v: Var): { entry: Extract<TypeEntry, { kind: 'struct' }>; rtt: RttType } {
     const i = this.types.index(v);
     const entry = this.module.types[i]!;
-    if (entry.kind !== 'struct') throw new Error('interp: not a struct type');
+    if (entry.kind !== 'struct') throw invalid('not a struct type');
     return { entry, rtt: this.types.types[i]! };
   }
 
@@ -1816,7 +1876,7 @@ export class Interpreter {
   ): { field: Extract<TypeEntry, { kind: 'array' }>['field']; rtt: RttType } {
     const i = this.types.index(v);
     const entry = this.module.types[i]!;
-    if (entry.kind !== 'array') throw new Error('interp: not an array type');
+    if (entry.kind !== 'array') throw invalid('not an array type');
     return { field: entry.field, rtt: this.types.types[i]! };
   }
 
@@ -1830,7 +1890,7 @@ export class Interpreter {
 
   /** Whether `r` is in the reference type `(ref null? h)`. */
   private inType(r: Value, h: HeapTypeRef, nullable: boolean): boolean {
-    if (r.type !== 'ref') throw new Error('interp: a cast of a number');
+    if (r.type !== 'ref') throw invalid('a cast of a number');
     if (r.kind === 'null') return nullable;
     return inHeap(shapeOf(r), this.heap(h));
   }
@@ -1846,7 +1906,7 @@ export class Interpreter {
   }
 
   private table(v: Var): TableCell<Value> {
-    if (this.tables.length === 0) throw new Error('interp: no table');
+    if (this.tables.length === 0) throw invalid('no table');
     return resolve(v, this.tables, this.tableNames, 'table');
   }
 
@@ -1855,7 +1915,7 @@ export class Interpreter {
     const index = v.kind === 'index' ? v.value : this.funcNames.indexOf(v.name);
     const slot = this.funcs[index];
     if (slot === undefined) {
-      throw new Error(`interp: unknown function ${v.kind === 'index' ? v.value : v.name}`);
+      throw invalid(`unknown function ${v.kind === 'index' ? v.value : v.name}`);
     }
     if (slot.kind === 'host' && slot.func !== undefined) return slot.func;
     return { owner: this, index, sig: slot.sig, rtt: slot.rtt };
@@ -1869,7 +1929,7 @@ export class Interpreter {
   }
 
   private memory(v: Var): MemoryCell {
-    if (this.memories.length === 0) throw new Error('interp: no memory');
+    if (this.memories.length === 0) throw invalid('no memory');
     return resolve(v, this.memories, this.memoryNames, 'memory');
   }
 

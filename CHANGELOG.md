@@ -32,6 +32,22 @@
   run time.
 - The source tree is one `src/` organised by concept (it was `src/binaryen-ts/` and
   `src/wabt-ts/`). Every subpath keeps its module; no output byte changes.
+- **Malformed input gets a typed answer everywhere** (a hardening pass: a depth probe and a
+  mutation fuzz over 404 real producer binaries):
+  - `readForPasses` and `compat/binaryen`'s `readBinary`: an invalid module the reader can decode
+    (an out-of-range index, an unbalanced stack) threw a plain `Error` from an internal stage; it
+    is now a `WasmBinaryError` with the validator's diagnostic, at an offset in the file.
+  - A module nested deeper than a tool's recursive walk can follow is reported by every tool and
+    library entry in its own typed way, saying so (`NESTING_TOO_DEEP`), where a bare `RangeError`
+    escaped. The limits themselves are unchanged in this release.
+  - The interpreter stops (`Stop`, reason `unsupported`) on a deeply nested valid function instead
+    of reporting `trap: call stack exhausted`, and stops with the new reason `invalid` on what only
+    an invalid module can do. Deep wasm recursion still traps.
+  - `wasm-interp` and `wasm-ctor-eval` validate their input and refuse an invalid module.
+    `wasm-bundle` reports a malformed `linking` / `reloc.*` section as a `BundleError` naming the
+    input.
+- New: `readValidForPasses`, `readValidWat`, and `isStackExhausted`, `NESTING_TOO_DEEP`,
+  `nestingTooDeep` in `./ir`.
 
 ## 1.10.0
 

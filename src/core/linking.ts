@@ -259,15 +259,25 @@ class Cursor {
     return this.bytes[this.pos++]!;
   }
   u32(): number {
-    if (this.pos >= this.bytes.length) this.fail('unexpected end');
-    const [v, n] = decodeU32Leb128(this.bytes, this.pos);
-    this.pos += n;
-    if (this.pos > this.bytes.length) this.fail('unexpected end');
-    return v;
+    return this.leb(decodeU32Leb128);
   }
   s32(): number {
+    return this.leb(decodeS32Leb128);
+  }
+  /**
+   * One LEB128 read. The decoder throws a raw `RangeError` on a number that
+   * runs off the end or past five bytes; that is THIS format's malformation, so
+   * it is reported as one (open-work 13: a truncated LEB in a symbol entry
+   * escaped `wasm-bundle` as a bare `RangeError`).
+   */
+  private leb(decode: (b: Uint8Array, at: number) => [number, number]): number {
     if (this.pos >= this.bytes.length) this.fail('unexpected end');
-    const [v, n] = decodeS32Leb128(this.bytes, this.pos);
+    let v: number, n: number;
+    try {
+      [v, n] = decode(this.bytes, this.pos);
+    } catch (e) {
+      return this.fail(`malformed LEB128 (${e instanceof Error ? e.message : e})`);
+    }
     this.pos += n;
     if (this.pos > this.bytes.length) this.fail('unexpected end');
     return v;
@@ -501,14 +511,28 @@ export function listSections(
   }[] = [];
   let pos = 8;
   let index = 0;
+  // A malformed tail (a size or name length that is not a LEB128 in range) ends
+  // the listing, as a size running past the end does: what came before is
+  // still listed, and nothing escapes as a raw RangeError (open-work 13).
+  const lebAt = (at: number): [number, number] | undefined => {
+    try {
+      return decodeU32Leb128(bytes, at);
+    } catch {
+      return undefined;
+    }
+  };
   while (pos < bytes.length) {
     const id = bytes[pos]!;
-    const [size, n] = decodeU32Leb128(bytes, pos + 1);
+    const sized = lebAt(pos + 1);
+    if (sized === undefined) break;
+    const [size, n] = sized;
     const payloadStart = pos + 1 + n;
     const payloadEnd = payloadStart + size;
     if (payloadEnd > bytes.length) break;
     if (id === 0) {
-      const [len, m] = decodeU32Leb128(bytes, payloadStart);
+      const named = lebAt(payloadStart);
+      if (named === undefined) break;
+      const [len, m] = named;
       const name = new TextDecoder().decode(
         bytes.subarray(payloadStart + m, payloadStart + m + len),
       );

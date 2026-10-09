@@ -21,8 +21,8 @@
 
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
-import { readForPasses } from '../ir/prepare.ts';
-import { readWat, WatInputError } from './read-wat.ts';
+import { readValidForPasses } from '../ir/prepare.ts';
+import { readValidWat, WatInputError } from './read-wat.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { f32BitsOf, f64BitsOf, literalFloat } from '../ir/expressions.ts';
@@ -168,8 +168,8 @@ export async function wasmInterp(
 ): Promise<Invocation[]> {
   const bytes = new Uint8Array(await readFile(inputPath));
   const module = inputPath.endsWith('.wat')
-    ? readWat(new TextDecoder().decode(bytes), inputPath)
-    : readForPasses(bytes, inputPath);
+    ? readValidWat(new TextDecoder().decode(bytes), inputPath)
+    : readValidForPasses(bytes, inputPath);
   return interpModule(module, options);
 }
 

@@ -39,7 +39,13 @@ import { resolveNames } from './resolve-names.ts';
 import { synthesizeTypes } from './synthesize-types.ts';
 import { writeBinaryIr } from '../writer/binary-writer.ts';
 import { writeWatModule } from '../writer/wat-writer.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
+import {
+  formatErrors,
+  hasErrors,
+  isStackExhausted,
+  makeErrorList,
+  NESTING_TOO_DEEP,
+} from '../core/error.ts';
 import { FidelityTable } from './fidelity.ts';
 import type { WasmModule } from './module.ts';
 import { type Expression, ExpressionKind, type RegionExpr } from './expressions.ts';
@@ -72,8 +78,13 @@ export class WasmEncodeError extends Error {
  *   the module holds something the binary cannot spell (`checkForWriting`).
  */
 export function writeWasm(m: WasmModule): Uint8Array {
-  const copy = resolvedCopy(m);
-  return writing(() => writeBinaryIr(copy, { writeDebugNames: copy.hasNameSection }));
+  // The resolve step is inside `writing` too: it is where a deeply nested
+  // module first runs out of stack (~400 blocks), and it escaped as a bare
+  // RangeError (open-work 13).
+  return writing(() => {
+    const copy = resolvedCopy(m);
+    return writeBinaryIr(copy, { writeDebugNames: copy.hasNameSection });
+  });
 }
 
 /**
@@ -89,11 +100,13 @@ export function writeWasm(m: WasmModule): Uint8Array {
  * @throws {WasmEncodeError} when a reference names nothing the module has.
  */
 export function writeWat(m: WasmModule): string {
-  const copy = resolvedCopy(m);
-  labelsToDepths(copy);
-  // With every target a depth, the writer prints the NAME of a label that has
-  // a real one (`namedLabelTargets`) and the depth of one that does not.
-  return writing(() => writeWatModule(copy, { namedLabelTargets: true }));
+  return writing(() => {
+    const copy = resolvedCopy(m);
+    labelsToDepths(copy);
+    // With every target a depth, the writer prints the NAME of a label that has
+    // a real one (`namedLabelTargets`) and the depth of one that does not.
+    return writeWatModule(copy, { namedLabelTargets: true });
+  });
 }
 
 /**
@@ -446,6 +459,9 @@ function writing<T>(write: () => T): T {
     return write();
   } catch (e) {
     if (e instanceof WasmEncodeError) throw e;
+    if (isStackExhausted(e)) {
+      throw new WasmEncodeError(`cannot write the module: ${NESTING_TOO_DEEP}`);
+    }
     throw new WasmEncodeError(`cannot write the module: ${(e as Error).message ?? String(e)}`);
   }
 }

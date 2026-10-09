@@ -24,6 +24,7 @@
  * @license MIT
  */
 
+import { isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { dropWrittenTypeIndex, type Expression, ExpressionKind } from '../ir/expressions.ts';
 import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
@@ -326,8 +327,21 @@ export class PassRunner {
 
   /**
    * Runs all enqueued passes in order, then clears the queue.
+   *
+   * A module nested too deeply for a recursive pass runs out of JavaScript
+   * stack; that is reported as what it is — a limit of the optimizer — not as
+   * a bare RangeError from inside some pass (open-work 13).
    */
   run(): void {
+    try {
+      this.runQueue();
+    } catch (e) {
+      if (isStackExhausted(e)) throw new Error(`optimizer: ${NESTING_TOO_DEEP}`);
+      throw e;
+    }
+  }
+
+  private runQueue(): void {
     // Block parameters exist only for fidelity; no pass here was written for
     // them (S6 decision 7b(i)). Lower them before the first pass sees the tree
     // — and before the spill below: the lowering leaves each entry value where

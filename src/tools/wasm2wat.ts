@@ -37,7 +37,13 @@ import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { writeWatModule } from '../writer/wat-writer.ts';
 import { generateNames } from '../ir/generate-names.ts';
 import { Result } from '../core/result.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
+import {
+  formatErrors,
+  hasErrors,
+  isStackExhausted,
+  makeErrorList,
+  nestingTooDeep,
+} from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliRead, cliWrite } from '../cli/io.ts';
 import process from 'node:process';
@@ -119,6 +125,16 @@ export interface Wasm2WatResult {
  * On decode errors `text` is empty and `result` is `Result.Error`.
  */
 export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2WatResult {
+  // Too deeply nested to walk: REPORTED, never a bare RangeError (open-work 13).
+  try {
+    return disassemble(binary, opts);
+  } catch (e) {
+    if (!isStackExhausted(e)) throw e;
+    return { text: '', errors: nestingTooDeep(opts.filename), result: Result.Error };
+  }
+}
+
+function disassemble(binary: Uint8Array, opts: Wasm2WatOptions): Wasm2WatResult {
   const errors = makeErrorList();
   const readDebugNames = opts.readDebugNames !== false;
   const readOpts: ReadBinaryOptions = { readDebugNames };

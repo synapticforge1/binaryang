@@ -68,3 +68,20 @@ public summary is `CHANGELOG.md` § 1.10.0.
   only — nothing at run time. wasmtk declares its own local types for these
   (`WabtWasmModule`, `WasmFeatures`), so its build does not depend on them; say so in the letter.
   `deno task collisions` = **0**.
+- **Behaviour (hardening, open-work 13 pass 1, [hardening.md](hardening.md)) — malformed input now
+  gets a TYPED answer everywhere.** Say in the note:
+  - `readForPasses` / `compat/binaryen` `readBinary`: an invalid module the reader can decode (an
+    out-of-range index, an unbalanced stack) threw a plain `Error` in an internal stage's words; it
+    is now a `WasmBinaryError` carrying the VALIDATOR's diagnostic at an offset in the file. A
+    caller that matched on the old message text sees different text (13% of a mutation fuzz).
+  - A module nested too deeply for a recursive walker: every tool and library entry answers with
+    its own typed error saying so (`NESTING_TOO_DEEP`), where a bare `RangeError` escaped. The
+    LIMITS themselves are unchanged in this pass (writers ~400 blocks, most stages ~2,000).
+  - The interpreter: a deeply nested valid function is `Stop(unsupported)`, no longer
+    `trap: call stack exhausted` (a claim about the program); invalid-module checks are
+    `Stop(invalid)`, a new `StopReason`.
+  - `wasm-interp` and `wasm-ctor-eval` validate their input file and refuse an invalid one (they ran
+    it). `wasm-bundle`: a malformed `linking` / `reloc.*` section is a `BundleError` naming the input.
+- **NEW** — `readValidForPasses` (from `ir/prepare.ts`), `readValidWat` (`tools/read-wat.ts`), and
+  `isStackExhausted` / `NESTING_TOO_DEEP` / `nestingTooDeep` (`core/error.ts`, public through
+  `./ir` and `./core/wabt-ts`); `deno task hostile` (repo only).

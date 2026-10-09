@@ -24,6 +24,7 @@
  * @license MIT
  */
 
+import { invalid } from './interpreter.ts';
 import type { AbstractHeap } from '../core/types.ts';
 import {
   type FuncSignature,
@@ -73,7 +74,7 @@ export class ModuleTypes {
   index(v: Var): number {
     const i = v.kind === 'index' ? v.value : this.names.indexOf(v.name);
     if (i < 0 || i >= this.entries.length) {
-      throw new Error(`interp: unknown type ${JSON.stringify(v)}`);
+      throw invalid(`unknown type ${JSON.stringify(v)}`);
     }
     return i;
   }
@@ -115,7 +116,7 @@ export class ModuleTypes {
       const i = this.index(v);
       if (i >= start && i < start + count) return `rec.${i - start}`;
       if (i < start) return `<${this.types[i]!.key}>`;
-      throw new Error('interp: a type refers forward past its rec group');
+      throw invalid('a type refers forward past its rec group');
     };
     const heap = (h: HeapTypeRef): string =>
       h.kind === 'abstract' ? h.name : h.kind === 'exact' ? `exact(${ref(h.type)})` : ref(h);

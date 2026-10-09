@@ -35,9 +35,9 @@
 
 import { readFile, writeFile } from 'node:fs/promises';
 import process from 'node:process';
-import { readForPasses } from '../ir/prepare.ts';
+import { readForPasses, readValidForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
-import { readWat, WatInputError } from './read-wat.ts';
+import { readValidWat, WatInputError } from './read-wat.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import {
   type Expression,
@@ -545,8 +545,8 @@ export async function wasmCtorEval(
 ): Promise<{ output: Uint8Array | string; outcomes: CtorOutcome[]; reason?: string }> {
   const bytes = new Uint8Array(await readFile(inputPath));
   const module = inputPath.endsWith('.wat')
-    ? readWat(new TextDecoder().decode(bytes), inputPath)
-    : readForPasses(bytes, inputPath);
+    ? readValidWat(new TextDecoder().decode(bytes), inputPath)
+    : readValidForPasses(bytes, inputPath);
   const result = ctorEval(module, options);
   const out = writeWasm(module);
   return {

@@ -82,6 +82,7 @@ describe('size and grow are typed by the address type', () => {
 
   it('the decoder refuses a memory the module does not have, as V8 does', () => {
     const { binary } = wat2wasm('(module (func (drop (memory.size))))');
-    assertThrows(() => readForPasses(binary), Error, 'no memory');
+    // The validator's words, since open-work 13 (was the typing step's "no memory").
+    assertThrows(() => readForPasses(binary), Error, 'memory variable out of range');
   });
 });
