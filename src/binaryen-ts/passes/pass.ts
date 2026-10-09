@@ -440,6 +440,9 @@ const FUNCTION_PASSES = [
   // 2, step 4a: corpus -Oz −2.9 KB; moving it here instead of running it
   // twice keeps only −2.3 KB).
   'CoalesceLocals',
+  // What both arms of an `if` end with, written once — after the locals
+  // settle, as upstream places code-folding (open-work 2, step 6c).
+  'CodeFolding',
 ];
 
 function getDefaultOptimizationPasses(opts: PassOptions): string[] {

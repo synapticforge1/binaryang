@@ -20,7 +20,13 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, makeNop, neverFallsThrough } from '../ir/expressions.ts';
+import {
+  blockParamsOf,
+  type Expression,
+  ExpressionKind,
+  makeNop,
+  neverFallsThrough,
+} from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { Unreachable } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
@@ -75,8 +81,10 @@ function _vacuumNode(expr: Expression): Expression {
     // applies: a slot always holds a region, so one cannot turn into a `nop` or
     // collapse into its child the way a block can.
     case ExpressionKind.Region: {
-      const kept = expr.children.filter((c) => c.kind !== ExpressionKind.Nop);
-      return kept.length === expr.children.length ? expr : { ...expr, children: kept };
+      const kept = _spliced(expr.children);
+      return kept.length === expr.children.length && kept.every((c, i) => c === expr.children[i])
+        ? expr
+        : { ...expr, children: kept };
     }
 
     case ExpressionKind.Drop: {
@@ -102,15 +110,41 @@ function _vacuumNode(expr: Expression): Expression {
   }
 }
 
+/**
+ * A sequence's children without its nops, and with every UNNAMED, parameterless
+ * block child replaced by that block's own children (open-work 2, step 6a,
+ * 2026-10-08 — upstream's MergeBlocks and its binary writer both do this).
+ * Nothing branches to a block without a label, so its only effect is a
+ * sequence boundary; the stack is the same on both sides of it (a block's body
+ * starts empty and ends with exactly its results, so a `pop` inside it takes
+ * a value produced inside it, and one after it takes the block's result —
+ * the last spliced child's, as before). Measured first: our -Oz output held
+ * 1,321 such blocks, each a `block … end` in the binary, and upstream's
+ * re-encoding of our output dropped exactly those (−1,323) before our own
+ * passes found 4.4 KB more in the straight-line code they had hidden.
+ */
+function _spliced(children: readonly Expression[]): Expression[] {
+  const out: Expression[] = [];
+  for (const child of children) {
+    if (child.kind === ExpressionKind.Nop) continue;
+    if (
+      child.kind === ExpressionKind.Block && child.label === '' &&
+      blockParamsOf(child) === undefined
+    ) {
+      for (const c of child.children) if (c.kind !== ExpressionKind.Nop) out.push(c);
+      continue;
+    }
+    out.push(child);
+  }
+  return out;
+}
+
 function _simplifyBlock(
   block: Extract<Expression, { kind: typeof ExpressionKind.Block }>,
 ): Expression {
-  // Filter nops — they contribute nothing to a block body
-  const filtered: Expression[] = [];
-  for (const child of block.children) {
-    if (child.kind === ExpressionKind.Nop) continue;
-    filtered.push(child);
-  }
+  // Filter nops — they contribute nothing to a block body — and splice in the
+  // children of an unnamed block.
+  const filtered = _spliced(block.children);
 
   // Empty block → nop
   if (filtered.length === 0) return makeNop();

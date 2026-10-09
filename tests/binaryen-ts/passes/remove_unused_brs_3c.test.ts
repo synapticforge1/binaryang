@@ -77,14 +77,32 @@ describe('a return at the end of the body', () => {
 });
 
 describe('if (c) br is br_if', () => {
+  // A second branch to `$out` in each fixture keeps the block: with only the
+  // one, step 6b turns the whole block into an `if` on the negated condition
+  // (`remove_unused_brs_6b.test.ts`), and the `br_if` this step makes is gone.
   it('to an outer label', async () => {
+    const { before, after, text } = rub(`(module
+      (func (export "f") (param i32) (result i32)
+        (block $out
+          (if (local.get 0) (then (br $out)))
+          (br_if $out (i32.eq (local.get 0) (i32.const -1)))
+          (return (i32.const 7)))
+        (i32.const 9)))`);
+    expect(text).toContain('br_if');
+    expect(text).not.toContain('(if');
+    await same(before, after, 'f', INPUTS);
+  });
+
+  it('and with no other branch, the block then becomes an if (6b)', async () => {
     const { before, after, text } = rub(`(module
       (func (export "f") (param i32) (result i32)
         (block $out
           (if (local.get 0) (then (br $out)))
           (return (i32.const 7)))
         (i32.const 9)))`);
-    expect(text).toContain('br_if');
+    expect(text).not.toContain('br_if');
+    expect(text).not.toContain('block');
+    expect(text).toContain('i32.eqz');
     await same(before, after, 'f', INPUTS);
   });
 
@@ -97,6 +115,7 @@ describe('if (c) br is br_if', () => {
       (func (export "f") (param i32)
         (block $out
           (if (local.get 0) (then (br $out)))
+          (br_if $out (i32.eq (local.get 0) (i32.const -1)))
           (global.set $g (i32.const 77)))))`,
       ['DCE'],
     );
@@ -108,7 +127,7 @@ describe('if (c) br is br_if', () => {
     walkExpression(m.functions[0]!.body, (e) => {
       if (e.kind === ExpressionKind.Break && e.condition !== undefined) types.push(e.type);
     });
-    expect(types).toEqual([None]);
+    expect(types).toEqual([None, None]); // the made one and the fixture's own
   });
 
   it('NOT to the if itself (its label is not in scope outside it)', async () => {

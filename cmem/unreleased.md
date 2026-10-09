@@ -55,6 +55,12 @@ contains ([handoffs.md](handoffs.md)).
   zero counted; numeric and `v128` only; no evaluation — that is item 23). Scheduled at -O2 and up
   after OptimizeInstructions, with OptimizeInstructions again. Corpus −2.3 KB at -O2 / -Os / -Oz,
   −3.4 KB at -O3; -O1 unchanged; behaviour unchanged.
+- **Behaviour — `Vacuum` splices an unnamed block into its sequence; `RemoveUnusedBrs` turns a
+  block whose only branch is a leading `br_if` to itself into an `if`; NEW pass `CodeFolding`**
+  (open-work 2, 6a / 6b / 6c, 2026-10-08): the loop shape `(block $out (loop $in (br_if $out c)
+  …))` becomes `(loop $in (if (i32.eqz c) …))`; what both arms of an `if` end with is written
+  once after it. `CodeFolding` runs at -O2 and above (the function passes). Corpus -Oz 847,329 →
+  836,929 (−10,400), -O2 / -O3 likewise, -O1 unmoved; behaviour unchanged (the gates).
 - **NEW — `wasm-ctor-eval` and `wasm-interp`** (open-work 23, E4, 2026-10-08): two CLI commands
   and two subpaths, `./tools/wasm-ctor-eval` (`ctorEval(module, options)`) and
   `./tools/wasm-interp` (`interpModule(module, options)`), on the interpreter. `wasm-ctor-eval` runs

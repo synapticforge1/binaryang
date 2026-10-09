@@ -63,3 +63,4 @@ import './dead-argument-elimination.ts';
 import './flatten.ts';
 import './asyncify.ts';
 import './minify-imports-and-exports.ts';
+import './code-folding.ts';
