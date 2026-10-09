@@ -107,13 +107,29 @@ type Origin = Expression | 'entry';
 /** What each `pop` takes: its producer, `'entry'`, or `undefined` for a phantom. */
 export type PopSources = Map<Expression, Origin | undefined>;
 
+/**
+ * The producers whose values NOTHING takes: still on the stack when an
+ * `unreachable`-typed instruction made it polymorphic, which discards them —
+ * `local.get 0; i32.const 8; unreachable`. A value a branch may carry (one under
+ * a `br_on`, or under a transfer that takes more than its operands hold) is
+ * never listed. Recorded for the spill step, which drops them as binaryen's
+ * reader does: left a bare statement, a pass that puts a block boundary between
+ * it and the `unreachable` leaves it on a stack that is no longer polymorphic —
+ * `Inlining` did, and the module was invalid (open-work 13, the code lens).
+ */
+export type Discarded = Set<Expression>;
+
 /** One region's value stack, in emission order. */
 class Stack {
-  private readonly values: { type: ValueType; from: Origin | undefined }[];
+  private readonly values: { type: ValueType; from: Origin | undefined; carried?: true }[];
   /** After an `unreachable`-typed instruction the stack is polymorphic. */
   private dead = false;
-  constructor(seed: readonly ValueType[]) {
+  constructor(seed: readonly ValueType[], private readonly discarded?: Discarded) {
     this.values = seed.map((type) => ({ type, from: 'entry' as const }));
+  }
+  /** Every value now on the stack may be carried by a branch: never {@link Discarded}. */
+  carryAll(): void {
+    for (const v of this.values) v.carried = true;
   }
   /**
    * The top `n` values, deepest first, WITHOUT removing them — `unreachable`
@@ -143,6 +159,20 @@ class Stack {
   }
   push(t: ExprType, from?: Origin): void {
     if (t === Unreachable) {
+      if (this.discarded !== undefined) {
+        for (const v of this.values) {
+          // Only a producer of ONE value: a multi-result call whose other
+          // values a consumer took is not one nothing takes (`spec/fac`
+          // fac-ssa: `$pick1` leaves three, each consumer takes fewer, and the
+          // final `return` discards what is left). A `br_on` leaves more than
+          // its node type says, so it never is.
+          const from = v.from;
+          if (
+            from !== undefined && from !== 'entry' && !v.carried &&
+            from.kind !== ExpressionKind.BrOn && slots(typeOf(from)).length === 1
+          ) this.discarded.add(from);
+        }
+      }
       this.values.length = 0;
       this.dead = true;
     } else for (const type of slots(t)) this.values.push({ type, from });
@@ -162,6 +192,8 @@ class Deriver {
     frameLabel: string,
     /** Where each `pop` takes its value from, when a caller asked to record it. */
     private readonly popSources?: PopSources,
+    /** The producers whose values nothing takes, when a caller asked to record them. */
+    private readonly discarded?: Discarded,
   ) {
     this.labels = [{ name: frameLabel, types: results }];
   }
@@ -177,7 +209,7 @@ class Deriver {
 
   /** A region's instructions, on a stack seeded with `seed`; the region's type by the factories' rule. */
   region(children: readonly Expression[], seed: readonly ValueType[]): ExprType {
-    const stack = new Stack(seed);
+    const stack = new Stack(seed, this.discarded);
     for (const c of children) this.emit(c, stack);
     const last = children[children.length - 1];
     return last === undefined ? None : typeOf(last);
@@ -218,6 +250,11 @@ class Deriver {
       (o as Mut<typeof o>).type = values[i]!;
       if (sources !== undefined) this.popSources!.set(o, sources[i]);
     });
+    // A value a branch may carry is not one nothing takes (`Discarded`): what
+    // stands under a `br_on` goes to its label when it branches, and a transfer
+    // whose operands hold fewer values than it takes — a linear `br_table`'s
+    // values are preceding statements — takes the rest from beneath.
+    if (this.discarded !== undefined && this.takesFromBeneath(e, claimed)) stack.carryAll();
     stack.drop(this.consumes(e, claimed), what);
     const params = carrierParams(e);
     if (params !== undefined) this.carrierBody(e, params.types);
@@ -257,6 +294,31 @@ class Deriver {
     return e.kind === ExpressionKind.Break && e.condition !== undefined
       ? this.carried(e.target).length + 1
       : claimed;
+  }
+
+  /**
+   * Whether `e` may take values from BENEATH its operands: a `br_on` always (it
+   * carries the stack under it), a transfer whose operands claim fewer values
+   * than it takes, and a tail call (its arity is the callee's; not worth
+   * deriving to refine a drop). Only {@link Discarded} asks.
+   */
+  private takesFromBeneath(e: Expression, claimed: number): boolean {
+    switch (e.kind) {
+      case ExpressionKind.BrOn:
+        return true;
+      case ExpressionKind.Break:
+        return e.condition === undefined && claimed < this.carried(e.target).length;
+      case ExpressionKind.Switch:
+        return claimed < this.carried(e.defaultTarget).length + 1;
+      case ExpressionKind.Return:
+        return claimed < this.labels[0]!.types.length;
+      case ExpressionKind.Throw:
+        return claimed < this.m.tags.get(e.tag).sig.params.length;
+      case ExpressionKind.ThrowRef:
+        return claimed < 1;
+      default:
+        return 'isReturn' in e && e.isReturn === true;
+    }
   }
 
   /** A node's operands: its direct children other than its regions (a carrier's entry values, an if's condition). */
@@ -708,7 +770,11 @@ class Module {
  * constant expression — as binaryen-ts's factories and decoder type them. In
  * place. See the module doc.
  */
-export function deriveTypes(m: WasmModule, popSources?: PopSources): void {
+export function deriveTypes(
+  m: WasmModule,
+  popSources?: PopSources,
+  discarded?: Discarded,
+): void {
   const mod = new Module(m);
   const constant = (r: W.RegionExpr | undefined) => {
     if (r !== undefined) {
@@ -731,7 +797,13 @@ export function deriveTypes(m: WasmModule, popSources?: PopSources): void {
   }
   for (const f of m.functions) {
     const body = f.body as Mut<W.RegionExpr>;
-    body.type = new Deriver(mod, f.locals, f.sig.results, f.bodyFrameLabel ?? '', popSources)
-      .region(f.body.children, []);
+    body.type = new Deriver(
+      mod,
+      f.locals,
+      f.sig.results,
+      f.bodyFrameLabel ?? '',
+      popSources,
+      discarded,
+    ).region(f.body.children, []);
   }
 }

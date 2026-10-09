@@ -23,7 +23,7 @@ import {
   PREFIX_SIMD,
   PREFIX_THREADS,
 } from '../core/opcode.ts';
-import type { ErrorList, Location } from '../core/error.ts';
+import { type ErrorList, hasErrors, type Location } from '../core/error.ts';
 import type {
   ArrayCopyExpr,
   ArrayFillExpr,
@@ -268,14 +268,24 @@ function canonicalTypeKeys(types: readonly TypeEntry[]): string[] {
 // ---------------------------------------------------------------------------
 
 /** Validates a decoded WebAssembly module, appending errors to {@link errors}.
- *  Returns Result.Ok if valid, Result.Error otherwise. */
+ *  Returns Result.Ok if valid, Result.Error otherwise.
+ *
+ *  The result is `Error` whenever this run REPORTED an error, whatever the
+ *  check that found it returned. 🔧 It was the checks' returned results alone,
+ *  and a check that reports without failing — a block type naming a type that
+ *  is not a function type — gave `Ok` with the error in the list: `wasm-validate`
+ *  printed the error, then "OK", and exited 0 on a module V8 refuses
+ *  (open-work 13, the code lens; a valid-mutant run against V8 found it). */
 export function validateModule(
   module: Module,
   errors: ErrorList,
   options?: ValidateOptions,
 ): Result {
+  const before = errors.length;
   const v = new ModuleValidator(module, errors, options);
-  return v.checkModule();
+  const result = v.checkModule();
+  const reported = hasErrors(errors.slice(before)); // a warning is not a failure
+  return combineResults(result, reported ? Result.Error : Result.Ok);
 }
 
 // ---------------------------------------------------------------------------

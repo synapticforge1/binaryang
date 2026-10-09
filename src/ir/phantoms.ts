@@ -75,7 +75,7 @@ export function operandsInOrder(e: Expression): Expression[] {
 }
 
 /** An operand as a statement that still evaluates it: one value is dropped. */
-function evaluated(e: Expression): Expression {
+export function evaluated(e: Expression): Expression {
   const t = typeOf(e);
   return t === None || t === Unreachable || Array.isArray(t) ? e : makeDrop(e);
 }

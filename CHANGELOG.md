@@ -57,6 +57,21 @@
 - `wat2wasm`, `writeWasm` and `writeWat` follow about twice as much block nesting as before (name
   resolution was the shallowest stage, near 384 nested blocks; now about 700 on a cold call).
 
+### Fixed
+
+- ⚠️ **`wasmValidate` could return `Result.Ok` for an invalid module**, with the error in its
+  `errors` list. One check — a block type naming a type that is not a function type — reported
+  without failing, and `wasm-validate` then printed the error, printed "OK" and exited 0. The
+  result is now `Error` whenever an error was reported, whichever check reported it. Code that
+  read `errors` was never affected; code that read `result`, or the command's exit status, was.
+- **The optimizer could turn a valid module into an invalid one** when values were left on the
+  stack before an `unreachable` (valid wasm: the `unreachable` discards them). `Inlining` wrapped
+  the code after them in a block, which ended the discarding, and the values were left over;
+  `OptimizeInstructions` rewrote an instruction the bytes never run as if they did. Such values
+  are now dropped where they stand before the first pass runs, as binaryen's own reader reads
+  them, and an instruction whose operands the `unreachable` cut off is taken apart. Nothing
+  changes at run time, and a read-and-write with no pass is byte-exact as before.
+
 ## 1.10.0
 
 A minor release: **`wasm-bundle`** — one module from many, with ONE memory relocated exactly

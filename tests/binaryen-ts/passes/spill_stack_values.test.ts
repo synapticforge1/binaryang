@@ -27,6 +27,7 @@ import { prepareForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { spillStackValues } from '../../../src/passes/spill-stack-values.ts';
+import { deriveTypes, type Discarded } from '../../../src/ir/derive-types.ts';
 import { ExpressionKind, typeOf } from '../../../src/ir/expressions.ts';
 import { walkExpression } from '../../../src/ir/walk.ts';
 import type { Expression } from '../../../src/ir/expressions.ts';
@@ -285,5 +286,206 @@ describe('a pop that stays keeps every pop evaluated before it on the stack too'
     const out = writeWasm(m);
     assert(WebAssembly.validate(out as BufferSource), 'valid after -Oz');
     assertEquals(results(out), results(bytes));
+  });
+});
+
+const drops = (m: WasmModule) => {
+  let n = 0;
+  for (const f of m.functions) {
+    walkExpression(f.body as unknown as Expression, (e) => {
+      if (e.kind === ExpressionKind.Drop) n++;
+    });
+  }
+  return n;
+};
+
+// Values NOTHING takes: still on the stack when an `unreachable` made it
+// polymorphic, which discards them. Valid wasm, and the reader keeps them as
+// bare statements. 🔧 They were left so, and a pass that wraps the code after
+// them in a block ends the polymorphism at their level: `Inlining` turned the
+// call below (an `unreachable` operand) into a typed block, and the `then` arm
+// ended with two values on its stack — "type mismatch at end of end", from
+// ours and from V8 (open-work 13, the code lens: a valid mutant of a wasmtk
+// producer binary, `i32.shl` → `unreachable`). They are dropped now, as
+// binaryen's reader reads them.
+describe('a value nothing takes is dropped where it stands', () => {
+  const bytes = asm(`(module
+    (memory 1)
+    (func $alloc (param i32 i32) (result i32) (i32.add (local.get 0) (local.get 1)))
+    (func $grow (param i32 i32) (result i32) (local i32) (local i32)
+      (local.set 2 (i32.load (local.get 0)))
+      (local.set 3 (i32.load offset=4 (local.get 0)))
+      (if (i32.ge_u (local.get 2) (local.get 3))
+        (then
+          local.get 0
+          i32.const 8
+          local.get 3
+          i32.const 1
+          unreachable
+          local.get 3
+          i32.eqz
+          select
+          call $alloc
+          local.set 0))
+      (i32.store (i32.add (local.get 0) (i32.const 8)) (local.get 1))
+      (local.get 0))
+    (func (export "f") (param i32) (result i32) (call $grow (local.get 0) (i32.const 5))))`);
+
+  it('the spill drops every discarded value — the fixture discriminates', () => {
+    const m = routeB(bytes);
+    const before = drops(m);
+    spillStackValues(m);
+    // `local.get 0`, `i32.const 8` (statements), `local.get 3`, `i32.const 1`
+    // (operands of the `call` and the `select`, which never run and are taken
+    // apart), and the `select`'s condition, evaluated after the `unreachable`.
+    assertEquals(drops(m) - before, 5);
+    const then = (m.functions[1]!.body.children[2] as unknown as {
+      ifTrue: { children: Expression[] };
+    }).ifTrue.children;
+    assertEquals(
+      then.slice(0, 5).map((c) => c.kind),
+      ['drop', 'drop', 'drop', 'drop', 'unreachable'],
+      'the four values, evaluated in order, then the trap — where the bytes trap',
+    );
+  });
+
+  it('`Inlining` alone gives a VALID module that computes the same', () => {
+    const m = routeB(bytes);
+    new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).add('Inlining').run();
+    const out = writeWasm(m);
+    assert(WebAssembly.validate(out as BufferSource), 'valid after Inlining');
+    assertEquals(results(out), results(bytes));
+  });
+
+  it('and so does -O2', () => {
+    const m = routeB(bytes);
+    new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
+    const out = writeWasm(m);
+    assert(WebAssembly.validate(out as BufferSource), 'valid after -O2');
+    assertEquals(results(out), results(bytes));
+  });
+
+  it('a plain read-and-write is still byte-exact — no pass, no drop', () => {
+    const m = routeB(bytes);
+    new PassRunner(m).run();
+    assertEquals(writeWasm(m), bytes);
+  });
+});
+
+// A discarded value the reader made an OPERAND: `i32.shl …; unreachable;
+// i32.load; i64.extend_i32_u; i64.add` reads as `(i64.add (i32.shl …)
+// (i64.extend_i32_u (i32.load (unreachable))))` — byte-faithful, and an i64.add
+// of an i32, since the add really takes the bottom value. 🔧 Left whole, it looked
+// live, and after twelve -O2 passes `OptimizeInstructions` rewrote it into
+// reachable, invalid code (open-work 13, the code lens: a valid mutant of a
+// wasmtk producer binary). The consumer never runs; it is taken apart.
+describe('a consumer of a discarded operand is taken apart', () => {
+  const bytes = asm(`(module
+    (memory 1)
+    (func (export "f") (param i32) (result i32) (local i64)
+      local.get 0
+      i32.const 2
+      i32.shl
+      unreachable
+      i32.load
+      i64.extend_i32_u
+      i64.add
+      local.set 1
+      local.get 0))`);
+
+  const adds = (m: WasmModule) => {
+    let n = 0;
+    walkExpression(m.functions[0]!.body as unknown as Expression, (e) => {
+      if (e.kind === ExpressionKind.Binary) n++;
+    });
+    return n;
+  };
+
+  it('the reader really does give the `i64.add` the `i32.shl` — the fixture discriminates', () => {
+    assertEquals(adds(routeB(bytes)), 2, 'the add and the shift');
+  });
+
+  it('after the spill only the shift is left, evaluated, then the trap', () => {
+    const m = routeB(bytes);
+    spillStackValues(m);
+    assertEquals(adds(m), 1, 'the i64.add is gone: it never ran');
+    const kinds = m.functions[0]!.body.children.map((c) => c.kind);
+    assertEquals(kinds.slice(0, 2), ['drop', 'drop'], 'the shift, then the extend, evaluated');
+    assert(kinds.includes('unreachable'), 'then the trap');
+  });
+
+  it('-O2 gives a valid module that traps as the original does', () => {
+    const m = routeB(bytes);
+    new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
+    const out = writeWasm(m);
+    assert(WebAssembly.validate(out as BufferSource), 'valid after -O2');
+    assertEquals(results(out), results(bytes));
+  });
+});
+
+// ⚠️ A value a BRANCH carries is not one nothing takes. The reader gives a
+// transfer its carried values as operands, so a value below one is rare — but a
+// linear `br_table`'s values are preceding statements by the IR's own account,
+// and a tree built through the API may hold them so. Dropped, the branch would
+// find no value. The derivation must not list it.
+describe('a value a branch takes from beneath its operands is not discarded', () => {
+  it('a `br_table` with its value as the statement before it', () => {
+    const m = routeB(asm(`(module
+      (func (export "f") (param i32) (result i32)
+        (block (result i32) (br_table 0 0 (i32.const 7) (local.get 0)))))`));
+    const block = (m.functions[0]!.body.children[0]!) as unknown as {
+      children: Expression[];
+    };
+    const table = block.children[0] as unknown as { values: Expression[] };
+    assertEquals(table.values.length, 1, 'the reader gives the value as an operand');
+    const value = table.values[0]!;
+    block.children = [value, { ...(table as object), values: [] } as unknown as Expression];
+    const discarded: Discarded = new Set();
+    deriveTypes(m, new Map(), discarded);
+    assert(!discarded.has(value), 'the value the br_table carries is not discarded');
+  });
+
+  it('control: the same value before a bare `unreachable` IS discarded', () => {
+    const m = routeB(asm(`(module
+      (func (export "f") (param i32) (result i32)
+        (block (result i32) (br_table 0 0 (i32.const 7) (local.get 0)))))`));
+    const block = (m.functions[0]!.body.children[0]!) as unknown as {
+      children: Expression[];
+    };
+    const value = (block.children[0] as unknown as { values: Expression[] }).values[0]!;
+    block.children = [value, { kind: ExpressionKind.Unreachable } as unknown as Expression];
+    const discarded: Discarded = new Set();
+    deriveTypes(m, new Map(), discarded);
+    assert(discarded.has(value), 'nothing takes it');
+  });
+});
+
+// A value under a `br_on`: the reader gives it as the branch's operand, and
+// what falls through is discarded by the `unreachable`. Nothing may be dropped
+// that the branch needs, and a `br_on` statement is never wrapped in a `drop`
+// (its node type is its reference alone).
+describe('a value a `br_on` carries is not dropped', () => {
+  const bytes = asm(`(module
+    (func (export "f") (param i32) (result i32)
+      (block (result i32)
+        local.get 0
+        ref.null func
+        br_on_null 0
+        drop
+        unreachable)))`);
+
+  it('the spill drops nothing here', () => {
+    const m = routeB(bytes);
+    const before = drops(m);
+    spillStackValues(m);
+    assertEquals(drops(m), before);
+  });
+
+  it('-O2 gives a valid module that returns its argument', () => {
+    const m = routeB(bytes);
+    new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
+    const out = writeWasm(m);
+    assert(WebAssembly.validate(out as BufferSource), 'valid after -O2');
+    assertEquals(results(out), [0, 7, -3]);
   });
 });
