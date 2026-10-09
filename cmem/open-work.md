@@ -24,8 +24,10 @@ typed by hand when the owner says ([bundle.md](bundle.md); its number is kept fr
 letter [handoffs.md](handoffs.md) § 27 is DRAFTED, to send with that release. The `.wit` beside
 every bundle is a DEFAULT (owner, 2026-10-08; `witgen.ts`, `--no-wit`). ✅ **Gate GREEN on the
 branch head `3ba63a8d8` (21 steps, every exit 0; the numbers in [bundle.md](bundle.md)) and
-MERGED into `main` 2026-10-09.** Nothing pushed since 1.9.0. **Now: the owner's
-call on 1.10.0; then 21 and the rounds 13 / 14. 4 open items, none blocking**; numbers 2–7, 9–12,
+MERGED into `main` 2026-10-09.** 🚀 **Owner's go 2026-10-09: "lets do the 1.10.0 release"** — the
+sequence of [publishing.md](publishing.md) (push `main` unbumped, CI green, the MINOR typed by
+hand, push, the tag re-pushed by hand), then the letter § 27 goes to wasmtk, then the open items
+are listed. **Then: 21 and the rounds 13 / 14. 4 open items, none blocking**; numbers 2–7, 9–12,
 16, 17, 22, 23, 24 are gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
