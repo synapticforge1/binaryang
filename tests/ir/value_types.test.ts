@@ -15,9 +15,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { Type } from '../../src/wabt-ts/core/types.ts';
-import type { RefValueType } from '../../src/wabt-ts/ir/ir.ts';
-import type { RefType } from '../../src/binaryen-ts/ir/gc-types.ts';
+import { Type } from '../../src/core/types.ts';
+import type { RefValueType } from '../../src/ir/ir.ts';
+import type { RefType } from '../../src/ir/gc-types.ts';
 import {
   isValType,
   None,
@@ -26,7 +26,7 @@ import {
   ValType,
   valTypeFromName,
   valTypeName,
-} from '../../src/binaryen-ts/ir/types.ts';
+} from '../../src/ir/types.ts';
 
 /** Every binaryen-ts member that has a wabt-ts counterpart. `StringRef` does not. */
 const SHARED = [

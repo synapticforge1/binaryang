@@ -25,13 +25,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
 import opcodes from '../../../src/definitions/opcodes.json' with { type: 'json' };
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import {
   evalBinary,
   evalUnary,
   foldedLiteral,
   type NumericResult,
-} from '../../../src/binaryen-ts/interp/numeric.ts';
+} from '../../../src/interp/numeric.ts';
 import {
   fma,
   isRelaxed,
@@ -39,9 +39,9 @@ import {
   simdReplace,
   simdShuffle,
   simdTernary,
-} from '../../../src/binaryen-ts/interp/simd.ts';
-import type { Literal } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
+} from '../../../src/interp/simd.ts';
+import type { Literal } from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
 
 type T = 'i32' | 'i64' | 'f32' | 'f64' | 'v128';
 interface Op {

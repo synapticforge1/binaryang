@@ -20,8 +20,8 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
 
 /** The code section's payload, which begins with the local declarations. */
 function codeSection(b: Uint8Array): Uint8Array {

@@ -16,16 +16,16 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { SIMD_LOAD_OPCODES } from '../../src/wabt-ts/ir/ir.ts';
-import type { Expr } from '../../src/wabt-ts/ir/ir.ts';
-import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
-import { readBinaryIr } from '../../src/wabt-ts/reader/binary-reader.ts';
-import { makeErrorList } from '../../src/wabt-ts/core/error.ts';
-import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../src/wabt-ts/tools/wasm2wat.ts';
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { readWat } from '../../src/binaryen-ts/tools/read-wat.ts';
-import { SIMDLoadOp } from '../../src/binaryen-ts/ir/expressions.ts';
+import { SIMD_LOAD_OPCODES } from '../../src/ir/ir.ts';
+import type { Expr } from '../../src/ir/ir.ts';
+import { parseWatModule } from '../../src/parser/wast-parser.ts';
+import { readBinaryIr } from '../../src/reader/binary-reader.ts';
+import { makeErrorList } from '../../src/core/error.ts';
+import { wat2wasm } from '../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../src/tools/wasm2wat.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { readWat } from '../../src/tools/read-wat.ts';
+import { SIMDLoadOp } from '../../src/ir/expressions.ts';
 
 // Every SIMD load that is a load of memory into a whole v128 — the lane loads
 // (`v128.load8_lane` …) are their own kind and carry a vector operand.

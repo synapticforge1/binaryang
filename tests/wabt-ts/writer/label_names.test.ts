@@ -38,12 +38,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertThrows } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { writeWatModule } from '../../../src/writer/wat-writer.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 

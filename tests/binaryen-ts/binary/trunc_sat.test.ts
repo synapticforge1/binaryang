@@ -14,11 +14,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { UnaryOp } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { UnaryOp } from '../../../src/ir/expressions.ts';
 
 // Each export takes a float and returns the saturated integer as an f64, so
 // an i64 result compares as a number: the edge cases are NaN, both overflows,

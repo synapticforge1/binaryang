@@ -18,13 +18,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
 
 /** Section ids in order, custom sections left out. */
 function sectionIds(b: Uint8Array): number[] {

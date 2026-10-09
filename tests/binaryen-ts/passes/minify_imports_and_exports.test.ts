@@ -12,16 +12,16 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   formatMinifyMap,
   minifyImportsAndExports,
   type MinifyMap,
   PassRunner,
   takeMinifyMap,
-} from '../../../src/binaryen-ts/passes/index.ts';
-import { wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
+} from '../../../src/passes/index.ts';
+import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
 
 const WAT = `(module
  (import "env" "log" (func $log (param i32)))

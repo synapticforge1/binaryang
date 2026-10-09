@@ -10,11 +10,11 @@
  */
 
 import { assert, assertEquals, assertNotEquals, assertThrows } from '@std/assert';
-import * as binaryen from '../../../src/binaryen-ts/api/binaryen-compat.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { type CallIndirectExpr, ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import * as binaryen from '../../../src/compat/binaryen-compat.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { type CallIndirectExpr, ExpressionKind } from '../../../src/ir/expressions.ts';
+import { varName } from '../../../src/ir/ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 // ---------------------------------------------------------------------------
 // Fixture: same ADD_MODULE used by encoder tests — a tiny module with one

@@ -29,10 +29,10 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import type { Expression } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { spillStackValues } from '../../../src/binaryen-ts/passes/spill-stack-values.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import type { Expression } from '../../../src/ir/expressions.ts';
+import { spillStackValues } from '../../../src/passes/spill-stack-values.ts';
 
 // Hand-assembled module (global $g mut i32 = 100):
 //   (func (export "f") (result i32)

@@ -11,16 +11,16 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import type * as W from '../../../src/wabt-ts/ir/ir.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { nameReferences } from '../../../src/wabt-ts/ir/name-references.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { deriveTypes } from '../../../src/binaryen-ts/ir/derive-types.ts';
-import { None, Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+import type * as W from '../../../src/ir/ir.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { nameReferences } from '../../../src/ir/name-references.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { makeErrorList } from '../../../src/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { deriveTypes } from '../../../src/ir/derive-types.ts';
+import { None, Unreachable, ValType } from '../../../src/ir/types.ts';
 
 /** The optimizer route from text: parse, resolve, synthesize, name, derive. */
 function fromText(wat: string, derive = true): W.Module {

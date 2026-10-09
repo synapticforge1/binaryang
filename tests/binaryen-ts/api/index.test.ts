@@ -7,7 +7,7 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { createModule } from '../../../src/binaryen-ts/api/index.ts';
+import { createModule } from '../../../src/api/index.ts';
 import {
   asRegion,
   BinaryOp,
@@ -19,14 +19,14 @@ import {
   makeLocalGet,
   makeLoop,
   makeNop,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import { varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // register built-in passes
+} from '../../../src/ir/expressions.ts';
+import { None, ValType } from '../../../src/ir/types.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
+import { varIndex, varName } from '../../../src/ir/ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { hasErrors } from '../../../src/core/error.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import '../../../src/passes/index.ts'; // register built-in passes
 
 Deno.test('toWat writes every kind, and the text assembles to the same module (K4)', () => {
   // 🔧 `toWat` had its own partial serializer: it printed a `binary` as its

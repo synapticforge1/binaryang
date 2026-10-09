@@ -15,15 +15,15 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { type Expression, ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { mapExpression, walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { type Expression, ExpressionKind } from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { mapExpression, walkExpression } from '../../../src/ir/walk.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);

@@ -49,16 +49,16 @@
  */
 
 import process from 'node:process';
-import { main as wasmOptMain } from './src/binaryen-ts/tools/wasm-opt.ts';
-import { main as wat2wasmMain } from './src/wabt-ts/tools/wat2wasm.ts';
-import { main as wasm2watMain } from './src/wabt-ts/tools/wasm2wat.ts';
-import { main as wasmValidateMain } from './src/wabt-ts/tools/wasm-validate.ts';
-import { main as wasmObjdumpMain } from './src/wabt-ts/tools/wasm-objdump.ts';
-import { main as wasmStripMain } from './src/wabt-ts/tools/wasm-strip.ts';
-import { main as wasm2tsMain } from './src/wabt-ts/tools/wasm2ts.ts';
-import { main as wasmCtorEvalMain } from './src/binaryen-ts/tools/wasm-ctor-eval.ts';
-import { main as wasmInterpMain } from './src/binaryen-ts/tools/wasm-interp.ts';
-import { main as wasmBundleMain } from './src/binaryen-ts/tools/wasm-bundle.ts';
+import { main as wasmOptMain } from './src/tools/wasm-opt.ts';
+import { main as wat2wasmMain } from './src/tools/wat2wasm.ts';
+import { main as wasm2watMain } from './src/tools/wasm2wat.ts';
+import { main as wasmValidateMain } from './src/tools/wasm-validate.ts';
+import { main as wasmObjdumpMain } from './src/tools/wasm-objdump.ts';
+import { main as wasmStripMain } from './src/tools/wasm-strip.ts';
+import { main as wasm2tsMain } from './src/tools/wasm2ts.ts';
+import { main as wasmCtorEvalMain } from './src/tools/wasm-ctor-eval.ts';
+import { main as wasmInterpMain } from './src/tools/wasm-interp.ts';
+import { main as wasmBundleMain } from './src/tools/wasm-bundle.ts';
 
 export * from './src/index.ts';
 

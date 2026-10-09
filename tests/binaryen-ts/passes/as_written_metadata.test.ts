@@ -11,10 +11,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
 
 /** A module whose as-written metadata is non-empty. */
 function withMetadata(): WasmModule {

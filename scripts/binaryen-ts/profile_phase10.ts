@@ -25,13 +25,13 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
-import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
-import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
-import { ModuleBuilder } from '../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../src/binaryen-ts/ir/types.ts';
-import { varIndex } from '../../src/wabt-ts/ir/ir.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
+import { walkExpression } from '../../src/ir/walk.ts';
+import type { WasmModule } from '../../src/ir/module.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import { varIndex } from '../../src/ir/ir.ts';
 import {
   BinaryOp,
   type Expression,
@@ -44,12 +44,12 @@ import {
   makeLoop,
   makeUnary,
   UnaryOp,
-} from '../../src/binaryen-ts/ir/expressions.ts';
+} from '../../src/ir/expressions.ts';
 
-import { createPass, type Pass, type PassOptions } from '../../src/binaryen-ts/passes/pass.ts';
-import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
+import { createPass, type Pass, type PassOptions } from '../../src/passes/pass.ts';
+import { ExternalKind } from '../../src/core/binary.ts';
 // Side-effect import to register passes
-import '../../src/binaryen-ts/passes/index.ts';
+import '../../src/passes/index.ts';
 
 // ---------------------------------------------------------------------------
 // Corpus loading

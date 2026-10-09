@@ -21,11 +21,11 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { hasErrors } from '../../../src/core/error.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 
 /** `$sub3(a,b,c) = a - b - c`, folded, so every argument slot is observable. */
 const DEFS = `(func $sub (param i32 i32) (result i32)

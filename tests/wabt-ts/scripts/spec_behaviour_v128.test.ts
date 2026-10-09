@@ -16,7 +16,7 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import {
   needsWrapper,
   type Sig,

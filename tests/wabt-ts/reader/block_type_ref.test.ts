@@ -34,14 +34,14 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
-import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { isRefValueType } from '../../../src/wabt-ts/ir/ir.ts';
-import type { Expr } from '../../../src/wabt-ts/ir/ir.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { validateModule } from '../../../src/validator/validator.ts';
+import { hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { isRefValueType } from '../../../src/ir/ir.ts';
+import type { Expr } from '../../../src/ir/ir.ts';
 
 /**
  * Every expression kind in a body, depth-first — a phantom shows up here.

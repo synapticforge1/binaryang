@@ -9,9 +9,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasmObjdump } from '../../../src/wabt-ts/tools/wasm-objdump.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasmObjdump } from '../../../src/tools/wasm-objdump.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 
 function objdump(wat: string): string {
   const r = wat2wasm(wat);

@@ -29,20 +29,20 @@ import {
   makeNop,
   makeReturn,
   makeUnreachable,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
+} from '../../../src/ir/expressions.ts';
 import {
   ModuleBuilder,
   noAsWrittenMetadata,
   type WasmFunction,
   type WasmModule,
-} from '../../../src/binaryen-ts/ir/module.ts';
-import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { parseArgs, wasmOpt } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/module.ts';
+import { None, ValType } from '../../../src/ir/types.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { listPasses, PassRunner } from '../../../src/passes/index.ts';
+import { parseArgs, wasmOpt } from '../../../src/tools/wasm-opt.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
 
 // ---------------------------------------------------------------------------

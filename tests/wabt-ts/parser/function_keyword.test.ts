@@ -12,8 +12,8 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 
 Deno.test('`function` is refused wherever `func` names a function', () => {
   for (

@@ -40,24 +40,24 @@ import {
   type TryExpr,
   type TryTableExpr,
   UnaryOp,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
+} from '../../../src/ir/expressions.ts';
 import {
   elemFuncEntry,
   ModuleBuilder,
   noAsWrittenMetadata,
   type WasmFunction,
   type WasmModule,
-} from '../../../src/binaryen-ts/ir/module.ts';
-import { AbstractHeapType } from '../../../src/binaryen-ts/ir/gc-types.ts';
-import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { requireIndex, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { heapAbstract, varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+} from '../../../src/ir/module.ts';
+import { AbstractHeapType } from '../../../src/ir/gc-types.ts';
+import { None, ValType } from '../../../src/ir/types.ts';
+import { listPasses, PassRunner } from '../../../src/passes/index.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { requireIndex, varIndex } from '../../../src/ir/ir.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { heapAbstract, varName } from '../../../src/ir/ir.ts';
+import { Opcode } from '../../../src/core/opcode.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

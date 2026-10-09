@@ -12,13 +12,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { formNodes, writtenForms } from '../../../src/wabt-ts/ir/text-form.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { formNodes, writtenForms } from '../../../src/ir/text-form.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
 
 /** Each function whose fold-written forms are not the prediction, as `name: at`. */
 function disagreements(wat: string): string[] {

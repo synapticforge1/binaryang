@@ -17,13 +17,13 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
 import {
   analyzeModule,
   parseAsyncifyOptions,
   resolveAsyncifyImports,
-} from '../../../src/binaryen-ts/passes/asyncify.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+} from '../../../src/passes/asyncify.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
 import {
   IMPORT_CALL,
   INDIRECT,

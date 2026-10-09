@@ -29,13 +29,13 @@ import {
   makeNop,
   makeRethrow,
   makeSwitch,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+} from '../../../src/ir/expressions.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { varIndex, varName } from '../../../src/ir/ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 describe('label references are Vars, and a pass only ever sees names', () => {
   it('the factories build NAME-form label references', () => {

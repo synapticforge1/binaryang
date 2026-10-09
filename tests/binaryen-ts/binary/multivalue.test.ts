@@ -34,8 +34,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   type BreakExpr,
   ExpressionKind,
@@ -44,17 +44,17 @@ import {
   makeCallIndirect,
   makeI32Const,
   type ReturnExpr,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
-import { lowerBlockParams } from '../../../src/binaryen-ts/passes/lower-block-params.ts';
-import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
+} from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { PassRunner } from '../../../src/passes/pass.ts';
+import { lowerBlockParams } from '../../../src/passes/lower-block-params.ts';
+import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { formatErrors } from '../../../src/core/error.ts';
+import { varName } from '../../../src/ir/ir.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
+import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
 

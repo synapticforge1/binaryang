@@ -14,22 +14,22 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { ExpressionKind, labelName } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { readForPasses, WasmBinaryError } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { ExpressionKind, labelName } from '../../../src/ir/expressions.ts';
 import type {
   BlockExpr,
   Expression,
   ThrowExpr,
   ThrowRefExpr,
   TryTableExpr,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
-import { varName } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { PassRunner } from '../../../src/passes/pass.ts';
+import { varName } from '../../../src/ir/ir.ts';
 import { region } from '../region_helpers.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
+import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
 
 // ---------------------------------------------------------------------------
 // Helpers

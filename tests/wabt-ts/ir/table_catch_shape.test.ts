@@ -26,17 +26,14 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import type { Catch, Expr, TableCatch } from '../../../src/wabt-ts/ir/ir.ts';
-import type {
-  Catch as BCatch,
-  TableCatch as BTableCatch,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import type { Catch, Expr, TableCatch } from '../../../src/ir/ir.ts';
+import type { Catch as BCatch, TableCatch as BTableCatch } from '../../../src/ir/expressions.ts';
+import { makeErrorList } from '../../../src/core/error.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 
 type TryTable = Extract<Expr, { kind: 'try_table' }>;
 

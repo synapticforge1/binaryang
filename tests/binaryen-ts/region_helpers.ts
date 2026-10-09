@@ -10,11 +10,7 @@
 // These helpers state the expectation instead of branching on it.
 
 import { assertEquals } from '@std/assert';
-import {
-  type Expression,
-  ExpressionKind,
-  type RegionExpr,
-} from '../../src/binaryen-ts/ir/expressions.ts';
+import { type Expression, ExpressionKind, type RegionExpr } from '../../src/ir/expressions.ts';
 
 /** `e` as a region — failing, not skipping, when it is not one. */
 export function region(e: Expression): RegionExpr {

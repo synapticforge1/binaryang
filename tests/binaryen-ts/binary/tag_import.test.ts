@@ -18,15 +18,15 @@
  */
 
 import { assert, assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { makeI32Const, makeThrow } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
-import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: registers the pass registry
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { makeI32Const, makeThrow } from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { PassRunner } from '../../../src/passes/pass.ts';
+import { type Var, varName } from '../../../src/ir/ir.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
+import '../../../src/passes/index.ts'; // side-effect: registers the pass registry
 
 /**
  * `(import "env" "imported" (tag (param i32)))`, a defined

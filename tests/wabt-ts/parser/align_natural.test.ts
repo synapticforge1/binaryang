@@ -26,17 +26,17 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import type { Module } from '../../../src/wabt-ts/ir/ir.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { validateModule } from '../../../src/validator/validator.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { writeWatModule } from '../../../src/writer/wat-writer.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import type { Module } from '../../../src/ir/ir.ts';
 
 /** The text pipeline the wabt.js-compatible `parseWat` runs: parse, resolve, synthesize types. */
 function parse(wat: string): Module {

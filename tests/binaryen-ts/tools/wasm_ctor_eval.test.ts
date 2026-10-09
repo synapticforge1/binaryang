@@ -9,14 +9,10 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm, writeWat } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import {
-  ctorEval,
-  type CtorEvalOptions,
-  packMemory,
-} from '../../../src/binaryen-ts/tools/wasm-ctor-eval.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm, writeWat } from '../../../src/ir/write-wasm.ts';
+import { ctorEval, type CtorEvalOptions, packMemory } from '../../../src/tools/wasm-ctor-eval.ts';
 
 function evalled(wat: string, options: Partial<CtorEvalOptions>) {
   const m = readForPasses(wat2wasm(wat, { textForm: false }).binary);

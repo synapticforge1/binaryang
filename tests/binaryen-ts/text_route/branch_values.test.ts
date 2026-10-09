@@ -16,17 +16,17 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
 import {
   type BreakExpr,
   type Expression,
   ExpressionKind,
   type ReturnExpr,
   type SwitchExpr,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { None, ValType } from '../../../src/binaryen-ts/ir/types.ts';
+} from '../../../src/ir/expressions.ts';
+import { None, ValType } from '../../../src/ir/types.ts';
 
 /** The code section's payload. */
 function codeSection(bytes: Uint8Array): number[] {

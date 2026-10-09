@@ -12,10 +12,10 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
 import {
   asRegion,
   type Expression,
@@ -27,10 +27,10 @@ import {
   makeLocalGet,
   makeSwitch,
   makeThrow,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { mapChildrenShallow, visitChildren } from '../../../src/binaryen-ts/ir/walk.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/ir/expressions.ts';
+import { mapChildrenShallow, visitChildren } from '../../../src/ir/walk.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { varIndex, varName } from '../../../src/ir/ir.ts';
 
 /** What a child is, by the local it reads (0 = a value, 9 = the condition). */
 const tag = (e: Expression) =>

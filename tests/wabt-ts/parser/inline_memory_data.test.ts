@@ -15,8 +15,8 @@
 
 import { assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { formatErrors } from '../../../src/core/error.ts';
 
 /** The memory section's payload, as hex. */
 function memorySection(b: Uint8Array): string {

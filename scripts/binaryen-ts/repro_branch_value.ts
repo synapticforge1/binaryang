@@ -17,12 +17,12 @@
  * @license MIT
  */
 
-import { ModuleBuilder } from '../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../src/binaryen-ts/ir/types.ts';
-import { makeBlock, makeBreak, makeI32Const } from '../../src/binaryen-ts/ir/expressions.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { readWat } from '../../src/binaryen-ts/tools/read-wat.ts';
+import { ModuleBuilder } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import { makeBlock, makeBreak, makeI32Const } from '../../src/ir/expressions.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { readWat } from '../../src/tools/read-wat.ts';
 
 async function validates(bytes: Uint8Array): Promise<{ ok: boolean; err?: string }> {
   try {

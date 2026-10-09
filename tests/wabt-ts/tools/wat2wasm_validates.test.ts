@@ -16,8 +16,8 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { main } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { main } from '../../../src/tools/wat2wasm.ts';
 import process from 'node:process';
 
 const verdict = (wat: string): string => {

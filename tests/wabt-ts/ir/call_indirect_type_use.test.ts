@@ -17,16 +17,16 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import type { CallIndirectExpr, Module } from '../../../src/wabt-ts/ir/ir.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { writeWatModule } from '../../../src/wabt-ts/writer/wat-writer.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
+import type { CallIndirectExpr, Module } from '../../../src/ir/ir.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { writeWatModule } from '../../../src/writer/wat-writer.ts';
+import { validateModule } from '../../../src/validator/validator.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
 
 function firstCallIndirect(m: Module): CallIndirectExpr {
   const stack: unknown[] = [m.functions.map((f) => f.body.children)];

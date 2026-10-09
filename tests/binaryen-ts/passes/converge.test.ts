@@ -11,16 +11,12 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import {
-  optimizeToConvergence,
-  type Pass,
-  PassRunner,
-} from '../../../src/binaryen-ts/passes/index.ts';
-import { parseArgs } from '../../../src/binaryen-ts/tools/wasm-opt.ts';
-import type { WasmModule } from '../../../src/binaryen-ts/ir/module.ts';
-import { makeNop } from '../../../src/binaryen-ts/ir/expressions.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { optimizeToConvergence, type Pass, PassRunner } from '../../../src/passes/index.ts';
+import { parseArgs } from '../../../src/tools/wasm-opt.ts';
+import type { WasmModule } from '../../../src/ir/module.ts';
+import { makeNop } from '../../../src/ir/expressions.ts';
 
 const OZ = { optimizeLevel: 2, shrinkLevel: 2 } as const;
 

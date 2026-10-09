@@ -14,8 +14,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
 
 /**
  * The few cursor reads this script needs. binaryen-ts's `BinaryReader` went

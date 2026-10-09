@@ -14,10 +14,10 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
-import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
-import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
+import { walkExpression } from '../../src/ir/walk.ts';
+import type { WasmModule } from '../../src/ir/module.ts';
 
 const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 

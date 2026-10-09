@@ -13,8 +13,8 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
 
 const SECTION_NAMES: Record<number, string> = {
   0: 'custom',

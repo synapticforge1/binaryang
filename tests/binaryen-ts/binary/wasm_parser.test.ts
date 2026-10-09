@@ -7,15 +7,15 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { readForPasses, WasmBinaryError } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { readForPasses, WasmBinaryError } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { hasErrors } from '../../../src/core/error.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { type Var, varName } from '../../../src/ir/ir.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

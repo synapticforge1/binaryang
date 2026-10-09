@@ -35,10 +35,10 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: register all built-in passes
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/pass.ts';
+import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
 
 // --- byte helpers ---------------------------------------------------------
 

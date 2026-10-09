@@ -18,9 +18,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { formatErrors } from '../../../src/wabt-ts/core/error.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { formatErrors } from '../../../src/core/error.ts';
 
 const HEADER = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 const sec = (id: number, body: number[]): number[] => [id, body.length, ...body];

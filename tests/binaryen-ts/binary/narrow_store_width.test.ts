@@ -36,12 +36,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { storeShape } from '../../../src/binaryen-ts/ir/memory-access.ts';
-import type { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import { storeShape } from '../../../src/ir/memory-access.ts';
+import type { Opcode } from '../../../src/core/opcode.ts';
 
 /** Bytes a store actually wrote: store -1 into zeroed memory, count the 0xFF bytes. */
 async function bytesWritten(op: string): Promise<number> {

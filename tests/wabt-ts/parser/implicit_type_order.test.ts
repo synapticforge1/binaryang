@@ -23,14 +23,14 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { LexerSource } from '../../../src/wabt-ts/parser/lexer-source.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../../src/wabt-ts/ir/synthesize-types.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { LexerSource } from '../../../src/parser/lexer-source.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../../src/ir/synthesize-types.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);

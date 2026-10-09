@@ -19,9 +19,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
 import {
   asRegion,
   asStatement,
@@ -31,9 +31,9 @@ import {
   makeI32Const,
   makeNop,
   makeRegion,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { None } from '../../../src/binaryen-ts/ir/types.ts';
+} from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { None } from '../../../src/ir/types.ts';
 
 const HEADER = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 const VOID_TYPE = [0x01, 0x04, 0x01, 0x60, 0x00, 0x00];

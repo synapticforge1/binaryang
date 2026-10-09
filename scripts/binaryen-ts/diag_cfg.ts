@@ -11,8 +11,8 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { buildCFG, computeLiveness } from '../../src/binaryen-ts/passes/cfg.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { buildCFG, computeLiveness } from '../../src/passes/cfg.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const mod = readForPasses(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));

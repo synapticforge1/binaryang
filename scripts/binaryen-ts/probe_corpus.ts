@@ -15,10 +15,10 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
-import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
-import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { walkExpression } from '../../src/ir/walk.ts';
+import type { WasmModule } from '../../src/ir/module.ts';
+import { ExternalKind } from '../../src/core/binary.ts';
 
 const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 

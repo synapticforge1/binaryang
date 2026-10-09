@@ -12,10 +12,10 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
-import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
-import type { Expression } from '../../src/binaryen-ts/ir/expressions.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
+import { walkExpression } from '../../src/ir/walk.ts';
+import type { Expression } from '../../src/ir/expressions.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0];

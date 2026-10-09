@@ -18,18 +18,18 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
 import {
   handleNonDefaultableLocals,
   uncoveredNonNullableLocals,
-} from '../../../src/binaryen-ts/passes/non-nullable-locals.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
+} from '../../../src/passes/non-nullable-locals.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { validateModule } from '../../../src/validator/validator.ts';
 
 const S = '(type $S (struct (field i32)))';
 

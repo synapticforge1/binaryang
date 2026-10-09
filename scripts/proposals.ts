@@ -15,7 +15,7 @@
  * original and variants "agree" by failing alike.
  */
 
-import type { Features } from '../src/wabt-ts/core/feature.ts';
+import type { Features } from '../src/core/feature.ts';
 import { featuresForSuite } from '../src/definitions/mod.ts';
 
 /**

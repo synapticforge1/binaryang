@@ -15,7 +15,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 
 /** Every node of `kind` in function `fn`'s body, in document order. */
 // deno-lint-ignore no-explicit-any

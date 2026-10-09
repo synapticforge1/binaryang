@@ -12,12 +12,12 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { ExpressionKind } from '../../src/binaryen-ts/ir/expressions.ts';
-import { createPass, PassRunner } from '../../src/binaryen-ts/passes/pass.ts';
-import { walkExpression } from '../../src/binaryen-ts/ir/walk.ts';
-import { requireIndex, type Var } from '../../src/wabt-ts/ir/ir.ts';
-import '../../src/binaryen-ts/passes/index.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { ExpressionKind } from '../../src/ir/expressions.ts';
+import { createPass, PassRunner } from '../../src/passes/pass.ts';
+import { walkExpression } from '../../src/ir/walk.ts';
+import { requireIndex, type Var } from '../../src/ir/ir.ts';
+import '../../src/passes/index.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const before = readForPasses(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));
@@ -39,7 +39,7 @@ interface Op {
   kind: 'set' | 'tee' | 'drop' | 'get';
   index?: number;
 }
-function ops(body: import('../../src/binaryen-ts/ir/expressions.ts').Expression): Op[] {
+function ops(body: import('../../src/ir/expressions.ts').Expression): Op[] {
   const out: Op[] = [];
   walkExpression(body, (e) => {
     const local = (v: Var) => requireIndex(v, 'local index');

@@ -19,9 +19,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 const TWO = (body: string, result = '(result i32)') =>
   `(module (memory $a 1) (memory $b 2) (func (export "f") ${result} ${body})

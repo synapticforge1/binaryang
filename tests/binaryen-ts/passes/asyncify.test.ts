@@ -19,16 +19,16 @@ import {
   type GlobalSetExpr,
   type IfExpr,
   makeRegion,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
+} from '../../../src/ir/expressions.ts';
 import {
   limitsOf,
   noAsWrittenMetadata,
   type WasmFunction,
   type WasmModule,
-} from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
+} from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
 import {
   ASYNCIFY_DATA,
   ASYNCIFY_GET_STATE,
@@ -40,11 +40,11 @@ import {
   AsyncifyPass,
   parseAsyncifyOptions,
   State,
-} from '../../../src/binaryen-ts/passes/asyncify.ts';
-import { type Var, varIndex, varName } from '../../../src/wabt-ts/ir/ir.ts';
+} from '../../../src/passes/asyncify.ts';
+import { type Var, varIndex, varName } from '../../../src/ir/ir.ts';
 import { region, soleInstr } from '../region_helpers.ts';
-import { walkExpression } from '../../../src/binaryen-ts/ir/walk.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { walkExpression } from '../../../src/ir/walk.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -271,7 +271,7 @@ Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control
     (func $park (call $su (global.get $buf)))
     (func $worker (result i32) (call $park) (i32.const 42))
     (func $main (export "main") (result i32) (call $worker)))`;
-  const { readWat } = await import('../../../src/binaryen-ts/tools/read-wat.ts');
+  const { readWat } = await import('../../../src/tools/read-wat.ts');
   const m = readWat(wat);
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,

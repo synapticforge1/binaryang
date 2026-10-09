@@ -16,10 +16,10 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
-import { createPass, type PassOptions } from '../../src/binaryen-ts/passes/pass.ts';
-import '../../src/binaryen-ts/passes/index.ts';
+import { readForPasses } from '../../src/ir/prepare.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
+import { createPass, type PassOptions } from '../../src/passes/pass.ts';
+import '../../src/passes/index.ts';
 
 const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
 

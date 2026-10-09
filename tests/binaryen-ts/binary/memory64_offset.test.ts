@@ -26,17 +26,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import {
-  ExpressionKind,
-  makeI32Const,
-  makeLoad,
-  makeStore,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { ExpressionKind, makeI32Const, makeLoad, makeStore } from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { Opcode } from '../../../src/core/opcode.ts';
 
 /** Offsets that a u32 cannot hold, plus the boundary either side of 2^32. */
 const OFFSETS: ReadonlyArray<readonly [string, bigint]> = [

@@ -38,15 +38,15 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasmValidate } from '../../../src/wabt-ts/tools/wasm-validate.ts';
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { Result } from '../../../src/wabt-ts/core/result.ts';
-import { isRefValueType, varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { Type } from '../../../src/wabt-ts/core/types.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { Result } from '../../../src/core/result.ts';
+import { isRefValueType, varIndex } from '../../../src/ir/ir.ts';
+import { Type } from '../../../src/core/types.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
 
 function compile(wat: string): Uint8Array {
   const { binary, errors } = wat2wasm(wat);

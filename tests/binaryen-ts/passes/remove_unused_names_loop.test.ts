@@ -8,12 +8,12 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { ExpressionKind } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { ExpressionKind } from '../../../src/ir/expressions.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 
 Deno.test('RemoveUnusedNames: a value loop with no back-edge becomes a block of its type', () => {
   const r = wat2wasm(

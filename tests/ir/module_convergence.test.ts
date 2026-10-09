@@ -30,9 +30,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals } from '@std/assert';
 
-import type * as W from '../../src/wabt-ts/ir/ir.ts';
-import type * as B from '../../src/binaryen-ts/ir/module.ts';
-import type * as BG from '../../src/binaryen-ts/ir/gc-types.ts';
+import type * as W from '../../src/ir/ir.ts';
+import type * as B from '../../src/ir/module.ts';
+import type * as BG from '../../src/ir/gc-types.ts';
 
 type Same<A, C> = [A] extends [C] ? ([C] extends [A] ? true : false) : false;
 type OnlyA<A, C> = Exclude<keyof A, keyof C>;

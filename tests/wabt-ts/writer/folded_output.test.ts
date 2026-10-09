@@ -23,9 +23,9 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { hasErrors } from '../../../src/core/error.ts';
 
 /** Assemble WAT, or fail loudly with the first diagnostic. */
 function asm(wat: string, name: string): Uint8Array {

@@ -37,18 +37,18 @@
  * differently).
  */
 
-import { parseWatModule } from '../../src/wabt-ts/parser/wast-parser.ts';
-import { resolveNames } from '../../src/wabt-ts/ir/resolve-names.ts';
-import { synthesizeTypes } from '../../src/wabt-ts/ir/synthesize-types.ts';
-import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
-import { prepareForPasses, readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
-import { PassRunner } from '../../src/binaryen-ts/passes/index.ts';
-import { writeWasm } from '../../src/binaryen-ts/ir/write-wasm.ts';
-import type { WasmModule } from '../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../src/binaryen-ts/ir/types.ts';
-import type { ValueType } from '../../src/binaryen-ts/ir/gc-types.ts';
-import { requireName } from '../../src/wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../src/wabt-ts/core/binary.ts';
+import { parseWatModule } from '../../src/parser/wast-parser.ts';
+import { resolveNames } from '../../src/ir/resolve-names.ts';
+import { synthesizeTypes } from '../../src/ir/synthesize-types.ts';
+import { wat2wasm } from '../../src/tools/wat2wasm.ts';
+import { prepareForPasses, readForPasses } from '../../src/ir/prepare.ts';
+import { PassRunner } from '../../src/passes/index.ts';
+import { writeWasm } from '../../src/ir/write-wasm.ts';
+import type { WasmModule } from '../../src/ir/module.ts';
+import { ValType } from '../../src/ir/types.ts';
+import type { ValueType } from '../../src/ir/gc-types.ts';
+import { requireName } from '../../src/ir/ir.ts';
+import { ExternalKind } from '../../src/core/binary.ts';
 
 const NUMERIC = new Set<ValType>([ValType.I32, ValType.I64, ValType.F32, ValType.F64]);
 

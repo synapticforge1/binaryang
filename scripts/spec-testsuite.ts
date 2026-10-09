@@ -56,11 +56,11 @@
  * @license MIT
  */
 
-import { readBinaryIr } from '../src/wabt-ts/reader/binary-reader-ir.ts';
-import { validateModule } from '../src/wabt-ts/validator/validator.ts';
-import { hasErrors, makeErrorList } from '../src/wabt-ts/core/error.ts';
-import { parseWatModule } from '../src/wabt-ts/parser/wast-parser.ts';
-import { wat2wasm } from '../src/wabt-ts/tools/wat2wasm.ts';
+import { readBinaryIr } from '../src/reader/binary-reader-ir.ts';
+import { validateModule } from '../src/validator/validator.ts';
+import { hasErrors, makeErrorList } from '../src/core/error.ts';
+import { parseWatModule } from '../src/parser/wast-parser.ts';
+import { wat2wasm } from '../src/tools/wat2wasm.ts';
 import { suiteFeatures, takeProposalArg } from './proposals.ts';
 
 /**

@@ -22,9 +22,9 @@
 
 import { assert, assertEquals } from '@std/assert';
 
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { listPasses, PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { listPasses, PassRunner } from '../../../src/passes/index.ts';
 import { ADD_GET, asyncify, driveOnce, LOOP_GET } from './asyncify_helpers.ts';
 
 Deno.test('asyncify e2e — suspend/resume across an async call (x + get())', () => {

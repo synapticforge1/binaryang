@@ -28,10 +28,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { readWat } from '../../../src/binaryen-ts/tools/read-wat.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { hasErrors } from '../../../src/wabt-ts/core/error.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { hasErrors } from '../../../src/core/error.ts';
 
 /** Build with both toolchains, run both, and require them to agree with `want`. */
 function bothAgree(wat: string, want: number): void {

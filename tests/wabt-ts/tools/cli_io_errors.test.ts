@@ -69,7 +69,7 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
     let scanned = 0;
 
     for (const tool of TOOLS) {
-      const url = new URL(`../../../src/wabt-ts/tools/${tool}.ts`, import.meta.url);
+      const url = new URL(`../../../src/tools/${tool}.ts`, import.meta.url);
       const src = await Deno.readTextFile(url);
       const at = src.search(/export (async )?function main\(/);
       assert(at !== -1, `${tool}: no exported main() entry`);
@@ -99,13 +99,13 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
 
   it('each tool imports the shared guarded helpers', async () => {
     for (const tool of TOOLS) {
-      const url = new URL(`../../../src/wabt-ts/tools/${tool}.ts`, import.meta.url);
+      const url = new URL(`../../../src/tools/${tool}.ts`, import.meta.url);
       const src = await Deno.readTextFile(url);
       // A11 lifted five byte-identical private copies into one shared module.
       // The gate above passes vacuously if a tool does no I/O at all, so pin
       // that each one still reaches for the helper.
       assert(
-        /import \{[^}]*cliRead[^}]*\} from '\.\.\/\.\.\/cli\/io\.ts'/.test(src),
+        /import \{[^}]*cliRead[^}]*\} from '\.\.\/cli\/io\.ts'/.test(src),
         `${tool}: does not import cliRead from src/cli/io.ts — the gate above would pass vacuously`,
       );
       // The message must name the tool, or the user cannot tell what failed.

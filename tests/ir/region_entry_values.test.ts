@@ -25,12 +25,12 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import type { DropExpr, Expr, IfExpr, RegionExpr, TryExpr } from '../../src/wabt-ts/ir/ir.ts';
-import { wat2wasm } from '../../src/wabt-ts/tools/wat2wasm.ts';
-import { readBinaryIr } from '../../src/wabt-ts/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../src/wabt-ts/writer/binary-writer.ts';
-import { hasErrors, makeErrorList } from '../../src/wabt-ts/core/error.ts';
-import { prepareForPasses, readForPasses } from '../../src/binaryen-ts/ir/prepare.ts';
+import type { DropExpr, Expr, IfExpr, RegionExpr, TryExpr } from '../../src/ir/ir.ts';
+import { wat2wasm } from '../../src/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../src/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../src/writer/binary-writer.ts';
+import { hasErrors, makeErrorList } from '../../src/core/error.ts';
+import { prepareForPasses, readForPasses } from '../../src/ir/prepare.ts';
 
 const asm = (wat: string) => {
   const r = wat2wasm(wat, { textForm: false });

@@ -21,13 +21,13 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { wasm2wat } from '../../../src/wabt-ts/tools/wasm2wat.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader.ts';
-import { writeBinaryIr } from '../../../src/wabt-ts/writer/binary-writer.ts';
-import { formatErrors, hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
+import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 
 /**
  * The section sequence: known sections by id, custom sections as
@@ -343,8 +343,8 @@ describe('C2 — the writer and the parser read one table', () => {
     // So every position must be spelled with a keyword in the intersection —
     // which is why the function and tag sections are named by what FOLLOWS
     // them, and why `(before first)` is written `(before type)`.
-    const { placementText } = await import('../../../src/wabt-ts/core/custom-placement.ts');
-    const { BinarySection } = await import('../../../src/wabt-ts/core/binary.ts');
+    const { placementText } = await import('../../../src/core/custom-placement.ts');
+    const { BinarySection } = await import('../../../src/core/binary.ts');
     assertEquals(
       [
         null,
@@ -383,7 +383,7 @@ describe('C2 — the writer and the parser read one table', () => {
 
   it('and every spelling reads back as the position it was written for', async () => {
     const { placementAnchor, placementText, SECTION_ORDER } = await import(
-      '../../../src/wabt-ts/core/custom-placement.ts'
+      '../../../src/core/custom-placement.ts'
     );
     for (const anchor of [null, ...SECTION_ORDER]) {
       const text = placementText(anchor);
@@ -393,8 +393,8 @@ describe('C2 — the writer and the parser read one table', () => {
   });
 
   it('an unreachable anchor is refused rather than mis-spelled', async () => {
-    const { placementText } = await import('../../../src/wabt-ts/core/custom-placement.ts');
-    const { BinarySection } = await import('../../../src/wabt-ts/core/binary.ts');
+    const { placementText } = await import('../../../src/core/custom-placement.ts');
+    const { BinarySection } = await import('../../../src/core/binary.ts');
     assertThrows(() => placementText(BinarySection.Custom), Error, 'cannot anchor');
   });
 });

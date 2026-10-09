@@ -12,7 +12,7 @@
  */
 
 const UPSTREAM_DEF = new URL('../../upstream/include/wabt/opcode.def', import.meta.url);
-const WABT_TS_OPCODE = new URL('../../src/wabt-ts/core/opcode.ts', import.meta.url);
+const WABT_TS_OPCODE = new URL('../../src/core/opcode.ts', import.meta.url);
 
 const PREFIX_LABELS: Record<number, string> = { 0xfc: 'MISC', 0xfd: 'SIMD', 0xfe: 'ATOMIC' };
 

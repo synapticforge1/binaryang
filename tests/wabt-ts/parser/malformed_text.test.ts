@@ -17,7 +17,7 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { parseWatModule } from '../../../src/wabt-ts/parser/wast-parser.ts';
+import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 
 /** The first parse diagnostic for `wat`, or null when it parses. */
 function parseError(wat: string): string | null {

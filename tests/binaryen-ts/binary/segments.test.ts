@@ -16,14 +16,14 @@
 import { describe, it } from '@std/testing/bdd';
 import { assertEquals, assertThrows } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { formatErrors, hasErrors } from '../../../src/wabt-ts/core/error.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { WasmEncodeError, writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { elemFuncNames, importName, ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { makeI32Const } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { WasmEncodeError, writeWasm } from '../../../src/ir/write-wasm.ts';
+import { elemFuncNames, importName, ModuleBuilder } from '../../../src/ir/module.ts';
+import { makeI32Const } from '../../../src/ir/expressions.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);

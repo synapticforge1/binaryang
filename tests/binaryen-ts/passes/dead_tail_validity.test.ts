@@ -20,10 +20,10 @@
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
 
 const LEVELS = [[1, 0], [2, 0], [3, 0], [2, 1], [2, 2]] as const;
 

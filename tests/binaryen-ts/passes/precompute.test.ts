@@ -8,10 +8,10 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { expect } from '@std/expect';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readForPasses } from '../../../src/binaryen-ts/ir/prepare.ts';
-import { writeWasm, writeWat } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { writeWasm, writeWat } from '../../../src/ir/write-wasm.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
 
 const MODULE = (body: string, result = 'i32') =>
   `(module (memory 1) (global $g (mut i32) (i32.const 0))

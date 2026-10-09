@@ -7,28 +7,28 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert';
-import { readWat, WatInputError } from '../../../src/binaryen-ts/tools/read-wat.ts';
+import { readWat, WatInputError } from '../../../src/tools/read-wat.ts';
 import {
   type BlockExpr,
   type Catch,
   ExpressionKind,
   type SwitchExpr,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { Unreachable, ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
-import { wat2wasm } from '../../../src/wabt-ts/tools/wat2wasm.ts';
-import { readBinaryIr } from '../../../src/wabt-ts/reader/binary-reader-ir.ts';
-import { validateModule } from '../../../src/wabt-ts/validator/validator.ts';
-import { allFeatures } from '../../../src/wabt-ts/core/feature.ts';
-import { hasErrors, makeErrorList } from '../../../src/wabt-ts/core/error.ts';
+} from '../../../src/ir/expressions.ts';
+import { Unreachable, ValType } from '../../../src/ir/types.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
+import { validateModule } from '../../../src/validator/validator.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
+import { hasErrors, makeErrorList } from '../../../src/core/error.ts';
 
-import { PassRunner } from '../../../src/binaryen-ts/passes/index.ts';
-import '../../../src/binaryen-ts/passes/index.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { type Var, varName } from '../../../src/wabt-ts/ir/ir.ts';
+import { PassRunner } from '../../../src/passes/index.ts';
+import '../../../src/passes/index.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
+import { type Var, varName } from '../../../src/ir/ir.ts';
 import { region, soleInstr } from '../region_helpers.ts';
-import { type ConstExpr, literalFloat } from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ExternalKind } from '../../../src/wabt-ts/core/binary.ts';
+import { type ConstExpr, literalFloat } from '../../../src/ir/expressions.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
 
 Deno.test('parseWat — empty module', () => {
   const mod = readWat('(module)');
@@ -60,7 +60,7 @@ Deno.test('parseWat — i32.const', () => {
   const mod = readWat(`(module (func $f (result i32) (i32.const 42)))`);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.Const);
-  assertEquals((body as import('../../../src/binaryen-ts/ir/expressions.ts').ConstExpr).value, {
+  assertEquals((body as import('../../../src/ir/expressions.ts').ConstExpr).value, {
     type: ValType.I32,
     value: 42,
   });
@@ -71,7 +71,7 @@ Deno.test('parseWat — f64.const', () => {
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.Const);
   // A float constant holds BITS now (S6 step 5, stage C1); read it as a number.
-  const v = (body as import('../../../src/binaryen-ts/ir/expressions.ts').ConstExpr).value;
+  const v = (body as import('../../../src/ir/expressions.ts').ConstExpr).value;
   assertClose(literalFloat(v), 3.14);
 });
 
@@ -82,11 +82,11 @@ Deno.test('parseWat — local.get and local.set', () => {
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.LocalGet);
   assertEquals(
-    (body as import('../../../src/binaryen-ts/ir/expressions.ts').LocalGetExpr).var,
+    (body as import('../../../src/ir/expressions.ts').LocalGetExpr).var,
     varIndex(0),
   );
   assertEquals(
-    (body as import('../../../src/binaryen-ts/ir/expressions.ts').LocalGetExpr).type,
+    (body as import('../../../src/ir/expressions.ts').LocalGetExpr).type,
     ValType.I32,
   );
 });
@@ -118,7 +118,7 @@ Deno.test('parseWat — block with label', () => {
         (br $b))))`);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.Block);
-  const block = body as import('../../../src/binaryen-ts/ir/expressions.ts').BlockExpr;
+  const block = body as import('../../../src/ir/expressions.ts').BlockExpr;
   assertEquals(block.label, '$b');
   assertEquals(block.children[0].kind, ExpressionKind.Break);
 });
@@ -140,7 +140,7 @@ Deno.test('parseWat — call', () => {
   const caller = mod.functions[1];
   assertEquals(soleInstr(caller.body).kind, ExpressionKind.Call);
   assertEquals(
-    (soleInstr(caller.body) as import('../../../src/binaryen-ts/ir/expressions.ts').CallExpr)
+    (soleInstr(caller.body) as import('../../../src/ir/expressions.ts').CallExpr)
       .func,
     varName('$callee'),
   );
@@ -256,7 +256,7 @@ Deno.test('parseWat — return expression', () => {
   const mod = readWat(`(module (func $f (result i32) (return (i32.const 99))))`);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.Return);
-  const ret = body as import('../../../src/binaryen-ts/ir/expressions.ts').ReturnExpr;
+  const ret = body as import('../../../src/ir/expressions.ts').ReturnExpr;
   assertEquals(ret.values.map((v) => v.kind), [ExpressionKind.Const]);
 });
 

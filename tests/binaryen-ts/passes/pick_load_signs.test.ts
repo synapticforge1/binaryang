@@ -21,7 +21,7 @@
  */
 
 import { assertEquals } from '@std/assert';
-import { writeWasm } from '../../../src/binaryen-ts/ir/write-wasm.ts';
+import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import {
   BinaryOp,
   makeBinary,
@@ -32,13 +32,13 @@ import {
   makeLoad,
   makeLocalGet,
   makeLocalSet,
-} from '../../../src/binaryen-ts/ir/expressions.ts';
-import { ModuleBuilder } from '../../../src/binaryen-ts/ir/module.ts';
-import { ValType } from '../../../src/binaryen-ts/ir/types.ts';
-import { PassRunner } from '../../../src/binaryen-ts/passes/pass.ts';
-import { varIndex } from '../../../src/wabt-ts/ir/ir.ts';
-import { Opcode } from '../../../src/wabt-ts/core/opcode.ts';
-import '../../../src/binaryen-ts/passes/index.ts'; // side-effect: pass registration
+} from '../../../src/ir/expressions.ts';
+import { ModuleBuilder } from '../../../src/ir/module.ts';
+import { ValType } from '../../../src/ir/types.ts';
+import { PassRunner } from '../../../src/passes/pass.ts';
+import { varIndex } from '../../../src/ir/ir.ts';
+import { Opcode } from '../../../src/core/opcode.ts';
+import '../../../src/passes/index.ts'; // side-effect: pass registration
 
 /**
  * Byte 0 of memory is `0xFF`, so the narrow load reads either `-1` (signed) or
