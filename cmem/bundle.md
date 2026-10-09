@@ -1,8 +1,13 @@
 # `wasm-bundle` — open-work item 24, built
 
-**Built 2026-10-08, UNRELEASED — on branch `wasm-bundle`, NOT YET MERGED at the 2026-10-08 pause**
-(the gate was started on `6dc5e28c9`; `fmt` / `lint` / `check` green, the rest unread — see the
-state line in [open-work.md](open-work.md)). The owner's "perform items 1 through 3", item 3. A new
+**Built 2026-10-08, merged into `main` 2026-10-09, UNRELEASED.** The gate ran on the branch head
+`3ba63a8d8` (21 steps, every exit 0, the Deno runner in scratch): `test` 1,402 / 0; `spec-behaviour`
+57,808 invocations on 1,342 modules, 0 DIVERGE; `direct` 544 / 544; `optimize-corpus` -Oz 825,077
+bytes (1.9.0's number: the bundler changes no optimizer output); `interp` every assertion holds;
+`direct-behaviour` printed 1,950 calls / 650 exports in the gate run and **1,953 / 651 re-run alone
+on the same commit, the same as `main`** — one fixture times out under the gate's load, a
+coverage-count wobble, not a divergence (0 DIVERGE both times). The owner's "perform items 1
+through 3", item 3. A new
 export, so the release that carries it is a MINOR, **1.10.0, typed by hand, when the owner says**
 ([unreleased.md](unreleased.md)). wasmtk's letter is drafted as [handoffs.md](handoffs.md) § 27, to
 send with that release. The design record as it stood before building is one command away:
