@@ -118,7 +118,10 @@ fatigue.
       WRITABLE fields where the IR's `RefValueType` is read-only; `RefType` is now
       `RefValueType` — ⚠️ type-level BREAKING for code that assigns those fields, none here
       ([unreleased.md](unreleased.md)) — and the six joined the re-exports.
-      `table_catch_shape.test.ts`'s "equal but for `loc`" pins became identity pins.
+      `table_catch_shape.test.ts`'s "equal but for `loc`" pins became identity pins. The gate's
+      `operators` step went RED on it: it found a kind's node by the alias TEXT the phase removed;
+      it now reads the `readonly kind:` arms in `ir/ir.ts`, checked against a planted orphan kind
+      (exit 1, named). Phases 2–3 merged on a green gate (21 / 21, on `3071869e5`).
     - **Phase 3 — logic twice.** A survey by name and by purpose found the machinery already
       single (S6 and One front end folded it); the duplicates left were (a) core's `LiteralType`,
       read by nothing and published by no subpath — removed (the lexer's is the one); (b) three
