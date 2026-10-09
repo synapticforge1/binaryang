@@ -12,9 +12,10 @@ proven from a fresh clone before the bump ([publishing.md](publishing.md) § 1.1
 unreleased ([unreleased.md](unreleased.md)). wasmtk's letter [handoffs.md](handoffs.md) § 27
 SENT by the owner 2026-10-09; it asks their measurement once wasic marks its addresses. Closed in the last two days, each with its topic file:
 items 23 ([interpreter.md](interpreter.md)), 2 ([optimizer.md](optimizer.md)), 22
-([definitions.md](definitions.md)) with 1.9.0, 24 ([bundle.md](bundle.md)) with 1.10.0. **Next,
-in the agreed order: 21 (one `src/` tree), then the rounds 13 / 14 (hardening, security); 15
-stays blocked on wasmtk. 4 open items, none blocking**; numbers 2–7, 9–12, 16, 17, 22, 23, 24 are
+([definitions.md](definitions.md)) with 1.9.0, 24 ([bundle.md](bundle.md)) with 1.10.0. **Item 21
+(one `src/` tree) is phases 1–3 DONE 2026-10-09, unreleased; it waits on the OWNER for `Type`
+and phase 4 (the item says which).** Next in the agreed order: the rounds 13 / 14 (hardening,
+security); 15 stays blocked on wasmtk. **4 open items, none blocking**; numbers 2–7, 9–12, 16, 17, 22, 23, 24 are
 gone and kept free. Re-derive any number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -102,14 +103,40 @@ fatigue.
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
 21. ◐ **Merge `src/binaryen-ts/` and `src/wabt-ts/` into `src/`** — 🚧 **started 2026-10-09** (owner:
-    "proceed with item 21"). **Phase 1 DONE on branch `one-src-tree`:** 105 files moved by concept
-    with `git mv` (the layout: [project.md](project.md) § "Layout"), 2,162 relative path literals
-    rewritten by a resolver (scratch `merge-trees.ts`), 19 `deno.json` exports retargeted, every
-    subpath kept; the orphan `src/wabt-ts/index.ts` barrel and 7 `.gitkeep`s removed; 62 `@module`
-    tags retargeted; `deno task collisions` now counts across ONE tree — **88** (the 86 cross-tree
-    names plus `Features` and `LiteralType`, which wabt-ts already declared twice). `baseline`
-    IDENTICAL (421 / 421). Phases 2 (one name each), 3 (logic that exists twice) and 4 (the three
-    tree-named subpaths — the OWNER's call) remain. The scoping record as it stood:
+    "proceed with item 21"). **Phases 1–3 DONE; phase 4 and three names wait on the OWNER.**
+    - **Phase 1 — one tree** (merged `3e9d03b88`, gate green 21 / 21): 105 files moved by concept
+      with `git mv` (the layout: [project.md](project.md) § "Layout"), 2,162 relative path literals
+      rewritten by a resolver (scratch `merge-trees.ts`), 19 `deno.json` exports retargeted, every
+      subpath kept; the orphan `src/wabt-ts/index.ts` barrel and 7 `.gitkeep`s removed; 62
+      `@module` tags retargeted; `deno task collisions` counts across ONE tree — **88** (the 86
+      cross-tree names plus `Features` and `LiteralType`, which wabt-ts already declared twice).
+      `baseline` IDENTICAL (421 / 421).
+    - **Phase 2 — one name each: 88 → 3.** 78 names were PROVEN the same type name by name (a
+      compile-time `Same<A, B>` probe, scratch `gen-identity.ts`) and became re-exports of the one
+      declaration in `ir/ir.ts`. Six more (`ValueType`, `StorageType`, `FuncSignature`,
+      `BlockParams`, `Catch`, `TableCatch`) differed only because binaryen-ts's `RefType` had
+      WRITABLE fields where the IR's `RefValueType` is read-only; `RefType` is now
+      `RefValueType` — ⚠️ type-level BREAKING for code that assigns those fields, none here
+      ([unreleased.md](unreleased.md)) — and the six joined the re-exports.
+      `table_catch_shape.test.ts`'s "equal but for `loc`" pins became identity pins. The gate's
+      `operators` step went RED on it: it found a kind's node by the alias TEXT the phase removed;
+      it now reads the `readonly kind:` arms in `ir/ir.ts`, checked against a planted orphan kind
+      (exit 1, named). Phases 2–3 merged on a green gate (21 / 21, on `3071869e5`).
+    - **Phase 3 — logic twice.** A survey by name and by purpose found the machinery already
+      single (S6 and One front end folded it); the duplicates left were (a) core's `LiteralType`,
+      read by nothing and published by no subpath — removed (the lexer's is the one); (b) three
+      private copies of "the function a reference names, and its signature" in `wasm-interp`,
+      `witgen` and `wasm-bundle` — now `funcAt` / `funcSignature` in `ir/ir.ts`, with
+      `tests/ir/func_lookup.test.ts`. Thin public wrappers (`heapTypeToString`,
+      `isAbstractHeapType`) stay: they are binaryen-ts's public names over one implementation.
+    - **For the OWNER — the three names left, and phase 4:** `Type` is two different things,
+      core's enum (`./core/wabt-ts`) and binaryen-ts's type union (`./ir/binaryen-ts`), both
+      public, so one name changes or a release carries both (BREAKING either way);
+      `WasmModule` and `Features` in `compat/wabt-compat.ts` are upstream wabt.js's names, which
+      the compat layer exists to reproduce — recommend they stay, by design. Phase 4: the three
+      tree-named subpaths (`./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts`) — keep, or add
+      new names beside them as deprecated aliases for a release, as agreed 2026-09-30.
+    The scoping record as it stood:
     (owner, 2026-09-30: "It looks like we can now phase a merge of the binaryen-ts and wabt-ts
     folders into the src folder … I would like to scope that after our IR work is completed"). Facts
     measured that day, for the scoping:

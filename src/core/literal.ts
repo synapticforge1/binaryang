@@ -13,25 +13,9 @@
 
 import { Result } from './result.ts';
 
-// ---------------------------------------------------------------------------
-// Literal type tag (used by the lexer to classify token content)
-// ---------------------------------------------------------------------------
-
-/** Category of a literal token produced by the lexer. */
-export enum LiteralType {
-  /** Decimal integer literal (e.g. `42`). */
-  Int = 'int',
-  /** Hexadecimal integer literal (e.g. `0x2a`). */
-  HexInt = 'hexint',
-  /** Decimal float literal (e.g. `3.14`). */
-  Float = 'float',
-  /** Hexadecimal float literal (e.g. `0x1.8p+1`). */
-  HexFloat = 'hexfloat',
-  /** Infinity literal (`inf`). */
-  Infinity = 'infinity',
-  /** NaN literal, with or without a hex payload (e.g. `nan`, `nan:0x200000`). */
-  Nan = 'nan',
-}
+// The lexer's literal category is `LiteralType` in `../parser/token.ts`. A second
+// `LiteralType` here, with different members (`HexInt`, `HexFloat`), was read by
+// nothing and published by no subpath; it went in open-work 21, phase 3.
 
 // ---------------------------------------------------------------------------
 // Float bit-pattern constants

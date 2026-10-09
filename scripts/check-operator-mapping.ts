@@ -79,8 +79,23 @@ function expressionKindMembers(exprSrc: string): [string, string][] {
  * encoding and therefore total by construction, rather than binaryen-ts's
  * per-family string enums, which would need every missing name authored by hand.
  */
-function phantomKinds(exprSrc: string): string[] {
-  const members = expressionKindMembers(exprSrc).map(([name]) => name);
+function phantomKinds(exprSrc: string, irSrc: string): string[] {
+  // Open-work 21, phase 2 (2026-10-09): every node type is now declared ONCE, in
+  // `src/ir/ir.ts`, and `expressions.ts` re-exports it — the `Extract<Expr, {
+  // kind: typeof ExpressionKind.X }>` aliases the pattern below read are gone. A
+  // member is backed when its STRING VALUE is an arm of some node's
+  // `readonly kind:` there (`'nop'`, or `'any.convert_extern' |
+  // 'extern.convert_any'`). The alias form is still accepted, so a node type
+  // declared in expressions.ts again would be seen too.
+  const declared = new Set<string>();
+  for (const m of irSrc.matchAll(/^\s+readonly kind: ([^;]+);/gm)) {
+    for (const arm of m[1]!.matchAll(/'([^']+)'/g)) declared.add(arm[1]!);
+  }
+  const backedByIr = new Set(
+    expressionKindMembers(exprSrc).filter(([, value]) => declared.has(value)).map(([name]) => name),
+  );
+  const members = expressionKindMembers(exprSrc).map(([name]) => name)
+    .filter((name) => !backedByIr.has(name));
   // Since S6 step 5 item 5 (6c) a node type is an ALIAS —
   // `export type BlockExpr = Extract<Expr, { kind: typeof ExpressionKind.Block }>;`
   // — so a declaration ends `}>;` where an interface field ended `;`. The arm
@@ -163,7 +178,8 @@ const orphans = [...constants].filter(([, v]) => !knownOpcodes.has(v)).map(([k])
 console.log(`instruction names known to wabt-ts : ${known.size}`);
 console.log(`operator constants checked         : ${constants.size} across all operator enums`);
 
-const phantoms = phantomKinds(exprSrc);
+const irSrc = await Deno.readTextFile(new URL('../src/ir/ir.ts', import.meta.url));
+const phantoms = phantomKinds(exprSrc, irSrc);
 const added = phantoms.filter((p) => !PHANTOM_BUDGET.includes(p));
 if (added.length > 0) {
   console.error(`\n${added.length} NEW declared-but-unimplemented kind(s):`);

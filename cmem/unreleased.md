@@ -36,5 +36,21 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.10.0
 
-Nothing yet (2026-10-09). The 1.10.0 notes as gathered, entry by entry, are
-`git show 23b9f36fb:cmem/unreleased.md`; the public summary is `CHANGELOG.md` § 1.10.0.
+The 1.10.0 notes as gathered, entry by entry, are `git show 23b9f36fb:cmem/unreleased.md`; the
+public summary is `CHANGELOG.md` § 1.10.0.
+
+- **Internal — one source tree** (2026-10-09, open-work 21 phase 1, [project.md](project.md)
+  § "Layout"): `src/binaryen-ts/` and `src/wabt-ts/` merged into `src/` by concept. Every public
+  subpath keeps its name and module; no emitted byte moved (`baseline` 421 / 421). Say so in the
+  note only for someone who imported FILES by path rather than subpaths (JSR does not allow it).
+- ⚠️ **BREAKING (type level only) — `./ir/binaryen-ts`'s reference record is read-only**
+  (2026-10-09, open-work 21 phase 2): `RefType` is now the IR's `RefValueType` (its `heapType` and
+  `nullable` were writable in binaryen-ts's own copy), and `BlockParams` has read-only fields, as
+  the IR's. Code that ASSIGNS to those fields stops compiling; nothing that reads or builds them
+  changes, and no value at run time changes. Nothing in this repository assigned them. With it, 84
+  names `./ir/binaryen-ts` declared a second time (`ArrayCopyExpr` … `TableCatch`, `ValueType`,
+  `StorageType`, `FuncSignature`, `Catch`, `DataSegment`, `Local`) are re-exports of the one
+  declaration in `./ir/wabt-ts` — the same types, proven name by name.
+- **NEW — `funcAt(module, var)` and `funcSignature(module, func)`** in `./ir/wabt-ts`
+  (2026-10-09, open-work 21 phase 3): the function a reference names (imports first) and its
+  declared signature; three tools had a private copy each.

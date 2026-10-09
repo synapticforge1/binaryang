@@ -68,6 +68,7 @@ import {
   type Expr,
   type Func,
   type FuncSignature,
+  funcSignature,
   type Global,
   type HeapTypeRef,
   type Import,
@@ -1128,13 +1129,6 @@ export function bundle(
   let typeCount = 0;
   let dataCount = 0;
   let elemCount = 0;
-  const funcSigOf = (m: Module, f: { typeVar?: Var; sig: FuncSignature }): FuncSignature => {
-    if (f.typeVar !== undefined) {
-      const t = m.types[indexOfName(m.types.map((x) => x.name), f.typeVar)];
-      if (t !== undefined && t.kind === 'func') return t.sig;
-    }
-    return f.sig;
-  };
 
   for (const p of prepared) {
     const m = p.m;
@@ -1222,7 +1216,7 @@ export function bundle(
       if (have !== undefined) {
         if (
           imp.kind === ExternalKind.Func && have.sig !== undefined &&
-          !sigEquals(funcSigOf(m, imp.func), have.sig)
+          !sigEquals(funcSignature(m, imp.func), have.sig)
         ) {
           throw new BundleError(
             `${p.what}: import "${imp.module}" "${imp.field}" has a different type than another input's`,
@@ -1243,7 +1237,7 @@ export function bundle(
       const name = claim(space!, entity, prefix);
       r[space!].set(entity, name);
       const rec: SharedImport = { name };
-      if (imp.kind === ExternalKind.Func) rec.sig = funcSigOf(m, imp.func);
+      if (imp.kind === ExternalKind.Func) rec.sig = funcSignature(m, imp.func);
       if (imp.kind === ExternalKind.Global) {
         rec.global = { type: imp.global.type, mutable: imp.global.mutable };
       }
@@ -1354,7 +1348,7 @@ export function bundle(
         target.m.imports.find((x): x is Extract<Import, { kind: ExternalKind.Func }> =>
           x.kind === ExternalKind.Func && x.func.name === offered.target
         )?.func;
-      if (f !== undefined && !sigEquals(funcSigOf(p.m, imp.func), funcSigOf(target.m, f))) {
+      if (f !== undefined && !sigEquals(funcSignature(p.m, imp.func), funcSignature(target.m, f))) {
         throw new BundleError(
           `${p.what}: imports "${imp.module}" "${imp.field}" with a type other than its definition's`,
         );

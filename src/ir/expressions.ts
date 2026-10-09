@@ -50,6 +50,174 @@ import type { BlockResult, Expr } from './ir.ts';
 import { None, type TupleType, type Type, typeToString, Unreachable, ValType } from './types.ts';
 import { AbstractHeapType, type HeapType, isRefType, type ValueType } from './gc-types.ts';
 import { loadShape, storeShape } from './memory-access.ts';
+
+// Open-work 21, phase 2: these names are declared ONCE, in `./ir.ts`, and this view re-exports
+// them. Each was an alias here (`Extract<Expr, { kind: … }>`, or `W.Name`) of the same type —
+// proven identical, name by name, before the alias went.
+import type {
+  ArrayCopyExpr,
+  ArrayFillExpr,
+  ArrayGetExpr,
+  ArrayInitDataExpr,
+  ArrayInitElemExpr,
+  ArrayLenExpr,
+  ArrayNewDataExpr,
+  ArrayNewElemExpr,
+  ArrayNewExpr,
+  ArrayNewFixedExpr,
+  ArraySetExpr,
+  AtomicFenceExpr,
+  AtomicLoadExpr,
+  AtomicNotifyExpr,
+  AtomicRmwCmpxchgExpr,
+  AtomicRmwExpr,
+  AtomicStoreExpr,
+  AtomicWaitExpr,
+  BinaryExpr,
+  BlockExpr,
+  BlockParams,
+  BrOnExpr,
+  CallExpr,
+  CallIndirectExpr,
+  CallRefExpr,
+  Catch,
+  CodeMetadataExpr,
+  ConstExpr,
+  DataDropExpr,
+  DropExpr,
+  ElemDropExpr,
+  ExternConvertExpr,
+  FuncSignature,
+  GlobalGetExpr,
+  GlobalSetExpr,
+  I31GetExpr,
+  IfExpr,
+  LoadExpr,
+  LocalGetExpr,
+  LocalSetExpr,
+  LocalTeeExpr,
+  LoopExpr,
+  MemoryCopyExpr,
+  MemoryFillExpr,
+  MemoryGrowExpr,
+  MemoryInitExpr,
+  MemorySizeExpr,
+  NopExpr,
+  PopExpr,
+  QuaternaryExpr,
+  RefCastExpr,
+  RefEqExpr,
+  RefFuncExpr,
+  RefGetDescExpr,
+  RefI31Expr,
+  RefIsNullExpr,
+  RefNullExpr,
+  RefTestExpr,
+  RegionExpr,
+  RethrowExpr,
+  ReturnExpr,
+  SelectExpr,
+  StoreExpr,
+  StructGetExpr,
+  StructNewExpr,
+  StructSetExpr,
+  TableCatch,
+  TableCopyExpr,
+  TableFillExpr,
+  TableGetExpr,
+  TableGrowExpr,
+  TableInitExpr,
+  TableSetExpr,
+  TableSizeExpr,
+  ThrowExpr,
+  ThrowRefExpr,
+  TryExpr,
+  TryTableExpr,
+  UnaryExpr,
+  UnreachableExpr,
+} from './ir.ts';
+export type {
+  ArrayCopyExpr,
+  ArrayFillExpr,
+  ArrayGetExpr,
+  ArrayInitDataExpr,
+  ArrayInitElemExpr,
+  ArrayLenExpr,
+  ArrayNewDataExpr,
+  ArrayNewElemExpr,
+  ArrayNewExpr,
+  ArrayNewFixedExpr,
+  ArraySetExpr,
+  AtomicFenceExpr,
+  AtomicLoadExpr,
+  AtomicNotifyExpr,
+  AtomicRmwCmpxchgExpr,
+  AtomicRmwExpr,
+  AtomicStoreExpr,
+  AtomicWaitExpr,
+  BinaryExpr,
+  BlockExpr,
+  BlockParams,
+  BrOnExpr,
+  CallExpr,
+  CallIndirectExpr,
+  CallRefExpr,
+  Catch,
+  CodeMetadataExpr,
+  ConstExpr,
+  DataDropExpr,
+  DropExpr,
+  ElemDropExpr,
+  ExternConvertExpr,
+  FuncSignature,
+  GlobalGetExpr,
+  GlobalSetExpr,
+  I31GetExpr,
+  IfExpr,
+  LoadExpr,
+  LocalGetExpr,
+  LocalSetExpr,
+  LocalTeeExpr,
+  LoopExpr,
+  MemoryCopyExpr,
+  MemoryFillExpr,
+  MemoryGrowExpr,
+  MemoryInitExpr,
+  MemorySizeExpr,
+  NopExpr,
+  PopExpr,
+  QuaternaryExpr,
+  RefCastExpr,
+  RefEqExpr,
+  RefFuncExpr,
+  RefGetDescExpr,
+  RefI31Expr,
+  RefIsNullExpr,
+  RefNullExpr,
+  RefTestExpr,
+  RegionExpr,
+  RethrowExpr,
+  ReturnExpr,
+  SelectExpr,
+  StoreExpr,
+  StructGetExpr,
+  StructNewExpr,
+  StructSetExpr,
+  TableCatch,
+  TableCopyExpr,
+  TableFillExpr,
+  TableGetExpr,
+  TableGrowExpr,
+  TableInitExpr,
+  TableSetExpr,
+  TableSizeExpr,
+  ThrowExpr,
+  ThrowRefExpr,
+  TryExpr,
+  TryTableExpr,
+  UnaryExpr,
+  UnreachableExpr,
+};
 export type { HeapType, RefType, ValueType } from './gc-types.ts';
 
 // ---------------------------------------------------------------------------
@@ -826,36 +994,6 @@ export function typeOf(e: ExprBase): Type {
   return e.type;
 }
 
-/** {@link NopExpr} — see {@link makeNop} for the factory. */
-export type NopExpr = Extract<Expr, { kind: typeof ExpressionKind.Nop }>;
-
-/** {@link UnreachableExpr} — see {@link makeUnreachable} for the factory. */
-export type UnreachableExpr = Extract<Expr, { kind: typeof ExpressionKind.Unreachable }>;
-
-/**
- * A block-type carrier's PARAMETERS: the values it takes from the enclosing
- * stack on entry, and their declared types (S6 decision 7b(i), divergence B1).
- *
- * `values` are evaluated BEFORE the construct — before an `if`'s condition —
- * in stack order, and are children of the construct like any operand. Inside,
- * the body finds them already on its stack: the decoder seeds each region with
- * one `Pop` per type, exactly as a `catch` is seeded with its tag's values, and
- * a `Pop` encodes to nothing. A branch to a parametrised LOOP carries the
- * loop's parameters in its `values`.
- *
- * 🛑 **Fidelity phase only.** Upstream binaryen has no block parameters — its
- * reader lowers them to locals — and neither do the passes ported from it, so
- * `PassRunner` lowers every parameter to locals before the first pass runs
- * (`lowerBlockParams`). Nothing past that point sees this field. Absent means
- * none, which is what every factory and pass produces.
- */
-export interface BlockParams {
-  /** The declared parameter types, in order. */
-  types: ValueType[];
-  /** The entry values, one per type, in stack order. */
-  values: Expression[];
-}
-
 /**
  * The type-section index a construct's header NAMED, where the same type could
  * have been written inline — S6 decision 7c. Carried by the five block-type
@@ -874,43 +1012,6 @@ export interface BlockParams {
  * else. Absent means "derive it", which is what every factory and pass produces.
  */
 export type WrittenTypeIndex = number;
-
-/** {@link BlockExpr} — see {@link makeBlock} for the factory. */
-export type BlockExpr = Extract<Expr, { kind: typeof ExpressionKind.Block }>;
-
-/**
- * The instruction sequence of ONE REGION: the body of a `loop`, `try`,
- * `try_table`, each `catch`, each `if` arm, and a function.
- *
- * 🔑 **Why a node of its own, and not a `Block` or a bare `Expression[]`.**
- * A region slot used to hold one `Expression`, so a body of N instructions sat
- * inside a synthetic unnamed `Block` — and "synthetic" was a CONVENTION: every
- * parser named every real block, so `name === null` could mean "wrapper". The
- * encoder inlined unnamed blocks in slots on that theory, `isBlockTypeCarrier`
- * had to agree with it, and the wrapper cost twice (C6: its `''` label shadowed
- * the function frame; a multi-value function's wrapper registered a type entry
- * nothing addressed). A bare list would have fixed that and broken the one-slot
- * shape every pass is written against. This keeps the slot one `Expression` —
- * visit it, type it, replace it — while being synthetic by KIND:
- *
- * - it is never a branch target and has no label to be one;
- * - it never writes a blocktype; the enclosing construct owns that;
- * - it is ALWAYS present, even for 0 or 1 instructions, so a body has one
- *   spelling;
- * - it belongs ONLY in a region slot. The type cannot stop one being placed as
- *   an operand (excluding it from {@link Expression} would make every read of a
- *   slot a type error); the encoder rejects that loudly instead.
- *
- * Decided as S6 Group 2 decision 5; the measurements are in
- * `cmem/ir-convergence.md`.
- */
-export type RegionExpr = Extract<Expr, { kind: typeof ExpressionKind.Region }>;
-
-/** {@link IfExpr} — see {@link makeIf} for the factory. */
-export type IfExpr = Extract<Expr, { kind: typeof ExpressionKind.If }>;
-
-/** {@link LoopExpr} — see {@link makeLoop} for the factory. */
-export type LoopExpr = Extract<Expr, { kind: typeof ExpressionKind.Loop }>;
 
 /**
  * {@link BreakExpr} — see {@link makeBreak} for the factory.
@@ -931,56 +1032,6 @@ export type BreakExpr = Extract<Expr, { kind: typeof ExpressionKind.Break }>;
 /** {@link SwitchExpr} — see {@link makeSwitch} for the factory. Values as {@link BreakExpr}. */
 export type SwitchExpr = Extract<Expr, { kind: typeof ExpressionKind.Switch }>;
 
-/** {@link ReturnExpr} — see {@link makeReturn} for the factory. Values as {@link BreakExpr}. */
-export type ReturnExpr = Extract<Expr, { kind: typeof ExpressionKind.Return }>;
-
-/** {@link ConstExpr} — see {@link makeI32Const}, {@link makeI64Const}, {@link makeF32Const}, {@link makeF64Const} for factories. */
-export type ConstExpr = Extract<Expr, { kind: typeof ExpressionKind.Const }>;
-
-/** {@link LocalGetExpr} — see {@link makeLocalGet} for the factory. */
-export type LocalGetExpr = Extract<Expr, { kind: typeof ExpressionKind.LocalGet }>;
-
-/** {@link LocalSetExpr} — see {@link makeLocalSet} for the factory. */
-export type LocalSetExpr = Extract<Expr, { kind: typeof ExpressionKind.LocalSet }>;
-
-/** {@link LocalTeeExpr} — see {@link makeLocalTee} for the factory. */
-export type LocalTeeExpr = Extract<Expr, { kind: typeof ExpressionKind.LocalTee }>;
-
-/** {@link TableGetExpr} — see {@link makeTableGet} for the factory.
- *  `table.get $t index` — reads the element at `index` from table `$t`. */
-export type TableGetExpr = Extract<Expr, { kind: typeof ExpressionKind.TableGet }>;
-
-/** {@link TableSetExpr} — see {@link makeTableSet} for the factory.
- *  `table.set $t index value` — writes `value` to `index` in table `$t`. */
-export type TableSetExpr = Extract<Expr, { kind: typeof ExpressionKind.TableSet }>;
-
-/** {@link GlobalGetExpr} — see {@link makeGlobalGet} for the factory. */
-export type GlobalGetExpr = Extract<Expr, { kind: typeof ExpressionKind.GlobalGet }>;
-
-/** {@link GlobalSetExpr} — see {@link makeGlobalSet} for the factory. */
-export type GlobalSetExpr = Extract<Expr, { kind: typeof ExpressionKind.GlobalSet }>;
-
-/** {@link UnaryExpr} — see {@link makeUnary} for the factory. */
-export type UnaryExpr = Extract<Expr, { kind: typeof ExpressionKind.Unary }>;
-
-/** {@link BinaryExpr} — see {@link makeBinary} for the factory. */
-export type BinaryExpr = Extract<Expr, { kind: typeof ExpressionKind.Binary }>;
-
-/** {@link SelectExpr} — see {@link makeSelect} for the factory. */
-export type SelectExpr = Extract<Expr, { kind: typeof ExpressionKind.Select }>;
-
-/** {@link DropExpr} — see {@link makeDrop} for the factory. */
-export type DropExpr = Extract<Expr, { kind: typeof ExpressionKind.Drop }>;
-
-/** Memory load node. */
-export type LoadExpr = Extract<Expr, { kind: typeof ExpressionKind.Load }>;
-
-/** Memory store node. */
-export type StoreExpr = Extract<Expr, { kind: typeof ExpressionKind.Store }>;
-
-/** {@link MemoryGrowExpr} — see {@link makeMemoryGrow} for the factory. */
-export type MemoryGrowExpr = Extract<Expr, { kind: typeof ExpressionKind.MemoryGrow }>;
-
 /** {@link MemorySizeExpr} — see {@link makeMemorySize} for the factory. */
 // ---------------------------------------------------------------------------
 // Threads / atomics, and call_ref (S6 step 5 item 5 (5); divergence K1)
@@ -992,112 +1043,7 @@ export type MemoryGrowExpr = Extract<Expr, { kind: typeof ExpressionKind.MemoryG
 // written as in `opcode`, as `load` / `store` do; width and result type are
 // derived from it, never stored beside it.
 
-/** `i32.atomic.load*` / `i64.atomic.load*` (0xfe 0x10–0x16). */
-export type AtomicLoadExpr = Extract<Expr, { kind: typeof ExpressionKind.AtomicLoad }>;
-
-/** `i32.atomic.store*` / `i64.atomic.store*` (0xfe 0x17–0x1d). */
-export type AtomicStoreExpr = Extract<Expr, { kind: typeof ExpressionKind.AtomicStore }>;
-
-/** Atomic read-modify-write — `*.atomic.rmw*.{add,sub,and,or,xor,xchg}` (0xfe 0x1e–0x47); yields the old value. */
-export type AtomicRmwExpr = Extract<Expr, { kind: typeof ExpressionKind.AtomicRMW }>;
-
-/** Atomic compare-exchange (0xfe 0x48–0x4e) — writes `replacement` iff memory holds `expected`; yields the old value. */
-export type AtomicRmwCmpxchgExpr = Extract<Expr, { kind: typeof ExpressionKind.AtomicCmpxchg }>;
-
-/** `memory.atomic.wait32` / `wait64` (0xfe 0x01 / 0x02) — yields 0 ok, 1 not-equal, 2 timed out. */
-export type AtomicWaitExpr = Extract<Expr, { kind: typeof ExpressionKind.AtomicWait }>;
-
-/** `memory.atomic.notify` (0xfe 0x00) — yields the number of waiters woken. */
-export type AtomicNotifyExpr = Extract<Expr, { kind: typeof ExpressionKind.AtomicNotify }>;
-
-/** `atomic.fence` (0xfe 0x03) — a consistency-model marker; no operands, no value. */
-export type AtomicFenceExpr = Extract<Expr, { kind: typeof ExpressionKind.AtomicFence }>;
-
-/** `call_ref $t` (0x14) / `return_call_ref $t` (0x15) — calls the function reference `callee`. */
-export type CallRefExpr = Extract<Expr, { kind: typeof ExpressionKind.CallRef }>;
-
-/**
- * A code-metadata annotation — `(@metadata.code.<name> "<data>")` — standing
- * before the instruction it describes. wabt-ts's node, and wabt-ts's to build:
- * it is the TEXT form of a `metadata.code.*` section, which binaryen-ts reads
- * and writes as a raw custom section instead (divergence K2).
- *
- * 🗓️ Owner, 2026-09-16: binaryen-ts STRIPS it in its optimization runs —
- * `stripCodeMetadata` (walk.ts), run by `PassRunner` before the first pass.
- * Its encoder REFUSES one: it has no instruction bytes, and writing nothing for
- * it is how an annotation is silently lost (W8).
- */
-export type CodeMetadataExpr = Extract<Expr, { kind: typeof ExpressionKind.CodeMetadata }>;
-
-export type MemorySizeExpr = Extract<Expr, { kind: typeof ExpressionKind.MemorySize }>;
-
 /** {@link MemoryCopyExpr} — see {@link makeMemoryCopy} for the factory. */
-/**
- * `table.init` — copy from a passive element segment into a table.
- *
- * Both the segment and the table are held by NAME and resolved to indices by
- * the encoder, like every other cross-section reference in this IR.
- */
-export type TableInitExpr = Extract<Expr, { kind: typeof ExpressionKind.TableInit }>;
-
-/** `elem.drop` — release a passive element segment's storage. */
-export type ElemDropExpr = Extract<Expr, { kind: typeof ExpressionKind.ElemDrop }>;
-
-/**
- * `memory.init` — copy from a passive data segment into linear memory.
- *
- * The segment is held by NAME, like every other cross-section reference in this
- * IR, and resolved to its index by the encoder.
- */
-export type MemoryInitExpr = Extract<Expr, { kind: typeof ExpressionKind.MemoryInit }>;
-
-/** `data.drop` — release a passive data segment's storage. */
-export type DataDropExpr = Extract<Expr, { kind: typeof ExpressionKind.DataDrop }>;
-
-/** `table.size` — the current number of elements in a table. */
-export type TableSizeExpr = Extract<Expr, { kind: typeof ExpressionKind.TableSize }>;
-
-/** `table.grow` — append `delta` copies of `value`, yielding the previous size. */
-export type TableGrowExpr = Extract<Expr, { kind: typeof ExpressionKind.TableGrow }>;
-
-/** `table.fill` — write `value` into a range of a table. */
-export type TableFillExpr = Extract<Expr, { kind: typeof ExpressionKind.TableFill }>;
-
-/** `table.copy` — copy a range of elements between (possibly the same) tables. */
-export type TableCopyExpr = Extract<Expr, { kind: typeof ExpressionKind.TableCopy }>;
-
-export type MemoryCopyExpr = Extract<Expr, { kind: typeof ExpressionKind.MemoryCopy }>;
-
-/** {@link MemoryFillExpr} — see {@link makeMemoryFill} for the factory. */
-export type MemoryFillExpr = Extract<Expr, { kind: typeof ExpressionKind.MemoryFill }>;
-
-/** {@link CallExpr} — see {@link makeCall} for the factory. */
-export type CallExpr = Extract<Expr, { kind: typeof ExpressionKind.Call }>;
-
-/**
- * A function signature: parameter and result types, together.
- *
- * wabt-ts's house concept (`FuncSignature` in `wabt-ts/ir/ir.ts`, on `Func`, the
- * func type entry, the func import and `call_indirect`), with the same name and
- * shape here over binaryen-ts's value types; the two become one when S6 unifies
- * the type systems. One field, so a signature's two halves travel together and
- * cannot be set or compared one at a time.
- */
-export interface FuncSignature {
-  /** Parameter types in declaration order. */
-  params: ValueType[];
-  /** Result types in declaration order (empty = void). */
-  results: ValueType[];
-}
-
-/** {@link CallIndirectExpr} — see {@link makeCallIndirect} for the factory. */
-export type CallIndirectExpr = Extract<Expr, { kind: typeof ExpressionKind.CallIndirect }>;
-
-/** {@link RefNullExpr} — see {@link makeRefNull} for the factory. */
-export type RefNullExpr = Extract<Expr, { kind: typeof ExpressionKind.RefNull }>;
-
-/** {@link RefIsNullExpr} — see {@link makeRefIsNull} for the factory. */
-export type RefIsNullExpr = Extract<Expr, { kind: typeof ExpressionKind.RefIsNull }>;
 
 // `RefAsOp` stood here. It had one member, `RefAsNonNull: 0xd4`, and the
 // `RefAsExpr.opcode` field it typed could hold nothing else — so the kind and
@@ -1111,29 +1057,8 @@ export type RefIsNullExpr = Extract<Expr, { kind: typeof ExpressionKind.RefIsNul
 // "already models" them; that was true of wabt-ts only. binaryen-ts's decoder
 // dropped both opcodes until the kinds existed here too.)
 
-/**
- * `any.convert_extern` (0xfb 0x1a) / `extern.convert_any` (0xfb 0x1b) — the GC
- * proposal's conversions between the `extern` and `any` hierarchies. One
- * operand; the result keeps the operand's nullability.
- *
- * 🛑 The binary decoder used to read these as `push(pop())` — "identity
- * conversion in IR". The VALUE survived; the TYPE did not, so the opcode
- * vanished on re-encode: V8 rejected the module wherever the conversion was
- * load-bearing for typing, and it was silently absent where it was not.
- *
- * Same shape as wabt-ts's `ExternConvertExpr`: one node, the direction in the
- * kind.
- */
-export type ExternConvertExpr = Extract<
-  Expr,
-  { kind: typeof ExpressionKind.AnyConvertExtern | typeof ExpressionKind.ExternConvertAny }
->;
-
 /** {@link RefAsExpr} — see {@link makeRefAsNonNull} for the factory. */
 export type RefAsExpr = Extract<Expr, { kind: typeof ExpressionKind.RefAs }>;
-
-/** {@link RefFuncExpr} — see {@link makeRefFunc} for the factory. */
-export type RefFuncExpr = Extract<Expr, { kind: typeof ExpressionKind.RefFunc }>;
 
 // ---------------------------------------------------------------------------
 // GC proposal expression node types (Phase 7)
@@ -1146,69 +1071,6 @@ export type RefFuncExpr = Extract<Expr, { kind: typeof ExpressionKind.RefFunc }>
  */
 export { BrOnOp } from './ir.ts';
 
-/** {@link RefEqExpr} — see {@link makeRefEq} for the factory. */
-export type RefEqExpr = Extract<Expr, { kind: typeof ExpressionKind.RefEq }>;
-
-/** {@link RefI31Expr} — see {@link makeRefI31} for the factory. */
-export type RefI31Expr = Extract<Expr, { kind: typeof ExpressionKind.RefI31 }>;
-
-/** {@link I31GetExpr} — see {@link makeI31Get} for the factory. */
-export type I31GetExpr = Extract<Expr, { kind: typeof ExpressionKind.I31Get }>;
-
-/** {@link StructNewExpr} — see {@link makeStructNew} for the factory. */
-export type StructNewExpr = Extract<Expr, { kind: typeof ExpressionKind.StructNew }>;
-
-/** {@link StructGetExpr} — see {@link makeStructGet} for the factory. */
-export type StructGetExpr = Extract<Expr, { kind: typeof ExpressionKind.StructGet }>;
-
-/** {@link StructSetExpr} — see {@link makeStructSet} for the factory. */
-export type StructSetExpr = Extract<Expr, { kind: typeof ExpressionKind.StructSet }>;
-
-/** {@link ArrayNewExpr} — see {@link makeArrayNew} for the factory. */
-export type ArrayNewExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayNew }>;
-
-/** {@link ArrayNewFixedExpr} — see {@link makeArrayNewFixed} for the factory. */
-export type ArrayNewFixedExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayNewFixed }>;
-
-/** {@link ArrayNewDataExpr} — see {@link makeArrayNewData} for the factory. */
-export type ArrayNewDataExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayNewData }>;
-
-/** {@link ArrayNewElemExpr} — see {@link makeArrayNewElem} for the factory. */
-export type ArrayNewElemExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayNewElem }>;
-
-/** {@link ArrayGetExpr} — see {@link makeArrayGet} for the factory. */
-export type ArrayGetExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayGet }>;
-
-/** {@link ArraySetExpr} — see {@link makeArraySet} for the factory. */
-export type ArraySetExpr = Extract<Expr, { kind: typeof ExpressionKind.ArraySet }>;
-
-/** {@link ArrayFillExpr} — see {@link makeArrayFill} for the factory. */
-export type ArrayFillExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayFill }>;
-
-/** {@link ArrayCopyExpr} — see {@link makeArrayCopy} for the factory. */
-export type ArrayCopyExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayCopy }>;
-
-/** {@link ArrayInitDataExpr} — see {@link makeArrayInitData} for the factory. */
-export type ArrayInitDataExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayInitData }>;
-
-/** {@link ArrayInitElemExpr} — see {@link makeArrayInitElem} for the factory. */
-export type ArrayInitElemExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayInitElem }>;
-
-/** {@link ArrayLenExpr} — see {@link makeArrayLen} for the factory. */
-export type ArrayLenExpr = Extract<Expr, { kind: typeof ExpressionKind.ArrayLen }>;
-
-/** {@link RefTestExpr} — see {@link makeRefTest} for the factory. */
-export type RefTestExpr = Extract<Expr, { kind: typeof ExpressionKind.RefTest }>;
-
-/** {@link RefCastExpr} — see {@link makeRefCast} for the factory. */
-export type RefCastExpr = Extract<Expr, { kind: typeof ExpressionKind.RefCast }>;
-
-/** {@link RefGetDescExpr} — `ref.get_desc` (custom descriptors). */
-export type RefGetDescExpr = Extract<Expr, { kind: typeof ExpressionKind.RefGetDesc }>;
-
-/** {@link BrOnExpr} — see {@link makeBrOn} for the factory. */
-export type BrOnExpr = Extract<Expr, { kind: typeof ExpressionKind.BrOn }>;
-
 /**
  * One reference type immediate: a heap type and whether it is nullable — what
  * `br_on`'s `from` / `to` hold. The node's own field type, named (it was a
@@ -1219,71 +1081,6 @@ export type RefTypeImmediate = NonNullable<BrOnExpr['from']>;
 // ---------------------------------------------------------------------------
 // Exception handling (EH proposal)
 // ---------------------------------------------------------------------------
-
-/**
- * A catch clause in a `try_table` expression.
- * Mirrors the four catch opcode variants (0x00–0x03) from the EH proposal.
- */
-export interface TableCatch {
-  /**
-   * The tag caught. ABSENT means `catch_all` / `catch_all_ref`.
-   *
-   * 🔧 It was `string | null`, which spelled a catch tag differently from the
-   * legacy `Catch.tag?: Var` beside it — the same concept, two shapes in one
-   * IR — and the encoder had to wrap it in `varFromToken()` to resolve what the
-   * other path passes straight through. A tag is an INDEX-SPACE reference (a
-   * label is not), so `Var` is also the form that can carry `0` as written.
-   */
-  tag?: Var;
-  /** The label this clause branches to when it matches. */
-  target: Var;
-  /** `true` for `catch_ref` and `catch_all_ref` (sends an exnref). */
-  isRef: boolean;
-}
-
-/** `try_table` expression (new EH proposal). */
-export type TryTableExpr = Extract<Expr, { kind: typeof ExpressionKind.TryTable }>;
-
-/**
- * One `catch` clause of an old-EH `try`.
- *
- * 🔑 Replaces the parallel `catchTags[]` / `catchBodies[]` arrays. Those were
- * one fact in two places and could disagree in length — and did: the encoder
- * carried a guard because a mismatched `Try` emitted a `catch` opcode with no
- * handler after it, corrupting the rest of the function body. A record cannot
- * be half-present, so that guard is gone rather than merely passing.
- *
- * `try_table`'s clauses were already records ({@link TableCatch}); the same
- * concept was modelled both ways in one file.
- */
-export interface Catch {
-  /**
-   * The tag caught. ABSENT means `catch_all` / `catch_all_ref`.
-   *
-   * The parallel form used `''` as that sentinel, which is a value the field
-   * could otherwise hold; absence cannot be confused with a tag.
-   */
-  tag?: Var;
-  /** `catch_ref` / `catch_all_ref` — the handler also receives an `exnref`. */
-  isRef: boolean;
-  /** The handler's region. */
-  body: RegionExpr;
-}
-
-/** `try` expression (old/legacy EH). */
-export type TryExpr = Extract<Expr, { kind: typeof ExpressionKind.Try }>;
-
-/** `throw $tag operands*` expression. Always has type `unreachable`. */
-export type ThrowExpr = Extract<Expr, { kind: typeof ExpressionKind.Throw }>;
-
-/** `throw_ref $exnref` expression (new EH). Always has type `unreachable`. */
-export type ThrowRefExpr = Extract<Expr, { kind: typeof ExpressionKind.ThrowRef }>;
-
-/** `rethrow $depth` expression (old EH). Always has type `unreachable`. */
-export type RethrowExpr = Extract<Expr, { kind: typeof ExpressionKind.Rethrow }>;
-
-/** `pop` pseudo-instruction — implicit value producer at start of catch handlers. */
-export type PopExpr = Extract<Expr, { kind: typeof ExpressionKind.Pop }>;
 
 // ---------------------------------------------------------------------------
 // SIMD expression node types
@@ -1321,9 +1118,6 @@ export const QuaternaryOp = {
  * the ~116 that have no member above. See S6 stage 1 in cmem/ir-convergence.md.
  */
 export type QuaternaryOp = Opcode;
-
-/** Four-operand numeric node — the wide-arithmetic proposal. */
-export type QuaternaryExpr = Extract<Expr, { kind: typeof ExpressionKind.Quaternary }>;
 
 /** Creates a wide-arithmetic (`i64.add128` / `i64.sub128`) expression. */
 export function makeQuaternary(
