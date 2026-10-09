@@ -1,7 +1,9 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-07: `main` = `v1.8.1` plus everything under "Since 1.8.1" below — UNRELEASED, NOT
-PUSHED** (check it rather than trust this line:
+**As of 2026-10-08: `main` = `v1.8.1` plus everything under "Since 1.8.1" below — UNRELEASED, NOT
+PUSHED; the 1.9.0 release is PREPARED (`CHANGELOG.md` § 1.9.0 written, wasmtk's letter drafted
+as [handoffs.md](handoffs.md) § 26) and waits on the owner's push** (check it rather than trust
+this line:
 `git log --oneline v1.8.1..main -- src/ main.ts
 deno.json`). It adds an export (`./definitions`), so
 the next release is a MINOR, 1.9.0 — typed by hand ([publishing.md](publishing.md) § "`bump` has no
