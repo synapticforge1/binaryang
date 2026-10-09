@@ -49,15 +49,15 @@ function bundled(inputs: BundleInput[], options: Partial<BundleOptions> = {}) {
 /** A WASI host that captures what the program writes to any fd. */
 async function run(bytes: Uint8Array) {
   const written: string[] = [];
-  let memory: WebAssembly.Memory | undefined;
-  const view = () => new DataView(memory!.buffer);
+  const host: { memory?: WebAssembly.Memory } = {};
+  const view = () => new DataView(host.memory!.buffer);
   const wasi = {
     fd_write: (_fd: number, iovs: number, count: number, nwritten: number): number => {
       let total = 0;
       for (let i = 0; i < count; i++) {
         const ptr = view().getUint32(iovs + i * 8, true);
         const len = view().getUint32(iovs + i * 8 + 4, true);
-        written.push(new TextDecoder().decode(new Uint8Array(memory!.buffer, ptr, len)));
+        written.push(new TextDecoder().decode(new Uint8Array(host.memory!.buffer, ptr, len)));
         total += len;
       }
       view().setUint32(nwritten, total, true);
@@ -77,10 +77,11 @@ async function run(bytes: Uint8Array) {
     wasi_snapshot_preview1: wasi,
   });
   const ex = instance.exports as Record<string, (...a: number[]) => number>;
-  memory = instance.exports.memory as WebAssembly.Memory;
+  const memory = instance.exports.memory as WebAssembly.Memory;
+  host.memory = memory;
   const str = (ptr: number, len: number) =>
-    new TextDecoder().decode(new Uint8Array(memory!.buffer, ptr, len));
-  const byte = (ptr: number) => new Uint8Array(memory!.buffer)[ptr]!;
+    new TextDecoder().decode(new Uint8Array(memory.buffer, ptr, len));
+  const byte = (ptr: number) => new Uint8Array(memory.buffer)[ptr]!;
   return { ex, memory, written, str, byte };
 }
 
@@ -88,7 +89,7 @@ const RUST_PAGES = 17;
 const ZIG_PAGES = 2;
 
 /** The Rust program's claims, from any base. */
-async function checkRust(ex: Awaited<ReturnType<typeof run>>, base: number) {
+function checkRust(ex: Awaited<ReturnType<typeof run>>, base: number) {
   const { ex: f, str, written } = ex;
   f._start!();
   expect(written.join('')).toBe('hello from strlib\n');
@@ -104,7 +105,7 @@ async function checkRust(ex: Awaited<ReturnType<typeof run>>, base: number) {
   expect([f.bump!(), f.bump!(), f.bump!()]).toEqual([1, 2, 3]); // .bss, through a memarg offset
 }
 
-async function checkZig(ex: Awaited<ReturnType<typeof run>>, base: number) {
+function checkZig(ex: Awaited<ReturnType<typeof run>>, base: number) {
   const { ex: f, str } = ex;
   expect([0, 1, 2, 3, 4, 7].map((i) => f.square_at!(i))).toEqual([1, 4, 9, 16, 25, 9]);
   const ptr = f.label_ptr!();
