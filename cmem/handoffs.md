@@ -39,6 +39,7 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 | 23 | 2026-09-30 | wasmtk (in) | H9 / H10: ready to start H10 once there is a `./definitions` to pin. Asks D2 and D3 FIRST, D1 later (only when their WAT regexes give way to our parser, I2); a subpath in a normal release with the content hash and version in the data; D2's fields (canonical name, testsuite dirs, "changes core semantics", date), D3's (class key, the testsuite's exact message, the prefix rule); files their 20 trap messages and 3 specially-treated proposals as entries our source may lack. Replaces five hand-kept lists of theirs (`TRAP_KINDS`, `GATE_V8_FEATURES`, `engine.ts` feature names, `ARITH_NEVER_PTR`, WAT text reads) | 📋 on the list as [open-work.md](open-work.md) item 22 (owner, 2026-09-30); the D2/D3-first order (reversing the workspace plan) APPROVED by the owner 2026-10-06. No reply drafted |
 | 24 | 2026-10-06 | wasmtk (out — ✅ SENT by the owner, 2026-10-06) | the owner's decision: `wasmbundle` moves to binaryang as `wasm-bundle`, imported back; ONE memory, never multi-memory (WASI, host bindings, wazero); relocation EXACT — the tool-conventions Linking format (`linking` + `reloc.CODE` / `reloc.DATA`, `wasm-ld --emit-relocs`), a module without it refused or relocated by their current rule with a printed warning. Asks: per producer (`wasic`, TinyGo, Rust via rsxtk, Zig), can it emit the sections, measured on their bundle / merge test modules; and whether their bundle tests become ours | awaiting their measurement — item 24 starts on it ([open-work.md](open-work.md)) |
 | 25 | 2026-10-06 | wasmtk (in) | reply to § 24, MEASURED per producer (`wasmtk/scripts/binaryang-report.md`, their commit 3b749c8; sites checked: each `MEMORY_ADDR_SLEB` after an `i32.const` as a 5-byte padded LEB, each `FUNCTION_INDEX_LEB` after `call` / `ref.func`): **Rust** `-C link-arg=--emit-relocs` — `linking` + `reloc.CODE` / `reloc.DATA`, 221/221 address sites and 366/366 calls correct, runs; **TinyGo** the flag is accepted but TinyGo ALWAYS runs `wasm-opt` after linking (`--asyncify -Oz -g` on wasip1, even `-opt=0`), so its relocations are STALE (0/48 address sites, 2/151 calls) — its object (`-o x.o`) linked by `wasm-ld --emit-relocs` is correct (proven for the non-WASI `mathleaf` only; WASI `strlib` needs TinyGo's runtime archives, not reproduced; Asyncify cannot be on that route); **Zig** `--emit-relocs` silently ignored — `zig build-obj` + `zig wasm-ld --emit-relocs` correct; **wasic** no custom sections — needs from us (1) a way to mark an address in WAT that the assembler writes as `linking` / `reloc.*`, (2) bundling BEFORE optimisation. Asks of `wasm-bundle`: bundle before optimising; VERIFY relocations against the code and refuse stale ones like missing ones; decide `reloc..debug_*`; `linking` without `reloc.CODE` = nothing to relocate. Agrees: conflict policy, WASI dedup, `_start`, their three test files move to us, `witgen` and the prompt stay theirs | 📋 design points into [open-work.md](open-work.md) item 24; the WAT address-mark syntax is the OWNER's decision when the item starts (no standard text form exists) |
+| 26 | 2026-10-08 | wasmtk (out — 📝 DRAFT, to send when 1.9.0 is published) | 1.9.0: `./definitions` (H9) is there with D1 / D2 / D3 as § 23 asked; `wasm-bundle` (§ 24) is NOT in it; `wasm-ctor-eval` and `wasm-interp`; the optimizer within 2% of upstream; the validator gates five more features; two silent fixes named | drafted below as § 26; the owner sends |
 
 ### § 15 — reply to wasmtk (2026-09-28, SENT)
 
@@ -304,6 +305,49 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 >
 > Separately, with the release that carries `wasm-bundle`'s first version or before it:
 > `./definitions` (D1 / D2 / D3, H9 / H10) — a letter of its own when it is published.
+
+### § 26 — to wasmtk: 1.9.0 (DRAFT 2026-10-08 — to send when the owner has published)
+
+> From binaryang, 2026-10-08. Nothing here needs a reply unless you want one.
+>
+> **`binaryang@1.9.0` is published.** A minor: it adds exports. Nothing a path you pin changes
+> shape or default — `compat/wabt`, `compat/binaryen` and `wasm-validate` behave as at 1.8.1 for
+> the call shapes we have from you; moving the pin is your call, as always.
+>
+> **What you asked for, and where it is**
+>
+> - **`@jrmarcum/binaryang/definitions` — H9, the subpath to generate H10 from.** D2 (features
+>   and proposals) and D3 (the spec testsuite's trap vocabulary with its prefix rule) first, as
+>   you asked, and D1 (the instruction table, 582 entries) with them. Each carries `dataVersion`
+>   and a content `sha256`; the JSON sources ship in the package (`src/definitions/*.json`).
+>   `verdictClass(text)`, `featuresForSuite(dir)`, `opcodeDefinition(key)`. Your § 23 lists the
+>   fields; every one is there, and the 20 trap messages and 3 specially-treated proposals you
+>   filed are entries.
+> - **`wasm-bundle` (your § 24 / our item 24) is NOT in this release.** Its design is settled
+>   (exact relocation, as measured with you); it waits to be built. Keep your copy until it is.
+>
+> **What is new that may matter to you**
+>
+> - **`wasm-ctor-eval`** and **`wasm-interp`**, as CLI commands and as `./tools/*` subpaths.
+>   The first runs a module's constructors at build time on our interpreter and writes memory
+>   and globals back: 7% off a fully optimised module on our corpus, opt-in, run `-Oz` after it.
+>   The second runs exports on the interpreter and prints what they return, trap or stop on.
+> - **The optimizer is within 2% of upstream `wasm-opt -Oz`** on our 421-module corpus (it was
+>   13% above at 1.8.1): new passes Precompute, ConstantPropagation, CodeFolding, MemoryPacking,
+>   DeadArgumentElimination, Inlining at upstream's rules; and a numeric core checked against V8
+>   on every instruction the spec lists, which OptimizeInstructions, Precompute and the
+>   interpreter all compute through. Every level's bytes move; the behaviour gates hold.
+> - **The validator gates five more features**: with `simd`, `signExtension`, `satFloatToInt`,
+>   `bulkMemory` or `referenceTypes` turned OFF, their instructions are refused. Default-on
+>   features are unaffected, so a caller that never turns them off sees nothing.
+>
+> **Two silent fixes you may have been exposed to** (both in `CHANGELOG.md` § 1.9.0): the WAT
+> parser's tree for a folded instruction with missing operands (the bytes were right), and the
+> optimizer making an invalid or wrong module of a body where a value sat beneath a two-result
+> call — found on upstream's `wasm-ctor-eval` output, so any binaryen-written module could show
+> it.
+>
+> The full list is `CHANGELOG.md` § 1.9.0 in binaryang.
 
 ## Lessons the correspondence paid for
 

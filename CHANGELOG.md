@@ -1,5 +1,66 @@
 # Changelog
 
+## 1.9.0
+
+A minor release: **an interpreter and the tools on it, `./definitions` for other projects to
+generate from, and an optimizer within 2% of upstream `wasm-opt -Oz` on the corpus** (825,077
+bytes to upstream's 809,986 over 421 modules; it was 13% above at 1.8.1). No valid module's bytes
+change through `wat2wasm`, `wasm2wat` or a plain read and write; the optimizer's output moves at
+every level, and the behaviour gates hold on every one of them.
+
+### New
+
+- **`wasm-ctor-eval`** (a CLI command and `@jrmarcum/binaryang/tools/wasm-ctor-eval`): runs the
+  start function and the exported constructors `--ctors=a,b` names at build time and writes what
+  they computed into the module — memory as data segments, globals as their initialisers. A
+  constructor that reaches a host call (or a trap, or a value the tool cannot write back) keeps
+  the code from there on; a complete one's export goes unless `--kept-exports` names it.
+  `--ignore-external-input` assumes empty arguments and environment. Opt-in, never part of `-O`;
+  run `-Oz` after it. On the corpus: 7% off a fully optimised module.
+- **`wasm-interp`** (a CLI command and `…/tools/wasm-interp`): runs exported functions on the
+  interpreter and prints each result; a trap by its message, an import the tool was not given as
+  a stop — `--run-all-exports`, `--run-export=NAME` with `--argument=V`, `--dummy-import-func`.
+- **`@jrmarcum/binaryang/definitions`**: the shared definitions another project generates its
+  copies from — D1 the instruction table (582 entries: encoding, immediates, alignment, stack
+  signature, gating feature, class), D2 the feature / proposal list, D3 the spec testsuite's trap
+  vocabulary with its prefix rule — each with a `dataVersion` and a content `sha256`;
+  `opcodeDefinition()`, `verdictClass()`, `featuresForSuite()`. The JSON sources ship in the
+  package.
+- New passes: `Precompute` (an expression whose value is known becomes it; a constant condition
+  picks its arm), `ConstantPropagation`, `CodeFolding`, `MemoryPacking`. `makeConst(literal)` in
+  `./ir/binaryen-ts`.
+
+### Changed — the optimizer
+
+- `OptimizeInstructions` folds every scalar and SIMD operator of constants through one numeric
+  core, checked against V8 on every instruction the spec lists; never a trap, never a NaN from an
+  operator the spec leaves to the engine, never a relaxed-SIMD operator.
+- `LocalCSE` reuses any repeated read-only or trapping expression along straight-line code;
+  `SimplifyLocals` sinks a set into its only read; `CoalesceLocals` coalesces copies;
+  `RemoveUnusedBrs` turns a tail `return` into its value, a cheap `if` into a `select`, `if (c)
+  br` into `br_if`, and a block whose only branch is a leading `br_if` to itself into an `if`;
+  `Vacuum` splices unnamed blocks; `DeadArgumentElimination` and `Inlining` (upstream's rules
+  and schedule, with the function passes again after it) are new in the `-O2` pipeline; a read
+  of an immutable constant global is its constant.
+- `Asyncify` accepts `call_ref`.
+
+### Changed — the validator
+
+- With `simd`, `signExtension`, `satFloatToInt`, `bulkMemory` or `referenceTypes` turned OFF,
+  their instructions are refused; they validated before. Default-on features are unaffected.
+- `delegate`, `catch_all` and `try_table` have names in diagnostics and `wasm-objdump`.
+
+### Fixed
+
+- The WAT parser put a folded instruction's missing operands in the wrong slots (a `select`'s
+  value and condition swapped, a param-less `throw` taking a value, a multi-result folded child
+  shifting its siblings): the bytes were right, the tree was not, so optimising straight from
+  parsed text could compute a different result.
+- The optimizer could make an invalid or a wrong module of a body where a value sat on the stack
+  beneath a two-result call whose first result a later instruction took.
+- `i64.add128` / `i64.sub128` accepted a wrong-typed first operand.
+- `wat2wasm` no longer reads its own output back to predict text forms: 12% faster, same bytes.
+
 ## 1.8.1
 
 A patch release answering the wasmtk team's check of 1.8.0's custom-page-sizes lowering on five
