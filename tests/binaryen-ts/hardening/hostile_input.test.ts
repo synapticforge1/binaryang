@@ -25,7 +25,6 @@ import { PassRunner } from '../../../src/passes/index.ts';
 import { makeBlock } from '../../../src/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/ir/module.ts';
 import { interpModule, wasmInterp } from '../../../src/tools/wasm-interp.ts';
-import { Stop } from '../../../src/interp/interpreter.ts';
 import { bundle, BundleError } from '../../../src/tools/wasm-bundle.ts';
 import { readBinary } from '../../../src/compat/binaryen-compat.ts';
 import { decodeLinkingSection, LinkingFormatError } from '../../../src/core/linking.ts';
