@@ -807,7 +807,7 @@ module. Inverted: one pin removed → exit 1.
 ### ✅ The interpreter against the MANIFESTS — `deno task interp`, in the gate since 2026-10-07
 
 `spec-behaviour` uses V8 as the oracle and never reads `expected`. The interpreter (open-work 23,
-`src/binaryen-ts/interp/`) is a second implementation of the spec, so its oracle is the other one:
+`src/interp/`) is a second implementation of the spec, so its oracle is the other one:
 **the manifests' own `expected` values**. `scripts/check-interp.ts` replays every `assert_return`,
 `assert_trap`, `assert_exhaustion` and `assert_uninstantiable` on it — bits for values,
 `nan:canonical` / `nan:arithmetic` as the spec defines them, a trap by its message's prefix (D3's
@@ -947,7 +947,7 @@ were measured (wasmtime 49 runs the `.wast` as written; or lower to 64 KiB pages
 owner chose lowering, 2026-09-29: "we want V8 to be able to run it. That is the whole point of
 wasmtk, in that it runs everywhere."** So it is a FEATURE, not a test aid:
 `LowerCustomPageSizes` (`wasm-opt --lower-custom-page-sizes`,
-`src/binaryen-ts/passes/lower-custom-page-sizes.ts`; its design is in the module doc).
+`src/passes/lower-custom-page-sizes.ts`; its design is in the module doc).
 
 `scripts/check-lowered-page-sizes.ts` (run by `deno task proposals`): the original cannot run on
 V8, so the oracle is the spec's expected values, in SEVEN worlds — lowered as read, round trip,

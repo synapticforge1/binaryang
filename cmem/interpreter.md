@@ -11,7 +11,7 @@ E4 record is here in full.
 
 | stage | what                                                                                       | commit      | lives in                                                                                     |
 | ----- | ------------------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------- |
-| E1    | the evaluator's numeric core: every scalar operator, exact, a trap a RESULT                | `ec500c2d4` | `src/binaryen-ts/interp/numeric.ts`; `numeric_differential.test.ts` (V8, 136 ops, coverage)  |
+| E1    | the evaluator's numeric core: every scalar operator, exact, a trap a RESULT                | `ec500c2d4` | `src/interp/numeric.ts`; `numeric_differential.test.ts` (V8, 136 ops, coverage)  |
 | E2    | `Precompute`, on it; ONE fold rule (`foldedLiteral`) shared with OptimizeInstructions      | `7d94884f5` | `passes/precompute.ts`; `precompute.test.ts`                                                 |
 | E3a–d | the interpreter: numbers, control, calls; memory; tables, references, tail calls; EH; GC   | `809b1d42d` `2a0416b20` `44b3b3ea5` `731e4b060` `1d1d53cbd` | `interp/interpreter.ts` `memory.ts` `table.ts` `types.ts`; `interpreter.test.ts`; `scripts/check-interp.ts` |
 | E3e   | `v128`: every SIMD operator, relaxed SIMD deterministically, SIMD loads / stores; wide arithmetic | `ea25476cb` `6da1eae56` | `interp/simd.ts`; `simd_differential.test.ts`                                        |

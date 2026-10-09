@@ -110,7 +110,7 @@ listed defect fixed and one live gap, TranslateEH.
 
 ### TranslateEH
 
-**✅ IMPLEMENTED 2026-09-14 (owner decision 7: implement)** — `src/binaryen-ts/passes/translate-eh.ts`, registered as
+**✅ IMPLEMENTED 2026-09-14 (owner decision 7: implement)** — `src/passes/translate-eh.ts`, registered as
 `TranslateToExnref` (upstream's `--translate-to-exnref` resolves to it), opt-in. Upstream:
 `WebAssembly/binaryen/src/passes/TranslateEH.cpp`, 823 lines, legacy `try` → `try_table`. The record of the build:
 - [decision] **Upstream's shapes, with one departure (divergence H1): no scratch or tuple locals.** binaryen-ts has no
@@ -184,7 +184,7 @@ listed defect fixed and one live gap, TranslateEH.
 - ⟶ S6 6A (`2b5850a8a`): multi-value branch values no longer travel as `tuple.make` — `Break`/`Switch`/`Return` hold
   `values: Expression[]`; `TupleMake` is deleted (divergence V1: do not port it back).
 - ⟶ S6 4: the `(bytes, signed, resultType)` → opcode inversion — `LoadExpr`/`StoreExpr` hold `opcode`, one table in
-  `src/binaryen-ts/ir/memory-access.ts`. (The inversion had an inverse rotation bug the opcode sweep missed, `b8b3150db`.)
+  `src/ir/memory-access.ts`. (The inversion had an inverse rotation bug the opcode sweep missed, `b8b3150db`.)
 - ⟶ S6 3 + `949bee3b8`: `Try`'s parallel `catchTags`/`catchBodies` and its length guard → catch records, `tag?: Var`.
 - ⟶ S6 2: memarg offset `number` → `bigint`; memory64 offsets survive. Multi-memory (Tier B "throws") now decodes
   with a memory index on the node (`tests/binaryen-ts/binary/multi_memory.test.ts`).
@@ -218,7 +218,7 @@ its wasmtk integration left to wasmtk.
 - [reference] **`mapExpression` rebuilds every ancestor** (`_mapChildren` spreads each node), so identity-keyed
   `Set.has(node)` fails after any descendant rewrite. Mark with a `Symbol`-keyed property — spread copies symbol
   keys. Live: `_INEFFECTIVE` (coalesce-locals.ts), `_PICK_SIGN` (pick-load-signs.ts). Instance WT-2c #5.
-- [reference] **Walk API** (`src/binaryen-ts/ir/walk.ts`): `mapExpression` bottom-up, `walkExpression` pre-order,
+- [reference] **Walk API** (`src/ir/walk.ts`): `mapExpression` bottom-up, `walkExpression` pre-order,
   `visitChildren`, `mapChildrenShallow` (direct children only — Flatten's prelude hoisting needs it). Both central
   switches throw on an unhandled kind. `mapExpression` on a region returns a region (`asRegion`).
 - [reference] **Evaluation order matters to CFG, Flatten and liveness**: `call_indirect` evaluates operands BEFORE
@@ -265,7 +265,7 @@ its wasmtk integration left to wasmtk.
 
 **History, summarized**
 - binaryen-ts Phase 4.1 CFG liveness + CoalesceLocals; Phases 5 / 5.1 / 5.2 Inlining, split and return-call
-  inlining; Phase 6 native `wasm-opt` CLI (`src/binaryen-ts/tools/wasm-opt.ts`); `-O0` skips passes.
+  inlining; Phase 6 native `wasm-opt` CLI (`src/tools/wasm-opt.ts`); `-O0` skips passes.
 - Asyncify: Stage 1 `2902fca` ABI + options; 2 `3b35d97` analysis; 3a `2e30ea4` Flatten (surfaced `mapChildrenShallow`);
   3b `62a4573` flow; 4 `c446a3d` locals; 5 `62f0fb0` registered. Import mode 2026-07-08; liveness-minimized saving
   2026-07-09 (v1.4.2); audit-hardening 2026-07-08 (suite 397 → 401). Tests in `tests/binaryen-ts/passes/asyncify*.test.ts`.
@@ -293,7 +293,7 @@ representation details and all the runtime rules are superseded.
 - [reference] **Encoder**: two-pass sections; `resolveRef` throws on a name miss (the WT-2b `?? 0` class); label stack
   with the function frame seeded as a phantom at the bottom; start section (8) between export and element.
 - [reference] **GC**: with GC types present a function's own signature must be a declared `{ kind: "func" }` heap
-  type or `encodeWasm` throws `unresolved GC function type` (documented at `src/binaryen-ts/ir/module.ts:751`).
+  type or `encodeWasm` throws `unresolved GC function type` (documented at `src/ir/module.ts:751`).
   `ref.eq` is `0xd3`, unprefixed.
 - [reference] **SIMD**: `0xFD` + U32 LEB sub-opcode; SIMD prefix checks must precede scalar ones in
   `inferUnaryType`/`inferBinaryType` (`i32x4.splat` misclassifies otherwise).
@@ -301,7 +301,7 @@ representation details and all the runtime rules are superseded.
   `wasm-opt` subprocess; in-process binaryen.js (`src/binaryen-ts/interop/binaryen-js.ts`, a factory namespace per
   `WebAssembly/binaryen/src/js/binaryen.js-post.js`, not the C-API shape). [open] the hybrid path feeds
   `Module.toWat()` output, which is invalid WAT → divergences.md K4.
-- [decision] **`./compat/binaryen`** (`src/binaryen-ts/api/binaryen-compat.ts`): migrating code changes only its
+- [decision] **`./compat/binaryen`** (`src/compat/binaryen-compat.ts`): migrating code changes only its
   import; upstream numeric constants mirrored exactly; `Module.optimize()` runs the in-tree `PassRunner` (bytes may
   differ from upstream, both valid); unrecognised type IDs throw (`_idToValTypeStrict`). SIMD/GC/EH factories and
   Relooper are omitted. `else_` there is a public parameter — do not rename it with the IR field.

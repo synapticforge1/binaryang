@@ -6,7 +6,7 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 
 > 🛑 **Owner decision, 2026-09-10 — the TEXT front end is wabt-ts.** The end state is WAT → wabt-ts
 > parser → wabt-ts binary writer → bytes → binaryen-ts decoder, and external WAT already takes that
-> route (`e18d9f09a`, `readWat` in `src/binaryen-ts/tools/read-wat.ts`, merged `1cb7300317`).
+> route (`e18d9f09a`, `readWat` in `src/tools/read-wat.ts`, merged `1cb7300317`).
 > binaryen-ts's own WAT parser is internal only and a retirement candidate once S6 unifies the tree,
 > so **"Stage 1" below — teaching it stack-sourced operands — is SUPERSEDED**: do not resume it.
 > Measured on the new route: every corpus module, written by our `wasm2wat` in linear or folded
@@ -470,7 +470,7 @@ split.
 
 ### S3 — the side table ✅ done
 
-`src/wabt-ts/ir/fidelity.ts` — `NodeId`, `FidelityEntry`, `FidelityTable`. One table per module,
+`src/ir/fidelity.ts` — `NodeId`, `FidelityEntry`, `FidelityTable`. One table per module,
 created by `makeModule()` so the binary reader and the WAT parser share it. **Both producers
 populate it and both writers read it**, so the table drives the output rather than merely shadowing
 it, and the byte baseline is a proof rather than a coincidence.
@@ -1760,7 +1760,7 @@ the requirement, which is what let the mismatch read as intended behaviour. It n
 ###### ✅ 4. Load/store hold their OPCODE — and three defects went with the old shape
 
 `LoadExpr` drops `bytes` + `signed`, `StoreExpr` drops `bytes`; both hold `opcode: Opcode`. Width,
-sign and type come from ONE table, `src/binaryen-ts/ir/memory-access.ts`, which replaced five copies
+sign and type come from ONE table, `src/ir/memory-access.ts`, which replaced five copies
 (encoder `loadOpcode`/`storeOpcode`, bridge `loadInfo`/`storeBytes`, WAT-parser
 `loadBytes`/`storeBytes`). The table is tested against sources that are not itself: each row's
 mnemonic against wabt-ts's `anyOpcodeName`, and each width against what the mnemonic states — either
@@ -3812,7 +3812,7 @@ resolve), then rewrite exactly those reference kinds to names. Its acceptance, i
 tree and the named tree agree.
 
 **✅ M8c — `nameReferences`: the references the bridge named, named on the module (2026-09-18,
-`381221432` + `400135262`).** `src/wabt-ts/ir/name-references.ts`, not yet called by any route. It
+`381221432` + `400135262`).** `src/ir/name-references.ts`, not yet called by any route. It
 wires in at M8e, on the optimizer route only.
 - **Naming:** a module with no `explicitNames` (text) is named first with `nameEveryEntity`, after
   `resolveNames` + `synthesizeTypes`, with every function listed for its locals (what the encoder
@@ -3854,7 +3854,7 @@ wires in at M8e, on the optimizer route only.
 - **Gate** on `400135262`: every step exit 0, 1283 tests.
 
 **✅ M8d — `deriveTypes`: every node's type, derived over the whole module (2026-09-18, branch
-`m8d-derive-types`).** `src/binaryen-ts/ir/derive-types.ts`, not yet called by any route. It
+`m8d-derive-types`).** `src/ir/derive-types.ts`, not yet called by any route. It
 wires in at M8e, after `nameReferences`.
 - **Rules:** where a factory derives a type from the node itself (opcode, children), the factory is
   CALLED and its `type` taken. Where the type comes from context (locals, globals, callee results,
@@ -3923,7 +3923,7 @@ wires in at M8e, after `nameReferences`.
 - **Gate** on `8aca27cbd`: every step exit 0, 1288 tests.
 
 **✅ M8e — the bridge goes (2026-09-18, `84a128f82`). ITEM 6 IS DONE, and with it S6 step 5.**
-- **`prepareForPasses(m)`** (`src/binaryen-ts/ir/prepare.ts`) is the bridge's replacement:
+- **`prepareForPasses(m)`** (`src/ir/prepare.ts`) is the bridge's replacement:
   `nameReferences` then `deriveTypes`, in place, on the one module type. It is not public (the
   bridge was not either), and stays internal (**owner, 2026-09-18**). No PRODUCT route used the
   bridge; its users were two gates and 21 test files. (`wasm-opt` reads text through
@@ -4225,7 +4225,7 @@ Owner (2026-09-19): fidelity first on the text path, ON by default, stripped by 
 then "a mixed form if a mixed form is in the wat … It should never change the state unless it goes
 into optimization" (the decision at the top). The first cut recorded forms per FUNCTION and wrote a
 mixed one back folded (`git show 145ac840a:cmem/ir-convergence.md`, § "S7"); it records them per
-INSTRUCTION since. The design, as built (`src/wabt-ts/ir/text-form.ts`):
+INSTRUCTION since. The design, as built (`src/ir/text-form.ts`):
 - **Folding is syntax**: `(op f1 … fk)` IS `f1 … fk op`, so the bytes fix the instruction SEQUENCE
   and only its grouping is free. Walked in binary order (`formNodes`), each instruction gets a FORM
   — 0 written bare, `k + 1` written folded around the `k` folded items just before it. That rebuilds
