@@ -84,6 +84,15 @@ function argValue(type: ValueType, text: string | undefined): Value {
       return { type, bits: f32BitsOf(Number(t)) };
     case ValType.F64:
       return { type, bits: f64BitsOf(Number(t)) };
+    // 🔧 A v128 zero. It fell to the reference default below, so every export
+    // taking a v128 — and every stand-in import returning one — got `ref.null`,
+    // and the run stopped as `invalid: expected a v128 operand` on a valid module
+    // (open-work 13, the code lens: the spec's relaxed-SIMD modules, run whole).
+    case ValType.V128:
+      if (text !== undefined && text !== '0') {
+        throw new Error(`cannot pass an argument of type v128 (only the zero default)`);
+      }
+      return { type, bytes: new Uint8Array(16) };
     default:
       if (text !== undefined) throw new Error(`cannot pass an argument of type ${String(type)}`);
       return { type: 'ref', kind: 'null' };

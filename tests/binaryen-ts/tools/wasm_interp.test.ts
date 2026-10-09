@@ -49,4 +49,23 @@ describe('wasm-interp', () => {
       'host() => i32:0',
     ]);
   });
+
+  // 🔧 A v128 default was `ref.null`: every export taking a v128, and every
+  // stand-in import returning one, stopped as `invalid` on a valid module
+  // (open-work 13, the code lens: the spec's relaxed-SIMD modules, run whole).
+  it('defaults a v128 argument, and a stand-in v128 result, to zero', () => {
+    const simd = readForPasses(
+      wat2wasm(
+        `(module
+          (import "env" "v" (func $v (result v128)))
+          (func (export "not") (param v128) (result v128) (v128.not (local.get 0)))
+          (func (export "host") (result v128) (call $v)))`,
+        { textForm: false },
+      ).binary,
+    );
+    expect(lines(interpModule(simd, { runAllExports: true, dummyImportFunc: true }))).toEqual([
+      'not(v128:0x00000000000000000000000000000000) => v128:0xffffffffffffffffffffffffffffffff',
+      'host() => v128:0x00000000000000000000000000000000',
+    ]);
+  });
 });

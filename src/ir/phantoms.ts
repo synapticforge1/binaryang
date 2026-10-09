@@ -36,6 +36,7 @@ import {
   type Expression,
   ExpressionKind,
   makeDrop,
+  makeUnreachable,
   type RegionExpr,
   typeOf,
 } from './expressions.ts';
@@ -97,6 +98,31 @@ export function collapsePhantomConsumers(
     if (transfer.kind === ExpressionKind.Unreachable) return n;
     const before = ops.slice(0, t);
     if (!before.some(isPhantom)) return n; // real values below it: nothing runs early
-    return { sequence: [...before.filter((o) => !isPhantom(o)).map(evaluated), transfer] };
+    const sequence = [...before.filter((o) => !isPhantom(o)).map(evaluated), transfer];
+    // A sequence's last statement must never fall through. The `transfer` is
+    // only TYPED unreachable — that may be because ITS operands do not return,
+    // and its own instruction still pushes when written: `unreachable
+    // unreachable unreachable select` leaves a value, and a void function then
+    // ended with one (open-work 13, the code lens: a valid mutant of
+    // `spec/unreached-valid`, `drop (i64.div_u (select (unreachable)))`).
+    if (!isTransfer(transfer)) sequence.push(makeUnreachable());
+    return { sequence };
   });
+}
+
+/** Whether `e`'s own instruction never falls through — not merely typed so by an operand. */
+function isTransfer(e: Expression): boolean {
+  switch (e.kind) {
+    case ExpressionKind.Unreachable:
+    case ExpressionKind.Return:
+    case ExpressionKind.Switch:
+    case ExpressionKind.Throw:
+    case ExpressionKind.ThrowRef:
+    case ExpressionKind.Rethrow:
+      return true;
+    case ExpressionKind.Break:
+      return e.condition === undefined || e.condition === null;
+    default:
+      return 'isReturn' in e && e.isReturn === true;
+  }
 }

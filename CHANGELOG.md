@@ -70,7 +70,16 @@
   `OptimizeInstructions` rewrote an instruction the bytes never run as if they did. Such values
   are now dropped where they stand before the first pass runs, as binaryen's own reader reads
   them, and an instruction whose operands the `unreachable` cut off is taken apart. Nothing
-  changes at run time, and a read-and-write with no pass is byte-exact as before.
+  changes at run time, and a read-and-write with no pass is byte-exact as before. The same
+  preparation could also end a void function with a value (a `select` over unreachable operands
+  left where its consumer was removed); it now ends such code with `unreachable`.
+- **The binary reader accepted three kinds of malformed input that V8 refuses**, so
+  `wasm-validate` passed them and a later writer failed: a heap type byte that is not one (`0x7f`,
+  i32's code); a negative heap type in more than one byte, which was also mis-decoded (a padded
+  `func` read wrongly, and an out-of-range value read as `func`); and an unknown SIMD sub-opcode,
+  read as a two-operand instruction. Each is now reported where it is read.
+- `wasm-interp` passed `ref.null` for a v128 argument it defaults, and for the result of a
+  stand-in import returning a v128, and then stopped the run as `invalid`. It passes a v128 zero.
 
 ## 1.10.0
 

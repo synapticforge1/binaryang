@@ -24,6 +24,7 @@ import {
   WASM_VERSION,
 } from '../core/binary.ts';
 import {
+  extendedOpcodeName,
   GcOpcode,
   MiscOpcode,
   Opcode,
@@ -850,6 +851,11 @@ export class BinaryReader {
       if (b >= 0x40) {
         const name = abstractHeapTypeNameForByte(b);
         if (name !== null) return heapAbstract(name);
+        // 🔧 Reported. It was only named, and nothing downstream checked the
+        // name: the validator ACCEPTED `0x7f` (i32's code, not a heap type)
+        // and the writer then refused the module (open-work 13, the code
+        // lens: V8 says "Unknown heap type -1").
+        this.err(`expected valid heap type (got 0x${b.toString(16)})`);
         return varName(`<heaptype:0x${b.toString(16)}>`);
       }
       return varIndex(b);
@@ -860,10 +866,15 @@ export class BinaryReader {
     const [v, n] = decodeS32Leb128(this.data, this.pos);
     this.pos += n;
     if (v < 0) {
-      const code = (-v) & 0x7f;
-      const name = abstractHeapTypeNameForByte(code);
+      // An abstract heap type is a 7-bit two's-complement value (-0x40 … -1),
+      // whatever padding encodes it: its byte is `v & 0x7f`. 🔧 This took
+      // `(-v) & 0x7f`, so a padded `func` (-16) read as 0x10, and an
+      // out-of-range -112 read as `func` (0x70) and was accepted.
+      const code = v & 0x7f;
+      const name = v >= -0x40 ? abstractHeapTypeNameForByte(code) : null;
       if (name !== null) return heapAbstract(name);
-      return varName(`<heaptype:0x${code.toString(16)}>`);
+      this.err(`expected valid heap type (got ${v})`);
+      return varName(`<heaptype:${v}>`);
     }
     return varIndex(v);
   }
@@ -2898,6 +2909,16 @@ export class BinaryReader {
         vec,
         loc,
       });
+      return;
+    }
+
+    // 🔧 An opcode the definitions do not name is malformed, as for every other
+    // prefix. It fell through to the binary default below and was ACCEPTED:
+    // `0xfd 0xb9 0x7f` (sub-opcode 16313) read as a two-operand instruction,
+    // and `wasm-validate` passed it where V8 says "Invalid prefixed opcode"
+    // (open-work 13, the code lens: a mutant of `spec/simd_i32x4_arith2`).
+    if (extendedOpcodeName(opcode) === undefined) {
+      this.err(`unknown SIMD opcode: 0xfd 0x${op.toString(16)}`);
       return;
     }
 

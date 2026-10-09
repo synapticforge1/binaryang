@@ -423,6 +423,37 @@ describe('a consumer of a discarded operand is taken apart', () => {
   });
 });
 
+// A consumer taken apart for a phantom ends in a statement that never falls
+// through. 🔧 It ended in its "transfer" as it stood, and a `select` over
+// unreachable operands is TYPED unreachable but pushes when written: `drop
+// (i64.div_u (pop) (select (unreachable)))` became the `select` alone, and the
+// void function ended with a value (open-work 13, the code lens: a valid mutant
+// of `spec/unreached-valid`, `ref.is_null` → `i64.div_u`; on `main` before too).
+describe('a phantom consumer whose transfer only types as unreachable', () => {
+  const bytes = asm(`(module
+    (func (export "f") (param i32) (result i32)
+      (if (local.get 0) (then
+        unreachable
+        select
+        i64.div_u
+        drop))
+      (i32.const 7)))`);
+
+  it('every pass prefix stays valid: one pass is enough to run the collapse', () => {
+    const m = routeB(bytes);
+    new PassRunner(m, {}).add('RemoveUnusedModuleElements').run();
+    assert(WebAssembly.validate(writeWasm(m) as BufferSource), 'valid after the preparation');
+  });
+
+  it('and -O2 computes the same', () => {
+    const m = routeB(bytes);
+    new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
+    const out = writeWasm(m);
+    assert(WebAssembly.validate(out as BufferSource), 'valid after -O2');
+    assertEquals(results(out), results(bytes));
+  });
+});
+
 // ⚠️ A value a BRANCH carries is not one nothing takes. The reader gives a
 // transfer its carried values as operands, so a value below one is rare — but a
 // linear `br_table`'s values are preceding statements by the IR's own account,
