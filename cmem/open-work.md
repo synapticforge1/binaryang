@@ -4,19 +4,21 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**State, 2026-10-09 (owner: "proceed with item 21"; phase 4 "I agree with your suggestion.
-Proceed"):** `binaryang@1.10.0` is the last release (PUBLISHED 2026-10-09, `wasm-bundle` —
-[bundle.md](bundle.md), [publishing.md](publishing.md) § 1.10.0). **Item 21 CLOSED the same day,
-UNRELEASED** — one `src/` tree, one declaration per name, one IR subpath `./ir` with the three old
-ones deprecated ([one-tree.md](one-tree.md)); its follow-up is item 25. The next release is a
-MINOR, 1.11.0 (a new export, and one type-level breaking change — [unreleased.md](unreleased.md)),
-typed by hand when the owner says. wasmtk's letter [handoffs.md](handoffs.md) § 27 SENT by the
-owner 2026-10-09; it asks their measurement once wasic marks its addresses. Closed since
-2026-10-08, each with its topic file: items 23 ([interpreter.md](interpreter.md)), 2
-([optimizer.md](optimizer.md)), 22 ([definitions.md](definitions.md)), 24, 21. **Next in the
-agreed order: the rounds 13 / 14 (hardening, security), which now audit the one tree; 25 after
-the `./ir` release; 15 stays blocked on wasmtk. 4 open items, none blocking**; numbers 2–7, 9–12,
-16, 17, 21, 22, 23, 24 are gone and kept free. Re-derive any number before quoting it.
+**State, end of 2026-10-09:** `binaryang@1.10.0` is the last release (`wasm-bundle` —
+[bundle.md](bundle.md), [publishing.md](publishing.md) § 1.10.0). **On `main`, UNRELEASED and
+NOT PUSHED:** item 21 closed — one `src/` tree, one declaration per name (collisions 88 → 0, the
+compat names renamed with deprecated aliases), one IR subpath `./ir` with the three old ones
+deprecated ([one-tree.md](one-tree.md)); round 13 (hardening) passes 1–2 — malformed input gets
+a typed answer everywhere, the weakest nesting ceiling ~384 → ~930; and the interpreter's HANG
+CHECK, interval 2 s set from measured run times ([hardening.md](hardening.md)). The next release
+is a MINOR, 1.11.0 (new exports, deprecations, one type-level breaking change —
+[unreleased.md](unreleased.md)), typed by hand when the owner says. wasmtk's letter
+[handoffs.md](handoffs.md) § 27 SENT by the owner; it asks their measurement once wasic marks its
+addresses. **Next: round 13 goes on — the code lens again, then a hardening pass that re-runs
+`deno task hostile` until a pass finds nothing; deeper nesting ceilings are the OWNER's priority
+call. Then 14 (security); 25 after the `./ir` release; 15 stays blocked on wasmtk. 4 open items,
+none blocking**; numbers 2–7, 9–12, 16, 17, 21, 22, 23, 24 are gone and kept free. Re-derive any
+number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -82,7 +84,7 @@ names as labels only.
 | round     | lenses, in order                            | state                                                                                    |
 | --------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **1.5.5** | code                                        | ✅ passes 1–7, register empty, converged — [testing.md](testing.md) § "The 1.5.5 passes" |
-| **1.5.6** | hardening → then code again                 | 13. ◐ passes 1 (the contract) and 2 (the weakest ceiling, ~384 → ~930) DONE 2026-10-09; open: the owner's call on deeper ceilings and the fuel default, then the code lens again — [hardening.md](hardening.md) |
+| **1.5.6** | hardening → then code again                 | 13. ◐ passes 1 (the contract) and 2 (the weakest ceiling, ~384 → ~930) DONE 2026-10-09, and the fuel question answered by a sound HANG CHECK (2 s); open: the code lens again, then a hardening re-run until clean; deeper ceilings are the owner's call — [hardening.md](hardening.md) |
 | **1.5.7** | security → then hardening → then code again | 14. ⬚ not started                                                                        |
 
 If a finding fits two lenses, file it under the **lowest** one that would have caught it:

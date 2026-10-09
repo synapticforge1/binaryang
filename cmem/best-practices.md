@@ -1674,6 +1674,36 @@ rest. Every local run, the full 21-step gate included, read the files from this 
 of the commit — `git -c safe.directory=<repo>/.git clone <repo> <scratch>` on this disk — because
 that is the only tree that sees what CI sees.
 
+### The last line of a tool's output is not its verdict — read the exit code
+
+On 2026-10-09 three local "lint is clean" checks read `deno lint | tail -1`, which prints `Checked
+N files` LAST even when it has just listed problems; the gate then failed on lint. A summary line is
+a count of what was looked at, not a judgement of it. **How to apply:** gate every tool by its EXIT
+CODE (`cmd >/dev/null; echo $?`), and read output only to find out why.
+
+### A step that ran nothing passes — make "nothing" a failure
+
+All day on 2026-10-09 the gate's `interp` step was handed the wrong folder for the legacy corpus
+(`translate-eh`'s flat output, not a `spec:prepare`d corpus) and reported "pass 0, FAIL 0, stopped
+0": green. Nothing was broken (70 / 0 / 0 once found), but the evidence was empty. **How to apply:**
+a harness counts what it RAN, and a corpus with zero assertions fails the step; when a gate's
+number drops to zero, it is a finding, not a pass.
+
+### A limit measured warm is not the limit a user meets — pin the cold one
+
+Stack-depth ceilings found by a binary search (many calls, JIT-warmed) were about TWICE the ceilings
+of one fresh call: name resolution "~1,500" warm, 700 cold. A test pinned at the warm number failed
+on a cold run. **How to apply:** measure a limit the way it is used — one fresh process per sample —
+and pin a test below the COLD number; report both, labelled.
+
+### Set an interval from the tail, not the mean
+
+The hang check's interval was chosen from measured run times: means of 0.3 ms and 7 ms, but a
+slowest legitimate run of 1.36 s. An interval near the mean would sample during ordinary work (16×
+slower in the worst case); one above the tail costs ordinary runs nothing. **How to apply:** when a
+setting trades cost against latency, read the distribution's tail (p99, max), and say which number
+was used and why.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:
