@@ -65,6 +65,33 @@ describe('a tree of constants folds in one run', () => {
     expect(t).toContain('f32.sqrt');
   });
 
+  // Open-work 2, step 6d: a read of an immutable global with a constant
+  // initialiser IS that constant; a mutable or an imported one is not.
+  it('a read of an immutable constant global folds; mutable and imported ones stay', async () => {
+    const wat = (body: string) =>
+      `(module (import "env" "ig" (global $ig i32))
+        (global $k i32 (i32.const 7)) (global $m (mut i32) (i32.const 7))
+        (global $g (mut i32) (i32.const 0))
+        (func (export "f") (result i32) ${body})
+        (func (export "g") (result i32) (global.get $g)))`;
+    const run = async (text: string) => {
+      const m = readForPasses(wat2wasm(text, { textForm: false }).binary);
+      new PassRunner(m, {}).add('Precompute').run();
+      const after = writeWat(m);
+      const imports = { env: { ig: new WebAssembly.Global({ value: 'i32' }, 5) } };
+      const f = async (b: Uint8Array) =>
+        ((await WebAssembly.instantiate(b as BufferSource, imports)).instance.exports.f as () =>
+          number)();
+      expect(await f(writeWasm(m))).toBe(await f(wat2wasm(text, { textForm: false }).binary));
+      return after.slice(after.indexOf('(export "f")'), after.indexOf('(export "g")'));
+    };
+    const k = wat('(i32.add (global.get $k) (global.get $k))');
+    expect(await run(k)).toContain('i32.const 14');
+    expect(await run(k)).not.toContain('global.get');
+    expect(await run(wat('(i32.add (global.get $m) (i32.const 1))'))).toContain('global.get');
+    expect(await run(wat('(i32.add (global.get $ig) (i32.const 1))'))).toContain('global.get');
+  });
+
   // E3e: `v128` operators go through the same evaluator and the same rule.
   it('a v128 tree of constants folds; a NaN lane from arithmetic and a relaxed operator stay', async () => {
     const folded = await same(

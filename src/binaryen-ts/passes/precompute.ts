@@ -34,6 +34,7 @@ import {
   type Expression,
   ExpressionKind,
   labelName,
+  type Literal,
   makeBreak,
   makeConst,
   makeNop,
@@ -41,6 +42,7 @@ import {
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
 import type { BlockResult } from '../../wabt-ts/ir/ir.ts';
+import { ExternalKind } from '../../wabt-ts/core/binary.ts';
 import { ValType } from '../ir/types.ts';
 import { deepEffects, hasSideEffects } from '../ir/effects.ts';
 import { mapExpression } from '../ir/walk.ts';
@@ -59,10 +61,36 @@ export class PrecomputePass implements Pass {
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {
+    const constants = _constantGlobals(module);
+    const fold = (e: Expression): Expression => _precompute(e, constants);
     for (const fn of module.functions) {
-      fn.body = mapExpression(fn.body, _precompute);
+      fn.body = mapExpression(fn.body, fold);
     }
   }
+}
+
+/**
+ * The value of every immutable, DEFINED global whose initialiser is one
+ * constant — keyed by name and by its index in the global index space
+ * (imports first), as a `global.get` may name it either way. Reading such a
+ * global is reading its constant (open-work 2, step 6d; upstream's
+ * Precompute and SimplifyGlobals both apply it): the read becomes the
+ * constant, and what then holds only constants folds on — a function every
+ * caller passes the same global's value becomes DAE's constant parameter.
+ * An imported global has no known value; a mutable one may change.
+ */
+function _constantGlobals(module: WasmModule): Map<string | number, Literal> {
+  const out = new Map<string | number, Literal>();
+  let index = module.imports.filter((i) => i.kind === ExternalKind.Global).length;
+  for (const g of module.globals) {
+    const init = g.init?.children;
+    if (!g.mutable && init?.length === 1 && init[0]!.kind === ExpressionKind.Const) {
+      out.set(g.name, init[0]!.value);
+      out.set(index, init[0]!.value);
+    }
+    index++;
+  }
+  return out;
 }
 
 registerPass(PrecomputePass);
@@ -85,8 +113,13 @@ function _index(e: Expression): number | undefined {
 
 const _removable = (e: Expression): boolean => !hasSideEffects(deepEffects(e));
 
-function _precompute(e: Expression): Expression {
+function _precompute(e: Expression, constants: Map<string | number, Literal>): Expression {
   switch (e.kind) {
+    case ExpressionKind.GlobalGet: {
+      const lit = constants.get(e.var.kind === 'name' ? e.var.name : e.var.value);
+      return lit === undefined ? e : makeConst(lit);
+    }
+
     case ExpressionKind.Unary: {
       if (e.value.kind !== ExpressionKind.Const) return e;
       const lit = foldedLiteral(e.opcode, evalUnary(e.opcode, e.value.value));
