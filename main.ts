@@ -162,6 +162,7 @@ COMMANDS:
                         --alias a.wasm=m,...      Name inputs (the prefix; what others import from)
                         --unmarked=guess          Relocate an unmarked input by address range
                         --start=NAME              Whose _start stays _start
+                        --no-wit                  Do not write <output>.wit beside the bundle
                         -S                        Emit WAT text
 
 OPTIONS:

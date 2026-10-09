@@ -48,6 +48,7 @@ import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { readWat, WatInputError } from './read-wat.ts';
+import { emitWitBeside, witFromModule, witNameOf } from './witgen.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { makeCall } from '../ir/expressions.ts';
 import { None } from '../ir/types.ts';
@@ -1653,6 +1654,13 @@ export interface WasmBundleOptions extends BundleOptions {
   aliases: ReadonlyMap<string, string>;
   /** Write WAT text instead of a binary (`-S`). */
   emitText: boolean;
+  /**
+   * The world name of the `.wit` returned beside the output (default
+   * `bundle`; the CLI uses the output file's name). The `.wit` is derived
+   * from the bundle's core signatures — `witgen.ts` — and is written beside
+   * the output by default (owner, 2026-10-08).
+   */
+  witName: string;
 }
 
 /** The module name a file gets when none is given: its basename, `[^A-Za-z0-9_]` → `_`. */
@@ -1661,11 +1669,15 @@ export function moduleNameOf(path: string): string {
   return /^[0-9]/.test(stem) ? `_${stem}` : stem === '' ? 'module' : stem;
 }
 
-/** Read each file (`.wasm` or `.wat`), bundle, and return the bytes (or text) and the report. */
+/**
+ * Read each file (`.wasm` or `.wat`), bundle, and return the bytes (or
+ * text), the report, and the bundle's `.wit` (its core-signature interface,
+ * a world named `witName`).
+ */
 export async function wasmBundle(
   paths: string[],
   options: Partial<WasmBundleOptions> = {},
-): Promise<{ output: Uint8Array | string; report: BundleReport }> {
+): Promise<{ output: Uint8Array | string; report: BundleReport; wit: string }> {
   const aliases = options.aliases ?? new Map<string, string>();
   const named = new Set<string>();
   const inputs: BundleInput[] = [];
@@ -1680,8 +1692,9 @@ export async function wasmBundle(
     inputs.push({ name, module, source: path });
   }
   const { module, report } = bundle(inputs, { ...options, named });
+  const wit = witFromModule(module, options.witName ?? 'bundle');
   const out = writeWasm(module);
-  return { output: options.emitText ? writeWat(readForPasses(out)) : out, report };
+  return { output: options.emitText ? writeWat(readForPasses(out)) : out, report, wit };
 }
 
 function usage(): void {
@@ -1698,6 +1711,9 @@ function usage(): void {
     '  --unmarked=guess           Relocate an input without relocations by address range (warned)',
   );
   console.error('  --start=NAME               Whose _start stays _start (the others are prefixed)');
+  console.error(
+    '  --no-wit                   Do not write <output>.wit (the interface, from core signatures)',
+  );
   console.error('  -q, --quiet                No report lines');
   console.error('  -S                         Emit WAT text');
 }
@@ -1707,10 +1723,13 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   const inputs: string[] = [];
   const options: Partial<WasmBundleOptions> = {};
   let output = 'bundle.wasm';
+  let wit = true;
   const aliases = new Map<string, string>();
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
     if (a === '-o') output = args[++i] ?? output;
+    else if (a === '--no-wit') wit = false;
+    else if (a === '--wit') wit = true;
     else if (a.startsWith('--on-conflict=')) {
       const v = a.slice(14);
       if (v !== 'prefix' && v !== 'alias' && v !== 'exclude' && v !== 'refuse') {
@@ -1749,6 +1768,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     process.exit(1);
   }
   options.aliases = aliases;
+  options.witName = witNameOf(output === '-' ? 'bundle.wasm' : output);
   if (!('log' in options)) options.log = (line) => console.log(line);
   if (options.log !== undefined) {
     console.log(`wasm-bundle: ${inputs.length} module${inputs.length === 1 ? '' : 's'}`);
@@ -1774,5 +1794,23 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
         ? `Wrote WAT: ${output}`
         : `Wrote WASM: ${output} (${result.output.byteLength} bytes)`,
     );
+  }
+  if (wit) {
+    // The interface beside the bundle, by default. A by-product: a failure
+    // to write it is said, and does not fail the bundle.
+    try {
+      const r = await emitWitBeside(output.replace(/\.wat$/i, '.wasm'), result.wit);
+      if (options.log !== undefined) {
+        console.log(
+          r.outcome === 'written'
+            ? `Wrote WIT: ${r.path} (core types)`
+            : r.outcome === 'kept existing'
+            ? `Kept ${r.path}: not generated from core signatures`
+            : `No WIT: the bundle exports no interface`,
+        );
+      }
+    } catch (e) {
+      console.error(`wasm-bundle: could not write the .wit: ${e instanceof Error ? e.message : e}`);
+    }
   }
 }

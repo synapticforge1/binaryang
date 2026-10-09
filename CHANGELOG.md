@@ -20,7 +20,12 @@
   an import whose module name is another input's name links to that input's export (as
   `wasm-merge`). Several `start` sections run in input order. Each module keeps its own tables.
   Library: `bundle(inputs, options)` on modules, `wasmBundle(paths, options)` on files. Bundle
-  BEFORE optimising; run `-Oz` on the result.
+  BEFORE optimising; run `-Oz` on the result. **The bundle's `.wit` is written beside it by
+  default** (`--no-wit` to skip): its exported functions from core signatures (`s32`, `s64`,
+  `f32`, `f64`), kebab-cased, in a world named after the output file — exports with no WIT form
+  or name listed in a comment, runtime plumbing (`_start`, `__…`, `cabi_…`) left out, non-WASI
+  host imports named. A `.wit` already there that was not generated from core signatures is
+  kept. `witFromModule(module, name)` and `emitWitBeside` in `…/tools/witgen`.
 - **`(@reloc data)` in WAT** — a relocation mark the assembler turns into the same Linking
   sections. Before an `i32.const` (linear or folded, in a function or a global's initializer),
   the constant is an address in this module's memory; before a data string, every 4-byte word

@@ -22,13 +22,15 @@ CLOSED** with it ([definitions.md](definitions.md)). **Item 24 BUILT 2026-10-08*
 the owner's item 3), UNRELEASED: a new export, so the next release is a MINOR, 1.10.0,
 typed by hand when the owner says ([bundle.md](bundle.md); its number is kept free); wasmtk's
 letter [handoffs.md](handoffs.md) § 27 is DRAFTED, to send with that release. ⏸️ **PAUSED
-2026-10-08 (owner: "I need to pause for today") ON BRANCH `wasm-bundle`, NOT YET MERGED**: four
-commits (`77e5be360` the code, `7b667218b` cmem, `6dc5e28c9` fmt / lint, then this pause note);
-the gate was started on `6dc5e28c9` — `fmt`, `lint`, `check` green, `test` 1,402 / 0 on the
-working tree before the fmt commit, the rest (naming → interp) NOT yet read. **Next session, first:
-re-run the gate on the branch head (a Deno runner: the steps in [working-rules.md](working-rules.md)
-§ "The gate", the prepared corpus under a scratch dir), read every exit code, then
-`git merge --no-ff wasm-bundle` into `main`. Nothing pushed.** **Then: the owner's
+2026-10-08 (owner: "I need to pause for today") ON BRANCH `wasm-bundle`, NOT YET MERGED**: the
+code (`77e5be360`), cmem (`7b667218b`), fmt / lint (`6dc5e28c9`), the pause note (`84222e650`),
+then **the `.wit` beside every bundle by default** (owner, the same day, after the pause note:
+`witgen.ts`, `--no-wit`; [bundle.md](bundle.md) § Decisions) — the gate's verdict on the branch
+head is recorded in [bundle.md](bundle.md)'s header, or is NOT if the session ended first. **Next
+session, first: if no verdict is recorded, run the gate on the branch head (a Deno runner: the
+steps in [working-rules.md](working-rules.md) § "The gate", the prepared corpus under a scratch
+dir), read every exit code, then `git merge --no-ff wasm-bundle` into `main`. Nothing pushed.**
+**Then: the owner's
 call on 1.10.0; then 21 and the rounds 13 / 14. 4 open items, none blocking**; numbers 2–7, 9–12,
 16, 17, 22, 23, 24 are gone and kept free. Re-derive any number before quoting it.
 

@@ -92,7 +92,8 @@ try {
     throw new Error('wasm2ts unexpectedly succeeded');
   }
 
-  for (const name of ['t.wasm', 's.wasm', 'o.wasm']) {
+  // `b.wit` is the bundle's interface, written beside it by default.
+  for (const name of ['t.wasm', 's.wasm', 'o.wasm', 'b.wasm', 'b.wit']) {
     let size = 0;
     try {
       size = statSync(f(name)).size;

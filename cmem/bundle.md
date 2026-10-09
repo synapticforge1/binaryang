@@ -124,11 +124,15 @@ shrink, the sections stay) is refused at its second entry, which is exactly Tiny
 
 - **Release:** a MINOR, 1.10.0, by hand, when you say. The CHANGELOG's "Unreleased" section has the
   public note.
-- **No `.wit` beside the output** (owner's question, 2026-10-08). By § 24 / § 25, `witgen` stays
-  wasmtk's: their wrapper calls `wasmBundle` and emits the `.wit` as `wasmbundle` does today
-  (`emitWitBeside`, core signatures → `s32` / `s64` / `float32` / `float64`, from the written
-  file). If the owner wants our CLI to write one, that is a scope decision: the core-type floor is
-  small to add (`--wit`), the richer one from TS source types is theirs by nature.
+- ✅ **The `.wit` is written beside the bundle BY DEFAULT** (owner, 2026-10-08: "automatically
+  generate the wit file when a bundled wasm file is created as a default feature"; the first
+  answer that day — "witgen stays wasmtk's" — is superseded). `src/binaryen-ts/tools/witgen.ts`
+  is wasmtk's `witgen` on our IR: core signatures only (`s32` / `s64` / `f32` / `f64`), the same
+  kebab-casing and world layout, exports with no WIT form or name listed in a comment, plumbing
+  left out, non-WASI host imports named; a `.wit` already there that was not generated from core
+  signatures is kept and said so; an empty world is not written. `--no-wit` opts out;
+  `wasmBundle` returns the text; `witFromModule(module, name)` is the library form. The richer
+  `.wit` from TypeScript source types stays wasic's by nature.
 - **The letter (§ 27)** tells wasmtk: the subpath and the CLI, the exact annotation spelling for
   wasic, what their side drops (`wasmbundle.ts`, the regex relocation for bundling) and keeps
   (`witgen`, the prompt, `wasmmerge.ts`'s wasic path if they want it), and the TinyGo / last-module
