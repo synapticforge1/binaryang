@@ -80,6 +80,12 @@
   read as a two-operand instruction. Each is now reported where it is read. A SIMD or atomic
   sub-opcode of 0x10000 or more could also alias a real one and make the validator throw; it is
   reported as unknown.
+- **A huge count in a tiny malformed module could keep the reader busy for seconds or hours.** A
+  count read from the input (local declaration groups, parameters, results, struct fields, element
+  entries, `br_table` targets, `try_table` catches, `select` types, supertypes) drove a loop that
+  kept going after its reads ran past the end: 10–14 s per validation for a one-byte change to a
+  spec module, hours for a count of 2^32-1. Such a loop now stops at the first failed read, and a
+  local declaration count larger than the function body is refused at once, as V8 refuses it.
 - **The validator accepted five more invalid or malformed constructs that V8 refuses**: data and
   element segment flags with an undefined bit (each bit was read alone and the rest ignored);
   `br_on_cast` flags with an undefined bit; `br_on_null` / `br_on_non_null` of a value that is not

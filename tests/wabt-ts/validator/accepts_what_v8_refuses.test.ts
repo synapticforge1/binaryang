@@ -35,6 +35,10 @@ const refusedBoth = (bytes: Uint8Array, said: string) => {
   assert(errors.some((e) => e.message.includes(said)), errors.map((e) => e.message).join(' | '));
 };
 
+/** Bytes from labelled hex groups. */
+const hex = (...groups: string[]) =>
+  new Uint8Array(groups.join(' ').split(/\s+/).filter(Boolean).map((b) => parseInt(b, 16)));
+
 /** The offset of the first byte of section `id`'s body, after its count. */
 function firstEntry(bytes: Uint8Array, id: number): number {
   let p = 8;
@@ -136,6 +140,39 @@ Deno.test('a SIMD sub-opcode past 0xffff is unknown, not an alias of a real one'
   said = wasmValidate(mutant, { features: allFeatures() }).errors.map((e) => e.message);
   assert(said.some((m) => m.includes('unknown SIMD opcode: 0xfd 0x80060')), said.join(' | '));
   assertEquals(WebAssembly.validate(mutant as BufferSource), false);
+});
+
+// A count read from the input bounds a loop that READS: once a read fails,
+// the loop must stop. 🔧 It ran the count out, every read failing silently past
+// the end — 10–14 s per spec mutant whose local-group count byte became 0x80
+// (~2.8M groups in a 5-byte body), and hours for 0xffffffff.
+Deno.test('a huge count in a tiny module is refused at once', () => {
+  const huge = 'ff ff ff ff 0f'; // 0xffffffff as a LEB
+  const localGroups = hex(
+    '00 61 73 6d 01 00 00 00',
+    '01 04 01 60 00 00',
+    '03 02 01 00',
+    `0a 08 01 06 ${huge} 0b`, // one 6-byte body: the local-group count, then end
+  );
+  const params = hex('00 61 73 6d 01 00 00 00', `01 08 01 60 ${huge} 00`); // (func (param × 2^32-1))
+  for (
+    const [what, bytes, said] of [
+      [
+        'local groups',
+        localGroups,
+        'local declaration count 4294967295 is larger than the function body',
+      ],
+      ['params', params, ''],
+    ] as const
+  ) {
+    const t = performance.now();
+    const r = wasmValidate(bytes, { features: allFeatures() });
+    const ms = performance.now() - t;
+    assert(ms < 1000, `${what}: ${ms.toFixed(0)} ms`);
+    assertEquals(r.result, Result.Error, what);
+    if (said) assert(r.errors.some((e) => e.message.includes(said)), r.errors[0]?.message);
+    assertEquals(WebAssembly.validate(bytes as BufferSource), false, `${what}: V8 refuses it too`);
+  }
 });
 
 Deno.test('ref.null names a type that exists', () => {

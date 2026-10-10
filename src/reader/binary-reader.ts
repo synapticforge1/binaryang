@@ -1094,7 +1094,7 @@ export class BinaryReader {
       this.pos++;
       const n = this.readU32Leb();
       const supertypes: Var[] = [];
-      for (let i = 0; i < n; i++) supertypes.push(varIndex(this.readU32Leb()));
+      for (let i = 0; i < n && this.ok(); i++) supertypes.push(varIndex(this.readU32Leb()));
       sub = { final: marker === 0x4f, supertypes };
     }
     // Custom descriptors: `0x4C x` (describes), then `0x4D y` (descriptor).
@@ -1125,15 +1125,15 @@ export class BinaryReader {
     if (marker === 0x60) {
       const paramCount = this.readU32Leb();
       const params: ValueType[] = [];
-      for (let j = 0; j < paramCount; j++) params.push(this.readValType('param'));
+      for (let j = 0; j < paramCount && this.ok(); j++) params.push(this.readValType('param'));
       const resultCount = this.readU32Leb();
       const results: ValueType[] = [];
-      for (let j = 0; j < resultCount; j++) results.push(this.readValType('result'));
+      for (let j = 0; j < resultCount && this.ok(); j++) results.push(this.readValType('result'));
       m.types.push({ kind: 'func', name: '', sig: { params, results }, loc });
     } else if (marker === 0x5f) {
       const fieldCount = this.readU32Leb();
       const fields: Field[] = [];
-      for (let j = 0; j < fieldCount; j++) {
+      for (let j = 0; j < fieldCount && this.ok(); j++) {
         const type = this.readStorageType();
         const mutable = this.readMutability();
         fields.push({ name: '', type, mutable });
@@ -1420,11 +1420,11 @@ export class BinaryReader {
       const elemCount = this.readU32Leb();
 
       if (usesExprs) {
-        for (let j = 0; j < elemCount; j++) {
+        for (let j = 0; j < elemCount && this.ok(); j++) {
           elemExprs.push(this.readInitExpr(m));
         }
       } else {
-        for (let j = 0; j < elemCount; j++) {
+        for (let j = 0; j < elemCount && this.ok(); j++) {
           const funcIdx = this.readU32Leb();
           const entryLoc = this.loc();
           const refExpr: Expr = { kind: 'ref.func', func: varIndex(funcIdx), loc: entryLoc };
@@ -1557,9 +1557,19 @@ export class BinaryReader {
       // SUM at 2^32-1, so four groups of 2^30 overflow while no single one
       // does -- summing in a JS number keeps the check exact.
       const localDeclCount = this.readU32Leb();
+      // 🔧 Each group takes at least two bytes (a count, a type). A count of
+      // groups the body cannot hold is malformed, as V8 says ("local decls count
+      // bigger than remaining function size") — the loop below ran it out: a
+      // 5-byte body whose count byte became 0x80 read as ~2.8M groups, each read
+      // failing silently past the end, 10–14 s per validation (open-work 13:
+      // spec SIMD mutants; the first all-corpus throw-check ran for an hour).
+      if (localDeclCount > (bodyEnd - this.pos) / 2) {
+        this.err(`local declaration count ${localDeclCount} is larger than the function body`);
+        return;
+      }
       const groups: { type: ValueType; count: number }[] = [];
       let totalLocals = 0;
-      for (let j = 0; j < localDeclCount; j++) {
+      for (let j = 0; j < localDeclCount && this.ok(); j++) {
         const declCount = this.readU32Leb();
         const type = this.readValType('local');
         totalLocals += declCount;
@@ -1803,7 +1813,7 @@ export class BinaryReader {
           const bt = this.readBlockType();
           const catchCount = this.readU32Leb();
           const tableCatches: TableCatch[] = [];
-          for (let i = 0; i < catchCount; i++) {
+          for (let i = 0; i < catchCount && this.ok(); i++) {
             const catchKind = this.readU8();
             if (catchKind > 0x03) {
               // Unknown catch-kind byte. 0x00/0x01 read a tag varint and
@@ -1987,7 +1997,9 @@ export class BinaryReader {
         case Opcode.BrTable: {
           const numTargets = this.readU32Leb();
           const targets: Var[] = [];
-          for (let i = 0; i < numTargets; i++) targets.push(varIndex(this.readU32Leb()));
+          for (let i = 0; i < numTargets && this.ok(); i++) {
+            targets.push(varIndex(this.readU32Leb()));
+          }
           const defaultDepth = this.readU32Leb();
           const defaultTarget = varIndex(defaultDepth);
           const value = stack.pop() ?? operandPlaceholder(loc);
@@ -2139,7 +2151,9 @@ export class BinaryReader {
         case Opcode.SelectT: {
           const numTypes = this.readU32Leb();
           const resultType: ValueType[] = [];
-          for (let i = 0; i < numTypes; i++) resultType.push(this.readValType('select'));
+          for (let i = 0; i < numTypes && this.ok(); i++) {
+            resultType.push(this.readValType('select'));
+          }
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const val2 = stack.pop() ?? operandPlaceholder(loc);
           const val1 = stack.pop() ?? operandPlaceholder(loc);
