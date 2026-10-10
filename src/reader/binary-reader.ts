@@ -2157,7 +2157,11 @@ export class BinaryReader {
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const val2 = stack.pop() ?? operandPlaceholder(loc);
           const val1 = stack.pop() ?? operandPlaceholder(loc);
-          const nodeId = m.fidelity.record({ selectResultType: resultType });
+          const nodeId = m.fidelity.record(
+            numTypes === 0
+              ? { selectResultType: resultType, selectTyped: true }
+              : { selectResultType: resultType },
+          );
           stack.push({ kind: 'select', val1, val2, condition: cond_, resultType, loc, nodeId });
           break;
         }

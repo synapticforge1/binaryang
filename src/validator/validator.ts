@@ -495,13 +495,20 @@ class ModuleValidator implements ExprVisitorDelegate {
           funcImportIdx++;
           break;
         }
+        // 🔧 An imported table's and global's value types are checked like a
+        // defined one's (`checkVt` above). They were not: `(import … (global
+        // (mut (ref 0))))` in a module with no types validated (open-work 13,
+        // the code lens: a spec `linking` mutant; wasm-tools, wasmtime,
+        // wasmer, WasmEdge, V8 and JSC all refuse it, upstream wabt does not).
         case ExternalKind.Table:
+          checkVt(imp.table.elemType, 'imported table', locOf(imp.table));
           this.acc(this.sv.onTable(locOf(imp.table), imp.table.elemType, imp.table.limits));
           break;
         case ExternalKind.Memory:
           this.acc(this.sv.onMemory(locOf(imp.memory), imp.memory.limits));
           break;
         case ExternalKind.Global:
+          checkVt(imp.global.type, 'imported global', locOf(imp.global));
           this.acc(this.sv.onGlobalImport(locOf(imp.global), imp.global.type, imp.global.mutable));
           break;
         case ExternalKind.Tag:
@@ -904,6 +911,11 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onSelectExpr(e: SelectExpr): Result {
+    // The typed form with NO types reads as a bare select in the tree; only
+    // the as-written record says it was `0x1c 0x00` — invalid arity.
+    if (this.module.fidelity?.get(e.nodeId)?.selectTyped === true && e.resultType.length === 0) {
+      return this.sv.printError(locOf(e), 'invalid arity in select instruction: 0.');
+    }
     return this.sv.onSelect(locOf(e), e.resultType);
   }
 

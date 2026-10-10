@@ -91,7 +91,10 @@
   `br_on_cast` flags with an undefined bit; `br_on_null` / `br_on_non_null` of a value that is not
   a reference; `br_on_cast` / `br_on_cast_fail` of an operand that is not their source type; and
   `ref.null` of a type index past the type section. None of these changes a verdict on any module
-  of the spec or proposal testsuites.
+  of the spec or proposal testsuites. Two more, refused by every engine and validator tried except
+  upstream wabt (wasm-tools, wasmtime, wasmer, WasmEdge, V8, JavaScriptCore): a typed `select`
+  with no types (still read and written back byte for byte), and an imported global or table whose
+  type names a type that does not exist.
 - `wasm-interp` passed `ref.null` for a non-nullable reference argument it defaults (and returned
   it from a stand-in import), printing results no valid run has. Such an export is now reported
   as stopped: there is no default for the type.

@@ -175,6 +175,44 @@ Deno.test('a huge count in a tiny module is refused at once', () => {
   }
 });
 
+// The typed select (0x1c) names exactly one type. With none it read as a bare
+// select and passed; wasm-tools, wasmtime, wasmer, WasmEdge, V8 and JSC refuse
+// it (upstream wabt passes it too). Well-formed, so it still reads and writes
+// back byte for byte.
+Deno.test('a typed select with no types: invalid arity, and still byte-exact', async () => {
+  const bytes = hex(
+    '00 61 73 6d 01 00 00 00',
+    '01 05 01 60 00 01 7f', // (func (result i32))
+    '03 02 01 00',
+    '0a 0c 01 0a 00 41 00 41 01 41 01 1c 00 0b', // i32.const 0 1 1; select (result); end
+  );
+  refusedBoth(bytes, 'invalid arity in select instruction: 0.');
+  const { readBinaryIr } = await import('../../../src/reader/binary-reader.ts');
+  const { writeBinaryIr } = await import('../../../src/writer/binary-writer.ts');
+  const { makeErrorList } = await import('../../../src/core/error.ts');
+  assertEquals(writeBinaryIr(readBinaryIr(bytes, makeErrorList(), {})), bytes);
+});
+
+// An IMPORTED global's or table's value type names a type that exists, as a
+// defined one's must. `(import … (global (mut (ref 0))))` with no types passed.
+Deno.test('an imported global or table type names a type that exists', () => {
+  assertEquals(
+    verdicts(asm('(module (type (func)) (import "m" "g" (global (ref null 0))))')),
+    { ours: true, v8: true },
+    'control',
+  );
+  const global = hex(
+    '00 61 73 6d 01 00 00 00',
+    '02 09 01 01 6d 01 67 03 64 00 01', // import "m" "g" (global (mut (ref 0)))
+  );
+  refusedBoth(global, 'unknown type 0 in imported global');
+  const table = hex(
+    '00 61 73 6d 01 00 00 00',
+    '02 0a 01 01 6d 01 74 01 64 00 00 01', // import "m" "t" (table 1 (ref 0))
+  );
+  refusedBoth(table, 'unknown type 0 in imported table');
+});
+
 Deno.test('ref.null names a type that exists', () => {
   assertEquals(
     verdicts(asm('(module (type (func)) (func (drop (ref.null 0))))')),
