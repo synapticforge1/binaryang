@@ -427,6 +427,57 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > **The ask:** once wasic marks its addresses, bundle your `18_bundle`, `sharedheap_bundle` and
 > `relocfix_bundle` projects through `wasm-bundle` and tell us what runs and what does not.
 
+### § 28 — to wasmtk: `wasmValidate`'s `result` could say Ok for an invalid module (2026-10-09, DRAFT — not sent; the owner sends)
+
+> From binaryang, 2026-10-09. A defect in something you pin, fixed on our `main`, in the next
+> release (1.11.0, unreleased). One question at the end.
+>
+> **What was wrong.** `wasmValidate(bytes, opts)` could return `result: Result.Ok` with an error in
+> `errors`. One check reported without failing: a block type naming a type that is not a function
+> type (an `s33` index past the type section, or naming a struct or array type). `wasm-validate`
+> then printed the error, printed `OK`, and exited **0**. We did not survey which other checks
+> might do the same; the fix does not depend on it: the result is now `Error` whenever an
+> error-level diagnostic was reported, whichever check reported it.
+>
+> **Whether it touched you.** If your oracle reads `errors` (or `errors.length`), it never was. If
+> it reads `result`, or the exit status of `wasm-validate`, a module with such a block type was
+> passed as valid while V8 refused it. Only an invalid module was misjudged; nothing valid was
+> refused. We found it by mutating your producer binaries (`tests/wasi/wasm_wasi`) and asking V8
+> the same question: one mutant of 2,088 from a sample of 58 modules, a `try_table` header byte
+> 0x40 → 0x80.
+>
+> **Eight more things `wasm-validate` passed that V8 refuses**, found by the same method on the
+> spec modules: a heap type byte that is not one (`0x7f`); a negative heap type in more than one
+> byte (also mis-decoded: a padded `func` read wrongly, an out-of-range value read as `func`); an
+> unknown SIMD sub-opcode; data and element segment flags with an undefined bit; `br_on_cast`
+> flags with an undefined bit; `br_on_null` of a non-reference; `br_on_cast(_fail)` of an operand
+> not of its source type; `ref.null` of a type index past the type section. Each is refused now.
+> Our verdicts on every original spec and proposal module (6,735) are unchanged by these fixes:
+> they refuse only input that was invalid or malformed all along.
+>
+> **Where engines disagree, we now refuse what will not run everywhere.** We asked every disputed
+> module of wabt 1.0.41, wasm-tools, wasmtime, wasmer, WasmEdge, V8 (Node) and JavaScriptCore
+> (Bun). Two things upstream wabt still passes, and every other one refuses, we now refuse too: a
+> typed `select` with no types, and an imported global or table whose type names a type that does
+> not exist. If you compare our `wasm-validate` with upstream's, those are the expected
+> differences. Two things V8 accepts we keep refusing, with the other five: an element segment
+> typed `0x7f`, and a `br_on_cast_fail` whose fall-through V8 refines by its operand.
+>
+> **And one for anyone validating untrusted input:** a one-byte change to a module could hold the
+> reader for 10–14 seconds, a count of 2^32-1 for hours (a counted loop ran on past the end of
+> the input). It stops at the first failed read now.
+>
+> **The same runs found three optimizer defects** (`compat/binaryen`'s `optimize`, `wasm-opt`): a
+> VALID module with values left on the stack before an `unreachable` (or an instruction cut off by
+> one) could come out invalid after `Inlining`, `OptimizeInstructions`, or the preparation before
+> any pass. Only mutants had that shape: all 406 of your modules,
+> optimized at `-O2` and `-Oz` before and after the fix, give byte-identical output (812 of 812).
+> We say it because the release notes will.
+>
+> **The question:** does any of your gates read `wasmValidate(...).result` or `wasm-validate`'s exit
+> status as its verdict? If so, re-run it on 1.11.0 when it is out; a module that starts failing
+> is one V8 already refused.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the

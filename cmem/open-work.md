@@ -10,14 +10,21 @@ NOT PUSHED:** item 21 closed — one `src/` tree, one declaration per name (coll
 compat names renamed with deprecated aliases), one IR subpath `./ir` with the three old ones
 deprecated ([one-tree.md](one-tree.md)); round 13 (hardening) passes 1–2 — malformed input gets
 a typed answer everywhere, the weakest nesting ceiling ~384 → ~930; and the interpreter's HANG
-CHECK, interval 2 s set from measured run times ([hardening.md](hardening.md)). The next release
-is a MINOR, 1.11.0 (new exports, deprecations, one type-level breaking change —
-[unreleased.md](unreleased.md)), typed by hand when the owner says. wasmtk's letter
-[handoffs.md](handoffs.md) § 27 SENT by the owner; it asks their measurement once wasic marks its
-addresses. **Next: round 13 goes on — the code lens again, then a hardening pass that re-runs
-`deno task hostile` until a pass finds nothing; deeper nesting ceilings are the OWNER's priority
-call. Then 14 (security); 25 after the `./ir` release; 15 stays blocked on wasmtk. 4 open items,
-none blocking**; numbers 2–7, 9–12, 16, 17, 21, 22, 23, 24 are gone and kept free. Re-derive any
+CHECK, interval 2 s set from measured run times ([hardening.md](hardening.md)). **On branch
+`code-lens-13`, NOT YET MERGED (gate green on each of its six commits, last `ba588040d`):** the
+code lens, pass 1 — 17 defects on valid or malformed input (C1–C17: the validator's `result`
+said Ok for an invalid module; four optimizer / preparation miscompiles of valid input; eleven
+reader / validator acceptances of input every other engine refuses; a reader loop that ran for
+hours on a one-byte change; `wasm-interp` defaults), and the owner's rule "refuse what will not
+run on all platforms", judged by an 8-oracle panel (divergences V1–V4). The next release is a
+MINOR, 1.11.0 (new exports, deprecations, one type-level breaking change, verdict changes —
+[unreleased.md](unreleased.md)), typed by hand when the owner says. wasmtk's letters:
+[handoffs.md](handoffs.md) § 27 SENT; § 28 (the validator fixes) DRAFTED, the owner sends.
+**Next: close code-lens pass 1 — one full re-run on the current tree that adds no row
+([hardening.md](hardening.md) § "Code lens, pass 1", "Convergence"); merge `code-lens-13`; then a
+hardening re-run until clean; deeper nesting ceilings are the OWNER's priority call. Then 14
+(security); 25 after the `./ir` release; 15 stays blocked on wasmtk. 4 open items, none
+blocking**; numbers 2–7, 9–12, 16, 17, 21, 22, 23, 24 are gone and kept free. Re-derive any
 number before quoting it.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
@@ -84,7 +91,7 @@ names as labels only.
 | round     | lenses, in order                            | state                                                                                    |
 | --------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **1.5.5** | code                                        | ✅ passes 1–7, register empty, converged — [testing.md](testing.md) § "The 1.5.5 passes" |
-| **1.5.6** | hardening → then code again                 | 13. ◐ passes 1 (the contract) and 2 (the weakest ceiling, ~384 → ~930) DONE 2026-10-09, and the fuel question answered by a sound HANG CHECK (2 s); open: the code lens again, then a hardening re-run until clean; deeper ceilings are the owner's call — [hardening.md](hardening.md) |
+| **1.5.6** | hardening → then code again                 | 13. ◐ passes 1 (the contract) and 2 (the weakest ceiling, ~384 → ~930) DONE 2026-10-09, and the fuel question answered by a sound HANG CHECK (2 s); the code lens pass 1 found 17 (C1–C17, branch `code-lens-13`, unmerged), convergence not yet shown; open: the converging re-run, then a hardening re-run until clean; deeper ceilings are the owner's call — [hardening.md](hardening.md) |
 | **1.5.7** | security → then hardening → then code again | 14. ⬚ not started                                                                        |
 
 If a finding fits two lenses, file it under the **lowest** one that would have caught it:
