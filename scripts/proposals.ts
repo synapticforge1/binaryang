@@ -41,8 +41,10 @@ export interface Proposal {
   v8Flags: string[];
   /**
    * Which runtime's WebAssembly engine runs the behaviour check (Bun migration B4, 2026-10-12;
-   * cmem/bun-migration.md § "The engine oracle"). `node` (V8) unless a row says otherwise: an
-   * experimental proposal needs an engine that HAS it, and today no single one has them all.
+   * cmem/bun-migration.md § "The engine oracle"). `deno` (V8 15.0) unless a row says otherwise:
+   * the owner runs Node 22 only (2026-10-12), whose V8 12.4 fails the behaviour gate, so Deno is
+   * the V8 referee until it is gone. An experimental proposal needs an engine that HAS it, and
+   * no single one has them all.
    */
   engine?: 'node' | 'deno' | 'bun';
   /**

@@ -126,13 +126,30 @@ What JavaScriptCore does differently:
   `call_ref` / `return_call_ref` / `return_call_indirect` / `table`;
 - no legacy `try_delegate` (1); `wide-arithmetic` on by default, where V8 needs a flag (2).
 
-So JavaScriptCore is a weaker oracle on BOTH axes, and Node's V8 is a drop-in for Deno's. **Rule
-(B4): a script that runs modules on the host engine runs on Node**, as
-`node --experimental-transform-types scripts/…`. That is `direct`, `direct-behaviour`,
-`translate-eh`, `optimize-corpus`, `spec-behaviour`, `offsets`, `engine-check`, and the behaviour
-half of `proposals`, which also passes its V8 flags to Node directly. Everything else runs on Bun.
-The owner's both-runtimes rule is what makes this a WIRING choice, not a code change. ⚠️ **Owner
-to confirm** (2026-10-12): the rule says scripts run on Bun, and these keep V8 instead.
+So JavaScriptCore is a weaker oracle on BOTH axes, and Node 24's V8 is a drop-in for Deno's.
+**Rule: a script that runs modules on the host engine runs on a V8 REFEREE, not on Bun.** That is
+`direct`, `direct-behaviour`, `translate-eh`, `optimize-corpus`, `spec-behaviour`, `offsets`,
+`engine-check`, `hostile` (its depth table measures the stack, and the recorded ceilings are V8's),
+and the behaviour half of `proposals` (per row: `engine` in `scripts/proposals.ts`). Everything else
+runs on Bun. The owner's both-runtimes rule is what makes the referee a WIRING choice
+(`package.json`), not a code change.
+
+✅ **The referee is DENO until it is gone** (owner, 2026-10-12: this machine runs **Node 22 only**,
+chosen over keeping Node 24 beside it). B4 first wired the oracles to Node 24. Node 24 was then
+removed, and Node 22 cannot referee (next paragraph), so `package.json` runs them as
+`deno run -A scripts/…`, on Deno 2.9.7's V8 15.0: the engine these gates were calibrated on. The
+converted scripts are `node:`-only, and Deno runs them unchanged. `proposals` defaults to Deno, with
+wide-arithmetic on Bun (JavaScriptCore has it; V8 has it only from 15.0).
+
+⚠️ **The cliff, with a date: this machine needs a NEW V8 referee before about 2027-04.** Node 22
+reaches end of life 2027-04-30, and Deno development ends around 2027-10 (fixes until then). The
+candidates, to decide before the first of those dates:
+1. **a browser.** Chrome stable is V8 15.6 (2026-10-07), the newest V8 anywhere, and open-work 28's
+   headless-Chrome job would run the library there anyway. It is the natural successor for the
+   ORACLE steps, if those steps can drive a page.
+2. **a newer Node** that runs the source. That needs open-work 28 part 4 (erasable-only
+   TypeScript), because Node ≥ 26 dropped `--experimental-transform-types`.
+3. Node 24 on this machine after all (it runs the source until 2028-04-30).
 
 **Which Node referees: Node 24, NOT Node 22 (measured 2026-10-12).** The owner considered moving
 this machine to Node 22, the oldest LTS (maintenance until 2027-04-30). Node 22.23.3 ships V8
@@ -144,9 +161,9 @@ this machine to Node 22, the oldest LTS (maintenance until 2027-04-30). Node 22.
 - **the engine REFEREE for development** (the `node` that `bun run` hands the oracle scripts):
   the NEWEST Node that still runs the source, Node 24 until 2028-04-30 (Node 26 cannot run
   it: no `--experimental-transform-types`). If this machine's default `node` becomes 22, the
-  oracle steps go red for engine reasons, not ours. Keep 24 on PATH (scoop `nodejs-lts`), and 22
-  beside it (scoop `versions/nodejs22`), or pin the oracle scripts to a Node 24 path. The 11
-  DIVERGE on V8 12.4 were not investigated: an old-engine artefact until shown otherwise.
+  oracle steps go red for engine reasons, not ours. **Decided, 2026-10-12: Node 22 only on this
+  machine, so the referee is Deno** (above). The 11 DIVERGE on V8 12.4 were not investigated: an
+  old-engine artefact until shown otherwise.
 
 **For B5:** 220 test files call the host engine too. On Bun those assertions meet JavaScriptCore;
 on Node, V8. The suite therefore has to pass on Node as it does on Deno today, and any difference

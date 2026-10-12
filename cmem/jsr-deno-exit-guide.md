@@ -125,11 +125,15 @@ in the spec testsuite corpora, validated by each runtime's own engine (core 5,92
 modules the spec says must be rejected (`unreached-invalid` 64, typed function references 6), and
 has no legacy `try_delegate`.
 → Any test or script that uses the host engine as an ORACLE (`WebAssembly.validate`, `Module`,
-`Instance` to judge correctness or run behaviour) gives different answers on Bun. Run those on
-Node, or classify each Bun difference. Do not pin it blind. V8 flags (`--v8-flags=…` in Deno) are
-passed to Node directly (`node --experimental-wasm-…`); Bun has none. binaryang's wiring: oracle
-scripts run as `node --experimental-transform-types scripts/…` from `package.json`, everything else
-on Bun. **wasmtk and the loader run WebAssembly as their product, so their own tests meet this
+`Instance` to judge correctness or run behaviour) gives different answers on Bun. Run those on a
+CURRENT V8, or classify each Bun difference. Do not pin it blind. **The V8 version matters too:**
+Node 22's V8 12.4 differs from Deno's 15.0 on 71 core modules (no table64) and failed binaryang's
+behaviour gate (11 DIVERGE, 32 refused); Node 24 (13.6) passed it; Node 26 (14.6) cannot run
+TypeScript with enums at all. Chrome stable is V8 15.6. V8 flags are `--v8-flags=…` in Deno and
+passed directly in Node (`node --experimental-wasm-…`); Bun has none. binaryang's wiring
+(owner: Node 22 only on the dev machine): oracle scripts run as `deno run -A scripts/…` from
+`package.json`, everything else on Bun. It needs a new referee before Node 22's end of life
+(2027-04) or Deno's end (~2027-10): a browser, or a newer Node once the source is erasable-only. **wasmtk and the loader run WebAssembly as their product, so their own tests meet this
 head-on.**
 
 ## 4. The steps binaryang is following
