@@ -11,7 +11,7 @@
  *
  * ```sh
  * deno run -A scripts/cli-smoke.ts "deno run -A"
- * node --experimental-transform-types scripts/cli-smoke.ts "node --experimental-transform-types"
+ * node scripts/cli-smoke.ts "node"
  * bun scripts/cli-smoke.ts "bun"
  * ```
  *
@@ -20,11 +20,12 @@
  * only — never `Deno.*` — and only erasable TypeScript: no enums, no parameter
  * properties.
  *
- * Node needs `--experimental-transform-types`, NOT `--experimental-strip-types`:
- * strip-only mode erases types without generating code, so it rejects
- * TypeScript enums (`src/` has dozens) and parameter properties. Both
- * predecessors documented the strip flag, and their CLI therefore never ran on
- * Node at all.
+ * Node runs it with NO flag. Since open-work 28 part 4 (2026-10-12) the source is
+ * ERASABLE TypeScript (`erasableSyntaxOnly` enforces it), which Node's default type
+ * stripping runs, on every Node from the 22.18 floor through 26. Until then Node needed
+ * `--experimental-transform-types` for the enums and parameter properties, and Node 26
+ * removed that flag. (Both predecessors documented `--experimental-strip-types`, and
+ * their CLI therefore never ran on Node at all.)
  */
 
 import { spawnSync } from 'node:child_process';

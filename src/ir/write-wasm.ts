@@ -290,8 +290,12 @@ function checkForWriting(m: WasmModule): void {
     }
     return def;
   };
+  // 🔧 Membership by VALUE. `exp.kind in ExternalKind` relied on a numeric enum's reverse keys
+  // ("0", "1", …); a const object has only the names, so every export read as unknown (open-work
+  // 28 part 4, 2026-10-12, caught by the CLI smoke test).
+  const kinds: readonly number[] = Object.values(ExternalKind);
   for (const exp of m.exports) {
-    if (!(exp.kind in ExternalKind) || typeof exp.kind !== 'number') {
+    if (typeof exp.kind !== 'number' || !kinds.includes(exp.kind)) {
       fail(`cannot encode export "${exp.name}": unknown export kind ${String(exp.kind)}`);
     }
   }

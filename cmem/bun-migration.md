@@ -147,8 +147,9 @@ candidates, to decide before the first of those dates:
 1. **a browser.** Chrome stable is V8 15.6 (2026-10-07), the newest V8 anywhere, and open-work 28's
    headless-Chrome job would run the library there anyway. It is the natural successor for the
    ORACLE steps, if those steps can drive a page.
-2. **a newer Node** that runs the source. That needs open-work 28 part 4 (erasable-only
-   TypeScript), because Node ≥ 26 dropped `--experimental-transform-types`.
+2. **a newer Node** that runs the source. That needed open-work 28 part 4 (erasable-only
+   TypeScript), because Node ≥ 26 dropped `--experimental-transform-types`. 🔧 **Done 2026-10-12:**
+   Node 26 runs the source (V8 14.6), so it is a real candidate now.
 3. Node 24 on this machine after all (it runs the source until 2028-04-30).
 
 **Which Node referees: Node 24, NOT Node 22 (measured 2026-10-12).** The owner considered moving
@@ -202,7 +203,7 @@ Measured on this tree, 2026-10-12:
 
 | question                                      | Bun 1.4.3                                    | Node 24.21                                                                                                          |
 | --------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| runs our TypeScript source as written         | yes                                          | **no**: default type stripping crashes on `main.ts`. It needs `--experimental-transform-types` (20 `enum`s in 11 files, parameter properties in 7). Removing them would change exported types such as `BinaryOp` and `ValType` |
+| runs our TypeScript source as written         | yes                                          | 🔧 **yes since open-work 28 part 4 (2026-10-12), no flag, Node 22–26.** As measured that day: **no**: default type stripping crashes on `main.ts`. It needs `--experimental-transform-types` (20 `enum`s in 11 files, parameter properties in 7). Removing them would change exported types such as `BinaryOp` and `ValType` |
 | CLI start, whole tree loaded (median of 5)    | **106 ms**                                   | 581 ms (with the flag); Deno 184 ms                                                                                  |
 | test runner                                   | `bun:test` (Bun only), or `node:test`        | `node:test`                                                                                                          |
 | one suite on both                             | `node:test` + `@std/expect` + `@std/assert`: nested `describe`, `before`, `it.skip`, async, one deliberate failure gave **identical verdicts** on both (2 pass / 1 fail / 1 skip) | same                                    |
@@ -227,8 +228,8 @@ runner) where Bun has one binary.
 code then depends on the answer. Scripts use `node:` builtins (B4, already planned). Tests use
 `node:test` + `@std/expect` + `@std/assert` rather than `bun:test` (B5). Our tests use no
 hooks, mocks or snapshots, measured, so we lose nothing Bun's partial `node:test` lacks. Bun is
-the fast daily runner. CI runs the suite on Bun AND on Node (`--experimental-transform-types`,
-which the `runtimes` leg already uses). If Bun ever goes the way of Deno, the switch is a CI
+the fast daily runner. CI runs the suite on Bun AND on Node (no flag since open-work 28 part 4,
+2026-10-12: the source is erasable TypeScript). If Bun ever goes the way of Deno, the switch is a CI
 matrix edit, not a second migration. (Adopted, as stated at the top of this section.)
 
 Side finding, 2026-10-12: `deno run -A jsr:@jrmarcum/binaryang` with no version ran **1.8.1**

@@ -42,9 +42,16 @@ export function unknownLocation(filename = ''): Location {
 // ---------------------------------------------------------------------------
 
 /** Severity level of a diagnostic message. */
-export enum ErrorLevel {
-  Warning = 0,
-  Error = 1,
+export const ErrorLevel = {
+  Warning: 0,
+  Error: 1,
+} as const;
+/** One of {@link ErrorLevel}'s values. */
+export type ErrorLevel = (typeof ErrorLevel)[keyof typeof ErrorLevel];
+/** Each member as a type (`ErrorLevel.Warning`), as when ErrorLevel was an `enum`. */
+export declare namespace ErrorLevel {
+  type Warning = typeof ErrorLevel.Warning;
+  type Error = typeof ErrorLevel.Error;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,11 +122,18 @@ export function hasErrors(list: ErrorList): boolean {
 // ---------------------------------------------------------------------------
 
 /** Formatting style for rendered error messages. */
-export enum ErrorFormat {
+export const ErrorFormat = {
   /** `filename:line:col: error: message` (default). */
-  Short = 'short',
+  Short: 'short',
   /** `filename:line:col: error: message\n  <source line>\n  ^--- here` (requires source). */
-  Long = 'long',
+  Long: 'long',
+} as const;
+/** One of {@link ErrorFormat}'s values. */
+export type ErrorFormat = (typeof ErrorFormat)[keyof typeof ErrorFormat];
+/** Each member as a type (`ErrorFormat.Short`), as when ErrorFormat was an `enum`. */
+export declare namespace ErrorFormat {
+  type Short = typeof ErrorFormat.Short;
+  type Long = typeof ErrorFormat.Long;
 }
 
 /**

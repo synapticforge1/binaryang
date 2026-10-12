@@ -68,9 +68,9 @@ export const PROPOSALS: readonly Proposal[] = [
     features: suiteFeatures('proposals/custom-descriptors/'),
     v8Flags: ['--experimental-wasm-custom-descriptors'],
     // TEMPORARY, on Deno's V8 (15.0). Measured 2026-10-12: Node 24's V8 (13.6) predates opcode
-    // 0xfb20 and refuses 9 originals; Node 26's V8 (14.6) accepts them, but Node 26 removed
-    // --experimental-transform-types, so it cannot run this TypeScript source at all (enums,
-    // parameter properties). Revisit when the source is erasable-only or Deno is gone.
+    // 0xfb20 and refuses 9 originals; Node 26's V8 (14.6) accepts them, and since open-work 28
+    // part 4 (2026-10-12) Node 26 runs this source too (erasable TypeScript). So Node 26 can
+    // take this row once it is the V8 referee; until then, Deno.
     engine: 'deno',
   },
   {

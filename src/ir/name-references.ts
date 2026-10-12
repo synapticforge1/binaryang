@@ -69,7 +69,9 @@ class Namer implements ExprVisitorDelegate {
   /** The branch-target labels in scope, innermost last; the function frame at the bottom. */
   private readonly labels: string[];
 
-  constructor(private readonly sp: ReturnType<typeof spaces>, frameLabel: string) {
+  declare private readonly sp: ReturnType<typeof spaces>;
+  constructor(sp: ReturnType<typeof spaces>, frameLabel: string) {
+    this.sp = sp;
     this.labels = [frameLabel];
   }
 

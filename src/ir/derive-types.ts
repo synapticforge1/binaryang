@@ -83,7 +83,11 @@ function resultOf(results: readonly ValueType[]): ExprType {
 /** An entity looked up by a reference, by index or by name. */
 class Space<T extends { name: string }> {
   private readonly byName = new Map<string, T>();
-  constructor(private readonly items: readonly T[], private readonly what: string) {
+  declare private readonly items: readonly T[];
+  declare private readonly what: string;
+  constructor(items: readonly T[], what: string) {
+    this.items = items;
+    this.what = what;
     for (const it of items) {
       if (it.name !== '' && !this.byName.has(it.name)) this.byName.set(it.name, it);
     }
@@ -154,15 +158,22 @@ class Deriver {
   /** The branch targets in scope, innermost last: each label and the values a branch to it carries. */
   private readonly labels: { name: string; types: readonly ValueType[] }[];
 
+  declare private readonly m: Module;
+  declare private readonly locals: readonly W.Local[];
+  /** Where each `pop` takes its value from, when a caller asked to record it. */
+  declare private readonly popSources: PopSources | undefined;
   constructor(
-    private readonly m: Module,
-    private readonly locals: readonly W.Local[],
+    m: Module,
+    locals: readonly W.Local[],
     /** The function's results — what a branch to the frame carries. */
     results: readonly ValueType[],
     frameLabel: string,
     /** Where each `pop` takes its value from, when a caller asked to record it. */
-    private readonly popSources?: PopSources,
+    popSources?: PopSources,
   ) {
+    this.m = m;
+    this.locals = locals;
+    this.popSources = popSources;
     this.labels = [{ name: frameLabel, types: results }];
   }
 

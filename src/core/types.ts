@@ -39,18 +39,18 @@ export const INVALID_OFFSET: Offset = Number.MAX_SAFE_INTEGER;
 // ---------------------------------------------------------------------------
 
 /** WebAssembly value type codes as encoded in the binary format. */
-export enum Type {
+export const Type = {
   // Numeric types
   /** 32-bit integer (signed or unsigned depending on instruction). */
-  I32 = 0x7f,
+  I32: 0x7f,
   /** 64-bit integer (signed or unsigned depending on instruction). */
-  I64 = 0x7e,
+  I64: 0x7e,
   /** 32-bit IEEE 754 floating-point. */
-  F32 = 0x7d,
+  F32: 0x7d,
   /** 64-bit IEEE 754 floating-point. */
-  F64 = 0x7c,
+  F64: 0x7c,
   /** 128-bit SIMD vector (simd proposal). */
-  V128 = 0x7b,
+  V128: 0x7b,
 
   // Packed types — used in GC struct/array fields and lane operations
   /**
@@ -63,33 +63,33 @@ export enum Type {
    * fields V8 rejects outright with "invalid value type 0x7a"; it was
    * invisible through the bridge because binaryen-ts re-encodes its own way.
    */
-  I8 = 0x78,
+  I8: 0x78,
   /** 16-bit packed integer (GC struct/array field storage type). Spec: -0x09. */
-  I16 = 0x77,
+  I16: 0x77,
 
   // Reference types
   /** Exception reference (exception-handling proposal). */
-  ExnRef = 0x69,
+  ExnRef: 0x69,
   /** Nullable function reference (`funcref`). */
-  FuncRef = 0x70,
+  FuncRef: 0x70,
   /** Nullable external reference (`externref`). */
-  ExternRef = 0x6f,
+  ExternRef: 0x6f,
   /** Top of the GC reference hierarchy (`anyref`). */
-  AnyRef = 0x6e,
+  AnyRef: 0x6e,
   /** GC reference type with equality (`eqref`). */
-  EqRef = 0x6d,
+  EqRef: 0x6d,
   /** Unboxed 31-bit integer reference (`i31ref`). */
-  I31Ref = 0x6c,
+  I31Ref: 0x6c,
   /** Generic struct reference (`structref`). */
-  StructRef = 0x6b,
+  StructRef: 0x6b,
   /** Generic array reference (`arrayref`). */
-  ArrayRef = 0x6a,
+  ArrayRef: 0x6a,
   /** Bottom of the GC hierarchy (`nullref`); only `ref.null none` inhabits it. */
-  NullRef = 0x71,
+  NullRef: 0x71,
   /** Bottom of the func hierarchy (`nullfuncref`). */
-  NullFuncRef = 0x73,
+  NullFuncRef: 0x73,
   /** Bottom of the extern hierarchy (`nullexternref`). */
-  NullExternRef = 0x72,
+  NullExternRef: 0x72,
   /**
    * Bottom of the exn hierarchy (`nullexnref`; heap type `noexn`).
    *
@@ -98,27 +98,59 @@ export enum Type {
    * against V8: 0x68 is rejected, 0x74 is accepted and is a subtype of
    * `exnref` and nothing else.
    */
-  NullExnRef = 0x74,
+  NullExnRef: 0x74,
   /** String reference (stringref proposal, byte 0x67). Neither encoder writes it. */
-  StringRef = 0x67,
+  StringRef: 0x67,
   /** Non-nullable typed reference (GC proposal). */
-  Ref = 0x64,
+  Ref: 0x64,
   /** Nullable typed reference (GC proposal). */
-  RefNull = 0x63,
+  RefNull: 0x63,
 
   // Structural / composite types
   /** Function type. */
-  Func = 0x60,
+  Func: 0x60,
   /** GC struct type. */
-  Struct = 0x5f,
+  Struct: 0x5f,
   /** GC array type. */
-  Array = 0x5e,
+  Array: 0x5e,
 
   // Special / internal
   /** Void / no type (used for block result types). */
-  Void = 0x40,
+  Void: 0x40,
   /** Any type — internal type-checker use only, not part of the spec. */
-  Any = 0x00,
+  Any: 0x00,
+} as const;
+/** One of {@link Type}'s values. */
+export type Type = (typeof Type)[keyof typeof Type];
+/** Each member as a type (`Type.I32`), as when Type was an `enum`. */
+export declare namespace Type {
+  type I32 = typeof Type.I32;
+  type I64 = typeof Type.I64;
+  type F32 = typeof Type.F32;
+  type F64 = typeof Type.F64;
+  type V128 = typeof Type.V128;
+  type I8 = typeof Type.I8;
+  type I16 = typeof Type.I16;
+  type ExnRef = typeof Type.ExnRef;
+  type FuncRef = typeof Type.FuncRef;
+  type ExternRef = typeof Type.ExternRef;
+  type AnyRef = typeof Type.AnyRef;
+  type EqRef = typeof Type.EqRef;
+  type I31Ref = typeof Type.I31Ref;
+  type StructRef = typeof Type.StructRef;
+  type ArrayRef = typeof Type.ArrayRef;
+  type NullRef = typeof Type.NullRef;
+  type NullFuncRef = typeof Type.NullFuncRef;
+  type NullExternRef = typeof Type.NullExternRef;
+  type NullExnRef = typeof Type.NullExnRef;
+  type StringRef = typeof Type.StringRef;
+  type Ref = typeof Type.Ref;
+  type RefNull = typeof Type.RefNull;
+  type Func = typeof Type.Func;
+  type Struct = typeof Type.Struct;
+  type Array = typeof Type.Array;
+  type Void = typeof Type.Void;
+  type Any = typeof Type.Any;
 }
 
 /**

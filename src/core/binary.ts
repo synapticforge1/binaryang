@@ -46,21 +46,40 @@ export const LIMITS_HAS_CUSTOM_PAGE_SIZE_FLAG = 0x8;
 // ---------------------------------------------------------------------------
 
 /** Section type identifier as it appears in the binary format. */
-export enum BinarySection {
-  Custom = 0,
-  Type = 1,
-  Import = 2,
-  Function = 3,
-  Table = 4,
-  Memory = 5,
-  Global = 6,
-  Export = 7,
-  Start = 8,
-  Elem = 9,
-  Code = 10,
-  Data = 11,
-  DataCount = 12,
-  Tag = 13,
+export const BinarySection = {
+  Custom: 0,
+  Type: 1,
+  Import: 2,
+  Function: 3,
+  Table: 4,
+  Memory: 5,
+  Global: 6,
+  Export: 7,
+  Start: 8,
+  Elem: 9,
+  Code: 10,
+  Data: 11,
+  DataCount: 12,
+  Tag: 13,
+} as const;
+/** One of {@link BinarySection}'s values. */
+export type BinarySection = (typeof BinarySection)[keyof typeof BinarySection];
+/** Each member as a type (`BinarySection.Custom`), as when BinarySection was an `enum`. */
+export declare namespace BinarySection {
+  type Custom = typeof BinarySection.Custom;
+  type Type = typeof BinarySection.Type;
+  type Import = typeof BinarySection.Import;
+  type Function = typeof BinarySection.Function;
+  type Table = typeof BinarySection.Table;
+  type Memory = typeof BinarySection.Memory;
+  type Global = typeof BinarySection.Global;
+  type Export = typeof BinarySection.Export;
+  type Start = typeof BinarySection.Start;
+  type Elem = typeof BinarySection.Elem;
+  type Code = typeof BinarySection.Code;
+  type Data = typeof BinarySection.Data;
+  type DataCount = typeof BinarySection.DataCount;
+  type Tag = typeof BinarySection.Tag;
 }
 
 /**
@@ -141,19 +160,37 @@ export function binarySectionName(s: BinarySection): string {
 // ---------------------------------------------------------------------------
 
 /** Subsection type within the `name` custom section. */
-export enum NameSectionSubsection {
-  Module = 0,
-  Function = 1,
-  Local = 2,
-  Label = 3,
-  Type = 4,
-  Table = 5,
-  Memory = 6,
-  Global = 7,
-  ElemSegment = 8,
-  DataSegment = 9,
-  Field = 10,
-  Tag = 11,
+export const NameSectionSubsection = {
+  Module: 0,
+  Function: 1,
+  Local: 2,
+  Label: 3,
+  Type: 4,
+  Table: 5,
+  Memory: 6,
+  Global: 7,
+  ElemSegment: 8,
+  DataSegment: 9,
+  Field: 10,
+  Tag: 11,
+} as const;
+/** One of {@link NameSectionSubsection}'s values. */
+export type NameSectionSubsection =
+  (typeof NameSectionSubsection)[keyof typeof NameSectionSubsection];
+/** Each member as a type (`NameSectionSubsection.Module`), as when NameSectionSubsection was an `enum`. */
+export declare namespace NameSectionSubsection {
+  type Module = typeof NameSectionSubsection.Module;
+  type Function = typeof NameSectionSubsection.Function;
+  type Local = typeof NameSectionSubsection.Local;
+  type Label = typeof NameSectionSubsection.Label;
+  type Type = typeof NameSectionSubsection.Type;
+  type Table = typeof NameSectionSubsection.Table;
+  type Memory = typeof NameSectionSubsection.Memory;
+  type Global = typeof NameSectionSubsection.Global;
+  type ElemSegment = typeof NameSectionSubsection.ElemSegment;
+  type DataSegment = typeof NameSectionSubsection.DataSegment;
+  type Field = typeof NameSectionSubsection.Field;
+  type Tag = typeof NameSectionSubsection.Tag;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,12 +223,22 @@ export const CUSTOM_SECTION_NAME_CODE_METADATA = 'metadata.code.';
 // ---------------------------------------------------------------------------
 
 /** External kind as encoded in import and export entries. */
-export enum ExternalKind {
-  Func = 0,
-  Table = 1,
-  Memory = 2,
-  Global = 3,
-  Tag = 4,
+export const ExternalKind = {
+  Func: 0,
+  Table: 1,
+  Memory: 2,
+  Global: 3,
+  Tag: 4,
+} as const;
+/** One of {@link ExternalKind}'s values. */
+export type ExternalKind = (typeof ExternalKind)[keyof typeof ExternalKind];
+/** Each member as a type (`ExternalKind.Func`), as when ExternalKind was an `enum`. */
+export declare namespace ExternalKind {
+  type Func = typeof ExternalKind.Func;
+  type Table = typeof ExternalKind.Table;
+  type Memory = typeof ExternalKind.Memory;
+  type Global = typeof ExternalKind.Global;
+  type Tag = typeof ExternalKind.Tag;
 }
 
 /**

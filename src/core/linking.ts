@@ -46,21 +46,41 @@ export const LINKING_SECTION_NAME = 'linking';
 export const RELOC_SECTION_PREFIX = 'reloc.';
 
 /** Subsection ids of the `linking` section. */
-export const enum LinkingSubsection {
-  SegmentInfo = 5,
-  InitFuncs = 6,
-  ComdatInfo = 7,
-  SymbolTable = 8,
+export const LinkingSubsection = {
+  SegmentInfo: 5,
+  InitFuncs: 6,
+  ComdatInfo: 7,
+  SymbolTable: 8,
+} as const;
+/** One of {@link LinkingSubsection}'s values. */
+export type LinkingSubsection = (typeof LinkingSubsection)[keyof typeof LinkingSubsection];
+/** Each member as a type (`LinkingSubsection.SegmentInfo`), as when LinkingSubsection was an `enum`. */
+export declare namespace LinkingSubsection {
+  type SegmentInfo = typeof LinkingSubsection.SegmentInfo;
+  type InitFuncs = typeof LinkingSubsection.InitFuncs;
+  type ComdatInfo = typeof LinkingSubsection.ComdatInfo;
+  type SymbolTable = typeof LinkingSubsection.SymbolTable;
 }
 
 /** Symbol kinds (`SYMTAB_*`). */
-export const enum SymbolKind {
-  Function = 0,
-  Data = 1,
-  Global = 2,
-  Section = 3,
-  Tag = 4,
-  Table = 5,
+export const SymbolKind = {
+  Function: 0,
+  Data: 1,
+  Global: 2,
+  Section: 3,
+  Tag: 4,
+  Table: 5,
+} as const;
+/** One of {@link SymbolKind}'s values. */
+export type SymbolKind = (typeof SymbolKind)[keyof typeof SymbolKind];
+/** Each member as a type (`SymbolKind.Function`), as when SymbolKind was an `enum`. */
+export declare namespace SymbolKind {
+  type Function = typeof SymbolKind.Function;
+  type Data = typeof SymbolKind.Data;
+  type Global = typeof SymbolKind.Global;
+  type Section = typeof SymbolKind.Section;
+  type Tag = typeof SymbolKind.Tag;
+  type Table = typeof SymbolKind.Table;
 }
 
 /** Symbol flags (`WASM_SYM_*`). */
@@ -75,34 +95,66 @@ export const SYM_TLS = 0x100;
 export const SYM_ABSOLUTE = 0x200;
 
 /** Relocation types (`R_WASM_*`), by their numbers in the format. */
-export const enum RelocType {
-  FunctionIndexLeb = 0,
-  TableIndexSleb = 1,
-  TableIndexI32 = 2,
-  MemoryAddrLeb = 3,
-  MemoryAddrSleb = 4,
-  MemoryAddrI32 = 5,
-  TypeIndexLeb = 6,
-  GlobalIndexLeb = 7,
-  FunctionOffsetI32 = 8,
-  SectionOffsetI32 = 9,
-  TagIndexLeb = 10,
-  MemoryAddrRelSleb = 11,
-  TableIndexRelSleb = 12,
-  GlobalIndexI32 = 13,
-  MemoryAddrLeb64 = 14,
-  MemoryAddrSleb64 = 15,
-  MemoryAddrI64 = 16,
-  MemoryAddrRelSleb64 = 17,
-  TableIndexSleb64 = 18,
-  TableIndexI64 = 19,
-  TableNumberLeb = 20,
-  MemoryAddrTlsSleb = 21,
-  FunctionOffsetI64 = 22,
-  MemoryAddrLocrelI32 = 23,
-  TableIndexRelSleb64 = 24,
-  MemoryAddrTlsSleb64 = 25,
-  FunctionIndexI32 = 26,
+export const RelocType = {
+  FunctionIndexLeb: 0,
+  TableIndexSleb: 1,
+  TableIndexI32: 2,
+  MemoryAddrLeb: 3,
+  MemoryAddrSleb: 4,
+  MemoryAddrI32: 5,
+  TypeIndexLeb: 6,
+  GlobalIndexLeb: 7,
+  FunctionOffsetI32: 8,
+  SectionOffsetI32: 9,
+  TagIndexLeb: 10,
+  MemoryAddrRelSleb: 11,
+  TableIndexRelSleb: 12,
+  GlobalIndexI32: 13,
+  MemoryAddrLeb64: 14,
+  MemoryAddrSleb64: 15,
+  MemoryAddrI64: 16,
+  MemoryAddrRelSleb64: 17,
+  TableIndexSleb64: 18,
+  TableIndexI64: 19,
+  TableNumberLeb: 20,
+  MemoryAddrTlsSleb: 21,
+  FunctionOffsetI64: 22,
+  MemoryAddrLocrelI32: 23,
+  TableIndexRelSleb64: 24,
+  MemoryAddrTlsSleb64: 25,
+  FunctionIndexI32: 26,
+} as const;
+/** One of {@link RelocType}'s values. */
+export type RelocType = (typeof RelocType)[keyof typeof RelocType];
+/** Each member as a type (`RelocType.FunctionIndexLeb`), as when RelocType was an `enum`. */
+export declare namespace RelocType {
+  type FunctionIndexLeb = typeof RelocType.FunctionIndexLeb;
+  type TableIndexSleb = typeof RelocType.TableIndexSleb;
+  type TableIndexI32 = typeof RelocType.TableIndexI32;
+  type MemoryAddrLeb = typeof RelocType.MemoryAddrLeb;
+  type MemoryAddrSleb = typeof RelocType.MemoryAddrSleb;
+  type MemoryAddrI32 = typeof RelocType.MemoryAddrI32;
+  type TypeIndexLeb = typeof RelocType.TypeIndexLeb;
+  type GlobalIndexLeb = typeof RelocType.GlobalIndexLeb;
+  type FunctionOffsetI32 = typeof RelocType.FunctionOffsetI32;
+  type SectionOffsetI32 = typeof RelocType.SectionOffsetI32;
+  type TagIndexLeb = typeof RelocType.TagIndexLeb;
+  type MemoryAddrRelSleb = typeof RelocType.MemoryAddrRelSleb;
+  type TableIndexRelSleb = typeof RelocType.TableIndexRelSleb;
+  type GlobalIndexI32 = typeof RelocType.GlobalIndexI32;
+  type MemoryAddrLeb64 = typeof RelocType.MemoryAddrLeb64;
+  type MemoryAddrSleb64 = typeof RelocType.MemoryAddrSleb64;
+  type MemoryAddrI64 = typeof RelocType.MemoryAddrI64;
+  type MemoryAddrRelSleb64 = typeof RelocType.MemoryAddrRelSleb64;
+  type TableIndexSleb64 = typeof RelocType.TableIndexSleb64;
+  type TableIndexI64 = typeof RelocType.TableIndexI64;
+  type TableNumberLeb = typeof RelocType.TableNumberLeb;
+  type MemoryAddrTlsSleb = typeof RelocType.MemoryAddrTlsSleb;
+  type FunctionOffsetI64 = typeof RelocType.FunctionOffsetI64;
+  type MemoryAddrLocrelI32 = typeof RelocType.MemoryAddrLocrelI32;
+  type TableIndexRelSleb64 = typeof RelocType.TableIndexRelSleb64;
+  type MemoryAddrTlsSleb64 = typeof RelocType.MemoryAddrTlsSleb64;
+  type FunctionIndexI32 = typeof RelocType.FunctionIndexI32;
 }
 
 const RELOC_NAMES: Record<number, string> = {
@@ -252,7 +304,12 @@ export class LinkingFormatError extends Error {
 
 class Cursor {
   pos = 0;
-  constructor(readonly bytes: Uint8Array, readonly what: string) {}
+  declare readonly bytes: Uint8Array;
+  declare readonly what: string;
+  constructor(bytes: Uint8Array, what: string) {
+    this.bytes = bytes;
+    this.what = what;
+  }
 
   u8(): number {
     if (this.pos >= this.bytes.length) this.fail('unexpected end');

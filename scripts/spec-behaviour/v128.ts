@@ -65,7 +65,12 @@ function uleb(n: number): number[] {
 }
 
 class Cursor {
-  constructor(readonly b: Uint8Array, public p: number) {}
+  declare readonly b: Uint8Array;
+  declare p: number;
+  constructor(b: Uint8Array, p: number) {
+    this.b = b;
+    this.p = p;
+  }
   u8(): number {
     if (this.p >= this.b.length) throw new Error('v128 wrapper: unexpected end of module');
     return this.b[this.p++]!;

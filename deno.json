@@ -24,7 +24,8 @@
       "deno.ns",
       "deno.window",
       "dom"
-    ]
+    ],
+    "erasableSyntaxOnly": true
   },
   "tasks": {
     "check": "deno check src/**/*.ts main.ts tests/**/*.ts scripts/**/*.ts",

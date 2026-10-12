@@ -41,10 +41,15 @@ import {
 export class RttType {
   /** Direct declared supertypes, canonical. */
   supers: RttType[] = [];
+  declare readonly key: string;
+  declare readonly kind: 'func' | 'struct' | 'array';
   constructor(
-    readonly key: string,
-    readonly kind: 'func' | 'struct' | 'array',
-  ) {}
+    key: string,
+    kind: 'func' | 'struct' | 'array',
+  ) {
+    this.key = key;
+    this.kind = kind;
+  }
 
   /** Whether this type is `u` or a declared subtype of it. */
   isSubtypeOf(u: RttType): boolean {
@@ -60,7 +65,9 @@ export class ModuleTypes {
   readonly types: RttType[] = [];
   private readonly names: string[];
 
-  constructor(readonly entries: readonly TypeEntry[]) {
+  declare readonly entries: readonly TypeEntry[];
+  constructor(entries: readonly TypeEntry[]) {
+    this.entries = entries;
     this.names = entries.map((e) => e.name);
     for (const g of recGroups(entries)) {
       // An empty `(rec)` defines no type. A singleton group and a type written

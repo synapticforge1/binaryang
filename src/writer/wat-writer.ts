@@ -239,11 +239,20 @@ const VALID_NAME_CHARS: Uint8Array = (() => {
 // Next-char state (controls spacing between tokens)
 // ---------------------------------------------------------------------------
 
-const enum NC {
-  None,
-  Space,
-  Newline,
-  ForceNewline,
+const NC = {
+  None: 0,
+  Space: 1,
+  Newline: 2,
+  ForceNewline: 3,
+} as const;
+/** One of {@link NC}'s values. */
+type NC = (typeof NC)[keyof typeof NC];
+/** Each member as a type (`NC.None`), as when NC was an `enum`. */
+declare namespace NC {
+  type None = typeof NC.None;
+  type Space = typeof NC.Space;
+  type Newline = typeof NC.Newline;
+  type ForceNewline = typeof NC.ForceNewline;
 }
 
 // ---------------------------------------------------------------------------

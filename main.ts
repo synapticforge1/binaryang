@@ -15,15 +15,15 @@
  * deno run -A jsr:@jrmarcum/binaryang wasm-opt add.wasm -o add.min.wasm -Oz
  *
  * # Node (after `npx jsr add @jrmarcum/binaryang`)
- * node --experimental-transform-types node_modules/@jrmarcum/binaryang/main.ts wasm-opt input.wasm
+ * node node_modules/@jrmarcum/binaryang/main.js wasm-opt input.wasm
  *
  * # Bun
  * bun node_modules/@jrmarcum/binaryang/main.ts wasm-opt input.wasm
  * ```
  *
- * Node needs `--experimental-transform-types`, NOT `--experimental-strip-types`:
- * strip-only mode rejects TypeScript `enum` (the opcode tables) and parameter
- * properties.
+ * Node needs no flag: the installed package is compiled JavaScript, and this source is
+ * erasable TypeScript (open-work 28 part 4, 2026-10-12), which Node's default type stripping
+ * runs (22.18 through 26).
  *
  * The dispatcher runs only when this module is the program's entry
  * (`import.meta.main` — the reason Node's floor is 22.18). 🔧 Until 1.6.1 the
@@ -125,7 +125,7 @@ function printHelp(): void {
 
 USAGE:
   deno run -A jsr:@jrmarcum/binaryang <command> [options]
-  node --experimental-transform-types main.ts <command> [options]
+  node main.ts <command> [options]
   bun main.ts <command> [options]
 
 COMMANDS:

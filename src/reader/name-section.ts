@@ -40,8 +40,13 @@ export interface ParsedNameSection {
    * The subsection ids the section actually held, in no order — an EMPTY map in
    * {@link names} cannot say whether its subsection was absent or listed
    * nothing, and the two are different bytes (N6).
+   *
+   * Plain numbers, because it holds UNKNOWN ids too: every id byte the section had, named or not.
+   * 🔧 It was typed `ReadonlySet<NameSectionSubsection>`, which a numeric `enum` let any number
+   * satisfy. The `enum` became a const object (open-work 28 part 4, 2026-10-12), whose type admits
+   * only the named ids, and that exposed the mismatch.
    */
-  subsections: ReadonlySet<NameSectionSubsection>;
+  subsections: ReadonlySet<number>;
 }
 
 /**

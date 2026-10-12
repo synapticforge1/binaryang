@@ -57,7 +57,7 @@ function sub(
   const [bin, pre]: [string, string[]] = engine === undefined
     ? [process.execPath, process.execArgv]
     : engine.runtime === 'node'
-    ? ['node', ['--experimental-transform-types', '--no-warnings', ...engine.flags]]
+    ? ['node', ['--no-warnings', ...engine.flags]]
     : engine.runtime === 'deno'
     ? ['deno', [
       'run',

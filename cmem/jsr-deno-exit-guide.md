@@ -103,7 +103,8 @@ deliberate failure; both runtimes reported 2 pass / 1 fail / 1 skip. Bun's own d
 those. binaryang's tests use none.
 
 **F7. Node cannot run TypeScript that uses `enum`s or constructor parameter properties** without
-`--experimental-transform-types`. Its default type stripping only erases types. Bun runs such
+`--experimental-transform-types` (and Node 26 has no such flag). 🔧 binaryang removed both
+constructs on 2026-10-12 (§ 5a, "Erasable TypeScript"), so Node 22–26 run its source with no flag. Its default type stripping only erases types. Bun runs such
 source as it is. binaryang CLI start, whole tree loaded, median of 5: **Bun 106 ms, Deno 184 ms,
 Node 581 ms** (with the flag). This affects running the SOURCE only. Consumers get compiled
 JavaScript (F4).
@@ -264,8 +265,32 @@ Owner, 2026-10-12: "We should support and test all currently available lts versi
   then only strips types: TypeScript with `enum`s, constructor parameter properties or
   namespaces does not run on it from source. JSR's compiled JavaScript does. If your tests or
   scripts run your TypeScript source on Node, either make it erasable-only (`erasableSyntaxOnly`)
-  before then, or test Node 26 against the compiled package. binaryang's `bun run lts` will fail
-  that day on purpose, as the reminder. wasmtk has `enum`s in 28 files.
+  before then, or test Node 26 against the compiled package. wasmtk has `enum`s in 28 files.
+  **binaryang did the first, the same day (next subsection).**
+
+### Erasable TypeScript: how binaryang removed `enum`s and parameter properties (2026-10-12)
+
+- **Find them:** TypeScript ≥ 5.8's `erasableSyntaxOnly` (7.0.2 has it) lists every construct
+  Node's type stripping refuses. binaryang had 49: 29 constructor parameter properties and 20
+  `enum`s (19 exported). Then switch the option ON in `tsconfig.json` and `deno.json`.
+- **Parameter properties → `declare readonly x: T;` + `this.x = x;`** in the constructor, after
+  `super(...)` when there is one. `declare` emits no field, so the property appears exactly when
+  the parameter property made it: same order, same JSON. Plain fields would change property order.
+  Watch for a JSDoc in front of the parameter, and for `=>` in a type (a naive parse reads it as a
+  default value).
+- **`enum` → three erasable declarations** that keep every use working:
+  `export const X = { A: 0, … } as const;` (the value),
+  `export type X = (typeof X)[keyof typeof X];` (the type), and
+  `export declare namespace X { type A = typeof X.A; … }` (each member as a type, `let r: X.A`).
+  Proven on tsc 7, `deno check`, `deno lint`, Bun, Node 22/26 and JSR's slow-types check.
+  Compute every value (implicit numbering!) and CHECK it against the old enum object at runtime:
+  binaryang's 572 members all matched.
+- **What breaks, and what it exposes:** reverse lookup (`X[0]` → name) is gone, and so is
+  `0 in X` (binaryang had one such site; every export read as "unknown"). Numbers no longer pass
+  where `X` is expected. `let r = X.A` now infers the literal `X.A` (annotate `let r: X = X.A`).
+  Where a numeric enum was used as "any number" (binaryang's `Opcode` across the IR, for
+  prefixed values that are not members), say so honestly: the TYPE `X = number`, with a comment.
+  It is a type-level breaking change, so it belongs in a minor release.
 
 ### The web: every export must LOAD in a browser
 

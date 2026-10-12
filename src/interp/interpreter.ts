@@ -144,12 +144,22 @@ export interface TagCell {
  * invocation uncaught is what `assert_exception` asks for.
  */
 export class WasmException {
-  constructor(readonly tag: TagCell, readonly values: Value[]) {}
+  declare readonly tag: TagCell;
+  declare readonly values: Value[];
+  constructor(tag: TagCell, values: Value[]) {
+    this.tag = tag;
+    this.values = values;
+  }
 }
 
 /** `delegate $l` in flight: the construct labelled `$l` handles, or passes on, `exn`. */
 class Delegate {
-  constructor(readonly exn: WasmException, readonly label: string) {}
+  declare readonly exn: WasmException;
+  declare readonly label: string;
+  constructor(exn: WasmException, label: string) {
+    this.exn = exn;
+    this.label = label;
+  }
 }
 
 /** The null reference. */
@@ -187,8 +197,10 @@ export type StopReason = 'host' | 'unsupported' | 'fuel' | 'invalid' | 'hang';
 
 /** The interpreter cannot go on; see {@link StopReason}. */
 export class Stop extends Error {
-  constructor(readonly reason: StopReason, detail: string) {
+  declare readonly reason: StopReason;
+  constructor(reason: StopReason, detail: string) {
     super(`${reason}: ${detail}`);
+    this.reason = reason;
     this.name = 'Stop';
   }
 }
@@ -355,13 +367,21 @@ export interface InstanceState {
 // ---------------------------------------------------------------------------
 
 class Branch {
-  constructor(readonly label: string) {}
+  declare readonly label: string;
+  constructor(label: string) {
+    this.label = label;
+  }
 }
 class Return {}
 const RETURN = new Return();
 /** A `return_call*`: the current frame is replaced by a call to `func`. */
 class TailCall {
-  constructor(readonly func: FuncRef, readonly args: Value[]) {}
+  declare readonly func: FuncRef;
+  declare readonly args: Value[];
+  constructor(func: FuncRef, args: Value[]) {
+    this.func = func;
+    this.args = args;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -787,7 +807,9 @@ export class Interpreter {
     dirty: boolean;
   } | null = null;
 
-  constructor(readonly module: WasmModule, options: InterpreterOptions = {}) {
+  declare readonly module: WasmModule;
+  constructor(module: WasmModule, options: InterpreterOptions = {}) {
+    this.module = module;
     this.maxDepth = options.maxDepth ?? 1000;
     this.types = typesOf(module.types);
     this.fuel = options.fuel ?? Infinity;

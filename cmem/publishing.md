@@ -572,7 +572,9 @@ passing tests and three full metric runs never saw**.
 
 **Run it whenever a change ADDS or MOVES an exported symbol**, not only when publishing. It also
 backs the Node compatibility claim: Node cannot run the sources directly, so the supported path is
-the transpiled JSR package, and slow types are what make that transpilation possible.
+the transpiled JSR package, and slow types are what make that transpilation possible. (🔧 Since
+open-work 28 part 4, 2026-10-12, Node DOES run the sources directly: they are erasable TypeScript.
+The transpiled package is still what consumers get, and slow types still decide its `.d.ts`.)
 
 ## Preconditions
 

@@ -119,22 +119,26 @@ jobs:
             invoke: deno run -A
           # EVERY current Node LTS line, plus the floor (owner, 2026-10-12: "We should
           # support and test all currently available lts versions"). As of 2026-10:
-          # 22 "Jod" (maintenance to 2027-04-30) and 24 "Krypton". ⚠️ Node 26 enters
-          # LTS late in October 2026, and it removed --experimental-transform-types, so
-          # it cannot run this source (enums, parameter properties): adding its leg
-          # needs open-work 28 part 4, or a leg that runs the COMPILED package.
+          # 22 "Jod" (maintenance to 2027-04-30) and 24 "Krypton", and 26, which
+          # enters LTS on 2026-10-28. No flag on any of them: the source is erasable
+          # TypeScript (open-work 28 part 4; `erasableSyntaxOnly` in tsconfig.json),
+          # which Node's default type stripping runs. Node 26 has no other mode.
           - name: Node 22.18 (floor)
             setup: node
             node: '22.18'
-            invoke: node --experimental-transform-types
+            invoke: node
           - name: Node 22 (LTS, latest)
             setup: node
             node: '22'
-            invoke: node --experimental-transform-types
+            invoke: node
           - name: Node 24 (LTS, latest)
             setup: node
             node: '24'
-            invoke: node --experimental-transform-types
+            invoke: node
+          - name: Node 26 (LTS from 2026-10-28)
+            setup: node
+            node: '26'
+            invoke: node
           - name: Bun 1.4.0 (floor)
             setup: bun
             bun: '1.4.0'

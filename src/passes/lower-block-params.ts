@@ -128,7 +128,10 @@ class Lowering {
   /** The parametrised loops whose bodies are being lowered, by label. */
   private readonly loops = new Map<string, Slots>();
 
-  constructor(private readonly f: WasmFunction) {}
+  declare private readonly f: WasmFunction;
+  constructor(f: WasmFunction) {
+    this.f = f;
+  }
 
   /** A sequence, lowered: each statement, split where it must be. */
   sequence(children: readonly Expression[]): Expression[] {
