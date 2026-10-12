@@ -1080,10 +1080,25 @@ export class Interpreter {
     return resolve(ex.var, this.globals, this.globalNames, 'global');
   }
 
-  /** Runs `exprs` as a body with no locals and returns its top `results` values. */
+  /**
+   * Runs `exprs` as a body with no locals and returns its top `results` values.
+   *
+   * 🔧 A constant expression that leaves FEWER values than it must is `invalid` (open-work 27,
+   * found by `hostile` 2026-10-12). Unchecked, `(offset nop)` gave back an empty list, so an
+   * element or data offset reached `address()` as `undefined` and escaped as a bare TypeError,
+   * and an empty global initializer was stored as `undefined`. A validated module never gets
+   * here, but the interpreter also runs modules read WITHOUT validation.
+   */
   private evaluate(exprs: Expression[], results: number): Value[] {
     const base = this.stack.length;
     for (const e of exprs) this.exec(e, []);
+    const left = this.stack.length - base;
+    if (left < results) {
+      this.stack.length = base;
+      throw invalid(
+        `a constant expression left ${left} value${left === 1 ? '' : 's'}, ${results} expected`,
+      );
+    }
     const out = this.stack.splice(this.stack.length - results);
     this.stack.length = base;
     return out;

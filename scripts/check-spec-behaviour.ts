@@ -176,9 +176,10 @@ const rows: Row[] = [];
 /** Runs `queue` in a worker until it drains or a module goes quiet; resolves with what is left. */
 function drain(queue: SpecInput[]): Promise<SpecInput[]> {
   return new Promise((resolve) => {
-    // node:worker_threads, not the web `Worker`: Node has no global one, and this harness is an
-    // engine oracle that runs on Node (cmem/bun-migration.md § "The engine oracle"). The worker
-    // inherits this process's execArgv, so Node's --experimental-transform-types reaches it.
+    // node:worker_threads, not the web `Worker`: it runs on Deno, Node and Bun alike (Node has no
+    // global `Worker`). This harness is an engine ORACLE, so `bun run` starts it on a V8 runtime:
+    // Deno, while it exists (cmem/bun-migration.md § "The engine oracle"). The worker inherits
+    // this process's execArgv, so a Node flag such as --experimental-transform-types reaches it.
     const worker = new Worker(WORKER);
     let next = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;

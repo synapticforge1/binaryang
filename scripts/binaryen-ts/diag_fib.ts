@@ -6,7 +6,7 @@
  * cumulatively. Pinpoints whether a semantic divergence is in the encoder or a
  * specific pass.
  *
- * Run: node --experimental-transform-types scripts/binaryen-ts/diag_fib.ts
+ * Run: deno run -A scripts/binaryen-ts/diag_fib.ts
  *
  * @license MIT
  */

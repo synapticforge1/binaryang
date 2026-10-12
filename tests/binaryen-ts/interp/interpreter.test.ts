@@ -861,3 +861,95 @@ describe('GC (E3d-2)', () => {
     ));
   });
 });
+
+// Open-work 27 (found by `hostile`, 2026-10-12): a constant expression that leaves NO value
+// reached `address()` as `undefined` and escaped as a bare TypeError. Malformed input gets a
+// typed answer (cmem/hardening.md), so the interpreter must say `invalid`. These modules are
+// read WITHOUT validation (`readForPasses`): the validating reader refuses them first, but
+// the interpreter is also handed unvalidated modules (`hostile` does exactly that).
+describe('a constant expression that leaves no value is invalid, not a crash (open-work 27)', () => {
+  const HEADER = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+  const stopOf = (bytes: number[]): Stop | 'ran' => {
+    try {
+      new Interpreter(readForPasses(Uint8Array.from(bytes)));
+      return 'ran';
+    } catch (e) {
+      if (e instanceof Stop) return e;
+      throw e;
+    }
+  };
+
+  it("an element offset of `nop` (the spec suite's elem.85.wasm)", () => {
+    // (table 1 funcref) (elem (offset nop) ) -- byte for byte the testsuite's module.
+    const stop = stopOf([
+      ...HEADER,
+      0x04,
+      0x04,
+      0x01,
+      0x70,
+      0x00,
+      0x01,
+      0x09,
+      0x05,
+      0x01,
+      0x00,
+      0x01,
+      0x0b,
+      0x00,
+    ]);
+    expect(stop).toBeInstanceOf(Stop);
+    expect((stop as Stop).reason).toBe('invalid');
+  });
+
+  it("the same with a zero-size table (hostile's mutant, byte 13 = 0)", () => {
+    const stop = stopOf([
+      ...HEADER,
+      0x04,
+      0x04,
+      0x01,
+      0x70,
+      0x00,
+      0x00,
+      0x09,
+      0x05,
+      0x01,
+      0x00,
+      0x01,
+      0x0b,
+      0x00,
+    ]);
+    expect(stop).toBeInstanceOf(Stop);
+    expect((stop as Stop).reason).toBe('invalid');
+  });
+
+  it('a global whose initializer is empty', () => {
+    // (global i32 (end)) -- no value at all; it was stored as `undefined`, a crash deferred.
+    const stop = stopOf([...HEADER, 0x06, 0x04, 0x01, 0x7f, 0x00, 0x0b]);
+    expect(stop).toBeInstanceOf(Stop);
+    expect((stop as Stop).reason).toBe('invalid');
+  });
+
+  it('a valid offset still instantiates (the check is not a blanket refusal)', () => {
+    // (table 1 funcref) (elem (i32.const 0)) -- the control.
+    expect(
+      stopOf([
+        ...HEADER,
+        0x04,
+        0x04,
+        0x01,
+        0x70,
+        0x00,
+        0x01,
+        0x09,
+        0x06,
+        0x01,
+        0x00,
+        0x41,
+        0x00,
+        0x0b,
+        0x00,
+      ]),
+    )
+      .toBe('ran');
+  });
+});

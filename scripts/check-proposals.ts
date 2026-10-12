@@ -42,11 +42,12 @@ const here = (f: string) => new URL(f, import.meta.url).pathname.replace(/^\/([A
  * Runs `script` with `args`; its exit status and the output's last meaningful lines.
  *
  * Preparation and validity use no WebAssembly engine, so they run on the runtime running
- * this script. The BEHAVIOUR step (`v8` set) is an engine ORACLE whose flags are V8's, so it
- * runs on Node whatever runs this script: Bun's engine is JavaScriptCore, which (measured
- * 2026-10-12, Bun 1.4.3) lacks memory64 and accepts 70 core modules the spec rejects, while
- * Node's V8 agreed with Deno's on all 6,753 corpus modules (cmem/bun-migration.md § "The
- * engine oracle"). Node takes V8 flags directly (Deno wrapped them in `--v8-flags=`).
+ * this script. The BEHAVIOUR step is an engine ORACLE, so it runs on the engine its row names
+ * (`engine` in proposals.ts; Deno's V8 by default), whatever runs this script. Bun's engine is
+ * JavaScriptCore, which (measured 2026-10-12, Bun 1.4.3) lacks memory64 and accepts 70 core
+ * modules the spec rejects; Node 22's V8 12.4 fails the behaviour gate; the owner runs Node 22
+ * only (cmem/bun-migration.md § "The engine oracle"). Node takes V8 flags directly; Deno
+ * takes them as `--v8-flags=`.
  */
 function sub(
   script: string,
@@ -96,7 +97,7 @@ for (const p of PROPOSALS) {
     behaviour = `NOT RUN — ${p.noEngine}`;
     console.log(`  behaviour: ${behaviour}`);
   } else {
-    const engine = { runtime: p.engine ?? 'node', flags: p.v8Flags } as const;
+    const engine = { runtime: p.engine ?? 'deno', flags: p.v8Flags } as const;
     const b = p.behaviourScript !== undefined
       ? sub(here(p.behaviourScript), [dir], engine)
       : sub(here('./check-spec-behaviour.ts'), [dir, '--proposal', p.name], engine);
@@ -107,7 +108,7 @@ for (const p of PROPOSALS) {
   if (!validity.ok) failed++;
   summary.push(
     `${p.name.padEnd(20)} validity ${validity.ok ? 'ok    ' : 'FAILED'}  behaviour ${behaviour}` +
-      (p.noEngine === undefined ? `  on ${p.engine ?? 'node'}` : '') +
+      (p.noEngine === undefined ? `  on ${p.engine ?? 'deno'}` : '') +
       (p.v8Flags.length > 0 ? `  (${p.v8Flags.join(' ')})` : ''),
   );
 }
