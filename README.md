@@ -17,16 +17,26 @@ source tree that runs on Deno, Node, Bun and modern browsers.
 ## Install
 
 ```sh
-deno add jsr:@jrmarcum/binaryang     # Deno
-npx  jsr add @jrmarcum/binaryang     # Node
-bunx jsr add @jrmarcum/binaryang     # Bun
+npx  jsr add @jrmarcum/binaryang         # Node (npm)
+bunx jsr add @jrmarcum/binaryang         # Bun
+pnpm add jsr:@jrmarcum/binaryang         # pnpm 10.9+ (yarn 4.9+: yarn add jsr:@jrmarcum/binaryang)
+deno add jsr:@jrmarcum/binaryang         # Deno
 ```
 
-Or import directly, no install:
+Install once per project, then import by the package name. The same import line works on every
+runtime:
 
 ```ts
-import { wat2wasm } from 'jsr:@jrmarcum/binaryang/wat2wasm';
+import { wat2wasm } from '@jrmarcum/binaryang/wat2wasm';
 ```
+
+Only Deno can import JSR packages without installing them first. Node and Bun reject the `jsr:`
+prefix, and so do `npm install` and `bun add`. `npx jsr add` / `bunx jsr add` record the package
+as an `npm:@jsr/jrmarcum__binaryang` alias in `package.json` and write an `.npmrc` pointing the
+`@jsr` scope at JSR's registry. Commit both. pnpm 10.9+ and yarn 4.9+ understand `jsr:` natively
+and need no `.npmrc`. Node and Bun receive compiled JavaScript with type declarations, so no
+TypeScript setup is needed. On Deno, `import … from 'jsr:@jrmarcum/binaryang/wat2wasm'` also works
+with no install.
 
 ## Quick start
 
@@ -94,7 +104,9 @@ console.log(mod.getNumExports(), mod._inner.functions.length); // `_inner` is th
 One entry point, seven commands:
 
 ```sh
-deno run -A jsr:@jrmarcum/binaryang <command> [options]
+node node_modules/@jrmarcum/binaryang/main.js <command> [options]   # Node, after installing
+bun  node_modules/@jrmarcum/binaryang/main.js <command> [options]   # Bun, after installing
+deno run -A jsr:@jrmarcum/binaryang <command> [options]             # Deno, no install
 ```
 
 | command                   | does                                                                                                                                                                                                                                                                                                                                                                         |
@@ -117,15 +129,20 @@ fold where nothing is recorded, as for any other tool's binary). `--no-text-form
 upstream `wat2wasm`'s bytes exactly. Optimizing drops it, and so does `wasm-strip`.
 
 ```sh
-deno run -A jsr:@jrmarcum/binaryang wat2wasm add.wat -o add.wasm
-deno run -A jsr:@jrmarcum/binaryang wasm-opt add.wasm -o add.min.wasm -Oz
+node node_modules/@jrmarcum/binaryang/main.js wat2wasm add.wat -o add.wasm
+node node_modules/@jrmarcum/binaryang/main.js wasm-opt add.wasm -o add.min.wasm -Oz
 ```
 
-On Node and Bun, after installing:
+The installed package is compiled JavaScript (`main.js`), so Node needs no flags. JSR packages
+have no `bin` entry, so `npx binaryang` does not exist. A `package.json` script gives the same
+short form:
+
+```json
+{ "scripts": { "binaryang": "node node_modules/@jrmarcum/binaryang/main.js" } }
+```
 
 ```sh
-node --experimental-transform-types node_modules/@jrmarcum/binaryang/main.ts wat2wasm add.wat
-bun node_modules/@jrmarcum/binaryang/main.ts wat2wasm add.wat
+npm run binaryang -- wat2wasm add.wat -o add.wasm
 ```
 
 > Node needs `--experimental-transform-types`, **not** `--experimental-strip-types`. Strip-only mode
@@ -167,9 +184,14 @@ Runs on **Deno, Node.js, Bun and modern browsers** from a single source tree.
 | runtime  | minimum     | note                                       |
 | -------- | ----------- | ------------------------------------------ |
 | Deno     | 2.x         |                                            |
-| Node.js  | **22.18.0** | CLI needs `--experimental-transform-types` |
+| Node.js  | **22.18.0** | no flags for the installed package¹        |
 | Bun      | **1.4.0**   |                                            |
 | browsers | modern      | library surface only, not the CLI          |
+
+¹ Node users receive JSR's compiled JavaScript. Running binaryang's TypeScript **source** (a clone
+of this repository) on Node needs `--experimental-transform-types`, because the source uses
+`enum`s and constructor parameter properties, which Node's default type stripping does not
+accept. Deno and Bun run the source as it is.
 
 **Node.js: supported means not end-of-life.** Node 18 ended 2025-04-30 and Node 20 on 2026-04-30, so
 neither is supported. Node 22 is in maintenance until 2027-04-30 and is supported. The floor is
