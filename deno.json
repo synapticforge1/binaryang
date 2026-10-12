@@ -1,32 +1,5 @@
 {
-  "name": "@jrmarcum/binaryang",
-  "version": "1.10.0",
-  "license": "MIT",
   "minimumDependencyAge": "0",
-  "exports": {
-    ".": "./main.ts",
-    "./ir": "./src/ir/index.ts",
-    "./ir/binaryen-ts": "./src/ir/binaryen-ts.ts",
-    "./ir/wabt-ts": "./src/ir/wabt-ts.ts",
-    "./core/wabt-ts": "./src/core/index.ts",
-    "./compat/binaryen": "./src/compat/binaryen-compat.ts",
-    "./compat/wabt": "./src/compat/wabt-compat.ts",
-    "./api": "./src/api/index.ts",
-    "./passes": "./src/passes/index.ts",
-    "./wasm": "./src/wasm/index.ts",
-    "./wasm-runtime": "./src/wasm-runtime.ts",
-    "./tools/wasm-opt": "./src/tools/wasm-opt.ts",
-    "./tools/wasm-ctor-eval": "./src/tools/wasm-ctor-eval.ts",
-    "./tools/wasm-interp": "./src/tools/wasm-interp.ts",
-    "./tools/wasm-bundle": "./src/tools/wasm-bundle.ts",
-    "./wat2wasm": "./src/tools/wat2wasm.ts",
-    "./wasm2wat": "./src/tools/wasm2wat.ts",
-    "./wasm-validate": "./src/tools/wasm-validate.ts",
-    "./wasm-objdump": "./src/tools/wasm-objdump.ts",
-    "./wasm-strip": "./src/tools/wasm-strip.ts",
-    "./wasm2ts": "./src/tools/wasm2ts.ts",
-    "./definitions": "./src/definitions/mod.ts"
-  },
   "imports": {
     "@std/assert": "jsr:@std/assert@^1",
     "@std/expect": "jsr:@std/expect@^1.0.0",
@@ -60,7 +33,7 @@
     "fmt:check": "deno fmt --check",
     "lint": "deno lint",
     "ci": "deno task check && deno task test",
-    "publish:dry": "deno publish --dry-run --allow-dirty",
+    "publish:dry": "deno publish --dry-run --allow-dirty --config jsr.json",
     "naming": "deno run --allow-run scripts/check-naming.ts",
     "portability": "deno run --allow-run --allow-read scripts/check-portability.ts",
     "collisions": "deno run --allow-read scripts/count-collisions.ts",
@@ -115,25 +88,6 @@
         "recommended"
       ]
     }
-  },
-  "publish": {
-    "include": [
-      "main.ts",
-      "src/**/*.ts",
-      "src/definitions/*.json",
-      "README.md",
-      "LICENSE",
-      "LICENSE-MIT",
-      "LICENSE-APACHE",
-      "NOTICE.md",
-      "deno.json"
-    ],
-    "exclude": [
-      "tests/**",
-      "benches/**",
-      "scripts/**",
-      "src/**/*.test.ts"
-    ]
   },
   "exclude": [
     "node_modules/",

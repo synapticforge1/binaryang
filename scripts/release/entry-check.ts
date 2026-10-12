@@ -3,11 +3,11 @@
  *
  * Release preflight: the package's `.` export — what `deno run -A
  * jsr:@jrmarcum/binaryang <command>` runs — must BE the CLI. Run exactly as a
- * user runs it, by the path `deno.json` exports, and judged by its output and
+ * user runs it, by the path `jsr.json` exports, and judged by its output and
  * exit code:
  *
  * - `--help` prints the usage, exit 0;
- * - `--version` prints the version `deno.json` is about to publish;
+ * - `--version` prints the version `jsr.json` is about to publish;
  * - a real command runs: `wasm-validate` on a valid module exits 0, and on a
  *   missing file exits 1 — a no-op entry would exit 0 both times;
  * - IMPORTING the entry runs nothing: a library `import` of the root must not
@@ -26,12 +26,12 @@
 
 /** What went wrong, one line each; empty when the entry is the CLI. */
 export async function checkEntry(root: string): Promise<string[]> {
-  const cfg = JSON.parse(await Deno.readTextFile(`${root}/deno.json`)) as {
+  const cfg = JSON.parse(await Deno.readTextFile(`${root}/jsr.json`)) as {
     version: string;
     exports: Record<string, string>;
   };
   const rel = cfg.exports['.'];
-  if (rel === undefined) return ['deno.json exports no `.`'];
+  if (rel === undefined) return ['jsr.json exports no `.`'];
   const entry = `${root}/${rel.replace(/^\.\//, '')}`;
   const problems: string[] = [];
 

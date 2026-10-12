@@ -69,15 +69,16 @@ export * from './src/index.ts';
 /**
  * Package version.
  *
- * Kept in sync with `deno.json` MECHANICALLY, not by hand: `deno task bump` rewrites
+ * Kept in sync with the package manifest, `jsr.json` (`deno.json` until 2026-10-12),
+ * MECHANICALLY, not by hand: `deno task bump` rewrites
  * this line as well, and `tests/binaryen-ts/version_sync.test.ts` fails if the two ever disagree.
  * The previous "keep in sync by hand" comment is what this looked like after someone
  * did not — `--version` printed 1.3.4 through two minor releases.
  *
- * It is a literal rather than a read of `deno.json` because this file is a CLI entry
+ * It is a literal rather than a read of the manifest because this file is a CLI entry
  * for Node and Bun as well as Deno. The original reason was that Node 18 lacked
  * `with { type: 'json' }`; on binaryang's floor (Node 22.18+) that is no longer true,
- * but the literal stays on its own merits -- a runtime read needs `deno.json` to be
+ * but the literal stays on its own merits -- a runtime read needs the manifest to be
  * present and adjacent in the published package, which is a worse coupling than a
  * constant whose drift is closed mechanically by the bump script plus the test.
  */

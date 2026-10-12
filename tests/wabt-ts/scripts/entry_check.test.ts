@@ -23,7 +23,7 @@ describe('release preflight — the package root is the CLI', { ignore: !canRun 
     const root = await Deno.makeTempDir({ prefix: 'entry-check-fixture-' });
     try {
       await Deno.writeTextFile(
-        `${root}/deno.json`,
+        `${root}/jsr.json`,
         JSON.stringify({ version: '9.9.9', exports: { '.': './index.ts' } }),
       );
       await Deno.writeTextFile(`${root}/index.ts`, 'export {};\n');
@@ -40,7 +40,7 @@ describe('release preflight — the package root is the CLI', { ignore: !canRun 
     const root = await Deno.makeTempDir({ prefix: 'entry-check-fixture-' });
     try {
       await Deno.writeTextFile(
-        `${root}/deno.json`,
+        `${root}/jsr.json`,
         JSON.stringify({ version: '9.9.9', exports: { '.': './cli.ts' } }),
       );
       await Deno.writeTextFile(`${root}/cli.ts`, "console.log('USAGE wat2wasm 9.9.9');\n");

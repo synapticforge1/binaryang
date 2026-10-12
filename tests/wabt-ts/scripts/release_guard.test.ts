@@ -30,9 +30,9 @@ describe('T13.43 — release preflight', () => {
     expect(releaseBlockers('\n\n')).toEqual([]);
   });
 
-  it('does not block the normal bump path (deno.json only)', () => {
-    expect(releaseBlockers(' M deno.json')).toEqual([]);
-    expect(releaseBlockers('M  deno.json\n')).toEqual([]);
+  it('does not block the normal bump path (jsr.json only)', () => {
+    expect(releaseBlockers(' M jsr.json')).toEqual([]);
+    expect(releaseBlockers('M  jsr.json\n')).toEqual([]);
   });
 
   // The status `deno task bump` actually leaves. The guard exempted deno.json
@@ -40,8 +40,8 @@ describe('T13.43 — release preflight', () => {
   // `deno task release` -- the documented flow -- refused at this guard with
   // `[" M main.ts"]` (found 2026-09-14). 1.5.4 shipped only because its bump
   // was committed by hand first.
-  it('does not block the status a real bump leaves (deno.json AND main.ts)', () => {
-    expect(releaseBlockers(' M deno.json\n M main.ts\n')).toEqual([]);
+  it('does not block the status a real bump leaves (jsr.json AND main.ts)', () => {
+    expect(releaseBlockers(' M jsr.json\n M main.ts\n')).toEqual([]);
     expect(releaseBlockers(' M main.ts')).toEqual([]);
   });
 
@@ -69,7 +69,9 @@ describe('T13.43 — release preflight', () => {
     ['a staged source file', 'M  src/core/leb128.ts'],
     ['an untracked file', '?? tests/parser/new_thing.test.ts'],
     ['a deleted file', ' D src/gone.ts'],
-    ['deno.json AND something else', ' M deno.json\n M src/core/leb128.ts'],
+    ['jsr.json AND something else', ' M jsr.json\n M src/core/leb128.ts'],
+    // The manifest until 2026-10-12; ordinary configuration since, not a release file.
+    ['a modified deno.json', ' M deno.json'],
   ];
   for (const [name, porcelain] of BLOCKING) {
     it(`blocks on ${name}`, () => {
@@ -93,11 +95,11 @@ describe('T13.43 — release preflight', () => {
   });
 
   // Precision: the exclusion is an exact path match, not a substring. A file
-  // merely NAMED like deno.json must still block.
-  it('is not fooled by a path containing "deno.json"', () => {
-    expect(releaseBlockers(' M deno.json.bak')).toHaveLength(1);
-    expect(releaseBlockers(' M scripts/deno.json')).toHaveLength(1);
-    expect(releaseBlockers('?? deno.jsonc')).toHaveLength(1);
+  // merely NAMED like jsr.json must still block.
+  it('is not fooled by a path containing "jsr.json"', () => {
+    expect(releaseBlockers(' M jsr.json.bak')).toHaveLength(1);
+    expect(releaseBlockers(' M scripts/jsr.json')).toHaveLength(1);
+    expect(releaseBlockers('?? jsr.jsonc')).toHaveLength(1);
   });
 
   // main.ts is a common basename, so the exemption must be the ROOT file only.
@@ -108,7 +110,7 @@ describe('T13.43 — release preflight', () => {
   });
 
   it('survives trailing whitespace and CRLF', () => {
-    expect(releaseBlockers(' M deno.json\r\n')).toEqual([]);
+    expect(releaseBlockers(' M jsr.json\r\n')).toEqual([]);
     expect(releaseBlockers(' M src/a.ts\r\n M src/b.ts\r\n')).toHaveLength(2);
   });
 

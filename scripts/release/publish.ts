@@ -1,14 +1,14 @@
 /**
  * @module scripts/release/publish
  *
- * Local release driver. Commits and tags whatever `deno.json` currently says,
+ * Local release driver. Commits and tags whatever `jsr.json` currently says,
  * then pushes commit + tag in a single atomic `git push origin main vX.Y.Z`.
  * The tag push triggers `.github/workflows/publish.yml` on GitHub: developer
  * pushes are authenticated with a PAT (not GITHUB_TOKEN), so the tag push
  * fires the workflow directly without going through the auto-tag detour.
  *
  * Typical flow:
- *   1. deno task bump        # writes the next version into deno.json
+ *   1. deno task bump        # writes the next version into jsr.json
  *   2. deno task release     # commits + tags + pushes (this script)
  *
  * Named `release`, not `publish`, deliberately: `deno task publish:dry` runs
@@ -159,7 +159,7 @@ if (entryProblems.length > 0) {
 }
 
 // 1. Stage the bump -- RELEASE_FILES, the only files a release touches. Not
-//    `deno.json` alone: the bump also rewrites main.ts's VERSION literal, and
+//    `jsr.json` alone: the bump also rewrites main.ts's VERSION literal, and
 //    staging one of the two would tag a CLI reporting the old version.
 await run(['git', 'add', ...RELEASE_FILES]);
 

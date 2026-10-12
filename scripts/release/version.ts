@@ -13,19 +13,28 @@
  * @license MIT
  */
 
-/** Resolves the repository's `deno.json` regardless of CWD. */
-export const DENO_JSON_URL: URL = new URL('../../deno.json', import.meta.url);
+/**
+ * Resolves the repository's package manifest, `jsr.json`, regardless of CWD.
+ *
+ * The package's name, version and exports live in `jsr.json` and nowhere else
+ * (since the Bun migration's first step, 2026-10-12, cmem/bun-migration.md).
+ * `deno.json` holds only the Deno toolchain's configuration, and it must not
+ * carry a `name` or `version`: with a `deno.json` present Deno takes the
+ * package from it and ignores `jsr.json`, so publishing names the manifest
+ * explicitly (`deno publish --config jsr.json`) until `deno.json` is gone.
+ */
+export const MANIFEST_URL: URL = new URL('../../jsr.json', import.meta.url);
 
 /** Absolute URL of `main.ts`, which carries the version as a literal (see `bump_version.ts`). */
 export const MAIN_TS_URL: URL = new URL('../../main.ts', import.meta.url);
 
-/** Reads the current `version` field from `deno.json`. */
+/** Reads the current `version` field from `jsr.json`. */
 export async function readCurrentVersion(): Promise<string> {
-  const text = await Deno.readTextFile(DENO_JSON_URL);
+  const text = await Deno.readTextFile(MANIFEST_URL);
   const data = JSON.parse(text);
   const v = data.version;
   if (typeof v !== 'string') {
-    throw new Error(`deno.json has no string \`version\` field (got ${JSON.stringify(v)})`);
+    throw new Error(`jsr.json has no string \`version\` field (got ${JSON.stringify(v)})`);
   }
   return v;
 }

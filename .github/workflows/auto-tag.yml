@@ -1,4 +1,4 @@
-# Auto-tag main when `deno.json` version is ahead of the latest tag.
+# Auto-tag main when `jsr.json` version is ahead of the latest tag.
 #
 # Closes the gap between `deno task bump` + commit and the tag push that
 # triggers `.github/workflows/publish.yml`. Without this workflow, the user has
@@ -7,7 +7,8 @@
 # to `push: tags: v*`).
 #
 # Trigger logic:
-#   1. On every push to main, read `version` from `deno.json`.
+#   1. On every push to main, read `version` from `jsr.json` (the package
+#      manifest since 2026-10-12; `deno.json` before that).
 #   2. If `vX.Y.Z` does not already exist, create + push the annotated tag.
 #   3. Explicitly dispatch `publish.yml` on the new tag.
 #
@@ -35,7 +36,7 @@ concurrency:
 
 jobs:
   auto-tag:
-    name: Tag deno.json version if new
+    name: Tag jsr.json version if new
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -78,12 +79,12 @@ jobs:
             echo "pat=no"  >> "$GITHUB_OUTPUT"; echo "RELEASE_PAT is not configured — will fall back to workflow_dispatch."
           fi
 
-      - name: Read version from deno.json
+      - name: Read version from jsr.json
         id: ver
         run: |
-          V="$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("deno.json")).version)')"
+          V="$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("jsr.json")).version)')"
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "deno.json version: $V"
+          echo "jsr.json version: $V"
 
       - name: Check whether tag already exists
         id: check
