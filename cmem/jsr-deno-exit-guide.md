@@ -309,14 +309,25 @@ Owner, 2026-10-12: "We should support and test all currently available lts versi
   - `import type … from 'node:…'` is fine, because it is erased.
 - **Two checks, both needed:**
   - `scripts/check-browser.ts` (`bun run browser`, in CI) bundles every export in `jsr.json` with
-    `bun build --target=browser` and fails on a bundle that does not build or imports `node:` at
-    the top level. A deferred `import('node:…')` is allowed;
+    `bun build --target=browser --external 'node:*'` and fails on a bundle that does not build or
+    imports `node:` at the top level. A deferred `import('node:…')` is allowed.
+    ⚠️ **`--external 'node:*'` is REQUIRED** (found 2026-10-12, after this guide first went out).
+    Without it Bun's browser target silently STUBS `node:fs` and `node:fs/promises` as
+    `(() => ({}))`: every function undefined, exit 0, no warning, and the import gone from the
+    output. It also polyfills `node:path` outright. So a used, top-level
+    `import { readFileSync } from 'node:fs'` in a library file PASSED the bundle check while it
+    would throw in a browser. binaryang showed it with that mutant, then fixed the check: the same
+    mutant now fails 4+ exports, and a `node:path` one fails 14 of 22. **If you copied the check
+    before this note, add the flag.**
   - `scripts/check-portability.ts`: no top-level runtime `node:` import ANYWHERE in shipped
     source, CLI included. Why both: a bundler DROPS an unused import, so the bundle check cannot
     see one, but JSR's compiled JavaScript KEEPS it, and a page loading the package without a
-    bundler fails on it.
-  - Each check was shown to fail on a real regression (an old tool file restored). A test of
-    `void process` was NOT a real regression: the bundler drops it.
+    bundler fails on it. This source-level rule also caught the stubbed `node:fs` mutant that the
+    flagless bundle check missed: run BOTH.
+  - Each check was shown to fail on a real regression. Not every mutant is one: `void process`
+    is dropped by the bundler, and a `node:process` import with no default export fails the
+    build loudly, so neither exercises the stub path. **Test the bundle check with a used
+    `node:fs` import.**
 - **Give pages bytes-in, bytes-out APIs.** binaryang's `wasmOpt` took a file path (it read with
   `node:fs`); it now also takes a `Uint8Array`. Look for path-only entry points in your exports.
 - **Still planned in binaryang:** a real headless-browser run of the library (bundling proves the

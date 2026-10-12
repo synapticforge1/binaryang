@@ -87,7 +87,13 @@ Its number is kept free.)
     **Progress (2026-10-12, owner: "Work on 27 first then 28"):** parts **1, 2 and 5 DONE** on
     branch `run-everywhere-1`. All 22 exports bundle for the browser; `bun run browser` (new, in
     CI) and `bun run portability` (now tree-wide: no top-level runtime `node:` import anywhere)
-    hold it, and each was shown to FAIL on the old form of a tool. `wasmOpt` takes bytes.
+    hold it, and each was shown to FAIL on the old form of a tool. 🔧 **That proof was
+    incomplete** (owner, 2026-10-12: "Bun silently stubs out a top-level node:fs import"): the old
+    tool used `node:process`, whose missing default export makes Bun FAIL the build, while
+    `node:fs` is STUBBED, so a used top-level `node:fs` import in a library file passed
+    `check-browser.ts`. `check-portability.ts` caught it, so nothing shipped through the gap.
+    Fixed: the bundle uses `--external 'node:*'`. The `node:fs` mutant now fails, a `node:path` one
+    fails 14 of 22, and the old regression still fails 2. `wasmOpt` takes bytes.
     **Part 4 DONE too (owner: option "1", 2026-10-12), branch `erasable-ts`:** the 49 non-erasable
     constructs are gone. 29 constructor parameter properties became `declare` fields plus
     assignments, the same runtime shape. 20 `enum`s (19 exported) became `const X = {…} as const` +

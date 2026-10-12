@@ -17,6 +17,14 @@
  * them, could not be loaded in a browser while the README claimed "modern browsers". This check
  * follows every import, because a bundler does.
  *
+ * 🔧 **Blind spot, closed 2026-10-12:** bundled the default way, Bun's browser target replaces
+ * `node:fs` / `node:fs/promises` with an empty stub (exit 0, no warning, no `node:` left in the
+ * output), so a used, top-level `import { readFileSync } from 'node:fs'` in a library file PASSED
+ * this check while it would throw in a browser. Shown with that mutant in `src/core/leb128.ts`.
+ * The earlier proof had used `node:process`, whose stub has no default export, so that build
+ * failed loudly. The bundle now marks `node:*` external, and the same mutant fails it.
+ * `check-portability.ts` (source level) caught the mutant all along.
+ *
  * Bundling is not running: a headless-browser job (open-work 28 part 3) is the stronger check.
  * This one is cheap and catches the regression that already happened once.
  *
@@ -52,7 +60,20 @@ if (import.meta.main) {
       const target = join(out, `${sub === '.' ? 'root' : sub.slice(2).replace(/\//g, '_')}.js`);
       const r = spawnSync(
         'bun',
-        ['build', join(root, file), '--target=browser', '--format=esm', `--outfile=${target}`],
+        // `--external node:*` KEEPS every node: import in the output, where STATIC_NODE can see it.
+        // Without it Bun's browser target silently STUBS some builtins: `node:fs` and
+        // `node:fs/promises` become `(() => ({}))` (every function undefined), exit 0, no warning,
+        // and the import disappears from the bundle (measured, Bun 1.4.3, 2026-10-12). `node:path`
+        // is polyfilled outright. A deferred `import("node:…")` stays visible too, and stays allowed.
+        [
+          'build',
+          join(root, file),
+          '--target=browser',
+          '--format=esm',
+          '--external',
+          'node:*',
+          `--outfile=${target}`,
+        ],
         { encoding: 'utf8' },
       );
       if (r.status !== 0) {
