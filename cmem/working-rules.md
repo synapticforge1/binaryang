@@ -17,7 +17,10 @@ not survive a clone is not a project rule. The lessons behind them are in
 - **End every message with the attribution line** the session supplies (`Co-Authored-By: …`).
 - **Prefer a new commit over `--amend`.**
 - **Nothing is pushed** unless the owner says so.
-- **`deno.json` stays at the released version** (read it there, and the latest release in
+- **`jsr.json` stays at the released version** — the package manifest since B1 of the Bun
+  migration (2026-10-12, [bun-migration.md](bun-migration.md)); `deno.json` before that, and
+  `deno.json` must no longer name the package (`version_sync.test.ts` enforces it). Publishing
+  names it, `deno publish --config jsr.json`, until `deno.json` is gone (read it there, and the latest release in
   [publishing.md](publishing.md)'s current-state line — a number quoted here went stale for two
   weeks). The version line is what ARMS a release — `auto-tag` publishes whenever `v<version>` has
   no tag. See [publishing.md](publishing.md); the unreleased changes waiting for it are in

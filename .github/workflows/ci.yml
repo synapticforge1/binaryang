@@ -68,7 +68,10 @@ jobs:
         run: deno task baseline
 
       - name: Verify publish manifest (dry run, no provenance)
-        run: deno publish --dry-run --allow-dirty
+        # `--config jsr.json`: the package manifest is jsr.json since 2026-10-12, and with a
+        # deno.json present Deno would otherwise take the package from deno.json
+        # (cmem/bun-migration.md).
+        run: deno publish --dry-run --allow-dirty --config jsr.json
 
       # REPORTED, NOT GATED, on purpose. This is the convergence indicator: the
       # number of exported type names declared in both `src/` trees. Failing on

@@ -114,6 +114,14 @@ fatigue.
     `compat/*` and `wasm-validate`, not the IR subpaths, and declare their own types for the
     compat names, but say so. **When is the owner's call** — not before the `./ir` release is out.
 
+26. ⬚ 🗓️ **Move the development toolchain from Deno to Bun; JSR stays the source** (owner,
+    2026-10-12). Deno runtime development ends around 2027-10 (the team joined Cloudflare). The
+    published package is already runtime-neutral; tests, scripts, fmt / lint / check and CI are
+    not. Steps B1–B7 with findings and risks: [bun-migration.md](bun-migration.md). **B1 (`jsr.json`
+    is the one manifest) is on `bun-1-jsr-manifest`.** B6 (the release path) is the one step
+    that cannot be undone. The deadline is about a year away, so the owner orders it against
+    items 13 and 14.
+
 (Item 21 closed 2026-10-09: one `src/` tree by concept, one declaration per name, one IR
 subpath — [one-tree.md](one-tree.md): the four phases, the decisions, what the gate found. Its
 number is kept free; the follow-up is item 25 above.)

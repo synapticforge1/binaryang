@@ -1,7 +1,7 @@
 /**
  * @module scripts/release/bump_version
  *
- * Bumps `deno.json` `version` to the next value under the sub-version-
+ * Bumps `jsr.json` `version` to the next value under the sub-version-
  * capped-at-9 rule (see `./version.ts` for the rule). Prints the old → new
  * transition. Does not commit or tag — the release-flow caller handles that.
  *
@@ -11,9 +11,9 @@
  * @license MIT
  */
 
-import { DENO_JSON_URL, MAIN_TS_URL, nextVersion, readCurrentVersion } from './version.ts';
+import { MAIN_TS_URL, MANIFEST_URL, nextVersion, readCurrentVersion } from './version.ts';
 
-// GUARD: this script MUTATES deno.json, and it read no arguments at all -- so
+// GUARD: this script MUTATES jsr.json, and it read no arguments at all -- so
 // `deno task bump --dry-run` silently performed a real bump and reported it in
 // the same "1.4.1 -> 1.4.2" form a dry run would have used. That happened while
 // checking what the next version WOULD be, and only a failing assertion
@@ -35,20 +35,20 @@ const current = await readCurrentVersion();
 const next = nextVersion(current);
 
 if (dryRun) {
-  console.log(`${current} -> ${next}   (dry run: deno.json NOT modified)`);
+  console.log(`${current} -> ${next}   (dry run: jsr.json NOT modified)`);
   Deno.exit(0);
 }
 
-const text = await Deno.readTextFile(DENO_JSON_URL);
+const text = await Deno.readTextFile(MANIFEST_URL);
 const updated = text.replace(
   /("version"\s*:\s*)"[^"]*"/,
   (_match, prefix) => `${prefix}"${next}"`,
 );
 if (updated === text) {
-  console.error('Could not locate the `version` field in deno.json to rewrite.');
+  console.error('Could not locate the `version` field in jsr.json to rewrite.');
   Deno.exit(1);
 }
-await Deno.writeTextFile(DENO_JSON_URL, updated);
+await Deno.writeTextFile(MANIFEST_URL, updated);
 
 console.log(`${current} -> ${next}`);
 console.log('');

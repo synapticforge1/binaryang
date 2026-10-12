@@ -18,9 +18,10 @@
  * only agree. They were two hand-written copies of `deno.json` while the bump
  * also rewrote `main.ts`, and the documented bump-then-release flow refused at
  * the guard. `release_guard.test.ts` reads the bump's write sites and fails if
- * this list stops matching them.
+ * this list stops matching them. The manifest is `jsr.json` since 2026-10-12;
+ * a modified `deno.json` is now an ordinary blocker.
  */
-export const RELEASE_FILES: readonly string[] = ['deno.json', 'main.ts'];
+export const RELEASE_FILES: readonly string[] = ['jsr.json', 'main.ts'];
 
 /**
  * The path named by one `git status --porcelain` line.

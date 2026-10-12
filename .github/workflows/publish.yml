@@ -1,7 +1,7 @@
 # JSR publish with OIDC provenance.
 #
 # Triggered when a git tag matching `v*` is pushed (e.g. `git tag v1.0.0 && git push --tags`),
-# or dispatched on a tag ref by `.github/workflows/auto-tag.yml` after it detects a `deno.json`
+# or dispatched on a tag ref by `.github/workflows/auto-tag.yml` after it detects a `jsr.json`
 # version bump on `main`.
 #
 # The publish step calls `deno publish` DIRECTLY — not `deno task release`. The task wraps
@@ -66,13 +66,13 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Verify deno.json version matches tag
+      - name: Verify jsr.json version matches tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION="$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("deno.json")).version)')"
+          PKG_VERSION="$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("jsr.json")).version)')"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match deno.json version ($PKG_VERSION)"
+            echo "::error::Tag version ($TAG_VERSION) does not match jsr.json version ($PKG_VERSION)"
             exit 1
           fi
           echo "Versions match: $TAG_VERSION"
@@ -101,8 +101,13 @@ jobs:
       # warns that a slow-types package ships NO .d.ts for Node users, and Node support
       # is one of binaryang's published capabilities. `deno task publish:dry` runs the
       # identical command so the gate tests what actually ships.
+      # `--config jsr.json`: the package manifest is jsr.json since 2026-10-12. While a
+      # deno.json exists Deno takes the package from it and ignores jsr.json, so the
+      # manifest is named explicitly (cmem/bun-migration.md). Still `deno publish` called
+      # DIRECTLY: `bunx jsr publish` downloads Deno and runs this same command as a
+      # subprocess, which is the indirection this header warns can lose provenance.
       - name: Publish to JSR (with provenance)
-        run: deno publish
+        run: deno publish --config jsr.json
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -121,7 +126,7 @@ jobs:
       - name: Verify provenance was recorded on JSR
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          PKG=$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("deno.json")).name)')
+          PKG=$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("jsr.json")).name)')
           SCOPE=${PKG%/*}; SCOPE=${SCOPE#@}
           NAME=${PKG#*/}
           VERSION=${GITHUB_REF_NAME#v}

@@ -22,6 +22,12 @@ last section, "The tag-push path works unaided", narrows the manual-step warning
 
 **Merge first, unbumped. Bump as its own commit afterwards.**
 
+🔧 **The manifest is `jsr.json` since 2026-10-12** (Bun migration B1, [bun-migration.md](bun-migration.md)).
+Wherever this file says `deno.json` for the version, the bump, `RELEASE_FILES` or the tag check,
+read `jsr.json`. The release records below keep the name that was true when they were written.
+Both publish commands are `deno publish --config jsr.json`. While a `deno.json` exists, Deno
+takes the package from `deno.json` and ignores `jsr.json`.
+
 `auto-tag` runs on every push to `main` and asks exactly one question: does
 `refs/tags/v<deno.json version>` already exist? It does not compare versions, and it does not detect
 a change. **So a merge that carries a version bump IS a release** — the same push integrates the
