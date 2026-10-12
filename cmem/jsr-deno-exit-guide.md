@@ -133,8 +133,9 @@ behaviour gate (11 DIVERGE, 32 refused); Node 24 (13.6) passed it; Node 26 (14.6
 TypeScript with enums at all. Chrome stable is V8 15.6. V8 flags are `--v8-flags=…` in Deno and
 passed directly in Node (`node --experimental-wasm-…`); Bun has none. binaryang's wiring
 (owner: Node 22 only on the dev machine): oracle scripts run as `deno run -A scripts/…` from
-`package.json`, everything else on Bun. It needs a new referee before Node 22's end of life
-(2027-04) or Deno's end (~2027-10): a browser, or a newer Node once the source is erasable-only. **wasmtk and the loader run WebAssembly as their product, so their own tests meet this
+`package.json`, everything else on Bun. No deadline: Deno keeps working after its development
+ends (owner, 2026-10-12). Only a NEW proposal that needs a newer V8 than Deno's frozen 15.0 calls
+for another engine on that row. **wasmtk and the loader run WebAssembly as their product, so their own tests meet this
 head-on.**
 
 **F11. Importing a `.wasm` file directly works on Deno and Node, NOT on Bun.** Measured
@@ -245,8 +246,10 @@ host engine must run on a current V8. binaryang's measurements on the spec corpo
 Experimental proposals need an engine that HAS them, and no single one has all of them.
 binaryang picks an engine per proposal (`scripts/proposals.ts` `engine`): custom-descriptors on
 Deno's V8 15.0, wide-arithmetic on Bun (JavaScriptCore has it by default). Its oracle scripts run
-on Deno until Deno ends. **Plan a successor before about 2027-04**: Node 22's end of life is
-2027-04-30, and Deno's end is around 2027-10.
+on Deno. **No deadline** (owner, 2026-10-12): Node 22's end of life only drops it from the LTS
+list, since the list follows the schedule, and Deno keeps working after its development ends,
+for the referee and for `deno publish` ("hopefully a better jsr interface will exist by then, if
+not we will continue to use deno as is"). Watch only for a new proposal that needs a newer V8.
 
 ### Every current Node LTS line, supported and tested
 

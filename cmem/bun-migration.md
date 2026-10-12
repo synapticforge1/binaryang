@@ -134,23 +134,27 @@ and the behaviour half of `proposals` (per row: `engine` in `scripts/proposals.t
 runs on Bun. The owner's both-runtimes rule is what makes the referee a WIRING choice
 (`package.json`), not a code change.
 
-✅ **The referee is DENO until it is gone** (owner, 2026-10-12: this machine runs **Node 22 only**,
-chosen over keeping Node 24 beside it). B4 first wired the oracles to Node 24. Node 24 was then
+✅ **The referee is DENO** (owner, 2026-10-12: this machine ran **Node 22 only** at the time,
+chosen over keeping Node 24 beside it; Node 24 came back the same day, through fnm). B4 first wired the oracles to Node 24. Node 24 was then
 removed, and Node 22 cannot referee (next paragraph), so `package.json` runs them as
 `deno run -A scripts/…`, on Deno 2.9.7's V8 15.0: the engine these gates were calibrated on. The
 converted scripts are `node:`-only, and Deno runs them unchanged. `proposals` defaults to Deno, with
 wide-arithmetic on Bun (JavaScriptCore has it; V8 has it only from 15.0).
 
-⚠️ **The cliff, with a date: this machine needs a NEW V8 referee before about 2027-04.** Node 22
-reaches end of life 2027-04-30, and Deno development ends around 2027-10 (fixes until then). The
-candidates, to decide before the first of those dates:
-1. **a browser.** Chrome stable is V8 15.6 (2026-10-07), the newest V8 anywhere, and open-work 28's
-   headless-Chrome job would run the library there anyway. It is the natural successor for the
-   ORACLE steps, if those steps can drive a page.
-2. **a newer Node** that runs the source. That needed open-work 28 part 4 (erasable-only
-   TypeScript), because Node ≥ 26 dropped `--experimental-transform-types`. 🔧 **Done 2026-10-12:**
-   Node 26 runs the source (V8 14.6), so it is a real candidate now.
-3. Node 24 on this machine after all (it runs the source until 2028-04-30).
+**No deadline (owner, 2026-10-12).** 🔧 This section once claimed "a NEW V8 referee before about
+2027-04", tying the referee to Node 22's end of life. That was wrong: the referee is Deno, not
+Node 22. The owner's position:
+- **Node 22's end of life changes nothing.** "The lts will revise to the latest, which will exclude
+  node 22": `bun run lts` follows Node's release schedule, and CI's matrix the same policy.
+- **Deno stays usable as it is.** The end of its development does not remove the binary. The
+  toolchain has moved to Bun; for publishing, "hopefully a better jsr interface will exist by then,
+  if not we will continue to use deno as is." The same holds for the oracle scripts.
+
+**The one thing to watch, with no date:** a frozen Deno's V8 (15.0) ages. If a NEW experimental
+WebAssembly proposal enters the `proposals` gate and needs a newer V8, give that row a newer engine
+(`engine` in `scripts/proposals.ts`). The options measured: Node 26 (V8 14.6, runs the source since
+open-work 28 part 4), Node 24 (13.6, passes the behaviour gate), or a browser (Chrome stable is
+V8 15.6, 2026-10-07; open-work 28 part 3 would provide the runner).
 
 **Which Node referees: Node 24, NOT Node 22 (measured 2026-10-12).** The owner considered moving
 this machine to Node 22, the oldest LTS (maintenance until 2027-04-30). Node 22.23.3 ships V8
