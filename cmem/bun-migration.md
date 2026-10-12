@@ -59,11 +59,30 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
      `bunx jsr publish` is a subprocess.
    - Our own type check must stay in the gate before publish. The jsr CLI's `--no-check` means
      nothing else will catch a type error at publish time.
-3. **Bun has no native `jsr:` imports.** JSR packages come in through JSR's npm layer:
-   `bunx jsr add @std/assert` writes `"@std/assert": "npm:@jsr/std__assert@^1"` to
-   `package.json` and `@jsr:registry=https://npm.jsr.io` to `.npmrc`
-   ([jsr.io/docs/npm-compatibility](https://jsr.io/docs/npm-compatibility)). Shipped source
-   imports nothing from JSR (measured), so this only affects tests and scripts.
+3. **Bun imports JSR packages by their bare name, after one install step.** JSR's Bun
+   instructions (`import * as wasmtk from "@jrmarcum/wasmtk"`, owner 2026-10-12) are correct
+   once the package is added. Measured on Bun 1.4.3, 2026-10-12, in an empty project:
+   - before any install, `import … from "@std/assert"` fails to resolve;
+   - `bun add jsr:@std/assert` is refused (`Invalid dependency name`). Bun has no `jsr:`
+     prefix, in imports or in `bun add`;
+   - `bunx jsr add @std/assert @jrmarcum/binaryang` writes
+     `"@jrmarcum/binaryang": "npm:@jsr/jrmarcum__binaryang@^1.10.0"` (and the `@std/assert` alias) to
+     `package.json`, and `@jsr:registry=https://npm.jsr.io` to `.npmrc`
+     ([jsr.io/docs/npm-compatibility](https://jsr.io/docs/npm-compatibility)). After that the
+     bare import works;
+   - **binaryang itself works this way:** `@jrmarcum/binaryang/wat2wasm` from JSR assembled a
+     module on Bun and it returned 42. JSR serves Bun a transpiled `main.js` + `_dist/` `.d.ts`,
+     which is why slow-types cleanliness matters (§ Other issues).
+
+   For this repo the bare names match: tests already import `'@std/assert'` etc. through
+   `deno.json`'s import map, so once `package.json` carries the same aliases (B2) those import
+   lines need no rewrite.
+3a. **But `@std/testing/bdd` does not run on Bun.** Its `describe` / `it` call `Deno.test`
+   underneath. Under `bun test` the import works and then fails with `ReferenceError: Deno is
+   not defined` (measured, same project). `@std/expect` and `@std/assert` are plain code and
+   run on Bun: `@std/expect` with `bun:test`'s `describe` / `it` gave 1 pass, 1 fail on a
+   probe with one deliberate failure. So the 287 `@std/testing/bdd` imports must change. The
+   353 `@std/assert` / `@std/expect` imports can stay.
 4. **Bun's `node:test` is partial.** Bun's docs call it basic and point to `bun:test`. So
    `node:test` is not a safe way to run one suite on all three runtimes. `bun:test`'s
    `describe` / `it` / `expect` match `@std/testing/bdd` + `@std/expect` closely (both are
@@ -77,7 +96,7 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 | B2   | **Bun project files next to Deno's.** `package.json` (dev dependencies only: `typescript`, `@types/bun`, `dprint`, a linter, `binaryen` for `comparison/`), `.npmrc` for `@jsr`, `tsconfig.json` with the root's `compilerOptions` and per-folder `tsconfig`s for the 3 `noUncheckedIndexedAccess: false` members, `bunfig.toml` (`install.minimumReleaseAge` in place of `minimumDependencyAge`), `bun.lock`. `tsc --noEmit` must accept the same tree `deno check` does. | both checkers green on the same commit                                         |
 | B3   | **Formatting and lint off Deno.** `deno fmt` IS dprint's TypeScript plugin, so `dprint` with the same settings (`lineWidth` 100, `indentWidth` 2, `singleQuote`) should leave the tree byte-identical. Measure that first: `dprint check` on the current tree must report 0 files. Lint: pick a linter and map Deno's `recommended` rules; record each rule dropped. | `dprint check` 0 diffs; linter green; dropped rules listed                    |
 | B4   | **Scripts on `node:` builtins.** `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
-| B5   | **Tests on `bun:test`.** `@std/testing/bdd` → `bun:test`, `@std/expect` → `bun:test`'s `expect`, `Deno.test` → `test`; keep `@std/assert` through JSR's npm layer, or move it to `node:assert/strict` (decide at B5). The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | test counts equal; injected-mutant check                                       |
+| B5   | **Tests on `bun:test`.** `@std/testing/bdd` → `bun:test` (required: it calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | test counts equal; injected-mutant check                                       |
 | B6   | **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
 | B7   | **Delete `deno.json` and `deno.lock`.** `--config jsr.json` comes off the publish commands, since `jsr.json` is then found on its own. `version_sync`'s second test turns into "there is no `deno.json`". `cmem/` updated throughout. | gate green with no `deno.json` in the tree                                     |
 
