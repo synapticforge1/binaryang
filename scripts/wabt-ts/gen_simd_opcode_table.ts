@@ -3,12 +3,14 @@
  * wabt's opcode.def. Run, then paste the output into src/wabt-ts/core/opcode.ts
  * between `--- 0xfd: SIMD ---` and `--- 0xfe: atomics ---`.
  *
- *   deno run -A scripts/wabt-ts/gen_simd_opcode_table.ts > /tmp/simd_table.ts
+ *   bun scripts/wabt-ts/gen_simd_opcode_table.ts > /tmp/simd_table.ts
  */
+
+import { readFile } from 'node:fs/promises';
 
 const UPSTREAM_DEF = new URL('../../upstream/include/wabt/opcode.def', import.meta.url);
 
-const src = await Deno.readTextFile(UPSTREAM_DEF);
+const src = await readFile(UPSTREAM_DEF, 'utf8');
 
 // WABT_OPCODE(...., prefix, code, EnumName, "wat.name", "")
 // We only emit 0xfd entries (SIMD).

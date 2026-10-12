@@ -6,7 +6,7 @@
  * pathological instruction that breaks the parse+encode round-trip.
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/diff_function.ts
+ *   bun scripts/binaryen-ts/diff_function.ts
  *
  * @license MIT
  */
@@ -16,6 +16,8 @@ import * as path from 'node:path';
 
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
+
+import process from 'node:process';
 
 /**
  * The few cursor reads this script needs. binaryen-ts's `BinaryReader` went
@@ -186,7 +188,7 @@ const reFn = reFuncs.find((f) => f.fnIndex === TARGET_FN_INDEX);
 
 if (!origFn || !reFn) {
   console.log(`Function #${TARGET_FN_INDEX} not found in one of the modules!`);
-  Deno.exit(1);
+  process.exit(1);
 }
 
 const origLen = origFn.bodyEnd - origFn.bodyStart;
@@ -212,7 +214,7 @@ if (divergeAt === -1 && origLen !== reLen) {
 
 if (divergeAt === -1) {
   console.log('Bodies are byte-identical — divergence must be elsewhere.');
-  Deno.exit(0);
+  process.exit(0);
 }
 
 console.log(`First divergence: at function-body offset ${divergeAt} (0x${divergeAt.toString(16)})`);

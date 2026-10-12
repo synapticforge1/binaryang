@@ -5,7 +5,7 @@
  * actions, in/out edges, and computed live-in/live-out sets. Reveals where
  * liveness fails to propagate (e.g. a use whose block has no predecessor link).
  *
- * Run: deno run --allow-read scripts/binaryen-ts/diag_cfg.ts
+ * Run: bun scripts/binaryen-ts/diag_cfg.ts
  *
  * @license MIT
  */

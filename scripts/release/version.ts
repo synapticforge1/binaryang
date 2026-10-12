@@ -23,6 +23,9 @@
  * package from it and ignores `jsr.json`, so publishing names the manifest
  * explicitly (`deno publish --config jsr.json`) until `deno.json` is gone.
  */
+
+import { readFile } from 'node:fs/promises';
+
 export const MANIFEST_URL: URL = new URL('../../jsr.json', import.meta.url);
 
 /** Absolute URL of `main.ts`, which carries the version as a literal (see `bump_version.ts`). */
@@ -30,7 +33,7 @@ export const MAIN_TS_URL: URL = new URL('../../main.ts', import.meta.url);
 
 /** Reads the current `version` field from `jsr.json`. */
 export async function readCurrentVersion(): Promise<string> {
-  const text = await Deno.readTextFile(MANIFEST_URL);
+  const text = await readFile(MANIFEST_URL, 'utf8');
   const data = JSON.parse(text);
   const v = data.version;
   if (typeof v !== 'string') {

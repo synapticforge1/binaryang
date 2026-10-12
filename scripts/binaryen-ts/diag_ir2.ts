@@ -6,7 +6,7 @@
  * is visible directly.
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/diag_ir2.ts <relpath> <definedFnIndex>
+ *   bun scripts/binaryen-ts/diag_ir2.ts <relpath> <definedFnIndex>
  *
  * @license MIT
  */
@@ -15,9 +15,11 @@ import * as fs from 'node:fs/promises';
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
 
+import process from 'node:process';
+
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
-const rel = Deno.args[0];
-const fnIdx = parseInt(Deno.args[1] ?? '0', 10);
+const rel = process.argv.slice(2)[0];
+const fnIdx = parseInt(process.argv.slice(2)[1] ?? '0', 10);
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const mod1 = readForPasses(orig);
 const mod2 = readForPasses(writeWasm(mod1));

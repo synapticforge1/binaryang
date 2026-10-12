@@ -12,7 +12,7 @@
  */
 
 /**
- * The files a release commits: exactly the files `deno task bump` rewrites.
+ * The files a release commits: exactly the files `bun run bump` rewrites.
  *
  * `publish.ts` stages these and `releaseBlockers` exempts them, so the two can
  * only agree. They were two hand-written copies of `deno.json` while the bump

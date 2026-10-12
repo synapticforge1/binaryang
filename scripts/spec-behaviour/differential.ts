@@ -6,7 +6,7 @@
  * One spec module, run as a DIFFERENTIAL: its own invocations replayed against
  * the original bytes and against everything this toolchain makes of them.
  *
- * `deno task spec` checks what the testsuite asks us to ACCEPT and REJECT, and
+ * `bun run spec` checks what the testsuite asks us to ACCEPT and REJECT, and
  * skips `assert_return` / `assert_trap` by design. Those are what show a
  * module that stays VALID while doing something else — a miscompile — and on
  * 2026-09-28, run like this from a scratch script, they found eight defects
@@ -57,6 +57,8 @@ import {
 } from '../../src/passes/index.ts';
 import type { WasmModule } from '../../src/ir/module.ts';
 import { type Sig, v128Lanes, withV128Wrappers, wrapperName } from './v128.ts';
+
+import { readFileSync } from 'node:fs';
 
 /** One `invoke` from a manifest: an export, its arguments as the manifest spells them. */
 export interface Invoke {
@@ -316,7 +318,7 @@ function outcomes(
 
 /** Compares every variant of `input` with the original. */
 export function check(input: SpecInput): Row {
-  const bytes = Deno.readFileSync(input.path);
+  const bytes = new Uint8Array(readFileSync(input.path));
   const v128 = new Map(input.v128 ?? []);
   const want = outcomes(bytes, input.invokes, v128);
   const row: Row = {

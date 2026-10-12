@@ -38,7 +38,69 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-**None open.** Items 18–20, from wasmtk's § 20, were fixed for 1.8.1 the day they arrived: L3 (a
+27. ⬚ **`wasm-interp` throws an UNTYPED `TypeError` on 3 mutated modules** (found 2026-10-12
+    by `hostile` during Bun migration B4; on `main` as it was, so NOT caused by the migration).
+    `bun run hostile <prepared core corpus>` (stride 7: 847 modules, 29,054 mutants) reports
+    `interp ok 3190 typed 656 UNTYPED 3` and `TOTAL — 3 broken`, exit 1. All three: `elem.85.wasm`
+    with byte 13 set to 0 → `TypeError: Cannot read properties of undefined (reading 'type')` at
+    `src/interp/interpreter.ts` `address()` (line 387 then), so an operand that should be an
+    i32 / i64 is `undefined`. The same 3 appear under Deno, Bun and Node. The branch
+    `code-lens-13` does not touch the interpreter. Contract: malformed input gets a typed answer
+    ([hardening.md](hardening.md)). **Reproduces from one file:** a directory holding only the
+    core corpus's `elem/elem.85.wasm`, then `bun run hostile <that dir> 1` → `3× interp:
+    TypeError … @ interp/interpreter.ts:387:9`. Find which instruction reaches `address()`
+    without an operand, and add the mutant as a test.
+
+28. ⬚ **"Runs everywhere" is not true today; bring it back into line** (owner, 2026-10-12:
+    "Sounds like our run everywhere motto needs some effort to bring it back into line. We need
+    to work on that effort."). Measured 2026-10-12, during Bun migration B4:
+    - **Browsers: 15 of 22 exports do not even BUNDLE for the browser**
+      (`bun build --target=browser`). They include `./wat2wasm`, the README's quick-start import,
+      and the library entries `./api`, `./passes`, `./compat/binaryen`. Only `./ir`, `./ir/*`,
+      `./core/wabt-ts`, `./compat/wabt`, `./wasm`, `./wasm-runtime` and `./definitions` are
+      clean. One cause: each `src/tools/*.ts` imports `node:process` (and some `node:fs`) at
+      the TOP for its CLI `main()`, which makes the module unloadable in a browser even for its
+      pure library function. `src/passes/memory-packing.ts` imports `tools/wasm-ctor-eval.ts`,
+      which spreads that to `./api`, `./passes` and `./compat/binaryen`. The portability gate
+      checks DIRECT `node:` imports outside the CLI layer, not what is reachable through
+      imports, so it stayed green. The README's "modern browsers" claim is untested: no CI job
+      runs a browser.
+    - **Node 26+ cannot run the TypeScript source**: it removed `--experimental-transform-types`
+      (strip-only), and `src/` has `enum`s and constructor parameter properties. Node 24 keeps
+      the flag until its end of life, 2028-04-30. The PUBLISHED package (JSR's compiled JS) runs
+      on Node 26 unchanged.
+    - **Engines differ, as measured** ([bun-migration.md](bun-migration.md) § "The engine
+      oracle"): Bun's JavaScriptCore lacks memory64 and accepts 70 invalid core modules. V8
+      versions: Node 24 13.6, Node 26 14.6, Deno 2.9.7 15.0, Chrome stable 156 = **15.6** (the
+      newest V8 anywhere, 2026-10-07). Nesting-depth ceilings differ per runtime stack (the
+      `hostile` depth table).
+    **Proposed plan, owner to order:** (1) tools: move the Node-only parts INSIDE each `main()`
+    (`globalThis.process`, an on-demand `import('node:fs/promises')`), so every export bundles
+    for the browser with the API unchanged, and move `packMemory` out of the CLI layer; (2) a
+    reachability portability gate: bundle every export for the browser in CI and fail on any
+    `node:`; (3) a REAL browser job: headless Chrome running the library on the corpus, the
+    same hash as the other runtimes; (4) decide erasable-only TypeScript (`enum` → const object
+    plus type, parameter properties → fields) so Node ≥ 26 runs the source. That changes
+    exported types and is a minor at least; (5) a BYTES-in / bytes-out optimizer export:
+    `wasmOpt(inputPath)` reads a FILE with `node:fs` and its byte-level core `_nativeOptimize`
+    is private, so a page has no way to optimize bytes it holds. Accepting a `Uint8Array` as
+    well is additive. The binaryen.js-shaped `readBinary → optimize → emitBinary` already takes
+    bytes, but is blocked by (1).
+
+    **The use case that justifies the browser (owner, 2026-10-12):** a page optimizes a wasm
+    module ON THE USER'S MACHINE and hands it back (a download, or straight to
+    `WebAssembly.instantiate`), "beneficial if the wasm file being called was never optimized
+    to start with. At least it would run faster in the browser once downloaded." Caveats, as
+    discussed: it runs AFTER the download, so the first download is not smaller; the client pays
+    the optimization time unless the result is cached (Cache API / IndexedDB); a site that
+    controls its module should optimize at build time instead. The browser path serves modules
+    the site does NOT control (third-party, user-supplied, playgrounds). Run it in a Web Worker,
+    keep the original, and fall back to it if the optimized bytes fail the browser's validation.
+    **Measure before building on it:** a few unoptimized (debug / `-O0`) modules; in Chrome,
+    compile time and run time before vs after, and the optimizer's own time in the browser. No
+    run-time speedup has been measured yet, so promise none.
+
+(Until 2026-10-12: **none open.**) Items 18–20, from wasmtk's § 20, were fixed for 1.8.1 the day they arrived: L3 (a
 lowered out-of-bounds access traps as out of bounds), L4 (the placeholder; case 2 at an engine
 ceiling) and C7 (`getFunctionInfo` shaped as binaryen.js) — [divergences.md](divergences.md).
 

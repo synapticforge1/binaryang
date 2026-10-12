@@ -9,8 +9,8 @@
  * split, which is also why it must be on PATH.
  *
  * ```sh
- * deno task spec:prepare            # uses the default suite path
- * deno task spec:prepare <src> <out>
+ * bun run spec:prepare            # uses the default suite path
+ * bun run spec:prepare <src> <out>
  * ```
  *
  * ⚠️ The suite lives in a SIBLING repo and is READ ONLY. Output goes only to
@@ -50,6 +50,11 @@
  *   failures.
  * - `wide-arithmetic` — same shape: declared in `Features`, unimplemented.
  */
+
+import { mkdir, readdir, rm } from 'node:fs/promises';
+import process from 'node:process';
+import { spawnSync } from 'node:child_process';
+
 const FEATURES = [
   '--enable-exceptions',
   '--enable-threads',
@@ -71,24 +76,24 @@ const DEFAULT_SRC =
 // `||` not `??`: an EMPTY argument is a caller saying "use the default", and
 // `??` passes it straight through to `readDir`, which fails with the unhelpful
 // "Empty path is not allowed".
-const src = Deno.args[0] || DEFAULT_SRC;
-const out = Deno.args[1] || Deno.env.get('SPEC_OUT');
+const src = process.argv.slice(2)[0] || DEFAULT_SRC;
+const out = process.argv.slice(2)[1] || process.env['SPEC_OUT'];
 if (!out) {
   console.error('usage: spec-prepare.ts [srcDir] <outDir>   (or set SPEC_OUT)');
-  Deno.exit(2);
+  process.exit(2);
 }
 
 const wasts: string[] = [];
-for await (const e of Deno.readDir(src)) {
-  if (e.isFile && e.name.endsWith('.wast')) wasts.push(e.name);
+for (const e of await readdir(src, { withFileTypes: true })) {
+  if (e.isFile() && e.name.endsWith('.wast')) wasts.push(e.name);
 }
 wasts.sort();
 if (wasts.length === 0) {
   console.error(`spec-prepare: no .wast files under ${src}`);
-  Deno.exit(1);
+  process.exit(1);
 }
 
-await Deno.mkdir(out, { recursive: true });
+await mkdir(out, { recursive: true });
 let ok = 0;
 const failed: string[] = [];
 
@@ -97,14 +102,11 @@ let viaWasmTools = 0;
 for (const name of wasts) {
   const base = name.replace(/\.wast$/, '');
   const dir = `${out}/${base}`;
-  await Deno.mkdir(dir, { recursive: true });
-  const cmd = new Deno.Command('wast2json', {
-    args: [...FEATURES, '-o', `${dir}/${base}.json`, `${src}/${name}`],
-    stdout: 'null',
-    stderr: 'piped',
+  await mkdir(dir, { recursive: true });
+  const cmd = spawnSync('wast2json', [...FEATURES, '-o', `${dir}/${base}.json`, `${src}/${name}`], {
+    stdio: ['ignore', 'ignore', 'pipe'],
   });
-  const { code } = await cmd.output();
-  if (code === 0) {
+  if (cmd.status === 0) {
     ok++;
     continue;
   }
@@ -114,10 +116,11 @@ for (const name of wasts) {
   // splits all of them, into the same layout with a few command types of its
   // own (`module_definition`, `module_instance`, modules given as TEXT); the
   // harness reads those.
-  await Deno.remove(dir, { recursive: true }).catch(() => {});
-  await Deno.mkdir(dir, { recursive: true });
-  const wt = new Deno.Command('wasm-tools', {
-    args: [
+  await rm(dir, { recursive: true }).catch(() => {});
+  await mkdir(dir, { recursive: true });
+  const wtOut = spawnSync(
+    'wasm-tools',
+    [
       'json-from-wast',
       `${src}/${name}`,
       '--wasm-dir',
@@ -126,16 +129,14 @@ for (const name of wasts) {
       `${dir}/${base}.json`,
       '--pretty',
     ],
-    stdout: 'null',
-    stderr: 'piped',
-  });
-  const wtOut = await wt.output();
-  if (wtOut.success) {
+    { stdio: ['ignore', 'ignore', 'pipe'] },
+  );
+  if (wtOut.status === 0) {
     ok++;
     viaWasmTools++;
   } else {
     failed.push(base);
-    await Deno.remove(dir, { recursive: true }).catch(() => {});
+    await rm(dir, { recursive: true }).catch(() => {});
   }
 }
 

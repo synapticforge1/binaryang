@@ -54,7 +54,7 @@ describe('T13.44 — the release preflight stays wired in', () => {
     // An exit must follow the call, or the script prints a complaint and
     // releases anyway -- which is worse than no guard, because the output
     // looks like it was checked.
-    expect(PUBLISH.slice(call)).toContain('Deno.exit(1)');
+    expect(PUBLISH.slice(call)).toContain('process.exit(1)');
   });
 
   it('runs no state-changing git command before the guard', () => {
@@ -99,14 +99,16 @@ describe('T13.44 — the release preflight stays wired in', () => {
   // public (binaryen-ts v1.2.4). It must run in a FRESH `DENO_DIR` (`--reload`
   // does not re-resolve a pinned version), before any git mutation, and refuse.
   it('runs a cold type check, in a fresh DENO_DIR, before mutating anything', () => {
-    const at = PUBLISH.indexOf("args: ['task', 'check']");
+    const at = PUBLISH.indexOf("spawnSync('deno', ['task', 'check']");
     expect(at).toBeGreaterThan(-1);
-    expect(PUBLISH).toContain('env: { DENO_DIR: coldDir }');
-    expect(PUBLISH).toContain('Deno.makeTempDir(');
+    // The parent environment spread in: node:child_process REPLACES `env` (Deno.Command merged
+    // it), and a cold check without PATH cannot even find `deno` (Bun migration B4).
+    expect(PUBLISH).toContain('env: { ...process.env, DENO_DIR: coldDir }');
+    expect(PUBLISH).toContain('mkdtemp(');
     const firstMutation = gitCalls(PUBLISH).find((c) => !READ_ONLY.has(c.sub));
     expect(firstMutation).toBeDefined();
     expect(at).toBeLessThan(firstMutation!.at);
-    expect(PUBLISH.slice(at, firstMutation!.at)).toContain('Deno.exit(1)');
+    expect(PUBLISH.slice(at, firstMutation!.at)).toContain('process.exit(1)');
   });
 
   // The entry check (1.6.1): through 1.6.0 the package root was not the CLI,
@@ -118,7 +120,7 @@ describe('T13.44 — the release preflight stays wired in', () => {
     const firstMutation = gitCalls(PUBLISH).find((c) => !READ_ONLY.has(c.sub));
     expect(firstMutation).toBeDefined();
     expect(at).toBeLessThan(firstMutation!.at);
-    expect(PUBLISH.slice(at, firstMutation!.at)).toContain('Deno.exit(1)');
+    expect(PUBLISH.slice(at, firstMutation!.at)).toContain('process.exit(1)');
   });
 
   // The property that made `publish.ts` untestable in the first place. If the
@@ -127,6 +129,8 @@ describe('T13.44 — the release preflight stays wired in', () => {
   it('keeps release-guard.ts free of side effects', () => {
     expect(GUARD).not.toContain('Deno.Command');
     expect(GUARD).not.toContain('Deno.exit');
+    expect(GUARD).not.toContain('child_process');
+    expect(GUARD).not.toContain('process.exit');
     // No top-level await: every export must be a plain function.
     expect(/^await /m.test(GUARD)).toBe(false);
     expect(/^const \w+ = await/m.test(GUARD)).toBe(false);

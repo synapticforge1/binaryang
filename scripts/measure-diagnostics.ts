@@ -8,8 +8,8 @@
  * ## Why this exists
  *
  * Two diagnostic axes were measured before it: WORDING (does our message
- * match the spec's expected text — `deno task spec`'s agreement counts) and
- * OFFSETS (A3, `deno task offsets`: where the binary reader points). Neither
+ * match the spec's expected text — `bun run spec`'s agreement counts) and
+ * OFFSETS (A3, `bun run offsets`: where the binary reader points). Neither
  * asks whether the printed line tells a user what to fix, and the first probe
  * of that (2026-09-29) found every binary diagnostic printed at `file:0:0`,
  * because the renderer chose text coordinates whenever a filename was set —
@@ -53,8 +53,8 @@
  * Reported, not gated.
  *
  * ```sh
- * deno task diagnostics <manifest-dir>               # summary (see deno task spec:prepare)
- * deno task diagnostics <manifest-dir> --templates   # plus every message shape, by count
+ * bun run diagnostics <manifest-dir>               # summary (see bun run spec:prepare)
+ * bun run diagnostics <manifest-dir> --templates   # plus every message shape, by count
  * ```
  */
 
@@ -64,6 +64,9 @@ import type { ErrorList } from '../src/core/error.ts';
 import { suiteFeatures } from './proposals.ts';
 import { wat2wasm } from '../src/tools/wat2wasm.ts';
 import { wasmValidate } from '../src/tools/wasm-validate.ts';
+
+import { readdir, readFile } from 'node:fs/promises';
+import process from 'node:process';
 
 /** The spec harness's feature set, for the same reason (see spec-testsuite.ts). */
 const FEATURES = suiteFeatures('');
@@ -173,20 +176,20 @@ interface Command {
 }
 
 if (import.meta.main) {
-  const dirArg = Deno.args.find((a) => !a.startsWith('--'));
-  const templates = Deno.args.includes('--templates');
+  const dirArg = process.argv.slice(2).find((a) => !a.startsWith('--'));
+  const templates = process.argv.slice(2).includes('--templates');
   if (dirArg === undefined) {
     console.error('usage: measure-diagnostics.ts <manifest-dir> [--templates]');
-    Deno.exit(2);
+    process.exit(2);
   }
 
   const rows: Scored[] = [];
-  for await (const dir of Deno.readDir(dirArg)) {
-    if (!dir.isDirectory) continue;
+  for (const dir of await readdir(dirArg, { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue;
     const dirOf = `${dirArg}/${dir.name}`;
     let manifest: { commands: Command[] };
     try {
-      manifest = JSON.parse(await Deno.readTextFile(`${dirOf}/${dir.name}.json`));
+      manifest = JSON.parse(await readFile(`${dirOf}/${dir.name}.json`, 'utf8'));
     } catch {
       continue;
     }
@@ -197,12 +200,12 @@ if (import.meta.main) {
       let row: Scored;
       if (cmd.type === 'assert_invalid') {
         row = cmd.module_type === 'text'
-          ? viaWat2wasm(where, await Deno.readTextFile(path), true)
-          : viaValidate(where, await Deno.readFile(path), 'm.wasm');
+          ? viaWat2wasm(where, await readFile(path, 'utf8'), true)
+          : viaValidate(where, new Uint8Array(await readFile(path)), 'm.wasm');
       } else if (cmd.type === 'assert_malformed') {
         row = cmd.module_type === 'binary'
-          ? viaValidate(where, await Deno.readFile(path), 'm.wasm')
-          : viaWat2wasm(where, await Deno.readTextFile(path), false);
+          ? viaValidate(where, new Uint8Array(await readFile(path)), 'm.wasm')
+          : viaWat2wasm(where, await readFile(path, 'utf8'), false);
       } else {
         continue;
       }

@@ -6,7 +6,7 @@
  *
  * ## Why this exists
  *
- * `deno task baseline` pins what wabt-ts writes and `deno task direct` what a
+ * `bun run baseline` pins what wabt-ts writes and `bun run direct` what a
  * text-read tree encodes to (it optimizes too, but a TEXT-read tree; this gate
  * optimizes and WRITES what `wasm-opt` does: `readForPasses` in, `writeWasm` out — the
  * wabt-ts reader and writer since One front end stages 3a and 4; binaryen-ts's
@@ -24,7 +24,7 @@
  * ## Usage
  *
  * ```sh
- * deno task optimize-corpus
+ * bun run optimize-corpus
  * ```
  *
  * @license MIT
@@ -36,6 +36,10 @@ import { PassRunner } from '../src/passes/index.ts';
 import { formatErrors, hasErrors } from '../src/core/error.ts';
 import { wat2wasm } from '../src/tools/wat2wasm.ts';
 
+import { readFile } from 'node:fs/promises';
+import process from 'node:process';
+import { readdirSync } from 'node:fs';
+
 const CORPUS = new URL('../tests/wabt-ts/wasmtk/', import.meta.url);
 const LEVELS = [
   ['-O1', { optimizeLevel: 1, shrinkLevel: 0 }],
@@ -45,7 +49,7 @@ const LEVELS = [
   ['-Oz', { optimizeLevel: 2, shrinkLevel: 2 }],
 ] as const;
 
-const files = [...Deno.readDirSync(CORPUS)]
+const files = readdirSync(CORPUS, { withFileTypes: true })
   .map((e) => e.name)
   .filter((n) => n.endsWith('.wat'))
   .sort();
@@ -53,7 +57,7 @@ const files = [...Deno.readDirSync(CORPUS)]
 const failures: string[] = [];
 const bytes = new Map<string, number>();
 for (const name of files) {
-  const r = wat2wasm(await Deno.readTextFile(new URL(name, CORPUS)));
+  const r = wat2wasm(await readFile(new URL(name, CORPUS), 'utf8'));
   if (hasErrors(r.errors)) {
     failures.push(`${name}: does not assemble: ${formatErrors(r.errors).trim().split('\n')[0]}`);
     continue;
@@ -86,6 +90,6 @@ for (const [tag] of LEVELS) console.log(`    ${tag}  ${bytes.get(tag) ?? 0} byte
 if (failures.length > 0) {
   console.log(`\n  ${failures.length} FAILURE(S):`);
   for (const f of failures) console.log(`    ${f}`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log('\n  every level of every module encodes and validates');

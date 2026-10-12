@@ -118,6 +118,20 @@ while JSR's latest was 1.10.0, in a clean directory with `--no-lock`, from Deno'
 JSR's version list. `--reload=jsr:@scope/pkg` did not refresh it; a full `--reload` did. An
 install pins the version in a lockfile instead.
 
+**F10. Bun's WebAssembly engine is JavaScriptCore, not V8.** Deno and Node use V8. Every `.wasm`
+in the spec testsuite corpora, validated by each runtime's own engine (core 5,924, legacy 18,
+`proposals/` 811 modules): **Node agreed with Deno on all 6,753**, while Bun 1.4.3 disagreed on
+**300**. JavaScriptCore has no memory64 / table64 (refuses 227 valid core modules), accepts 70
+modules the spec says must be rejected (`unreached-invalid` 64, typed function references 6), and
+has no legacy `try_delegate`.
+→ Any test or script that uses the host engine as an ORACLE (`WebAssembly.validate`, `Module`,
+`Instance` to judge correctness or run behaviour) gives different answers on Bun. Run those on
+Node, or classify each Bun difference. Do not pin it blind. V8 flags (`--v8-flags=…` in Deno) are
+passed to Node directly (`node --experimental-wasm-…`); Bun has none. binaryang's wiring: oracle
+scripts run as `node --experimental-transform-types scripts/…` from `package.json`, everything else
+on Bun. **wasmtk and the loader run WebAssembly as their product, so their own tests meet this
+head-on.**
+
 ## 4. The steps binaryang is following
 
 Each step is its own branch, gated and merged. Only step 6 cannot be undone, because a JSR

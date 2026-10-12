@@ -3,7 +3,7 @@
 
 /**
  * @module
- * What `deno task direct` and `deno task direct-behaviour` run over: the 421
+ * What `bun run direct` and `bun run direct-behaviour` run over: the 421
  * wasmtk corpus modules, and the 123 modules of `prepare.test.ts`'s fixture
  * (post-M8 fix 7).
  *
@@ -16,6 +16,9 @@
  */
 
 /** One module a direct gate checks: a name to report it by, and its text. */
+
+import { readdir, readFile } from 'node:fs/promises';
+
 export interface DirectInput {
   name: string;
   wat: string;
@@ -30,12 +33,12 @@ export const FIXTURE = new URL(
 /** The corpus modules, by filename, sorted. */
 export async function corpusInputs(): Promise<DirectInput[]> {
   const names: string[] = [];
-  for await (const entry of Deno.readDir(CORPUS)) {
-    if (entry.isFile && entry.name.endsWith('.wat')) names.push(entry.name);
+  for (const entry of await readdir(CORPUS, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith('.wat')) names.push(entry.name);
   }
   names.sort((a, b) => a.localeCompare(b));
   return Promise.all(
-    names.map(async (name) => ({ name, wat: await Deno.readTextFile(new URL(name, CORPUS)) })),
+    names.map(async (name) => ({ name, wat: await readFile(new URL(name, CORPUS), 'utf8') })),
   );
 }
 
@@ -45,7 +48,7 @@ export async function corpusInputs(): Promise<DirectInput[]> {
  * quietly lost its inputs would read green.
  */
 export async function fixtureInputs(): Promise<DirectInput[]> {
-  const modules: { from: string; wat: string }[] = JSON.parse(await Deno.readTextFile(FIXTURE));
+  const modules: { from: string; wat: string }[] = JSON.parse(await readFile(FIXTURE, 'utf8'));
   if (!Array.isArray(modules) || modules.length === 0) {
     throw new Error(`no modules in ${FIXTURE.pathname}`);
   }

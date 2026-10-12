@@ -11,16 +11,16 @@
  *   parse. The bridge, which this path replaced (S6 step 5, M8e), was held only
  *   to "the engine accepts it", and matched `wat2wasm` on none of the 421.
  * - **Optimized at every level, it is a module the engine accepts.** The same
- *   levels `deno task optimize-corpus` runs over the decoder's tree.
+ *   levels `bun run optimize-corpus` runs over the decoder's tree.
  *
- * What the optimized modules DO is `deno task direct-behaviour`'s question; this
+ * What the optimized modules DO is `bun run direct-behaviour`'s question; this
  * one runs nothing. It exits 1 on any failure (the bridge's gate only printed).
  *
  * It runs over the corpus AND `prepare.test.ts`'s fixture (`direct-inputs.ts`,
  * post-M8 fix 7): the corpus has no start section, so a dropped start function
  * passed this gate until the fixture's start module joined it.
  *
- * Usage: `deno task direct`
+ * Usage: `bun run direct`
  */
 
 import { parseWatModule } from '../src/parser/wast-parser.ts';
@@ -31,6 +31,8 @@ import { prepareForPasses } from '../src/ir/prepare.ts';
 import { writeWasm } from '../src/ir/write-wasm.ts';
 import { PassRunner } from '../src/passes/index.ts';
 import { directInputs } from './direct-inputs.ts';
+
+import process from 'node:process';
 
 const LEVELS = [
   ['-O1', { optimizeLevel: 1, shrinkLevel: 0 }],
@@ -106,7 +108,7 @@ if (failures.length > 0) {
   for (const f of failures.slice(0, 30)) {
     console.log(`    ${f.where.padEnd(8)} ${f.file.padEnd(42)} ${f.detail.slice(0, 100)}`);
   }
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(
   `\n  TOTAL — all ${inputs.length} byte-identical to wat2wasm, and valid at every level.`,

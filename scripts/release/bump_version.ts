@@ -6,15 +6,18 @@
  * transition. Does not commit or tag — the release-flow caller handles that.
  *
  * Run:
- *   deno task bump
+ *   bun run bump
  *
  * @license MIT
  */
 
 import { MAIN_TS_URL, MANIFEST_URL, nextVersion, readCurrentVersion } from './version.ts';
 
+import { readFile, writeFile } from 'node:fs/promises';
+import process from 'node:process';
+
 // GUARD: this script MUTATES jsr.json, and it read no arguments at all -- so
-// `deno task bump --dry-run` silently performed a real bump and reported it in
+// `bun run bump --dry-run` silently performed a real bump and reported it in
 // the same "1.4.1 -> 1.4.2" form a dry run would have used. That happened while
 // checking what the next version WOULD be, and only a failing assertion
 // downstream revealed the file had already moved.
@@ -22,13 +25,13 @@ import { MAIN_TS_URL, MANIFEST_URL, nextVersion, readCurrentVersion } from './ve
 // `--dry-run` now works, and anything unrecognised is refused rather than
 // ignored. A flag a mutating script does not understand must never be treated
 // as consent to mutate.
-const args = Deno.args;
+const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run') || args.includes('-n');
 const unknown = args.filter((a) => a !== '--dry-run' && a !== '-n');
 if (unknown.length > 0) {
   console.error(`bump: unrecognised argument(s): ${unknown.join(' ')}`);
-  console.error('Usage: deno task bump [--dry-run|-n]');
-  Deno.exit(2);
+  console.error('Usage: bun run bump [--dry-run|-n]');
+  process.exit(2);
 }
 
 const current = await readCurrentVersion();
@@ -36,24 +39,24 @@ const next = nextVersion(current);
 
 if (dryRun) {
   console.log(`${current} -> ${next}   (dry run: jsr.json NOT modified)`);
-  Deno.exit(0);
+  process.exit(0);
 }
 
-const text = await Deno.readTextFile(MANIFEST_URL);
+const text = await readFile(MANIFEST_URL, 'utf8');
 const updated = text.replace(
   /("version"\s*:\s*)"[^"]*"/,
   (_match, prefix) => `${prefix}"${next}"`,
 );
 if (updated === text) {
   console.error('Could not locate the `version` field in jsr.json to rewrite.');
-  Deno.exit(1);
+  process.exit(1);
 }
-await Deno.writeTextFile(MANIFEST_URL, updated);
+await writeFile(MANIFEST_URL, updated);
 
 console.log(`${current} -> ${next}`);
 console.log('');
 console.log('Next step:');
-console.log('  deno task release');
+console.log('  bun run release');
 console.log('');
 console.log(
   `That commits the bump, tags v${next}, and pushes both. The tag push triggers`,
@@ -68,14 +71,14 @@ console.log('publish.yml on GitHub, which runs deno publish with OIDC provenance
 // This half lived only in binaryen-ts's copy of the script and the wabt-ts copy is the
 // one binaryang inherited its task wiring from, so the merged script had a --dry-run
 // guard and no main.ts rewrite: the safer script, doing less of the job.
-const mainText = await Deno.readTextFile(MAIN_TS_URL);
+const mainText = await readFile(MAIN_TS_URL, 'utf8');
 const mainUpdated = mainText.replace(
   /(const VERSION = ')[^']*(')/,
   (_match, prefix, suffix) => `${prefix}${next}${suffix}`,
 );
 if (mainUpdated === mainText) {
   console.error('Could not locate the `VERSION` constant in main.ts to rewrite.');
-  Deno.exit(1);
+  process.exit(1);
 }
-await Deno.writeTextFile(MAIN_TS_URL, mainUpdated);
+await writeFile(MAIN_TS_URL, mainUpdated);
 console.log(`main.ts VERSION -> ${next}`);

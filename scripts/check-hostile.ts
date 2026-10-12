@@ -22,7 +22,7 @@
  * Reported, not gated. Exit 1 when anything UNTYPED or SLOW is seen.
  *
  * ```sh
- * deno task hostile <corpus dir of .wasm files> [stride=7]
+ * bun run hostile <corpus dir of .wasm files> [stride=7]
  * ```
  *
  * Pass 1 (2026-10-09), on wasmtk's `tests/wasi/wasm_wasi` (61 modules, 2,145
@@ -31,7 +31,6 @@
  * words). See cmem/hardening.md.
  */
 
-import { walk } from '@std/fs/walk';
 import { readForPasses, readValidForPasses, WasmBinaryError } from '../src/ir/prepare.ts';
 import { WasmEncodeError, writeWasm, writeWat } from '../src/ir/write-wasm.ts';
 import { wat2wasm } from '../src/tools/wat2wasm.ts';
@@ -46,10 +45,14 @@ import { readBinary } from '../src/compat/binaryen-compat.ts';
 import { encodeU32Leb128 } from '../src/core/leb128.ts';
 import { NESTING_TOO_DEEP } from '../src/core/error.ts';
 
-const [corpus, strideArg] = Deno.args;
+import { readdirSync, readFileSync } from 'node:fs';
+import process from 'node:process';
+import { join } from 'node:path';
+
+const [corpus, strideArg] = process.argv.slice(2);
 if (corpus === undefined) {
-  console.error('usage: deno task hostile <corpus dir of .wasm files> [stride=7]');
-  Deno.exit(2);
+  console.error('usage: bun run hostile <corpus dir of .wasm files> [stride=7]');
+  process.exit(2);
 }
 const stride = Number(strideArg ?? 7);
 
@@ -138,7 +141,9 @@ for (const [stage, run] of Object.entries(depthStages)) {
 // ---------------------------------------------------------------------------
 
 const files: string[] = [];
-for await (const e of walk(corpus, { exts: ['.wasm'], includeDirs: false })) files.push(e.path);
+for (const e of readdirSync(corpus, { withFileTypes: true, recursive: true })) {
+  if (!e.isDirectory() && e.name.endsWith('.wasm')) files.push(join(e.parentPath, e.name));
+}
 files.sort();
 const sample = files.filter((_, i) => i % stride === 0);
 
@@ -185,7 +190,10 @@ function attempt(stage: string, where: string, f: () => void): boolean {
       return false;
     }
     const err = e as Error;
-    const at = (err?.stack ?? '').split('\n').find((l) => l.includes('/src/'))
+    // Separators normalized first: on Windows, Node and Bun print stack paths with `\`, where
+    // Deno printed `file:///` URLs (Bun migration B4). Without it every location read `?`.
+    const at = (err?.stack ?? '').split('\n').map((l) => l.replace(/\\/g, '/'))
+      .find((l) => l.includes('/src/'))
       ?.replace(/^.*\/src\//, '').replace(/\).*$/, '') ?? '?';
     note('UNTYPED', `${err?.constructor?.name}: ${String(err?.message).slice(0, 60)} @ ${at}`);
     return false;
@@ -194,7 +202,7 @@ function attempt(stage: string, where: string, f: () => void): boolean {
 
 let n = 0;
 for (const path of sample) {
-  const original = Deno.readFileSync(path);
+  const original = new Uint8Array(readFileSync(path));
   const name = path.replace(/^.*[\\/]/, '');
   for (const [how, bytes] of mutants(original)) {
     n++;
@@ -243,4 +251,4 @@ for (const [k, where] of [...raw].sort((a, b) => b[1].length - a[1].length)) {
 console.log(
   broken === 0 ? 'TOTAL — nothing escaped untyped, nothing ran away.' : `TOTAL — ${broken} broken`,
 );
-Deno.exit(broken === 0 ? 0 : 1);
+process.exit(broken === 0 ? 0 : 1);

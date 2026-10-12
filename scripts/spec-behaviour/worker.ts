@@ -3,7 +3,7 @@
 
 /**
  * @module
- * The killable half of `deno task spec-behaviour`.
+ * The killable half of `bun run spec-behaviour`.
  *
  * A miscompiled module can loop forever, and a synchronous wasm call cannot be
  * bounded from its own thread, so the work runs here, where the driver can
@@ -14,10 +14,12 @@
 
 import { check, type Row, type SpecInput } from './differential.ts';
 
-declare const self: Worker;
+import { parentPort } from 'node:worker_threads';
 
-self.onmessage = (ev: MessageEvent<{ inputs: SpecInput[] }>) => {
-  for (const input of ev.data.inputs) {
+const port = parentPort!;
+
+port.on('message', (data: { inputs: SpecInput[] }) => {
+  for (const input of data.inputs) {
     let row: Row;
     try {
       row = check(input);
@@ -34,7 +36,7 @@ self.onmessage = (ev: MessageEvent<{ inputs: SpecInput[] }>) => {
         detail: [`unexpected: ${(e as Error).message}`],
       };
     }
-    self.postMessage({ row });
+    port.postMessage({ row });
   }
-  self.postMessage({ done: true });
-};
+  port.postMessage({ done: true });
+});

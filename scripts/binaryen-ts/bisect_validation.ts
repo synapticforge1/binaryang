@@ -8,7 +8,7 @@
  * a non-validating .wasm.
  *
  * Run:
- *   deno run --allow-read --allow-env scripts/binaryen-ts/bisect_validation.ts
+ *   node --experimental-transform-types scripts/binaryen-ts/bisect_validation.ts
  *
  * @license MIT
  */

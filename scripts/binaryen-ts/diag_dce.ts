@@ -4,7 +4,7 @@
  * Dump _fib's IR before and after the DCE pass, side by side, to see exactly
  * which expressions DCE removes.
  *
- * Run: deno run --allow-read scripts/binaryen-ts/diag_dce.ts
+ * Run: bun scripts/binaryen-ts/diag_dce.ts
  *
  * @license MIT
  */
@@ -12,6 +12,7 @@
 import * as fs from 'node:fs/promises';
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { createPass, PassRunner } from '../../src/passes/pass.ts';
+import process from 'node:process';
 import '../../src/passes/index.ts';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
@@ -40,7 +41,7 @@ const fibBefore = before.functions.find((f) => f.name === '$func5')!;
 const a: string[] = [];
 dump(fibBefore.body, 0, a);
 
-const passName = Deno.args[0] ?? 'DCE';
+const passName = process.argv.slice(2)[0] ?? 'DCE';
 const after = readForPasses(orig);
 new PassRunner(after, { optimizeLevel: 2, shrinkLevel: 2 }).addPass(createPass(passName)).run();
 const fibAfter = after.functions.find((f) => f.name === '$func5')!;

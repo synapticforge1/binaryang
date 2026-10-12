@@ -26,9 +26,14 @@
  * Prints every hit, grouped by check, and exits 1 if there is one.
  *
  * ```sh
- * deno run --allow-run --allow-read scripts/check-portability.ts
+ * bun scripts/check-portability.ts
  * ```
  */
+
+import { readFile } from 'node:fs/promises';
+import process from 'node:process';
+
+import { spawnSync } from 'node:child_process';
 
 const DENO_GLOBAL = /\bDeno\.[a-zA-Z]/;
 const JSDOC_LINE = /^\s*\*/;
@@ -51,19 +56,19 @@ export const isNodeImport = (line: string): boolean => NODE_IMPORT.test(line);
 
 /** Shipped source as the rule reads it: every tracked `.ts` under `src/`, plus `main.ts`. */
 async function shippedSource(): Promise<string[]> {
-  const out = await new Deno.Command('git', {
-    args: ['ls-files', '-z', '--', 'src/*.ts', 'main.ts'],
-    stderr: 'inherit',
-  }).output();
-  if (!out.success) throw new Error(`git ls-files exited ${out.code}`);
-  return new TextDecoder().decode(out.stdout).split('\0').filter((p) => p !== '');
+  const out = spawnSync('git', ['ls-files', '-z', '--', 'src/*.ts', 'main.ts'], {
+    stdio: ['ignore', 'pipe', 'inherit'],
+    maxBuffer: 1 << 28,
+  });
+  if (out.status !== 0) throw new Error(`git ls-files exited ${out.status}`);
+  return out.stdout.toString('utf8').split('\0').filter((p) => p !== '');
 }
 
 if (import.meta.main) {
   const denoHits: string[] = [];
   const nodeHits: string[] = [];
   for (const file of await shippedSource()) {
-    const text = await Deno.readTextFile(file);
+    const text = await readFile(file, 'utf8');
     denoHits.push(...scan(file, text, isDenoGlobal));
     if (file.startsWith('src/') && !CLI_LAYER.test(file)) {
       nodeHits.push(...scan(file, text, isNodeImport));
@@ -73,5 +78,5 @@ if (import.meta.main) {
   if (nodeHits.length > 0) {
     console.log(['node: imports outside the CLI layer:', ...nodeHits].join('\n'));
   }
-  Deno.exit(denoHits.length + nodeHits.length === 0 ? 0 : 1);
+  process.exit(denoHits.length + nodeHits.length === 0 ? 0 : 1);
 }

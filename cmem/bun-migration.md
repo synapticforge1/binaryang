@@ -95,13 +95,50 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 | B1   | **`jsr.json` is the one package manifest.** `deno.json` loses `name` / `version` / `license` / `exports` / `publish`. The bump, release driver, entry check, `RELEASE_FILES`, the three workflows and `version_sync` read `jsr.json`. `version_sync` also fails if `deno.json` names the package again. | ✅ on `bun-1-jsr-manifest`, gate below                                         |
 | B2   | **Bun project files next to Deno's.** ✅ Built 2026-10-12 on `bun-2-project-files`: `package.json` (private; dev dependencies `typescript` 7.0.2 and `@types/node` ~22.18, the Node floor; script `check`), `tsconfig.json` (deno.json's strictness flags, `types: ["node"]` so a Bun-only API fails), `bun.lock`, and a CI step `bun install --frozen-lockfile && bun run check`. **Scope, by decision:** `tsc` checks the SHIPPED code (`main.ts`, `src/`), 0 errors in 668 ms, and an injected `TS2322` fails it. tests/, scripts/ and comparison/ still use Deno globals; each joins `include` as B4 / B5 converts it, with its own `tsconfig` for the 3 `noUncheckedIndexedAccess: false` members. `.npmrc` / `@std` aliases and `dprint` / a linter come with B3 and B5, when something first needs them. `version_sync` also refuses `name` / `version` / `exports` / `bin` in `package.json`. ⚠️ On this machine's exFAT drive `bun install` cannot write `bun.lock` (`local/environment.md`). | ✅ `tsc` and `deno check` both green on the same commit                       |
 | B3   | **Formatting and lint off Deno.** `deno fmt` IS dprint's TypeScript plugin, so `dprint` with the same settings (`lineWidth` 100, `indentWidth` 2, `singleQuote`) should leave the tree byte-identical. Measure that first: `dprint check` on the current tree must report 0 files. Lint: pick a linter and map Deno's `recommended` rules; record each rule dropped. | `dprint check` 0 diffs; linter green; dropped rules listed                    |
-| B4   | **Scripts on `node:` builtins, RUN BY BUN** (owner, 2026-10-12: "All of our scripts will now be run from bun instead of deno"; each `deno task` becomes a `package.json` script run by `bun run`). `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
+| B4   | ✅ **Built 2026-10-12 on `bun-4-scripts`:** all 51 script files are `node:`-only (no `Deno.*` in code, no `@std` / `jsr:` imports), and the 20 tasks are `package.json` scripts. Bun runs them, except the engine oracles, which run on Node (§ "The engine oracle"); `proposals` picks an engine per proposal. tsc checks `scripts/`. **Differential, old Deno vs new, same inputs:** every output identical, and every corpus tree byte-identical (core 7,422, legacy 29, translate-eh 29, proposals 874 files). Expected differences only: the `bump` usage line; the 4 `proposals` summary lines that now name their engine; `hostile`'s DEPTH table, which measures each runtime's stack (its mutation half is identical). Found: item 27 (an interp defect on `main`) and the gen_demo_bytes drift (below). **Original plan:** **Scripts on `node:` builtins, RUN BY BUN** (owner, 2026-10-12: "All of our scripts will now be run from bun instead of deno"; each `deno task` becomes a `package.json` script run by `bun run`). `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
 | B5   | **Tests on `node:test`, run by both Bun and Node** (§ "Bun or Node", DECIDED 2026-10-12). `@std/testing/bdd` → `node:test`'s `describe` / `it` (required: bdd calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | test counts equal; injected-mutant check                                       |
 | B6   | **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
 | B7   | **Delete `deno.json` and `deno.lock`.** `--config jsr.json` comes off the publish commands, since `jsr.json` is then found on its own. `version_sync`'s second test turns into "there is no `deno.json`". `cmem/` updated throughout. | gate green with no `deno.json` in the tree                                     |
 
 **B6 is the only step that is hard to undo**, because a JSR version is immutable. The other
 steps can sit on `main` in any order after their predecessor, unreleased, behind the usual merge.
+
+## The engine oracle — Bun's WebAssembly is NOT V8 (found in B4, 2026-10-12)
+
+**Bun runs WebAssembly on JavaScriptCore (Safari's engine). Deno and Node run it on V8.** Several
+gate steps use the HOST engine as an oracle: `WebAssembly.validate` / `Module` / `Instance` decide
+whether our output is valid and whether it computes the same thing. Moving such a step from Deno to
+Bun silently swaps the oracle.
+
+Measured 2026-10-12: every `.wasm` in the prepared corpora, validated by each runtime's own engine
+(Deno 2.9.7, Node 24.21.0, Bun 1.4.3):
+
+| corpus              | modules | Deno (V8) vs Node (V8) | Deno (V8) vs Bun (JavaScriptCore) |
+| ------------------- | ------- | ---------------------- | ---------------------------------- |
+| core spec           | 5,924   | **0 differ**           | **297 differ**                     |
+| legacy EH           | 18      | 0                      | 1                                  |
+| `proposals/` (four) | 811     | 0                      | 2                                  |
+
+What JavaScriptCore does differently:
+- **no memory64 / table64**: it refuses 227 core modules V8 accepts (`memory64-imports` 62,
+  `memory_init64` 29, `align64` 26, `table_copy64` / `memory_copy64` 22 each, …);
+- **it accepts 70 core modules the spec says must be REJECTED**: 64 in `unreached-invalid`, plus 6 in
+  `call_ref` / `return_call_ref` / `return_call_indirect` / `table`;
+- no legacy `try_delegate` (1); `wide-arithmetic` on by default, where V8 needs a flag (2).
+
+So JavaScriptCore is a weaker oracle on BOTH axes, and Node's V8 is a drop-in for Deno's. **Rule
+(B4): a script that runs modules on the host engine runs on Node**, as
+`node --experimental-transform-types scripts/…`. That is `direct`, `direct-behaviour`,
+`translate-eh`, `optimize-corpus`, `spec-behaviour`, `offsets`, `engine-check`, and the behaviour
+half of `proposals`, which also passes its V8 flags to Node directly. Everything else runs on Bun.
+The owner's both-runtimes rule is what makes this a WIRING choice, not a code change. ⚠️ **Owner
+to confirm** (2026-10-12): the rule says scripts run on Bun, and these keep V8 instead.
+
+**For B5:** 220 test files call the host engine too. On Bun those assertions meet JavaScriptCore;
+on Node, V8. The suite therefore has to pass on Node as it does on Deno today, and any difference
+on Bun gets classified (engine gap vs our defect) rather than pinned blind. JavaScriptCore as an
+EXTRA engine has value, for the owner's rule "refuse what will not run on all platforms"
+(divergences V1–V4). It is not a replacement for V8.
 
 ## Bun or Node for development — DECIDED (owner, 2026-10-12)
 
@@ -164,6 +201,19 @@ while JSR's latest was 1.10.0. That happened in a clean directory with `--no-loc
 cached copy of JSR's version list. `--reload=jsr:@jrmarcum/binaryang` did not refresh it; a full
 `--reload` did. The no-install form runs whatever version the cache last saw. The install step
 pins a version in a lockfile instead.
+
+Side finding in B4, 2026-10-12, **not caused by the migration**: `scripts/binaryen-ts/gen_demo_bytes.ts`
+does not reproduce the committed `src/wasm/demo_bytes.ts`, even in its old Deno form run on
+unchanged `main`. The generator writes `@module binaryen-ts/wasm/demo_bytes` and "Source size: 145
+bytes"; the committed file says `@module wasm/demo_bytes` and 82 bytes. The file was edited after the
+one-tree move and the generator never followed, and no gate runs it. Old and new generators produce
+IDENTICAL output (checked), so B4 changed nothing here. Fixing the drift (regenerate, or retire the
+generator) touches a shipped file and is the owner's call.
+
+Also deliberate in B4: the two generators' OUTPUT headers keep their old wording
+(`deno task definitions` in `src/definitions/data.ts`; the `deno run …` line in
+`src/wasm/demo_bytes.ts`). Those headers are part of shipped files, and `data.ts` is what consumers
+check their copies against. Update them with the next intentional change to either file.
 
 ## Other issues to account for
 

@@ -25,8 +25,8 @@
  * hold in every world; every lowered module must validate with no custom page
  * size left. Exit 0 only then.
  *
- * Usage: `deno run --allow-read scripts/check-lowered-page-sizes.ts <prepared proposals/custom-page-sizes dir>`
- * (`deno task proposals` runs it).
+ * Usage: `node --experimental-transform-types scripts/check-lowered-page-sizes.ts <prepared proposals/custom-page-sizes dir>`
+ * (`bun run proposals` runs it).
  */
 
 import { readForPasses } from '../src/ir/prepare.ts';
@@ -36,10 +36,13 @@ import { hasErrors } from '../src/core/error.ts';
 import { allFeatures } from '../src/core/feature.ts';
 import { wasmValidate } from '../src/tools/wasm-validate.ts';
 
-const dir = Deno.args[0];
+import { readdirSync, readFileSync } from 'node:fs';
+import process from 'node:process';
+
+const dir = process.argv.slice(2)[0];
 if (!dir) {
   console.error('usage: check-lowered-page-sizes.ts <prepared custom-page-sizes dir>');
-  Deno.exit(2);
+  process.exit(2);
 }
 
 interface SpecValue {
@@ -167,11 +170,13 @@ const engineLimited = new Set<string>();
 const failures: string[] = [];
 const fail = (w: World, where: string, why: string) => failures.push(`${where} [${w.name}] ${why}`);
 
-const dirs = [...Deno.readDirSync(dir)].filter((e) => e.isDirectory).map((e) => e.name).sort();
+const dirs = readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) =>
+  e.name
+).sort();
 for (const d of dirs) {
   let manifest: { commands: Command[] };
   try {
-    manifest = JSON.parse(Deno.readTextFileSync(`${dir}/${d}/${d}.json`));
+    manifest = JSON.parse(readFileSync(`${dir}/${d}/${d}.json`, 'utf8'));
   } catch {
     continue;
   }
@@ -185,7 +190,7 @@ for (const d of dirs) {
     const where = `${d}.wast:${c.line}`;
     if ((c.type === 'module' || c.type === 'module_definition') && c.filename?.endsWith('.wasm')) {
       modules++;
-      const bytes = Deno.readFileSync(`${dir}/${d}/${c.filename}`);
+      const bytes = new Uint8Array(readFileSync(`${dir}/${d}/${c.filename}`));
       for (const w of worlds) {
         let made: Uint8Array;
         try {
@@ -237,7 +242,7 @@ for (const d of dirs) {
     }
     if (c.type === 'assert_unlinkable' && c.filename?.endsWith('.wasm')) {
       unlinkable++;
-      const bytes = Deno.readFileSync(`${dir}/${d}/${c.filename}`);
+      const bytes = new Uint8Array(readFileSync(`${dir}/${d}/${c.filename}`));
       for (const w of worlds) {
         let linked = false;
         try {
@@ -338,4 +343,4 @@ if (failures.length === 0) {
     `\n  TOTAL — every module compiles and instantiates, and all ${assertions} assertions hold in every world.`,
   );
 }
-Deno.exit(failures.length === 0 ? 0 : 1);
+process.exit(failures.length === 0 ? 0 : 1);

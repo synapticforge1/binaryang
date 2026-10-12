@@ -25,14 +25,22 @@
  * Usage:
  *
  * ```sh
- * deno task engine-check path/to/dir-of-wasm
+ * node --experimental-transform-types scripts/wabt-ts/engine-check.ts path/to/dir-of-wasm
+ *
+ * On Node, so that the `v8` engine below IS V8: under Bun the host engine is JavaScriptCore
+ * (cmem/bun-migration.md § "The engine oracle").
  * ```
  *
  * Missing engines are reported and skipped rather than failing the run, so
  * this still does something useful on a machine with only one installed.
  */
 
-import { join } from 'jsr:@std/path@^1.0.0';
+import { join } from 'node:path';
+
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import process from 'node:process';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 
 /**
  * Proposals to enable, listed explicitly.
@@ -86,8 +94,7 @@ type Engine = (wasm: Uint8Array, path: string, scratch: string) => Promise<Verdi
 
 async function have(bin: string): Promise<boolean> {
   try {
-    const c = new Deno.Command(bin, { args: ['--version'], stdout: 'null', stderr: 'null' });
-    return (await c.output()).success;
+    return Promise.resolve(spawnSync(bin, ['--version'], { stdio: 'ignore' }).status === 0);
   } catch {
     return false;
   }
@@ -112,14 +119,12 @@ const wasmtime: Engine = async (_wasm, path, scratch) => {
   // "failed to write output", which an earlier hand-rolled harness scored as a
   // rejection — I/O collisions, not validation failures.
   const out = join(scratch, `${crypto.randomUUID()}.cwasm`);
-  const cmd = new Deno.Command('wasmtime', {
-    args: ['compile', '-W', WASMTIME_FEATURES, path, '-o', out],
-    stdout: 'null',
-    stderr: 'piped',
+  const r = spawnSync('wasmtime', ['compile', '-W', WASMTIME_FEATURES, path, '-o', out], {
+    stdio: ['ignore', 'ignore', 'pipe'],
   });
-  const { success, stderr } = await cmd.output();
+  const success = r.status === 0, stderr = r.stderr;
   try {
-    Deno.removeSync(out);
+    rmSync(out);
   } catch { /* never created */ }
   const err = new TextDecoder().decode(stderr).replace(/\s+/g, ' ').trim();
   if (/failed to write output/.test(err)) {
@@ -128,8 +133,14 @@ const wasmtime: Engine = async (_wasm, path, scratch) => {
   return { accepted: success, reason: err.slice(0, 80) };
 };
 
-const wasmer: Engine = async (_wasm, path) => {
-  const cmd = new Deno.Command('wasmer', {
+/** Runs `bin` with `o.args`, stdout and stderr captured. */
+function captured(bin: string, o: { args: string[] }): { stdout: Uint8Array; stderr: Uint8Array } {
+  const r = spawnSync(bin, o.args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  return { stdout: r.stdout, stderr: r.stderr };
+}
+
+const wasmer: Engine = (_wasm, path) => {
+  const cmd = captured('wasmer', {
     // An EXPLICIT list, for exactly the reason Wasmtime gets one — and the
     // first attempt here was `--enable-all`, which is the same mistake this
     // file's own header warns about, made a second time.
@@ -148,12 +159,10 @@ const wasmer: Engine = async (_wasm, path) => {
     // A rejection from them is then a real GAP in Wasmer rather than a gate we
     // failed to lift, which is the distinction the whole file exists to draw.
     args: ['validate', ...WASMER_FEATURES, path],
-    stdout: 'piped',
-    stderr: 'piped',
   });
-  const { stdout, stderr } = await cmd.output();
+  const { stdout, stderr } = cmd;
   const out = new TextDecoder().decode(stdout) + new TextDecoder().decode(stderr);
-  if (/Validation passed/.test(out)) return { accepted: true, reason: '' };
+  if (/Validation passed/.test(out)) return Promise.resolve({ accepted: true, reason: '' });
   // Wasmer reports the CAUSE on a continuation line (`╰─▶ 1: …`); the first
   // line is only "failed to validate <path>", which groups every rejection
   // under one useless heading — and the path makes each one unique, so the
@@ -162,7 +171,7 @@ const wasmer: Engine = async (_wasm, path) => {
   const flat = out.replace(/\s+/g, ' ');
   const cause = /╰─▶\s*\d*:?\s*(.{0,80})/.exec(flat) ??
     /Validation error: (.{0,80})/.exec(flat);
-  return { accepted: false, reason: (cause?.[1] ?? flat).slice(0, 80) };
+  return Promise.resolve({ accepted: false, reason: (cause?.[1] ?? flat).slice(0, 80) });
 };
 
 const ENGINES: ReadonlyArray<readonly [string, Engine, string]> = [
@@ -201,17 +210,19 @@ const KNOWN_GOOD = Uint8Array.from(
 );
 
 async function main(): Promise<void> {
-  const dir = Deno.args[0];
+  const dir = process.argv.slice(2)[0];
   if (dir === undefined) {
-    console.error('usage: deno task engine-check <dir-of-wasm>');
-    Deno.exit(2);
+    console.error(
+      'usage: node --experimental-transform-types scripts/wabt-ts/engine-check.ts <dir-of-wasm>',
+    );
+    process.exit(2);
   }
 
-  const scratch = Deno.makeTempDirSync({ prefix: 'engine-check-' });
+  const scratch = mkdtempSync(join(tmpdir(), 'engine-check-'));
   const badPath = join(scratch, 'known-bad.wasm');
-  Deno.writeFileSync(badPath, KNOWN_BAD);
+  writeFileSync(badPath, KNOWN_BAD);
   const goodPath = join(scratch, 'known-good.wasm');
-  Deno.writeFileSync(goodPath, KNOWN_GOOD);
+  writeFileSync(goodPath, KNOWN_GOOD);
 
   const active: Array<readonly [string, Engine, string]> = [];
   for (const entry of ENGINES) {
@@ -226,7 +237,7 @@ async function main(): Promise<void> {
         `ABORT: ${name} ACCEPTED the known-invalid self-test module. ` +
           `The harness cannot detect a rejection, so any result would be meaningless.`,
       );
-      Deno.exit(1);
+      process.exit(1);
     }
     const g = await fn(KNOWN_GOOD, goodPath, scratch);
     if (g === null || !g.accepted) {
@@ -235,17 +246,17 @@ async function main(): Promise<void> {
           `${g === null ? '' : ` (${g.reason})`}. ` +
           `The harness cannot detect an acceptance, so any result would be meaningless.`,
       );
-      Deno.exit(1);
+      process.exit(1);
     }
     active.push(entry);
   }
   if (active.length === 0) {
     console.error('no engines available');
-    Deno.exit(1);
+    process.exit(1);
   }
   console.log(`self-test passed for: ${active.map(([n]) => n).join(', ')}\n`);
 
-  const files = [...Deno.readDirSync(dir)]
+  const files = readdirSync(dir, { withFileTypes: true })
     .filter((e) => e.name.endsWith('.wasm'))
     .map((e) => e.name)
     .sort();
@@ -257,7 +268,7 @@ async function main(): Promise<void> {
 
   for (const f of files) {
     const path = join(dir, f);
-    const wasm = Deno.readFileSync(path);
+    const wasm = new Uint8Array(readFileSync(path));
     const verdicts = new Map<string, boolean>();
     for (const [name, fn] of active) {
       const v = await fn(wasm, path, scratch);
@@ -297,7 +308,7 @@ async function main(): Promise<void> {
   );
 
   try {
-    Deno.removeSync(scratch, { recursive: true });
+    rmSync(scratch, { recursive: true });
   } catch { /* leave it */ }
 }
 

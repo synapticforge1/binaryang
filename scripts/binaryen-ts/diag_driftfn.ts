@@ -6,7 +6,7 @@
  * reconstructs differently (typically via empty-stack nop insertion).
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/diag_driftfn.ts <relpath>
+ *   bun scripts/binaryen-ts/diag_driftfn.ts <relpath>
  *
  * @license MIT
  */
@@ -17,8 +17,10 @@ import { writeWasm } from '../../src/ir/write-wasm.ts';
 import { walkExpression } from '../../src/ir/walk.ts';
 import type { Expression } from '../../src/ir/expressions.ts';
 
+import process from 'node:process';
+
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
-const rel = Deno.args[0];
+const rel = process.argv.slice(2)[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const mod1 = readForPasses(orig);
 const mod2 = readForPasses(writeWasm(mod1));

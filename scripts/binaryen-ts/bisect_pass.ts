@@ -7,7 +7,7 @@
  * -Oz pipeline prefix-by-prefix to find the first breaking step.
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/bisect_pass.ts <relpath>
+ *   node --experimental-transform-types scripts/binaryen-ts/bisect_pass.ts <relpath>
  *
  * @license MIT
  */
@@ -16,10 +16,11 @@ import * as fs from 'node:fs/promises';
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
 import { createPass, PassRunner } from '../../src/passes/pass.ts';
+import process from 'node:process';
 import '../../src/passes/index.ts'; // side-effect: register all built-in passes
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
-const rel = Deno.args[0];
+const rel = process.argv.slice(2)[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 
 const OZ = [

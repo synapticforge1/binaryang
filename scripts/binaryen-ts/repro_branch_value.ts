@@ -12,7 +12,7 @@
  * fannkuch0_dwarf.wasm followed by encode breaks).
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/repro_branch_value.ts
+ *   node --experimental-transform-types scripts/binaryen-ts/repro_branch_value.ts
  *
  * @license MIT
  */

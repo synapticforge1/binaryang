@@ -30,7 +30,7 @@
  *   wasm. Whatever produces it emits an invalid module, or throws.
  *
  * ```sh
- * deno run --allow-read scripts/check-operator-mapping.ts
+ * bun scripts/check-operator-mapping.ts
  * ```
  *
  * Exit 0 when total, 1 otherwise.
@@ -39,6 +39,9 @@
  */
 
 import { OPCODE_DEFINITIONS, opcodeKey } from '../src/definitions/mod.ts';
+
+import { readFile } from 'node:fs/promises';
+import process from 'node:process';
 
 /**
  * `ExpressionKind`'s members as `[identifier, kind string]`. It is a const
@@ -137,7 +140,7 @@ if (known.size < 100) {
       `tables in opcode.ts have probably moved, so this check is not measuring what ` +
       `it claims. Failing rather than passing vacuously.`,
   );
-  Deno.exit(1);
+  process.exit(1);
 }
 
 // ⚠️ **The invariant changed with S6 stage 1, and so did this check.**
@@ -151,9 +154,7 @@ if (known.size < 100) {
 // It also covers ALL ELEVEN operator enums. The previous version imported only
 // UnaryOp and BinaryOp, checking 315 of 371 members, which is why two BrOnOp
 // members with no resolvable name went unnoticed until the conversion.
-const exprSrc = await Deno.readTextFile(
-  new URL('../src/ir/expressions.ts', import.meta.url),
-);
+const exprSrc = await readFile(new URL('../src/ir/expressions.ts', import.meta.url), 'utf8');
 
 /** Every operator constant, as `EnumName.Member` -> numeric value. */
 function operatorConstants(src: string): Map<string, number> {
@@ -178,7 +179,7 @@ const orphans = [...constants].filter(([, v]) => !knownOpcodes.has(v)).map(([k])
 console.log(`instruction names known to wabt-ts : ${known.size}`);
 console.log(`operator constants checked         : ${constants.size} across all operator enums`);
 
-const irSrc = await Deno.readTextFile(new URL('../src/ir/ir.ts', import.meta.url));
+const irSrc = await readFile(new URL('../src/ir/ir.ts', import.meta.url), 'utf8');
 const phantoms = phantomKinds(exprSrc, irSrc);
 const added = phantoms.filter((p) => !PHANTOM_BUDGET.includes(p));
 if (added.length > 0) {
@@ -188,7 +189,7 @@ if (added.length > 0) {
     '\nA declared kind with nothing behind it reads as support in every count that ' +
       'scans the enum. Implement it or remove it; the pinned list must not grow.',
   );
-  Deno.exit(1);
+  process.exit(1);
 }
 // A RATCHET, not only a ceiling: a pinned name that is no longer a phantom must
 // leave the list, or it would let that same phantom come back unnoticed. Found
@@ -199,7 +200,7 @@ if (retired.length > 0) {
   console.error(`\n${retired.length} pinned kind(s) no longer declared-but-unimplemented:`);
   for (const p of retired) console.error(`  ${p}`);
   console.error('\nRemove them from PHANTOM_BUDGET so the list only ever shrinks.');
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(`declared-but-unimplemented kinds   : ${phantoms.length} (pinned)`);
 
@@ -224,7 +225,7 @@ function wabtExprKinds(irSrc: string): Set<string> {
   const union = irSrc.match(/export type Expr =([\s\S]*?);/);
   if (!union) {
     console.error('check-operator-mapping: no `export type Expr =` union in ir.ts — failing.');
-    Deno.exit(1);
+    process.exit(1);
   }
   const out = new Set<string>();
   const missing: string[] = [];
@@ -241,7 +242,7 @@ function wabtExprKinds(irSrc: string): Set<string> {
         `${missing.join(', ')} — the shapes in ir.ts have moved. Failing rather than ` +
         `passing vacuously.`,
     );
-    Deno.exit(1);
+    process.exit(1);
   }
   return out;
 }
@@ -275,7 +276,7 @@ const ONE_SIDED_BUDGET = {
 };
 
 const wabtKinds = wabtExprKinds(
-  await Deno.readTextFile(new URL('../src/ir/ir.ts', import.meta.url)),
+  await readFile(new URL('../src/ir/ir.ts', import.meta.url), 'utf8'),
 );
 const binKinds = new Set(
   expressionKindMembers(exprSrc)
@@ -310,7 +311,7 @@ for (const side of ['wabt', 'binaryen'] as const) {
     oneSidedFailed = true;
   }
 }
-if (oneSidedFailed) Deno.exit(1);
+if (oneSidedFailed) process.exit(1);
 console.log(
   `kinds shared by both IRs           : ${
     [...wabtKinds].filter((k) => binKinds.has(k)).length
@@ -319,7 +320,7 @@ console.log(
 
 if (orphans.length === 0) {
   console.log('TOTAL — every operator constant is an opcode wabt-ts names.');
-  Deno.exit(0);
+  process.exit(0);
 }
 
 console.error(`\n${orphans.length} operator(s) name NO known instruction:`);
@@ -329,4 +330,4 @@ console.error(
   '\nEither the operator is misspelled, or wabt-ts learned an instruction under a ' +
     'different name. Both break the grouping premise in cmem/ir-convergence.md.',
 );
-Deno.exit(1);
+process.exit(1);

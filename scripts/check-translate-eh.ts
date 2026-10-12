@@ -27,7 +27,7 @@
  * ## Usage
  *
  * ```sh
- * deno task translate-eh <testsuite>/legacy <scratch-out-dir>
+ * bun run translate-eh <testsuite>/legacy <scratch-out-dir>
  * ```
  *
  * The `.wast` files are split with upstream `wast2json` (`--enable-exceptions
@@ -48,10 +48,15 @@ import { allFeatures } from '../src/core/feature.ts';
 import { readBinaryIr } from '../src/reader/binary-reader-ir.ts';
 import { validateModule } from '../src/validator/validator.ts';
 
-const [srcDir, outDir] = Deno.args;
+import { mkdir, readFile } from 'node:fs/promises';
+import process from 'node:process';
+import { readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+
+const [srcDir, outDir] = process.argv.slice(2);
 if (!srcDir || !outDir) {
-  console.error('usage: deno task translate-eh <testsuite>/legacy <scratch-out-dir>');
-  Deno.exit(2);
+  console.error('usage: bun run translate-eh <testsuite>/legacy <scratch-out-dir>');
+  process.exit(2);
 }
 
 interface SpecValue {
@@ -131,7 +136,7 @@ function inspect(bytes: Uint8Array): string[] {
   return problems;
 }
 
-await Deno.mkdir(outDir, { recursive: true });
+await mkdir(outDir, { recursive: true });
 const failures: string[] = [];
 const totals = new Map<World, { pass: number; fail: number }>(
   WORLDS.map((w) => [w, { pass: 0, fail: 0 }]),
@@ -139,7 +144,7 @@ const totals = new Map<World, { pass: number; fail: number }>(
 let modules = 0;
 let skipped = 0;
 
-const wastFiles = [...Deno.readDirSync(srcDir)]
+const wastFiles = readdirSync(srcDir, { withFileTypes: true })
   .map((e) => e.name)
   .filter((n) => n.endsWith('.wast'))
   .sort();
@@ -147,14 +152,16 @@ const wastFiles = [...Deno.readDirSync(srcDir)]
 for (const name of wastFiles) {
   const base = name.replace(/\.wast$/, '');
   const json = `${outDir}/${base}.json`;
-  const split = await new Deno.Command('wast2json', {
-    args: ['--enable-exceptions', '--enable-tail-call', `${srcDir}/${name}`, '-o', json],
-  }).output();
-  if (!split.success) {
-    failures.push(`${base}: wast2json failed: ${new TextDecoder().decode(split.stderr).trim()}`);
+  const split = spawnSync(
+    'wast2json',
+    ['--enable-exceptions', '--enable-tail-call', `${srcDir}/${name}`, '-o', json],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  if (split.status !== 0) {
+    failures.push(`${base}: wast2json failed: ${split.stderr.toString('utf8').trim()}`);
     continue;
   }
-  const commands = (JSON.parse(await Deno.readTextFile(json)) as { commands: Command[] }).commands;
+  const commands = (JSON.parse(await readFile(json, 'utf8')) as { commands: Command[] }).commands;
 
   const registry = new Map<World, Map<string, WebAssembly.Exports>>(
     WORLDS.map((w) => [w, new Map()]),
@@ -168,7 +175,7 @@ for (const name of wastFiles) {
     const where = `${base}.wast:${c.line}`;
     if (c.type === 'module') {
       modules++;
-      const legacy = await Deno.readFile(`${outDir}/${c.filename}`);
+      const legacy = new Uint8Array(await readFile(`${outDir}/${c.filename}`));
       const forms: Record<World, Uint8Array> = {
         legacy,
         translated: translate(legacy, false),
@@ -265,7 +272,7 @@ console.log(
 if (failures.length > 0) {
   console.log(`\n  ${failures.length} FAILURE(S):`);
   for (const f of failures) console.log(`    ${f}`);
-  Deno.exit(1);
+  process.exit(1);
 }
 console.log(
   '\n  every assertion holds in every world; every translated module is legacy-free and valid',

@@ -50,7 +50,7 @@ describe('T13.43 — release preflight', () => {
   // third version literal added to the bump fails here instead of at release.
   it('exempts exactly the files deno task bump writes', async () => {
     const bump = await Deno.readTextFile('scripts/release/bump_version.ts');
-    const names = [...bump.matchAll(/Deno\.writeTextFile\(\s*(\w+)/g)].map((m) => m[1]!);
+    const names = [...bump.matchAll(/\bwriteFile\(\s*(\w+)/g)].map((m) => m[1]!);
     expect(names.length).toBeGreaterThan(0);
     const urls = version as unknown as Record<string, URL>;
     const root = new URL('../../../', import.meta.url).href;

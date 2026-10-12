@@ -3,8 +3,8 @@
 
 /**
  * The spec testsuite's `proposals/` — what each one needs to be judged. ONE
- * table, read by `deno task spec` and `deno task spec-behaviour` (`--proposal
- * <name>`) and by the driver, `deno task proposals` (`check-proposals.ts`).
+ * table, read by `bun run spec` and `bun run spec-behaviour` (`--proposal
+ * <name>`) and by the driver, `bun run proposals` (`check-proposals.ts`).
  *
  * Owner, 2026-09-29: both halves in the gate — validity AND behaviour, the
  * latter on V8's EXPERIMENTAL flags, accepting that a future Deno may need a
@@ -17,6 +17,8 @@
 
 import type { Features } from '../src/core/feature.ts';
 import { featuresForSuite } from '../src/definitions/mod.ts';
+
+import process from 'node:process';
 
 /**
  * The feature set a suite in `dir` (relative to the testsuite root) is written
@@ -35,8 +37,14 @@ export interface Proposal {
    * suite's `assert_invalid` valid.
    */
   features: Features;
-  /** `--v8-flags` the behaviour check runs under; empty when V8 needs none. */
+  /** V8 flags the behaviour check runs under (`engine` `node` or `deno`); empty when V8 needs none. */
   v8Flags: string[];
+  /**
+   * Which runtime's WebAssembly engine runs the behaviour check (Bun migration B4, 2026-10-12;
+   * cmem/bun-migration.md § "The engine oracle"). `node` (V8) unless a row says otherwise: an
+   * experimental proposal needs an engine that HAS it, and today no single one has them all.
+   */
+  engine?: 'node' | 'deno' | 'bun';
   /**
    * Why the behaviour half cannot run, when it cannot: the invocations are then
    * reported as NOT RUN, never as passing.
@@ -57,6 +65,11 @@ export const PROPOSALS: readonly Proposal[] = [
     // D2: on ONLY here — it relaxes `br_on_cast`, which the core suite asserts.
     features: suiteFeatures('proposals/custom-descriptors/'),
     v8Flags: ['--experimental-wasm-custom-descriptors'],
+    // TEMPORARY, on Deno's V8 (15.0). Measured 2026-10-12: Node 24's V8 (13.6) predates opcode
+    // 0xfb20 and refuses 9 originals; Node 26's V8 (14.6) accepts them, but Node 26 removed
+    // --experimental-transform-types, so it cannot run this TypeScript source at all (enums,
+    // parameter properties). Revisit when the source is erasable-only or Deno is gone.
+    engine: 'deno',
   },
   {
     name: 'custom-page-sizes',
@@ -77,7 +90,12 @@ export const PROPOSALS: readonly Proposal[] = [
   {
     name: 'wide-arithmetic',
     features: suiteFeatures('proposals/wide-arithmetic/'),
-    v8Flags: ['--experimental-wasm-wide-arithmetic'],
+    // On Bun: JavaScriptCore has wide-arithmetic ON by default. V8 has it only from 15.0 (Deno,
+    // behind --experimental-wasm-wide-arithmetic); Node 24's 13.6 and Node 26's 14.6 do not have
+    // it at all. Measured 2026-10-12: on Bun the check gives Deno's exact result (99 invocations,
+    // 2 modules, 0 DIVERGE).
+    v8Flags: [],
+    engine: 'bun',
   },
 ];
 
@@ -86,7 +104,7 @@ export function proposalNamed(name: string): Proposal {
   const p = PROPOSALS.find((x) => x.name === name);
   if (p !== undefined) return p;
   console.error(`unknown proposal '${name}'; known: ${PROPOSALS.map((x) => x.name).join(', ')}`);
-  Deno.exit(2);
+  process.exit(2);
 }
 
 /** `--proposal <name>` from `args`, removed from them; `undefined` when absent. */
@@ -96,7 +114,7 @@ export function takeProposalArg(args: string[]): Proposal | undefined {
   const name = args[i + 1];
   if (name === undefined) {
     console.error('--proposal needs a name');
-    Deno.exit(2);
+    process.exit(2);
   }
   args.splice(i, 2);
   return proposalNamed(name);

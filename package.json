@@ -2,7 +2,27 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "tsc -p tsconfig.json"
+    "check": "tsc -p tsconfig.json && tsc -p scripts/binaryen-ts/tsconfig.json",
+    "naming": "bun scripts/check-naming.ts",
+    "portability": "bun scripts/check-portability.ts",
+    "collisions": "bun scripts/count-collisions.ts",
+    "diagnostics": "bun scripts/measure-diagnostics.ts",
+    "bump": "bun scripts/release/bump_version.ts",
+    "release": "bun scripts/release/publish.ts",
+    "baseline": "bun scripts/wabt-ts/verify-baseline.ts",
+    "operators": "bun scripts/check-operator-mapping.ts",
+    "spec:prepare": "bun scripts/spec-prepare.ts",
+    "spec": "bun scripts/spec-testsuite.ts",
+    "interp": "bun scripts/check-interp.ts",
+    "proposals": "bun scripts/check-proposals.ts",
+    "definitions": "bun scripts/definitions.ts",
+    "offsets": "node --experimental-transform-types --no-warnings scripts/measure-diagnostic-offsets.ts",
+    "direct": "node --experimental-transform-types --no-warnings scripts/check-direct-corpus.ts",
+    "direct-behaviour": "node --experimental-transform-types --no-warnings scripts/check-direct-behaviour.ts",
+    "translate-eh": "node --experimental-transform-types --no-warnings scripts/check-translate-eh.ts",
+    "optimize-corpus": "node --experimental-transform-types --no-warnings scripts/check-optimize-corpus.ts",
+    "spec-behaviour": "node --experimental-transform-types --no-warnings scripts/check-spec-behaviour.ts",
+    "hostile": "node --experimental-transform-types --no-warnings scripts/check-hostile.ts"
   },
   "devDependencies": {
     "@types/node": "~22.18.0",

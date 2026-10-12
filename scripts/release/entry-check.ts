@@ -25,8 +25,16 @@
  */
 
 /** What went wrong, one line each; empty when the entry is the CLI. */
+
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
+import { pathToFileURL } from 'node:url';
+
 export async function checkEntry(root: string): Promise<string[]> {
-  const cfg = JSON.parse(await Deno.readTextFile(`${root}/jsr.json`)) as {
+  const cfg = JSON.parse(await readFile(`${root}/jsr.json`, 'utf8')) as {
     version: string;
     exports: Record<string, string>;
   };
@@ -35,19 +43,17 @@ export async function checkEntry(root: string): Promise<string[]> {
   const entry = `${root}/${rel.replace(/^\.\//, '')}`;
   const problems: string[] = [];
 
-  const run = async (args: string[]) => {
-    const r = await new Deno.Command(Deno.execPath(), {
-      args: ['run', '-A', '--quiet', entry, ...args],
+  // The RUNNING runtime, with its own flags (Node needs --experimental-transform-types for
+  // the TypeScript source): the entry is checked under whatever runs the release.
+  const runtime = (args: string[]) => {
+    const r = spawnSync(process.execPath, [...process.execArgv, ...args], {
       cwd: root,
-      stdout: 'piped',
-      stderr: 'piped',
-    }).output();
-    return {
-      code: r.code,
-      out: new TextDecoder().decode(r.stdout),
-      err: new TextDecoder().decode(r.stderr),
-    };
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, NO_COLOR: '1' },
+    });
+    return { code: r.status, out: r.stdout.toString('utf8'), err: r.stderr.toString('utf8') };
   };
+  const run = (args: string[]) => Promise.resolve(runtime([entry, ...args]));
 
   const help = await run(['--help']);
   if (help.code !== 0 || !help.out.includes('USAGE') || !help.out.includes('wat2wasm')) {
@@ -60,10 +66,10 @@ export async function checkEntry(root: string): Promise<string[]> {
     );
   }
 
-  const dir = await Deno.makeTempDir({ prefix: 'binaryang-entry-check-' });
+  const dir = await mkdtemp(join(tmpdir(), 'binaryang-entry-check-'));
   try {
     // (module) — the smallest valid module.
-    await Deno.writeFile(`${dir}/ok.wasm`, Uint8Array.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]));
+    await writeFile(`${dir}/ok.wasm`, Uint8Array.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]));
     const ok = await run(['wasm-validate', `${dir}/ok.wasm`]);
     if (ok.code !== 0) {
       problems.push(`\`${rel} wasm-validate <valid>\` exit ${ok.code}: ${ok.err.trim()}`);
@@ -75,20 +81,23 @@ export async function checkEntry(root: string): Promise<string[]> {
       );
     }
   } finally {
-    await Deno.remove(dir, { recursive: true }).catch(() => {});
+    await rm(dir, { recursive: true }).catch(() => {});
   }
 
-  const imported = await new Deno.Command(Deno.execPath(), {
-    args: [
-      'eval',
-      `await import(${JSON.stringify(new URL(`file:///${entry.replace(/^\//, '')}`).href)})`,
-    ],
-    cwd: root,
-    stdout: 'piped',
-    stderr: 'piped',
-  }).output();
-  const said = new TextDecoder().decode(imported.stdout) +
-    new TextDecoder().decode(imported.stderr);
+  // A one-line importer module, run by the same runtime: `-e` with top-level await is not
+  // portable (Node's `-e` is CommonJS unless told otherwise).
+  const importer = await mkdtemp(join(tmpdir(), 'binaryang-entry-import-'));
+  let imported: { code: number | null; out: string; err: string };
+  try {
+    await writeFile(
+      join(importer, 'import.mjs'),
+      `await import(${JSON.stringify(pathToFileURL(entry).href)});\n`,
+    );
+    imported = runtime([join(importer, 'import.mjs')]);
+  } finally {
+    await rm(importer, { recursive: true }).catch(() => {});
+  }
+  const said = imported.out + imported.err;
   if (imported.code !== 0 || said.trim() !== '') {
     problems.push(
       `importing ${rel} ran something (exit ${imported.code}): ${said.trim().slice(0, 80)}`,

@@ -4,7 +4,7 @@
 /**
  * @module
  * One corpus module, run down BOTH paths and compared. The library half of
- * `deno task direct-behaviour`; the driver is `../check-direct-behaviour.ts`
+ * `bun run direct-behaviour`; the driver is `../check-direct-behaviour.ts`
  * and the worker that isolates a hang is `worker.ts`.
  *
  * A gate that asks whether output COMPILES cannot see a module that compiles
@@ -30,7 +30,7 @@
  * ⚠️ **This was S6 step 5's before/after instrument, and it outlives the step.**
  * B was the bridge until M8e deleted it (1,806 calls across 602 exports agreed,
  * the baseline). Unoptimized, the direct path's bytes ARE `wat2wasm`'s
- * (`deno task direct` holds that), so B runs the optimizer: this is now the one
+ * (`bun run direct` holds that), so B runs the optimizer: this is now the one
  * gate that checks what the optimizer does to a text-read tree by RUNNING it.
  * -O3 because that is where this route's output differs from the decoder
  * route's (the inliner sizes `pop`s and the decoder's local spills

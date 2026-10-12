@@ -1,7 +1,7 @@
 /**
  * Audit wabt-ts EXTENDED_OPCODE_NAMES against upstream wabt's opcode.def.
  *
- * Run: deno run -A scripts/wabt-ts/audit_opcodes.ts
+ * Run: bun scripts/wabt-ts/audit_opcodes.ts
  *
  * Prints any (prefix, byte, name) discrepancies. Fail-loud: if upstream and
  * wabt-ts disagree on a name, that's almost certainly a stale-draft entry
@@ -10,6 +10,9 @@
  * Limited to prefixed opcodes (0xfc, 0xfd, 0xfe) — the unprefixed core set
  * is small enough that bugs would have been caught long ago.
  */
+
+import { readFile } from 'node:fs/promises';
+import process from 'node:process';
 
 const UPSTREAM_DEF = new URL('../../upstream/include/wabt/opcode.def', import.meta.url);
 const WABT_TS_OPCODE = new URL('../../src/core/opcode.ts', import.meta.url);
@@ -55,8 +58,8 @@ function parseWabtTs(src: string): Map<number, string> {
   return out;
 }
 
-const upstream = parseUpstream(await Deno.readTextFile(UPSTREAM_DEF));
-const wabtTs = parseWabtTs(await Deno.readTextFile(WABT_TS_OPCODE));
+const upstream = parseUpstream(await readFile(UPSTREAM_DEF, 'utf8'));
+const wabtTs = parseWabtTs(await readFile(WABT_TS_OPCODE, 'utf8'));
 
 console.log(`upstream: ${upstream.size} prefixed opcodes`);
 console.log(`wabt-ts:  ${wabtTs.size} prefixed opcodes\n`);
@@ -92,4 +95,4 @@ console.log(
   `\nSummary: ${mismatches} mismatches, ${missing} missing, ${extras} extra ` +
     `(wabt-ts entries with no upstream counterpart)`,
 );
-Deno.exit(mismatches > 0 ? 1 : 0);
+process.exit(mismatches > 0 ? 1 : 0);

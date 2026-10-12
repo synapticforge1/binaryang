@@ -31,21 +31,27 @@ not survive a clone is not a project rule. The lessons behind them are in
 
 ## The gate — on the COMMITTED tree, reading every EXIT CODE
 
+🔧 **Since Bun migration B4 (2026-10-12) every project script is a `package.json` script: read
+each `deno task <name>` in this file, history included, as `bun run <name>`.** Only `check`,
+`test`, `fmt`, `lint`, `ci`, `publish:dry` and `comparison` are still `deno task`s (B3 / B5 move
+them). `bun run` starts the right runtime by itself: Bun for most, Node for the steps whose oracle
+is the host WebAssembly engine ([bun-migration.md](bun-migration.md) § "The engine oracle").
+
 CI's steps first, read from `.github/workflows/ci.yml` rather than from memory of it:
 
 `deno fmt --check` · `deno lint` · `deno task ci` · `bun install --frozen-lockfile && bun run check`
-(the `tsc` check, since Bun migration B2, 2026-10-12) · `deno task naming` · `deno task portability` ·
-`deno task baseline` · `deno publish --dry-run --allow-dirty --config jsr.json` — and the `runtimes` job's
+(the `tsc` check, since Bun migration B2, 2026-10-12) · `bun run naming` · `bun run portability` ·
+`bun run baseline` · `deno publish --dry-run --allow-dirty --config jsr.json` — and the `runtimes` job's
 `scripts/cli-smoke.ts`, run under each runtime it tests (locally:
 `deno run -A scripts/cli-smoke.ts
 "deno run -A"`, likewise `node --experimental-transform-types …`
 and `bun …`; all must print the same hash)
 
-then the project's own: `deno task operators` · `deno task spec <corpus>` ·
-`deno task spec-behaviour <corpus>` · `deno task direct` ·
-`deno task direct-behaviour` · `deno task translate-eh <testsuite-main>/legacy <outDir>` ·
-`deno task optimize-corpus` · `deno task proposals <testsuite-main> <outDir>` · then, AFTER
-`proposals` (it prepares their corpora), `deno task interp <corpus> <legacy corpus>
+then the project's own: `bun run operators` · `bun run spec <corpus>` ·
+`bun run spec-behaviour <corpus>` · `bun run direct` ·
+`bun run direct-behaviour` · `bun run translate-eh <testsuite-main>/legacy <outDir>` ·
+`bun run optimize-corpus` · `bun run proposals <testsuite-main> <outDir>` · then, AFTER
+`proposals` (it prepares their corpora), `bun run interp <corpus> <legacy corpus>
 <outDir>/custom-descriptors <outDir>/custom-page-sizes <outDir>/threads <outDir>/wide-arithmetic`
 (below) (since 2026-09-29:
 `proposals/`, validity and behaviour, V8 experimental flags per `scripts/proposals.ts`; expect every

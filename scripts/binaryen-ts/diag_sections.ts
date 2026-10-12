@@ -7,7 +7,7 @@
  * whether custom (e.g. DWARF `.debug_*`) sections are dropped.
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/diag_sections.ts <relpath-under-upstream/test>
+ *   bun scripts/binaryen-ts/diag_sections.ts <relpath-under-upstream/test>
  *
  * @license MIT
  */
@@ -15,6 +15,8 @@
 import * as fs from 'node:fs/promises';
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
+
+import process from 'node:process';
 
 const SECTION_NAMES: Record<number, string> = {
   0: 'custom',
@@ -64,7 +66,7 @@ function sections(bytes: Uint8Array): { id: number; label: string; size: number 
 }
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
-const rel = Deno.args[0];
+const rel = process.argv.slice(2)[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const reenc = writeWasm(readForPasses(orig));
 

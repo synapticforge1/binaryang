@@ -30,13 +30,15 @@
  * trees actually converge.
  *
  * ```sh
- * deno task collisions          # count and names
- * deno task collisions --quiet  # just the count
+ * bun run collisions          # count and names
+ * bun run collisions --quiet  # just the count
  * ```
  */
 
-import { walk } from '@std/fs/walk';
-import { relative, SEPARATOR } from '@std/path';
+import { readdirSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { join, relative, sep } from 'node:path';
+import process from 'node:process';
 
 /** The one source tree (open-work 21 merged `src/binaryen-ts/` and `src/wabt-ts/` into it). */
 const TREE = 'src';
@@ -51,14 +53,25 @@ const TREE = 'src';
 const DECL =
   /^\s*export\s+(?:declare\s+)?(?:const\s+)?(type|interface|enum)\s+([A-Za-z_$][\w$]*)/gm;
 
+/** Every file under `dir` ending in `ext`, depth-first in directory order, as `@std/fs/walk` visited them. */
+function walkFiles(dir: string, ext: string): string[] {
+  const out: string[] = [];
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) out.push(...walkFiles(p, ext));
+    else if (e.name.endsWith(ext)) out.push(p);
+  }
+  return out;
+}
+
 async function exportedTypeNames(root: string): Promise<Map<string, string[]>> {
   const found = new Map<string, string[]>();
-  for await (const entry of walk(root, { exts: ['.ts'], includeDirs: false })) {
-    if (entry.path.endsWith('.d.ts')) continue;
-    const text = await Deno.readTextFile(entry.path);
+  for (const path of walkFiles(root, '.ts')) {
+    if (path.endsWith('.d.ts')) continue;
+    const text = await readFile(path, 'utf8');
     for (const m of text.matchAll(DECL)) {
       const name = m[2]!;
-      const where = relative('.', entry.path).split(SEPARATOR).join('/');
+      const where = relative('.', path).split(sep).join('/');
       const seen = found.get(name);
       if (seen) {
         if (!seen.includes(where)) seen.push(where);
@@ -70,12 +83,12 @@ async function exportedTypeNames(root: string): Promise<Map<string, string[]>> {
   return found;
 }
 
-const quiet = Deno.args.includes('--quiet');
-const unknown = Deno.args.filter((a) => a !== '--quiet');
+const quiet = process.argv.slice(2).includes('--quiet');
+const unknown = process.argv.slice(2).filter((a) => a !== '--quiet');
 if (unknown.length > 0) {
   console.error(`collisions: unrecognised argument(s): ${unknown.join(' ')}`);
-  console.error('Usage: deno task collisions [--quiet]');
-  Deno.exit(2);
+  console.error('Usage: bun run collisions [--quiet]');
+  process.exit(2);
 }
 
 // Open-work item 21, phase 1 (2026-10-09): the two trees are ONE `src/` now, so the
