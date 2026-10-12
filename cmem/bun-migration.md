@@ -134,12 +134,19 @@ and the behaviour half of `proposals` (per row: `engine` in `scripts/proposals.t
 runs on Bun. The owner's both-runtimes rule is what makes the referee a WIRING choice
 (`package.json`), not a code change.
 
-✅ **The referee is DENO** (owner, 2026-10-12: this machine ran **Node 22 only** at the time,
-chosen over keeping Node 24 beside it; Node 24 came back the same day, through fnm). B4 first wired the oracles to Node 24. Node 24 was then
-removed, and Node 22 cannot referee (next paragraph), so `package.json` runs them as
-`deno run -A scripts/…`, on Deno 2.9.7's V8 15.0: the engine these gates were calibrated on. The
-converted scripts are `node:`-only, and Deno runs them unchanged. `proposals` defaults to Deno, with
-wide-arithmetic on Bun (JavaScriptCore has it; V8 has it only from 15.0).
+✅ **The referee is NODE, through fnm; Deno is for JSR only** (owner, 2026-10-12: "I am looking
+at deno to run the jsr items specifically. Not the V8 items"). `scripts/v8.ts` names the referee
+once (`REFEREE = 24`) and runs a script on that Node through `fnm exec`, never the `node` on PATH
+(this machine's fnm default is 22, whose V8 fails these gates). `package.json` runs every oracle
+step through it: `direct`, `direct-behaviour`, `translate-eh`, `optimize-corpus`, `spec-behaviour`,
+`offsets`, `hostile`. `proposals` picks per row: the referee by default, **Node 26** for
+custom-descriptors (Node 24's V8 13.6 refuses 9 of its originals), and **Bun** for wide-arithmetic
+(no Node has it yet). Measured the same day against Deno 2.9.7 (V8 15.0), the engine these gates
+were calibrated on: Node 24 gave Deno's exact output on every oracle step, and Node 26 gave it on
+custom-descriptors (488 invocations, 19 modules, 0 DIVERGE, the same 14 refused variants).
+🔧 History, the same day: B4 first wired the oracles to Node 24. The owner then chose Node 22 only
+(it cannot referee, next paragraph), so they moved to Deno. Node 24 came back through fnm, and with
+the JSR-only decision they moved to Node for good.
 
 **No deadline (owner, 2026-10-12).** 🔧 This section once claimed "a NEW V8 referee before about
 2027-04", tying the referee to Node 22's end of life. That was wrong: the referee is Deno, not
@@ -148,13 +155,13 @@ Node 22. The owner's position:
   node 22": `bun run lts` follows Node's release schedule, and CI's matrix the same policy.
 - **Deno stays usable as it is.** The end of its development does not remove the binary. The
   toolchain has moved to Bun; for publishing, "hopefully a better jsr interface will exist by then,
-  if not we will continue to use deno as is." The same holds for the oracle scripts.
+  if not we will continue to use deno as is." That is Deno's whole remaining role: JSR
+  (`deno publish --config jsr.json` and its dry run), "not the V8 items".
 
-**The one thing to watch, with no date:** a frozen Deno's V8 (15.0) ages. If a NEW experimental
-WebAssembly proposal enters the `proposals` gate and needs a newer V8, give that row a newer engine
-(`engine` in `scripts/proposals.ts`). The options measured: Node 26 (V8 14.6, runs the source since
-open-work 28 part 4), Node 24 (13.6, passes the behaviour gate), or a browser (Chrome stable is
-V8 15.6, 2026-10-07; open-work 28 part 3 would provide the runner).
+**The referee moves with the LTS line, after measuring.** To raise `REFEREE` to a newer Node:
+validate the whole corpus on old and new, diff the verdicts, run the behaviour gates, then change the
+one constant. A NEW experimental proposal that no referee has gets its own row engine (a Node major,
+Bun, or a browser once open-work 28 part 3 provides a runner: Chrome stable is V8 15.6).
 
 **Which Node referees: Node 24, NOT Node 22 (measured 2026-10-12).** The owner considered moving
 this machine to Node 22, the oldest LTS (maintenance until 2027-04-30). Node 22.23.3 ships V8
@@ -169,10 +176,9 @@ this machine to Node 22, the oldest LTS (maintenance until 2027-04-30). Node 22.
   oracle steps go red for engine reasons, not ours. **Decided, 2026-10-12: Node 22 only on this
   machine, so the referee is Deno** (above). 🔧 **Superseded the same day:** the owner reinstalled
   Node 24 beside 22 ("We should support and test all currently available lts versions",
-  open-work 28). Both are now at `scoop/apps/nodejs22` and `nodejs24`. The oracle wiring is still
-  Deno, which is green. Moving it back to Node 24, which is green too and outlives Deno, is the
-  owner's call; it is a `package.json` edit plus the `proposals` default. The 11 DIVERGE on V8
-  12.4 were not investigated: an old-engine artefact until shown otherwise.
+  open-work 28), then fnm took over Node (22, 24 and 26). Then the owner decided Deno is for JSR
+  only, "not the V8 items", so the referee is **Node 24 through fnm** (`scripts/v8.ts`), above. The
+  11 DIVERGE on V8 12.4 were not investigated: an old-engine artefact until shown otherwise.
 
 **For B5:** 220 test files call the host engine too. On Bun those assertions meet JavaScriptCore;
 on Node, V8. The suite therefore has to pass on Node as it does on Deno today, and any difference

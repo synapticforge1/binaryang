@@ -37,16 +37,18 @@ export interface Proposal {
    * suite's `assert_invalid` valid.
    */
   features: Features;
-  /** V8 flags the behaviour check runs under (`engine` `node` or `deno`); empty when V8 needs none. */
+  /** V8 flags the behaviour check runs under (`engine` `node`); empty when V8 needs none. */
   v8Flags: string[];
   /**
    * Which runtime's WebAssembly engine runs the behaviour check (Bun migration B4, 2026-10-12;
-   * cmem/bun-migration.md § "The engine oracle"). `deno` (V8 15.0) unless a row says otherwise:
-   * the owner runs Node 22 only (2026-10-12), whose V8 12.4 fails the behaviour gate, so Deno is
-   * the V8 referee until it is gone. An experimental proposal needs an engine that HAS it, and
-   * no single one has them all.
+   * cmem/bun-migration.md § "The engine oracle"). `node` unless a row says otherwise: the V8
+   * REFEREE (`REFEREE` in `scripts/v8.ts`), through fnm. Deno is kept for JSR, not for V8 (owner,
+   * 2026-10-12). An experimental proposal needs an engine that HAS it, and no single one has them
+   * all, so a row can name a Node major (`node`) or Bun.
    */
-  engine?: 'node' | 'deno' | 'bun';
+  engine?: 'node' | 'bun';
+  /** The Node major for `engine: 'node'`, when the referee's V8 lacks the proposal. */
+  node?: number;
   /**
    * Why the behaviour half cannot run, when it cannot: the invocations are then
    * reported as NOT RUN, never as passing.
@@ -67,11 +69,12 @@ export const PROPOSALS: readonly Proposal[] = [
     // D2: on ONLY here — it relaxes `br_on_cast`, which the core suite asserts.
     features: suiteFeatures('proposals/custom-descriptors/'),
     v8Flags: ['--experimental-wasm-custom-descriptors'],
-    // TEMPORARY, on Deno's V8 (15.0). Measured 2026-10-12: Node 24's V8 (13.6) predates opcode
-    // 0xfb20 and refuses 9 originals; Node 26's V8 (14.6) accepts them, and since open-work 28
-    // part 4 (2026-10-12) Node 26 runs this source too (erasable TypeScript). So Node 26 can
-    // take this row once it is the V8 referee; until then, Deno.
-    engine: 'deno',
+    // On Node 26 (V8 14.6). Measured 2026-10-12: Node 24's V8 (13.6) predates opcode 0xfb20 and
+    // refuses 9 originals. Node 26 gives Deno 2.9.7's exact result: 488 invocations, 19
+    // modules, 0 DIVERGE, the same 14 refused variants. It runs this source since open-work 28
+    // part 4 (erasable TypeScript).
+    engine: 'node',
+    node: 26,
   },
   {
     name: 'custom-page-sizes',
@@ -92,9 +95,9 @@ export const PROPOSALS: readonly Proposal[] = [
   {
     name: 'wide-arithmetic',
     features: suiteFeatures('proposals/wide-arithmetic/'),
-    // On Bun: JavaScriptCore has wide-arithmetic ON by default. V8 has it only from 15.0 (Deno,
-    // behind --experimental-wasm-wide-arithmetic); Node 24's 13.6 and Node 26's 14.6 do not have
-    // it at all. Measured 2026-10-12: on Bun the check gives Deno's exact result (99 invocations,
+    // On Bun: JavaScriptCore has wide-arithmetic ON by default. V8 has it only from 15.0 (behind
+    // --experimental-wasm-wide-arithmetic); Node 24's 13.6 and Node 26's 14.6 do not have it at
+    // all. When a Node ships V8 >= 15.0, measure it here and move the row to the referee. Measured 2026-10-12: on Bun the check gives Deno's exact result (99 invocations,
     // 2 modules, 0 DIVERGE).
     v8Flags: [],
     engine: 'bun',

@@ -7,7 +7,7 @@
  * -Oz pipeline prefix-by-prefix to find the first breaking step.
  *
  * Run:
- *   deno run -A scripts/binaryen-ts/bisect_pass.ts <relpath>
+ *   bun scripts/v8.ts scripts/binaryen-ts/bisect_pass.ts <relpath>
  *
  * @license MIT
  */

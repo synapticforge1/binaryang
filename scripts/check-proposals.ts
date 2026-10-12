@@ -30,6 +30,7 @@ import { PROPOSALS } from './proposals.ts';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 
+import { nodeCommand, REFEREE } from './v8.ts';
 const [suite, out] = process.argv.slice(2);
 if (suite === undefined || out === undefined) {
   console.error('usage: bun run proposals <testsuite-main> <outDir>');
@@ -43,30 +44,24 @@ const here = (f: string) => new URL(f, import.meta.url).pathname.replace(/^\/([A
  *
  * Preparation and validity use no WebAssembly engine, so they run on the runtime running
  * this script. The BEHAVIOUR step is an engine ORACLE, so it runs on the engine its row names
- * (`engine` in proposals.ts; Deno's V8 by default), whatever runs this script. Bun's engine is
- * JavaScriptCore, which (measured 2026-10-12, Bun 1.4.3) lacks memory64 and accepts 70 core
- * modules the spec rejects; Node 22's V8 12.4 fails the behaviour gate; the owner runs Node 22
- * only (cmem/bun-migration.md § "The engine oracle"). Node takes V8 flags directly; Deno
- * takes them as `--v8-flags=`.
+ * (`engine` / `node` in proposals.ts): by default the V8 referee of `scripts/v8.ts`, a Node major
+ * run through fnm, whatever runs this script. Bun's engine is JavaScriptCore, which (measured
+ * 2026-10-12, Bun 1.4.3) lacks memory64 and accepts 70 core modules the spec rejects; Node 22's V8
+ * 12.4 fails the behaviour gate. Deno is kept for JSR, not V8 (owner, 2026-10-12;
+ * cmem/bun-migration.md § "The engine oracle"). Node takes V8 flags directly.
  */
 function sub(
   script: string,
   args: string[],
-  engine?: { runtime: 'node' | 'deno' | 'bun'; flags: string[] },
+  engine?: { runtime: 'node' | 'bun'; major: number; flags: string[] },
 ): { ok: boolean; tail: string[] } {
-  const [bin, pre]: [string, string[]] = engine === undefined
-    ? [process.execPath, process.execArgv]
+  const [bin, argv]: [string, string[]] = engine === undefined
+    ? [process.execPath, [...process.execArgv, script, ...args]]
     : engine.runtime === 'node'
-    ? ['node', ['--no-warnings', ...engine.flags]]
-    : engine.runtime === 'deno'
-    ? ['deno', [
-      'run',
-      '-A',
-      ...(engine.flags.length ? [`--v8-flags=${engine.flags.join(',')}`] : []),
-    ]]
-    : ['bun', []];
+    ? nodeCommand(engine.major, engine.flags, script, args)
+    : ['bun', [script, ...args]];
   // NO_COLOR: the output is relayed and filtered, so no escape codes in it.
-  const r = spawnSync(bin, [...pre, script, ...args], {
+  const r = spawnSync(bin, argv, {
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, NO_COLOR: '1' },
     maxBuffer: 1 << 30,
@@ -97,7 +92,7 @@ for (const p of PROPOSALS) {
     behaviour = `NOT RUN — ${p.noEngine}`;
     console.log(`  behaviour: ${behaviour}`);
   } else {
-    const engine = { runtime: p.engine ?? 'deno', flags: p.v8Flags } as const;
+    const engine = { runtime: p.engine ?? 'node', major: p.node ?? REFEREE, flags: p.v8Flags };
     const b = p.behaviourScript !== undefined
       ? sub(here(p.behaviourScript), [dir], engine)
       : sub(here('./check-spec-behaviour.ts'), [dir, '--proposal', p.name], engine);
@@ -108,7 +103,9 @@ for (const p of PROPOSALS) {
   if (!validity.ok) failed++;
   summary.push(
     `${p.name.padEnd(20)} validity ${validity.ok ? 'ok    ' : 'FAILED'}  behaviour ${behaviour}` +
-      (p.noEngine === undefined ? `  on ${p.engine ?? 'deno'}` : '') +
+      (p.noEngine === undefined
+        ? `  on ${(p.engine ?? 'node') === 'node' ? `node ${p.node ?? REFEREE}` : p.engine}`
+        : '') +
       (p.v8Flags.length > 0 ? `  (${p.v8Flags.join(' ')})` : ''),
   );
 }

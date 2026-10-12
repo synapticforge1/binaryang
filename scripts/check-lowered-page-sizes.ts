@@ -25,7 +25,7 @@
  * hold in every world; every lowered module must validate with no custom page
  * size left. Exit 0 only then.
  *
- * Usage: `deno run -A scripts/check-lowered-page-sizes.ts <prepared proposals/custom-page-sizes dir>`
+ * Usage: `bun scripts/v8.ts scripts/check-lowered-page-sizes.ts <prepared proposals/custom-page-sizes dir>`
  * (`bun run proposals` runs it).
  */
 

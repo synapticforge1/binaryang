@@ -34,11 +34,10 @@ not survive a clone is not a project rule. The lessons behind them are in
 🔧 **Since Bun migration B4 (2026-10-12) every project script is a `package.json` script: read
 each `deno task <name>` in this file, history included, as `bun run <name>`.** Only `check`,
 `test`, `fmt`, `lint`, `ci`, `publish:dry` and `comparison` are still `deno task`s (B3 / B5 move
-them). `bun run` starts the right runtime by itself: Bun for most, **Deno** for the steps whose
-oracle is the host WebAssembly engine: Deno's V8 15.0, the engine they were calibrated on (Node
-22's V8 12.4 fails them; Bun's JavaScriptCore differs). Deno keeps working after its development
-ends, so there is no deadline (owner, 2026-10-12) ([bun-migration.md](bun-migration.md) § "The
-engine oracle").
+them). `bun run` starts the right runtime by itself: Bun for most, and for the steps whose oracle
+is the host WebAssembly engine, the **V8 referee**: Node 24 through fnm, named once in
+`scripts/v8.ts` (Node 22's V8 12.4 fails these gates; Bun's JavaScriptCore differs). Deno is kept
+for JSR only (owner, 2026-10-12) ([bun-migration.md](bun-migration.md) § "The engine oracle").
 
 CI's steps first, read from `.github/workflows/ci.yml` rather than from memory of it:
 
