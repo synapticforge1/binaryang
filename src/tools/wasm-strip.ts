@@ -44,8 +44,7 @@ import {
   unknownLocation,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliRead, cliWrite } from '../cli/io.ts';
-import process from 'node:process';
+import { cliExit, cliProcess, cliRead, cliWrite } from '../cli/io.ts';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -150,7 +149,7 @@ export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): Wasm
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   args = args.slice();
   let input: string | undefined;
   let output: string | undefined;
@@ -170,7 +169,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
 
   if (!input) {
     console.error('usage: wasm-strip <input.wasm> [-o <output.wasm>] [-s <section-name>]');
-    process.exit(1);
+    cliExit(1);
   }
 
   const binary = await cliRead('wasm-strip', input);
@@ -182,7 +181,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     console.error(formatErrors(errors));
   }
   if (result !== Result.Ok) {
-    process.exit(1);
+    cliExit(1);
   }
 
   const dest = output ?? input;

@@ -407,6 +407,28 @@ Deno.test('parseArgs: --hybrid is refused by name, not read as a pass called "hy
   assertThrows(() => parseArgs(['in.wasm', '--hybrid']), Error, '--hybrid was removed in 1.7.0');
 });
 
+// Open-work 28 part 5 (2026-10-12): a page holding a module's bytes can optimize them, with no
+// file system. Bytes in must give exactly what the same module read from a path gives.
+Deno.test('wasmOpt: BYTES in give the same output as the same module from a path', async () => {
+  const input = buildAddWasm();
+  for (const optimizeLevel of [0, 2] as const) {
+    const fromPath = await withTempWasm(input, (p) => wasmOpt(p, { optimizeLevel }));
+    const fromBytes = await wasmOpt(input, { optimizeLevel });
+    assertInstanceOf(fromBytes, Uint8Array);
+    assertEquals(fromBytes, fromPath, `-O${optimizeLevel}: bytes and path agree`);
+  }
+});
+
+Deno.test('wasmOpt: WAT given as bytes is read as text (no \\0asm magic) and computes the same', async () => {
+  const wat = '(module (func (export "add") (param i32 i32) (result i32) ' +
+    '(i32.add (local.get 0) (local.get 1))))';
+  const out = await wasmOpt(new TextEncoder().encode(wat), { optimizeLevel: 2 });
+  assertInstanceOf(out, Uint8Array);
+  const add = new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource)).exports
+    .add as (a: number, b: number) => number;
+  assertEquals(add(2, 3), 5);
+});
+
 Deno.test('wasmOpt -S: the optimized module as text, computing what the bytes compute', async () => {
   const add = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.add as (

@@ -25,7 +25,7 @@
 
 import type { ErrorList } from '../core/error.ts';
 import { Result } from '../core/result.ts';
-import process from 'node:process';
+import { cliExit, cliProcess } from '../cli/io.ts';
 
 // ---------------------------------------------------------------------------
 // Public API (stub)
@@ -66,7 +66,7 @@ export function wasm2ts(_binary: Uint8Array, _opts: Wasm2TsOptions = {}): Wasm2T
  * and exits non-zero, so the command is discoverable and honest rather than
  * absent from the dispatcher.
  */
-export function main(_args: string[] = process.argv.slice(2)): Promise<void> {
+export function main(_args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   console.error('wasm2ts: not yet implemented (Phase 8 — deferred pending wasmtk QA/QC)');
-  process.exit(1);
+  cliExit(1);
 }

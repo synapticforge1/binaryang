@@ -22,8 +22,6 @@
  * @license MIT
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
-import { basename } from 'node:path';
 import type { WasmModule } from '../ir/module.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type } from '../core/types.ts';
@@ -36,6 +34,7 @@ import {
   type ValueType,
   type Var,
 } from '../ir/ir.ts';
+import { baseName, fsRead, fsWrite } from '../cli/io.ts';
 
 /** The first line of every generated file — what says a `.wit` may be replaced. */
 export const WIT_GENERATED_HEADER =
@@ -176,16 +175,16 @@ export async function emitWitBeside(
   if (!witSaysSomething(text)) return { path, outcome: 'nothing to describe' };
   let existing: string | null = null;
   try {
-    existing = new TextDecoder().decode(await readFile(path));
+    existing = new TextDecoder().decode(await fsRead(path));
   } catch {
     // absent
   }
   if (existing !== null && !GENERATED_BY.test(existing)) return { path, outcome: 'kept existing' };
-  await writeFile(path, text);
+  await fsWrite(path, text);
   return { path, outcome: 'written' };
 }
 
 /** The world name a `.wasm` path gives: its basename without the extension. */
 export function witNameOf(wasmPath: string): string {
-  return basename(wasmPath).replace(/\.(wasm|wat)$/i, '');
+  return baseName(wasmPath).replace(/\.(wasm|wat)$/i, '');
 }

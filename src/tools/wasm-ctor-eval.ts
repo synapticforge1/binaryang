@@ -33,8 +33,6 @@
  * @license MIT
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
-import process from 'node:process';
 import { readForPasses, readValidForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { readValidWat, WatInputError } from './read-wat.ts';
@@ -62,6 +60,7 @@ import {
   type Value,
   WasmException,
 } from '../interp/interpreter.ts';
+import { cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
 
 // ---------------------------------------------------------------------------
 // Options and report
@@ -543,7 +542,7 @@ export async function wasmCtorEval(
   inputPath: string,
   options: Partial<WasmCtorEvalOptions> = {},
 ): Promise<{ output: Uint8Array | string; outcomes: CtorOutcome[]; reason?: string }> {
-  const bytes = new Uint8Array(await readFile(inputPath));
+  const bytes = new Uint8Array(await fsRead(inputPath));
   const module = inputPath.endsWith('.wat')
     ? readValidWat(new TextDecoder().decode(bytes), inputPath)
     : readValidForPasses(bytes, inputPath);
@@ -570,7 +569,7 @@ function usage(): void {
 }
 
 /** The CLI: parses `args` and runs {@link wasmCtorEval}. */
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   let input: string | undefined;
   const options: Partial<WasmCtorEvalOptions> = {};
   for (let i = 0; i < args.length; i++) {
@@ -586,12 +585,12 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     else if (a.startsWith('-')) {
       console.error(`wasm-ctor-eval: unknown option ${a}`);
       usage();
-      process.exit(1);
+      cliExit(1);
     } else input = a;
   }
   if (input === undefined) {
     usage();
-    process.exit(1);
+    cliExit(1);
   }
   if (!('log' in options)) options.log = (line) => console.log(line);
   let result: Awaited<ReturnType<typeof wasmCtorEval>>;
@@ -601,15 +600,15 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     console.error(
       `wasm-ctor-eval: ${e instanceof WatInputError || e instanceof Error ? e.message : e}`,
     );
-    process.exit(1);
+    cliExit(1);
   }
   const outPath = options.output ?? 'output.wasm';
   if (outPath === '-') {
     if (typeof result.output === 'string') console.log(result.output);
-    else process.stdout.write(result.output);
+    else cliProcess().stdout.write(result.output);
     return;
   }
-  await writeFile(outPath, result.output);
+  await fsWrite(outPath, result.output);
   if (options.log !== undefined) {
     console.log(
       typeof result.output === 'string'

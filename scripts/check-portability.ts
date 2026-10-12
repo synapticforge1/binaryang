@@ -6,22 +6,31 @@
  * cmem/project.md). Two checks over the tracked shipped source; both must find
  * nothing.
  *
- *   library layer (the exported surface) : web standards only; no Deno.*, no node:*
- *   CLI layer                            : node:* builtins fine; Deno.* never
+ *   all shipped source : no Deno.*, and no TOP-LEVEL runtime import of a node: builtin
  *
  * `node:` builtins are portable across Deno, Node and Bun but NOT to the
- * browser, which is why they are confined to the CLI layer (`/tools/`, `/cli/`).
+ * browser. 🔧 Until 2026-10-12 they were allowed in the CLI layer (`/tools/`,
+ * `/cli/`), and that exemption is how 15 of 22 exports became unloadable in a
+ * browser: every tool imported `node:process` at the top for its `main()`, and
+ * library modules reached the tools (open-work 28). The CLI layer now reaches
+ * `process` through `globalThis` when a CLI function runs, and loads
+ * `node:fs/promises` with a deferred `import()` (`src/cli/io.ts`). So the rule
+ * is tree-wide: `import type … from 'node:…'` (erased at compile time) and a
+ * deferred `await import('node:…')` are fine; a static import is not, even an
+ * unused one. A bundler drops an unused import, but JSR's compiled JavaScript
+ * keeps it, and a page loading the package without a bundler would fail on it.
+ * `scripts/check-browser.ts` is the other half: it bundles every export for
+ * the browser.
+ *
  * `Deno.*` is never permitted in shipped source: it works on one of the four
- * supported targets. (`interop/` was the other `node:`-permitted layer until
- * 1.7.0, when the bridge to upstream binaryen left `src/` for the comparison
- * suite. Its exemption went with it: left in, it would let a new `interop/`
- * directory under `src/` import `node:` unseen.)
+ * supported targets.
  *
  * ⚠️ The `Deno.*` check skips JSDoc lines (a line whose first non-blank is
  * `*`): doc comments legitimately show consumers writing
  * `import { writeFile } from "node:fs/promises"` or `Deno.readFile`, and a
- * check that cries wolf gets disabled. The `node:` check needs no such skip —
- * it matches only a line that STARTS with `import` / `const` / `let`.
+ * check that cries wolf gets disabled. The `node:` check needs no such skip:
+ * it matches only a line that STARTS with a static `import` (not `import type`)
+ * or a `require(`.
  *
  * Prints every hit, grouped by check, and exits 1 if there is one.
  *
@@ -37,8 +46,12 @@ import { spawnSync } from 'node:child_process';
 
 const DENO_GLOBAL = /\bDeno\.[a-zA-Z]/;
 const JSDOC_LINE = /^\s*\*/;
-const NODE_IMPORT = /^\s*(import|const|let)\b.*['"]node:/;
-const CLI_LAYER = /\/(tools|cli)\//;
+/**
+ * A static runtime import of a `node:` builtin: `import … from 'node:x'`, `import 'node:x'`, or
+ * `… require('node:x')`. NOT `import type …` (erased) and NOT a deferred `import('node:x')`.
+ */
+const NODE_IMPORT =
+  /^\s*import\s+(?!type\b)(?:[^'"(]*\bfrom\s*)?['"]node:|^\s*(?:const|let|var)\b.*\brequire\(\s*['"]node:/;
 
 /** `file:line:text` for every line of `text` that `hit` accepts. */
 export function scan(file: string, text: string, hit: (line: string) => boolean): string[] {
@@ -70,13 +83,11 @@ if (import.meta.main) {
   for (const file of await shippedSource()) {
     const text = await readFile(file, 'utf8');
     denoHits.push(...scan(file, text, isDenoGlobal));
-    if (file.startsWith('src/') && !CLI_LAYER.test(file)) {
-      nodeHits.push(...scan(file, text, isNodeImport));
-    }
+    nodeHits.push(...scan(file, text, isNodeImport));
   }
   if (denoHits.length > 0) console.log(['Deno globals in shipped source:', ...denoHits].join('\n'));
   if (nodeHits.length > 0) {
-    console.log(['node: imports outside the CLI layer:', ...nodeHits].join('\n'));
+    console.log(['Top-level node: imports in shipped source:', ...nodeHits].join('\n'));
   }
   process.exit(denoHits.length + nodeHits.length === 0 ? 0 : 1);
 }

@@ -52,9 +52,8 @@ import {
   unknownLocation,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliRead, cliWrite, writeStdout } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRead, cliWrite, writeStdout } from '../cli/io.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
-import process from 'node:process';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -196,7 +195,7 @@ function assemble(source: string | Uint8Array, opts: Wat2WasmOptions): Wat2WasmR
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   args = args.slice();
   let input: string | undefined;
   let output: string | undefined;
@@ -233,7 +232,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
         '                  (upstream wat2wasm bytes exactly; wasm2wat then folds it)\n' +
         flags.help(),
     );
-    process.exit(1);
+    cliExit(1);
   }
 
   const source = await cliRead('wat2wasm', input);
@@ -248,7 +247,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     console.error(formatErrors(errors, ErrorFormat.Long, new TextDecoder().decode(source)));
   }
   if (result !== Result.Ok) {
-    process.exit(1);
+    cliExit(1);
   }
 
   if (output) {

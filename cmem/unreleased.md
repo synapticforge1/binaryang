@@ -82,6 +82,22 @@ public summary is `CHANGELOG.md` § 1.10.0.
     `Stop(invalid)`, a new `StopReason`.
   - `wasm-interp` and `wasm-ctor-eval` validate their input file and refuse an invalid one (they ran
     it). `wasm-bundle`: a malformed `linking` / `reloc.*` section is a `BundleError` naming the input.
+- **Behaviour — every export now loads in a browser** (2026-10-12, open-work 28 parts 1–2). 15
+  of 22 exports, `./wat2wasm` / `./wasm2wat` / `./wasm-validate` / `./api` / `./passes` /
+  `./compat/binaryen` / the `./tools/*` among them, could not even be bundled for a browser: each tool
+  imported `node:process` (some also `node:fs`, `node:path`) at the top for its CLI `main()`,
+  and library modules reached the tools. Now no shipped file has a top-level runtime `node:`
+  import. The CLI reaches `process` through `globalThis` when it runs, and loads `node:fs/promises`
+  on demand. `moduleNameOf` / `witNameOf` use a pure `baseName` instead of `node:path`. The CLI is
+  unchanged: the same `wat2wasm` hash on Deno, Node 22, Node 24 and Bun. The README's
+  "modern browsers" claim is now checked in CI: `bun run browser` bundles every export, and
+  `bun run portability` refuses any top-level `node:` import. Say in the note: a page can import
+  `./wat2wasm`, `./passes` etc. directly; calling a tool's `main()` in a browser throws a clear
+  error naming the library function to call instead.
+- **NEW — `wasmOpt` accepts the module's BYTES** (2026-10-12, open-work 28 part 5):
+  `wasmOpt(input: string | Uint8Array, options)`. A `Uint8Array` is optimized as given (binary when
+  it starts with `\0asm`, WAT text otherwise), with no file system: what a browser page needs. A
+  path works as before. Additive, so no caller changes.
 - **Silent fix — the interpreter and a constant expression that leaves no value** (2026-10-12,
   open-work 27, found by `hostile` during Bun migration B4). On a module read WITHOUT validation, an
   element or data offset such as `(offset nop)` escaped as a bare `TypeError` ("Cannot read
