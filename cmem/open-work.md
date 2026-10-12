@@ -28,6 +28,11 @@ PUSHED; the version stays 1.10.0):**
   `wasmOpt` takes bytes; the source is erasable TypeScript, so Node 22–26 run it with NO flag;
   every current Node LTS tested by `bun run lts` through fnm, and CI by `setup-node`). The guide for
   the other JSR packages is [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md).
+- **Who runs what** (owner, 2026-10-12): **Deno for JSR only** (`deno publish --config jsr.json`
+  and its dry run; `deno check` / `test` / `fmt` remain until B3 / B5). **The V8 referee** for
+  the engine-oracle steps is Node 24 through fnm, named once in `scripts/v8.ts`, with Node 26 for
+  custom-descriptors and Bun for wide-arithmetic, each measured equal to Deno's results.
+  **Everything else** runs on Bun. fnm holds Node 22, 24 and 26.
 - **The next release is a MINOR, 1.11.0** ([unreleased.md](unreleased.md)): new exports,
   deprecations, the `./ir` subpath, and now a type-level BREAKING change (the 19 exported `enum`s
   are const objects).
@@ -125,7 +130,8 @@ Its number is kept free.)
 
     **Node LTS policy (owner, 2026-10-12): "support and test all currently available lts
     versions."** As of 2026-10-12 that is Node 22 "Jod" (22.23.3) and Node 24 "Krypton" (24.21.0),
-    both in CI's `runtimes` matrix (22.18 floor, latest 22, latest 24). Locally, **`bun run lts`**
+    both in CI's `runtimes` matrix (22.18 floor, latest 22, latest 24, and latest 26 ahead of its
+    LTS on 2026-10-28; no flag on any). fnm holds 22, 24 and 26. Locally, **`bun run lts`**
     (`scripts/check-lts.ts`) takes the lines from Node's release schedule (`nodejs/Release`
     `schedule.json`: LTS started, end of life not reached) and runs `cli-smoke` on each through
     `fnm exec` (fnm 1.39.0, owner's choice, 2026-10-12). Same hash on v22 and v24. A line fnm
