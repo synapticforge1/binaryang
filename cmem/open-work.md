@@ -74,11 +74,14 @@ Its number is kept free.)
 
     **Node LTS policy (owner, 2026-10-12): "support and test all currently available lts
     versions."** As of 2026-10-12 that is Node 22 "Jod" (22.23.3) and Node 24 "Krypton" (24.21.0),
-    both installed here and in CI's `runtimes` matrix (22.18 floor, latest 22, latest 24). The local
-    gate smokes the CLI on each by explicit path. ⚠️ **DATE: Node 26 enters LTS late in October
-    2026** (Node 24 did on 2025-10-28). Node 26 removed `--experimental-transform-types`, so under
-    this policy it needs part 4 (the source runs on it), or a leg that tests the COMPILED package.
-    That makes part 4 urgent: it is how the policy can hold in about two weeks.
+    both in CI's `runtimes` matrix (22.18 floor, latest 22, latest 24). Locally, **`bun run lts`**
+    (`scripts/check-lts.ts`) takes the lines from Node's release schedule (`nodejs/Release`
+    `schedule.json`: LTS started, end of life not reached) and runs `cli-smoke` on each through
+    `fnm exec` (fnm 1.39.0, owner's choice, 2026-10-12). Same hash on v22 and v24. A line fnm
+    lacks FAILS, naming `fnm install <n>`. ⚠️ **DATE: Node 26 enters LTS on 2026-10-28** (the
+    schedule; Node 24 enters maintenance 2026-10-20). From that day `bun run lts` REQUIRES v26, and
+    Node 26 removed `--experimental-transform-types`, so it fails until part 4 makes the source
+    run on it, or until a leg tests the COMPILED package. That makes part 4 urgent: 16 days.
 
     **Proposed plan, owner to order:** (1) tools: move the Node-only parts INSIDE each `main()`
     (`globalThis.process`, an on-demand `import('node:fs/promises')`), so every export bundles

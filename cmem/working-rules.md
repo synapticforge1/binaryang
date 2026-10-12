@@ -47,8 +47,10 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 `bun run baseline` · `deno publish --dry-run --allow-dirty --config jsr.json` — and the `runtimes` job's
 `scripts/cli-smoke.ts`, run under each runtime it tests (locally:
 `deno run -A scripts/cli-smoke.ts
-"deno run -A"`, likewise `node --experimental-transform-types …`
-and `bun …`; all must print the same hash)
+"deno run -A"` and `bun scripts/cli-smoke.ts bun`, and for Node **`bun run lts`**: every current
+Node LTS line per Node's own release schedule, each through `fnm exec`, failing on a line fnm has
+not installed (owner, 2026-10-12: "support and test all currently available lts versions");
+all must print the same hash)
 
 then the project's own: `bun run operators` · `bun run spec <corpus>` ·
 `bun run spec-behaviour <corpus>` · `bun run direct` ·
