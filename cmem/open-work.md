@@ -28,8 +28,13 @@ Item **27** (an untyped interp `TypeError`) is closed. Item **28** ("runs everyw
 loads in a browser, `wasmOpt` takes bytes, and every current Node LTS line is tested
 (`bun run lts`, through fnm), and the source is erasable TypeScript, so Node 22–26 run it with no
 flag (part 4, done; branch `erasable-ts`). Open: the headless browser. The guide for the other JSR packages is
-[jsr-deno-exit-guide.md](jsr-deno-exit-guide.md). `code-lens-13` is still unmerged; it merges
-cleanly. **Owner, 2026-10-12: the NEXT project is universal-wasm-loader** (Bun cannot import
+[jsr-deno-exit-guide.md](jsr-deno-exit-guide.md). `code-lens-13` is still unmerged, and since
+part 4 it **CONFLICTS in one file, `src/ir/derive-types.ts`** (everything else auto-merges). The
+branch adds a NEW constructor parameter property there (`private readonly discarded?: Discarded`)
+in the constructor part 4 converted. Merging it means resolving that hunk AND converting the new
+property to the `declare` form; `erasableSyntaxOnly` (on in tsconfig and deno.json) refuses it
+otherwise. Its process still applies first: one convergence re-run that adds no row.
+**Owner, 2026-10-12: the NEXT project is universal-wasm-loader** (Bun cannot import
 `.wasm`; the guide's F11), worked in ITS repo, not from here.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
