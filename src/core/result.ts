@@ -11,11 +11,18 @@
  */
 
 /** Outcome of a fallible wabt operation. */
-export enum Result {
+export const Result = {
   /** The operation succeeded. */
-  Ok = 0,
+  Ok: 0,
   /** The operation failed; caller should inspect the error list. */
-  Error = 1,
+  Error: 1,
+} as const;
+/** One of {@link Result}'s values. */
+export type Result = (typeof Result)[keyof typeof Result];
+/** Each member as a type (`Result.Ok`), as when Result was an `enum`. */
+export declare namespace Result {
+  type Ok = typeof Result.Ok;
+  type Error = typeof Result.Error;
 }
 
 /** Returns true if {@link r} indicates success. */

@@ -82,6 +82,23 @@ public summary is `CHANGELOG.md` § 1.10.0.
     `Stop(invalid)`, a new `StopReason`.
   - `wasm-interp` and `wasm-ctor-eval` validate their input file and refuse an invalid one (they ran
     it). `wasm-bundle`: a malformed `linking` / `reloc.*` section is a `BundleError` naming the input.
+- **BREAKING (type level) — the 19 exported `enum`s are const objects now** (2026-10-12,
+  open-work 28 part 4, owner: option "1"). `BinarySection`, `NameSectionSubsection`,
+  `ExternalKind`, `Opcode`, `MiscOpcode`, `GcOpcode`, `Result`, `Type`, `ErrorLevel`,
+  `ErrorFormat`, `LinkingSubsection`, `SymbolKind`, `RelocType`, `NameOpts`, `LabelType`,
+  `TokenType`, `LiteralType`, `State`, `DataOffset`. Each is `const X = {…} as const` + `type X` + a
+  type-only `namespace X`. Every member keeps its VALUE (572 checked against the old enums), and
+  `X.Member` still works as a value and as a type. Say in the note what changes:
+  - reverse lookup is gone: `Opcode[0x6a]` no longer gives `"I32Add"`, and `0 in ExternalKind`
+    is false (use `Object.values(X).includes(v)`);
+  - a plain number no longer passes where `X` is expected (except `Opcode`, below);
+    `let r = Result.Ok; r = Result.Error` needs `let r: Result`;
+  - the `Opcode` TYPE is `number`, deliberately: the IR stores combined `(prefix << 16) | sub`
+    values under it, which are not members, as it always did.
+  Why: Node's type stripping (the only mode in Node 26, LTS from 2026-10-28) refuses `enum`s.
+  binaryang's source now runs on Node 22–26 with NO flag (`--experimental-transform-types`, which
+  Node 26 removed, is not needed anywhere). `erasableSyntaxOnly` keeps it so. Constructor parameter
+  properties became fields, which changes nothing outside the class.
 - **Behaviour — every export now loads in a browser** (2026-10-12, open-work 28 parts 1–2). 15
   of 22 exports, `./wat2wasm` / `./wasm2wat` / `./wasm-validate` / `./api` / `./passes` /
   `./compat/binaryen` / the `./tools/*` among them, could not even be bundled for a browser: each tool

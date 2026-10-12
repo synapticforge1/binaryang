@@ -25,6 +25,7 @@
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
+    "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
   "include": ["main.ts", "src/**/*.ts", "scripts/**/*.ts"],

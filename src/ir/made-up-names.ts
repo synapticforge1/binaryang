@@ -106,7 +106,12 @@ class LabelCollector implements ExprVisitorDelegate {
  */
 class LabelMaker implements ExprVisitorDelegate {
   private count = 0;
-  constructor(private readonly funcIdx: number, private readonly used: Set<string>) {}
+  declare private readonly funcIdx: number;
+  declare private readonly used: Set<string>;
+  constructor(funcIdx: number, used: Set<string>) {
+    this.funcIdx = funcIdx;
+    this.used = used;
+  }
   private take(e: { label: string }): Result {
     if (e.label === '') e.label = unique(this.used, MADE_UP.label(this.funcIdx, this.count));
     this.count++;
@@ -131,7 +136,10 @@ class LabelMaker implements ExprVisitorDelegate {
 
 /** Clears every label of one function that `keep` does not accept. */
 class LabelClearer implements ExprVisitorDelegate {
-  constructor(private readonly keep: (label: string) => boolean) {}
+  declare private readonly keep: (label: string) => boolean;
+  constructor(keep: (label: string) => boolean) {
+    this.keep = keep;
+  }
   private take(e: { label: string }): Result {
     if (!this.keep(e.label)) e.label = '';
     return Result.Ok;

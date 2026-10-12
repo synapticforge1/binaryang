@@ -26,8 +26,8 @@ one manifest), B2 (`tsc`, `package.json`) and B4 (all scripts `node:`-only, run 
 oracles on Deno's V8) are done; B3, B5, B6 and B7 are next ([bun-migration.md](bun-migration.md)).
 Item **27** (an untyped interp `TypeError`) is closed. Item **28** ("runs everywhere"): every export
 loads in a browser, `wasmOpt` takes bytes, and every current Node LTS line is tested
-(`bun run lts`, through fnm). Open: the headless browser, and erasable-only TypeScript, which is
-**due before Node 26 becomes LTS on 2026-10-28**. The guide for the other JSR packages is
+(`bun run lts`, through fnm), and the source is erasable TypeScript, so Node 22–26 run it with no
+flag (part 4, done; branch `erasable-ts`). Open: the headless browser. The guide for the other JSR packages is
 [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md). `code-lens-13` is still unmerged; it merges
 cleanly. **Owner, 2026-10-12: the NEXT project is universal-wasm-loader** (Bun cannot import
 `.wasm`; the guide's F11), worked in ITS repo, not from here.
@@ -69,7 +69,8 @@ Its number is kept free.)
       checks DIRECT `node:` imports outside the CLI layer, not what is reachable through
       imports, so it stayed green. The README's "modern browsers" claim is untested: no CI job
       runs a browser.
-    - **Node 26+ cannot run the TypeScript source**: it removed `--experimental-transform-types`
+    - 🔧 **FIXED 2026-10-12 by part 4** (the source is erasable TypeScript; Node 22.18–26 run it with
+      no flag). As found: **Node 26+ cannot run the TypeScript source**: it removed `--experimental-transform-types`
       (strip-only), and `src/` has `enum`s and constructor parameter properties. Node 24 keeps
       the flag until its end of life, 2028-04-30. The PUBLISHED package (JSR's compiled JS) runs
       on Node 26 unchanged.
@@ -81,8 +82,20 @@ Its number is kept free.)
     **Progress (2026-10-12, owner: "Work on 27 first then 28"):** parts **1, 2 and 5 DONE** on
     branch `run-everywhere-1`. All 22 exports bundle for the browser; `bun run browser` (new, in
     CI) and `bun run portability` (now tree-wide: no top-level runtime `node:` import anywhere)
-    hold it, and each was shown to FAIL on the old form of a tool. `wasmOpt` takes bytes. **Open:**
-    part 3 (a real headless-browser run), part 4 (erasable-only TypeScript), the measurement.
+    hold it, and each was shown to FAIL on the old form of a tool. `wasmOpt` takes bytes.
+    **Part 4 DONE too (owner: option "1", 2026-10-12), branch `erasable-ts`:** the 49 non-erasable
+    constructs are gone. 29 constructor parameter properties became `declare` fields plus
+    assignments, the same runtime shape. 20 `enum`s (19 exported) became `const X = {…} as const` +
+    `type X` + a type-only `declare namespace X`, so `X.Member` works as a value AND as a type.
+    Every value was computed and checked against the old enum objects (572 members, all equal).
+    `erasableSyntaxOnly` is on in `tsconfig.json` and `deno.json`, so it cannot come back. Node
+    22, 24 AND 26 now run the source with NO flag, the same CLI hash as Deno and Bun. The flag left
+    every script, CI and the docs; CI tests Node 26. What the stricter types exposed:
+    `exp.kind in ExternalKind` (relied on reverse keys; every export read as unknown, caught by
+    cli-smoke); `Opcode` used across the IR for COMBINED `(prefix << 16) | sub` values that are
+    not members (so the `Opcode` TYPE is deliberately `number`, the strictness it always had; a
+    precise union is a follow-up); a name-section set holding unknown ids. **Open:** part 3 (a real
+    headless-browser run) and the measurement.
 
     **Node LTS policy (owner, 2026-10-12): "support and test all currently available lts
     versions."** As of 2026-10-12 that is Node 22 "Jod" (22.23.3) and Node 24 "Krypton" (24.21.0),
@@ -94,6 +107,8 @@ Its number is kept free.)
     schedule; Node 24 enters maintenance 2026-10-20). From that day `bun run lts` REQUIRES v26, and
     Node 26 removed `--experimental-transform-types`, so it fails until part 4 makes the source
     run on it, or until a leg tests the COMPILED package. That makes part 4 urgent: 16 days.
+    🔧 **Resolved the same day:** part 4 is done, and Node 26 runs the source (measured with the
+    portable 26.11.1).
 
     **Proposed plan, owner to order:** (1) tools: move the Node-only parts INSIDE each `main()`
     (`globalThis.process`, an on-demand `import('node:fs/promises')`), so every export bundles

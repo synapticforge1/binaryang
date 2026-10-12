@@ -145,8 +145,8 @@ short form:
 npm run binaryang -- wat2wasm add.wat -o add.wasm
 ```
 
-> Node needs `--experimental-transform-types`, **not** `--experimental-strip-types`. Strip-only mode
-> erases types without generating code, so it rejects TypeScript `enum` and parameter properties.
+> Node needs no flag, for the installed package (compiled JavaScript) or for this repository's
+> source (erasable TypeScript, which Node's default type stripping runs, from 22.18 through 26).
 
 ## What's in the package
 
@@ -184,15 +184,14 @@ Runs on **Deno, Node.js, Bun and modern browsers** from a single source tree.
 | runtime  | minimum     | tested in CI                    | note                                |
 | -------- | ----------- | ------------------------------- | ----------------------------------- |
 | Deno     | 2.x         | 2.x                             |                                     |
-| Node.js  | **22.18.0** | 22.18.0, latest 22, latest 24   | no flags for the installed package¹ |
+| Node.js  | **22.18.0** | 22.18.0, latest 22, 24, 26      | no flags¹                           |
 | Bun      | **1.4.0**   | 1.4.0                           |                                     |
 | browsers | modern      | every export bundles for them²  | library surface only, not the CLI   |
 
-¹ Node users receive JSR's compiled JavaScript. Running binaryang's TypeScript **source** (a clone
-of this repository) on Node needs `--experimental-transform-types`, because the source uses
-`enum`s and constructor parameter properties, which Node's default type stripping does not
-accept. Node 26 removed that flag, so it runs the published package but not the source. Deno and
-Bun run the source as it is.
+¹ Node users receive JSR's compiled JavaScript. binaryang's TypeScript **source** (a clone of this
+repository) also runs on Node with no flag: it is ERASABLE TypeScript, with no `enum`s and no
+constructor parameter properties, which Node's default type stripping accepts, Node 26 included.
+The compiler option `erasableSyntaxOnly` keeps it that way.
 
 ² Every export is bundled for the browser target in CI and must not import a Node builtin; the
 library's command-line paths load Node's file system only when they run. That proves the exports

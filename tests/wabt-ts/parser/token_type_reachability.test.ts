@@ -3,7 +3,7 @@
 //
 // T13.32 — every `TokenType` the lexer can emit, and nothing else.
 //
-// `TokenType` has 182 members. One is referenced by neither the lexer nor the
+// `TokenType` has 191 members (2026-10-12). One is referenced by neither the lexer nor the
 // parser, and it turns out to be deliberate:
 //
 //   SimdLoadSplat  superseded — `v128.load8_splat` lexes as TokenType.Load
@@ -29,8 +29,8 @@
 
 import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
+import { TokenType } from '../../../src/parser/token.ts';
 
-const TOKEN_SRC = new URL('../../../src/parser/token.ts', import.meta.url);
 const LEXER_SRC = new URL('../../../src/parser/wast-lexer.ts', import.meta.url);
 const PARSER_SRC = new URL('../../../src/parser/wast-parser.ts', import.meta.url);
 
@@ -42,13 +42,14 @@ const NEVER_EMITTED: ReadonlyMap<string, string> = new Map([
   ['SimdLoadSplat', 'superseded: v128.load*_splat lexes as TokenType.Load + a SIMD sub-opcode'],
 ]);
 
-async function tokenTypeMembers(): Promise<string[]> {
-  const src = await Deno.readTextFile(TOKEN_SRC);
-  const at = src.indexOf('export const enum TokenType {');
-  assert(at !== -1, 'could not locate the TokenType enum');
-  const end = src.indexOf('\n}', at);
-  assert(end !== -1, 'unbalanced TokenType enum');
-  return [...src.slice(at, end).matchAll(/^\s*(\w+)\s*(?:=|,)/gm)].map((m) => m[1]!);
+/**
+ * The members, from the object itself. 🔧 This scraped `export const enum TokenType {` out of the
+ * source text until `TokenType` became a const object (open-work 28 part 4, 2026-10-12). A real
+ * object at runtime makes the scrape unnecessary, and the population pin below still guards
+ * against a vacuous pass.
+ */
+function tokenTypeMembers(): Promise<string[]> {
+  return Promise.resolve(Object.keys(TokenType));
 }
 
 async function referenced(url: URL): Promise<Set<string>> {

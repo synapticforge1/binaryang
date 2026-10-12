@@ -26,7 +26,10 @@ import process from 'node:process';
  */
 class BinaryReader {
   position = 0;
-  constructor(private readonly bytes: Uint8Array) {}
+  declare private readonly bytes: Uint8Array;
+  constructor(bytes: Uint8Array) {
+    this.bytes = bytes;
+  }
   get eof(): boolean {
     return this.position >= this.bytes.length;
   }

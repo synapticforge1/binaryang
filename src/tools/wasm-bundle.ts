@@ -731,11 +731,18 @@ interface Renames {
 }
 
 class Rewire implements ExprVisitorDelegate {
+  declare private readonly sp: Spaces;
+  declare private readonly r: Renames;
+  declare private readonly what: string;
   constructor(
-    private readonly sp: Spaces,
-    private readonly r: Renames,
-    private readonly what: string,
-  ) {}
+    sp: Spaces,
+    r: Renames,
+    what: string,
+  ) {
+    this.sp = sp;
+    this.r = r;
+    this.what = what;
+  }
 
   private of(space: 'func' | 'global' | 'table' | 'tag', v: Var): Var {
     const names = space === 'func'

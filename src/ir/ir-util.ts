@@ -34,23 +34,36 @@ import { BrOnOp } from './ir.ts';
 // ---------------------------------------------------------------------------
 
 /** What kind of control-flow construct introduced a {@link Label}. */
-export enum LabelType {
+export const LabelType = {
   /** The implicit function-body label (depth N from inside the body). */
-  Func = 'func',
+  Func: 'func',
   /** A `block` introduces a forward label; `br $label` exits the block. */
-  Block = 'block',
+  Block: 'block',
   /** A `loop` introduces a backward label; `br $label` jumps to the loop header. */
-  Loop = 'loop',
+  Loop: 'loop',
   /** An `if` introduces a forward label like `block`. */
-  If = 'if',
+  If: 'if',
   /** The `else` arm of an `if`. */
-  Else = 'else',
+  Else: 'else',
   /** A legacy `try` block (EH proposal v1). */
-  Try = 'try',
+  Try: 'try',
   /** A `catch` clause inside a legacy `try`. */
-  Catch = 'catch',
+  Catch: 'catch',
   /** A `try_table` block (EH proposal current). */
-  TryTable = 'try_table',
+  TryTable: 'try_table',
+} as const;
+/** One of {@link LabelType}'s values. */
+export type LabelType = (typeof LabelType)[keyof typeof LabelType];
+/** Each member as a type (`LabelType.Func`), as when LabelType was an `enum`. */
+export declare namespace LabelType {
+  type Func = typeof LabelType.Func;
+  type Block = typeof LabelType.Block;
+  type Loop = typeof LabelType.Loop;
+  type If = typeof LabelType.If;
+  type Else = typeof LabelType.Else;
+  type Try = typeof LabelType.Try;
+  type Catch = typeof LabelType.Catch;
+  type TryTable = typeof LabelType.TryTable;
 }
 
 // ---------------------------------------------------------------------------

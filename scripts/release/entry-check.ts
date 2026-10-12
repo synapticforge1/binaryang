@@ -43,8 +43,8 @@ export async function checkEntry(root: string): Promise<string[]> {
   const entry = `${root}/${rel.replace(/^\.\//, '')}`;
   const problems: string[] = [];
 
-  // The RUNNING runtime, with its own flags (Node needs --experimental-transform-types for
-  // the TypeScript source): the entry is checked under whatever runs the release.
+  // The RUNNING runtime, with its own flags: the entry is checked under whatever runs the
+  // release.
   const runtime = (args: string[]) => {
     const r = spawnSync(process.execPath, [...process.execArgv, ...args], {
       cwd: root,

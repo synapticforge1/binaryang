@@ -7,9 +7,9 @@
  *
  * Which lines: Node's own release schedule (`nodejs/Release`'s `schedule.json`), every line whose
  * LTS has started and whose end of life has not come. That is decided by the date, never by a
- * list here, so a line ENTERS this check the day it becomes LTS. Node 26 does on 2026-10-28, and it
- * cannot run this TypeScript source (it removed `--experimental-transform-types`); this check is
- * what will say so (open-work 28 part 4).
+ * list here, so a line ENTERS this check the day it becomes LTS. Node 26 does on 2026-10-28. It
+ * removed `--experimental-transform-types`, so the source had to become erasable TypeScript
+ * first (open-work 28 part 4, done 2026-10-12): Node runs it with NO flag, 22.18 through 26.
  *
  * How: each line runs through fnm (`fnm exec --using=<major>`), so no Node switches globally and
  * no path is machine-specific. `scripts/cli-smoke.ts` runs every dispatcher command and prints the
@@ -86,10 +86,9 @@ if (import.meta.main) {
       'exec',
       `--using=${m}`,
       'node',
-      '--experimental-transform-types',
       '--no-warnings',
       'scripts/cli-smoke.ts',
-      'node --experimental-transform-types --no-warnings',
+      'node --no-warnings',
     ]);
     const out = `${r.stdout ?? ''}`.trim();
     const hash = out.split('\n').at(-1) ?? '';

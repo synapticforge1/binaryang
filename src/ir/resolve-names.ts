@@ -104,7 +104,7 @@ class ResolveContext {
 
   resolveModule(): Result {
     this.buildModuleScopes();
-    let result = Result.Ok;
+    let result: Result = Result.Ok;
 
     for (const g of this.module.globals) {
       result = combine(result, this.resolveConstExpr(g.init));
@@ -309,7 +309,7 @@ class ResolveContext {
   }
 
   private resolveExprList(exprs: Expr[]): Result {
-    let result = Result.Ok;
+    let result: Result = Result.Ok;
     for (let i = 0; i < exprs.length; i++) {
       const e = exprs[i];
       if (e === undefined) continue;
@@ -1088,7 +1088,7 @@ class ResolveContext {
   }
 
   private resolveExprArray(exprs: Expr[]): [Result, Expr[]] {
-    let result = Result.Ok;
+    let result: Result = Result.Ok;
     const out: Expr[] = [];
     for (const e of exprs) {
       const [r, resolved] = this.resolveExpr(e);

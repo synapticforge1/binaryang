@@ -1152,7 +1152,7 @@ export class TypeChecker {
       );
       return Result.Error;
     }
-    let r = Result.Ok;
+    let r: Result = Result.Ok;
     for (let i = 0; i < sig.length; i++) {
       const expected = sig[i] ?? Type.Any;
       const actual = this.peekType(sig.length - i - 1);
@@ -1416,7 +1416,7 @@ export class TypeChecker {
     if (!label) return Result.Error;
     // The else arm must not see what the then arm initialised.
     this.rollbackInit(label);
-    let r = Result.Ok;
+    let r: Result = Result.Ok;
     if (label.labelType !== LabelType.If) {
       this.printError('else outside of if block');
       r = Result.Error;
@@ -2055,7 +2055,7 @@ export class TypeChecker {
   onCatch(sig: ValueType[], isCatchAll = false): Result {
     const label = this.topLabel();
     if (!label) return Result.Error;
-    let r = Result.Ok;
+    let r: Result = Result.Ok;
     if (label.labelType !== LabelType.Try && label.labelType !== LabelType.Catch) {
       this.printError('catch outside of try block');
       r = Result.Error;

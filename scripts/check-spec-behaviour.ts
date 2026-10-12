@@ -179,7 +179,7 @@ function drain(queue: SpecInput[]): Promise<SpecInput[]> {
     // node:worker_threads, not the web `Worker`: it runs on Deno, Node and Bun alike (Node has no
     // global `Worker`). This harness is an engine ORACLE, so `bun run` starts it on a V8 runtime:
     // Deno, while it exists (cmem/bun-migration.md § "The engine oracle"). The worker inherits
-    // this process's execArgv, so a Node flag such as --experimental-transform-types reaches it.
+    // this process's execArgv, so a runtime flag (a V8 flag on Node) reaches it.
     const worker = new Worker(WORKER);
     let next = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;

@@ -111,17 +111,33 @@ export const ASYNCIFY_STOP_REWIND = 'asyncify_stop_rewind';
 export const ASYNCIFY_GET_STATE = 'asyncify_get_state';
 
 /** The `__asyncify_state` values. */
-export const enum State {
-  Normal = 0,
-  Unwinding = 1,
-  Rewinding = 2,
+export const State = {
+  Normal: 0,
+  Unwinding: 1,
+  Rewinding: 2,
+} as const;
+/** One of {@link State}'s values. */
+export type State = (typeof State)[keyof typeof State];
+/** Each member as a type (`State.Normal`), as when State was an `enum`. */
+export declare namespace State {
+  type Normal = typeof State.Normal;
+  type Unwinding = typeof State.Unwinding;
+  type Rewinding = typeof State.Rewinding;
 }
 
 /** Byte offsets within the `__asyncify_data` structure (wasm32). */
-export const enum DataOffset {
-  StackPos = 0,
-  StackEnd = 4,
-  StackEnd64 = 8,
+export const DataOffset = {
+  StackPos: 0,
+  StackEnd: 4,
+  StackEnd64: 8,
+} as const;
+/** One of {@link DataOffset}'s values. */
+export type DataOffset = (typeof DataOffset)[keyof typeof DataOffset];
+/** Each member as a type (`DataOffset.StackPos`), as when DataOffset was an `enum`. */
+export declare namespace DataOffset {
+  type StackPos = typeof DataOffset.StackPos;
+  type StackEnd = typeof DataOffset.StackEnd;
+  type StackEnd64 = typeof DataOffset.StackEnd64;
 }
 
 // ---------------------------------------------------------------------------

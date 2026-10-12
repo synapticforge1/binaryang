@@ -27,11 +27,18 @@ import { countImports } from './ir.ts';
 // ---------------------------------------------------------------------------
 
 /** Bit flags for {@link generateNames}. */
-export enum NameOpts {
+export const NameOpts = {
   /** Default: synthesize numeric names like `$f0` / `$g0`. */
-  None = 0,
+  None: 0,
   /** Use bijective base-26 names (`a`, `b`, …, `z`, `aa`, `ab`, …) instead of numeric. */
-  AlphaNames = 1 << 0,
+  AlphaNames: 1, // was: 1 << 0
+} as const;
+/** One of {@link NameOpts}'s values. */
+export type NameOpts = (typeof NameOpts)[keyof typeof NameOpts];
+/** Each member as a type (`NameOpts.None`), as when NameOpts was an `enum`. */
+export declare namespace NameOpts {
+  type None = typeof NameOpts.None;
+  type AlphaNames = typeof NameOpts.AlphaNames;
 }
 
 // ---------------------------------------------------------------------------
