@@ -20,6 +20,18 @@ call. Then 14 (security); 25 after the `./ir` release; 15 stays blocked on wasmt
 none blocking**; numbers 2–7, 9–12, 16, 17, 21, 22, 23, 24 are gone and kept free. Re-derive any
 number before quoting it.
 
+**State, end of 2026-10-12 (this session, all merged to `main`, NOT PUSHED; the version stays
+1.10.0):** Deno development ends ~2027-10, so item 26, the **Bun migration**: B1 (`jsr.json` is the
+one manifest), B2 (`tsc`, `package.json`) and B4 (all scripts `node:`-only, run by `bun run`; engine
+oracles on Deno's V8) are done; B3, B5, B6 and B7 are next ([bun-migration.md](bun-migration.md)).
+Item **27** (an untyped interp `TypeError`) is closed. Item **28** ("runs everywhere"): every export
+loads in a browser, `wasmOpt` takes bytes, and every current Node LTS line is tested
+(`bun run lts`, through fnm). Open: the headless browser, and erasable-only TypeScript, which is
+**due before Node 26 becomes LTS on 2026-10-28**. The guide for the other JSR packages is
+[jsr-deno-exit-guide.md](jsr-deno-exit-guide.md). `code-lens-13` is still unmerged; it merges
+cleanly. **Owner, 2026-10-12: the NEXT project is universal-wasm-loader** (Bun cannot import
+`.wasm`; the guide's F11), worked in ITS repo, not from here.
+
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
 **Cut back to open items on 2026-09-29** (the second time; the first was 2026-09-14). The file had

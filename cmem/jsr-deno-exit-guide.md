@@ -136,6 +136,24 @@ passed directly in Node (`node --experimental-wasm-…`); Bun has none. binaryan
 (2027-04) or Deno's end (~2027-10): a browser, or a newer Node once the source is erasable-only. **wasmtk and the loader run WebAssembly as their product, so their own tests meet this
 head-on.**
 
+**F11. Importing a `.wasm` file directly works on Deno and Node, NOT on Bun.** Measured
+2026-10-12 with `import { add } from "./add.wasm"` (a two-function module):
+
+| runtime | result |
+| --- | --- |
+| Deno 2.9.7 | works (WebAssembly ES-module integration) |
+| Node 22.23.3, 24.21.0, 26.11.1 | works, with NO flag (`--experimental-wasm-modules` is no longer needed) |
+| Bun 1.4.3 | FAILS, "Export named 'add' not found": `import x from "./add.wasm"` gives the file's PATH as a string (an asset import), not the module |
+| browsers | not measured (WebAssembly ES-module integration is not generally shipped there, to our knowledge) |
+
+→ Code meant to run everywhere cannot import `.wasm`. It has to obtain the BYTES (a file read,
+`fetch`, or an embedded `Uint8Array`) and call `WebAssembly.instantiate` with explicit
+imports. That is universal-wasm-loader's job, so the owner made it the next project (2026-10-12):
+"since wasm is not directly importable the same way it is in bun and node as it is in deno, our
+next project needs to be the universal wasm load project. That transition will make the rest
+easier." (The owner's premise, measured: Node CAN import `.wasm` directly; Bun is the outlier,
+and browsers are unmeasured.)
+
 ## 4. The steps binaryang is following
 
 Each step is its own branch, gated and merged. Only step 6 cannot be undone, because a JSR
