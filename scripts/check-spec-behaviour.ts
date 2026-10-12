@@ -177,9 +177,9 @@ const rows: Row[] = [];
 function drain(queue: SpecInput[]): Promise<SpecInput[]> {
   return new Promise((resolve) => {
     // node:worker_threads, not the web `Worker`: it runs on Deno, Node and Bun alike (Node has no
-    // global `Worker`). This harness is an engine ORACLE, so `bun run` starts it on a V8 runtime:
-    // Deno, while it exists (cmem/bun-migration.md § "The engine oracle"). The worker inherits
-    // this process's execArgv, so a runtime flag (a V8 flag on Node) reaches it.
+    // global `Worker`). This harness is an engine ORACLE, so `bun run` starts it on the V8
+    // referee, Node through `scripts/v8.ts` (cmem/bun-migration.md § "The engine oracle"). The
+    // worker inherits this process's execArgv, so a runtime flag (a V8 flag on Node) reaches it.
     const worker = new Worker(WORKER);
     let next = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;

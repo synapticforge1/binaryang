@@ -250,11 +250,11 @@ fatigue.
     20 tasks are `bun run` scripts, differential against the old Deno scripts identical). The
     README's install and CLI instructions no longer depend on Deno.
     **The engine referee** (bun-migration.md § "The engine oracle"): Bun's WebAssembly is
-    JavaScriptCore (it differs on 300 of 6,753 corpus modules), so oracle scripts run on Deno's V8
-    (Node 24 also passes; Node 22 fails). **No deadline** (owner, 2026-10-12): Deno keeps working
-    after its development ends, and stays the referee and the publisher (`deno publish`) unless
-    JSR offers something better. Watch only for a NEW proposal that needs a newer V8 than Deno's
-    frozen 15.0; give that row Node 26, Node 24 or a browser.
+    JavaScriptCore (it differs on 300 of 6,753 corpus modules), so oracle scripts run on the V8
+    REFEREE: Node 24 through fnm (`scripts/v8.ts`), with Node 26 for custom-descriptors and Bun for
+    wide-arithmetic. Each was measured equal to Deno's results. **Deno is for JSR only** (owner,
+    2026-10-12: "not the V8 items"): `deno publish` stays unless JSR offers something better, and
+    Deno keeps working after its development ends. No deadline.
     **Next: B3** (fmt / lint off Deno: dprint should match `deno fmt` byte for byte, measure first;
     a linter, listing each dropped rule), **B5** (tests: `@std/testing/bdd` → `node:test`,
     keeping `@std/assert` / `@std/expect`; per-file counts must match; 220 test files use the host

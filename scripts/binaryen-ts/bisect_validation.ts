@@ -8,7 +8,7 @@
  * a non-validating .wasm.
  *
  * Run:
- *   deno run -A scripts/binaryen-ts/bisect_validation.ts
+ *   bun scripts/v8.ts scripts/binaryen-ts/bisect_validation.ts
  *
  * @license MIT
  */

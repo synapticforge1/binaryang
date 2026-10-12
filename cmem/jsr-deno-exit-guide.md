@@ -132,10 +132,9 @@ Node 22's V8 12.4 differs from Deno's 15.0 on 71 core modules (no table64) and f
 behaviour gate (11 DIVERGE, 32 refused); Node 24 (13.6) passed it; Node 26 (14.6) cannot run
 TypeScript with enums at all. Chrome stable is V8 15.6. V8 flags are `--v8-flags=…` in Deno and
 passed directly in Node (`node --experimental-wasm-…`); Bun has none. binaryang's wiring
-(owner: Node 22 only on the dev machine): oracle scripts run as `deno run -A scripts/…` from
-`package.json`, everything else on Bun. No deadline: Deno keeps working after its development
-ends (owner, 2026-10-12). Only a NEW proposal that needs a newer V8 than Deno's frozen 15.0 calls
-for another engine on that row. **wasmtk and the loader run WebAssembly as their product, so their own tests meet this
+(owner, 2026-10-12: Deno for JSR only, "not the V8 items"): oracle scripts run on Node 24 through
+fnm, named once in `scripts/v8.ts` (`bun scripts/v8.ts scripts/…` from `package.json`), and
+everything else on Bun. Measured equal to Deno's results. **wasmtk and the loader run WebAssembly as their product, so their own tests meet this
 head-on.**
 
 **F11. Importing a `.wasm` file directly works on Deno and Node, NOT on Bun.** Measured
@@ -244,12 +243,14 @@ host engine must run on a current V8. binaryang's measurements on the spec corpo
 | Chrome 156 (V8 15.6) | not measured | the newest V8 anywhere |
 
 Experimental proposals need an engine that HAS them, and no single one has all of them.
-binaryang picks an engine per proposal (`scripts/proposals.ts` `engine`): custom-descriptors on
-Deno's V8 15.0, wide-arithmetic on Bun (JavaScriptCore has it by default). Its oracle scripts run
-on Deno. **No deadline** (owner, 2026-10-12): Node 22's end of life only drops it from the LTS
-list, since the list follows the schedule, and Deno keeps working after its development ends,
-for the referee and for `deno publish` ("hopefully a better jsr interface will exist by then, if
-not we will continue to use deno as is"). Watch only for a new proposal that needs a newer V8.
+binaryang picks an engine per proposal (`scripts/proposals.ts` `engine` / `node`):
+custom-descriptors on Node 26 (V8 14.6), wide-arithmetic on Bun (JavaScriptCore has it by default),
+the rest on the referee. Its oracle scripts run on **Node 24 through fnm**, named once in
+`scripts/v8.ts`; each was measured equal to Deno 2.9.7's results. **Deno is kept for JSR only**
+(owner, 2026-10-12: "I am looking at deno to run the jsr items specifically. Not the V8 items"):
+`deno publish` stays ("hopefully a better jsr interface will exist by then, if not we will continue
+to use deno as is"). Node 22's end of life only drops it from the LTS list, which follows the
+schedule. There is no deadline.
 
 ### Every current Node LTS line, supported and tested
 

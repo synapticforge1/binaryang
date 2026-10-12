@@ -25,11 +25,11 @@
  * Usage:
  *
  * ```sh
- * deno run -A scripts/wabt-ts/engine-check.ts path/to/dir-of-wasm
+ * bun scripts/v8.ts scripts/wabt-ts/engine-check.ts path/to/dir-of-wasm
  *
- * On Deno, so that the `v8` engine below IS a current V8: under Bun the host engine is
- * JavaScriptCore, and this machine's Node 22 has V8 12.4 (cmem/bun-migration.md § "The engine
- * oracle").
+ * On the V8 referee (`scripts/v8.ts`, a Node major through fnm), so that the `v8` engine below
+ * IS a current V8: under Bun the host engine is JavaScriptCore, and Node 22's V8 is 12.4
+ * (cmem/bun-migration.md § "The engine oracle").
  * ```
  *
  * Missing engines are reported and skipped rather than failing the run, so
@@ -214,7 +214,7 @@ async function main(): Promise<void> {
   const dir = process.argv.slice(2)[0];
   if (dir === undefined) {
     console.error(
-      'usage: deno run -A scripts/wabt-ts/engine-check.ts <dir-of-wasm>',
+      'usage: bun scripts/v8.ts scripts/wabt-ts/engine-check.ts <dir-of-wasm>',
     );
     process.exit(2);
   }

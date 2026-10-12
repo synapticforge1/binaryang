@@ -5,7 +5,7 @@
  * on the re-encoded output, reporting the exact validation error.
  *
  * Run:
- *   deno run -A scripts/binaryen-ts/diag_compile.ts <relpath-under-upstream/test>
+ *   bun scripts/v8.ts scripts/binaryen-ts/diag_compile.ts <relpath-under-upstream/test>
  *
  * @license MIT
  */

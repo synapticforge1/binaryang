@@ -21,7 +21,7 @@
  * only *identical*, for the differential to be valid.
  *
  * Run:
- *   deno run -A scripts/binaryen-ts/equiv_check.ts [rel ...]
+ *   bun scripts/v8.ts scripts/binaryen-ts/equiv_check.ts [rel ...]
  *
  * @license MIT
  */
