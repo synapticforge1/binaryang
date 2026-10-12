@@ -237,6 +237,7 @@ host engine must run on a current V8. binaryang's measurements on the spec corpo
 
 | engine | vs Deno 2.9.7 (V8 15.0) | behaviour gate |
 | --- | --- | --- |
+| Node 26 (V8 14.6) | whole corpus not measured | custom-descriptors: equal to Deno (488 invocations, 0 DIVERGE) |
 | Node 24 (V8 13.6) | 0 of 6,753 differ | passes |
 | Node 22 (V8 12.4) | 71 core differ (no table64) | FAILS (11 DIVERGE, 32 refused) |
 | Bun 1.4.3 (JavaScriptCore) | 300 differ (no memory64; accepts 70 invalid) | not used |
@@ -252,6 +253,21 @@ the rest on the referee. Its oracle scripts run on **Node 24 through fnm**, name
 to use deno as is"). Node 22's end of life only drops it from the LTS list, which follows the
 schedule. There is no deadline.
 
+**Who runs what in binaryang (2026-10-12), the shape to copy:**
+
+| role | runtime | how |
+| --- | --- | --- |
+| JSR: `deno publish --config jsr.json`, its dry run | **Deno** | the only Deno role kept long term ("the jsr items") |
+| type check, tests, formatting | Deno for now | `deno check` / `test` / `fmt`, until binaryang's B3 / B5 move them |
+| engine-oracle scripts (behaviour, validity, optimizer corpus, hostile) | **Node 24** (the V8 referee) | `bun scripts/v8.ts <script>`: one constant, run through `fnm exec`, never PATH's `node` |
+| a proposal the referee lacks | Node 26 (custom-descriptors), Bun (wide-arithmetic) | a per-row `engine` / `node` in `scripts/proposals.ts` |
+| everything else (scripts, `tsc`, the browser and LTS checks) | **Bun** | `bun run <name>` from `package.json` |
+
+fnm holds every Node in play (binaryang's machine: 22, 24, 26), so a script names its major and
+never depends on fnm's default (which was 22 there, whose V8 fails these gates). Raising the
+referee is a one-line change in `scripts/v8.ts`, after validating the whole corpus on the new
+Node and running the behaviour gates.
+
 ### Every current Node LTS line, supported and tested
 
 Owner, 2026-10-12: "We should support and test all currently available lts versions."
@@ -260,7 +276,8 @@ Owner, 2026-10-12: "We should support and test all currently available lts versi
   life not reached. Never a hand-kept list. On 2026-10-12 that is 22 "Jod" and 24 "Krypton".
 - **CI:** an `actions/setup-node` matrix with the floor (binaryang: 22.18, for the
   `import.meta.main` backport) plus the latest of each LTS line (`.github/workflows/ci.yml`,
-  `runtimes`).
+  `runtimes`). binaryang's legs: 22.18, latest 22, latest 24, and latest 26 ahead of its LTS on
+  2026-10-28. All invoke plain `node` with NO flag, since its source is erasable TypeScript.
 - **Locally: `bun run lts`** (`scripts/check-lts.ts`) reads the schedule, runs the CLI smoke test
   on each line through `fnm exec --using=<major>` (fnm, so nothing switches globally and no path
   is machine-specific), and requires one output hash. A line fnm has not installed FAILS,
