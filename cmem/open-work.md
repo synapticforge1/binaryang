@@ -42,7 +42,8 @@ PUSHED; the version stays 1.10.0):**
   in tsconfig and deno.json) refuses it otherwise. Its own process still applies first: one
   convergence re-run that adds no row.
 - **Dates:** Node 26 becomes LTS on 2026-10-28 (ready: it runs the source; `bun run lts` will
-  require it that day). A new engine referee is needed before about 2027-04 (item 26).
+  require it that day). Node 22's end of life (2027-04-30) needs NO action: `bun run lts` follows
+  the schedule. Deno keeps working after its development ends (owner, 2026-10-12).
 - **Owner, 2026-10-12: the NEXT project is universal-wasm-loader** (Bun cannot import `.wasm`;
   the guide's F11), worked in ITS repo, not from here.
 
@@ -250,9 +251,10 @@ fatigue.
     README's install and CLI instructions no longer depend on Deno.
     **The engine referee** (bun-migration.md § "The engine oracle"): Bun's WebAssembly is
     JavaScriptCore (it differs on 300 of 6,753 corpus modules), so oracle scripts run on Deno's V8
-    until Deno ends. Node 24 also passes, and Node 22 fails. **A new referee is needed before about
-    2027-04** (Node 22's end of life; Deno's ends ~2027-10): a browser (Chrome V8 15.6), Node 26
-    (it runs the source since item 28 part 4), or Node 24.
+    (Node 24 also passes; Node 22 fails). **No deadline** (owner, 2026-10-12): Deno keeps working
+    after its development ends, and stays the referee and the publisher (`deno publish`) unless
+    JSR offers something better. Watch only for a NEW proposal that needs a newer V8 than Deno's
+    frozen 15.0; give that row Node 26, Node 24 or a browser.
     **Next: B3** (fmt / lint off Deno: dprint should match `deno fmt` byte for byte, measure first;
     a linter, listing each dropped rule), **B5** (tests: `@std/testing/bdd` → `node:test`,
     keeping `@std/assert` / `@std/expect`; per-file counts must match; 220 test files use the host
