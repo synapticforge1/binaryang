@@ -1704,6 +1704,47 @@ slower in the worst case); one above the tail costs ordinary runs nothing. **How
 setting trades cost against latency, read the distribution's tail (p99, max), and say which number
 was used and why.
 
+### A mutant must exercise the path the check guards — otherwise it proves the wrong thing
+
+`check-browser.ts` was "proven" by restoring an old tool that imported `node:process`: the browser
+build FAILED, the check went red, and it was called sound (2026-10-12). But Bun's browser target
+handles builtins differently: `node:process` has no default-export stub, so it fails loudly, while
+`node:fs` is silently STUBBED (`(() => ({}))`, exit 0, the import gone from the output). A used
+top-level `node:fs` import passed the check. The owner found it the same day; the source-level
+portability rule had caught it all along. An earlier mutant, `void process`, was dropped by the
+bundler and proved nothing either. **How to apply:** list the ways the guarded thing can go wrong,
+and make one mutant per WAY, not per symptom. When a check depends on a tool's behaviour (a
+bundler, a compiler), test the tool's quiet path, not just its loud one.
+
+### An exit code at the end of a pipeline belongs to the last command
+
+A gate "passed" that never ran (2026-10-12): a Windows path (`C:/…`) prepended to PATH in Git Bash
+broke PATH (the colon is its separator), `node` was not found, the runner died with 127, and a
+trailing `cut` returned 0. Only two of the gate's lines were in its log, left over from an earlier
+run. **How to apply:** judge a gate by ITS printed steps and its own exit code, never by a pipeline's.
+Make a runner refuse to start when a prerequisite (the expected `node`) is missing, and use POSIX
+paths (`/c/…`) on PATH in Git Bash.
+
+### A numeric `enum` lets any number through — converting it exposes the lies
+
+Converting the 20 enums to const objects (open-work 28 part 4) turned three typing lies into
+errors: `Opcode` used across the IR for `(prefix << 16) | sub` values that are not members; a
+`ReadonlySet<NameSectionSubsection>` holding unknown ids; and `exp.kind in ExternalKind`, which
+only worked through the enum's reverse keys and broke every export. That last one passed both type
+checkers, and only the CLI smoke test caught it. **How to apply:** after removing a permissive
+type, run the BEHAVIOUR gates, not only the checkers. Search for reflective uses (`in X`,
+`Object.keys/values/entries(X)`, `X[expr]`) of the thing changed. Where "any number" was the real
+contract, say so in the type (`number`, with the reason), instead of casting at each use.
+
+### An engine is an oracle only after you measure it against the one you trusted
+
+Moving scripts to Bun would have swapped the WebAssembly ORACLE: Bun runs JavaScriptCore, which
+differed from Deno's V8 on 300 of 6,753 corpus modules (no memory64; accepts 70 invalid modules).
+Node 22's V8 12.4 failed the behaviour gate outright, and Node 24's V8 13.6 agreed on all 6,753.
+None of that showed until each engine validated the same corpus. **How to apply:** before a gate
+that judges with the host engine changes runtime or version, validate the whole corpus on old and
+new and diff the verdicts. Record which engine referees, and when that engine reaches end of life.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

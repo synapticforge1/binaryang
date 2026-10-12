@@ -20,22 +20,31 @@ call. Then 14 (security); 25 after the `./ir` release; 15 stays blocked on wasmt
 none blocking**; numbers 2–7, 9–12, 16, 17, 21, 22, 23, 24 are gone and kept free. Re-derive any
 number before quoting it.
 
-**State, end of 2026-10-12 (this session, all merged to `main`, NOT PUSHED; the version stays
-1.10.0):** Deno development ends ~2027-10, so item 26, the **Bun migration**: B1 (`jsr.json` is the
-one manifest), B2 (`tsc`, `package.json`) and B4 (all scripts `node:`-only, run by `bun run`; engine
-oracles on Deno's V8) are done; B3, B5, B6 and B7 are next ([bun-migration.md](bun-migration.md)).
-Item **27** (an untyped interp `TypeError`) is closed. Item **28** ("runs everywhere"): every export
-loads in a browser, `wasmOpt` takes bytes, and every current Node LTS line is tested
-(`bun run lts`, through fnm), and the source is erasable TypeScript, so Node 22–26 run it with no
-flag (part 4, done; branch `erasable-ts`). Open: the headless browser. The guide for the other JSR packages is
-[jsr-deno-exit-guide.md](jsr-deno-exit-guide.md). `code-lens-13` is still unmerged, and since
-part 4 it **CONFLICTS in one file, `src/ir/derive-types.ts`** (everything else auto-merges). The
-branch adds a NEW constructor parameter property there (`private readonly discarded?: Discarded`)
-in the constructor part 4 converted. Merging it means resolving that hunk AND converting the new
-property to the `declare` form; `erasableSyntaxOnly` (on in tsconfig and deno.json) refuses it
-otherwise. Its process still applies first: one convergence re-run that adds no row.
-**Owner, 2026-10-12: the NEXT project is universal-wasm-loader** (Bun cannot import
-`.wasm`; the guide's F11), worked in ITS repo, not from here.
+**State, end of 2026-10-12 (this supersedes the 2026-10-09 line above; all merged to `main`, NOT
+PUSHED; the version stays 1.10.0):**
+- **Done this session:** item 26 B1, B2 and B4 (the Bun migration; scripts run from Bun);
+  item **27** closed (interp `Stop(invalid)`); item **28** parts 1, 2, 4 and 5 (every export loads
+  in a browser, held by `bun run browser` with `--external 'node:*'` plus `bun run portability`;
+  `wasmOpt` takes bytes; the source is erasable TypeScript, so Node 22–26 run it with NO flag;
+  every current Node LTS tested by `bun run lts` through fnm, and CI by `setup-node`). The guide for
+  the other JSR packages is [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md).
+- **The next release is a MINOR, 1.11.0** ([unreleased.md](unreleased.md)): new exports,
+  deprecations, the `./ir` subpath, and now a type-level BREAKING change (the 19 exported `enum`s
+  are const objects).
+- **6 open items:** 13 (hardening; code lens pass 1 on the unmerged `code-lens-13`), 14
+  (security), 15 (`wasm2ts`, blocked on wasmtk), 25 (remove the deprecated subpaths, after
+  1.11.0), 26 (Bun migration: B3, B5, B6, B7), 28 (part 3, a headless browser; the in-browser
+  optimization measurement; precise operator unions, a follow-up).
+- ⚠️ **`code-lens-13` CONFLICTS with `main` in one file, `src/ir/derive-types.ts`** (everything
+  else auto-merges). The branch adds a NEW constructor parameter property there
+  (`private readonly discarded?: Discarded`) in the constructor part 4 converted. Merging means
+  resolving that hunk AND converting the property to the `declare` form; `erasableSyntaxOnly` (on
+  in tsconfig and deno.json) refuses it otherwise. Its own process still applies first: one
+  convergence re-run that adds no row.
+- **Dates:** Node 26 becomes LTS on 2026-10-28 (ready: it runs the source; `bun run lts` will
+  require it that day). A new engine referee is needed before about 2027-04 (item 26).
+- **Owner, 2026-10-12: the NEXT project is universal-wasm-loader** (Bun cannot import `.wasm`;
+  the guide's F11), worked in ITS repo, not from here.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -106,7 +115,12 @@ Its number is kept free.)
     cli-smoke); `Opcode` used across the IR for COMBINED `(prefix << 16) | sub` values that are
     not members (so the `Opcode` TYPE is deliberately `number`, the strictness it always had; a
     precise union is a follow-up); a name-section set holding unknown ids. **Open:** part 3 (a real
-    headless-browser run) and the measurement.
+    headless-browser run: headless Chrome, V8 15.6, running the library on the corpus with the
+    same hash as the other runtimes; it may also be the engine REFEREE once Deno is gone, item 26);
+    the in-browser optimization measurement (below); and, as a follow-up, precise operator types.
+    The IR's `opcode` fields and `UnaryOp` / `BinaryOp` / … are `number` today, and a union of
+    each table's values needs its 244 `(prefix << 16) | sub` entries written as hex literals, plus
+    casts where the reader builds operators from decoded bytes.
 
     **Node LTS policy (owner, 2026-10-12): "support and test all currently available lts
     versions."** As of 2026-10-12 that is Node 22 "Jod" (22.23.3) and Node 24 "Krypton" (24.21.0),
@@ -226,12 +240,25 @@ fatigue.
 26. ⬚ 🗓️ **Move the development toolchain from Deno to Bun; JSR stays the source** (owner,
     2026-10-12). Deno runtime development ends around 2027-10 (the team joined Cloudflare). The
     published package is already runtime-neutral; tests, scripts, fmt / lint / check and CI are
-    not. Steps B1–B7 with findings and risks: [bun-migration.md](bun-migration.md). **B1 (`jsr.json`
-    is the one manifest) is merged.** ✅ **Decided 2026-10-12: code that runs on both Bun and Node, with Bun as the main runtime**
-    (bun-migration.md § "Bun or Node"). B2 (project files, `tsc`) is next.
-    The README's install and CLI instructions no longer depend on Deno (2026-10-12). B6 (the release path) is the one step
-    that cannot be undone. The deadline is about a year away, so the owner orders it against
-    items 13 and 14.
+    not. Steps B1–B7 with findings and risks: [bun-migration.md](bun-migration.md).
+    ✅ **Decided 2026-10-12: code that runs on both Bun and Node, with Bun as the main runtime**
+    (bun-migration.md § "Bun or Node"), and **all scripts run from Bun** (owner).
+    **Done, all merged 2026-10-12:** B1 (`jsr.json` is the one manifest; `deno publish --config
+    jsr.json` while `deno.json` exists); B2 (`package.json`, `tsconfig.json`, `tsc` 7.0.2 with
+    `@types/node` pinned to the Node floor, `bun.lock`); B4 (all 51 script files `node:`-only, the
+    20 tasks are `bun run` scripts, differential against the old Deno scripts identical). The
+    README's install and CLI instructions no longer depend on Deno.
+    **The engine referee** (bun-migration.md § "The engine oracle"): Bun's WebAssembly is
+    JavaScriptCore (it differs on 300 of 6,753 corpus modules), so oracle scripts run on Deno's V8
+    until Deno ends. Node 24 also passes, and Node 22 fails. **A new referee is needed before about
+    2027-04** (Node 22's end of life; Deno's ends ~2027-10): a browser (Chrome V8 15.6), Node 26
+    (it runs the source since item 28 part 4), or Node 24.
+    **Next: B3** (fmt / lint off Deno: dprint should match `deno fmt` byte for byte, measure first;
+    a linter, listing each dropped rule), **B5** (tests: `@std/testing/bdd` → `node:test`,
+    keeping `@std/assert` / `@std/expect`; per-file counts must match; 220 test files use the host
+    engine, which needs the referee rule), **B6** (CI and the release path: the one step that
+    cannot be undone; `publish.yml` keeps `deno publish` for provenance), **B7** (delete
+    `deno.json`). The owner orders it against items 13 and 14.
 
 (Item 21 closed 2026-10-09: one `src/` tree by concept, one declaration per name, one IR
 subpath — [one-tree.md](one-tree.md): the four phases, the decisions, what the gate found. Its
