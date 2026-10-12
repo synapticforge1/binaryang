@@ -38,18 +38,10 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-27. ⬚ **`wasm-interp` throws an UNTYPED `TypeError` on 3 mutated modules** (found 2026-10-12
-    by `hostile` during Bun migration B4; on `main` as it was, so NOT caused by the migration).
-    `bun run hostile <prepared core corpus>` (stride 7: 847 modules, 29,054 mutants) reports
-    `interp ok 3190 typed 656 UNTYPED 3` and `TOTAL — 3 broken`, exit 1. All three: `elem.85.wasm`
-    with byte 13 set to 0 → `TypeError: Cannot read properties of undefined (reading 'type')` at
-    `src/interp/interpreter.ts` `address()` (line 387 then), so an operand that should be an
-    i32 / i64 is `undefined`. The same 3 appear under Deno, Bun and Node. The branch
-    `code-lens-13` does not touch the interpreter. Contract: malformed input gets a typed answer
-    ([hardening.md](hardening.md)). **Reproduces from one file:** a directory holding only the
-    core corpus's `elem/elem.85.wasm`, then `bun run hostile <that dir> 1` → `3× interp:
-    TypeError … @ interp/interpreter.ts:387:9`. Find which instruction reaches `address()`
-    without an operand, and add the mutant as a test.
+**None open.** (Item 27 closed 2026-10-12: the interpreter's constant-expression evaluator never
+checked that an expression left a value, so `(offset nop)` on an unvalidated module escaped as a
+bare `TypeError`; now `Stop(invalid)` — [hardening.md](hardening.md) § "2026-10-12 — open-work 27".
+Its number is kept free.)
 
 28. ⬚ **"Runs everywhere" is not true today; bring it back into line** (owner, 2026-10-12:
     "Sounds like our run everywhere motto needs some effort to bring it back into line. We need
@@ -100,7 +92,7 @@ removed record went to a topic file, and the full text is one `git show` away:
     compile time and run time before vs after, and the optimizer's own time in the browser. No
     run-time speedup has been measured yet, so promise none.
 
-(Until 2026-10-12: **none open.**) Items 18–20, from wasmtk's § 20, were fixed for 1.8.1 the day they arrived: L3 (a
+Items 18–20, from wasmtk's § 20, were fixed for 1.8.1 the day they arrived: L3 (a
 lowered out-of-bounds access traps as out of bounds), L4 (the placeholder; case 2 at an engine
 ceiling) and C7 (`getFunctionInfo` shaped as binaryen.js) — [divergences.md](divergences.md).
 

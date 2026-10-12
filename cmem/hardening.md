@@ -150,3 +150,37 @@ passed `translate-eh`'s flat output instead of a `spec:prepare`d corpus, so it r
 in every gate of 2026-10-09 and read as green. The legacy corpus is 70 / 0 / 0 on the tree after
 every merge of that day (run once found). The runner now prepares it as
 [working-rules.md](working-rules.md) § "The gate" says, and fails any interp corpus that ran nothing.
+
+## 2026-10-12 — open-work 27: a constant expression with no value (closed)
+
+**Found** by `hostile` while Bun migration B4 compared old and new scripts (it reported the same
+thing under Deno, Node and Bun, so it was on `main` before the migration). Over the prepared core
+corpus, stride 7 (847 modules, 29,054 mutants), the interpreter's row read `ok 3190 typed 656
+UNTYPED 3`: `elem.85.wasm` with byte 13 set to 0, three times, `TypeError: Cannot read
+properties of undefined (reading 'type')` in `address()`.
+
+**The mutant was a red herring.** The ORIGINAL module fails the same way. `elem.85.wasm` is the
+spec suite's `assert_invalid` "constant expression required": a table and an element segment whose
+offset is `nop; end`. The validating reader refuses it; `hostile` (by design) runs the interpreter
+on the NON-validating read. Byte 13 is the table's minimum, which the defect does not care about.
+The mutant only happened to be where `hostile` looked. Rule kept: **reproduce on the unmutated
+input before reasoning about the mutation.**
+
+**Cause:** `Interpreter.evaluate()`, which every constant expression goes through (global inits,
+table inits, element items and offsets, data offsets), returned `stack.splice(length - results)`
+and never checked that the expression had produced anything. With no value it returned `[]`, the
+caller destructured `undefined`, and an offset reached `address()` → `undefined.type`. A global
+with an empty initializer took the other path: stored as `undefined`, a crash deferred to the read.
+
+**Fix:** `evaluate()` throws `invalid('a constant expression left N values, M expected')` when
+fewer than `results` values remain, after restoring the stack. That is `Stop(invalid)`, the
+`StopReason` pass 1 introduced for exactly this. One check covers all five call sites.
+
+**Tests** (`tests/binaryen-ts/interp/interpreter.test.ts`, describe "… (open-work 27)"): the
+testsuite's 21 bytes, the byte-13 mutant, an empty global initializer, and a valid control that must
+still instantiate. All three defect cases FAILED before the fix (two `TypeError`s; the global
+silently instantiated). **Measured after** (same corpus, same stride): the interp row went from
+`ok 3190 typed 656 UNTYPED 3` to `ok 3187 typed 662 UNTYPED 0`, the same 3,849 modules. "TOTAL —
+nothing escaped untyped, nothing ran away", exit 0. The other 3 that moved, from ok to typed, were
+the deferred case: modules that instantiated with a missing value and only LOOKED fine. The interp
+gate is unchanged.

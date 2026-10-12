@@ -82,6 +82,14 @@ public summary is `CHANGELOG.md` § 1.10.0.
     `Stop(invalid)`, a new `StopReason`.
   - `wasm-interp` and `wasm-ctor-eval` validate their input file and refuse an invalid one (they ran
     it). `wasm-bundle`: a malformed `linking` / `reloc.*` section is a `BundleError` naming the input.
+- **Silent fix — the interpreter and a constant expression that leaves no value** (2026-10-12,
+  open-work 27, found by `hostile` during Bun migration B4). On a module read WITHOUT validation, an
+  element or data offset such as `(offset nop)` escaped as a bare `TypeError` ("Cannot read
+  properties of undefined (reading 'type')"). An empty global initializer was stored as `undefined`
+  and failed later, wherever the global was read. Both are now `Stop(invalid)` at instantiation:
+  "a constant expression left 0 values, 1 expected". Who could have hit it: an `Interpreter` /
+  `interpModule` caller passing an unvalidated `readForPasses` module. The `wasm-interp` CLI
+  validates its input and was never exposed. `hostile` over the core corpus: interp UNTYPED 3 → 0, and 3 modules that silently instantiated with a missing value now stop as invalid.
 - **Behaviour — deeper nesting through the text route and the writers** (2026-10-09, open-work 13
   pass 2): name resolution's recursion was its lowest ceiling (~384 nested blocks); split into a
   dispatcher it follows ~700 cold / ~1,500 warm, so `wat2wasm`, `writeWasm`, `writeWat` and
