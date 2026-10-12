@@ -23,7 +23,8 @@
     "optimize-corpus": "deno run -A scripts/check-optimize-corpus.ts",
     "spec-behaviour": "deno run -A scripts/check-spec-behaviour.ts",
     "hostile": "deno run -A scripts/check-hostile.ts",
-    "browser": "bun scripts/check-browser.ts"
+    "browser": "bun scripts/check-browser.ts",
+    "lts": "bun scripts/check-lts.ts"
   },
   "devDependencies": {
     "@types/node": "~22.18.0",
