@@ -1,0 +1,29 @@
+{
+  // The type check for Bun and Node (Bun migration B2, cmem/bun-migration.md): neither runtime
+  // checks types, so `tsc` replaces `deno check`. The strictness flags are deno.json's, copied.
+  //
+  // Scope: the SHIPPED code only, for now. tests/, scripts/ and comparison/ still use Deno
+  // globals; each joins `include` when B4 / B5 converts it, and `deno check` covers them until then.
+  //
+  // `types: ["node"]` and NOT bun: code must run on Bun and Node (owner, 2026-10-12), so a
+  // Bun-only API has to fail this check. @types/node is pinned to 22.18, the published Node floor,
+  // so an API newer than the floor fails it too.
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["esnext", "dom"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["main.ts", "src/**/*.ts"]
+}

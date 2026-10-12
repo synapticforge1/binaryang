@@ -74,6 +74,12 @@
       "jsr:@std/fs@1",
       "jsr:@std/path@1",
       "jsr:@std/testing@1"
-    ]
+    ],
+    "packageJson": {
+      "dependencies": [
+        "npm:@types/node@22.18",
+        "npm:typescript@7.0.2"
+      ]
+    }
   }
 }

@@ -72,3 +72,19 @@ Deno.test('version: deno.json does not name the package (jsr.json is the one man
       'deno.json, `deno publish` would take the package from deno.json instead.',
   );
 });
+
+// package.json exists for Bun and Node (dev dependencies and scripts, B2). It is never published,
+// so a `version` there is a second copy that drifts. A `name` invites `npx jsr publish`, which
+// skips the type check when a package.json is present (cmem/bun-migration.md, finding 2).
+Deno.test('version: package.json does not name the package either', async () => {
+  const pkg = JSON.parse(await Deno.readTextFile(new URL('package.json', root))) as Record<
+    string,
+    unknown
+  >;
+  const stray = ['name', 'version', 'exports', 'bin'].filter((k) => k in pkg);
+  assertEquals(
+    stray,
+    [],
+    `package.json carries ${stray.join(', ')}. The package lives in jsr.json only.`,
+  );
+});
