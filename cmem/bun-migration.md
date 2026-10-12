@@ -134,6 +134,20 @@ half of `proposals`, which also passes its V8 flags to Node directly. Everything
 The owner's both-runtimes rule is what makes this a WIRING choice, not a code change. ⚠️ **Owner
 to confirm** (2026-10-12): the rule says scripts run on Bun, and these keep V8 instead.
 
+**Which Node referees: Node 24, NOT Node 22 (measured 2026-10-12).** The owner considered moving
+this machine to Node 22, the oldest LTS (maintenance until 2027-04-30). Node 22.23.3 ships V8
+**12.4**. It differs from Deno on **71** core modules (no table64; part of memory64 imports), and
+`spec-behaviour` on it FAILS: **11 DIVERGE, 32 originals refused**. Node 24.21 (V8 13.6) gives 0 /
+0 on the same 57,808 invocations. So Node plays two roles that must not be confused:
+- **the support FLOOR** (the oldest Node the published package promises): 22.18, tested by CI's
+  `runtimes` job (the CLI on Node 22.18). Unchanged.
+- **the engine REFEREE for development** (the `node` that `bun run` hands the oracle scripts):
+  the NEWEST Node that still runs the source, Node 24 until 2028-04-30 (Node 26 cannot run
+  it: no `--experimental-transform-types`). If this machine's default `node` becomes 22, the
+  oracle steps go red for engine reasons, not ours. Keep 24 on PATH (scoop `nodejs-lts`), and 22
+  beside it (scoop `versions/nodejs22`), or pin the oracle scripts to a Node 24 path. The 11
+  DIVERGE on V8 12.4 were not investigated: an old-engine artefact until shown otherwise.
+
 **For B5:** 220 test files call the host engine too. On Bun those assertions meet JavaScriptCore;
 on Node, V8. The suite therefore has to pass on Node as it does on Deno today, and any difference
 on Bun gets classified (engine gap vs our defect) rather than pinned blind. JavaScriptCore as an
