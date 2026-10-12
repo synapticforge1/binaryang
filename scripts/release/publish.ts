@@ -42,18 +42,17 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-async function run(cmd: string[]): Promise<void> {
+function run(cmd: string[]): void {
   console.log(`$ ${cmd.join(' ')}`);
   const code = spawnSync(cmd[0]!, cmd.slice(1), { stdio: 'inherit' }).status ?? 1;
   if (code !== 0) {
     console.error(`\nCommand failed with exit code ${code}: ${cmd.join(' ')}`);
     process.exit(code);
   }
-  return Promise.resolve();
 }
 
 /** Run a command and return its stdout; exits on failure. */
-async function capture(cmd: string[]): Promise<string> {
+function capture(cmd: string[]): string {
   const r = spawnSync(cmd[0]!, cmd.slice(1), { stdio: ['ignore', 'pipe', 'pipe'] });
   const code = r.status ?? 1;
   if (code !== 0) {
@@ -61,7 +60,7 @@ async function capture(cmd: string[]): Promise<string> {
     console.error(`Command failed with exit code ${code}: ${cmd.join(' ')}`);
     process.exit(code);
   }
-  return Promise.resolve(r.stdout.toString('utf8'));
+  return r.stdout.toString('utf8');
 }
 
 const version = await readCurrentVersion();

@@ -55,7 +55,7 @@ export const isDenoGlobal = (line: string): boolean =>
 export const isNodeImport = (line: string): boolean => NODE_IMPORT.test(line);
 
 /** Shipped source as the rule reads it: every tracked `.ts` under `src/`, plus `main.ts`. */
-async function shippedSource(): Promise<string[]> {
+function shippedSource(): string[] {
   const out = spawnSync('git', ['ls-files', '-z', '--', 'src/*.ts', 'main.ts'], {
     stdio: ['ignore', 'pipe', 'inherit'],
     maxBuffer: 1 << 28,

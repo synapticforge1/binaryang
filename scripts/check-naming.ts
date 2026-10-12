@@ -45,7 +45,7 @@ export function violates(path: string): boolean {
   );
 }
 
-async function trackedPaths(): Promise<string[]> {
+function trackedPaths(): string[] {
   const out = spawnSync('git', ['ls-files', '-z'], {
     stdio: ['ignore', 'pipe', 'inherit'],
     maxBuffer: 1 << 28,

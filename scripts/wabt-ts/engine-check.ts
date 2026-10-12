@@ -92,9 +92,9 @@ interface Verdict {
 
 type Engine = (wasm: Uint8Array, path: string, scratch: string) => Promise<Verdict | null>;
 
-async function have(bin: string): Promise<boolean> {
+function have(bin: string): boolean {
   try {
-    return Promise.resolve(spawnSync(bin, ['--version'], { stdio: 'ignore' }).status === 0);
+    return spawnSync(bin, ['--version'], { stdio: 'ignore' }).status === 0;
   } catch {
     return false;
   }
@@ -114,7 +114,7 @@ const v8: Engine = (wasm) => {
   }
 };
 
-const wasmtime: Engine = async (_wasm, path, scratch) => {
+const wasmtime: Engine = (_wasm, path, scratch) => {
   // A UNIQUE output path per module. Reusing one made three modules report
   // "failed to write output", which an earlier hand-rolled harness scored as a
   // rejection — I/O collisions, not validation failures.
@@ -130,7 +130,7 @@ const wasmtime: Engine = async (_wasm, path, scratch) => {
   if (/failed to write output/.test(err)) {
     throw new Error(`wasmtime could not write its output — check the scratch dir: ${err}`);
   }
-  return { accepted: success, reason: err.slice(0, 80) };
+  return Promise.resolve({ accepted: success, reason: err.slice(0, 80) });
 };
 
 /** Runs `bin` with `o.args`, stdout and stderr captured. */

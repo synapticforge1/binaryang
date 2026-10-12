@@ -48,7 +48,7 @@ export async function contentHash(source: Record<string, unknown>): Promise<stri
   return [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function fmt(ts: string): Promise<string> {
+function fmt(ts: string): string {
   // `deno fmt` explicitly, not the running runtime: the generated module must match the repo's
   // formatter, which is Deno's until B3 moves formatting to dprint (cmem/bun-migration.md).
   const out = spawnSync('deno', ['fmt', '--ext=ts', '-'], {
@@ -57,7 +57,7 @@ async function fmt(ts: string): Promise<string> {
     stdio: ['pipe', 'pipe', 'inherit'],
   });
   if (out.status !== 0) throw new Error('deno fmt failed on the generated module');
-  return Promise.resolve(out.stdout.toString('utf8'));
+  return out.stdout.toString('utf8');
 }
 
 function generate(sources: Record<string, Record<string, unknown>>): string {
