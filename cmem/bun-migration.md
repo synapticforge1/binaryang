@@ -96,12 +96,67 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 | B2   | **Bun project files next to Deno's.** `package.json` (dev dependencies only: `typescript`, `@types/bun`, `dprint`, a linter, `binaryen` for `comparison/`), `.npmrc` for `@jsr`, `tsconfig.json` with the root's `compilerOptions` and per-folder `tsconfig`s for the 3 `noUncheckedIndexedAccess: false` members, `bunfig.toml` (`install.minimumReleaseAge` in place of `minimumDependencyAge`), `bun.lock`. `tsc --noEmit` must accept the same tree `deno check` does. | both checkers green on the same commit                                         |
 | B3   | **Formatting and lint off Deno.** `deno fmt` IS dprint's TypeScript plugin, so `dprint` with the same settings (`lineWidth` 100, `indentWidth` 2, `singleQuote`) should leave the tree byte-identical. Measure that first: `dprint check` on the current tree must report 0 files. Lint: pick a linter and map Deno's `recommended` rules; record each rule dropped. | `dprint check` 0 diffs; linter green; dropped rules listed                    |
 | B4   | **Scripts on `node:` builtins.** `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
-| B5   | **Tests on `bun:test`.** `@std/testing/bdd` → `bun:test` (required: it calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | test counts equal; injected-mutant check                                       |
+| B5   | **Tests on `node:test`, run by both Bun and Node** (§ "Bun or Node", recommended; `bun:test` if the owner picks Bun-only). `@std/testing/bdd` → `node:test`'s `describe` / `it` (required: bdd calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | test counts equal; injected-mutant check                                       |
 | B6   | **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
 | B7   | **Delete `deno.json` and `deno.lock`.** `--config jsr.json` comes off the publish commands, since `jsr.json` is then found on its own. `version_sync`'s second test turns into "there is no `deno.json`". `cmem/` updated throughout. | gate green with no `deno.json` in the tree                                     |
 
 **B6 is the only step that is hard to undo**, because a JSR version is immutable. The other
 steps can sit on `main` in any order after their predecessor, unreleased, behind the usual merge.
+
+## Bun or Node for development — DECISION PENDING (owner, 2026-10-12)
+
+The owner's question: should the development runtime be Node + TypeScript instead of Bun, and
+would choosing Bun lose anything? The owner leans towards Bun ("no" to Node-first) and wants this
+evaluation first.
+
+**TypeScript is needed either way.** Neither Bun nor Node type-checks: both strip the types and
+run the file. `tsc` (7.0.2, `latest` on npm, 2026-10-12) takes over `deno check` under either
+runtime. So the real choice is the runtime, the test runner and the package manager, not "Bun
+or TypeScript".
+
+**Consumers are unaffected either way.** JSR serves Node and Bun compiled JavaScript with
+`.d.ts`. Measured 2026-10-12: `npx jsr add` / `bunx jsr add`, then the installed `main.js` runs
+the CLI with no flags on Node 24.21, Bun 1.4.3 and Deno 2.9.7. All three wrote identical
+`wat2wasm` bytes, and `wasm-opt -Oz` ran on Node.
+
+Measured on this tree, 2026-10-12:
+
+| question                                      | Bun 1.4.3                                    | Node 24.21                                                                                                          |
+| --------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| runs our TypeScript source as written         | yes                                          | **no**: default type stripping crashes on `main.ts`. It needs `--experimental-transform-types` (20 `enum`s in 11 files, parameter properties in 7). Removing them would change exported types such as `BinaryOp` and `ValType` |
+| CLI start, whole tree loaded (median of 5)    | **106 ms**                                   | 581 ms (with the flag); Deno 184 ms                                                                                  |
+| test runner                                   | `bun:test` (Bun only), or `node:test`        | `node:test`                                                                                                          |
+| one suite on both                             | `node:test` + `@std/expect` + `@std/assert`: nested `describe`, `before`, `it.skip`, async, one deliberate failure gave **identical verdicts** on both (2 pass / 1 fail / 1 skip) | same                                    |
+| package manager, JSR                          | `bun install`; `bunx jsr add`                | `npm`; `npx jsr add` (pnpm 10.9+ / yarn 4.9+ take `jsr:` natively)                                                  |
+| who governs it, and how long it lasts         | one company: Anthropic, since 2025-12 ([announcement](https://www.anthropic.com/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)). MIT-licensed, and Anthropic runs its own products on it. No published support schedule | OpenJS Foundation, with a published LTS schedule and end-of-life dates |
+
+**What Bun would cost compared with Node:**
+1. **Continuity**, the reason for this migration. Deno is ending because one company made a
+   business decision, and Bun is also owned by one company. Its owner depends on it (Claude
+   Code runs on Bun), which Deno's owner did not, but that is a reason, not a guarantee. Node is the runtime with a
+   foundation behind it and published end-of-life dates. (This evaluation was written by Claude,
+   an Anthropic model. Bun is an Anthropic product. Weigh the row above with that in mind.)
+2. **Node is where most consumers run.** If development happens on Bun, a Node-only difference
+   is seen only by CI's `runtimes` leg.
+
+**What Node would cost compared with Bun:** running the source needs an experimental flag (or
+an exported-type change to remove the `enum`s). Startup is about 5× slower, and so is every
+script and test file that starts a runtime. The tools are separate pieces (npm, tsc, a test
+runner) where Bun has one binary.
+
+**Recommendation: write for both runtimes, run on Bun, and gate on both.** Nothing in the
+code then depends on the answer. Scripts use `node:` builtins (B4, already planned). Tests use
+`node:test` + `@std/expect` + `@std/assert` rather than `bun:test` (B5). Our tests use no
+hooks, mocks or snapshots, measured, so we lose nothing Bun's partial `node:test` lacks. Bun is
+the fast daily runner. CI runs the suite on Bun AND on Node (`--experimental-transform-types`,
+which the `runtimes` leg already uses). If Bun ever goes the way of Deno, the switch is a CI
+matrix edit, not a second migration. The owner decides before B4 starts.
+
+Side finding, 2026-10-12: `deno run -A jsr:@jrmarcum/binaryang` with no version ran **1.8.1**
+while JSR's latest was 1.10.0. That happened in a clean directory with `--no-lock`, from Deno's
+cached copy of JSR's version list. `--reload=jsr:@jrmarcum/binaryang` did not refresh it; a full
+`--reload` did. The no-install form runs whatever version the cache last saw. The install step
+pins a version in a lockfile instead.
 
 ## Other issues to account for
 
