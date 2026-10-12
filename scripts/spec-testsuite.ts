@@ -28,8 +28,8 @@
  * assertions.
  *
  * ```sh
- * deno task spec:prepare   # once — writes manifests under the scratch dir
- * deno task spec           # run the harness over them
+ * bun run spec:prepare   # once — writes manifests under the scratch dir
+ * bun run spec           # run the harness over them
  * ```
  *
  * ⚠️ The testsuite lives in a SIBLING repo and is READ ONLY. `wast2json` writes
@@ -63,6 +63,9 @@ import { parseWatModule } from '../src/parser/wast-parser.ts';
 import { wat2wasm } from '../src/tools/wat2wasm.ts';
 import { suiteFeatures, takeProposalArg } from './proposals.ts';
 
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import process from 'node:process';
+
 /**
  * ⚠️ EVERY feature on, and the suite is unusable without it.
  *
@@ -83,7 +86,7 @@ import { suiteFeatures, takeProposalArg } from './proposals.ts';
  * This suite is written against the core rules; the proposal's own copies of
  * those files (`proposals/custom-descriptors/`) carry the relaxed ones.
  */
-const args = [...Deno.args];
+const args = [...process.argv.slice(2)];
 /**
  * `--proposal <name>`: a `proposals/<name>` corpus, judged with the feature set
  * its suite is written against (`proposals.ts`) instead of the core one above.
@@ -93,8 +96,8 @@ const FEATURES = PROPOSAL?.features ?? suiteFeatures('');
 
 const MANIFESTS = args[0];
 if (!MANIFESTS) {
-  console.error('usage: spec-testsuite.ts <manifest-dir>   (see deno task spec:prepare)');
-  Deno.exit(2);
+  console.error('usage: spec-testsuite.ts <manifest-dir>   (see bun run spec:prepare)');
+  process.exit(2);
 }
 
 interface Command {
@@ -155,12 +158,12 @@ const tally = {
 const misses: Record<string, string[]> = {};
 const miss = (bucket: string, where: string) => ((misses[bucket] ??= []).push(where));
 
-for await (const dir of Deno.readDir(MANIFESTS)) {
-  if (!dir.isDirectory) continue;
+for (const dir of await readdir(MANIFESTS, { withFileTypes: true })) {
+  if (!dir.isDirectory()) continue;
   const base = `${MANIFESTS}/${dir.name}/${dir.name}.json`;
   let manifest: { commands: Command[] };
   try {
-    manifest = JSON.parse(await Deno.readTextFile(base));
+    manifest = JSON.parse(await readFile(base, 'utf8'));
   } catch {
     continue;
   }
@@ -174,8 +177,8 @@ for await (const dir of Deno.readDir(MANIFESTS)) {
     if ((cmd.type === 'module' || cmd.type === 'module_definition') && cmd.filename) {
       tally.module.n++;
       const why = cmd.module_type === 'text'
-        ? rejectReasonText(await Deno.readTextFile(`${dirOf}/${cmd.filename}`))
-        : rejectReason(await Deno.readFile(`${dirOf}/${cmd.filename}`));
+        ? rejectReasonText(await readFile(`${dirOf}/${cmd.filename}`, 'utf8'))
+        : rejectReason(new Uint8Array(await readFile(`${dirOf}/${cmd.filename}`)));
       if (why === null) tally.module.ok++;
       else miss('REJECTED a module the spec says is VALID', `${where}  ${why.slice(0, 70)}`);
       continue;
@@ -184,8 +187,8 @@ for await (const dir of Deno.readDir(MANIFESTS)) {
     if (cmd.type === 'assert_invalid' && cmd.filename) {
       tally.assert_invalid.n++;
       const why = cmd.module_type === 'text'
-        ? rejectReasonText(await Deno.readTextFile(`${dirOf}/${cmd.filename}`))
-        : rejectReason(await Deno.readFile(`${dirOf}/${cmd.filename}`));
+        ? rejectReasonText(await readFile(`${dirOf}/${cmd.filename}`, 'utf8'))
+        : rejectReason(new Uint8Array(await readFile(`${dirOf}/${cmd.filename}`)));
       if (why !== null) tally.assert_invalid.ok++;
       else miss('ACCEPTED a module the spec says is INVALID', `${where}  want: ${cmd.text ?? '?'}`);
       continue;
@@ -194,12 +197,12 @@ for await (const dir of Deno.readDir(MANIFESTS)) {
     if (cmd.type === 'assert_malformed' && cmd.filename) {
       if (cmd.module_type === 'binary') {
         tally.malformed_binary.n++;
-        const bytes = await Deno.readFile(`${dirOf}/${cmd.filename}`);
+        const bytes = new Uint8Array(await readFile(`${dirOf}/${cmd.filename}`));
         if (rejectReason(bytes) !== null) tally.malformed_binary.ok++;
         else miss('ACCEPTED a MALFORMED binary', `${where}  want: ${cmd.text ?? '?'}`);
       } else {
         tally.malformed_text.n++;
-        const text = await Deno.readTextFile(`${dirOf}/${cmd.filename}`);
+        const text = await readFile(`${dirOf}/${cmd.filename}`, 'utf8');
         let rejected: boolean;
         try {
           const { errors } = parseWatModule(text);
@@ -234,7 +237,7 @@ console.log();
 const buckets = Object.entries(misses).sort((a, b) => b[1].length - a[1].length);
 if (buckets.length === 0) {
   console.log('  no misses');
-  Deno.exit(0);
+  process.exit(0);
 }
 for (const [bucket, list] of buckets) {
   console.log(`  ${String(list.length).padStart(5)}x  ${bucket}`);
@@ -255,13 +258,13 @@ for (const [bucket, list] of buckets) {
 }
 
 // A full roster, for the cases where the grouping is not enough to act on.
-const REPORT = Deno.env.get('SPEC_REPORT');
+const REPORT = process.env['SPEC_REPORT'];
 if (REPORT) {
   const lines: string[] = [];
   for (const [bucket, list] of buckets) {
     lines.push(`## ${bucket} (${list.length})`, ...list, '');
   }
-  await Deno.writeTextFile(REPORT, lines.join('\n'));
+  await writeFile(REPORT, lines.join('\n'));
   console.log(`\n  full roster written to ${REPORT}`);
 }
-Deno.exit(1);
+process.exit(1);

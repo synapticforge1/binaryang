@@ -22,11 +22,15 @@
  * the check silently passed on everything.
  *
  * ```sh
- * deno run --allow-run scripts/check-naming.ts
+ * bun scripts/check-naming.ts
  * ```
  */
 
 /** A component that makes upstream the subject: every name under it is allowed. */
+
+import process from 'node:process';
+import { spawnSync } from 'node:child_process';
+
 const EXEMPT = /compat|interop|comparison/;
 
 /** A bare upstream name as a whole word of a component, after the `-ts` forms are removed. */
@@ -41,15 +45,17 @@ export function violates(path: string): boolean {
   );
 }
 
-async function trackedPaths(): Promise<string[]> {
-  const out = await new Deno.Command('git', { args: ['ls-files', '-z'], stderr: 'inherit' })
-    .output();
-  if (!out.success) throw new Error(`git ls-files exited ${out.code}`);
-  return new TextDecoder().decode(out.stdout).split('\0').filter((p) => p !== '');
+function trackedPaths(): string[] {
+  const out = spawnSync('git', ['ls-files', '-z'], {
+    stdio: ['ignore', 'pipe', 'inherit'],
+    maxBuffer: 1 << 28,
+  });
+  if (out.status !== 0) throw new Error(`git ls-files exited ${out.status}`);
+  return out.stdout.toString('utf8').split('\0').filter((p) => p !== '');
 }
 
 if (import.meta.main) {
   const offenders = (await trackedPaths()).filter(violates);
   for (const p of offenders) console.log(p);
-  Deno.exit(offenders.length === 0 ? 0 : 1);
+  process.exit(offenders.length === 0 ? 0 : 1);
 }

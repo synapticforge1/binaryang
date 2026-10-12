@@ -3,7 +3,7 @@
 
 /**
  * @module
- * The killable half of `deno task direct-behaviour`.
+ * The killable half of `bun run direct-behaviour`.
  *
  * `differential.ts` calls corpus entry points, and some of them never return
  * under stub imports. There is no way to bound a synchronous wasm call from
@@ -19,10 +19,12 @@
 import { check, type Row } from './differential.ts';
 import type { DirectInput } from '../direct-inputs.ts';
 
-declare const self: Worker;
+import { parentPort } from 'node:worker_threads';
 
-self.onmessage = (ev: MessageEvent<{ inputs: DirectInput[] }>) => {
-  for (const { name: file, wat } of ev.data.inputs) {
+const port = parentPort!;
+
+port.on('message', (data: { inputs: DirectInput[] }) => {
+  for (const { name: file, wat } of data.inputs) {
     let row: Row;
     try {
       row = check(file, wat);
@@ -38,7 +40,7 @@ self.onmessage = (ev: MessageEvent<{ inputs: DirectInput[] }>) => {
         notRun: {},
       };
     }
-    self.postMessage({ row });
+    port.postMessage({ row });
   }
-  self.postMessage({ done: true });
-};
+  port.postMessage({ done: true });
+});

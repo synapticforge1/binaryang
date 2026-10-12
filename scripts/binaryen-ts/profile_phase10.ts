@@ -16,7 +16,7 @@
  * boundary tax.
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/profile_phase10.ts
+ *   bun scripts/binaryen-ts/profile_phase10.ts
  *
  * @license MIT
  */
@@ -48,6 +48,7 @@ import {
 
 import { createPass, type Pass, type PassOptions } from '../../src/passes/pass.ts';
 import { ExternalKind } from '../../src/core/binary.ts';
+
 // Side-effect import to register passes
 import '../../src/passes/index.ts';
 

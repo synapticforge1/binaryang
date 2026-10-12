@@ -14,13 +14,13 @@
  * identical manifest; anything else is a behaviour change that needs a reason.
  *
  * ```sh
- * deno run --allow-read scripts/wabt-ts/verify-baseline.ts            # verify
- * deno run --allow-read --allow-write scripts/wabt-ts/verify-baseline.ts --write   # re-baseline
+ * bun scripts/wabt-ts/verify-baseline.ts            # verify
+ * bun scripts/wabt-ts/verify-baseline.ts --write   # re-baseline
  * ```
  *
  * Exit 0 when identical, 1 on any difference (with the first 20 named).
  *
- * ⚠️ The `deno task baseline` shortcut deliberately does NOT carry
+ * ⚠️ The `bun run baseline` shortcut deliberately does NOT carry
  * `--allow-write`: verifying should not be able to rewrite the thing it checks
  * against, or a failing gate can be "fixed" by rerunning it. Re-baselining is
  * the longer command above, on purpose.
@@ -35,6 +35,9 @@
 
 import { wasm2wat } from '../../src/tools/wasm2wat.ts';
 import { wat2wasm } from '../../src/tools/wat2wasm.ts';
+
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import process from 'node:process';
 
 const CORPUS = new URL('../../tests/wabt-ts/wasmtk/', import.meta.url);
 const MANIFEST = new URL('./pre-merge-baseline.tsv', import.meta.url);
@@ -64,14 +67,14 @@ async function sha(bytes: Uint8Array): Promise<string> {
  */
 async function current(): Promise<Map<string, string>> {
   const names: string[] = [];
-  for await (const entry of Deno.readDir(CORPUS)) {
-    if (entry.isFile && entry.name.endsWith('.wat')) names.push(entry.name);
+  for (const entry of await readdir(CORPUS, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith('.wat')) names.push(entry.name);
   }
   names.sort();
 
   const out = new Map<string, string>();
   for (const name of names) {
-    const src = await Deno.readTextFile(new URL(name, CORPUS));
+    const src = await readFile(new URL(name, CORPUS), 'utf8');
     const r = wat2wasm(src);
     if (!r.binary || r.binary.length === 0) {
       out.set(name, 'ENCODE-FAIL');
@@ -93,7 +96,7 @@ async function current(): Promise<Map<string, string>> {
 /** The recorded manifest, ignoring `#` comment lines. */
 async function recorded(): Promise<Map<string, string>> {
   const out = new Map<string, string>();
-  const text = await Deno.readTextFile(MANIFEST);
+  const text = await readFile(MANIFEST, 'utf8');
   for (const line of text.split(/\r?\n/)) {
     if (!line || line.startsWith('#')) continue;
     const tab = line.indexOf('\t');
@@ -107,7 +110,7 @@ const now = await current();
 // Re-baselining used to be an ad-hoc step described in prose, which is how a
 // manifest drifts from the thing it pins. `--write` makes it the same code path
 // that verifies, so the recorded columns cannot disagree with the checked ones.
-if (Deno.args.includes('--write')) {
+if (process.argv.slice(2).includes('--write')) {
   const names = [...now.keys()].sort();
   const totalBytes = names.reduce((sum, n) => sum + (Number(now.get(n)?.split(TAB)[0]) || 0), 0);
   const lines = [
@@ -117,9 +120,9 @@ if (Deno.args.includes('--write')) {
     ' <tab> sha256-16(wasm2wat LINEAR)',
     ...names.map((n) => `${n}${TAB}${now.get(n)}`),
   ];
-  await Deno.writeTextFile(MANIFEST, lines.join('\n') + '\n');
+  await writeFile(MANIFEST, lines.join('\n') + '\n');
   console.log(`re-baselined: ${names.length} files, ${totalBytes} bytes`);
-  Deno.exit(0);
+  process.exit(0);
 }
 
 const then = await recorded();
@@ -136,7 +139,7 @@ for (const name of now.keys()) if (!then.has(name)) added.push(name);
 console.log(`baseline: ${then.size} files   current: ${now.size} files`);
 if (differing.length === 0 && missing.length === 0 && added.length === 0) {
   console.log('IDENTICAL — the refactor changed no emitted bytes.');
-  Deno.exit(0);
+  process.exit(0);
 }
 if (differing.length > 0) {
   console.error(`\nOUTPUT CHANGED for ${differing.length} file(s):`);
@@ -152,4 +155,4 @@ if (added.length > 0) {
   console.error(`\nNEW in the corpus (${added.length}): ${added.slice(0, 10).join(' ')}`);
 }
 console.error('\nIf the change was deliberate, re-baseline in the same commit and say why.');
-Deno.exit(1);
+process.exit(1);

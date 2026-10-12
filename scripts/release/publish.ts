@@ -8,8 +8,8 @@
  * fires the workflow directly without going through the auto-tag detour.
  *
  * Typical flow:
- *   1. deno task bump        # writes the next version into jsr.json
- *   2. deno task release     # commits + tags + pushes (this script)
+ *   1. bun run bump        # writes the next version into jsr.json
+ *   2. bun run release     # commits + tags + pushes (this script)
  *
  * Named `release`, not `publish`, deliberately: `deno task publish:dry` runs
  * `deno publish --dry-run`, which checks the JSR manifest and is NOT a dry run
@@ -36,30 +36,31 @@ import { readCurrentVersion } from './version.ts';
 import { RELEASE_FILES, releaseBlockers } from './release-guard.ts';
 import { checkEntry } from './entry-check.ts';
 
-async function run(cmd: string[]): Promise<void> {
+import { mkdtemp, rm } from 'node:fs/promises';
+import process from 'node:process';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+function run(cmd: string[]): void {
   console.log(`$ ${cmd.join(' ')}`);
-  const p = new Deno.Command(cmd[0]!, {
-    args: cmd.slice(1),
-    stdout: 'inherit',
-    stderr: 'inherit',
-  });
-  const { code } = await p.output();
+  const code = spawnSync(cmd[0]!, cmd.slice(1), { stdio: 'inherit' }).status ?? 1;
   if (code !== 0) {
     console.error(`\nCommand failed with exit code ${code}: ${cmd.join(' ')}`);
-    Deno.exit(code);
+    process.exit(code);
   }
 }
 
 /** Run a command and return its stdout; exits on failure. */
-async function capture(cmd: string[]): Promise<string> {
-  const p = new Deno.Command(cmd[0]!, { args: cmd.slice(1), stdout: 'piped', stderr: 'piped' });
-  const { code, stdout, stderr } = await p.output();
+function capture(cmd: string[]): string {
+  const r = spawnSync(cmd[0]!, cmd.slice(1), { stdio: ['ignore', 'pipe', 'pipe'] });
+  const code = r.status ?? 1;
   if (code !== 0) {
-    console.error(new TextDecoder().decode(stderr));
+    console.error(r.stderr.toString('utf8'));
     console.error(`Command failed with exit code ${code}: ${cmd.join(' ')}`);
-    Deno.exit(code);
+    process.exit(code);
   }
-  return new TextDecoder().decode(stdout);
+  return r.stdout.toString('utf8');
 }
 
 const version = await readCurrentVersion();
@@ -97,7 +98,7 @@ if (dirty.length > 0) {
     `  This script commits ${RELEASE_FILES.join(' and ')} only. Commit or stash the rest first --`,
   );
   console.error('  a published JSR version cannot be replaced.');
-  Deno.exit(1);
+  process.exit(1);
 }
 
 // 0b. GUARD: refuse if the tag is already on the remote.
@@ -112,8 +113,8 @@ if (remoteTag.trim() !== '') {
   console.error('');
   console.error('  It has already triggered publish.yml, so the version is either live on');
   console.error('  JSR (immutable) or failed for a reason a re-push will not change.');
-  console.error('  Run `deno task bump` for the next version.');
-  Deno.exit(1);
+  console.error('  Run `bun run bump` for the next version.');
+  process.exit(1);
 }
 
 // 0c. GUARD: a COLD type check, before anything is committed or tagged.
@@ -126,22 +127,22 @@ if (remoteTag.trim() !== '') {
 // VERSION, and only a fresh `DENO_DIR` proves the whole chain (cmem
 // best-practices.md). So the same `deno task check` publish.yml runs, in an
 // empty `DENO_DIR`.
-const coldDir = await Deno.makeTempDir({ prefix: 'binaryang-release-check-' });
+const coldDir = await mkdtemp(join(tmpdir(), 'binaryang-release-check-'));
 try {
   console.log(`$ DENO_DIR=${coldDir} deno task check   (cold, as publish.yml runs it)`);
-  const cold = await new Deno.Command('deno', {
-    args: ['task', 'check'],
-    env: { DENO_DIR: coldDir },
-    stdout: 'inherit',
-    stderr: 'inherit',
-  }).output();
-  if (cold.code !== 0) {
+  // `env` REPLACES the environment in node:child_process (Deno.Command merged it), so the
+  // parent's is spread in: without PATH, `deno` itself would not be found.
+  const cold = spawnSync('deno', ['task', 'check'], {
+    env: { ...process.env, DENO_DIR: coldDir },
+    stdio: 'inherit',
+  });
+  if (cold.status !== 0) {
     console.error(`\nRefusing to release ${tag}: the cold type check failed.`);
     console.error('  publish.yml would fail the same way, after the tag was public.');
-    Deno.exit(1);
+    process.exit(1);
   }
 } finally {
-  await Deno.remove(coldDir, { recursive: true }).catch(() => {});
+  await rm(coldDir, { recursive: true }).catch(() => {});
 }
 
 // 0d. GUARD: the published ROOT is the CLI, run as a user runs it.
@@ -151,11 +152,11 @@ try {
 // on every published version, and no check ran the entry a user runs
 // (`entry-check.ts` has the record).
 console.log('$ checkEntry — the `.` export: --help, --version, a command, an import');
-const entryProblems = await checkEntry(Deno.cwd());
+const entryProblems = await checkEntry(process.cwd());
 if (entryProblems.length > 0) {
   console.error(`\nRefusing to release ${tag}: the package root is not a working CLI.`);
   for (const p of entryProblems) console.error(`  ${p}`);
-  Deno.exit(1);
+  process.exit(1);
 }
 
 // 1. Stage the bump -- RELEASE_FILES, the only files a release touches. Not
@@ -163,13 +164,10 @@ if (entryProblems.length > 0) {
 //    staging one of the two would tag a CLI reporting the old version.
 await run(['git', 'add', ...RELEASE_FILES]);
 
-// 2. Commit only if there's actually something staged. `deno task bump` +
-//    `deno task release` is the common path (both files dirty), but if the
+// 2. Commit only if there's actually something staged. `bun run bump` +
+//    `bun run release` is the common path (both files dirty), but if the
 //    user already committed the bump manually, skip the no-op commit.
-const diffCheck = new Deno.Command('git', {
-  args: ['diff', '--cached', '--quiet'],
-});
-const { code: diffCode } = await diffCheck.output();
+const diffCode = spawnSync('git', ['diff', '--cached', '--quiet'], { stdio: 'ignore' }).status;
 if (diffCode !== 0) {
   await run(['git', 'commit', '-m', `bump to ${tag}`]);
 } else {

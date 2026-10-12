@@ -20,8 +20,8 @@
  * Verdict: exit 1 on any FAIL — a wrong value, a missing or wrong trap, a JS
  * error out of the interpreter.
  *
- * Usage: `deno task interp <prepared spec dir>... [--verbose] [--only=a,b]` — each a corpus
- * `deno task spec:prepare` writes: the gate passes the core suite, the legacy-EH suite
+ * Usage: `bun run interp <prepared spec dir>... [--verbose] [--only=a,b]` — each a corpus
+ * `bun run spec:prepare` writes: the gate passes the core suite, the legacy-EH suite
  * (`testsuite-main/legacy`) and each `proposals/<name>` the `proposals` step prepares
  * (owner, 2026-10-07: "Yes (runs everywhere)"). Totals are per corpus and overall.
  */
@@ -41,6 +41,9 @@ import {
 import { ExternalKind } from '../src/core/binary.ts';
 import { ValType } from '../src/ir/types.ts';
 import { f32BitsOf, f64BitsOf } from '../src/ir/expressions.ts';
+
+import { readdirSync, readFileSync } from 'node:fs';
+import process from 'node:process';
 
 interface Arg {
   type: string;
@@ -76,13 +79,13 @@ interface Command {
 const FUEL = 50_000_000;
 
 /** Every prepared corpus to run — the core suite, the legacy-EH suite, each proposal's. */
-const roots = Deno.args.filter((a) => !a.startsWith('--'));
-const verbose = Deno.args.includes('--verbose');
+const roots = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const verbose = process.argv.slice(2).includes('--verbose');
 /** `--only=a,b`: just those manifests — to read one area's numbers (never in the gate). */
-const only = Deno.args.find((a) => a.startsWith('--only='))?.slice(7).split(',');
+const only = process.argv.slice(2).find((a) => a.startsWith('--only='))?.slice(7).split(',');
 if (roots.length === 0) {
-  console.error('usage: deno task interp <prepared spec dir>... [--verbose] [--only=a,b]');
-  Deno.exit(2);
+  console.error('usage: bun run interp <prepared spec dir>... [--verbose] [--only=a,b]');
+  process.exit(2);
 }
 
 // ---------------------------------------------------------------------------
@@ -311,13 +314,15 @@ let manifests = 0;
 const perRoot: { root: string; pass: number; fail: number; stopped: number }[] = [];
 for (const root of roots) {
   const before = { ...tally };
-  const dirs = [...Deno.readDirSync(root)].filter((e) => e.isDirectory).map((e) => e.name)
+  const dirs = readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) =>
+    e.name
+  )
     .filter((d) => only === undefined || only.includes(d)).sort();
   manifests += dirs.length;
   for (const dir of dirs) {
     let manifest: { commands: Command[] };
     try {
-      manifest = JSON.parse(Deno.readTextFileSync(`${root}/${dir}/${dir}.json`));
+      manifest = JSON.parse(readFileSync(`${root}/${dir}/${dir}.json`, 'utf8'));
     } catch {
       continue;
     }
@@ -395,7 +400,7 @@ for (const root of roots) {
       touched.clear();
       try {
         const inst = new Interpreter(
-          readForPasses(Deno.readFileSync(`${root}/${dir}/${filename}`)),
+          readForPasses(new Uint8Array(readFileSync(`${root}/${dir}/${filename}`))),
           {
             imports: (m, f) => {
               const from = registered.get(m);
@@ -615,4 +620,4 @@ console.log(
     ? '\nTOTAL — every assertion the interpreter ran holds.'
     : `\n${tally.fail} FAILED`,
 );
-Deno.exit(tally.fail === 0 ? 0 : 1);
+process.exit(tally.fail === 0 ? 0 : 1);

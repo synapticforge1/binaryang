@@ -11,7 +11,7 @@
  * compiling its own kernel.
  *
  * Run:
- *   deno run --allow-read --allow-write scripts/binaryen-ts/gen_demo_bytes.ts
+ *   bun scripts/binaryen-ts/gen_demo_bytes.ts
  *
  * @license MIT
  */
@@ -19,15 +19,17 @@
 import { readWat } from '../../src/tools/read-wat.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
 
+import { readFile, writeFile } from 'node:fs/promises';
+
 const WAT_PATH = new URL('../../src/wasm/demo.wat', import.meta.url);
 const WASM_PATH = new URL('../../src/wasm/demo.wasm', import.meta.url);
 const BYTES_TS_PATH = new URL('../../src/wasm/demo_bytes.ts', import.meta.url);
 
-const wat = await Deno.readTextFile(WAT_PATH);
+const wat = await readFile(WAT_PATH, 'utf8');
 const mod = readWat(wat, 'demo.wat');
 const bytes = writeWasm(mod);
 
-await Deno.writeFile(WASM_PATH, bytes);
+await writeFile(WASM_PATH, bytes);
 
 const hex = Array.from(bytes, (b) => '0x' + b.toString(16).padStart(2, '0')).join(', ');
 const ts = `// deno-fmt-ignore-file
@@ -51,7 +53,7 @@ const ts = `// deno-fmt-ignore-file
 /** WASM bytes for the demo kernel — see {@link ../wasm/demo.wat | demo.wat}. */
 export const DEMO_BYTES: Uint8Array = new Uint8Array([${hex}]);
 `;
-await Deno.writeTextFile(BYTES_TS_PATH, ts);
+await writeFile(BYTES_TS_PATH, ts);
 
 console.log(`Wrote ${bytes.length} bytes to ${WASM_PATH.pathname}`);
 console.log(`Wrote ${BYTES_TS_PATH.pathname}`);

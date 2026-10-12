@@ -44,8 +44,8 @@
  * So: **large positive deltas are the signal.** Everything else needs a human.
  *
  * ```sh
- * deno task offsets            # summary
- * deno task offsets --verbose  # plus the worst downstream cases
+ * bun run offsets            # summary
+ * bun run offsets --verbose  # plus the worst downstream cases
  * ```
  */
 
@@ -54,6 +54,8 @@ import { hasErrors, makeErrorList } from '../src/core/error.ts';
 import { validateModule } from '../src/validator/validator.ts';
 import { allFeatures } from '../src/core/feature.ts';
 import { wat2wasm } from '../src/tools/wat2wasm.ts';
+
+import process from 'node:process';
 
 /** Modules chosen to span single-byte fields, multi-byte LEBs, and nested constructs. */
 const SUBJECTS: ReadonlyArray<readonly [string, string]> = [
@@ -131,11 +133,11 @@ function probe(subject: string, bytes: Uint8Array, at: number): Row {
   };
 }
 
-const verbose = Deno.args.includes('--verbose');
-const unknown = Deno.args.filter((a) => a !== '--verbose');
+const verbose = process.argv.slice(2).includes('--verbose');
+const unknown = process.argv.slice(2).filter((a) => a !== '--verbose');
 if (unknown.length > 0) {
   console.error(`offsets: unrecognised argument(s): ${unknown.join(' ')}`);
-  Deno.exit(2);
+  process.exit(2);
 }
 
 const rows: Row[] = [];
@@ -143,7 +145,7 @@ for (const [name, wat] of SUBJECTS) {
   const { binary, errors } = wat2wasm(wat, { filename: `${name}.wat` });
   if (hasErrors(errors)) {
     console.error(`offsets: subject ${name} does not assemble; fix the fixture`);
-    Deno.exit(1);
+    process.exit(1);
   }
   // Skip the 8-byte magic+version: corrupting those is a different question.
   for (let i = 8; i < binary.length; i++) rows.push(probe(name, binary, i));

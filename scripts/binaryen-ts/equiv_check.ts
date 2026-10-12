@@ -21,7 +21,7 @@
  * only *identical*, for the differential to be valid.
  *
  * Run:
- *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/equiv_check.ts [rel ...]
+ *   node --experimental-transform-types scripts/binaryen-ts/equiv_check.ts [rel ...]
  *
  * @license MIT
  */
@@ -34,6 +34,8 @@ import { ValType } from '../../src/ir/types.ts';
 import type { ValueType } from '../../src/ir/gc-types.ts';
 import { requireName } from '../../src/ir/ir.ts';
 import { ExternalKind } from '../../src/core/binary.ts';
+
+import process from 'node:process';
 
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 
@@ -277,7 +279,7 @@ async function checkFile(rel: string): Promise<FileReport> {
 // Main
 // ---------------------------------------------------------------------------
 
-const corpus = Deno.args.length > 0 ? Deno.args : DEFAULT_CORPUS;
+const corpus = process.argv.slice(2).length > 0 ? process.argv.slice(2) : DEFAULT_CORPUS;
 const reports: FileReport[] = [];
 for (const rel of corpus) {
   console.error(`checking ${rel} ...`);

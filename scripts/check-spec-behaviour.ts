@@ -20,14 +20,18 @@
  *   against {@link REFUSED_BUDGET}: more fails, fewer asks for the budget to be
  *   lowered, so a fix is kept.
  *
- * It reads the corpus `deno task spec:prepare` writes, as `deno task spec` does.
+ * It reads the corpus `bun run spec:prepare` writes, as `bun run spec` does.
  *
- * Usage: `deno task spec-behaviour <outDir>`
+ * Usage: `bun run spec-behaviour <outDir>`
  */
 
 import type { Invoke, Row, SpecInput } from './spec-behaviour/differential.ts';
 import { needsWrapper, type Sig } from './spec-behaviour/v128.ts';
 import { takeProposalArg } from './proposals.ts';
+
+import { readdirSync, readFileSync } from 'node:fs';
+import process from 'node:process';
+import { Worker } from 'node:worker_threads';
 
 /**
  * The modules our pipeline may refuse (some variant threw), pinned by NAME — a
@@ -97,12 +101,12 @@ const MAX_TIMEOUTS = 3;
 
 const WORKER = new URL('./spec-behaviour/worker.ts', import.meta.url);
 
-const args = [...Deno.args];
+const args = [...process.argv.slice(2)];
 /**
  * `--proposal <name>`: a `proposals/<name>` corpus. Its module names are
  * prefixed `proposals/<name>/` (custom-page-sizes has `binary/` and
  * `memory_max/`, as the core suite does). The V8 flags it needs are the
- * caller's to pass (`deno task proposals` does) — a flag cannot be set from
+ * caller's to pass (`bun run proposals` does) — a flag cannot be set from
  * inside a running isolate.
  */
 const PROPOSAL = takeProposalArg(args);
@@ -110,19 +114,21 @@ const PREFIX = PROPOSAL ? `proposals/${PROPOSAL.name}/` : '';
 const dir = args[0];
 if (!dir) {
   console.error(
-    'usage: deno task spec-behaviour <outDir>   (the corpus `deno task spec:prepare` wrote)',
+    'usage: bun run spec-behaviour <outDir>   (the corpus `bun run spec:prepare` wrote)',
   );
-  Deno.exit(2);
+  process.exit(2);
 }
 
 /** Every binary module with invocations after it, in manifest order. */
 function collect(root: string): SpecInput[] {
   const inputs: SpecInput[] = [];
-  const dirs = [...Deno.readDirSync(root)].filter((e) => e.isDirectory).map((e) => e.name).sort();
+  const dirs = readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) =>
+    e.name
+  ).sort();
   for (const d of dirs) {
     let manifest: { commands: Record<string, unknown>[] };
     try {
-      manifest = JSON.parse(Deno.readTextFileSync(`${root}/${d}/${d}.json`));
+      manifest = JSON.parse(readFileSync(`${root}/${d}/${d}.json`, 'utf8'));
     } catch {
       continue;
     }
@@ -170,12 +176,15 @@ const rows: Row[] = [];
 /** Runs `queue` in a worker until it drains or a module goes quiet; resolves with what is left. */
 function drain(queue: SpecInput[]): Promise<SpecInput[]> {
   return new Promise((resolve) => {
-    const worker = new Worker(WORKER, { type: 'module' });
+    // node:worker_threads, not the web `Worker`: Node has no global one, and this harness is an
+    // engine oracle that runs on Node (cmem/bun-migration.md § "The engine oracle"). The worker
+    // inherits this process's execArgv, so Node's --experimental-transform-types reaches it.
+    const worker = new Worker(WORKER);
     let next = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = (remaining: SpecInput[]) => {
       clearTimeout(timer);
-      worker.terminate();
+      void worker.terminate();
       resolve(remaining);
     };
     const arm = () => {
@@ -195,14 +204,13 @@ function drain(queue: SpecInput[]): Promise<SpecInput[]> {
         finish(queue.slice(next + 1));
       }, BUDGET_MS);
     };
-    worker.onmessage = (ev: MessageEvent<{ row?: Row; done?: boolean }>) => {
-      if (ev.data.done) return finish([]);
-      rows.push(ev.data.row!);
+    worker.on('message', (data: { row?: Row; done?: boolean }) => {
+      if (data.done) return finish([]);
+      rows.push(data.row!);
       next++;
       arm();
-    };
-    worker.onerror = (ev) => {
-      ev.preventDefault();
+    });
+    worker.on('error', (err: Error) => {
       const cur = queue[next];
       rows.push({
         name: cur?.name ?? '<unknown>',
@@ -212,10 +220,10 @@ function drain(queue: SpecInput[]): Promise<SpecInput[]> {
         blind: 0,
         variants: 0,
         refused: [],
-        detail: [`worker error: ${ev.message}`],
+        detail: [`worker error: ${err.message}`],
       });
       finish(queue.slice(next + 1));
-    };
+    });
     arm();
     worker.postMessage({ inputs: queue });
   });
@@ -223,8 +231,8 @@ function drain(queue: SpecInput[]): Promise<SpecInput[]> {
 
 const inputs = collect(dir);
 if (inputs.length === 0) {
-  console.error(`no prepared manifests under ${dir} — run \`deno task spec:prepare\` first`);
-  Deno.exit(2);
+  console.error(`no prepared manifests under ${dir} — run \`bun run spec:prepare\` first`);
+  process.exit(2);
 }
 let queue = inputs;
 let stoppedEarly = 0;
@@ -357,4 +365,4 @@ if (!failed) {
 // ⚠️ Exit explicitly: `worker.terminate()` cannot interrupt a worker inside a
 // synchronous wasm loop, and that thread would keep the process alive after
 // the verdict (the lesson of `check-direct-behaviour.ts`).
-Deno.exit(failed ? 1 : 0);
+process.exit(failed ? 1 : 0);

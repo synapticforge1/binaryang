@@ -36,11 +36,14 @@
  * that are memories, globals and tables rather than functions, which it reports
  * on every run.
  *
- * Usage: `deno task direct-behaviour`
+ * Usage: `bun run direct-behaviour`
  */
 
 import { type Row, type Status } from './direct-behaviour/differential.ts';
 import { type DirectInput, directInputs } from './direct-inputs.ts';
+
+import process from 'node:process';
+import { Worker } from 'node:worker_threads';
 
 /**
  * Per-module budget. Generous on purpose: the cost of being wrong here is a
@@ -62,12 +65,15 @@ const rows: Row[] = [];
  */
 function drain(queue: DirectInput[]): Promise<DirectInput[]> {
   return new Promise((resolve) => {
-    const worker = new Worker(WORKER, { type: 'module' });
+    // node:worker_threads, not the web `Worker`: Node has no global one, and this harness is an
+    // engine oracle that runs on Node (cmem/bun-migration.md § "The engine oracle"). The worker
+    // inherits this process's execArgv, so Node's --experimental-transform-types reaches it.
+    const worker = new Worker(WORKER);
     let next = 0; // index in `queue` the worker is currently on
     let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = (remaining: DirectInput[]) => {
       clearTimeout(timer);
-      worker.terminate();
+      void worker.terminate();
       resolve(remaining);
     };
     const arm = () => {
@@ -87,23 +93,23 @@ function drain(queue: DirectInput[]): Promise<DirectInput[]> {
       }, BUDGET_MS);
     };
 
-    worker.onmessage = (ev: MessageEvent<{ row?: Row; done?: boolean }>) => {
-      if (ev.data.done) return finish([]);
-      rows.push(ev.data.row!);
+    worker.on('message', (data: { row?: Row; done?: boolean }) => {
+      if (data.done) return finish([]);
+      rows.push(data.row!);
       next++;
       arm();
-    };
-    worker.onerror = (ev) => {
+    });
+    worker.on('error', (err: Error) => {
       rows.push({
         file: queue[next]?.name ?? '<unknown>',
         status: 'DIVERGE',
         exports: 0,
         calls: 0,
-        detail: `worker error: ${ev.message}`,
+        detail: `worker error: ${err.message}`,
         notRun: {},
       });
       finish(queue.slice(next + 1));
-    };
+    });
 
     arm();
     worker.postMessage({ inputs: queue });
@@ -166,7 +172,7 @@ if (diverged.length > 0) {
   for (const [k, n] of [...reasons].sort((x, y) => y[1] - x[1])) {
     console.log(`    ${String(n).padStart(3)}x  ${k}`);
   }
-  Deno.exit(1);
+  process.exit(1);
 }
 
 console.log(
@@ -180,4 +186,4 @@ console.log(
 // and then sat until an external 1500s timeout killed it -- exit code 124 on a
 // run where every module agreed. A gate whose exit code is a timeout is not a
 // gate.
-Deno.exit(0);
+process.exit(0);

@@ -1,0 +1,10 @@
+{
+  // The root tsconfig.json with ONE flag relaxed, as scripts/binaryen-ts/deno.json relaxes it for
+  // `deno check`: these diagnostic scripts index arrays freely. Checked by `bun run check`.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["./**/*.ts"],
+  "exclude": []
+}

@@ -8,7 +8,7 @@
 #               claim in the README is a promise, and a promise wants a job.
 #
 # An exit code is not evidence in this codebase. `deno task test` proves the
-# suites ran; `deno task baseline` proves the emitted bytes did not move, which
+# suites ran; `bun run baseline` proves the emitted bytes did not move, which
 # is a different and stronger claim.
 
 name: CI
@@ -42,9 +42,10 @@ jobs:
         run: deno task check
 
       # The Bun / Node type check (Bun migration B2, cmem/bun-migration.md): `tsc` over the
-      # shipped code, with @types/node pinned to the Node floor. Runs NEXT TO `deno task check`
-      # until every tree has moved over; tests/ and scripts/ join tsconfig.json as B4 / B5
-      # convert them. `--frozen-lockfile`: a bun.lock that disagrees with package.json fails.
+      # shipped code and scripts/ (B4), with @types/node pinned to the Node floor. Runs NEXT TO
+      # `deno task check` until every tree has moved over; tests/ joins when B5 converts it.
+      # Bun is installed here for every later step too: the project's scripts run on Bun
+      # (owner, 2026-10-12) -- `bun run <name>`, from package.json. `--frozen-lockfile`: a bun.lock that disagrees with package.json fails.
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -64,13 +65,13 @@ jobs:
       # trees and returned empty on a tree that still held a violation. Prints
       # each offender and exits 1 (its shell predecessor always exited 0).
       - name: Naming rule
-        run: deno task naming || { echo "::error::naming rule violated"; exit 1; }
+        run: bun run naming || { echo "::error::naming rule violated"; exit 1; }
 
       # BINDING (README "Runtime support"). No Deno globals in shipped source;
       # node: builtins confined to the CLI layer, because they are
       # portable across Deno/Node/Bun but not to the browser.
       - name: Runtime portability
-        run: deno task portability
+        run: bun run portability
 
       - name: Test
         run: deno task test
@@ -79,7 +80,7 @@ jobs:
       # output bytes, so a deliberate encoder improvement is supposed to fail it
       # — re-baseline in the same commit and say why.
       - name: Emitted-byte baseline
-        run: deno task baseline
+        run: bun run baseline
 
       - name: Verify publish manifest (dry run, no provenance)
         # `--config jsr.json`: the package manifest is jsr.json since 2026-10-12, and with a
@@ -94,8 +95,8 @@ jobs:
       # nothing. `|| true` so a change here can never redden a build.
       - name: Convergence indicator (reported, not gated)
         run: |
-          deno task collisions >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
-          deno task collisions --quiet || true
+          bun run collisions >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          bun run collisions --quiet || true
 
   runtimes:
     name: CLI on ${{ matrix.name }}

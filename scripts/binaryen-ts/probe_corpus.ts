@@ -7,7 +7,7 @@
  * profiler harness when picking a corpus subset.
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/probe_corpus.ts
+ *   bun scripts/binaryen-ts/probe_corpus.ts
  *
  * @license MIT
  */

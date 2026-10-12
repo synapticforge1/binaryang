@@ -26,7 +26,10 @@ last section, "The tag-push path works unaided", narrows the manual-step warning
 Wherever this file says `deno.json` for the version, the bump, `RELEASE_FILES` or the tag check,
 read `jsr.json`. The release records below keep the name that was true when they were written.
 Both publish commands are `deno publish --config jsr.json`. While a `deno.json` exists, Deno
-takes the package from `deno.json` and ignores `jsr.json`.
+takes the package from `deno.json` and ignores `jsr.json`. **Since B4, `deno task bump` /
+`deno task release` are `bun run bump` / `bun run release`** (the scripts are `node:`-only and
+run on Bun; the release script's cold type check still runs `deno task check` in a fresh
+`DENO_DIR` until B5).
 
 `auto-tag` runs on every push to `main` and asks exactly one question: does
 `refs/tags/v<deno.json version>` already exist? It does not compare versions, and it does not detect

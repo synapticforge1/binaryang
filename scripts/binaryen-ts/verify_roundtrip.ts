@@ -6,7 +6,7 @@
  * survive and the second parse succeeds with no diagnostics.
  *
  * Run:
- *   deno run --allow-read scripts/binaryen-ts/verify_roundtrip.ts
+ *   node --experimental-transform-types scripts/binaryen-ts/verify_roundtrip.ts
  *
  * @license MIT
  */

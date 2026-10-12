@@ -6,7 +6,7 @@
  * index, a `local.tee` with renamed index, or a `drop`). Side-by-side with the
  * locals count change and the local-index mapping inferred from gets.
  *
- * Run: deno run --allow-read scripts/binaryen-ts/diag_coalesce.ts
+ * Run: bun scripts/binaryen-ts/diag_coalesce.ts
  *
  * @license MIT
  */
