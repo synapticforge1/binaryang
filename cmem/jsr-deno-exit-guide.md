@@ -22,7 +22,7 @@ are inferred from 2026-10-09.
 [denoland/deno#36995](https://github.com/denoland/deno/issues/36995))
 
 **Owner's direction (2026-10-12):** move development off Deno, toward Bun. **JSR stays the source
-of every package.** Whether development code should also run on Node is an open decision (§ 5).
+of every package.** Decided the same day: code that runs on both Bun and Node, with Bun as the main runtime (§ 5).
 
 ## 2. Two questions to ask of each package
 
@@ -145,9 +145,15 @@ version is permanent.
    recorded (`rekorLogId` from `api.jsr.io`).
 7. **Delete `deno.json` and `deno.lock`.** Drop `--config jsr.json`.
 
-## 5. Open: Bun-only, or code that runs on both Bun and Node?
+## 5. Decided: code that runs on both Bun and Node, with Bun as the main runtime
 
-Pending the owner's decision. binaryang's evaluation is in [bun-migration.md](bun-migration.md)
+**Owner, 2026-10-12: "We want code that runs on both, but bun as the main runtime."** For
+every package this means: `node:` builtins and web standards in scripts, never `Bun.*`;
+tests on `node:test` + `@std/expect` / `@std/assert`, never `bun:test`; `@types/node` rather
+than `@types/bun`, so a Bun-only API fails the type check; Bun for daily commands; CI on
+Bun and Node.
+
+binaryang's evaluation is in [bun-migration.md](bun-migration.md)
 § "Bun or Node". In short: Bun is faster (F7), runs TypeScript as written, and is one binary. Node
 has foundation governance and a published LTS schedule. Bun is owned by one company (Anthropic,
 since 2025-12, [announcement](https://www.anthropic.com/news/anthropic-acquires-bun-as-claude-code-reaches-usd1b-milestone)),
