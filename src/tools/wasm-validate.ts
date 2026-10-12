@@ -48,9 +48,8 @@ import {
   nestingTooDeep,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliRead } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRead } from '../cli/io.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
-import process from 'node:process';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -138,7 +137,7 @@ function validate(binary: Uint8Array, opts: WasmValidateOptions): WasmValidateRe
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   args = args.slice();
   const inputs: string[] = [];
 
@@ -160,12 +159,12 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   }
   if (bad) {
     console.error(flags.help());
-    process.exit(1);
+    cliExit(1);
   }
 
   if (inputs.length === 0) {
     console.error('usage: wasm-validate [--enable-all|--enable-<feature>] <input.wasm> [...]');
-    process.exit(1);
+    cliExit(1);
   }
 
   let anyFailed = false;
@@ -186,5 +185,5 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     }
   }
 
-  if (anyFailed) process.exit(1);
+  if (anyFailed) cliExit(1);
 }

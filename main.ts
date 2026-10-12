@@ -48,7 +48,6 @@
  * @license MIT
  */
 
-import process from 'node:process';
 import { main as wasmOptMain } from './src/tools/wasm-opt.ts';
 import { main as wat2wasmMain } from './src/tools/wat2wasm.ts';
 import { main as wasm2watMain } from './src/tools/wasm2wat.ts';
@@ -59,6 +58,7 @@ import { main as wasm2tsMain } from './src/tools/wasm2ts.ts';
 import { main as wasmCtorEvalMain } from './src/tools/wasm-ctor-eval.ts';
 import { main as wasmInterpMain } from './src/tools/wasm-interp.ts';
 import { main as wasmBundleMain } from './src/tools/wasm-bundle.ts';
+import { cliExit, cliProcess } from './src/cli/io.ts';
 
 export * from './src/index.ts';
 
@@ -98,7 +98,7 @@ const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
 };
 
 async function main(): Promise<void> {
-  const [command, ...rest] = process.argv.slice(2);
+  const [command, ...rest] = cliProcess().argv.slice(2);
 
   if (!command || command === '--help' || command === '-h') {
     printHelp();
@@ -114,7 +114,7 @@ async function main(): Promise<void> {
   if (!handler) {
     console.error(`Unknown command: ${command}`);
     console.error(`Run with --help to see available commands.`);
-    process.exit(1);
+    cliExit(1);
   }
 
   await handler(rest);

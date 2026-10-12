@@ -42,8 +42,7 @@ import {
 import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type { Module, SectionMeta } from '../ir/ir.ts';
-import { cliRead } from '../cli/io.ts';
-import process from 'node:process';
+import { cliExit, cliProcess, cliRead } from '../cli/io.ts';
 import { countImports } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -290,7 +289,7 @@ function extKindName(kind: ExternalKind): string {
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   args = args.slice();
   const inputs: string[] = [];
   let details = false;
@@ -313,7 +312,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
 
   if (inputs.length === 0) {
     console.error('usage: wasm-objdump [-h] [-d] <input.wasm> [...]');
-    process.exit(1);
+    cliExit(1);
   }
 
   let anyFailed = false;
@@ -336,5 +335,5 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     }
   }
 
-  if (anyFailed) process.exit(1);
+  if (anyFailed) cliExit(1);
 }

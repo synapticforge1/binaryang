@@ -42,9 +42,6 @@
  * @license MIT
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
-import { basename } from 'node:path';
-import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { readWat, WatInputError } from './read-wat.ts';
@@ -101,6 +98,7 @@ import {
   SYM_ABSOLUTE,
   SymbolKind,
 } from '../core/linking.ts';
+import { baseName, cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
 
 // ---------------------------------------------------------------------------
 // Options and report
@@ -1686,7 +1684,7 @@ export interface WasmBundleOptions extends BundleOptions {
 
 /** The module name a file gets when none is given: its basename, `[^A-Za-z0-9_]` → `_`. */
 export function moduleNameOf(path: string): string {
-  const stem = basename(path).replace(/\.(wasm|wat)$/, '').replace(/[^A-Za-z0-9_]/g, '_');
+  const stem = baseName(path).replace(/\.(wasm|wat)$/, '').replace(/[^A-Za-z0-9_]/g, '_');
   return /^[0-9]/.test(stem) ? `_${stem}` : stem === '' ? 'module' : stem;
 }
 
@@ -1703,11 +1701,11 @@ export async function wasmBundle(
   const named = new Set<string>();
   const inputs: BundleInput[] = [];
   for (const path of paths) {
-    const bytes = new Uint8Array(await readFile(path));
+    const bytes = new Uint8Array(await fsRead(path));
     const module = path.endsWith('.wat')
       ? readWat(new TextDecoder().decode(bytes), path)
       : readForPasses(bytes, path);
-    const alias = aliases.get(path) ?? aliases.get(basename(path));
+    const alias = aliases.get(path) ?? aliases.get(baseName(path));
     const name = alias ?? moduleNameOf(path);
     if (alias !== undefined) named.add(name);
     inputs.push({ name, module, source: path });
@@ -1740,7 +1738,7 @@ function usage(): void {
 }
 
 /** The CLI: parses `args` and runs {@link wasmBundle}. */
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   const inputs: string[] = [];
   const options: Partial<WasmBundleOptions> = {};
   let output = 'bundle.wasm';
@@ -1755,7 +1753,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       const v = a.slice(14);
       if (v !== 'prefix' && v !== 'alias' && v !== 'exclude' && v !== 'refuse') {
         console.error(`wasm-bundle: --on-conflict is prefix, alias or exclude, not "${v}"`);
-        process.exit(1);
+        cliExit(1);
       }
       options.onConflict = v;
     } else if (a.startsWith('--alias=') || a === '--alias') {
@@ -1764,7 +1762,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
         const eq = pair.indexOf('=');
         if (eq <= 0) {
           console.error(`wasm-bundle: --alias takes file=name pairs, not "${pair}"`);
-          process.exit(1);
+          cliExit(1);
         }
         aliases.set(pair.slice(0, eq), pair.slice(eq + 1));
       }
@@ -1772,7 +1770,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       const v = a.slice(11);
       if (v !== 'refuse' && v !== 'guess') {
         console.error(`wasm-bundle: --unmarked is refuse or guess, not "${v}"`);
-        process.exit(1);
+        cliExit(1);
       }
       options.unmarked = v;
     } else if (a.startsWith('--start=')) options.start = a.slice(8);
@@ -1781,12 +1779,12 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     else if (a.startsWith('-')) {
       console.error(`wasm-bundle: unknown option ${a}`);
       usage();
-      process.exit(1);
+      cliExit(1);
     } else inputs.push(a);
   }
   if (inputs.length === 0) {
     usage();
-    process.exit(1);
+    cliExit(1);
   }
   options.aliases = aliases;
   options.witName = witNameOf(output === '-' ? 'bundle.wasm' : output);
@@ -1801,14 +1799,14 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     console.error(
       `wasm-bundle: ${e instanceof WatInputError || e instanceof Error ? e.message : e}`,
     );
-    process.exit(1);
+    cliExit(1);
   }
   if (output === '-') {
     if (typeof result.output === 'string') console.log(result.output);
-    else process.stdout.write(result.output);
+    else cliProcess().stdout.write(result.output);
     return;
   }
-  await writeFile(output, result.output);
+  await fsWrite(output, result.output);
   if (options.log !== undefined) {
     console.log(
       typeof result.output === 'string'

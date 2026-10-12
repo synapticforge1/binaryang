@@ -19,8 +19,6 @@
  * @license MIT
  */
 
-import { readFile } from 'node:fs/promises';
-import process from 'node:process';
 import { readValidForPasses } from '../ir/prepare.ts';
 import { readValidWat, WatInputError } from './read-wat.ts';
 import type { WasmModule } from '../ir/module.ts';
@@ -36,6 +34,7 @@ import {
   type Value,
   WasmException,
 } from '../interp/interpreter.ts';
+import { cliExit, cliProcess, fsRead } from '../cli/io.ts';
 
 /** Options for {@link wasmInterp}. */
 export interface WasmInterpOptions {
@@ -173,7 +172,7 @@ export async function wasmInterp(
   inputPath: string,
   options: Partial<WasmInterpOptions> = {},
 ): Promise<Invocation[]> {
-  const bytes = new Uint8Array(await readFile(inputPath));
+  const bytes = new Uint8Array(await fsRead(inputPath));
   const module = inputPath.endsWith('.wat')
     ? readValidWat(new TextDecoder().decode(bytes), inputPath)
     : readValidForPasses(bytes, inputPath);
@@ -197,7 +196,7 @@ function usage(): void {
 }
 
 /** The CLI: parses `args` and runs {@link wasmInterp}. */
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   let input: string | undefined;
   const options: Partial<WasmInterpOptions> = { args: [] };
   for (const a of args) {
@@ -210,19 +209,19 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
       const seconds = Number(a.slice(13));
       if (!Number.isFinite(seconds) || seconds < 0) {
         console.error(`wasm-interp: --hang-check takes a number of seconds, not "${a.slice(13)}"`);
-        process.exit(1);
+        cliExit(1);
       }
       options.hangCheck = seconds * 1000;
     } else if (a === '--no-hang-check') options.hangCheck = null;
     else if (a.startsWith('-')) {
       console.error(`wasm-interp: unknown option ${a}`);
       usage();
-      process.exit(1);
+      cliExit(1);
     } else input = a;
   }
   if (input === undefined) {
     usage();
-    process.exit(1);
+    cliExit(1);
   }
   let invocations: Invocation[];
   try {
@@ -231,7 +230,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     console.error(
       `wasm-interp: ${e instanceof WatInputError || e instanceof Error ? e.message : e}`,
     );
-    process.exit(1);
+    cliExit(1);
   }
   for (const inv of invocations) console.log(showInvocation(inv));
 }

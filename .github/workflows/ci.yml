@@ -67,11 +67,20 @@ jobs:
       - name: Naming rule
         run: bun run naming || { echo "::error::naming rule violated"; exit 1; }
 
-      # BINDING (README "Runtime support"). No Deno globals in shipped source;
-      # node: builtins confined to the CLI layer, because they are
-      # portable across Deno/Node/Bun but not to the browser.
+      # BINDING (README "Runtime support"). No Deno globals in shipped source,
+      # and no top-level runtime import of a node: builtin anywhere in it (CLI
+      # layer included, since open-work 28): node: is portable across
+      # Deno/Node/Bun but not to the browser.
       - name: Runtime portability
         run: bun run portability
+
+      # Every export loads in a BROWSER (open-work 28): each export in jsr.json
+      # bundled for the browser target, failing on a bundle that does not build
+      # or still imports a node: builtin at the top level. The portability rule
+      # above reads each file; this follows every import, as a bundler does --
+      # the gap through which 15 of 22 exports became unloadable unseen.
+      - name: Every export loads in a browser
+        run: bun run browser
 
       - name: Test
         run: deno task test
@@ -108,11 +117,21 @@ jobs:
           - name: Deno
             setup: deno
             invoke: deno run -A
+          # EVERY current Node LTS line, plus the floor (owner, 2026-10-12: "We should
+          # support and test all currently available lts versions"). As of 2026-10:
+          # 22 "Jod" (maintenance to 2027-04-30) and 24 "Krypton". ⚠️ Node 26 enters
+          # LTS late in October 2026, and it removed --experimental-transform-types, so
+          # it cannot run this source (enums, parameter properties): adding its leg
+          # needs open-work 28 part 4, or a leg that runs the COMPILED package.
           - name: Node 22.18 (floor)
             setup: node
             node: '22.18'
             invoke: node --experimental-transform-types
-          - name: Node 24 (LTS)
+          - name: Node 22 (LTS, latest)
+            setup: node
+            node: '22'
+            invoke: node --experimental-transform-types
+          - name: Node 24 (LTS, latest)
             setup: node
             node: '24'
             invoke: node --experimental-transform-types

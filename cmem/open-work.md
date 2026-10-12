@@ -66,6 +66,20 @@ Its number is kept free.)
       versions: Node 24 13.6, Node 26 14.6, Deno 2.9.7 15.0, Chrome stable 156 = **15.6** (the
       newest V8 anywhere, 2026-10-07). Nesting-depth ceilings differ per runtime stack (the
       `hostile` depth table).
+    **Progress (2026-10-12, owner: "Work on 27 first then 28"):** parts **1, 2 and 5 DONE** on
+    branch `run-everywhere-1`. All 22 exports bundle for the browser; `bun run browser` (new, in
+    CI) and `bun run portability` (now tree-wide: no top-level runtime `node:` import anywhere)
+    hold it, and each was shown to FAIL on the old form of a tool. `wasmOpt` takes bytes. **Open:**
+    part 3 (a real headless-browser run), part 4 (erasable-only TypeScript), the measurement.
+
+    **Node LTS policy (owner, 2026-10-12): "support and test all currently available lts
+    versions."** As of 2026-10-12 that is Node 22 "Jod" (22.23.3) and Node 24 "Krypton" (24.21.0),
+    both installed here and in CI's `runtimes` matrix (22.18 floor, latest 22, latest 24). The local
+    gate smokes the CLI on each by explicit path. ⚠️ **DATE: Node 26 enters LTS late in October
+    2026** (Node 24 did on 2025-10-28). Node 26 removed `--experimental-transform-types`, so under
+    this policy it needs part 4 (the source runs on it), or a leg that tests the COMPILED package.
+    That makes part 4 urgent: it is how the policy can hold in about two weeks.
+
     **Proposed plan, owner to order:** (1) tools: move the Node-only parts INSIDE each `main()`
     (`globalThis.process`, an on-demand `import('node:fs/promises')`), so every export bundles
     for the browser with the API unchanged, and move `packMemory` out of the CLI layer; (2) a

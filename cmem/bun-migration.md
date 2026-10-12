@@ -162,8 +162,12 @@ this machine to Node 22, the oldest LTS (maintenance until 2027-04-30). Node 22.
   the NEWEST Node that still runs the source, Node 24 until 2028-04-30 (Node 26 cannot run
   it: no `--experimental-transform-types`). If this machine's default `node` becomes 22, the
   oracle steps go red for engine reasons, not ours. **Decided, 2026-10-12: Node 22 only on this
-  machine, so the referee is Deno** (above). The 11 DIVERGE on V8 12.4 were not investigated: an
-  old-engine artefact until shown otherwise.
+  machine, so the referee is Deno** (above). 🔧 **Superseded the same day:** the owner reinstalled
+  Node 24 beside 22 ("We should support and test all currently available lts versions",
+  open-work 28). Both are now at `scoop/apps/nodejs22` and `nodejs24`. The oracle wiring is still
+  Deno, which is green. Moving it back to Node 24, which is green too and outlives Deno, is the
+  owner's call; it is a `package.json` edit plus the `proposals` default. The 11 DIVERGE on V8
+  12.4 were not investigated: an old-engine artefact until shown otherwise.
 
 **For B5:** 220 test files call the host engine too. On Bun those assertions meet JavaScriptCore;
 on Node, V8. The suite therefore has to pass on Node as it does on Deno today, and any difference

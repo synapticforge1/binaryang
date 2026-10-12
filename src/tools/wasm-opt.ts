@@ -26,8 +26,6 @@
  * @license MIT
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
-import process from 'node:process';
 import { readForPasses } from '../ir/prepare.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { WatInputError } from './read-wat.ts';
@@ -47,6 +45,7 @@ import {
 } from '../passes/index.ts';
 import type { PassOptions } from '../passes/pass.ts';
 import { ModuleBuilder } from '../ir/module.ts';
+import { cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -132,24 +131,30 @@ const defaults: WasmOptOptions = {
 // ---------------------------------------------------------------------------
 
 /**
- * Runs `wasm-opt` on the given input file.
+ * Runs `wasm-opt` on a file, or on the module's BYTES.
  *
  * Uses the TypeScript pass infrastructure: parse → run passes → encode.
  *
- * @param inputPath - Path to the input `.wasm` or `.wat` file.
- * @param options   - Optimization options.
+ * A `Uint8Array` is optimized as given, which is what a browser page holding a module
+ * needs (open-work 28, 2026-10-12): no file system involved. It is binary when it starts with
+ * the `\0asm` magic, and WAT text otherwise. A path is read from disk (Deno, Node or Bun), and is
+ * WAT when it ends in `.wat`.
+ *
+ * @param input   - Path to a `.wasm` or `.wat` file, or the module's bytes.
+ * @param options - Optimization options.
  * @returns The optimized WASM binary, or its WAT text when `emitText` is `true`.
  */
 export async function wasmOpt(
-  inputPath: string,
+  input: string | Uint8Array,
   options: Partial<WasmOptOptions> = {},
 ): Promise<Uint8Array | string> {
   const opts: WasmOptOptions = { ...defaults, ...options };
 
-  const inputBytes = new Uint8Array(await readFile(inputPath));
-  const isWat = inputPath.endsWith('.wat');
+  const fromPath = typeof input === 'string';
+  const inputBytes = fromPath ? await fsRead(input) : input;
+  const isWat = fromPath ? input.endsWith('.wat') : !hasWasmMagic(inputBytes);
 
-  const out = _nativeOptimize(inputBytes, isWat, opts, inputPath);
+  const out = _nativeOptimize(inputBytes, isWat, opts, fromPath ? input : '<input>');
   // `validate` (default true) runs the engine's structural validator over the
   // optimized binary. Previously this option was parsed but never enforced — a
   // documented behavior that didn't exist. WebAssembly.compile IS a validator,
@@ -184,14 +189,14 @@ export async function wasmOpt(
  * node main.ts wasm-opt input.wasm -o out.wasm -O2
  * ```
  */
-export async function main(args: string[] = process.argv.slice(2)): Promise<void> {
+export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   // A bad argument is a one-line diagnostic, not a stack trace.
   let parsed: ReturnType<typeof parseArgs>;
   try {
     parsed = parseArgs(args);
   } catch (e) {
     console.error(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
-    process.exit(1);
+    cliExit(1);
   }
 
   if (parsed.printAllPasses) {
@@ -212,7 +217,7 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     console.error('  --pass-arg key=val   Per-pass argument (passname@key=val)');
     console.error('  --partial-inlining-ifs N  Enable split inlining (Pattern A/B); -pii N');
     console.error('  --print-all-passes   List all registered passes and exit');
-    process.exit(1);
+    cliExit(1);
   }
 
   // A failure is a DIAGNOSTIC, not a stack trace: nothing above this catches,
@@ -223,14 +228,14 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
   const toStdout = (parsed.options.output ?? 'output.wasm') !== '-';
   const onMinifyMap = (map: MinifyMap) => {
     const text = formatMinifyMap(map);
-    if (toStdout) process.stdout.write(text);
-    else process.stderr.write(text);
+    if (toStdout) cliProcess().stdout.write(text);
+    else cliProcess().stderr.write(text);
   };
   try {
     result = await wasmOpt(parsed.input, { ...parsed.options, onMinifyMap });
   } catch (e) {
     console.error(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
-    process.exit(1);
+    cliExit(1);
   }
   const outPath = parsed.options.output ?? 'output.wasm';
 
@@ -238,14 +243,14 @@ export async function main(args: string[] = process.argv.slice(2)): Promise<void
     if (outPath === '-') {
       console.log(result);
     } else {
-      await writeFile(outPath, result);
+      await fsWrite(outPath, result);
       console.log(`Wrote WAT: ${outPath}`);
     }
   } else {
     if (outPath === '-') {
-      process.stdout.write(result);
+      cliProcess().stdout.write(result);
     } else {
-      await writeFile(outPath, result);
+      await fsWrite(outPath, result);
       console.log(`Wrote WASM: ${outPath} (${result.byteLength} bytes)`);
     }
   }
@@ -273,6 +278,11 @@ function validateInput(bytes: Uint8Array, filename: string): void {
   const { errors } = wasmValidate(bytes, { filename, features: allFeatures() });
   if (!hasErrors(errors)) return;
   throw new Error(`input module is not valid:\n${formatErrors(errors)}`);
+}
+
+/** Whether `b` starts with the binary format's magic number, `\0asm`. */
+function hasWasmMagic(b: Uint8Array): boolean {
+  return b.length >= 4 && b[0] === 0x00 && b[1] === 0x61 && b[2] === 0x73 && b[3] === 0x6d;
 }
 
 function _nativeOptimize(

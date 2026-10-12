@@ -181,20 +181,26 @@ enum (`Type.I32`); the type of a node's `type` field is `ExprType` (`./ir/binary
 
 Runs on **Deno, Node.js, Bun and modern browsers** from a single source tree.
 
-| runtime  | minimum     | note                                       |
-| -------- | ----------- | ------------------------------------------ |
-| Deno     | 2.x         |                                            |
-| Node.js  | **22.18.0** | no flags for the installed package¹        |
-| Bun      | **1.4.0**   |                                            |
-| browsers | modern      | library surface only, not the CLI          |
+| runtime  | minimum     | tested in CI                    | note                                |
+| -------- | ----------- | ------------------------------- | ----------------------------------- |
+| Deno     | 2.x         | 2.x                             |                                     |
+| Node.js  | **22.18.0** | 22.18.0, latest 22, latest 24   | no flags for the installed package¹ |
+| Bun      | **1.4.0**   | 1.4.0                           |                                     |
+| browsers | modern      | every export bundles for them²  | library surface only, not the CLI   |
 
 ¹ Node users receive JSR's compiled JavaScript. Running binaryang's TypeScript **source** (a clone
 of this repository) on Node needs `--experimental-transform-types`, because the source uses
 `enum`s and constructor parameter properties, which Node's default type stripping does not
-accept. Deno and Bun run the source as it is.
+accept. Node 26 removed that flag, so it runs the published package but not the source. Deno and
+Bun run the source as it is.
 
-**Node.js: supported means not end-of-life.** Node 18 ended 2025-04-30 and Node 20 on 2026-04-30, so
-neither is supported. Node 22 is in maintenance until 2027-04-30 and is supported. The floor is
+² Every export is bundled for the browser target in CI and must not import a Node builtin; the
+library's command-line paths load Node's file system only when they run. That proves the exports
+LOAD in a browser. A headless-browser run of the library is planned, not yet in CI.
+
+**Node.js: every current LTS line is supported and tested** (Node 22 "Jod" and Node 24
+"Krypton" as of 2026-10). Supported means not end-of-life: Node 18 ended 2025-04-30 and Node 20 on
+2026-04-30, so neither is supported. Node 22 is in maintenance until 2027-04-30. The floor is
 **22.18.0** rather than 22.0 because `import.meta.main` was backported to the v22 line in 22.18.0.
 
 **Bun: 1.4.0 is the Zig → Rust rewrite.** The floor sits on that boundary so binaryang never spans
@@ -246,8 +252,9 @@ resolving — nothing is yanked.
 Project memory lives in [`cmem/`](https://github.com/jrmarcum/binaryang/tree/main/cmem/) — start
 with [`cmem/INDEX.md`](https://github.com/jrmarcum/binaryang/blob/main/cmem/INDEX.md). Two rules are
 binding and enforced in CI: upstream project names are reserved for upstream-compatibility paths,
-and runtime portability is layered (no Deno-specific globals in shipped source; `node:` builtins are
-confined to the CLI layer, because they do not reach the browser).
+and runtime portability is enforced (no Deno-specific globals in shipped source, and no top-level
+import of a `node:` builtin anywhere in it, because those do not load in a browser; the CLI loads
+Node's file system only when it runs, and every export is bundled for the browser in CI).
 
 ## Licence
 
