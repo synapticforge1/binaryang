@@ -192,10 +192,14 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   `sed -n`** whenever the content will be matched against or edited.
 - **Never build an exact-match string out of RENDERED output.** Copying indentation from
   `sed 's/^/  /'` into a match string failed about six edits in one session.
-- **Throwaway scripts are Deno files in the session scratchpad**, written with a file-writing tool:
-  `deno run --allow-read --allow-write script.ts`. There is no working `python` on the development
-  machine (details in the private `cmem/local/environment.md`). `sed -i` is fine for one regex on
-  one file.
+- **Scripts run on Bun** (owner, 2026-10-12: "All of our scripts will now be run from bun
+  instead of deno"). Throwaway scripts are TypeScript files in the session scratchpad, written
+  with a file-writing tool and run as `bun script.ts`. They use `node:` builtins and web
+  standards, never `Bun.*` or `Deno.*`, so the same file also runs on Node (the Bun-and-Node
+  decision, [bun-migration.md](bun-migration.md)). The repo's own `scripts/` move to Bun as B4
+  converts each one. Until a script is converted it still uses `Deno.*` and runs through its
+  `deno task`. There is no working `python` on the development machine (details in the private
+  `cmem/local/environment.md`). `sed -i` is fine for one regex on one file.
 - **After any scripted edit, read back the lines it changed**, and treat "0 replacements" as a
   failure, not a no-op.
 - ⚠️ **`cmem/` is outside `deno fmt`'s `include`, and naming a file formats it anyway.** The gate's
