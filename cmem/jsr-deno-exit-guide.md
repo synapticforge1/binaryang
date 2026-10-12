@@ -180,6 +180,107 @@ Claude, an Anthropic model; weigh that.) **binaryang's recommendation:** write f
 (`node:` builtins, `node:test` + `@std/expect`), run on Bun daily, gate on both. Then the runtime
 choice becomes a CI setting instead of a second migration.
 
+## 5a. What binaryang built for Bun, Node LTS and the web: copy these (2026-10-12)
+
+Each item names the binaryang file to read (`../binaryang/…` from a sibling; read it, do not
+write to it) and what was measured. All of it is on binaryang's `main`.
+
+### Bun as the main runtime, code that runs on Node too
+
+- **Scripts are `package.json` scripts run by `bun run`**, written on `node:` builtins and web
+  standards only, never `Bun.*` / `Deno.*`. A script then also runs on Node and on Deno, so it can
+  be checked against its old Deno version before Deno goes. binaryang did exactly that for all 51
+  script files: identical output, and byte-identical corpus trees (`scripts/`,
+  `package.json`).
+- **Traps met converting `Deno.*` to `node:`.** Every one changed behaviour silently:
+  - `Deno.readFile` returns a fresh `Uint8Array`, and `readFile` a pooled `Buffer` (its `.slice()` is
+    a view): copy it, `new Uint8Array(await readFile(p))`;
+  - `Deno.readDir` entries have `isFile` as a property, Node's `Dirent` as a method;
+  - `Deno.Command`'s `env` MERGES with the environment, and `node:child_process`'s REPLACES it.
+    Spread `process.env`, or the child cannot even find `deno` / `git`;
+  - self-spawning with `Deno.execPath()`: use `process.execPath` PLUS `process.execArgv`, so Node
+    keeps its flags;
+  - `-e` with top-level await is not portable (Node's `-e` is CommonJS): run a one-line `.mjs`;
+  - the web `Worker` does not exist on Node: use `node:worker_threads`, which all three run;
+  - `async` functions whose `await` became `spawnSync` fail `deno lint`'s `require-await`;
+  - `deno fmt <dir>` / `deno lint <dir>` do NOT apply `deno.json`'s include list. Run the bare
+    command the gate runs.
+- **Type checking is `tsc`** (TypeScript 7.0.2), with `types: ["node"]` (not `bun`, so a Bun-only
+  API fails the check) and `@types/node` pinned to the published Node FLOOR (so an API newer than
+  the floor fails too). `tsconfig.json`; `bun run check`.
+- **`bun install` cannot write `bun.lock` on an exFAT drive** (no atomic rename). Generate the
+  lockfile on NTFS and copy it back; a lockfile holds no paths.
+
+### The engine referee: Bun's WebAssembly is not V8
+
+Bun runs WebAssembly on JavaScriptCore (F10). Any script or test that JUDGES a module with the
+host engine must run on a current V8. binaryang's measurements on the spec corpora:
+
+| engine | vs Deno 2.9.7 (V8 15.0) | behaviour gate |
+| --- | --- | --- |
+| Node 24 (V8 13.6) | 0 of 6,753 differ | passes |
+| Node 22 (V8 12.4) | 71 core differ (no table64) | FAILS (11 DIVERGE, 32 refused) |
+| Bun 1.4.3 (JavaScriptCore) | 300 differ (no memory64; accepts 70 invalid) | not used |
+| Chrome 156 (V8 15.6) | not measured | the newest V8 anywhere |
+
+Experimental proposals need an engine that HAS them, and no single one has all of them.
+binaryang picks an engine per proposal (`scripts/proposals.ts` `engine`): custom-descriptors on
+Deno's V8 15.0, wide-arithmetic on Bun (JavaScriptCore has it by default). Its oracle scripts run
+on Deno until Deno ends. **Plan a successor before about 2027-04**: Node 22's end of life is
+2027-04-30, and Deno's end is around 2027-10.
+
+### Every current Node LTS line, supported and tested
+
+Owner, 2026-10-12: "We should support and test all currently available lts versions."
+- **Which lines: Node's own release schedule**,
+  `https://raw.githubusercontent.com/nodejs/Release/main/schedule.json`: LTS started, end of
+  life not reached. Never a hand-kept list. On 2026-10-12 that is 22 "Jod" and 24 "Krypton".
+- **CI:** an `actions/setup-node` matrix with the floor (binaryang: 22.18, for the
+  `import.meta.main` backport) plus the latest of each LTS line (`.github/workflows/ci.yml`,
+  `runtimes`).
+- **Locally: `bun run lts`** (`scripts/check-lts.ts`) reads the schedule, runs the CLI smoke test
+  on each line through `fnm exec --using=<major>` (fnm, so nothing switches globally and no path
+  is machine-specific), and requires one output hash. A line fnm has not installed FAILS,
+  naming `fnm install <n>`; it is never skipped.
+- ⚠️ **Node 26 becomes LTS on 2026-10-28, and it REMOVED `--experimental-transform-types`.** Node
+  then only strips types: TypeScript with `enum`s, constructor parameter properties or
+  namespaces does not run on it from source. JSR's compiled JavaScript does. If your tests or
+  scripts run your TypeScript source on Node, either make it erasable-only (`erasableSyntaxOnly`)
+  before then, or test Node 26 against the compiled package. binaryang's `bun run lts` will fail
+  that day on purpose, as the reminder. wasmtk has `enum`s in 28 files.
+
+### The web: every export must LOAD in a browser
+
+- **The trap, measured in binaryang: 15 of 22 exports would not even bundle for a browser**,
+  while the README said "modern browsers". Each CLI module imported `node:process` at the TOP for
+  its `main()`, and library modules imported those CLI modules, so a pure function like
+  `wat2wasm()` became unloadable. A per-file portability rule ("no `node:` outside the CLI
+  layer") stayed green, because it never followed imports.
+- **The fix, with the API unchanged** (`src/cli/io.ts`):
+  - `cliProcess()`: `globalThis.process`, read when a CLI function RUNS (Deno, Node and Bun all
+    have it; a browser gets a clear error);
+  - `cliExit(code): never`, a named call. TypeScript does not treat `cliProcess().exit()` as
+    ending the code path;
+  - `fsRead` / `fsWrite`: `await import('node:fs/promises')` inside the function;
+  - a pure `baseName()` in place of `node:path`'s `basename` for library code;
+  - `import type … from 'node:…'` is fine, because it is erased.
+- **Two checks, both needed:**
+  - `scripts/check-browser.ts` (`bun run browser`, in CI) bundles every export in `jsr.json` with
+    `bun build --target=browser` and fails on a bundle that does not build or imports `node:` at
+    the top level. A deferred `import('node:…')` is allowed;
+  - `scripts/check-portability.ts`: no top-level runtime `node:` import ANYWHERE in shipped
+    source, CLI included. Why both: a bundler DROPS an unused import, so the bundle check cannot
+    see one, but JSR's compiled JavaScript KEEPS it, and a page loading the package without a
+    bundler fails on it.
+  - Each check was shown to fail on a real regression (an old tool file restored). A test of
+    `void process` was NOT a real regression: the bundler drops it.
+- **Give pages bytes-in, bytes-out APIs.** binaryang's `wasmOpt` took a file path (it read with
+  `node:fs`); it now also takes a `Uint8Array`. Look for path-only entry points in your exports.
+- **Still planned in binaryang:** a real headless-browser run of the library (bundling proves the
+  exports LOAD, not that they RUN).
+- **universal-wasm-loader IS a browser loader**, so `check-browser.ts` applies to it as it stands.
+  wasmtk's published code calls `Deno.*`, so it needs the runtime port of § 6 first.
+
 ## 6. Notes per package
 
 ### wasmtk (2.0.3 on JSR), surveyed read-only 2026-10-12
