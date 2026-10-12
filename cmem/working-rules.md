@@ -33,8 +33,9 @@ not survive a clone is not a project rule. The lessons behind them are in
 
 CI's steps first, read from `.github/workflows/ci.yml` rather than from memory of it:
 
-`deno fmt --check` · `deno lint` · `deno task ci` · `deno task naming` · `deno task portability` ·
-`deno task baseline` · `deno publish --dry-run --allow-dirty` — and the `runtimes` job's
+`deno fmt --check` · `deno lint` · `deno task ci` · `bun install --frozen-lockfile && bun run check`
+(the `tsc` check, since Bun migration B2, 2026-10-12) · `deno task naming` · `deno task portability` ·
+`deno task baseline` · `deno publish --dry-run --allow-dirty --config jsr.json` — and the `runtimes` job's
 `scripts/cli-smoke.ts`, run under each runtime it tests (locally:
 `deno run -A scripts/cli-smoke.ts
 "deno run -A"`, likewise `node --experimental-transform-types …`

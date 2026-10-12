@@ -118,8 +118,8 @@ fatigue.
     2026-10-12). Deno runtime development ends around 2027-10 (the team joined Cloudflare). The
     published package is already runtime-neutral; tests, scripts, fmt / lint / check and CI are
     not. Steps B1–B7 with findings and risks: [bun-migration.md](bun-migration.md). **B1 (`jsr.json`
-    is the one manifest) is merged.** ⏳ **The owner decides Bun-only or code that runs on both
-    Bun and Node before B4** (evaluation and recommendation: bun-migration.md § "Bun or Node").
+    is the one manifest) is merged.** ✅ **Decided 2026-10-12: code that runs on both Bun and Node, with Bun as the main runtime**
+    (bun-migration.md § "Bun or Node"). B2 (project files, `tsc`) is next.
     The README's install and CLI instructions no longer depend on Deno (2026-10-12). B6 (the release path) is the one step
     that cannot be undone. The deadline is about a year away, so the owner orders it against
     items 13 and 14.
