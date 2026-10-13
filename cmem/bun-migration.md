@@ -108,8 +108,9 @@ steps can sit on `main` in any order after their predecessor, unreleased, behind
 Owner: "we need to add the tsc lint flags and use Biome to replace deno lint", and "lets add that
 to the bun migration notes".
 
-**The tsc lint flags**, in `tsconfig.json` AND `deno.json` (so `deno check` holds `tests/` to them
-until B5): `noUnusedLocals`, `noUnusedParameters`, `noImplicitOverride`,
+**The tsc lint flags**, in `tsconfig.json`, and all but one in `deno.json` (so `deno check` holds
+`tests/` to them until B5; Deno 2.9.7 does not support `noUncheckedSideEffectImports` and warned
+"The following options were ignored" on every run, so that one is tsc-only): `noUnusedLocals`, `noUnusedParameters`, `noImplicitOverride`,
 `noPropertyAccessFromIndexSignature`, `allowUnreachableCode: false`, `allowUnusedLabels: false`,
 `noUncheckedSideEffectImports` (the `@tsconfig/strictest` set; `noImplicitReturns` and
 `noFallthroughCasesInSwitch` were already on). Measured on the tree first: only two found
@@ -176,8 +177,9 @@ notations to the bun migration file"):**
   disabled rule with its reason and count, the three parity rules enabled, formatter and assist
   off. The vendored folder is excluded as `!tests/wabt-ts/wasmtk` (folder form; Biome flagged the
   `/**` form with `useBiomeIgnoreFolder`).
-- **`deno.json`:** the `lint` section and the `lint` task REMOVED. The seven tsc lint flags were
-  added to `compilerOptions`, for `deno check` over `tests/`.
+- **`deno.json`:** the `lint` section and the `lint` task REMOVED. Six of the seven tsc lint flags
+  were added to `compilerOptions`, for `deno check` over `tests/`. Not `noUncheckedSideEffectImports`:
+  Deno 2.9.7 ignores it and warns on every run (seen in the gate's Deno smoke step).
 - **`tsconfig.json`:** the seven tsc lint flags.
 - **`.github/workflows/ci.yml`, gates job, reordered:** Install Deno → **Install Bun** → **Install dev
   dependencies** (`bun install --frozen-lockfile`) → Format check (`deno fmt --check`) → **Lint

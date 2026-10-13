@@ -319,7 +319,8 @@ Full record: binaryang `cmem/bun-migration.md` § "B3 lint". What carries over:
 - **tsc lint flags** (the `@tsconfig/strictest` set): `noUnusedLocals`, `noUnusedParameters`,
   `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `allowUnreachableCode: false`,
   `allowUnusedLabels: false`, `noUncheckedSideEffectImports`. Put them in `deno.json` too while
-  `deno check` still covers your tests. `const _x: never = e` counts as unused; write
+  `deno check` still covers your tests, all except `noUncheckedSideEffectImports`, which Deno 2.9.7
+  ignores with a warning on every run. `const _x: never = e` counts as unused; write
   `e satisfies never;`.
 - **Biome, pinned exact**, linter only (formatter and import sorting off unless you decide
   otherwise). Count the recommended set's findings per rule first, then decide each rule.
