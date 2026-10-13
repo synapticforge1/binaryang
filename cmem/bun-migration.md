@@ -96,7 +96,7 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 | B2   | **Bun project files next to Deno's.** ✅ Built 2026-10-12 on `bun-2-project-files`: `package.json` (private; dev dependencies `typescript` 7.0.2 and `@types/node` ~22.18, the Node floor; script `check`), `tsconfig.json` (deno.json's strictness flags, `types: ["node"]` so a Bun-only API fails), `bun.lock`, and a CI step `bun install --frozen-lockfile && bun run check`. **Scope, by decision:** `tsc` checks the SHIPPED code (`main.ts`, `src/`), 0 errors in 668 ms, and an injected `TS2322` fails it. tests/, scripts/ and comparison/ still use Deno globals; each joins `include` as B4 / B5 converts it, with its own `tsconfig` for the 3 `noUncheckedIndexedAccess: false` members. `.npmrc` / `@std` aliases and `dprint` / a linter come with B3 and B5, when something first needs them. `version_sync` also refuses `name` / `version` / `exports` / `bin` in `package.json`. ⚠️ On this machine's exFAT drive `bun install` cannot write `bun.lock` (`local/environment.md`). | ✅ `tsc` and `deno check` both green on the same commit                       |
 | B3   | **Formatting and lint off Deno.** ✅ **LINT half done 2026-10-13 (owner: "add the tsc lint flags and use Biome to replace deno lint")**, see § "B3 lint: Biome and the tsc lint flags" below. ✅ **FORMATTING half done 2026-10-13 (owner: "move on to 26 and 28")**: dprint 0.57.4 replaces `deno fmt`, with the plugins Deno 2.9.7 bundles; byte-identical on the tree and on three damaged copies of it. See § "B3 formatting: dprint replaces deno fmt". (Biome's formatter stays OFF; it is a different style.) | lint: ✅; fmt: ✅ `dprint check` 0 diffs, differential 0 |
 | B4   | ✅ **Built 2026-10-12 on `bun-4-scripts`:** all 51 script files are `node:`-only (no `Deno.*` in code, no `@std` / `jsr:` imports), and the 20 tasks are `package.json` scripts. Bun runs them, except the engine oracles, which run on Node (§ "The engine oracle"); `proposals` picks an engine per proposal. tsc checks `scripts/`. **Differential, old Deno vs new, same inputs:** every output identical, and every corpus tree byte-identical (core 7,422, legacy 29, translate-eh 29, proposals 874 files). Expected differences only: the `bump` usage line; the 4 `proposals` summary lines that now name their engine; `hostile`'s DEPTH table, which measures each runtime's stack (its mutation half is identical). Found: item 27 (an interp defect on `main`) and the gen_demo_bytes drift (below). **Original plan:** **Scripts on `node:` builtins, RUN BY BUN** (owner, 2026-10-12: "All of our scripts will now be run from bun instead of deno"; each `deno task` becomes a `package.json` script run by `bun run`). `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
-| B5   | **Tests on `node:test`, run by both Bun and Node** (§ "Bun or Node", DECIDED 2026-10-12). `@std/testing/bdd` → `node:test`'s `describe` / `it` (required: bdd calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. **Decided 2026-10-13 (owner):** `@std/assert` / `@std/expect` are KEPT via JSR (the same "leave it on JSR until necessary" stance as open-work 29; vendoring is the fallback), and **Node 24, the V8 referee, is AUTHORITATIVE for the suite** (220 test files use the host engine), with Bun also running it as a portability leg and a measured, listed set of JavaScriptCore-only differences. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | test counts equal; injected-mutant check                                       |
+| B5   | ✅ **DONE 2026-10-13** (§ "B5: the suite on node:test"): 346 files on `node:test`, Deno.* gone from tests, `bun run test` (Node 24, the verdict) and `bun run test:bun` (Bun, 36 listed JavaScriptCore differences) in CI. As planned: **Tests on `node:test`, run by both Bun and Node** (§ "Bun or Node", DECIDED 2026-10-12). `@std/testing/bdd` → `node:test`'s `describe` / `it` (required: bdd calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. **Decided 2026-10-13 (owner):** `@std/assert` / `@std/expect` are KEPT via JSR (the same "leave it on JSR until necessary" stance as open-work 29; vendoring is the fallback), and **Node 24, the V8 referee, is AUTHORITATIVE for the suite** (220 test files use the host engine), with Bun also running it as a portability leg and a measured, listed set of JavaScriptCore-only differences. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | ✅ per-file counts equal (346 files, 5,901 leaves); an injected failure fails both legs |
 | B6   | **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
 | B7   | **Delete `deno.json` and `deno.lock`.** `--config jsr.json` comes off the publish commands, since `jsr.json` is then found on its own. `version_sync`'s second test turns into "there is no `deno.json`". `cmem/` updated throughout. | gate green with no `deno.json` in the tree                                     |
 
@@ -293,6 +293,55 @@ code; **no `biome-ignore` remains**, and `bun run lint` passes.
 - **`noApproximativeNumericConstant` (1):** `wat2wasm.test.ts`' `3.14159` → `3.25`, in the WAT
   and the assertion (exactly representable; the round trip is tested as before).
 - **The canary's comment** said the suppressions guarded `"none"` by accident; rewritten (above).
+
+## B5: the suite on `node:test` (2026-10-13)
+
+Owner: "move on to 26 and 28"; decided: `@std/assert` / `@std/expect` KEPT via JSR, and **Node 24
+(the V8 referee) authoritative**, Bun too, with its engine differences listed.
+
+- **Baseline first, per file.** Deno's JUnit reporter records only TOP-LEVEL tests (a whole
+  `describe` is one case), so it cannot count. The default reporter, parsed for LEAVES (a test or
+  step with no children): **346 files, 5,901 leaf tests**. Every later run was diffed against it,
+  file by file.
+- **Step 1, mechanical (merged `578835cfb`):** 291 files `@std/testing/bdd` → `node:test` (all
+  imported exactly `{ describe, it }`; 4 of them in `tests/wabt-ts/wasmtk/`, ours, 848 leaves);
+  588 `Deno.test` → `test`; one options form and three `{ ignore }` → `{ skip }`. `@std/*` reach
+  Node and Bun as `package.json` aliases to `npm:@jsr/std__assert@1.0.19` / `std__expect@1.0.19`
+  (deno.lock's versions) with `.npmrc` pointing `@jsr` at `npm.jsr.io`. **Deno runs `node:test`**,
+  so the converted suite ran under `deno task test` with the baseline's counts exactly.
+- **Step 2, the Deno APIs (~120 calls, 31 files):** `tests/test_fs.ts` gives the file calls the
+  tests used (`readTextFile`, `readDir` with `isFile`, `makeTempFile`, `remove` refusing a
+  non-empty directory unless `recursive`, …) the SAME names and semantics on `node:fs`, so 96 call
+  sites changed `Deno.x` → `fsx.x` only (comment lines and strings untouched). `tests/run_ts.ts`
+  (`runTs` / `runTsAsync`) runs `main.ts` as a child of the CURRENT runtime (`deno run -A`,
+  `node file.ts`, `bun file.ts`); the 4 CLI tests use it. `wasmtime` via `spawnSync`.
+  `ir_subpath` lists exports with `deno doc --json` and keeps calling `deno`: a JSR question
+  (owner: Deno for JSR). The 3 `Deno.permissions` probes and their `skip`s are gone (no
+  permission model on Node / Bun; the gate ran Deno with `-A`). `Deno.env` / `Deno.cwd` →
+  `process`.
+- **`scripts/test.ts`:** `bun run test` = `node --test` on the referee (fnm when installed, else
+  `node` from PATH only if it IS Node 24: CI pins it with `setup-node`). `bun run test:bun` = `bun
+  test`, whose failures must be EXACTLY `tests/bun-known-differences.json` (36: memory64 / table64
+  24, multi-memory index ≥ 127 5, legacy-EH `delegate` 5, an error's wording 2): an unlisted
+  failure fails, and so does a listed test that passes (stale). Both legs require EVERY tracked
+  test file to have run a test ("a step that ran nothing passes").
+- **Proof:** Node 24: 346 files, 5,901 leaves, 0 differ, 0 fail. Bun: the same 5,901, the 36
+  listed failures. Mutants: an injected failing assertion fails both legs; the list losing an entry
+  fails ("not a known difference"); gaining a passing one fails ("passes now"); an emptied test
+  file fails both legs ("ran no test from"). `harness_wiring` also checks `TEST_DIRS` names every
+  tree under `tests/` (5,902 leaves since).
+- **tsc over the tests:** `tests/tsconfig.json` and `tests/binaryen-ts/tsconfig.json` (the latter
+  with `noUncheckedIndexedAccess` off, as its `deno.json`), in `bun run check`: 201 + 145 files,
+  0 errors, a planted error caught in each.
+- **CI:** `setup-node` 24, then `bun run test` and `bun run test:bun` replace `deno task test`.
+  `deno task check` stays until B7.
+- **Fixed on the way:** `lower_custom_page_sizes`' trap regex `/out of bounds/` → `/i` (V8 "out
+  of bounds", JavaScriptCore "Out of bounds"): 5 failures that were the TEST's, not the engine's.
+- **Traps met:** (1) node's JUnit writes a raw `>` inside attribute values (`folded -> linear`), so
+  a `[^>]*` tag pattern lost 99 cases' `file`: parse attributes as `name="…"` pairs. (2) A file
+  that registers NO test still appears in node's JUnit, as one case named by its own path. (3)
+  The converter's import scan looped forever on a trailing `// comment`: bound every scan.
+  (4) Biome's `noShadowRestrictedNames` caught a helper named `unescape`.
 
 ## B3 formatting: dprint replaces `deno fmt` (2026-10-13)
 

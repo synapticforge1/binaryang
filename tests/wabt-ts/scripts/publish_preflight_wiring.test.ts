@@ -3,6 +3,7 @@
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
+import * as fsx from '../../test_fs.ts';
 
 // T13.44. `release_guard.test.ts` proves `releaseBlockers` returns the right
 // answer. It does NOT prove `scripts/release/publish.ts` asks the question -- delete
@@ -24,9 +25,9 @@ import { expect } from '@std/expect';
 // is executing a release. Same shape as `token_type_reachability.test.ts` and
 // `const_expr_head_coupling.test.ts`.
 
-const PUBLISH = await Deno.readTextFile('scripts/release/publish.ts');
-const GUARD = await Deno.readTextFile('scripts/release/release-guard.ts');
-const DENO_JSON = await Deno.readTextFile('deno.json');
+const PUBLISH = await fsx.readTextFile('scripts/release/publish.ts');
+const GUARD = await fsx.readTextFile('scripts/release/release-guard.ts');
+const DENO_JSON = await fsx.readTextFile('deno.json');
 
 /** Every `git` subcommand invoked in `publish.ts`, in source order. */
 function gitCalls(src: string): { sub: string; at: number }[] {
@@ -149,7 +150,7 @@ describe('T13.44 — the release preflight stays wired in', () => {
     // biome.jsonc's `files.includes`. Line comments stripped: none of its strings holds `//`.
     const jsonc = (path: string) =>
       JSON.parse(
-        Deno.readTextFileSync(path).replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'),
+        fsx.readTextFileSync(path).replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'),
       );
     const biome = jsonc('biome.jsonc') as { files: { includes: string[] } };
     expect(biome.files.includes).toContain('scripts/**');
@@ -163,7 +164,7 @@ describe('T13.44 — the release preflight stays wired in', () => {
     // Naming the module in the release docs means a rewrite has to look at it.
     // The release docs are the merged cmem/publishing.md since the wabt-ts wing
     // was summarized (2026-09-14).
-    return Deno.readTextFile('cmem/publishing.md').then((doc) => {
+    return fsx.readTextFile('cmem/publishing.md').then((doc) => {
       expect(doc).toContain('release-guard.ts');
     });
   });

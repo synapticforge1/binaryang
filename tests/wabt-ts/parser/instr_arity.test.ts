@@ -42,6 +42,7 @@ import { assert } from '@std/assert';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import * as fsx from '../../test_fs.ts';
 
 const SHARED = '(memory $m 1 1 shared)';
 const MEM = '(memory 1)';
@@ -333,7 +334,7 @@ describe('T13.18 - the arity table is TOTAL over the instruction tokens', () => 
   const ROUTED_ELSEWHERE = new Set(['SimdLaneOp']);
 
   it('gives every instruction token an explicit arity entry', async () => {
-    const src = await Deno.readTextFile(SOURCE);
+    const src = await fsx.readTextFile(SOURCE);
     const instrs = caseLabels(src, 'isPlainInstr');
     const arities = caseLabels(src, 'instrInputCount');
     assert(instrs.size > 80, 'isPlainInstr enumeration looks wrong: ' + instrs.size + ' labels');
@@ -350,7 +351,7 @@ describe('T13.18 - the arity table is TOTAL over the instruction tokens', () => 
   it('does not carry a stale allowlist entry', async () => {
     // If `SimdLaneOp` ever gains a real entry, the allowlist above is a lie
     // and the next person will trust it. Fail rather than let it rot.
-    const src = await Deno.readTextFile(SOURCE);
+    const src = await fsx.readTextFile(SOURCE);
     const arities = caseLabels(src, 'instrInputCount');
     const stale = [...ROUTED_ELSEWHERE].filter((t) => arities.has(t));
     assert(stale.length === 0, 'allowlisted but now present in the table: ' + stale.join(', '));

@@ -45,6 +45,7 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
 import { test } from 'node:test';
+import * as fsx from '../../test_fs.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -115,12 +116,12 @@ async function withTempWasm<T>(
   bytes: Uint8Array,
   fn: (path: string) => Promise<T>,
 ): Promise<T> {
-  const path = await Deno.makeTempFile({ suffix: '.wasm' });
+  const path = await fsx.makeTempFile({ suffix: '.wasm' });
   try {
-    await Deno.writeFile(path, bytes);
+    await fsx.writeFile(path, bytes);
     return await fn(path);
   } finally {
-    await Deno.remove(path).catch(() => {});
+    await fsx.remove(path).catch(() => {});
   }
 }
 

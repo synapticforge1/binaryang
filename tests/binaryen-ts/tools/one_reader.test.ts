@@ -22,6 +22,7 @@ import { hasErrors } from '../../../src/core/error.ts';
 import { readForPasses, WasmBinaryError } from '../../../src/ir/prepare.ts';
 import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
 import { readBinary } from '../../../src/compat/binaryen-compat.ts';
+import * as fsx from '../../test_fs.ts';
 
 /** `(func (export "f") (param v128 v128) (result i32) … i8x16.relaxed_swizzle …)` */
 const RELAXED = (() => {
@@ -71,12 +72,12 @@ const run = (bytes: Uint8Array) =>
     number)();
 
 async function viaWasmOpt(bytes: Uint8Array, optimizeLevel: 0 | 2): Promise<Uint8Array> {
-  const path = await Deno.makeTempFile({ suffix: '.wasm' });
+  const path = await fsx.makeTempFile({ suffix: '.wasm' });
   try {
-    await Deno.writeFile(path, bytes);
+    await fsx.writeFile(path, bytes);
     return (await wasmOpt(path, { optimizeLevel })) as Uint8Array;
   } finally {
-    await Deno.remove(path);
+    await fsx.remove(path);
   }
 }
 

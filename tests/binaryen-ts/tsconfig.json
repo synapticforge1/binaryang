@@ -1,0 +1,10 @@
+{
+  // `tsc` for this tree, as `deno.json` beside it does for `deno check`: `noUncheckedIndexedAccess`
+  // is OFF here only (see that file for why), everything else as the root (Bun migration B5).
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["./**/*.ts"]
+}

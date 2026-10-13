@@ -49,10 +49,11 @@ import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
 import { allFeatures } from '../../../src/core/feature.ts';
 import { Result } from '../../../src/core/result.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import * as fsx from '../../test_fs.ts';
 
 /** Every opcode spelling in the lexer keyword table, with its opcode value. */
 function lexerOpcodes(): [string, number][] {
-  const src = Deno.readTextFileSync(
+  const src = fsx.readTextFileSync(
     new URL('../../../src/parser/wast-lexer.ts', import.meta.url),
   );
   const out: [string, number][] = [];

@@ -33,6 +33,7 @@ import { assert, assertEquals } from '@std/assert';
 import { parseWastScript, parseWatModule } from '../../../src/parser/wast-parser.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import * as fsx from '../../test_fs.ts';
 
 /** Parse, asserting only that nothing escapes as an exception. */
 function parseNoThrow(src: string): { errored: boolean } {
@@ -158,16 +159,16 @@ describe('robustness — diagnostics name their tokens', () => {
     // on real-world token variety rather than a handful of hand-written
     // strings (the previous test above covers those).
     const dir = 'wasmtk/tests/module/wasm_wast/testsuite-main';
-    let entries: Deno.DirEntry[];
+    let entries: fsx.DirEntry[];
     try {
-      entries = [...Deno.readDirSync(dir)];
+      entries = [...fsx.readDirSync(dir)];
     } catch {
       return; // spec testsuite not checked out
     }
     let checked = 0;
     for (const e of entries) {
       if (!e.name.endsWith('.wast')) continue;
-      const src = Deno.readTextFileSync(`${dir}/${e.name}`);
+      const src = fsx.readTextFileSync(`${dir}/${e.name}`);
       for (const frac of [0.17, 0.41, 0.73, 0.95]) {
         const cut = src.slice(0, Math.floor(src.length * frac));
         for (const err of parseWastScript(cut).errors) {

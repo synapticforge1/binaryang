@@ -29,11 +29,12 @@
 
 import { assertEquals } from '@std/assert';
 import { test } from 'node:test';
+import * as fsx from '../test_fs.ts';
 
 const root = new URL('../../', import.meta.url);
 
 test('version: main.ts VERSION matches jsr.json', async () => {
-  const manifest = JSON.parse(await Deno.readTextFile(new URL('jsr.json', root))) as {
+  const manifest = JSON.parse(await fsx.readTextFile(new URL('jsr.json', root))) as {
     version?: string;
   };
   const declared = manifest.version;
@@ -43,7 +44,7 @@ test('version: main.ts VERSION matches jsr.json', async () => {
     'jsr.json has no `version` field — the manifest is malformed',
   );
 
-  const mainSource = await Deno.readTextFile(new URL('main.ts', root));
+  const mainSource = await fsx.readTextFile(new URL('main.ts', root));
   const match = mainSource.match(/const VERSION = '([^']*)'/);
   assertEquals(
     match !== null,
@@ -61,7 +62,7 @@ test('version: main.ts VERSION matches jsr.json', async () => {
 });
 
 test('version: deno.json does not name the package (jsr.json is the one manifest)', async () => {
-  const deno = JSON.parse(await Deno.readTextFile(new URL('deno.json', root))) as Record<
+  const deno = JSON.parse(await fsx.readTextFile(new URL('deno.json', root))) as Record<
     string,
     unknown
   >;
@@ -78,7 +79,7 @@ test('version: deno.json does not name the package (jsr.json is the one manifest
 // so a `version` there is a second copy that drifts. A `name` invites `npx jsr publish`, which
 // skips the type check when a package.json is present (cmem/bun-migration.md, finding 2).
 test('version: package.json does not name the package either', async () => {
-  const pkg = JSON.parse(await Deno.readTextFile(new URL('package.json', root))) as Record<
+  const pkg = JSON.parse(await fsx.readTextFile(new URL('package.json', root))) as Record<
     string,
     unknown
   >;

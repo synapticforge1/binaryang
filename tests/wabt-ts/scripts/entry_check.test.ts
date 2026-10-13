@@ -10,43 +10,42 @@ import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 
 import { checkEntry } from '../../../scripts/release/entry-check.ts';
+import * as fsx from '../../test_fs.ts';
+import process from 'node:process';
 
-const canRun = (await Deno.permissions.query({ name: 'run' })).state === 'granted' &&
-  (await Deno.permissions.query({ name: 'write' })).state === 'granted';
-
-describe('release preflight — the package root is the CLI', { skip: !canRun }, () => {
+describe('release preflight — the package root is the CLI', () => {
   it('passes on this tree', async () => {
-    expect(await checkEntry(Deno.cwd())).toEqual([]);
+    expect(await checkEntry(process.cwd())).toEqual([]);
   });
 
   it('refuses a root with no dispatcher (the 1.6.0 shape)', async () => {
-    const root = await Deno.makeTempDir({ prefix: 'entry-check-fixture-' });
+    const root = await fsx.makeTempDir({ prefix: 'entry-check-fixture-' });
     try {
-      await Deno.writeTextFile(
+      await fsx.writeTextFile(
         `${root}/jsr.json`,
         JSON.stringify({ version: '9.9.9', exports: { '.': './index.ts' } }),
       );
-      await Deno.writeTextFile(`${root}/index.ts`, 'export {};\n');
+      await fsx.writeTextFile(`${root}/index.ts`, 'export {};\n');
       const problems = await checkEntry(root);
       expect(problems.some((p) => p.includes('--help'))).toBe(true);
       expect(problems.some((p) => p.includes('--version'))).toBe(true);
       expect(problems.some((p) => p.includes('did a command run at all'))).toBe(true);
     } finally {
-      await Deno.remove(root, { recursive: true });
+      await fsx.remove(root, { recursive: true });
     }
   });
 
   it('refuses a root that runs its CLI on import', async () => {
-    const root = await Deno.makeTempDir({ prefix: 'entry-check-fixture-' });
+    const root = await fsx.makeTempDir({ prefix: 'entry-check-fixture-' });
     try {
-      await Deno.writeTextFile(
+      await fsx.writeTextFile(
         `${root}/jsr.json`,
         JSON.stringify({ version: '9.9.9', exports: { '.': './cli.ts' } }),
       );
-      await Deno.writeTextFile(`${root}/cli.ts`, "console.log('USAGE wat2wasm 9.9.9');\n");
+      await fsx.writeTextFile(`${root}/cli.ts`, "console.log('USAGE wat2wasm 9.9.9');\n");
       expect((await checkEntry(root)).some((p) => p.includes('importing'))).toBe(true);
     } finally {
-      await Deno.remove(root, { recursive: true });
+      await fsx.remove(root, { recursive: true });
     }
   });
 });

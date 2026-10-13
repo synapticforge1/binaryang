@@ -21,12 +21,13 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
 import { formatErrors } from '../../../src/core/error.ts';
 import { Result } from '../../../src/core/result.ts';
+import * as fsx from '../../test_fs.ts';
 
 const WAT_DIR = new URL('.', import.meta.url);
 
 async function listWatFiles(): Promise<string[]> {
   const out: string[] = [];
-  for await (const entry of Deno.readDir(WAT_DIR)) {
+  for await (const entry of fsx.readDir(WAT_DIR)) {
     if (entry.isFile && entry.name.endsWith('.wat')) out.push(entry.name);
   }
   return out.sort();
@@ -37,7 +38,7 @@ const files = await listWatFiles();
 describe(`wasmtk WAT corpus — wasm2wat round-trip (${files.length} files)`, () => {
   for (const file of files) {
     it(file, async () => {
-      const src = await Deno.readTextFile(new URL(file, WAT_DIR));
+      const src = await fsx.readTextFile(new URL(file, WAT_DIR));
       const forward = wat2wasm(src);
       if (forward.result !== Result.Ok) return; // forward failures are the plain runner's concern
 

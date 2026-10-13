@@ -37,6 +37,7 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import * as fsx from '../../test_fs.ts';
 
 const SOURCE = new URL('../../../src/writer/wat-writer.ts', import.meta.url);
 
@@ -86,7 +87,7 @@ function caseLabels(body: string): Set<string> {
 
 describe('T13.21 — constExprOperands and writeInstrHead stay in sync', () => {
   it('gives every operand-bearing constant expression a head-writer case', async () => {
-    const src = await Deno.readTextFile(SOURCE);
+    const src = await fsx.readTextFile(SOURCE);
     const withOperands = kindsWithOperands(
       functionBody(src, 'function constExprOperands(e: Expr): Expr[] | null {'),
     );

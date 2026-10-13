@@ -1,0 +1,182 @@
+[
+  {
+    "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
+    "test": "every memory-index instruction, at index 150 (and 199)",
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+  },
+  {
+    "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
+    "test": "memory.size at index 127, where one byte stops being the LEB",
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+  },
+  {
+    "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
+    "test": "memory.size at index 128, where one byte stops being the LEB",
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+  },
+  {
+    "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
+    "test": "memory.size at index 255, where one byte stops being the LEB",
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+  },
+  {
+    "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
+    "test": "memory.size at index 256, where one byte stops being the LEB",
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+  },
+  {
+    "file": "tests/binaryen-ts/interp/interpreter.test.ts",
+    "test": "delegate: to an outer try's handlers, past a block, out of the function",
+    "reason": "legacy exception handling: JavaScriptCore refuses a `delegate` target V8 accepts (\"delegate target isn't a try block\")"
+  },
+  {
+    "file": "tests/binaryen-ts/passes/lower_custom_page_sizes.test.ts",
+    "test": "a 64-bit memory: sizes, grows and traps in bytes",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/binaryen-ts/passes/translate_eh.test.ts",
+    "test": "TranslateToExnref: delegate inside a catch to its own try is not handled by that try",
+    "reason": "legacy exception handling: JavaScriptCore refuses a `delegate` target V8 accepts (\"delegate target isn't a try block\")"
+  },
+  {
+    "file": "tests/binaryen-ts/passes/translate_eh.test.ts",
+    "test": "TranslateToExnref: delegate naming a plain block resolves to the try around it",
+    "reason": "legacy exception handling: JavaScriptCore refuses a `delegate` target V8 accepts (\"delegate target isn't a try block\")"
+  },
+  {
+    "file": "tests/wabt-ts/ir/block_params_in_node.test.ts",
+    "test": "name resolution reaches a function name in a try … delegate's entry value",
+    "reason": "legacy exception handling: JavaScriptCore refuses a `delegate` target V8 accepts (\"delegate target isn't a try block\")"
+  },
+  {
+    "file": "tests/wabt-ts/parser/named_refs.test.ts",
+    "test": "encodes legacy delegate $l",
+    "reason": "legacy exception handling: JavaScriptCore refuses a `delegate` target V8 accepts (\"delegate target isn't a try block\")"
+  },
+  {
+    "file": "tests/wabt-ts/parser/table_memory_types.test.ts",
+    "test": "(memory i64 (data ...)) parses and gets an i64 offset",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/parser/table_memory_types.test.ts",
+    "test": "(memory i64 N) still works",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/parser/table_memory_types.test.ts",
+    "test": "i64 externref elements",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/parser/table_memory_types.test.ts",
+    "test": "i64 with inline export",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/parser/table_memory_types.test.ts",
+    "test": "i64 with min and max",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/parser/table_memory_types.test.ts",
+    "test": "i64 with min only",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/parser/table_memory_types.test.ts",
+    "test": "index type with an abbreviated inline elem",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "call_indirect on a 64-bit table",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "data segment offset",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "elem segment offset",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "memarg offset beyond u32",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "table.copy between a 64-bit and a 32-bit table",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "table.fill",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "table.get / table.size",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "table.grow",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/agreement.test.ts",
+    "test": "v128.load on a 64-bit memory",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/call_and_heaptype.test.ts",
+    "test": "return_call_indirect indexes a 64-bit table with i64",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/memarg_offset.test.ts",
+    "test": "allows a 64-bit memory the wider range",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/rejects_invalid.test.ts",
+    "test": "and a 64-bit memory accepts what a 32-bit one cannot",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/simd_lane_index_type.test.ts",
+    "test": "accepts v128.load32_lane with an i64 address on a 64-bit memory",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/simd_lane_index_type.test.ts",
+    "test": "accepts v128.load8_lane with an i64 address on a 64-bit memory",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/simd_lane_index_type.test.ts",
+    "test": "accepts v128.load8_splat with an i64 address on a 64-bit memory (the correct sibling)",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/validator/simd_lane_index_type.test.ts",
+    "test": "accepts v128.store8_lane with an i64 address on a 64-bit memory",
+    "reason": "memory64 / table64: JavaScriptCore does not implement them (\"Memory64 is not enabled\"); V8 does"
+  },
+  {
+    "file": "tests/wabt-ts/writer/elem_form.test.ts",
+    "test": "a segment holding ref.null keeps the expression form and is rejected",
+    "reason": "both engines REJECT; JavaScriptCore says \"Table 0 must have type 'Funcref'\", the test expects V8's subtype error"
+  },
+  {
+    "file": "tests/wabt-ts/writer/elem_form.test.ts",
+    "test": "but naming funcref EXPLICITLY is invalid, and must stay invalid",
+    "reason": "both engines REJECT; JavaScriptCore says \"Table 0 must have type 'Funcref'\", the test expects V8's subtype error"
+  }
+]

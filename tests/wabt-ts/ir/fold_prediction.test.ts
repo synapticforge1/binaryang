@@ -19,6 +19,7 @@ import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 import { LexerSource } from '../../../src/parser/lexer-source.ts';
 import { formNodes, writtenForms } from '../../../src/ir/text-form.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
+import * as fsx from '../../test_fs.ts';
 
 /** Each function whose fold-written forms are not the prediction, as `name: at`. */
 function disagreements(wat: string): string[] {
@@ -60,9 +61,9 @@ describe("S7: the fold writer's grouping IS the prediction", () => {
   it('over every corpus module', () => {
     const dir = new URL('../wasmtk/', import.meta.url);
     const bad: string[] = [];
-    for (const e of Deno.readDirSync(dir)) {
+    for (const e of fsx.readDirSync(dir)) {
       if (!e.name.endsWith('.wat')) continue;
-      const wat = Deno.readTextFileSync(new URL(e.name, dir));
+      const wat = fsx.readTextFileSync(new URL(e.name, dir));
       if (hasErrors(wat2wasm(wat, { textForm: false }).errors)) continue;
       for (const d of disagreements(wat)) bad.push(`${e.name} ${d}`);
     }

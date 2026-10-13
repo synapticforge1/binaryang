@@ -27,6 +27,7 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
 import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
 import { allFeatures } from '../../../src/core/feature.ts';
+import * as fsx from '../../test_fs.ts';
 
 /** Assemble without validating (`wat2wasm` does not validate), so the bytes can be invalid. */
 function bytes(wat: string): Uint8Array {
@@ -147,14 +148,14 @@ describe('a malformed binary reports ONE error — the real one', () => {
 
 describe('wasm-opt blames an invalid INPUT on the input', () => {
   async function optimize(name: string, content: Uint8Array | string, validate = true) {
-    const dir = await Deno.makeTempDir();
+    const dir = await fsx.makeTempDir();
     try {
       const path = `${dir}/${name}`;
-      if (typeof content === 'string') await Deno.writeTextFile(path, content);
-      else await Deno.writeFile(path, content);
+      if (typeof content === 'string') await fsx.writeTextFile(path, content);
+      else await fsx.writeFile(path, content);
       return await wasmOpt(path, { optimizeLevel: 2, validate });
     } finally {
-      await Deno.remove(dir, { recursive: true });
+      await fsx.remove(dir, { recursive: true });
     }
   }
 

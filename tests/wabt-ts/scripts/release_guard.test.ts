@@ -9,6 +9,7 @@ import {
   statusPath,
 } from '../../../scripts/release/release-guard.ts';
 import * as version from '../../../scripts/release/version.ts';
+import * as fsx from '../../test_fs.ts';
 
 // T13.43. `scripts/release/publish.ts` stages the bump (`RELEASE_FILES`) and NOTHING else, then tags
 // and pushes -- and the tag is exactly what JSR publishes. So on a dirty tree
@@ -49,7 +50,7 @@ describe('T13.43 — release preflight', () => {
   // release STAGES are one list. Read off bump_version.ts's write sites, so a
   // third version literal added to the bump fails here instead of at release.
   it('exempts exactly the files deno task bump writes', async () => {
-    const bump = await Deno.readTextFile('scripts/release/bump_version.ts');
+    const bump = await fsx.readTextFile('scripts/release/bump_version.ts');
     const names = [...bump.matchAll(/\bwriteFile\(\s*(\w+)/g)].map((m) => m[1]!);
     expect(names.length).toBeGreaterThan(0);
     const urls = version as unknown as Record<string, URL>;
