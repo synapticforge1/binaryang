@@ -228,7 +228,7 @@ function buildModule(seed: number): { mod: WasmModule; nParams: number; ir: stri
   return { mod, nParams, ir: irToString(body) };
 }
 
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
 function irToString(e: any): string {
   if (!e) return '_';
   let r = e.kind;
@@ -330,8 +330,8 @@ Deno.test('optimize fuzz: full -Oz preserves validity + behavior on random i32 f
       );
     }
 
-    const fa = unoptInst.exports.f as (...a: number[]) => number;
-    const fb = optInst.exports.f as (...a: number[]) => number;
+    const fa = unoptInst.exports['f'] as (...a: number[]) => number;
+    const fb = optInst.exports['f'] as (...a: number[]) => number;
 
     const g = rng(seed ^ 0x9e3779b9);
     for (let t = 0; t < 12; t++) {
@@ -346,7 +346,7 @@ Deno.test('optimize fuzz: full -Oz preserves validity + behavior on random i32 f
             const inst = new WebAssembly.Instance(
               new WebAssembly.Module(ozPrefix(unopt, n) as BufferSource),
             );
-            if ((inst.exports.f as (...a: number[]) => number)(...args) !== ra) {
+            if ((inst.exports['f'] as (...a: number[]) => number)(...args) !== ra) {
               firstBad = PASS_NAMES[n - 1];
               break;
             }

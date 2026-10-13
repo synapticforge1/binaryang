@@ -43,7 +43,7 @@ function run(inner: Expression): number {
     .build();
   const bytes = writeWasm(mod);
   const inst = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource), {});
-  return (inst.exports.f as () => number)();
+  return (inst.exports['f'] as () => number)();
 }
 
 describe('a br to the function frame is not captured by an unnamed construct', () => {

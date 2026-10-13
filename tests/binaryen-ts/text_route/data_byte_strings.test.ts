@@ -42,7 +42,7 @@ function bothRead(wat: string, want: number): void {
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
   const run = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-      .exports.f as () => number)();
+      .exports['f'] as () => number)();
   assertEquals(run(ref.binary), want, 'wabt-ts');
   assertEquals(run(writeWasm(readWat(wat))), want, 'binaryen-ts');
 }

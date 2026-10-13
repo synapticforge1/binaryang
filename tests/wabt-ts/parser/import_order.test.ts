@@ -106,6 +106,6 @@ describe('T12.2 — the renumbering this prevents', () => {
     const { instance } = await WebAssembly.instantiate(buf, {
       host: { imported: () => 999 },
     });
-    assertEquals((instance.exports.which as () => number)(), 111);
+    assertEquals((instance.exports['which'] as () => number)(), 111);
   });
 });

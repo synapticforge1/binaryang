@@ -11,7 +11,7 @@ import { describe, it } from '@std/testing/bdd';
 import type { Expr } from '../../../src/ir/ir.ts';
 import { assert, assertEquals } from '@std/assert';
 
-import { Opcode, PREFIX_SIMD } from '../../../src/core/opcode.ts';
+import { type Opcode, PREFIX_SIMD } from '../../../src/core/opcode.ts';
 import { WastLexer } from '../../../src/parser/wast-lexer.ts';
 import type { OpcodeToken } from '../../../src/parser/token.ts';
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

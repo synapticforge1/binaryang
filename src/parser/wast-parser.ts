@@ -168,7 +168,7 @@ import { placementAnchor } from '../core/custom-placement.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import type { FidelityEntry, NodeId } from '../ir/fidelity.ts';
 import { BARE, type Form, formNodes, recordForms } from '../ir/text-form.ts';
-import { LexerSource } from './lexer-source.ts';
+import type { LexerSource } from './lexer-source.ts';
 import { WastLexer } from './wast-lexer.ts';
 import {
   type LiteralToken,

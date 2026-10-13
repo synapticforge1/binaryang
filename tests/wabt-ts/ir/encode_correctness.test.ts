@@ -104,7 +104,7 @@ describe('br_table resolves its index expression', () => {
     const { instance } = await WebAssembly.instantiate(buf);
     // $pick returns 1 -> default target $a -> 222. Had the index expression
     // silently resolved to func 0 ($decoy, returning 0) it would hit $b -> 111.
-    assertEquals((instance.exports.f as () => number)(), 222);
+    assertEquals((instance.exports['f'] as () => number)(), 222);
   });
 
   it('resolveNames leaves no name-var in br_table.value', () => {
@@ -138,7 +138,7 @@ describe('try_table resolves its catch clauses', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
-    const f = instance.exports.f as (n: number) => number;
+    const f = instance.exports['f'] as (n: number) => number;
     assertEquals(f(0), 5, 'no throw path');
     assertEquals(f(1), 99, 'thrown $e2 caught and routed to $outer');
   });
@@ -162,7 +162,7 @@ describe('try_table resolves its catch clauses', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
-    const f = instance.exports.f as (n: number) => number;
+    const f = instance.exports['f'] as (n: number) => number;
     assertEquals(f(1), 5, 'caught at $outer; 105 would mean it hit $inner');
     assertEquals(f(0), 101, 'no throw: 1 + 100');
   });
@@ -214,19 +214,19 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
   function survivors(node: unknown, kind: string, out: Set<string>): void {
     if (node === null || typeof node !== 'object') return;
     const o = node as Record<string, unknown>;
-    if (typeof o.kind === 'string' && 'loc' in o) kind = o.kind as string;
+    if (typeof o['kind'] === 'string' && 'loc' in o) kind = o['kind'] as string;
     for (const [k, v] of Object.entries(o)) {
       if (v === null || typeof v !== 'object') continue;
       if (LABEL_FIELDS.has(k)) continue;
       const vv = v as Record<string, unknown>;
-      if (vv.kind === 'name' && typeof vv.name === 'string') {
+      if (vv['kind'] === 'name' && typeof vv['name'] === 'string') {
         // An ABSTRACT heap-type keyword (`func`, `any`, `array`, …) is not a
         // name in any index space — it stays a name-var for the writer to
         // encode as a single negative byte. Only a `$T` reference to a
         // user-defined type must resolve. Keying this off the KEYWORD rather
         // than the field name is what makes it correct for `ref.null.refType`,
         // `ref.test`/`ref.cast` heap types, and typed-ref value types alike.
-        if (heapTypeNameToType(vv.name) !== null) continue;
+        if (heapTypeNameToType(vv['name']) !== null) continue;
         out.add(`${kind}.${k}`);
         continue;
       }

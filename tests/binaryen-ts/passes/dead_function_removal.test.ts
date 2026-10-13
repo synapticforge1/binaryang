@@ -55,7 +55,7 @@ function survivors(mod: WasmModule): string[] {
 
 function runF(mod: WasmModule): number {
   const inst = new WebAssembly.Instance(new WebAssembly.Module(writeWasm(mod) as BufferSource));
-  return (inst.exports.f as (x: number) => number)(4);
+  return (inst.exports['f'] as (x: number) => number)(4);
 }
 
 for (

@@ -104,7 +104,7 @@ describe('every carried value survives — bytes as upstream wat2wasm writes the
 function findKind(root: unknown, kind: string): Expression | undefined {
   if (!root || typeof root !== 'object') return undefined;
   const n = root as Record<string, unknown>;
-  if (n.kind === kind) return n as unknown as Expression;
+  if (n['kind'] === kind) return n as unknown as Expression;
   for (const [k, v] of Object.entries(n)) {
     if (k === 'kind' || k === 'type') continue;
     for (const c of Array.isArray(v) ? v : [v]) {

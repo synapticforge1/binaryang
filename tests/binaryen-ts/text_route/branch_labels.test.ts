@@ -39,7 +39,7 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 function bothAgree(wat: string, arg = 0): number {
   const run = (bytes: Uint8Array) => {
     const inst = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource));
-    return (inst.exports.f as (x: number) => number)(arg);
+    return (inst.exports['f'] as (x: number) => number)(arg);
   };
   const reference = run(wat2wasm(wat, { filename: 'ref.wat' }).binary);
   const got = run(writeWasm(readWat(wat)));

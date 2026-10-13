@@ -94,7 +94,7 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | B1   | **`jsr.json` is the one package manifest.** `deno.json` loses `name` / `version` / `license` / `exports` / `publish`. The bump, release driver, entry check, `RELEASE_FILES`, the three workflows and `version_sync` read `jsr.json`. `version_sync` also fails if `deno.json` names the package again. | ✅ on `bun-1-jsr-manifest`, gate below                                         |
 | B2   | **Bun project files next to Deno's.** ✅ Built 2026-10-12 on `bun-2-project-files`: `package.json` (private; dev dependencies `typescript` 7.0.2 and `@types/node` ~22.18, the Node floor; script `check`), `tsconfig.json` (deno.json's strictness flags, `types: ["node"]` so a Bun-only API fails), `bun.lock`, and a CI step `bun install --frozen-lockfile && bun run check`. **Scope, by decision:** `tsc` checks the SHIPPED code (`main.ts`, `src/`), 0 errors in 668 ms, and an injected `TS2322` fails it. tests/, scripts/ and comparison/ still use Deno globals; each joins `include` as B4 / B5 converts it, with its own `tsconfig` for the 3 `noUncheckedIndexedAccess: false` members. `.npmrc` / `@std` aliases and `dprint` / a linter come with B3 and B5, when something first needs them. `version_sync` also refuses `name` / `version` / `exports` / `bin` in `package.json`. ⚠️ On this machine's exFAT drive `bun install` cannot write `bun.lock` (`local/environment.md`). | ✅ `tsc` and `deno check` both green on the same commit                       |
-| B3   | **Formatting and lint off Deno.** `deno fmt` IS dprint's TypeScript plugin, so `dprint` with the same settings (`lineWidth` 100, `indentWidth` 2, `singleQuote`) should leave the tree byte-identical. Measure that first: `dprint check` on the current tree must report 0 files. Lint: pick a linter and map Deno's `recommended` rules; record each rule dropped. | `dprint check` 0 diffs; linter green; dropped rules listed                    |
+| B3   | **Formatting and lint off Deno.** ✅ **LINT half done 2026-10-13 (owner: "add the tsc lint flags and use Biome to replace deno lint")**, see § "B3 lint: Biome and the tsc lint flags" below. **Formatting still open:** `deno fmt` IS dprint's TypeScript plugin, so `dprint` with the same settings (`lineWidth` 100, `indentWidth` 2, `singleQuote`) should leave the tree byte-identical. Measure that first: `dprint check` on the current tree must report 0 files. (Biome's formatter is OFF; it is a different style.) | lint: ✅; fmt: `dprint check` 0 diffs |
 | B4   | ✅ **Built 2026-10-12 on `bun-4-scripts`:** all 51 script files are `node:`-only (no `Deno.*` in code, no `@std` / `jsr:` imports), and the 20 tasks are `package.json` scripts. Bun runs them, except the engine oracles, which run on Node (§ "The engine oracle"); `proposals` picks an engine per proposal. tsc checks `scripts/`. **Differential, old Deno vs new, same inputs:** every output identical, and every corpus tree byte-identical (core 7,422, legacy 29, translate-eh 29, proposals 874 files). Expected differences only: the `bump` usage line; the 4 `proposals` summary lines that now name their engine; `hostile`'s DEPTH table, which measures each runtime's stack (its mutation half is identical). Found: item 27 (an interp defect on `main`) and the gen_demo_bytes drift (below). **Original plan:** **Scripts on `node:` builtins, RUN BY BUN** (owner, 2026-10-12: "All of our scripts will now be run from bun instead of deno"; each `deno task` becomes a `package.json` script run by `bun run`). `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
 | B5   | **Tests on `node:test`, run by both Bun and Node** (§ "Bun or Node", DECIDED 2026-10-12). `@std/testing/bdd` → `node:test`'s `describe` / `it` (required: bdd calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | test counts equal; injected-mutant check                                       |
 | B6   | **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
@@ -102,6 +102,136 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 
 **B6 is the only step that is hard to undo**, because a JSR version is immutable. The other
 steps can sit on `main` in any order after their predecessor, unreleased, behind the usual merge.
+
+## B3 lint: Biome and the tsc lint flags (2026-10-13)
+
+Owner: "we need to add the tsc lint flags and use Biome to replace deno lint", and "lets add that
+to the bun migration notes".
+
+**The tsc lint flags**, in `tsconfig.json` AND `deno.json` (so `deno check` holds `tests/` to them
+until B5): `noUnusedLocals`, `noUnusedParameters`, `noImplicitOverride`,
+`noPropertyAccessFromIndexSignature`, `allowUnreachableCode: false`, `allowUnusedLabels: false`,
+`noUncheckedSideEffectImports` (the `@tsconfig/strictest` set; `noImplicitReturns` and
+`noFallthroughCasesInSwitch` were already on). Measured on the tree first: only two found
+anything.
+- `noUnusedLocals`: 2 in `src/` (`const _exhaust: never = e`, the exhaustiveness idiom, which
+  the flag counts as unread). Now `e satisfies never;`, the same compile-time check, and erased.
+  In `tests/`: 5 helpers never called, removed after a grep (`_`-prefixed names exempt
+  parameters, not functions), plus the 4 imports only they used.
+- `noPropertyAccessFromIndexSignature`: 17 in `src/` and `scripts/` and 417 in `tests/` (mostly
+  `instance.exports.add`, an index-signature type). Rewritten to `x['key']` by a fixer that took
+  each position from the checker and refused a site whose name or dot did not match.
+
+**Biome 2.5.14** (pinned exact; 2.5.15 was 12 days old) replaces `deno lint`: `biome.jsonc`,
+`bun run lint` (`biome lint --error-on-warnings`), CI's Lint step. The LINTER only: Biome's
+formatter is off (formatting is B3's other half) and so is import sorting. Scope = `deno lint`'s
+(`src/`, `tests/`, `scripts/`, `main.ts`, not the vendored `tests/wabt-ts/wasmtk`). Biome's
+recommended set first found 2,257 diagnostics in 378 files; each rule was read before deciding:
+
+| rule | sites | decision, and why |
+| --- | --- | --- |
+| `noNonNullAssertion` | 1,510 | off: `x[0]!` is the idiom `noUncheckedIndexedAccess` produces; `deno lint` never banned it |
+| `useLiteralKeys` | 458 | off: CONTRADICTS `noPropertyAccessFromIndexSignature` (it wants `obj.key`, tsc wants `obj['key']`) |
+| `useTemplate` | 154 | off: style; `deno lint` never had it |
+| `useIterableCallbackReturn` | 24 | off: expression-bodied `forEach` callbacks, style |
+| `noVoidTypeReturn` | 22 | off: `if (…) return this.shortSection();`, a deliberate early return |
+| `noExplicitAny` | 21 | ON (deno's `no-explicit-any`): the 21 `deno-lint-ignore` comments became `biome-ignore` with a reason. With them removed, Biome reports exactly those 21 and nothing else (owner asked to see it) |
+| `noAssignInExpressions` | 19 | off: the memo idiom `map.set(k, s = new Set())`; deno's `no-cond-assign` only covered conditions |
+| `noImplicitAnyLet` | 15 | off: TS types an unannotated `let` from its assignments; tsc's noImplicitAny reports a true implicit any |
+| `useSimpleNumberKeys` | 9 | off: wants opcode keys like `0xfc` in decimal |
+| `useImportType` | 6 | fixed (Biome's safe fix): imports used only as types became `import type` |
+| `useOptionalChain` | 6 | off: the rewrite turns `boolean` into `boolean \| undefined` (Biome calls it unsafe) |
+| `noShadowRestrictedNames` | 2 | fixed: locals `valueOf` → `valueOfExpr`, `escape` → `markEscaped` |
+| `noCommaOperator`, `noUselessStringRaw`, `useFlatMap`, `useRegexLiterals`, `noGlobalIsFinite`, `noPrototypeBuiltins` | 1–2 each | fixed (`Number.isFinite`, `Object.hasOwn`, `flatMap`, a regex literal, …) |
+| `noUnusedVariables` | 1 | fixed: `funcImportIdx` in `validator.ts`, incremented but never read (tsc counts `x++` as a read) |
+| `noApproximativeNumericConstant` | 1 | `biome-ignore`: the test's `3.14159` is WAT input, not π |
+
+**deno lint rules kept on purpose:** `require-await` → `useAwait`, `no-var` → `noVar`, `prefer-const`
+→ `useConst`, enabled explicitly; 0 sites today (`require-await` caught 7 during B4). Measured
+with the explicit lines removed: `useAwait` and `noVar` are NOT in Biome 2.5.14's recommended
+preset (they go silent), while `useConst` IS (its line is kept so a future preset cannot drop it
+unseen). **Not carried over** (deno did not
+enforce them, and Biome's versions find code deno allowed): `noNamespace` (it flags the 20
+type-only namespaces of the enum conversion), `noParameterAssign` (32), `noEmptyBlockStatements`
+(34, broader than deno's `no-empty`).
+
+**Checked, not assumed:**
+- `biome lint --only=<rule>` runs a rule that is NOT enabled: shown on planted cases before
+  trusting its zero counts.
+- ⚠️ `biome migrate` (2.5.14) rewrote `"recommended": true` as `"preset": "none"`, which switches
+  every rule OFF. The config says `"preset": "recommended"` explicitly. A planted file shows the
+  rules really run (`useAwait`, `noVar`, `useConst`, `noExplicitAny`, `noUnusedVariables`,
+  `noDebugger` each fire).
+- The wiring test "keeps scripts/ inside the gate" reads biome.jsonc's scope now (and tsc's), and
+  fails when `scripts/**` is removed from it.
+
+**Every adjustment, where it landed (2026-10-13; owner: "make sure to add all of these adjustment
+notations to the bun migration file"):**
+- **`package.json`:** dev dependency `@biomejs/biome` 2.5.14 (exact). Script `lint` = `biome lint
+  --error-on-warnings && bun scripts/check-lint-canary.ts`. The version came from the npm
+  registry's own release dates, because `npm` left PATH with scoop's Node: 2.5.15 was 12 days
+  old, under the two-week rule. `bun.lock` was generated on C: and copied back, because D:'s exFAT
+  cannot take Bun's lockfile rename (`cmem/local/environment.md`).
+- **`biome.jsonc`** (new; `biome.json` deleted): scope, `"preset": "recommended"` spelled out, each
+  disabled rule with its reason and count, the three parity rules enabled, formatter and assist
+  off. The vendored folder is excluded as `!tests/wabt-ts/wasmtk` (folder form; Biome flagged the
+  `/**` form with `useBiomeIgnoreFolder`).
+- **`deno.json`:** the `lint` section and the `lint` task REMOVED. The seven tsc lint flags were
+  added to `compilerOptions`, for `deno check` over `tests/`.
+- **`tsconfig.json`:** the seven tsc lint flags.
+- **`.github/workflows/ci.yml`, gates job, reordered:** Install Deno → **Install Bun** → **Install dev
+  dependencies** (`bun install --frozen-lockfile`) → Format check (`deno fmt --check`) → **Lint
+  (`bun run lint`)** → Type-check (`deno task check`) → Type-check (`bun run check`). Bun used to be
+  installed after the lint step, and the dev dependencies only inside the tsc step.
+- **`cmem/working-rules.md`:** the gate list says `bun run lint` (it said `deno lint`).
+- **`tests/wabt-ts/scripts/publish_preflight_wiring.test.ts`:** "keeps scripts/ inside the gate"
+  reads `biome.jsonc` (and `tsconfig.json`) instead of `deno.json`'s lint include. Shown to fail
+  when `scripts/**` leaves Biome's scope.
+- **Ignore comments:** the 21 `// deno-lint-ignore no-explicit-any` became `// biome-ignore
+  lint/suspicious/noExplicitAny: <reason>` (Biome requires a reason). 17 are in `tests/` ("test code
+  reads untyped IR or engine values") and 4 in `scripts/` ("a diagnostic script reads …": three
+  `scripts/binaryen-ts/diag_*.ts` and `check-translate-eh.ts`). The first conversion called all 21
+  test code; the list from the removal test corrected that. With the comments removed, Biome
+  reports exactly those 21 `noExplicitAny` and nothing else. One new `biome-ignore`:
+  `noApproximativeNumericConstant` on a test's `3.14159`.
+- **Code fixes, by rule:**
+  - `useImportType`: `src/ir/ir.ts`, `src/parser/token.ts`, `src/parser/wast-parser.ts`,
+    `src/tools/wasm2ts.ts`, `scripts/check-direct-behaviour.ts` (6 imports);
+  - `noShadowRestrictedNames`: `constant-propagation.ts` `valueOf` → `valueOfExpr`;
+    `dead-argument-elimination.ts` `escape` → `markEscaped`;
+  - `noUnusedVariables`: `validator.ts` `funcImportIdx` removed;
+  - `noCommaOperator`: `passes/flatten.ts`, `branch_operand_order.test.ts`;
+  - `noGlobalIsFinite`: `core/literal.ts` → `Number.isFinite`;
+  - `noPrototypeBuiltins`: `passes/asyncify.ts` → `Object.hasOwn`;
+  - `useRegexLiterals` and `noUselessStringRaw`: `scripts/check-operator-mapping.ts`;
+  - `useFlatMap`: `name_section.test.ts`.
+- **tsc-flag fixes:** `noUnusedLocals`: `ir/expr-visitor.ts`, `ir/ir-util.ts` (`satisfies never`);
+  tests `binary-reader.test.ts` (3 helpers + 2 imports) and `validator.test.ts` (2 helpers + 2
+  imports). `noPropertyAccessFromIndexSignature`: 17 sites in `scripts/check-spec-behaviour.ts`,
+  `scripts/definitions.ts`, `src/passes/remove-unused-types.ts`, and 417 in 153 test files.
+- **The session's gate runner** (scratch): `lint (biome)` after `bun install --frozen-lockfile`.
+
+**The lint canary, so a silenced linter fails at once (2026-10-13).** The loader's session raised
+the same `biome migrate` trap in its own `cmem/linting.md`, with "rerun that test after any
+Biome upgrade". A reminder gets skipped, so binaryang made the check AUTOMATIC:
+`scripts/check-lint-canary.ts` runs after every lint (`bun run lint` = `biome lint
+--error-on-warnings && bun scripts/check-lint-canary.ts`). It writes a snippet built to break six
+rules (3 from the recommended preset: `noExplicitAny`, `noDebugger`, `noDoubleEquals`; and the
+three parity rules) to a TEMPORARY file under `src/`, lints it through the project's config,
+always deletes it, and fails unless every rule fired. Shown: the real config passes, and
+`"preset": "none"` fails, naming the three recommended rules. Without the explicit `useAwait` /
+`noVar` lines it fails, naming those two.
+- stdin does NOT work for this: Biome 2.5.14's `lint --stdin-file-path` echoes the input back
+  and reports no diagnostics (measured). The canary's first version used it and failed even on
+  the real config, which is how that was found.
+- The temporary file is not gitignored on purpose: Biome honours `.gitignore` and would skip it.
+- **In binaryang, `"preset": "none"` also fails by accident:** the 21 `biome-ignore` comments
+  become "suppression comment has no effect" warnings, and `--error-on-warnings` fails. That
+  ends the day the last suppression goes, and a repo with none (the loader) never had it. The
+  canary does not depend on it.
+- ⚠️ A mutant that silently does nothing proves nothing: the first attempt to remove the explicit
+  rules was a text replace that matched nothing, and it "showed" all six still firing. The probe
+  that settled it asserts the lines are gone before running.
 
 ## The engine oracle — Bun's WebAssembly is NOT V8 (found in B4, 2026-10-12)
 

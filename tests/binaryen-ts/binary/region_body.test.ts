@@ -78,7 +78,7 @@ async function run(bytes: Uint8Array): Promise<unknown> {
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  return (instance.exports.f as () => unknown)();
+  return (instance.exports['f'] as () => unknown)();
 }
 
 /**

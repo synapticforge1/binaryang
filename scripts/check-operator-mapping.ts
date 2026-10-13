@@ -111,7 +111,7 @@ function phantomKinds(exprSrc: string, irSrc: string): string[] {
   // as phantoms while fully implemented. A union-typed `kind` was already a
   // recorded blind spot of the kind counts in cmem/ir-convergence.md.
   const kind = String.raw`typeof ExpressionKind\.`;
-  const arm = String.raw`${kind}[A-Za-z0-9_]+`;
+  const arm = `${kind}[A-Za-z0-9_]+`;
   return members
     .filter((name) =>
       !new RegExp(
@@ -159,7 +159,7 @@ const exprSrc = await readFile(new URL('../src/ir/expressions.ts', import.meta.u
 /** Every operator constant, as `EnumName.Member` -> numeric value. */
 function operatorConstants(src: string): Map<string, number> {
   const out = new Map<string, number>();
-  const enumRe = new RegExp('export const ([A-Za-z]+Op) = \\{([\\s\\S]*?)\\n\\} as const;', 'g');
+  const enumRe = /export const ([A-Za-z]+Op) = \{([\s\S]*?)\n\} as const;/g;
   for (const e of src.matchAll(enumRe)) {
     for (const m of e[2]!.matchAll(/^\s+([A-Za-z0-9_]+): ([^,]+),/gm)) {
       const expr = m[2]!.trim();

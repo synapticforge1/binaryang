@@ -84,22 +84,22 @@ describe('multi-memory — named memory index on instructions', () => {
   it('load/store target the named memory, not memory 0', async () => {
     const inst = await instantiate(TWO_MEMS);
     // 1234 was stored into $m1 and 9999 into $m0; reading $m1 must see 1234.
-    assertEquals((inst.exports.distinct as () => number)(), 1234);
+    assertEquals((inst.exports['distinct'] as () => number)(), 1234);
   });
 
   it('memory.size resolves per memory', async () => {
     const inst = await instantiate(TWO_MEMS);
-    assertEquals((inst.exports.sizes as () => number)(), 2);
+    assertEquals((inst.exports['sizes'] as () => number)(), 2);
   });
 
   it('memory.copy moves between two distinct memories', async () => {
     const inst = await instantiate(TWO_MEMS);
-    assertEquals((inst.exports.cp as () => number)(), 1234);
+    assertEquals((inst.exports['cp'] as () => number)(), 1234);
   });
 
   it('memory.fill targets the named memory', async () => {
     const inst = await instantiate(TWO_MEMS);
-    assertEquals((inst.exports.fill as () => number)(), 3);
+    assertEquals((inst.exports['fill'] as () => number)(), 3);
   });
 
   it('numeric bare index works too', () => {
@@ -123,7 +123,7 @@ describe('memory.init index order', () => {
   it('two-var form is (memory, data)', async () => {
     const inst = await instantiate(TWO_MEMS);
     // $d0 is "AAAA"; initialising $m1 then reading it back must give 'A'.
-    assertEquals((inst.exports.initd as () => number)(), 65);
+    assertEquals((inst.exports['initd'] as () => number)(), 65);
   });
 
   it('one-var form names the DATA segment, memory defaults to 0', async () => {
@@ -134,7 +134,7 @@ describe('memory.init index order', () => {
       (func (export "f") (result i32)
         (memory.init $d0 (i32.const 0) (i32.const 0) (i32.const 4))
         (i32.load8_u $m0 (i32.const 0))))`);
-    assertEquals((inst.exports.f as () => number)(), 65);
+    assertEquals((inst.exports['f'] as () => number)(), 65);
   });
 });
 
@@ -172,13 +172,13 @@ describe('multi-memory — round-trip', () => {
     // index form is pinned below, read without the name section.
     assert(/i32\.store \$m1/.test(text), `expected an explicit memory index:\n${text}`);
     const inst = await instantiate(text);
-    assertEquals((inst.exports.distinct as () => number)(), 1234);
-    assertEquals((inst.exports.cp as () => number)(), 1234);
+    assertEquals((inst.exports['distinct'] as () => number)(), 1234);
+    assertEquals((inst.exports['cp'] as () => number)(), 1234);
     // memory.init specifically: the WAT writer emitted the BINARY operand
     // order (dataidx then memidx) instead of the text order (memory first),
     // so this re-parsed transposed and V8 rejected it with
     // "invalid data segment index".
-    assertEquals((inst.exports.initd as () => number)(), 65);
+    assertEquals((inst.exports['initd'] as () => number)(), 65);
   });
 
   it('emits memory.init in TEXT operand order (memory first)', () => {

@@ -47,11 +47,11 @@ describe('binaryen-ts reads and writes a memory index as a LEB', () => {
     assertEquals(back, original, 'byte-identical round trip');
     for (const bytes of [original, back]) {
       const x = exportsOf(bytes);
-      x.init!(); // "hi" into $m150 at 0
-      x.fill!(); // 7 into $m150 at 0
-      x.copy!(); // $m150[1] ('i', 105) into $m199 at 5
+      x['init']!(); // "hi" into $m150 at 0
+      x['fill']!(); // 7 into $m150 at 0
+      x['copy']!(); // $m150[1] ('i', 105) into $m199 at 5
       assertEquals(
-        [x.size!(), x.grow!(), x.size!(), x.at150!(), x.at199!()],
+        [x['size']!(), x['grow']!(), x['size']!(), x['at150']!(), x['at199']!()],
         [1, 1, 2, 105, 105],
       );
     }
@@ -62,7 +62,7 @@ describe('binaryen-ts reads and writes a memory index as a LEB', () => {
       const { original, back } = roundTrip(`(module ${memories(index)} (memory $big 3)
         (func (export "size") (result i32) (memory.size $big)))`);
       assertEquals(back, original);
-      assertEquals(exportsOf(back).size!(), 3, 'the index names the 3-page memory');
+      assertEquals(exportsOf(back)['size']!(), 3, 'the index names the 3-page memory');
     });
   }
 });

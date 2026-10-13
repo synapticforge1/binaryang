@@ -54,7 +54,7 @@ const results = (bytes: Uint8Array) => [0, 7, -3].map((arg) => call(bytes, arg))
 const call = (bytes: Uint8Array, arg: number) => {
   try {
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports;
-    return (x.f as (v: number) => number)(arg);
+    return (x['f'] as (v: number) => number)(arg);
   } catch (e) {
     return `threw: ${(e as Error).message.slice(0, 60)}`;
   }

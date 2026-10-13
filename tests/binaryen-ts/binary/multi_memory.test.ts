@@ -96,7 +96,7 @@ describe('binaryen-ts — a memarg carrying an explicit memory index', () => {
     // Bytes since M8a1 (the binary's exponent 2); bit 6 is the memory-index flag.
     assertEquals(store['align'], 4, 'align is 2 ** the exponent, with bit 6 masked off');
     assertEquals(store['offset'], 0n, 'offset is the real offset, not the memory index');
-    assertEquals(store.memidx, varIndex(1), 'and the memory index is kept');
+    assertEquals(store['memidx'], varIndex(1), 'and the memory index is kept');
   });
 
   it('leaves NO phantom instruction behind', () => {
@@ -174,6 +174,6 @@ describe('binaryen-ts — single-memory output is untouched', () => {
     );
     const load = nodesOf(mod.functions[0]?.body).find((n) => n['kind'] === ExpressionKind.Load);
     assert(load, 'a load must be present');
-    assertEquals(load.memidx, varIndex(0), 'memory 0 is an explicit index, never an absence');
+    assertEquals(load['memidx'], varIndex(0), 'memory 0 is an explicit index, never an absence');
   });
 });

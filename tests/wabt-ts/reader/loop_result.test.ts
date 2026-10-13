@@ -111,7 +111,7 @@ describe('binary reader — a loop pushes its result', () => {
     const r = wat2wasm(wat, { filename: 'l.wat' });
     assert(r.binary !== undefined && !hasErrors(r.errors));
     const inst = new WebAssembly.Instance(new WebAssembly.Module(r.binary as BufferSource));
-    assertEquals((inst.exports.f as () => number)(), 5);
+    assertEquals((inst.exports['f'] as () => number)(), 5);
   });
 
   // A void loop has no result, so it must still be flushed as a statement.

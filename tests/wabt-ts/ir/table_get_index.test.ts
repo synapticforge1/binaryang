@@ -43,7 +43,7 @@ import { resolveNames } from '../../../src/ir/resolve-names.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
 
 /** Collects every `Var` still in name form, at any depth. */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
 function nameVars(x: any, out: string[] = []): string[] {
   if (!x || typeof x !== 'object') return out;
   if (x.kind === 'name' && typeof x.name === 'string') out.push(x.name);
@@ -131,7 +131,7 @@ describe('a table.get with a named operand encodes', () => {
 
     const { instance } = await WebAssembly.instantiate(buf, {});
     assertEquals(
-      (instance.exports.run as () => number)(),
+      (instance.exports['run'] as () => number)(),
       0,
       'table.get read a slot other than the one $g names',
     );

@@ -48,8 +48,8 @@ function rewrite(funcs: string) {
   const out = writeWasm(mod);
   assert(WebAssembly.validate(out as BufferSource), 'the rewritten module validates');
   const inst = new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource));
-  const run = inst.exports.f as (a: number, b: number) => number;
-  const n = inst.exports.n as WebAssembly.Global;
+  const run = inst.exports['f'] as (a: number, b: number) => number;
+  const n = inst.exports['n'] as WebAssembly.Global;
   const call = (): string => {
     try {
       return String(run(1, 2));

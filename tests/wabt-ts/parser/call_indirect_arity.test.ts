@@ -18,11 +18,11 @@ import { assert, assertEquals } from '@std/assert';
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 
 /** Every node of `kind` in function `fn`'s body, in document order. */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
 function all(wat: string, kind: string, fn = 0): any[] {
   const p = parseWatModule(wat);
   assert(p.module, 'the module parses');
-  // deno-lint-ignore no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
   const out: any[] = [];
   const walk = (v: unknown): void => {
     if (v === null || typeof v !== 'object') return;

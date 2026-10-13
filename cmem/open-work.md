@@ -261,8 +261,8 @@ fatigue.
     wide-arithmetic. Each was measured equal to Deno's results. **Deno is for JSR only** (owner,
     2026-10-12: "not the V8 items"): `deno publish` stays unless JSR offers something better, and
     Deno keeps working after its development ends. No deadline.
-    **Next: B3** (fmt / lint off Deno: dprint should match `deno fmt` byte for byte, measure first;
-    a linter, listing each dropped rule), **B5** (tests: `@std/testing/bdd` → `node:test`,
+    **B3's lint half is done** (2026-10-13: Biome replaces `deno lint`, and tsc has the strict lint
+    flags; bun-migration.md § "B3 lint"). **Next: B3's formatting half** (dprint should match `deno fmt` byte for byte, measure first), **B5** (tests: `@std/testing/bdd` → `node:test`,
     keeping `@std/assert` / `@std/expect`; per-file counts must match; 220 test files use the host
     engine, which needs the referee rule), **B6** (CI and the release path: the one step that
     cannot be undone; `publish.yml` keeps `deno publish` for provenance), **B7** (delete

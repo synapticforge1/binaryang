@@ -44,7 +44,7 @@ import { hasErrors } from '../../../src/core/error.ts';
 
 const call = (bytes: Uint8Array, arg = 0) =>
   (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-    .exports.f as (x: number) => number)(arg);
+    .exports['f'] as (x: number) => number)(arg);
 
 /** Parse with binaryen-ts and run; wabt-ts builds the same source as a reference. */
 function bothAgree(wat: string, want: number, arg = 0): void {

@@ -1119,5 +1119,5 @@ Deno.test('Inlining: callee that returns via a block-wrapped `return` yields a v
   // Must validate AND compute correctly.
   const compiled = await WebAssembly.compile(writeWasm(mod) as BufferSource);
   const inst = new WebAssembly.Instance(compiled);
-  assertEquals((inst.exports.caller as (x: number) => number)(10), 15);
+  assertEquals((inst.exports['caller'] as (x: number) => number)(10), 15);
 });

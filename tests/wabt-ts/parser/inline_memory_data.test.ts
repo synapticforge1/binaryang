@@ -56,7 +56,7 @@ Deno.test('an inline-data memory cannot grow past its data (min = max)', () => {
     '(module (memory (export "m") (data "xyz")) (func (export "g") (result i32) (memory.grow (i32.const 1))))',
   );
   assertEquals(r.errors.length, 0, formatErrors(r.errors));
-  const g = new WebAssembly.Instance(new WebAssembly.Module(r.binary as BufferSource)).exports
-    .g as () => number;
+  const g = new WebAssembly.Instance(new WebAssembly.Module(r.binary as BufferSource))
+    .exports['g'] as () => number;
   assertEquals(g(), -1);
 });

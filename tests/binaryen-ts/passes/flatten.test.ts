@@ -376,7 +376,7 @@ function flattenRouteB(wat: string): Uint8Array {
 }
 
 const callF = (bytes: Uint8Array, ...args: number[]) =>
-  (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as (
+  (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports['f'] as (
     ...a: number[]
   ) => number)(...args);
 
@@ -566,7 +566,7 @@ function assertSameResults(wat: string, inputs = [0, 1, 2, 5]): void {
   const original = wat2wasm(wat, { textForm: false }).binary;
   const run = (b: Uint8Array, x: number): unknown => {
     try {
-      return (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as (
+      return (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports['f'] as (
         x: number,
       ) => unknown)(x);
     } catch (e) {

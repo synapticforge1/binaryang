@@ -32,29 +32,35 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Format check
-        run: deno fmt --check
-
-      - name: Lint
-        run: deno lint
-
-      - name: Type-check
-        run: deno task check
-
-      # The Bun / Node type check (Bun migration B2, cmem/bun-migration.md): `tsc` over the
-      # shipped code and scripts/ (B4), with @types/node pinned to the Node floor. Runs NEXT TO
-      # `deno task check` until every tree has moved over; tests/ joins when B5 converts it.
-      # Bun is installed here for every later step too: the project's scripts run on Bun
-      # (owner, 2026-10-12) -- `bun run <name>`, from package.json. `--frozen-lockfile`: a bun.lock that disagrees with package.json fails.
+      # Bun runs the project's scripts (owner, 2026-10-12): `bun run <name>`, from package.json.
+      # Installed first, with the dev dependencies (Biome, TypeScript), because the lint and the
+      # type check below need them. `--frozen-lockfile`: a bun.lock that disagrees with
+      # package.json fails.
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.4.3'
 
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Format check
+        run: deno fmt --check
+
+      # Biome replaces `deno lint` (Bun migration B3, cmem/bun-migration.md): Biome's recommended
+      # rules plus deno lint's require-await / no-var / prefer-const, each disabled rule with its
+      # reason in biome.jsonc. Fails on warnings too.
+      - name: Lint
+        run: bun run lint
+
+      - name: Type-check
+        run: deno task check
+
+      # The Bun / Node type check (B2): `tsc` over the shipped code and scripts/, with
+      # @types/node pinned to the Node floor and the strict lint flags (noUnusedLocals, …). Runs
+      # NEXT TO `deno task check` until tests/ moves over in B5.
       - name: Type-check (tsc, for Bun and Node)
-        run: |
-          bun install --frozen-lockfile
-          bun run check
+        run: bun run check
 
       # BINDING (README "upstream names are reserved"). A bare upstream name may
       # appear in a path only where upstream compatibility is the subject.

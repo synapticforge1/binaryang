@@ -20,7 +20,7 @@ import type { Location } from '../core/error.ts';
 import { unknownLocation } from '../core/error.ts';
 import { Type, typeName, type ValType } from '../core/types.ts';
 import type { AbstractHeap, Index } from '../core/types.ts';
-import { BinarySection, ExternalKind } from '../core/binary.ts';
+import { type BinarySection, ExternalKind } from '../core/binary.ts';
 import { GcOpcode, Opcode, PREFIX_GC } from '../core/opcode.ts';
 import { FidelityTable } from './fidelity.ts';
 import type { NodeId } from './fidelity.ts';

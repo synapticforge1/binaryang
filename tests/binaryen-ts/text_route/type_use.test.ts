@@ -110,7 +110,7 @@ describe('type uses the text route reads (One front end stage 5)', () => {
       '(module (func (export "f") (result i32) (i32.const 1) (block (param i32) (result i32) (i32.const 2) (i32.add))))',
     );
     const f = new WebAssembly.Instance(new WebAssembly.Module(writeWasm(mod) as BufferSource))
-      .exports.f as () => number;
+      .exports['f'] as () => number;
     assertEquals(f(), 3);
   });
 });

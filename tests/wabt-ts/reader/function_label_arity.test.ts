@@ -53,9 +53,9 @@ function read(): Module {
 }
 
 /** The first node of `kind` in function `f`, anywhere in its body. */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
 function first(m: Module, f: number, kind: string): any {
-  // deno-lint-ignore no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
   let found: any;
   const walk = (v: unknown): void => {
     if (found !== undefined || v === null || typeof v !== 'object') return;
@@ -112,12 +112,12 @@ describe('a branch to the function label carries the function’s results', () =
       .exports as Record<string, (...a: unknown[]) => number>;
     assertEquals(
       [
-        x.br!(),
-        x.br_if!(0),
-        x.br_if!(1),
-        x.br_table!(0),
-        x.br_on_null!(5, null),
-        x.br_on_null!(5, {}),
+        x['br']!(),
+        x['br_if']!(0),
+        x['br_if']!(1),
+        x['br_table']!(0),
+        x['br_on_null']!(5, null),
+        x['br_on_null']!(5, {}),
       ],
       [9, 2, 9, 9, 5, 5],
     );

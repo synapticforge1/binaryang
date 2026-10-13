@@ -35,7 +35,7 @@ const ROUTES = {
 const call = (b: Uint8Array, ...args: unknown[]) => {
   try {
     const x = new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports;
-    return String((x.f as (...a: unknown[]) => unknown)(...args));
+    return String((x['f'] as (...a: unknown[]) => unknown)(...args));
   } catch (e) {
     return `${(e as Error).constructor.name}: ${(e as Error).message}`;
   }

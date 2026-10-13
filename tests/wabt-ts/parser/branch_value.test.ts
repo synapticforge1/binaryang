@@ -31,7 +31,7 @@ async function run(wat: string, arg?: number): Promise<number> {
   const buf = new ArrayBuffer(binary.byteLength);
   new Uint8Array(buf).set(binary);
   const { instance } = await WebAssembly.instantiate(buf);
-  return (instance.exports.f as (a?: number) => number)(arg);
+  return (instance.exports['f'] as (a?: number) => number)(arg);
 }
 
 describe('br_if with a carried value', () => {

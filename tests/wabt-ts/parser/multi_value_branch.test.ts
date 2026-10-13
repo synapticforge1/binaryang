@@ -43,7 +43,7 @@ async function run(wat: string, arg?: number): Promise<unknown> {
   new Uint8Array(buf).set(binary);
   assert(WebAssembly.validate(buf), 'V8 rejected the module');
   const { instance } = await WebAssembly.instantiate(buf);
-  return (instance.exports.f as (a?: number) => unknown)(arg);
+  return (instance.exports['f'] as (a?: number) => unknown)(arg);
 }
 
 /** wasm2wat then wat2wasm again. */

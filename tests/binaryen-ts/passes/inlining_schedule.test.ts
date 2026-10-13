@@ -31,7 +31,7 @@ function inline(wat: string, opts: Partial<PassOptions>, defaults = false) {
 async function same(before: Uint8Array, after: Uint8Array, inputs: number[]) {
   const run = async (b: Uint8Array, a: number) => {
     const { instance } = await WebAssembly.instantiate(b as BufferSource);
-    return (instance.exports.run as (a: number) => number)(a);
+    return (instance.exports['run'] as (a: number) => number)(a);
   };
   for (const a of inputs) expect(await run(after, a)).toBe(await run(before, a));
 }
@@ -112,7 +112,7 @@ describe('a return_call inside a try is not inlined', () => {
     const outcome = async (b: Uint8Array) => {
       const { instance } = await WebAssembly.instantiate(b as BufferSource);
       try {
-        return `returned ${(instance.exports.run as (a: number) => number)(0)}`;
+        return `returned ${(instance.exports['run'] as (a: number) => number)(0)}`;
       } catch (e) {
         return `threw ${(e as Error).constructor.name}`;
       }

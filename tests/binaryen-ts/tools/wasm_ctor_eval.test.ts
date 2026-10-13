@@ -42,7 +42,7 @@ async function run(bytes: Uint8Array, calls: string[]): Promise<unknown[]> {
       seen.push(`trap: ${(e as Error).message}`);
     }
   }
-  const mem = ex.mem as WebAssembly.Memory | undefined;
+  const mem = ex['mem'] as WebAssembly.Memory | undefined;
   if (mem) {
     const b = new Uint8Array(mem.buffer);
     let h = 0x811c9dc5;

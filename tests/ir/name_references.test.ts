@@ -30,9 +30,9 @@ function load(wat: string, name = true): W.Module {
 }
 
 /** Every node of `kind` under `root`, in document order. */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
 function all(root: unknown, kind: string): any[] {
-  // deno-lint-ignore no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
   const out: any[] = [];
   const walk = (v: unknown): void => {
     if (Array.isArray(v)) return v.forEach(walk);

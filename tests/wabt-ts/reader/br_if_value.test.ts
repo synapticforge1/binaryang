@@ -144,11 +144,11 @@ describe('binary reader — a br_if carrying one value is an operand', () => {
     }
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports as Record<string, (c: number) => number>;
-    assertEquals([x.nested!(0), x.nested!(1)], [7, 7]);
-    assertEquals([x.consumed!(0), x.consumed!(1)], [4, 3]);
-    assertEquals([x.dropped!(0), x.dropped!(1)], [0, 5]);
-    assertEquals([x.void!(0), x.void!(1)], [2, 2]);
-    assertEquals([x.pair!(0), x.pair!(1)], [31, 3]);
-    assertEquals([x.between!(0), x.between!(1)], [2, 2]);
+    assertEquals([x['nested']!(0), x['nested']!(1)], [7, 7]);
+    assertEquals([x['consumed']!(0), x['consumed']!(1)], [4, 3]);
+    assertEquals([x['dropped']!(0), x['dropped']!(1)], [0, 5]);
+    assertEquals([x['void']!(0), x['void']!(1)], [2, 2]);
+    assertEquals([x['pair']!(0), x['pair']!(1)], [31, 3]);
+    assertEquals([x['between']!(0), x['between']!(1)], [2, 2]);
   });
 });

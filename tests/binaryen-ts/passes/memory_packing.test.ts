@@ -25,7 +25,7 @@ function pack(wat: string) {
 async function image(bytes: Uint8Array): Promise<string> {
   try {
     const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
-    const mem = instance.exports.m as WebAssembly.Memory;
+    const mem = instance.exports['m'] as WebAssembly.Memory;
     const b = new Uint8Array(mem.buffer);
     let h = 0x811c9dc5;
     for (let i = 0; i < b.length; i++) h = Math.imul(h ^ b[i]!, 0x01000193);

@@ -31,7 +31,7 @@ const WAT = `(module
       (else (unreachable)))))`;
 
 const run = (bytes: Uint8Array, x: number) =>
-  (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as (
+  (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports['f'] as (
     a: number,
   ) => number)(x);
 

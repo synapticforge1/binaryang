@@ -80,7 +80,7 @@ const LOOP_BACKEDGE = moduleWith([
 
 async function run(bytes: Uint8Array): Promise<number> {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource, {});
-  return (instance.exports.f as () => number)();
+  return (instance.exports['f'] as () => number)();
 }
 
 function first<T extends Expression>(root: Expression, kind: ExpressionKind): T {

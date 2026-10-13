@@ -100,7 +100,7 @@ async function runRead(bytes: Uint8Array): Promise<number> {
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  return (instance.exports.read as () => number)();
+  return (instance.exports['read'] as () => number)();
 }
 
 /** Sub-opcode of the first 0xfb instruction matching one of `candidates`. */

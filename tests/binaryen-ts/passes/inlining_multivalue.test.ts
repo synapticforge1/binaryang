@@ -36,9 +36,10 @@ function inlined(wat: string): { before: Uint8Array; after: Uint8Array } {
 }
 
 function run(bytes: Uint8Array, inputs: number[]): (number | string)[] {
-  const f = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as (
-    x: number,
-  ) => number;
+  const f = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
+    .exports['f'] as (
+      x: number,
+    ) => number;
   return inputs.map((x) => {
     try {
       return f(x);

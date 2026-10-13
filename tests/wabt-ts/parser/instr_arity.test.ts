@@ -370,7 +370,7 @@ describe('T13.8 - and the round trip still COMPUTES the same thing', () => {
       const buf = new ArrayBuffer(bytes.length);
       new Uint8Array(buf).set(bytes);
       const { instance } = await WebAssembly.instantiate(buf, {});
-      return (instance.exports.f as () => number)();
+      return (instance.exports['f'] as () => number)();
     };
     const first = wat2wasm(src);
     assert(!hasErrors(first.errors) && first.binary, formatErrors(first.errors));

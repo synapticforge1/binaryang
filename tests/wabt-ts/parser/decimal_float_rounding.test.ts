@@ -39,7 +39,7 @@ async function f32Bits(lit: string): Promise<number> {
   const buf = new ArrayBuffer(binary.byteLength);
   new Uint8Array(buf).set(binary);
   const { instance } = await WebAssembly.instantiate(buf);
-  const v = (instance.exports.f as () => number)();
+  const v = (instance.exports['f'] as () => number)();
   const dv = new DataView(new ArrayBuffer(4));
   dv.setFloat32(0, v, true);
   return dv.getUint32(0, true);

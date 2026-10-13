@@ -57,7 +57,7 @@ function aligns(m: Module): number[] {
       for (const x of v) walk(x);
     } else if (v !== null && typeof v === 'object') {
       const o = v as Record<string, unknown>;
-      if (typeof o.align === 'number') out.push(o.align);
+      if (typeof o['align'] === 'number') out.push(o['align']);
       for (const [k, x] of Object.entries(o)) if (k !== 'loc') walk(x);
     }
   };

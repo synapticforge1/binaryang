@@ -59,7 +59,7 @@ describe('the text route honours an explicit memory index', () => {
   it('a bare memory.size asks memory 0', () => {
     const wat = `(module (memory 3) (func (export "f") (result i32) (memory.size)))`;
     const run = (b: Uint8Array) =>
-      (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as () =>
+      (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports['f'] as () =>
         number)();
     assertEquals(run(writeWasm(readWat(wat))), 3);
     assertEquals(run(wat2wasm(wat).binary), 3);

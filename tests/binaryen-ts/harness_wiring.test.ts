@@ -28,7 +28,7 @@ Deno.test('the test task names every tree under tests/', async () => {
   const cfg = JSON.parse(await Deno.readTextFile(new URL('deno.json', root))) as {
     tasks: Record<string, string>;
   };
-  const task = cfg.tasks.test;
+  const task = cfg.tasks['test'];
   assert(task, 'no `test` task in deno.json');
 
   const trees: string[] = [];

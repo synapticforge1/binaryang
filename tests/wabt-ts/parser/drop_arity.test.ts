@@ -66,7 +66,7 @@ describe('T13.16 — data.drop / elem.drop consume no operands', () => {
         (data.drop $d)
         (global.get $g)))`);
 
-    const run = instantiate(binary).exports.run as () => number;
+    const run = instantiate(binary).exports['run'] as () => number;
     assertEquals(run(), 7, 'the call before data.drop was deleted');
     assert(/call/.test(decoded(binary)), 'the call is missing from the emitted binary');
   });
@@ -83,7 +83,7 @@ describe('T13.16 — data.drop / elem.drop consume no operands', () => {
         (elem.drop $e)
         (global.get $g)))`);
 
-    const run = instantiate(binary).exports.run as () => number;
+    const run = instantiate(binary).exports['run'] as () => number;
     assertEquals(run(), 7, 'the call before elem.drop was deleted');
   });
 
@@ -101,7 +101,7 @@ describe('T13.16 — data.drop / elem.drop consume no operands', () => {
       const binary = compile(`(module (memory 1) (data $d "xy")
         (func (export "run") (result i32)
         ${body}))`);
-      const run = instantiate(binary).exports.run as () => number;
+      const run = instantiate(binary).exports['run'] as () => number;
       assertEquals(run(), 42);
     });
   }
@@ -119,9 +119,9 @@ describe('T13.16 — data.drop / elem.drop consume no operands', () => {
         (ref.is_null (table.get $t (i32.const 1)))))`);
     const ex = instantiate(binary).exports as Record<string, () => number>;
     // memory.grow by 0 returns the previous size (1 page).
-    assertEquals(ex.grow!(), 1);
+    assertEquals(ex['grow']!(), 1);
     // table slot 1 holds $f, so ref.is_null is 0.
-    assertEquals(ex.get!(), 0);
+    assertEquals(ex['get']!(), 0);
   });
 
   it('round-trips a data.drop that follows a value', () => {
@@ -132,6 +132,6 @@ describe('T13.16 — data.drop / elem.drop consume no operands', () => {
     const first = compile(src);
     const second = compile(decoded(first));
     assertEquals([...second], [...first], 'round trip is not a fixed point');
-    assertEquals((instantiate(second).exports.run as () => number)(), 42);
+    assertEquals((instantiate(second).exports['run'] as () => number)(), 42);
   });
 });

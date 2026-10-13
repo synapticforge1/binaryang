@@ -86,7 +86,7 @@ describe('robustness — NaN payloads', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
-    const v = (instance.exports.f as () => number)();
+    const v = (instance.exports['f'] as () => number)();
     assert(Number.isNaN(v), `expected NaN, got ${v}`);
   });
 });

@@ -64,7 +64,7 @@ function roundTrip(binary: Uint8Array): Uint8Array {
 
 async function callF(binary: Uint8Array): Promise<unknown> {
   const { instance } = await WebAssembly.instantiate(toBuf(binary));
-  return (instance.exports.f as () => unknown)();
+  return (instance.exports['f'] as () => unknown)();
 }
 
 /**

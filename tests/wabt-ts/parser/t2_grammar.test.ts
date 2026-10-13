@@ -99,14 +99,14 @@ describe('table.init index order', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
-    (instance.exports.go as () => void)();
+    (instance.exports['go'] as () => void)();
     const read = (t: WebAssembly.Table) => {
       const f = t.get(0) as (() => number) | null;
       return f === null ? null : f();
     };
     return {
-      t0: read(instance.exports.t0 as WebAssembly.Table),
-      t1: read(instance.exports.t1 as WebAssembly.Table),
+      t0: read(instance.exports['t0'] as WebAssembly.Table),
+      t1: read(instance.exports['t1'] as WebAssembly.Table),
     };
   }
 

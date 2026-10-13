@@ -108,8 +108,10 @@ const INPUTS: [bigint, number][] = [[-100n, 0], [-100n, 1], [-100n, 3], [0x1234_
 ]];
 
 function run(wasm: Uint8Array, lane: Lane, op: Op, repeat = 1): void {
-  const f = new WebAssembly.Instance(new WebAssembly.Module(wasm as BufferSource)).exports
-    .f as (x: number | bigint, s: number) => number | bigint;
+  const f = new WebAssembly.Instance(new WebAssembly.Module(wasm as BufferSource)).exports['f'] as (
+    x: number | bigint,
+    s: number,
+  ) => number | bigint;
   for (const [x, s] of INPUTS) {
     const got = lane === 'i64x2' ? f(x, s) as bigint : BigInt(f(Number(x), s) as number);
     assertEquals(got, expected(lane, op, x, s, repeat), `${lane}.${op} f(${x}, ${s})`);

@@ -53,7 +53,10 @@ describe('a branch visits its values BEFORE its condition, as wasm evaluates the
     });
     it(`${name}: mapChildrenShallow`, () => {
       const seen: string[] = [];
-      mapChildrenShallow(make(), (c) => (seen.push(tag(c)), c));
+      mapChildrenShallow(make(), (c) => {
+        seen.push(tag(c));
+        return c;
+      });
       expect(seen).toEqual(['local 0', 'local 9']);
     });
   }
@@ -78,8 +81,8 @@ describe('StripEH keeps a condition that runs after a throw from running', () =>
     new PassRunner(m, {}).add('StripEH').run();
     const { instance } = await WebAssembly.instantiate(writeWasm(m) as BufferSource);
     const x = instance.exports as Record<string, () => number>;
-    expect(() => x.run!()).toThrow(WebAssembly.RuntimeError); // the throw became a trap
-    return x.n!(); // …before the condition ever ran
+    expect(() => x['run']!()).toThrow(WebAssembly.RuntimeError); // the throw became a trap
+    return x['n']!(); // …before the condition ever ran
   };
   it('br_if', async () => {
     expect(await run((c, v) => makeBreak('$l', c, v))).toBe(0);

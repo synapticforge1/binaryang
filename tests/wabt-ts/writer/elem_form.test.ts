@@ -171,7 +171,7 @@ describe('T7.11 — the funcidx element form is chosen when it applies', () => {
       (elem (i32.const 0) $double)
       (func (export "f") (result i32)
         (call_indirect (type $t) (i32.const 21) (i32.const 0))))`)));
-    assertEquals((instance.exports.f as () => number)(), 42);
+    assertEquals((instance.exports['f'] as () => number)(), 42);
   });
 });
 

@@ -58,9 +58,10 @@ function runPass(bytes: Uint8Array, pass: string): Uint8Array {
 }
 
 function call(bytes: Uint8Array, x: number): number | string {
-  const f = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as (
-    x: number,
-  ) => number;
+  const f = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
+    .exports['f'] as (
+      x: number,
+    ) => number;
   try {
     return f(x);
   } catch (e) {
@@ -149,7 +150,7 @@ function carrierTypes(root: Expression): unknown[] {
     if (v === null || typeof v !== 'object') return;
     if (Array.isArray(v)) return v.forEach(walk);
     const o = v as Record<string, unknown>;
-    if (typeof o.kind === 'string' && CARRIERS.has(o.kind)) out.push(o.type);
+    if (typeof o['kind'] === 'string' && CARRIERS.has(o['kind'])) out.push(o['type']);
     for (const [k, c] of Object.entries(o)) if (k !== 'type') walk(c);
   };
   walk(root);

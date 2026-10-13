@@ -102,6 +102,7 @@ describe('wat2wasm — hex-float literals (wasmtk mathlib repro)', () => {
       ['a', 'b', 'c'],
     );
     assertEquals(vals[0], 1.5);
+    // biome-ignore lint/suspicious/noApproximativeNumericConstant: the WAT input's literal, not Math.PI
     assertEquals(vals[1], 3.14159);
     assertEquals(vals[2], -2.5);
   });
@@ -233,11 +234,11 @@ describe('wat2wasm — end-to-end regression', () => {
     new Uint8Array(buf).set(bin);
     const mod = await WebAssembly.compile(buf);
     const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
-    assertEquals(inst.one!(), 1);
-    assertEquals(inst.ten!(), 10);
-    assertEquals(inst.hundred!(), 100);
-    assertEquals(inst.billion!(), 1_000_000_000);
-    assertEquals(inst.neg!(), -3.14);
+    assertEquals(inst['one']!(), 1);
+    assertEquals(inst['ten']!(), 10);
+    assertEquals(inst['hundred']!(), 100);
+    assertEquals(inst['billion']!(), 1_000_000_000);
+    assertEquals(inst['neg']!(), -3.14);
   });
 
   it('f32.const integer literals are float values, not raw bit patterns', async () => {
@@ -249,9 +250,9 @@ describe('wat2wasm — end-to-end regression', () => {
     new Uint8Array(buf).set(bin);
     const mod = await WebAssembly.compile(buf);
     const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
-    assertEquals(inst.one!(), 1);
-    assertEquals(inst.ten!(), 10);
-    assertEquals(inst.minus!(), -2.5);
+    assertEquals(inst['one']!(), 1);
+    assertEquals(inst['ten']!(), 10);
+    assertEquals(inst['minus']!(), -2.5);
   });
 
   // Bug #12 (wasmtk repro 2026-05-25): multi-value `return` dropped all but
@@ -267,7 +268,7 @@ describe('wat2wasm — end-to-end regression', () => {
     new Uint8Array(buf).set(bin);
     const mod = await WebAssembly.compile(buf);
     const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
-    assertEquals(inst.two_vals!(), [10, 20]);
+    assertEquals(inst['two_vals']!(), [10, 20]);
   });
 
   it('multi-value explicit return (unfolded form) preserves all values', async () => {
@@ -280,7 +281,7 @@ describe('wat2wasm — end-to-end regression', () => {
     new Uint8Array(buf).set(bin);
     const mod = await WebAssembly.compile(buf);
     const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
-    assertEquals(inst.two_vals!(), [10, 20]);
+    assertEquals(inst['two_vals']!(), [10, 20]);
   });
 
   it('multi-value return with mixed types (i32 + i64)', async () => {
@@ -291,7 +292,7 @@ describe('wat2wasm — end-to-end regression', () => {
     new Uint8Array(buf).set(bin);
     const mod = await WebAssembly.compile(buf);
     const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => unknown>;
-    assertEquals(inst.pair!(), [42, 99n]);
+    assertEquals(inst['pair']!(), [42, 99n]);
   });
 
   it('single-value explicit return still works (regression guard)', async () => {
@@ -301,7 +302,7 @@ describe('wat2wasm — end-to-end regression', () => {
     new Uint8Array(buf).set(bin);
     const mod = await WebAssembly.compile(buf);
     const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => number>;
-    assertEquals(inst.one!(), 7);
+    assertEquals(inst['one']!(), 7);
   });
 
   it('void return still works (regression guard)', async () => {
@@ -311,7 +312,7 @@ describe('wat2wasm — end-to-end regression', () => {
     new Uint8Array(buf).set(bin);
     const mod = await WebAssembly.compile(buf);
     const inst = (await WebAssembly.instantiate(mod)).exports as Record<string, () => void>;
-    inst.noop!();
+    inst['noop']!();
   });
 
   // Bug #20 (wasmtk repro 2026-05-25, v1.1.3 still affected):
@@ -333,8 +334,8 @@ describe('wat2wasm — end-to-end regression', () => {
     new Uint8Array(buf).set(bin);
     const mod = await WebAssembly.compile(buf);
     const inst = await WebAssembly.instantiate(mod);
-    const mem = new Uint32Array((inst.exports.memory as WebAssembly.Memory).buffer);
-    (inst.exports.go as () => void)();
+    const mem = new Uint32Array((inst.exports['memory'] as WebAssembly.Memory).buffer);
+    (inst.exports['go'] as () => void)();
     // The store wrote 42 to address 100 — read it back as mem[25] (i32
     // index 25 = byte offset 100). If operand order were swapped, the
     // store would have written 100 to address 42 and mem[25] would be 0.

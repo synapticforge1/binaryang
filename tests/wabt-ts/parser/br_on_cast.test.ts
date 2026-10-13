@@ -50,7 +50,7 @@ function v8Accepts(wat: string): boolean {
 
 async function run(wat: string, arg: unknown): Promise<unknown> {
   const { instance } = await WebAssembly.instantiate(toBuf(compile(wat)));
-  return (instance.exports.f as (a: unknown) => unknown)(arg);
+  return (instance.exports['f'] as (a: unknown) => unknown)(arg);
 }
 
 /** The `n` bytes following the first `0xfb <sub>` pair, or null if absent. */

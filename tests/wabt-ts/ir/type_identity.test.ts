@@ -124,7 +124,7 @@ describe('T7.14 — an explicit type-use is authoritative', () => {
     const { instance } = await WebAssembly.instantiate(toBuf(compile(SUBTYPES)));
     // Every call_indirect in "run" must type-check at runtime; a wrong type
     // index traps with "indirect call type mismatch".
-    (instance.exports.run as () => void)();
+    (instance.exports['run'] as () => void)();
   });
 });
 

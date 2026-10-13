@@ -424,14 +424,14 @@ Deno.test('wasmOpt: WAT given as bytes is read as text (no \\0asm magic) and com
     '(i32.add (local.get 0) (local.get 1))))';
   const out = await wasmOpt(new TextEncoder().encode(wat), { optimizeLevel: 2 });
   assertInstanceOf(out, Uint8Array);
-  const add = new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource)).exports
-    .add as (a: number, b: number) => number;
+  const add = new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource))
+    .exports['add'] as (a: number, b: number) => number;
   assertEquals(add(2, 3), 5);
 });
 
 Deno.test('wasmOpt -S: the optimized module as text, computing what the bytes compute', async () => {
   const add = (bytes: Uint8Array) =>
-    (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.add as (
+    (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports['add'] as (
       a: number,
       b: number,
     ) => number)(2, 3);

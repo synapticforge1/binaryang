@@ -530,7 +530,7 @@ Deno.test('EH encoder: multi-instruction catch handler is not wrapped in a spuri
   const inst = new WebAssembly.Instance(compiled);
   // No `$exn` is ever thrown here (a wasm div-by-zero traps, it doesn't throw
   // the tag), so the happy path is all that executes: f(10, 2) = 5.
-  assertEquals((inst.exports.f as (a: number, b: number) => number)(10, 2), 5);
+  assertEquals((inst.exports['f'] as (a: number, b: number) => number)(10, 2), 5);
 });
 
 // ---------------------------------------------------------------------------
@@ -715,7 +715,7 @@ async function runF(bytes: Uint8Array): Promise<unknown> {
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  return (instance.exports.f as () => unknown)();
+  return (instance.exports['f'] as () => unknown)();
 }
 
 Deno.test('try_table: a catch destination names the ENCLOSING frame, not the try_table', async () => {

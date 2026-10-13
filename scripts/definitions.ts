@@ -121,17 +121,17 @@ if (import.meta.main) {
 
   for (const s of SOURCES) {
     const want = await contentHash(sources[s]!);
-    if (sources[s]!.sha256 === want) continue;
+    if (sources[s]!['sha256'] === want) continue;
     if (check) {
       console.error(
-        `✗ ${s}: sha256 is stale (states ${sources[s]!.sha256 || '""'}, content is ${want})`,
+        `✗ ${s}: sha256 is stale (states ${sources[s]!['sha256'] || '""'}, content is ${want})`,
       );
       bad++;
     } else {
       const path = new URL(s, DIR);
       const text = await readFile(path, 'utf8');
       await writeFile(path, text.replace(/"sha256": "[0-9a-f]*"/, `"sha256": "${want}"`));
-      sources[s]!.sha256 = want;
+      sources[s]!['sha256'] = want;
       console.log(`stamped ${s}: ${want}`);
     }
   }
@@ -149,7 +149,7 @@ if (import.meta.main) {
   }
 
   if (prepared.length > 0) {
-    const entries = sources['verdicts.json']!.entries as { message: string; verdict: string }[];
+    const entries = sources['verdicts.json']!['entries'] as { message: string; verdict: string }[];
     const types = new Set(['assert_trap', 'assert_exhaustion']);
     const messages = preparedMessages(prepared, types);
     for (const [text, where] of messages) {

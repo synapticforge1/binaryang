@@ -48,7 +48,7 @@ function findNode(root: unknown, kind: string): Record<string, unknown> | null {
   const walk = (e: unknown): void => {
     if (hit || !e || typeof e !== 'object') return;
     const node = e as Record<string, unknown>;
-    if (node.kind === kind) {
+    if (node['kind'] === kind) {
       hit = node;
       return;
     }
@@ -79,7 +79,7 @@ describe('memarg offsets survive the full 64-bit range', () => {
       const bytes = writeWasm(moduleWithLoadOffset(offset));
       const back = readForPasses(bytes);
       const load = findNode(back.functions[0]?.body, ExpressionKind.Load);
-      assertEquals(load?.offset, offset, `offset ${offset} did not survive`);
+      assertEquals(load?.['offset'], offset, `offset ${offset} did not survive`);
     });
   }
 
@@ -96,7 +96,7 @@ describe('memarg offsets survive the full 64-bit range', () => {
       .build();
     const back = readForPasses(writeWasm(mod));
     const store = findNode(back.functions[0]?.body, ExpressionKind.Store);
-    assertEquals(store?.offset, offset);
+    assertEquals(store?.['offset'], offset);
   });
 
   it('the encoded bytes differ between 8 and 2^32 + 8', () => {

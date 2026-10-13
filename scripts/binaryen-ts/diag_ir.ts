@@ -27,7 +27,7 @@ console.log(
   }`,
 );
 
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: a diagnostic script reads untyped IR or engine values
 function dump(e: any, depth: number): void {
   if (!e) {
     console.log('  '.repeat(depth) + '<null>');

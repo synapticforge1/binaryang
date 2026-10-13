@@ -29,7 +29,7 @@ function body(wat: string): string {
 }
 async function call(bytes: Uint8Array, args: number[]): Promise<number | bigint> {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
-  return (instance.exports.f as (...a: number[]) => number | bigint)(...args);
+  return (instance.exports['f'] as (...a: number[]) => number | bigint)(...args);
 }
 /** `f` gives the same result before and after the pass on each argument list. */
 async function sameResults(wat: string, ...argLists: number[][]): Promise<void> {

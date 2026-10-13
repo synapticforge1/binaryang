@@ -903,7 +903,8 @@ export class ExprVisitor {
       case 'pop':
         return Result.Ok;
       default: {
-        const _exhaust: never = e;
+        // Exhaustiveness: a new expression kind makes this a type error.
+        e satisfies never;
         return Result.Ok;
       }
     }

@@ -5,7 +5,7 @@
 
 import type { Location } from '../core/error.ts';
 import type { Opcode } from '../core/opcode.ts';
-import { Type } from '../core/types.ts';
+import type { Type } from '../core/types.ts';
 import type { ValType } from '../core/types.ts';
 
 // ---------------------------------------------------------------------------

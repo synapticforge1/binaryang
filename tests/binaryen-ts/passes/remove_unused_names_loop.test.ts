@@ -28,7 +28,7 @@ Deno.test('RemoveUnusedNames: a value loop with no back-edge becomes a block of 
   assertEquals(add.left.kind, ExpressionKind.Block, 'the loop was replaced');
   assertEquals(add.left.type, 0x7f);
   const out = writeWasm(mod);
-  const f = new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource)).exports.f as (
+  const f = new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource)).exports['f'] as (
     x: number,
   ) => number;
   assertEquals(f(3), 6);

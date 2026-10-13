@@ -135,7 +135,7 @@ function section(bytes: Uint8Array, id: number): Uint8Array {
 function kinds(root: unknown, out: string[] = []): string[] {
   if (!root || typeof root !== 'object') return out;
   const node = root as Record<string, unknown>;
-  if (typeof node.kind === 'string') out.push(node.kind);
+  if (typeof node['kind'] === 'string') out.push(node['kind']);
   for (const [k, v] of Object.entries(node)) {
     if (k === 'kind' || k === 'type') continue;
     if (Array.isArray(v)) v.forEach((c) => kinds(c, out));

@@ -165,7 +165,7 @@ describe('WAT parser — inline exports on every declaration kind', () => {
         new WebAssembly.Module(bytes as BufferSource),
         { m: { a: () => 99 } },
       );
-      return (inst.exports.f as () => number)();
+      return (inst.exports['f'] as () => number)();
     };
     assertEquals(call(writeWasm(readWat(wat))), 2);
     assertEquals(call(wat2wasm(wat, { filename: 'ref.wat' }).binary), 2);

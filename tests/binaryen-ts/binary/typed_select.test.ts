@@ -101,7 +101,7 @@ const UNTYPED_BYTES = hex(
 
 async function go(bytes: Uint8Array, arg: number): Promise<number> {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource, {});
-  return (instance.exports.go as (x: number) => number)(arg);
+  return (instance.exports['go'] as (x: number) => number)(arg);
 }
 
 describe('typed select', () => {

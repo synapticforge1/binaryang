@@ -41,7 +41,7 @@ function assemble(wat: string): Uint8Array {
 }
 
 function f(bytes: Uint8Array): (x: number) => number {
-  return new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as (
+  return new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports['f'] as (
     x: number,
   ) => number;
 }

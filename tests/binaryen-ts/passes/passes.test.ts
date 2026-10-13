@@ -1220,7 +1220,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
   const inst = new WebAssembly.Instance(
     await WebAssembly.compile(writeWasm(mod) as BufferSource),
   );
-  const dispatch = inst.exports.dispatch as (obj: number) => number;
+  const dispatch = inst.exports['dispatch'] as (obj: number) => number;
   // obj=0 → $t=0 → index mem[0]=1 → $f1(0)=0
   assertEquals(dispatch(0), 0);
   // obj=4 → $t=4 → index mem[4]=0 → $f0(4)=104  (with the bug: $t=0 → $f1(4)=8)

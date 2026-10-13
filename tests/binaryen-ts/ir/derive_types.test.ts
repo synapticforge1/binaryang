@@ -54,7 +54,7 @@ function fromBinary(wat: string): W.Module {
  * two-value `br_if` stays a statement in both.)
  */
 function lift(list: unknown[], i: number, slot: 'value' | 'values'): void {
-  // deno-lint-ignore no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
   const node = list[i] as any;
   const operand = slot === 'value' ? node.value : node.values[0];
   const pop = { kind: 'pop', loc: node.loc };
@@ -70,9 +70,9 @@ function blockOf(m: W.Module, f = 0): unknown[] {
 }
 
 /** Every node of `kind` under `root`, in document order. */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
 function all(root: unknown, kind: string): any[] {
-  // deno-lint-ignore no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
   const out: any[] = [];
   const walk = (v: unknown): void => {
     if (v === null || typeof v !== 'object') return;

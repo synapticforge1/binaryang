@@ -94,7 +94,7 @@ describe('wasm2wat --fold', () => {
     const inst = new WebAssembly.Instance(
       new WebAssembly.Module(asm(folded, 'f.wat') as BufferSource),
     );
-    assertEquals((inst.exports.f as (x: number) => number)(10), 16, '10 + 2*3');
+    assertEquals((inst.exports['f'] as (x: number) => number)(10), 16, '10 + 2*3');
   });
 
   // ---------------------------------------------------------------------------
@@ -149,7 +149,7 @@ ${folded}`,
       const inst = new WebAssembly.Instance(
         new WebAssembly.Module(asm(folded, 'f.wat') as BufferSource),
       );
-      return (inst.exports.f as (x: number) => number)(n);
+      return (inst.exports['f'] as (x: number) => number)(n);
     };
     assertEquals(run(1), 7, 'branch taken must reach $outer');
     assertEquals(run(0), 1, 'fall through');

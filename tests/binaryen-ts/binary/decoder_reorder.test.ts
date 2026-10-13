@@ -147,5 +147,5 @@ Deno.test('the spilled decode round-trips and executes correctly (f() === 100)',
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  assertEquals((instance.exports.f as () => number)(), 100);
+  assertEquals((instance.exports['f'] as () => number)(), 100);
 });

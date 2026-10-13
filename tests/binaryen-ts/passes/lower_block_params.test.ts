@@ -50,7 +50,7 @@ const results = (bytes: Uint8Array, args: readonly unknown[][]) => {
   let f: (...a: unknown[]) => unknown;
   try {
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports;
-    f = x.f as typeof f;
+    f = x['f'] as typeof f;
   } catch (e) {
     return `rejected: ${(e as Error).message.slice(0, 100)}`;
   }

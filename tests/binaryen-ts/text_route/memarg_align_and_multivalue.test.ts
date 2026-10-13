@@ -117,7 +117,7 @@ describe('WAT parser — the node holds BYTES, the binary memarg the EXPONENT (M
 describe('WAT parser — a branch carries EVERY value, not just the first', () => {
   const run = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-      .exports.f as () => unknown)();
+      .exports['f'] as () => unknown)();
 
   it('a multi-value return keeps all of its values', () => {
     const wat =

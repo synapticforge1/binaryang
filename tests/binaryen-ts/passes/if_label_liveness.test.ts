@@ -36,7 +36,7 @@ const ROUTES = {
 };
 const effects = (b: Uint8Array) => {
   const x = new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports;
-  const f = x.effects as (v: number) => number;
+  const f = x['effects'] as (v: number) => number;
   return [f(1), f(0)];
 };
 

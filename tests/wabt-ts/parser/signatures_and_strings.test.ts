@@ -147,7 +147,7 @@ describe('(func (type $t)) takes its signature from $t', () => {
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
     // The local must land in slot 2, after the two params.
-    assertEquals((instance.exports.f as (a: number, b: number) => number)(3, 4), 7);
+    assertEquals((instance.exports['f'] as (a: number, b: number) => number)(3, 4), 7);
   });
 
   it('an inline signature alongside the type annotation still wins', () => {
@@ -170,7 +170,7 @@ describe('block signatures beyond the single-result shorthand', () => {
     new Uint8Array(buf).set(binary);
     assert(WebAssembly.validate(buf), 'V8 rejected the multi-value block');
     const { instance } = await WebAssembly.instantiate(buf);
-    assertEquals((instance.exports.f as () => number[])(), [1, 2]);
+    assertEquals((instance.exports['f'] as () => number[])(), [1, 2]);
   });
 
   it('block params parse and encode', async () => {
@@ -182,7 +182,7 @@ describe('block signatures beyond the single-result shorthand', () => {
     new Uint8Array(buf).set(binary);
     assert(WebAssembly.validate(buf), 'V8 rejected the block with params');
     const { instance } = await WebAssembly.instantiate(buf);
-    assertEquals((instance.exports.f as () => number)(), 42);
+    assertEquals((instance.exports['f'] as () => number)(), 42);
   });
 
   it('loop params work too', () => {

@@ -131,7 +131,7 @@ describe('a digit separator must sit between digits', () => {
       const buf = new ArrayBuffer(binary.byteLength);
       new Uint8Array(buf).set(binary);
       const inst = new WebAssembly.Instance(new WebAssembly.Module(buf), {});
-      assertEquals((inst.exports.g as WebAssembly.Global).value, want, lit);
+      assertEquals((inst.exports['g'] as WebAssembly.Global).value, want, lit);
     }
   });
 });

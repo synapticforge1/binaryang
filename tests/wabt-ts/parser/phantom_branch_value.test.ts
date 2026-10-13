@@ -27,11 +27,11 @@ import { assert, assertEquals } from '@std/assert';
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 
 /** The first node of `kind` in function 0's body. */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
 function first(wat: string, kind: string): any {
   const p = parseWatModule(wat);
   assert(p.module, 'the module parses');
-  // deno-lint-ignore no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
   let found: any;
   const walk = (v: unknown): void => {
     if (found !== undefined || v === null || typeof v !== 'object') return;

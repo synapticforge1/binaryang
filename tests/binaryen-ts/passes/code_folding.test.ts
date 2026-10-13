@@ -31,11 +31,11 @@ async function same(before: Uint8Array, after: Uint8Array, inputs: number[][]) {
     const ex = instance.exports as Record<string, unknown>;
     let r: string;
     try {
-      r = String((ex.f as Fn)(...a));
+      r = String((ex['f'] as Fn)(...a));
     } catch (e) {
       r = `trap: ${(e as Error).message}`;
     }
-    const g = ex.g instanceof WebAssembly.Global ? ` g=${ex.g.value}` : '';
+    const g = ex['g'] instanceof WebAssembly.Global ? ` g=${ex['g'].value}` : '';
     return `${a} -> ${r}${g}`;
   };
   for (const a of inputs) expect(await run(after, a)).toBe(await run(before, a));

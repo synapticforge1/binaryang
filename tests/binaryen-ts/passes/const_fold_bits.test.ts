@@ -44,7 +44,7 @@ function optimized(bytes: Uint8Array): Uint8Array {
 
 async function call(bytes: Uint8Array, arg?: number): Promise<unknown> {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
-  return (instance.exports.f as (x?: number) => unknown)(arg);
+  return (instance.exports['f'] as (x?: number) => unknown)(arg);
 }
 
 describe('constant folding keeps float bits', () => {

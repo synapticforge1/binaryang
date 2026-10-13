@@ -105,8 +105,8 @@ async function runWasi(bytes: Uint8Array): Promise<{ trap: boolean; out: number[
   let trap = false;
   try {
     const { instance } = await WebAssembly.instantiate(bytes as BufferSource, imports);
-    mem = instance.exports.memory as WebAssembly.Memory;
-    (instance.exports._start as () => void)();
+    mem = instance.exports['memory'] as WebAssembly.Memory;
+    (instance.exports['_start'] as () => void)();
   } catch (e) {
     if (!(e && (e as { __exit?: boolean }).__exit)) trap = true;
   }
@@ -182,7 +182,7 @@ Deno.test('LocalCSE: a cached value is not substituted across a write nested in 
 
   assert(mod.functions[0]!.locals.length > localsBefore, 'CSE must have fired (a tee local)');
   const { instance } = await WebAssembly.instantiate(writeWasm(mod) as BufferSource);
-  const f = instance.exports.f as (cond: number, x: number) => number;
+  const f = instance.exports['f'] as (cond: number, x: number) => number;
   assertEquals(f(1, 5), 112, 'post-if x + 7 must see the modified x');
   assertEquals(f(0, 5), 12, 'when the if does not run, x is unchanged');
 });
@@ -228,6 +228,6 @@ Deno.test('LocalCSE: a cached value is not substituted across a write nested ear
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add('LocalCSE').run();
 
   const { instance } = await WebAssembly.instantiate(writeWasm(mod) as BufferSource);
-  const f = instance.exports.f as (x: number) => number;
+  const f = instance.exports['f'] as (x: number) => number;
   assertEquals(f(5), 205, 'the second x + 1 must read the value written by the nested tee');
 });

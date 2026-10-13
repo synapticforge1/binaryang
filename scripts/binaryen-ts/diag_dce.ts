@@ -18,7 +18,7 @@ import '../../src/passes/index.ts';
 const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
 const orig = new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm'));
 
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: a diagnostic script reads untyped IR or engine values
 function dump(e: any, depth: number, out: string[]): void {
   if (!e) return void out.push('  '.repeat(depth) + '<null>');
   const t = e.type !== undefined ? `:${JSON.stringify(e.type)}` : '';

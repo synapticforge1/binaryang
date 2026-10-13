@@ -149,6 +149,6 @@ describe('T12.4 — v128.const lane values must fit their lane width', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf, {});
-    assertEquals((instance.exports.f as () => number)(), -128);
+    assertEquals((instance.exports['f'] as () => number)(), -128);
   });
 });

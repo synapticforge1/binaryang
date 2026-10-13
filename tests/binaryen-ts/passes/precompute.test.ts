@@ -80,7 +80,7 @@ describe('a tree of constants folds in one run', () => {
       const after = writeWat(m);
       const imports = { env: { ig: new WebAssembly.Global({ value: 'i32' }, 5) } };
       const f = async (b: Uint8Array) =>
-        ((await WebAssembly.instantiate(b as BufferSource, imports)).instance.exports.f as () =>
+        ((await WebAssembly.instantiate(b as BufferSource, imports)).instance.exports['f'] as () =>
           number)();
       expect(await f(writeWasm(m))).toBe(await f(wat2wasm(text, { textForm: false }).binary));
       return after.slice(after.indexOf('(export "f")'), after.indexOf('(export "g")'));

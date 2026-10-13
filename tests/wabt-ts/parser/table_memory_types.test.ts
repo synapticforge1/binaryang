@@ -99,7 +99,7 @@ describe('table definition shapes', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
-    const table = instance.exports.t as WebAssembly.Table;
+    const table = instance.exports['t'] as WebAssembly.Table;
     assertEquals(table.length, 3);
     // Every slot takes the initializer, not just slot 0.
     for (let i = 0; i < 3; i++) {
@@ -115,7 +115,7 @@ describe('table definition shapes', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
-    const table = instance.exports.t as WebAssembly.Table;
+    const table = instance.exports['t'] as WebAssembly.Table;
     // Three expressions must land as three ordered elements.
     assertEquals(table.length, 3);
     assertEquals((table.get(0) as () => number)(), 11);

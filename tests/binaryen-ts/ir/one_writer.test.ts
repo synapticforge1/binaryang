@@ -111,7 +111,7 @@ describe('one writer (One front end stage 4): what the comparison found', () => 
     const out = writeWasm(m);
     const run = (b: Uint8Array) => {
       try {
-        (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.run as () =>
+        (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports['run'] as () =>
           void)();
         return 'returns';
       } catch (e) {
@@ -205,7 +205,7 @@ describe('writeWasm leaves the module as it was', () => {
       WebAssembly.validate(first as BufferSource) && WebAssembly.validate(second as BufferSource),
     );
     const call = (b: Uint8Array) =>
-      (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as (
+      (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports['f'] as (
         x: number,
       ) => number)(41);
     assertEquals([call(first), call(second)], [42, 42]);

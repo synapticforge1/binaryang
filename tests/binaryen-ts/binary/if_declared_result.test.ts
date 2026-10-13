@@ -69,7 +69,7 @@ describe('binary reader — an if keeps its DECLARED result type', () => {
     );
     const run = (x: number) =>
       (new WebAssembly.Instance(new WebAssembly.Module(out as BufferSource))
-        .exports.f as (n: number) => number)(x);
+        .exports['f'] as (n: number) => number)(x);
     assertEquals(run(1), 1);
     assertEquals(run(0), 2);
   });

@@ -31,8 +31,8 @@ describe('a named heap type in an inline call_indirect signature is resolved', (
       const r = wat2wasm(module(call));
       assertEquals(r.errors.length, 0, formatErrors(r.errors));
       assert(WebAssembly.validate(r.binary as BufferSource), 'valid');
-      const g = new WebAssembly.Instance(new WebAssembly.Module(r.binary as BufferSource)).exports
-        .g as () => unknown;
+      const g = new WebAssembly.Instance(new WebAssembly.Module(r.binary as BufferSource))
+        .exports['g'] as () => unknown;
       assertEquals(g(), null); // $f returns ref.null, through the table
     });
 

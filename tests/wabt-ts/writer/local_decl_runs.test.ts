@@ -104,7 +104,7 @@ describe('binary writer — local declarations are run-length encoded', () => {
         (i32.add (local.get 3) (i32.wrap_i64 (local.get 2))))))`;
     const bin = wat2wasm(wat, { filename: 'i.wat' }).binary;
     const inst = new WebAssembly.Instance(new WebAssembly.Module(bin as BufferSource));
-    assertEquals((inst.exports.f as () => number)(), 100, '10 + 20 + 40 + 30');
+    assertEquals((inst.exports['f'] as () => number)(), 100, '10 + 20 + 40 + 30');
   });
 
   it('output still round-trips byte-identically through wasm2wat', () => {

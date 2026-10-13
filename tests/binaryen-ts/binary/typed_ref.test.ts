@@ -124,7 +124,7 @@ async function runRead(bytes: Uint8Array): Promise<number> {
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  return (instance.exports.read as () => number)();
+  return (instance.exports['read'] as () => number)();
 }
 
 /** The local-declaration type bytes of the single function body. */
@@ -270,8 +270,8 @@ Deno.test('typed-ref local.get carries the concrete type into the IR', () => {
   const walk = (e: unknown): void => {
     if (seen || !e || typeof e !== 'object') return;
     const node = e as Record<string, unknown>;
-    if (node.kind === 'local.get') {
-      seen = node.type;
+    if (node['kind'] === 'local.get') {
+      seen = node['type'];
       return;
     }
     for (const v of Object.values(node)) {

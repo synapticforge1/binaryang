@@ -25,7 +25,7 @@ async function run(wat: string): Promise<number> {
   const { binary, errors } = wat2wasm(wat);
   if (hasErrors(errors)) throw new Error(formatErrors(errors));
   const { instance } = await WebAssembly.instantiate(binary as BufferSource, {});
-  return (instance.exports.f as () => number)();
+  return (instance.exports['f'] as () => number)();
 }
 
 const CASES: [string, string, number][] = [

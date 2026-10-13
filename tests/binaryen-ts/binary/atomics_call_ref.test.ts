@@ -33,9 +33,10 @@ function assemble(wat: string): Uint8Array {
 }
 
 function run(bytes: Uint8Array, ...args: number[]): number | string {
-  const f = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as (
-    ...a: number[]
-  ) => number;
+  const f = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
+    .exports['f'] as (
+      ...a: number[]
+    ) => number;
   try {
     return f(...args);
   } catch (e) {
@@ -138,7 +139,7 @@ for (const [name, fx] of Object.entries(FIX)) {
 }
 
 Deno.test('the walkers reach every operand of every atomic, in order', () => {
-  const mod = readForPasses(assemble(FIX.atomics!.wat));
+  const mod = readForPasses(assemble(FIX['atomics']!.wat));
   const body = mod.functions[0]!.body;
   const walked: string[] = [];
   walkExpression(body, (e) => {
@@ -170,7 +171,7 @@ Deno.test('the walkers reach every operand of every atomic, in order', () => {
   assertEquals(mapped, walked.length);
 
   // `wait` has three operands, `notify` two: the timeout is the last one pushed.
-  const wait = readForPasses(assemble(FIX.wait!.wat)).functions[0]!.body;
+  const wait = readForPasses(assemble(FIX['wait']!.wat)).functions[0]!.body;
   const consts: string[] = [];
   walkExpression(wait, (e) => {
     if (e.kind === ExpressionKind.Const && 'value' in e.value) consts.push(String(e.value.value));
@@ -186,7 +187,7 @@ Deno.test('the walkers reach every operand of every atomic, in order', () => {
 
 Deno.test("each atomic's type is its instruction's result — i64 for an i64 instruction", () => {
   const types = new Map<string, unknown[]>();
-  for (const fx of [FIX.atomics!, FIX.wait!]) {
+  for (const fx of [FIX['atomics']!, FIX['wait']!]) {
     walkExpression(readForPasses(assemble(fx.wat)).functions[0]!.body, (e) => {
       if (!e.kind.startsWith('atomic.')) return;
       types.set(e.kind, [...(types.get(e.kind) ?? []), e.type]);
@@ -205,7 +206,7 @@ Deno.test("each atomic's type is its instruction's result — i64 for an i64 ins
 
 Deno.test("call_ref's type is its signature's results — a tuple for several", () => {
   const types: unknown[] = [];
-  for (const fx of [FIX.call_ref!, FIX['call_ref, two results']!]) {
+  for (const fx of [FIX['call_ref']!, FIX['call_ref, two results']!]) {
     walkExpression(readForPasses(assemble(fx.wat)).functions.at(-1)!.body, (e) => {
       if (e.kind === ExpressionKind.CallRef) types.push(e.type);
     });
@@ -252,7 +253,7 @@ Deno.test('Asyncify instruments call_ref as an indirect call (open-work 8; it re
   // It refused rather than leave the call uninstrumented. Now every stage
   // treats it as `call_indirect` — the run across an unwind / rewind is
   // `asyncify_e2e.test.ts`'s; here, the fixture is accepted and stays valid.
-  const mod = readForPasses(assemble(FIX.call_ref!.wat));
+  const mod = readForPasses(assemble(FIX['call_ref']!.wat));
   new PassRunner(mod, { optimizeLevel: 0, shrinkLevel: 0 }).add('asyncify').run();
   assert(WebAssembly.validate(writeWasm(mod) as BufferSource), 'valid after asyncify');
 });
@@ -273,7 +274,7 @@ Deno.test('Flatten takes a call_ref with several results: N temps, not a tuple',
   const out = writeWasm(mod);
   assert(WebAssembly.validate(out as BufferSource), 'valid');
   const f = (b: Uint8Array) =>
-    new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as (
+    new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports['f'] as (
       x: number,
     ) => number;
   for (const x of [0, 3, 7]) assertEquals(f(out)(x), f(bytes)(x), `f(${x})`);

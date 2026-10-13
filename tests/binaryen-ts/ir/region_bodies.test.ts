@@ -43,7 +43,7 @@ function bothAgree(wat: string, want: number, arg = 0): void {
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
   const run = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-      .exports.f as (x: number) => number)(arg);
+      .exports['f'] as (x: number) => number)(arg);
   assertEquals(run(ref.binary), want, 'wabt-ts');
   assertEquals(run(writeWasm(readWat(wat))), want, 'binaryen-ts');
 }

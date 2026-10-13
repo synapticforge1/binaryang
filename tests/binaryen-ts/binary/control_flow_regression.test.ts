@@ -279,7 +279,7 @@ Deno.test('regression: element segments + call_indirect survive round-trip and e
   const compiled = await WebAssembly.compile(reencoded as BufferSource);
   const inst = new WebAssembly.Instance(compiled);
   // The indirect call through table[0] must reach $target and return 42.
-  assertEquals((inst.exports.run as () => number)(), 42);
+  assertEquals((inst.exports['run'] as () => number)(), 42);
 });
 
 Deno.test('regression: LocalCSE preserves a result-typed block that exits via br', async () => {
@@ -367,7 +367,7 @@ Deno.test('regression: CoalesceLocals preserves effective sets when remapping lo
   const inst = new WebAssembly.Instance(
     new WebAssembly.Module(writeWasm(mod) as BufferSource),
   );
-  const run = inst.exports.run as (n: number) => number;
+  const run = inst.exports['run'] as (n: number) => number;
   assertEquals(run(0), 42);
 });
 
@@ -427,7 +427,7 @@ Deno.test('regression: LocalCSE invalidates cache after a child that writes the 
   const inst = new WebAssembly.Instance(
     new WebAssembly.Module(writeWasm(mod) as BufferSource),
   );
-  const run = inst.exports.run as (n: number) => number;
+  const run = inst.exports['run'] as (n: number) => number;
   assertEquals(run(5), 7);
 });
 
@@ -491,8 +491,8 @@ Deno.test('regression: single-arm (if cond (then BODY)) round-trips without inve
 
   const origInst = new WebAssembly.Instance(new WebAssembly.Module(orig as BufferSource));
   const rtInst = new WebAssembly.Instance(new WebAssembly.Module(reEncoded as BufferSource));
-  const origF = origInst.exports.f as (cond: number) => number;
-  const rtF = rtInst.exports.f as (cond: number) => number;
+  const origF = origInst.exports['f'] as (cond: number) => number;
+  const rtF = rtInst.exports['f'] as (cond: number) => number;
 
   // Sanity-check the original behaves as the spec says.
   assertEquals(origF(0), 0, 'original: cond=0 should skip the store');
@@ -719,8 +719,8 @@ Deno.test('regression: br to the function frame from inside a block keeps its de
 
   const reencoded = writeWasm(readForPasses(bytes));
   const inst = new WebAssembly.Instance(await WebAssembly.compile(reencoded as BufferSource));
-  const f = inst.exports.f as (x: number) => void;
-  const g = inst.exports.g as WebAssembly.Global;
+  const f = inst.exports['f'] as (x: number) => void;
+  const g = inst.exports['g'] as WebAssembly.Global;
   f(1); // branches out of the function — global.set must NOT run
   assertEquals(g.value, 0);
   f(0); // falls through — global.set runs
@@ -768,8 +768,8 @@ Deno.test('regression: br to an `if` from inside a nested block keeps its depth'
   const inst = new WebAssembly.Instance(
     await WebAssembly.compile(writeWasm(readForPasses(bytes)) as BufferSource),
   );
-  const f = inst.exports.f as (x: number) => void;
-  const g = inst.exports.g as WebAssembly.Global;
+  const f = inst.exports['f'] as (x: number) => void;
+  const g = inst.exports['g'] as WebAssembly.Global;
   f(1); // enters the if, branches out of it — global.set must NOT run
   assertEquals(g.value, 0);
 });
