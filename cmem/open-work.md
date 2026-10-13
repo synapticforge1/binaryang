@@ -64,10 +64,9 @@ PUSHED; the version stays 1.10.0):**
   dead branch in tests. The shared typed test walker is `tests/expr_walk.ts`
   ([testing.md](testing.md) § "Test tree"). The 4 dead `deno-lint-ignore-file` comments in
   `comparison/scripts/` were deleted; `comparison/` stays outside Biome's scope.
-- **Who runs what, now:** Deno for JSR publishing, plus `deno fmt` (until B3's formatting half)
-  and `deno check` / `deno test` (until B5). `deno lint` is gone.
-- **6 open items:** 13, 14, 15, 25, 26 (**next: B3's formatting half**, dprint measured against
-  `deno fmt` first; then B5, B6, B7), 28. **29 (npm as a second registry) was opened and PARKED the
+- **Who runs what, now:** Deno for JSR publishing, plus `deno check` / `deno test` (until B5).
+  `deno lint` and `deno fmt` are gone from the gate (Biome and dprint).
+- **6 open items:** 13, 14, 15, 25, 26 (B3 DONE, both halves; **next: B5**, then B6, B7), 28. **29 (npm as a second registry) was opened and PARKED the
   same day** as a contingency (owner: "I am leaving it on jsr until it becomes necessary to do
   otherwise"); see § "Not tasks, by decision". The `code-lens-13`
   conflict above still stands.
@@ -285,7 +284,7 @@ fatigue.
     Deno keeps working after its development ends. No deadline.
     **B3's lint half is done** (2026-10-13: Biome replaces `deno lint`, and tsc has the strict lint
     flags; bun-migration.md § "B3 lint"; no `biome-ignore` remains: all 22 were fixed in the code, and
-    the lint canary is the only guard against a silenced config). **Next: B3's formatting half** (dprint should match `deno fmt` byte for byte, measure first), **B5** (tests: `@std/testing/bdd` → `node:test`,
+    the lint canary is the only guard against a silenced config). **B3's formatting half is done too** (2026-10-13: dprint 0.57.4 with Deno 2.9.7's own plugins, byte-identical by differential; bun-migration.md § "B3 formatting"). **Next: B5** (tests: `@std/testing/bdd` → `node:test`,
     keeping `@std/assert` / `@std/expect`; per-file counts must match; 220 test files use the host
     engine, which needs the referee rule), **B6** (CI and the release path: the one step that
     cannot be undone; `publish.yml` keeps `deno publish` for provenance), **B7** (delete

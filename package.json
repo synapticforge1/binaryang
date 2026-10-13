@@ -25,11 +25,14 @@
     "hostile": "bun scripts/v8.ts scripts/check-hostile.ts",
     "browser": "bun scripts/check-browser.ts",
     "lts": "bun scripts/check-lts.ts",
-    "lint": "biome lint --error-on-warnings && bun scripts/check-lint-canary.ts"
+    "lint": "biome lint --error-on-warnings && bun scripts/check-lint-canary.ts",
+    "fmt": "dprint fmt",
+    "fmt:check": "dprint check && bun scripts/check-fmt-canary.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
     "@types/node": "~22.18.0",
+    "dprint": "0.57.4",
     "typescript": "7.0.2"
   }
 }
