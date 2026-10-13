@@ -67,7 +67,7 @@ async function runRead(bytes: Uint8Array): Promise<number> {
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  return (instance.exports.read as () => number)();
+  return (instance.exports['read'] as () => number)();
 }
 
 /** Encode, round-trip through the parser, and assert both builds agree. */
@@ -263,7 +263,7 @@ function findNode(root: unknown, kind: string): Record<string, unknown> | null {
   const walk = (e: unknown): void => {
     if (hit || !e || typeof e !== 'object') return;
     const node = e as Record<string, unknown>;
-    if (node.kind === kind) {
+    if (node['kind'] === kind) {
       hit = node;
       return;
     }
@@ -286,7 +286,7 @@ Deno.test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10',
   const mod = readForPasses(ARRAY_FILL_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayFill);
   assert(node !== null, 'array.fill did not decode to an ArrayFill node');
-  assertEquals(node!.typeVar, varIndex(0));
+  assertEquals(node!['typeVar'], varIndex(0));
   // ref, offset, value, size all present and distinct operands.
   for (const k of ['ref', 'offset', 'value', 'size']) {
     assert(node![k] !== undefined, `ArrayFill is missing operand "${k}"`);
@@ -384,8 +384,8 @@ Deno.test('array.copy keeps dest and src type immediates in the right order', ()
   const node = findNode(parsed.functions[0].body, ExpressionKind.ArrayCopy);
 
   assert(node !== null, 'array.copy did not survive the round-trip');
-  assertEquals(node.destTypeVar, varIndex(arrayType));
-  assertEquals(node.srcTypeVar, varIndex(second));
+  assertEquals(node['destTypeVar'], varIndex(arrayType));
+  assertEquals(node['srcTypeVar'], varIndex(second));
 });
 
 Deno.test('ref.as_non_null passes a non-null reference through', async () => {
@@ -476,7 +476,7 @@ Deno.test('WAT: the five new GC instructions parse, none fall through to nop', (
   const walk = (e: unknown): void => {
     if (!e || typeof e !== 'object') return;
     const node = e as Record<string, unknown>;
-    if (typeof node.kind === 'string') kinds.push(node.kind);
+    if (typeof node['kind'] === 'string') kinds.push(node['kind']);
     for (const v of Object.values(node)) {
       if (Array.isArray(v)) v.forEach(walk);
       else walk(v);

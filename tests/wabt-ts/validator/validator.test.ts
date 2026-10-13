@@ -12,7 +12,6 @@ import type { ErrorList } from '../../../src/core/error.ts';
 
 import { constF32, constI32, makeModule, region, varIndex } from '../../../src/ir/ir.ts';
 import type {
-  BinaryExpr,
   BlockExpr,
   ConstExpr,
   Expr,
@@ -20,7 +19,6 @@ import type {
   LocalGetExpr,
   LocalSetExpr,
   Module,
-  ReturnExpr,
   ValueType,
 } from '../../../src/ir/ir.ts';
 
@@ -36,10 +34,6 @@ function makeConst32(v: number): ConstExpr {
   return { kind: 'const', value: constI32(v), loc: LOC };
 }
 
-function _makeAdd(left: Expr, right: Expr): BinaryExpr {
-  return { kind: 'binary', opcode: Opcode.I32Add, left, right, loc: LOC };
-}
-
 function makeI32Add(a: Expr, b: Expr): Expr {
   return { kind: 'binary', opcode: Opcode.I32Add, left: a, right: b, loc: LOC };
 }
@@ -50,10 +44,6 @@ function makeLocalGet(idx: number): LocalGetExpr {
 
 function makeLocalSet(idx: number, value: Expr): LocalSetExpr {
   return { kind: 'local.set', var: varIndex(idx), value, loc: LOC };
-}
-
-function _makeReturn(value?: Expr): ReturnExpr {
-  return { kind: 'return', values: value ? [value] : [], loc: LOC };
 }
 
 function makeFunc(

@@ -419,7 +419,8 @@ export class ModuleContext {
         // what it produces; as an operand it is not an instruction at all.
         return { nargs: 0, nreturns: 0, unreachable: false };
       default: {
-        const _exhaust: never = expr;
+        // Exhaustiveness: a new expression kind makes this a type error.
+        expr satisfies never;
         return { nargs: 0, nreturns: 0, unreachable: false };
       }
     }

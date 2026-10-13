@@ -39,7 +39,7 @@ for (const [name, construct] of Object.entries(CASES)) {
       (func (export "f") (param i32) (result i32) ${construct} (i32.sub)))`);
     assertEquals(hasErrors(r.errors), false, formatErrors(r.errors));
     const f = (b: Uint8Array) =>
-      new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as (
+      new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports['f'] as (
         x: number,
       ) => number;
     const bytes = writeWasm(readForPasses(r.binary));

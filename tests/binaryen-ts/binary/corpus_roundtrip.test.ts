@@ -225,7 +225,7 @@ Deno.test({
       // `unreachable-pops` defect added an expression on EVERY trip. So compare
       // generation 1 against generation 2.
       let c = b;
-      if (a.exprs !== b.exprs) {
+      if (a['exprs'] !== b['exprs']) {
         try {
           c = summary(readForPasses(writeWasm(mod2), file));
         } catch (e) {
@@ -233,9 +233,11 @@ Deno.test({
           continue;
         }
       }
-      if (b.exprs !== c.exprs) {
+      if (b['exprs'] !== c['exprs']) {
         drift.push(
-          `${rel(file)}: expressions did not converge ${a.exprs} -> ${b.exprs} -> ${c.exprs}`,
+          `${rel(file)}: expressions did not converge ${a['exprs']} -> ${b['exprs']} -> ${
+            c['exprs']
+          }`,
         );
       } else {
         okFiles.push(rel(file));

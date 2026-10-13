@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 import { describe, it } from '@std/testing/bdd';
-import { assertEquals, assertExists } from '@std/assert';
+import { assertEquals } from '@std/assert';
 
 import { Type } from '../../../src/core/types.ts';
 import { ExternalKind } from '../../../src/core/binary.ts';
@@ -15,7 +15,6 @@ import {
 } from '../../../src/core/error.ts';
 
 import { constI32, constI64, makeModule, region, varIndex } from '../../../src/ir/ir.ts';
-import type { Module } from '../../../src/ir/ir.ts';
 
 import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
@@ -38,23 +37,6 @@ function encodeU32Leb(value: number): number[] {
   return out;
 }
 
-function _encodeS32Leb(value: number): number[] {
-  const out: number[] = [];
-  let more = true;
-  while (more) {
-    let byte = value & 0x7f;
-    value >>= 7;
-    const signBit = (byte & 0x40) !== 0;
-    if ((value === 0 && !signBit) || (value === -1 && signBit)) {
-      more = false;
-    } else {
-      byte |= 0x80;
-    }
-    out.push(byte);
-  }
-  return out;
-}
-
 /** Assemble a minimal wasm module binary from section byte arrays. */
 function wasmModule(...sections: number[][]): Uint8Array {
   const header = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
@@ -68,19 +50,6 @@ function wasmModule(...sections: number[][]): Uint8Array {
 /** Build a section: id byte + LEB size + body bytes. */
 function section(id: number, ...body: number[]): number[] {
   return [id, ...encodeU32Leb(body.length), ...body];
-}
-
-/** Encode a name (u32 LEB length + UTF-8 bytes). */
-function _name(s: string): number[] {
-  const encoded = new TextEncoder().encode(s);
-  const bytes: number[] = [];
-  for (const b of encoded) bytes.push(b);
-  return [...encodeU32Leb(bytes.length), ...bytes];
-}
-
-function _noErrors(m: Module): void {
-  // Just confirms the module was produced without errors (checked separately)
-  assertExists(m);
 }
 
 // ---------------------------------------------------------------------------

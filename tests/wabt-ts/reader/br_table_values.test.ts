@@ -138,6 +138,6 @@ describe('a br_table holds the values it carries', () => {
     }
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports as Record<string, (i: number) => number>;
-    assertEquals([x.val!(0), x.void!(0), x.pair!(0), x.param!(0)], [7, 2, 3, 4]);
+    assertEquals([x['val']!(0), x['void']!(0), x['pair']!(0), x['param']!(0)], [7, 2, 3, 4]);
   });
 });

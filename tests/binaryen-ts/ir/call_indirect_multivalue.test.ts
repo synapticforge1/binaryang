@@ -57,7 +57,7 @@ describe('a multi-value call_indirect is typed by every result', () => {
   it('the optimizer still takes it: -O3 is valid and computes the same', async () => {
     const run = async (bytes: Uint8Array) => {
       const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
-      return (instance.exports.f as (x: number) => bigint)(5);
+      return (instance.exports['f'] as (x: number) => bigint)(5);
     };
     assert(WebAssembly.validate(wat2wasm(WAT).binary as BufferSource), 'the input is valid');
     const m = readForPasses(wat2wasm(WAT).binary);

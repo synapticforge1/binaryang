@@ -35,7 +35,7 @@ async function agree(wat: string, ...args: number[]): Promise<number | string> {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
   let engine: number | string;
   try {
-    engine = (instance.exports.f as (...a: number[]) => number)(...args);
+    engine = (instance.exports['f'] as (...a: number[]) => number)(...args);
   } catch (e) {
     // An uncaught wasm exception is not a trap, on either side.
     engine = e instanceof WebAssembly.Exception ? 'exception' : `trap: ${(e as Error).message}`;
@@ -823,7 +823,7 @@ describe('GC (E3d-2)', () => {
     const engineB = await WebAssembly.instantiate(
       wat2wasm(B, { textForm: false }).binary as BufferSource,
       {
-        a: { f: engineA.instance.exports.f },
+        a: { f: engineA.instance.exports['f'] },
       },
     );
     const a = interp(A);

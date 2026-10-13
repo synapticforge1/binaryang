@@ -37,7 +37,7 @@ function compile(wat: string): Uint8Array {
 /** Run export `f` and return its result. */
 function run(bytes: Uint8Array): unknown {
   const inst = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array(bytes)), {});
-  return (inst.exports.f as () => unknown)();
+  return (inst.exports['f'] as () => unknown)();
 }
 
 const same = (a: Uint8Array, b: Uint8Array) =>

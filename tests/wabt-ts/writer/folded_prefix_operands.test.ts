@@ -37,7 +37,7 @@ const mod = (body: string) => `(module ${DEFS} (func (export "f") (result i32) $
 
 const run = (bytes: Uint8Array) =>
   (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-    .exports.f as () => number)();
+    .exports['f'] as () => number)();
 
 /** Both toolchains must build `wat`, and both must agree with `want`. */
 function bothAgree(wat: string, want: number): void {

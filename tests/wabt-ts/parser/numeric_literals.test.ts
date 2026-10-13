@@ -34,7 +34,7 @@ async function callF(wat: string): Promise<number> {
   const buf = new ArrayBuffer(binary.byteLength);
   new Uint8Array(buf).set(binary);
   const { instance } = await WebAssembly.instantiate(buf);
-  return (instance.exports.f as () => number)();
+  return (instance.exports['f'] as () => number)();
 }
 
 describe('negative hex integer literals', () => {
@@ -64,7 +64,7 @@ describe('negative hex integer literals', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
-    assertEquals((instance.exports.f as () => bigint)(), -9223372036854775807n);
+    assertEquals((instance.exports['f'] as () => bigint)(), -9223372036854775807n);
   });
 
   it('works in a v128 lane', () => {

@@ -313,6 +313,29 @@ Owner, 2026-10-12: "We should support and test all currently available lts versi
   prefixed values that are not members), say so honestly: the TYPE `X = number`, with a comment.
   It is a type-level breaking change, so it belongs in a minor release.
 
+### Lint off Deno: Biome and the tsc lint flags (2026-10-13)
+
+Full record: binaryang `cmem/bun-migration.md` § "B3 lint". What carries over:
+- **tsc lint flags** (the `@tsconfig/strictest` set): `noUnusedLocals`, `noUnusedParameters`,
+  `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `allowUnreachableCode: false`,
+  `allowUnusedLabels: false`, `noUncheckedSideEffectImports`. Put them in `deno.json` too while
+  `deno check` still covers your tests, all except `noUncheckedSideEffectImports`, which Deno 2.9.7
+  ignores with a warning on every run. `const _x: never = e` counts as unused; write
+  `e satisfies never;`.
+- **Biome, pinned exact**, linter only (formatter and import sorting off unless you decide
+  otherwise). Count the recommended set's findings per rule first, then decide each rule.
+  ⚠️ **`useLiteralKeys` contradicts `noPropertyAccessFromIndexSignature`**: switch it off if you use
+  that flag. `deno-lint-ignore X` comments become `biome-ignore lint/<group>/<rule>: <reason>` (a
+  reason is required).
+- **`useAwait` and `noVar` are NOT in Biome's recommended preset** (deno's `require-await` and
+  `no-var` were): enable them. `useConst` is in it.
+- ⚠️ **`biome migrate` (2.5.14) rewrote `"recommended": true` as `"preset": "none"`**, which silences
+  every rule. Write `"preset": "recommended"` yourself. **Make the check automatic, not a
+  reminder:** binaryang's `scripts/check-lint-canary.ts` runs after every lint, lints a snippet built
+  to break six rules from a TEMPORARY file under `src/` through the project's config, and fails
+  unless all fire. It must be a real file: `--stdin-file-path` reports no diagnostics in 2.5.14.
+  It must not be gitignored, because Biome honours `.gitignore`.
+
 ### The web: every export must LOAD in a browser
 
 - **The trap, measured in binaryang: 15 of 22 exports would not even bundle for a browser**,

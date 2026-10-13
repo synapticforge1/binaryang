@@ -53,7 +53,7 @@ async function bytesWritten(op: string): Promise<number> {
       (i64.load (i32.const 0))))`;
   const bytes = writeWasm(readWat(wat)) as BufferSource;
   const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
-  const v = (instance.exports.f as () => bigint)();
+  const v = (instance.exports['f'] as () => bigint)();
   let n = 0;
   while (n < 8 && ((v >> BigInt(n * 8)) & 0xffn) === 0xffn) n++;
   return n;
@@ -176,7 +176,7 @@ describe('narrow stores write the width their name says', () => {
           (${op} (i32.const 0))))`;
       const bytes = writeWasm(readWat(wat)) as BufferSource;
       const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
-      const got = (instance.exports.f as () => number | bigint)();
+      const got = (instance.exports['f'] as () => number | bigint)();
       assertEquals(BigInt(got), expected);
     });
   }

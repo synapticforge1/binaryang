@@ -48,9 +48,10 @@ function assertValid(bytes: Uint8Array): void {
 }
 
 function run(bytes: Uint8Array, inputs: number[]): number[] {
-  const f = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as (
-    x: number,
-  ) => number;
+  const f = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
+    .exports['f'] as (
+      x: number,
+    ) => number;
   return inputs.map((x) => f(x));
 }
 

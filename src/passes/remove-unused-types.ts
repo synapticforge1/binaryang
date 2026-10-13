@@ -53,7 +53,7 @@ const isObj = (x: unknown): x is Obj =>
 const isVar = (
   x: unknown,
 ): x is { kind: 'index'; value: number } | { kind: 'name'; name: string } =>
-  isObj(x) && (x.kind === 'index' || x.kind === 'name');
+  isObj(x) && (x['kind'] === 'index' || x['kind'] === 'name');
 
 /**
  * Visits every type reference reachable from `root`: `onVar` for a type `Var`
@@ -69,7 +69,7 @@ function eachTypeRef(
   const seen = new Set<unknown>();
   const heap = (h: unknown) => {
     if (isVar(h)) onVar(h);
-    else if (isObj(h) && h.kind === 'exact' && isVar(h.type)) onVar(h.type);
+    else if (isObj(h) && h['kind'] === 'exact' && isVar(h['type'])) onVar(h['type']);
   };
   const visit = (x: unknown): void => {
     if (!isObj(x) && !Array.isArray(x)) return;
@@ -161,7 +161,7 @@ export class RemoveUnusedTypesPass implements Pass {
           throw new Error(`RemoveUnusedTypes: a block type ${i}, which was not kept`);
         }
         renumbered.add(holder);
-        holder.typeIndex = now;
+        holder['typeIndex'] = now;
       },
       dropped,
     );

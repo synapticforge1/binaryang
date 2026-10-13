@@ -99,7 +99,7 @@ export function parseU32Literal(s: string): [result: Result, value: number] {
     if (!/^[0-9]+$/.test(t)) return [Result.Error, 0];
     value = parseInt(t, 10);
   }
-  if (!isFinite(value) || value < 0 || value > 0xffffffff) return [Result.Error, 0];
+  if (!Number.isFinite(value) || value < 0 || value > 0xffffffff) return [Result.Error, 0];
   return [Result.Ok, value >>> 0];
 }
 

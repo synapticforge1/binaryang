@@ -128,7 +128,7 @@ describe('T10.8 — a synthesized operand slot-filler is not an instruction', ()
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf, {});
-    assertEquals((instance.exports.use as () => number)(), -1);
+    assertEquals((instance.exports['use'] as () => number)(), -1);
   });
 
   it('keeps a `nop` the source really wrote', () => {

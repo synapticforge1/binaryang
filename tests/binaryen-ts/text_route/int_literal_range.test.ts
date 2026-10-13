@@ -35,7 +35,7 @@ async function run(type: 'i32' | 'i64', literal: string): Promise<bigint> {
   const wat = `(module (func (export "f") (result ${type}) (${type}.const ${literal})))`;
   const bytes = writeWasm(readWat(wat)) as BufferSource;
   const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes), {});
-  return BigInt((instance.exports.f as () => number | bigint)());
+  return BigInt((instance.exports['f'] as () => number | bigint)());
 }
 
 /** [type, literal, value it denotes] — all accepted by upstream wabt. */

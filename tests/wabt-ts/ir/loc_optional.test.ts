@@ -38,7 +38,7 @@ function nodes(m: Module): Record<string, unknown>[] {
     const v = stack.pop();
     if (v === null || typeof v !== 'object') continue;
     const o = v as Record<string, unknown>;
-    if (typeof o.kind === 'string' && o.kind !== 'index' && o.kind !== 'name') out.push(o);
+    if (typeof o['kind'] === 'string' && o['kind'] !== 'index' && o['kind'] !== 'name') out.push(o);
     stack.push(...Object.values(o));
   }
   return out;
@@ -49,7 +49,7 @@ function stripLocs(m: Module): number {
   let n = 0;
   for (const o of nodes(m)) {
     if ('loc' in o) n++;
-    delete o.loc;
+    delete o['loc'];
   }
   return n;
 }
@@ -102,8 +102,8 @@ describe('a module whose nodes carry no location', () => {
   it('the validator reports a defect in such a node at the unknown location', () => {
     const { m } = decoded();
     stripLocs(m);
-    const get = nodes(m).find((o) => o.kind === 'local.get')!;
-    get.var = { kind: 'index', value: 9 };
+    const get = nodes(m).find((o) => o['kind'] === 'local.get')!;
+    get['var'] = { kind: 'index', value: 9 };
 
     const errors = makeErrorList();
     validateModule(m, errors);
@@ -120,8 +120,8 @@ describe('a module whose nodes carry no location', () => {
     );
     assert(!hasErrors(parseErrors), formatErrors(parseErrors));
     stripLocs(m);
-    const get = nodes(m).find((o) => o.kind === 'struct.get')!;
-    get.fieldVar = { kind: 'name', name: '$nope' };
+    const get = nodes(m).find((o) => o['kind'] === 'struct.get')!;
+    get['fieldVar'] = { kind: 'name', name: '$nope' };
 
     const errors = makeErrorList();
     resolveNames(m, errors);
@@ -142,11 +142,11 @@ describe('a catch clause that carries no location (item 5 (4))', () => {
     const errors0 = makeErrorList();
     const m = readBinaryIr(r.binary!, errors0);
     assert(!hasErrors(errors0), formatErrors(errors0));
-    const tr = nodes(m).find((o) => o.kind === 'try')!;
-    const c = (tr.catches as Record<string, unknown>[])[0]!;
+    const tr = nodes(m).find((o) => o['kind'] === 'try')!;
+    const c = (tr['catches'] as Record<string, unknown>[])[0]!;
     assert('loc' in c, 'the reader gave the clause a location');
-    delete c.loc;
-    c.tag = { kind: 'index', value: 9 };
+    delete c['loc'];
+    c['tag'] = { kind: 'index', value: 9 };
 
     const errors = makeErrorList();
     validateModule(m, errors, { features: allFeatures() });

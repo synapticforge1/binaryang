@@ -39,7 +39,7 @@
  * Usage: `bun run direct-behaviour`
  */
 
-import { type Row, type Status } from './direct-behaviour/differential.ts';
+import type { Row, Status } from './direct-behaviour/differential.ts';
 import { type DirectInput, directInputs } from './direct-inputs.ts';
 
 import process from 'node:process';

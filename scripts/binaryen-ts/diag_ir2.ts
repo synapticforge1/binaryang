@@ -24,7 +24,7 @@ const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const mod1 = readForPasses(orig);
 const mod2 = readForPasses(writeWasm(mod1));
 
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: a diagnostic script reads untyped IR or engine values
 function dump(e: any, depth: number, out: string[]): void {
   if (!e) {
     out.push('  '.repeat(depth) + '<null>');

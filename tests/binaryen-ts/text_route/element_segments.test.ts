@@ -39,7 +39,7 @@ function bothAgree(wat: string, want: number): void {
   assert(ref.binary && !hasErrors(ref.errors), 'wabt-ts must assemble the fixture');
   const run = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-      .exports.f as () => number)();
+      .exports['f'] as () => number)();
   assertEquals(run(ref.binary), want, 'wabt-ts');
   assertEquals(run(writeWasm(readWat(wat))), want, 'binaryen-ts');
 }
@@ -105,7 +105,7 @@ describe('WAT parser — element segments initialise the table', () => {
     bothAgree(wat, 7);
     const g = new WebAssembly.Instance(
       new WebAssembly.Module(writeWasm(readWat(wat)) as BufferSource),
-    ).exports.g as () => number;
+    ).exports['g'] as () => number;
     assertThrows(() => g(), WebAssembly.RuntimeError);
   });
 });

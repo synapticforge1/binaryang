@@ -80,14 +80,14 @@ async function run(bytes: Uint8Array): Promise<unknown> {
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  return (instance.exports.f as () => unknown)();
+  return (instance.exports['f'] as () => unknown)();
 }
 
 /** Flattened expression kinds, pre-order. */
 function kinds(root: unknown, out: string[] = []): string[] {
   if (!root || typeof root !== 'object') return out;
   const n = root as Record<string, unknown>;
-  if (typeof n.kind === 'string') out.push(n.kind);
+  if (typeof n['kind'] === 'string') out.push(n['kind']);
   for (const [k, v] of Object.entries(n)) {
     if (k === 'kind' || k === 'type') continue;
     if (Array.isArray(v)) v.forEach((c) => kinds(c, out));
@@ -100,7 +100,7 @@ function kinds(root: unknown, out: string[] = []): string[] {
 function findKind(root: unknown, kind: string): unknown {
   if (!root || typeof root !== 'object') return undefined;
   const n = root as Record<string, unknown>;
-  if (n.kind === kind) return n;
+  if (n['kind'] === kind) return n;
   for (const [k, v] of Object.entries(n)) {
     if (k === 'kind' || k === 'type') continue;
     for (const c of Array.isArray(v) ? v : [v]) {
@@ -486,8 +486,8 @@ Deno.test('if WITH INPUTS: the two arms do not share expression nodes', () => {
     const walk = (e: unknown): void => {
       if (!e || typeof e !== 'object') return;
       const node = e as Record<string, unknown>;
-      if (typeof node.kind === 'string') {
-        if (seen.has(e)) shared.push(node.kind);
+      if (typeof node['kind'] === 'string') {
+        if (seen.has(e)) shared.push(node['kind']);
         seen.add(e);
       }
       for (const [k, v] of Object.entries(node)) {

@@ -141,12 +141,21 @@ describe('T13.44 — the release preflight stays wired in', () => {
     // including the file that publishes immutable artifacts.
     const cfg = JSON.parse(DENO_JSON) as {
       tasks: Record<string, string>;
-      lint: { include: string[] };
       fmt: { include: string[] };
     };
-    expect(cfg.tasks.check).toContain('scripts/');
-    expect(cfg.lint.include).toContain('scripts/');
+    expect(cfg.tasks['check']).toContain('scripts/');
     expect(cfg.fmt.include).toContain('scripts/');
+    // Linting moved from `deno lint` to Biome (Bun migration B3, 2026-10-12): its scope is
+    // biome.jsonc's `files.includes`. Line comments stripped: none of its strings holds `//`.
+    const jsonc = (path: string) =>
+      JSON.parse(
+        Deno.readTextFileSync(path).replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'),
+      );
+    const biome = jsonc('biome.jsonc') as { files: { includes: string[] } };
+    expect(biome.files.includes).toContain('scripts/**');
+    // And `tsc`, the second type checker, covers scripts/ too (B2).
+    const ts = jsonc('tsconfig.json') as { include: string[] };
+    expect(ts.include).toContain('scripts/**/*.ts');
   });
 
   it('documents where the guards live, so the docs cannot drift silently', () => {

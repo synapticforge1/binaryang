@@ -67,9 +67,9 @@ describe('binary reader — one stack entry per value', () => {
     const again = wat2wasm(wasm2wat(bytes).text, { textForm: false }).binary;
     assertEquals([...again], [...bytes]);
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports;
-    assert(typeof x.f === 'function');
-    assertEquals((x.f as (v: number) => number)(5), 5 + 1 + 2);
-    assertEquals((x.g as () => number)(), 1 + 2 + 9);
+    assert(typeof x['f'] === 'function');
+    assertEquals((x['f'] as (v: number) => number)(5), 5 + 1 + 2);
+    assertEquals((x['g'] as () => number)(), 1 + 2 + 9);
   });
 
   // The placeholders are TYPED, which is what lets an unconsumed one survive:
@@ -107,7 +107,7 @@ describe('binary reader — one stack entry per value', () => {
       assertEquals([...again], [...tail], 'byte-identical through text');
       assert(WebAssembly.validate(tail as BufferSource));
       const x = new WebAssembly.Instance(new WebAssembly.Module(tail as BufferSource)).exports;
-      assertEquals((x.f as () => unknown[])(), [1, 2], 'and the values come back in order');
+      assertEquals((x['f'] as () => unknown[])(), [1, 2], 'and the values come back in order');
     });
   });
 });

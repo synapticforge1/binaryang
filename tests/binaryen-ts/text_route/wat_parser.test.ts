@@ -201,7 +201,7 @@ Deno.test('parseWat — standalone (export ... (func)) encodes + survives Inlini
   const inst0 = new WebAssembly.Instance(
     await WebAssembly.compile(writeWasm(mod) as BufferSource),
   );
-  assertEquals((inst0.exports.caller as (x: number) => number)(10), 15);
+  assertEquals((inst0.exports['caller'] as (x: number) => number)(10), 15);
 
   // (2) The exported function survives the Inlining pass (was wrongly removed
   //     because its export kind didn't match the `usedGlobally` check).
@@ -213,7 +213,7 @@ Deno.test('parseWat — standalone (export ... (func)) encodes + survives Inlini
   const inst1 = new WebAssembly.Instance(
     await WebAssembly.compile(writeWasm(mod) as BufferSource),
   );
-  assertEquals((inst1.exports.caller as (x: number) => number)(10), 15);
+  assertEquals((inst1.exports['caller'] as (x: number) => number)(10), 15);
 });
 
 Deno.test('parseWat — inline export', () => {
@@ -397,7 +397,7 @@ Deno.test('parseWat — a catch_all handler actually runs', () => {
   const inst = new WebAssembly.Instance(
     new WebAssembly.Module(writeWasm(readWat(wat)) as BufferSource),
   );
-  assertEquals((inst.exports.f as () => number)(), 8);
+  assertEquals((inst.exports['f'] as () => number)(), 8);
 });
 
 Deno.test('parseWat — (do ...) wrapped body still works (regression)', () => {
@@ -504,7 +504,7 @@ Deno.test('parseWat — if whose then-arm returns but else falls through survive
     .run();
   const bytes = writeWasm(mod);
   const instance = new WebAssembly.Instance(await WebAssembly.compile(bytes as BufferSource));
-  const f = instance.exports.f as (x: number) => number;
+  const f = instance.exports['f'] as (x: number) => number;
   assertEquals(f(0), 42); // else taken, then fall through to 42
   assertEquals(f(1), 1); // then returns early
 });
@@ -719,7 +719,7 @@ Deno.test('WAT: a nested multi-result block keeps both results', async () => {
   const buf = new ArrayBuffer(out.byteLength);
   new Uint8Array(buf).set(out);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  assertEquals((instance.exports.f as () => unknown)(), [1, 2]);
+  assertEquals((instance.exports['f'] as () => unknown)(), [1, 2]);
 });
 
 // ---------------------------------------------------------------------------
@@ -746,7 +746,7 @@ Deno.test('WAT: an operand may come from a preceding sibling (stack form)', () =
     new WebAssembly.Module(writeWasm(m) as BufferSource),
   );
   // `2` is dropped; `1` is left as the result.
-  assertEquals((inst.exports.f as () => number)(), 1);
+  assertEquals((inst.exports['f'] as () => number)(), 1);
 });
 
 // CHANGED 2026-09-01: the fail-loud guarantee MOVED A STAGE, deliberately.
@@ -796,6 +796,6 @@ Deno.test('WAT: a two-operand stack form is READ, in its order, not reversed', (
     `(module (func (export "f") (result i32) (i32.const 10) (i32.const 3) (i32.sub)))`,
   );
   const f = new WebAssembly.Instance(new WebAssembly.Module(writeWasm(mod) as BufferSource))
-    .exports.f as () => number;
+    .exports['f'] as () => number;
   assertEquals(f(), 7);
 });

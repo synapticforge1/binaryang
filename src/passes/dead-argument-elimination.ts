@@ -64,15 +64,15 @@ export class DeadArgumentEliminationPass implements Pass {
 
     // Every function reached other than by a direct call keeps its signature.
     const escapes = new Set<number>();
-    const escape = (v: Var) => {
+    const markEscaped = (v: Var) => {
       const i = resolve(v);
       if (i !== undefined) escapes.add(i);
     };
-    for (const e of module.exports) if (e.kind === ExternalKind.Func) escape(e.var);
+    for (const e of module.exports) if (e.kind === ExternalKind.Func) markEscaped(e.var);
     const calls = module.functions.map((): CallNode[] => []);
     const scan = (root: Expression) =>
       walkExpression(root, (e) => {
-        if (e.kind === ExpressionKind.RefFunc) escape(e.func);
+        if (e.kind === ExpressionKind.RefFunc) markEscaped(e.func);
         else if (e.kind === ExpressionKind.Call) {
           const i = resolve(e.func);
           if (i !== undefined) calls[i]!.push(e);

@@ -36,7 +36,7 @@ function bothAgree(wat: string, want: number): void {
   const got = writeWasm(readWat(wat));
   const run = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-      .exports.f as () => number)();
+      .exports['f'] as () => number)();
   assertEquals(run(ref.binary), want, 'wabt-ts');
   assertEquals(run(got), want, 'binaryen-ts');
   assertEquals(Array.from(got), Array.from(ref.binary), 'bytes must match wabt-ts');
@@ -176,7 +176,7 @@ describe('parser — every element segment mode is representable', () => {
     assertEquals(Array.from(got), Array.from(ref.binary), 'bytes must match wabt-ts');
     return (bytes: Uint8Array) =>
       (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-        .exports.f as () => number)();
+        .exports['f'] as () => number)();
   };
 
   const TBL = `(table 3 funcref) (type $t (func (result i32)))
@@ -198,7 +198,7 @@ describe('parser — every element segment mode is representable', () => {
     let trapped = false;
     try {
       (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-        .exports.f as () => number)();
+        .exports['f'] as () => number)();
     } catch {
       trapped = true;
     }

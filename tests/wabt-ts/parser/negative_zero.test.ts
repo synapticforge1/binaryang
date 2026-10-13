@@ -55,6 +55,6 @@ describe('wabt-ts — a negative zero keeps its sign', () => {
     const { instance } = await WebAssembly.instantiate(
       wat2wasm(wat).binary as BufferSource,
     );
-    assert(Object.is((instance.exports.f as () => number)(), -0), 'expected -0, got +0');
+    assert(Object.is((instance.exports['f'] as () => number)(), -0), 'expected -0, got +0');
   });
 });

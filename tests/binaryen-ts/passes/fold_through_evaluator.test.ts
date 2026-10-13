@@ -29,7 +29,7 @@ function optimize(body: string, result: string) {
 async function run(bytes: Uint8Array): Promise<unknown> {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
   try {
-    return (instance.exports.f as () => unknown)();
+    return (instance.exports['f'] as () => unknown)();
   } catch (e) {
     return e instanceof WebAssembly.RuntimeError ? `trap: ${e.message}` : Promise.reject(e);
   }

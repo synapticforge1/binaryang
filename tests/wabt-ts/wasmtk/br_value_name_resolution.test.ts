@@ -79,8 +79,8 @@ describe('regression: resolveNames recurses into br_if.value', () => {
       },
     });
     const exports = mod.instance.exports as Record<string, unknown>;
-    const mem = new Uint8Array((exports.memory as WebAssembly.Memory).buffer);
-    const count = exports.countLeadingLower as (p: number, l: number) => number;
+    const mem = new Uint8Array((exports['memory'] as WebAssembly.Memory).buffer);
+    const count = exports['countLeadingLower'] as (p: number, l: number) => number;
 
     // "abcXY" → 3 leading lowercase letters.
     mem.set([97, 98, 99, 88, 89], 0);

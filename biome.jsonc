@@ -1,0 +1,63 @@
+{
+  // Biome replaces `deno lint` (Bun migration B3, 2026-10-12; cmem/bun-migration.md). The LINTER
+  // only: formatting stays with `deno fmt` until that half of B3 is decided, and import sorting
+  // (`assist`) is off because it would reorder hundreds of files for no checked property.
+  // Run: `bun run lint`.
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    // `deno lint`'s scope, exactly; the vendored corpus is not ours to lint.
+    "includes": ["src/**", "tests/**", "scripts/**", "main.ts", "!tests/wabt-ts/wasmtk"]
+  },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      // ⚠️ "recommended", spelled out: `biome migrate` (2.5.14) rewrote `recommended: true` as
+      // `"preset": "none"`, which turns every rule OFF and makes the lint vacuous.
+      "preset": "recommended",
+      "style": {
+        // `noUncheckedIndexedAccess` makes `x[0]!` this codebase's idiom (1,510 sites);
+        // `deno lint`'s recommended set never banned it.
+        "noNonNullAssertion": "off",
+        // Style only (template strings over `+`, 154 sites); `deno lint` never had it.
+        "useTemplate": "off",
+        // `deno lint`'s prefer-const (0 sites today). Already in the recommended preset (measured
+        // 2026-10-13); stated so a future preset cannot drop it unseen.
+        "useConst": "error"
+      },
+      "complexity": {
+        // CONTRADICTS the tsc flag `noPropertyAccessFromIndexSignature`, which REQUIRES
+        // `obj['key']` for an index-signature type; this rule demands `obj.key` (458 sites).
+        "useLiteralKeys": "off",
+        // Wants opcode keys like `0xfc` written in decimal; hex is the readable form here.
+        "useSimpleNumberKeys": "off",
+        // `set !== undefined && set.has(n)` → `set?.has(n)` turns a boolean into boolean |
+        // undefined (Biome calls the fix unsafe); the explicit checks are correct as written (6
+        // sites), and `deno lint` never had the rule.
+        "useOptionalChain": "off"
+      },
+      "correctness": {
+        // `if (…) return this.shortSection();`: a deliberate early return of a void / never call
+        // (22 sites); `deno lint` never had it.
+        "noVoidTypeReturn": "off"
+      },
+      "suspicious": {
+        // Expression-bodied forEach callbacks, `xs.forEach((t) => check(t))` (24 sites): style.
+        "useIterableCallbackReturn": "off",
+        // The memo idiom `map.set(k, s = new Set())` (19 sites); `deno lint`'s no-cond-assign
+        // covered conditions only.
+        "noAssignInExpressions": "off",
+        // `let b;`: TypeScript types an unannotated `let` from its assignments, and tsc's
+        // noImplicitAny already reports a true implicit any (15 sites).
+        "noImplicitAnyLet": "off",
+        // `deno lint`'s require-await and no-var (0 sites today; require-await caught 7 during B4).
+        // NOT in Biome 2.5.14's recommended preset (measured: without these lines they go silent),
+        // so they are enabled here. scripts/check-lint-canary.ts fails if either stops firing.
+        "useAwait": "error",
+        "noVar": "error"
+      }
+    }
+  }
+}

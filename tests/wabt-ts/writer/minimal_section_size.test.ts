@@ -83,7 +83,7 @@ describe('T13.40 — section sizes are encoded minimally', () => {
       new Uint8Array(buf).set(bin);
       expect(WebAssembly.validate(buf)).toBe(true);
       const inst = new WebAssembly.Instance(new WebAssembly.Module(buf));
-      expect((inst.exports.f as () => number)()).toEqual(7);
+      expect((inst.exports['f'] as () => number)()).toEqual(7);
     });
   }
 

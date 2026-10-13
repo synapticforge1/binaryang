@@ -43,8 +43,8 @@ async function observe(bytes: Uint8Array, name: string, args: number[]) {
   } catch (e) {
     r = `trap: ${(e as Error).message}`;
   }
-  const mem = ex.memory instanceof WebAssembly.Memory
-    ? ` mem ${[...new Uint8Array(ex.memory.buffer, 0, 16)]}`
+  const mem = ex['memory'] instanceof WebAssembly.Memory
+    ? ` mem ${[...new Uint8Array(ex['memory'].buffer, 0, 16)]}`
     : '';
   return `${args} -> ${r}${mem}`;
 }

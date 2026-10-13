@@ -332,7 +332,10 @@ function flattenExpr(e: Expression, ctx: Ctx): Flat {
   // General case: flatten the operands (eval order), collecting their preludes,
   // then reduce the rebuilt node according to its type.
   const ops: Expression[] = [];
-  mapChildrenShallow(e, (c) => (ops.push(c), c));
+  mapChildrenShallow(e, (c) => {
+    ops.push(c);
+    return c;
+  });
   const flat = flattenOperands(ops, ctx, `the operands of a \`${e.kind}\``);
   let i = 0;
   const rebuilt = mapChildrenShallow(e, () => flat.values[i++]!);

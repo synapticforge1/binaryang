@@ -139,7 +139,7 @@ describe('T7.8 — a func adopts the signature of its type-use', () => {
       (type $bin (func (param i32 i32) (result i32)))
       (func $use (type 0) (i32.add (local.get 0) (local.get 1)))
       (func (export "f") (result i32) (call $use (i32.const 20) (i32.const 22))))`)));
-    assertEquals((instance.exports.f as () => number)(), 42);
+    assertEquals((instance.exports['f'] as () => number)(), 42);
   });
 });
 
@@ -203,6 +203,6 @@ describe('T7.8 — call_indirect names its signature inline', () => {
       (elem (i32.const 0) $double)
       (func (export "f") (result i32)
         (call_indirect (param i32) (result i32) (i32.const 21) (i32.const 0))))`)));
-    assertEquals((instance.exports.f as () => number)(), 42);
+    assertEquals((instance.exports['f'] as () => number)(), 42);
   });
 });

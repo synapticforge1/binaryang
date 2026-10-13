@@ -81,8 +81,8 @@ Deno.test('delegate: a named branch after it in the same function keeps its dept
     '00 61 73 6d 01 00 00 00 01 05 01 60 00 01 7f 03 02 01 00 07 05 01 01 67 00 00 ' +
       '0a 1d 01 1b 01 01 7f 02 40 02 40 06 40 06 40 01 18 00 19 0b 0c 00 0b 41 07 21 00 0b 20 00 0b',
   );
-  const g = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports
-    .g as () => number;
+  const g = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
+    .exports['g'] as () => number;
   assertEquals(g(), 7);
 });
 

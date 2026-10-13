@@ -108,7 +108,7 @@ describe('T7.12 — br_on_null carries branch values', () => {
           (return (i32.const 1)))
         (i32.const 0)))`;
     const { instance } = await WebAssembly.instantiate(toBuf(compile(wat)));
-    const f = instance.exports.f as (r: unknown) => number;
+    const f = instance.exports['f'] as (r: unknown) => number;
     assertEquals(f(null), 0);
   });
 
@@ -129,8 +129,8 @@ describe('T7.12 — br_on_null carries branch values', () => {
       (func (export "some") (param $n i32) (result i32)
         (call $a (local.get $n) (ref.func $sq))))`;
     const { instance } = await WebAssembly.instantiate(toBuf(compile(wat)));
-    assertEquals((instance.exports.null as (n: number) => number)(4), 4);
-    assertEquals((instance.exports.some as (n: number) => number)(4), 16);
+    assertEquals((instance.exports['null'] as (n: number) => number)(4), 4);
+    assertEquals((instance.exports['some'] as (n: number) => number)(4), 16);
   });
 
   it('still computes the same answers after a wasm2wat round-trip', async () => {

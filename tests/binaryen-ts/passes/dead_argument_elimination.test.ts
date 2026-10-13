@@ -40,7 +40,7 @@ async function same(before: Uint8Array, after: Uint8Array, name: string, inputs:
     } catch (e) {
       r = `trap: ${(e as Error).message}`;
     }
-    const g = ex.g instanceof WebAssembly.Global ? ` g=${ex.g.value}` : '';
+    const g = ex['g'] instanceof WebAssembly.Global ? ` g=${ex['g'].value}` : '';
     return `${a} -> ${r}${g}`;
   };
   for (const a of inputs) expect(await run(after, a)).toBe(await run(before, a));
@@ -54,7 +54,7 @@ describe('a parameter nothing reads goes', () => {
       (func $f (param i32 i32) (result i32) (i32.mul (local.get 1) (i32.const 3)))
       (func (export "run") (param i32) (result i32)
         (i32.add (call $f (local.get 0) (local.get 0)) (call $f (i32.const 9) (local.get 0)))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
     await same(before, after, 'run', INPUTS);
   });
 
@@ -64,7 +64,7 @@ describe('a parameter nothing reads goes', () => {
       (func $g (param i32 i32) (result i32) (i32.mul (local.get 0) (i32.const 2)))
       (func (export "run") (param i32) (result i32)
         (call $g (call $f (local.get 0) (local.get 0)) (local.get 0))))`);
-    expect([params.$f, params.$g]).toEqual([1, 1]);
+    expect([params['$f'], params['$g']]).toEqual([1, 1]);
     await same(before, after, 'run', INPUTS);
   });
 
@@ -75,7 +75,7 @@ describe('a parameter nothing reads goes', () => {
         (i32.mul (local.get 3) (local.get 2)))
       (func (export "run") (param i32) (result i32)
         (call $f (local.get 0) (i32.const 1000) (i32.add (local.get 0) (i32.const 5)))))`);
-    expect(params.$f).toBe(2);
+    expect(params['$f']).toBe(2);
     await same(before, after, 'run', INPUTS);
   });
 
@@ -86,7 +86,7 @@ describe('a parameter nothing reads goes', () => {
         (i32.add (local.get 0) (i32.const 1)))
       (func (export "run") (param i32) (result i32)
         (call $f (local.get 0) (local.get 0))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
     await same(before, after, 'run', INPUTS);
   });
 
@@ -97,7 +97,7 @@ describe('a parameter nothing reads goes', () => {
       (func $f (param i32 i32) (result i32) (local.get 0))
       (func (export "run") (param i32) (result i32)
         (call $f (local.get 0) (call $bump))))`);
-    expect(params.$f).toBe(2);
+    expect(params['$f']).toBe(2);
     await same(before, after, 'run', INPUTS);
   });
 });
@@ -108,7 +108,7 @@ describe('a parameter always passed the same constant becomes a local set to it'
       (func $f (param i32 i32) (result i32) (i32.add (local.get 0) (local.get 1)))
       (func (export "run") (param i32) (result i32)
         (i32.mul (call $f (local.get 0) (i32.const 40)) (call $f (i32.const 2) (i32.const 40)))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
     await same(before, after, 'run', INPUTS);
   });
 
@@ -117,7 +117,7 @@ describe('a parameter always passed the same constant becomes a local set to it'
       (func $f (param i32) (result i32) (local.get 0))
       (func (export "run") (result i32)
         (i32.add (call $f (i32.const 1)) (call $f (i32.const 2)))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
     await same(before, after, 'run', [[]]);
   });
 
@@ -126,7 +126,7 @@ describe('a parameter always passed the same constant becomes a local set to it'
       (func $f (param f64) (result f64) (f64.div (f64.const 1) (local.get 0)))
       (func (export "run") (result f64)
         (f64.add (call $f (f64.const 0)) (call $f (f64.const -0)))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
     await same(before, after, 'run', [[]]);
   });
 
@@ -138,7 +138,7 @@ describe('a parameter always passed the same constant becomes a local set to it'
           (else (i32.add (local.get 1) (call $f (i32.sub (local.get 0) (i32.const 1)) (i32.const 3))))))
       (func (export "run") (param i32) (result i32)
         (call $f (i32.and (local.get 0) (i32.const 15)) (i32.const 3))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
     await same(before, after, 'run', INPUTS);
   });
 
@@ -147,7 +147,7 @@ describe('a parameter always passed the same constant becomes a local set to it'
       (func $f (param i32 i32) (result i32) (i32.sub (local.get 0) (local.get 1)))
       (func (export "run") (param i32) (result i32)
         (return_call $f (local.get 0) (i32.const 8))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
     await same(before, after, 'run', INPUTS);
   });
 });
@@ -157,7 +157,7 @@ describe('a function reached other than by a direct call keeps its signature', (
     const { params } = dae(`(module
       (func $f (export "f") (param i32) (result i32) (i32.const 1))
       (func (export "run") (result i32) (call $f (i32.const 2))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
   });
 
   it('in a table, called indirectly', async () => {
@@ -168,7 +168,7 @@ describe('a function reached other than by a direct call keeps its signature', (
       (func (export "run") (param i32) (result i32)
         (i32.add (call $f (local.get 0) (i32.const 5))
           (call_indirect (type $t) (local.get 0) (i32.const 5) (i32.const 0)))))`);
-    expect(params.$f).toBe(2);
+    expect(params['$f']).toBe(2);
     await same(before, after, 'run', INPUTS);
   });
 
@@ -179,6 +179,6 @@ describe('a function reached other than by a direct call keeps its signature', (
       (func (export "run") (result i32)
         (drop (ref.func $f))
         (call $f (i32.const 2))))`);
-    expect(params.$f).toBe(1);
+    expect(params['$f']).toBe(1);
   });
 });

@@ -121,7 +121,7 @@ describe('an unconditional transfer is the next instruction’s operand', () => 
     }
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
       .exports as Record<string, () => number>;
-    assertEquals([x.br_table!(), x.br!(), x.return!(), x.return_call!()], [9, 4, 5, 1]);
+    assertEquals([x['br_table']!(), x['br']!(), x['return']!(), x['return_call']!()], [9, 4, 5, 1]);
   });
 
   it('throw / rethrow leave nothing, so they stay statements', () => {

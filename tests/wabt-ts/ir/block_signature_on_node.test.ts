@@ -224,7 +224,7 @@ describe('typed references in the node signature are resolved', () => {
       '   (drop) (drop) (i32.const 7)))';
     const bytes = compile(wat);
     const inst = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array(bytes)), {});
-    assertEquals((inst.exports.f as () => number)(), 7);
+    assertEquals((inst.exports['f'] as () => number)(), 7);
   });
 });
 

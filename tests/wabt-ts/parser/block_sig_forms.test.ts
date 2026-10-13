@@ -44,7 +44,7 @@ async function run(wat: string, arg?: number): Promise<unknown> {
   const buf = new ArrayBuffer(binary.byteLength);
   new Uint8Array(buf).set(binary);
   const { instance } = await WebAssembly.instantiate(buf);
-  return (instance.exports.f as (a?: number) => unknown)(arg);
+  return (instance.exports['f'] as (a?: number) => unknown)(arg);
 }
 
 describe('T8.1 — block type-use plus an inline signature', () => {

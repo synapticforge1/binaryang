@@ -78,7 +78,7 @@ describe('T12.1 — integer constants are range-checked, not truncated', () => {
       const buf = new ArrayBuffer(binary.byteLength);
       new Uint8Array(buf).set(binary);
       const { instance } = await WebAssembly.instantiate(buf, {});
-      assertEquals((instance.exports.f as () => number | bigint)(), want);
+      assertEquals((instance.exports['f'] as () => number | bigint)(), want);
     });
   }
 });

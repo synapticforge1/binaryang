@@ -65,7 +65,7 @@ function moduleWithImport(): WasmModule {
           { kind: ExpressionKind.Call, type: 'none', func: varName('$sleep'), operands: [] },
           { kind: ExpressionKind.LocalGet, type: ValType.I32, var: varIndex(0) },
         ],
-        // deno-lint-ignore no-explicit-any
+        // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
       } as any,
     }],
     globals: [],

@@ -203,7 +203,7 @@ export function parseAsyncifyOptions(passArgs: Record<string, string>): Asyncify
   const has = (name: string): boolean =>
     get(name) !== undefined ||
     // response-file / bare flags may arrive with an empty value
-    Object.prototype.hasOwnProperty.call(passArgs, `asyncify-${name}`);
+    Object.hasOwn(passArgs, `asyncify-${name}`);
 
   return {
     imports: splitList(get('imports')),

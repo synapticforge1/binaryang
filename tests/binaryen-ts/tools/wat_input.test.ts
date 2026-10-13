@@ -69,7 +69,7 @@ async function runF(bytes: Uint8Array): Promise<number> {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource, {
     env: { g: (x: number) => x * 10 },
   });
-  return (instance.exports.f as () => number)();
+  return (instance.exports['f'] as () => number)();
 }
 
 async function optimizeText(

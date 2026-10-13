@@ -45,14 +45,14 @@ describe('the extern conversions', () => {
     assertEquals(out, input);
     const token = { tag: 'host object' };
     const exports = await instance(out);
-    assertEquals(exports.roundTrip!(token), token);
-    assertEquals(exports.toAny!(null), null);
+    assertEquals(exports['roundTrip']!(token), token);
+    assertEquals(exports['toAny']!(null), null);
   });
 
   it('the binaryen-ts WAT path writes the same module', async () => {
     const out = writeWasm(readWat(WAT));
     assertEquals(WebAssembly.validate(out as BufferSource), true);
     const token = { tag: 'host object' };
-    assertEquals((await instance(out)).roundTrip!(token), token);
+    assertEquals((await instance(out))['roundTrip']!(token), token);
   });
 });

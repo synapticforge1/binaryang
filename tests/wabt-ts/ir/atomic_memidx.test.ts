@@ -37,7 +37,7 @@ import { resolveNames } from '../../../src/ir/resolve-names.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
 
 /** The `memidx` var of the first expression carrying one, at any depth. */
-// deno-lint-ignore no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
 function findMemidx(x: any): { kind: string; name?: string; value?: number } | null {
   if (!x || typeof x !== 'object') return null;
   if (x.memidx) return x.memidx;
@@ -104,9 +104,9 @@ describe('the atomic op operates on the memory the source named', () => {
     assertEquals(WebAssembly.validate(buf), true, 'fixture must be valid');
 
     const { instance } = await WebAssembly.instantiate(buf, {});
-    (instance.exports.go as () => void)();
-    const m1 = new Int32Array((instance.exports.m1 as WebAssembly.Memory).buffer);
-    const m2 = new Int32Array((instance.exports.m2 as WebAssembly.Memory).buffer);
+    (instance.exports['go'] as () => void)();
+    const m1 = new Int32Array((instance.exports['m1'] as WebAssembly.Memory).buffer);
+    const m2 = new Int32Array((instance.exports['m2'] as WebAssembly.Memory).buffer);
     assertEquals(m2[0], 99, 'the cmpxchg did not reach $m2');
     assertEquals(m1[0], 0, 'the cmpxchg hit $m1 instead');
   });

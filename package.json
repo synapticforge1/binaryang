@@ -24,9 +24,11 @@
     "spec-behaviour": "bun scripts/v8.ts scripts/check-spec-behaviour.ts",
     "hostile": "bun scripts/v8.ts scripts/check-hostile.ts",
     "browser": "bun scripts/check-browser.ts",
-    "lts": "bun scripts/check-lts.ts"
+    "lts": "bun scripts/check-lts.ts",
+    "lint": "biome lint --error-on-warnings && bun scripts/check-lint-canary.ts"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@types/node": "~22.18.0",
     "typescript": "7.0.2"
   }

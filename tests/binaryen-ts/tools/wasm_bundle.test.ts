@@ -85,7 +85,7 @@ async function run(bytes: Uint8Array) {
     wasi_snapshot_preview1: wasi,
   });
   const ex = instance.exports as Record<string, (...a: number[]) => number>;
-  const memory = instance.exports.memory as WebAssembly.Memory;
+  const memory = instance.exports['memory'] as WebAssembly.Memory;
   host.memory = memory;
   const str = (ptr: number, len: number) =>
     new TextDecoder().decode(new Uint8Array(memory.buffer, ptr, len));
@@ -99,28 +99,28 @@ const ZIG_PAGES = 2;
 /** The Rust program's claims, from any base. */
 function checkRust(ex: Awaited<ReturnType<typeof run>>, base: number) {
   const { ex: f, str, written } = ex;
-  f._start!();
+  f['_start']!();
   expect(written.join('')).toBe('hello from strlib\n');
-  const ptr = f.greeting_ptr!();
+  const ptr = f['greeting_ptr']!();
   expect(ptr).toBeGreaterThanOrEqual(base);
   expect(ptr).toBeLessThan(base + RUST_PAGES * PAGE);
-  expect(str(ptr, f.greeting_len!())).toBe('hello from strlib\n');
-  expect([0, 1, 2, 3].map((i) => f.table_at!(i))).toEqual([10, 20, 30, 40]);
+  expect(str(ptr, f['greeting_len']!())).toBe('hello from strlib\n');
+  expect([0, 1, 2, 3].map((i) => f['table_at']!(i))).toEqual([10, 20, 30, 40]);
   // `NAMES` is a table of pointers in data: `R_WASM_MEMORY_ADDR_I32` words.
-  expect(str(f.name_ptr!(0), f.name_len!(0))).toBe('alpha');
-  expect(str(f.name_ptr!(1), f.name_len!(1))).toBe('beta');
-  expect(f.name_ptr!(1)).toBeGreaterThanOrEqual(base);
-  expect([f.bump!(), f.bump!(), f.bump!()]).toEqual([1, 2, 3]); // .bss, through a memarg offset
+  expect(str(f['name_ptr']!(0), f['name_len']!(0))).toBe('alpha');
+  expect(str(f['name_ptr']!(1), f['name_len']!(1))).toBe('beta');
+  expect(f['name_ptr']!(1)).toBeGreaterThanOrEqual(base);
+  expect([f['bump']!(), f['bump']!(), f['bump']!()]).toEqual([1, 2, 3]); // .bss, through a memarg offset
 }
 
 function checkZig(ex: Awaited<ReturnType<typeof run>>, base: number) {
   const { ex: f, str } = ex;
-  expect([0, 1, 2, 3, 4, 7].map((i) => f.square_at!(i))).toEqual([1, 4, 9, 16, 25, 9]);
-  const ptr = f.label_ptr!();
+  expect([0, 1, 2, 3, 4, 7].map((i) => f['square_at']!(i))).toEqual([1, 4, 9, 16, 25, 9]);
+  const ptr = f['label_ptr']!();
   expect(ptr).toBeGreaterThanOrEqual(base);
   expect(ptr).toBeLessThan(base + ZIG_PAGES * PAGE);
-  expect(str(ptr, f.label_len!())).toBe('zig says hi');
-  expect(f.call_count!()).toBe(6);
+  expect(str(ptr, f['label_len']!())).toBe('zig says hi');
+  expect(f['call_count']!()).toBe(6);
 }
 
 describe('wasm-bundle: linked modules (wasm-ld --emit-relocs)', () => {
@@ -167,12 +167,12 @@ describe('wasm-bundle: linked modules (wasm-ld --emit-relocs)', () => {
     const base = ZIG_PAGES * PAGE;
     expect(report.inputs[1]!.base).toBe(base);
     const { ex, str } = await run(bytes);
-    ex._initialize!();
-    const ptr = ex.greeting_ptr!();
+    ex['_initialize']!();
+    const ptr = ex['greeting_ptr']!();
     expect(ptr).toBeGreaterThanOrEqual(base);
-    expect(str(ptr, ex.greeting_len!())).toBe('hello from strlib');
-    expect([0, 1, 2, 3].map((i) => ex.table_at!(i))).toEqual([10, 20, 30, 40]);
-    expect([ex.bump!(), ex.bump!()]).toEqual([1, 2]);
+    expect(str(ptr, ex['greeting_len']!())).toBe('hello from strlib');
+    expect([0, 1, 2, 3].map((i) => ex['table_at']!(i))).toEqual([10, 20, 30, 40]);
+    expect([ex['bump']!(), ex['bump']!()]).toEqual([1, 2]);
   });
 
   it('refuses a module whose relocations are stale (the code was re-encoded after the link)', () => {
@@ -229,17 +229,19 @@ describe('wasm-bundle: (@reloc data) marks through our assembler', () => {
     ]);
     expect(report.conflicts.map((c) => c.name).sort()).toEqual(['alloc', 'byte', 'str', 'word']);
     const { ex, byte } = await run(bytes);
-    expect(ex.a_str!()).toBe(1024);
-    expect(ex.b_str!()).toBe(PAGE + 1024);
-    expect(String.fromCharCode(byte(ex.a_str!()))).toBe('a');
-    expect(String.fromCharCode(byte(ex.b_str!()))).toBe('b');
-    expect(ex.a_word!(1)).toBe(1028);
-    expect(ex.b_word!(1)).toBe(PAGE + 1028);
-    expect(String.fromCharCode(byte(ex.b_word!(1)))).toBe('b');
-    expect(String.fromCharCode(byte(ex.b_byte!(ex.b_word!(0)) ? ex.b_word!(0) : 0))).toBe('b');
-    expect([ex.a_alloc!(8), ex.a_alloc!(0)]).toEqual([1056, 1064]);
-    expect([ex.b_alloc!(8), ex.b_alloc!(0)]).toEqual([PAGE + 1056, PAGE + 1064]);
-    expect(ex.memory === undefined).toBe(false);
+    expect(ex['a_str']!()).toBe(1024);
+    expect(ex['b_str']!()).toBe(PAGE + 1024);
+    expect(String.fromCharCode(byte(ex['a_str']!()))).toBe('a');
+    expect(String.fromCharCode(byte(ex['b_str']!()))).toBe('b');
+    expect(ex['a_word']!(1)).toBe(1028);
+    expect(ex['b_word']!(1)).toBe(PAGE + 1028);
+    expect(String.fromCharCode(byte(ex['b_word']!(1)))).toBe('b');
+    expect(String.fromCharCode(byte(ex['b_byte']!(ex['b_word']!(0)) ? ex['b_word']!(0) : 0))).toBe(
+      'b',
+    );
+    expect([ex['a_alloc']!(8), ex['a_alloc']!(0)]).toEqual([1056, 1064]);
+    expect([ex['b_alloc']!(8), ex['b_alloc']!(0)]).toEqual([PAGE + 1056, PAGE + 1064]);
+    expect(ex['memory'] === undefined).toBe(false);
   });
 
   it('a misplaced or malformed mark is an error, not a dropped annotation', () => {
@@ -290,9 +292,9 @@ describe('wasm-bundle: a module with no relocation marks', () => {
     expect(report.warnings.length).toBe(1);
     expect(report.warnings[0]).toMatch(/GUESSED/);
     const { ex, str } = await run(bytes);
-    expect(ex.p_str!()).toBe(PAGE + 1024);
-    expect(str(ex.p_str!(), 5)).toBe('plain');
-    expect(ex.seven!()).toBe(7); // outside the range: untouched
+    expect(ex['p_str']!()).toBe(PAGE + 1024);
+    expect(str(ex['p_str']!(), 5)).toBe('plain');
+    expect(ex['seven']!()).toBe(7); // outside the range: untouched
   });
 
   it('a module without a memory has nothing to relocate and needs no marks', () => {
@@ -324,7 +326,7 @@ describe('wasm-bundle: export conflicts', () => {
     );
     expect(report.exports.map((e) => e.name)).toEqual(['a_f', 'b_f', 'g']);
     const { ex } = await run(bytes);
-    expect([ex.a_f!(), ex.b_f!(), ex.g!()]).toEqual([1, 2, 3]);
+    expect([ex['a_f']!(), ex['b_f']!(), ex['g']!()]).toEqual([1, 2, 3]);
   });
 
   it('alias: as prefix, but every module in a conflict must have been named by the caller', () => {
@@ -359,8 +361,8 @@ describe('wasm-bundle: export conflicts', () => {
     );
     expect(report.exports.map((e) => e.name).sort()).toEqual(['_start', 'a__start']);
     const { ex } = await run(bytes);
-    expect(ex._start!()).toBe(2);
-    expect(ex.a__start!()).toBe(1);
+    expect(ex['_start']!()).toBe(2);
+    expect(ex['a__start']!()).toBe(1);
   });
 
   it('memory exports collapse into one set, never a conflict', () => {
@@ -406,7 +408,7 @@ describe('wasm-bundle: imports', () => {
     const { bytes, back } = bundled([input('a', a), input('b', b)]);
     expect(back.imports).toEqual([]);
     const { ex } = await run(bytes);
-    expect(ex.twice!(21)).toBe(42);
+    expect(ex['twice']!(21)).toBe(42);
   });
 
   it('an import from another input that it does not export is an error', () => {
@@ -429,8 +431,8 @@ describe('wasm-bundle: start functions', () => {
     expect(back.start).toBeDefined();
     expect(back.functions.length).toBe(3);
     const { ex } = await run(bytes);
-    expect((ex.ga as unknown as WebAssembly.Global).value).toBe(1);
-    expect((ex.gb as unknown as WebAssembly.Global).value).toBe(2);
+    expect((ex['ga'] as unknown as WebAssembly.Global).value).toBe(1);
+    expect((ex['gb'] as unknown as WebAssembly.Global).value).toBe(2);
   });
 });
 

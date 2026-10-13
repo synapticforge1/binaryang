@@ -57,28 +57,28 @@ const ACCESSORS = `
 describe('a 1-byte-page memory, lowered, on V8', () => {
   it('sizes and grows in bytes; traps at the true size, not at 64 KiB', () => {
     const f = run(`(module (memory 0 (pagesize 1)) ${ACCESSORS})`);
-    expect(f.size!()).toBe(0);
-    traps(() => f.load!(0));
-    expect(f.grow!(10)).toBe(0);
-    expect(f.size!()).toBe(10);
-    f.store!(9, 7);
-    expect(f.load!(9)).toBe(7);
-    traps(() => f.load!(10)); // inside the underlying 64 KiB page, past the 10 bytes
+    expect(f['size']!()).toBe(0);
+    traps(() => f['load']!(0));
+    expect(f['grow']!(10)).toBe(0);
+    expect(f['size']!()).toBe(10);
+    f['store']!(9, 7);
+    expect(f['load']!(9)).toBe(7);
+    traps(() => f['load']!(10)); // inside the underlying 64 KiB page, past the 10 bytes
     // A multi-byte access at the edge: bytes 6..9 fit, 7..10 do not (offset 1).
-    expect(() => f.load32!(5)).not.toThrow();
-    traps(() => f.load32!(6));
+    expect(() => f['load32']!(5)).not.toThrow();
+    traps(() => f['load32']!(6));
   });
 
   it('crosses a 64 KiB boundary, and refuses past the declared maximum', () => {
     const f = run(`(module (memory 1 70000 (pagesize 1)) ${ACCESSORS})`);
-    expect(f.grow!(65535)).toBe(1);
-    expect(f.grow!(1)).toBe(65536);
-    f.store!(65536, 3); // the second underlying page exists
-    expect(f.load!(65536)).toBe(3);
-    expect(f.grow!(70000 - 65537 + 1)).toBe(-1);
-    expect(f.grow!(70000 - 65537)).toBe(65537);
-    expect(f.size!()).toBe(70000);
-    traps(() => f.load!(70000));
+    expect(f['grow']!(65535)).toBe(1);
+    expect(f['grow']!(1)).toBe(65536);
+    f['store']!(65536, 3); // the second underlying page exists
+    expect(f['load']!(65536)).toBe(3);
+    expect(f['grow']!(70000 - 65537 + 1)).toBe(-1);
+    expect(f['grow']!(70000 - 65537)).toBe(65537);
+    expect(f['size']!()).toBe(70000);
+    traps(() => f['load']!(70000));
   });
 
   it('evaluates every operand before an out-of-bounds store traps', () => {
@@ -87,8 +87,8 @@ describe('a 1-byte-page memory, lowered, on V8', () => {
       (func $bump (result i32) (global.set $n (i32.add (global.get $n) (i32.const 1))) (i32.const 1))
       (func (export "oob") (i32.store8 (i32.const 100) (call $bump)))
       (func (export "n") (result i32) (global.get $n)))`);
-    traps(() => f.oob!());
-    expect(f.n!()).toBe(1);
+    traps(() => f['oob']!());
+    expect(f['n']!()).toBe(1);
   });
 
   it('memory.copy / fill check the true size of each lowered memory', () => {
@@ -101,11 +101,11 @@ describe('a 1-byte-page memory, lowered, on V8', () => {
       (func (export "large") (param i32) (result i32) (i32.load8_u $large (local.get 0)))
       (func (export "small") (param i32) (result i32) (i32.load8_u $small (local.get 0))))`);
     f['to-large']!(6, 0, 2);
-    expect(f.large!(7)).toBe(0x22);
+    expect(f['large']!(7)).toBe(0x22);
     traps(() => f['to-large']!(0, 8, 3)); // source 8..10 is past the 10 bytes
-    f.fill!(8, 2);
-    expect(f.small!(9)).toBe(9);
-    traps(() => f.fill!(8, 3));
+    f['fill']!(8, 2);
+    expect(f['small']!(9)).toBe(9);
+    traps(() => f['fill']!(8, 3));
   });
 
   it('a 64-bit memory: sizes, grows and traps in bytes', () => {
@@ -113,11 +113,11 @@ describe('a 1-byte-page memory, lowered, on V8', () => {
       (func (export "size") (result i64) memory.size)
       (func (export "grow") (param i64) (result i64) (memory.grow (local.get 0)))
       (func (export "load") (param i64) (result i32) (i32.load8_u (local.get 0))))`);
-    expect(f.size!()).toBe(5n);
-    traps(() => f.load!(5n));
-    expect(f.grow!(3n)).toBe(5n);
-    expect(f.load!(7n)).toBe(0);
-    expect(f.grow!(-1n)).toBe(-1n); // u64 max: past the address space
+    expect(f['size']!()).toBe(5n);
+    traps(() => f['load']!(5n));
+    expect(f['grow']!(3n)).toBe(5n);
+    expect(f['load']!(7n)).toBe(0);
+    expect(f['grow']!(-1n)).toBe(-1n); // u64 max: past the address space
   });
 
   it('an active segment past the true size fails instantiation', () => {
@@ -129,7 +129,7 @@ describe('a 1-byte-page memory, lowered, on V8', () => {
 
   it('an explicit (pagesize 65536) is written as the default', () => {
     const f = run(`(module (memory 1 (pagesize 65536)) ${ACCESSORS})`);
-    expect(f.size!()).toBe(1);
+    expect(f['size']!()).toBe(1);
   });
 });
 
@@ -148,13 +148,13 @@ describe('linking lowered modules', () => {
     const f = run(`(module (memory (import "m" "mem") 4 (pagesize 1)) ${ACCESSORS})`, {
       m: exporter as unknown as WebAssembly.ModuleImports,
     });
-    expect(f.size!()).toBe(4);
-    exporter.grow!(2);
-    expect(f.size!()).toBe(6); // one size, seen from both
-    traps(() => f.load!(6));
+    expect(f['size']!()).toBe(4);
+    exporter['grow']!(2);
+    expect(f['size']!()).toBe(6); // one size, seen from both
+    traps(() => f['load']!(6));
     // Under the ORIGINAL name: not the memory (P1) but its placeholder (L4),
     // an immutable global holding the page size.
-    const placeholder = (exporter as unknown as Record<string, unknown>).mem;
+    const placeholder = (exporter as unknown as Record<string, unknown>)['mem'];
     expect(placeholder).toBeInstanceOf(WebAssembly.Global);
     expect((placeholder as WebAssembly.Global).value).toBe(1);
   });
@@ -197,12 +197,12 @@ describe('linking lowered modules', () => {
     ).exports as unknown as Fns & { 'mem#pagesize=1': WebAssembly.Memory };
     new Uint8Array(i['mem#pagesize=1'].buffer)[10] = 7; // past the 4 logical bytes
     new Uint8Array(i['mem#pagesize=1'].buffer)[65535] = 5; // the last byte of the underlying page
-    expect(i.grow!(8)).toBe(4);
-    expect(i.load!(10)).toBe(0);
+    expect(i['grow']!(8)).toBe(4);
+    expect(i['load']!(10)).toBe(0);
     // Across a 64 KiB boundary: the old page's slack is zeroed, the new page is the engine's.
-    expect(i.grow!(70000)).toBe(12);
-    expect(i.load!(65535)).toBe(0);
-    expect(i.load!(69999)).toBe(0);
+    expect(i['grow']!(70000)).toBe(12);
+    expect(i['load']!(65535)).toBe(0);
+    expect(i['load']!(69999)).toBe(0);
   });
 
   it('a SHARED custom-page memory is refused, loudly', () => {

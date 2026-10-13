@@ -41,7 +41,7 @@ for JSR only (owner, 2026-10-12) ([bun-migration.md](bun-migration.md) § "The e
 
 CI's steps first, read from `.github/workflows/ci.yml` rather than from memory of it:
 
-`deno fmt --check` · `deno lint` · `deno task ci` · `bun install --frozen-lockfile && bun run check`
+`deno fmt --check` · `bun install --frozen-lockfile` · `bun run lint` (Biome, since B3, 2026-10-13; it replaced `deno lint`) · `deno task ci` · `bun run check`
 (the `tsc` check, since Bun migration B2, 2026-10-12) · `bun run naming` · `bun run portability` ·
 `bun run browser` (every export bundles for the browser, open-work 28, 2026-10-12) ·
 `bun run baseline` · `deno publish --dry-run --allow-dirty --config jsr.json` — and the `runtimes` job's

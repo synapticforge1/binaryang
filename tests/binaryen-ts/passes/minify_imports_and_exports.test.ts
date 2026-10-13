@@ -148,14 +148,14 @@ Deno.test('minify: a host that applies the map sees the same module', () => {
     minImports as WebAssembly.Imports,
   ).exports;
   const exp = new Map(map.exports);
-  (a.main as () => void)();
+  (a['main'] as () => void)();
   const fromOriginal = logged;
   logged = -1;
   (b[exp.get('main')!] as () => void)();
   assertEquals(logged, fromOriginal);
   assertEquals(
     (b[exp.get('helper')!] as (x: number) => number)(41),
-    (a.helper as (x: number) => number)(41),
+    (a['helper'] as (x: number) => number)(41),
   );
   assert(b[exp.get('mem')!] instanceof WebAssembly.Memory);
 });

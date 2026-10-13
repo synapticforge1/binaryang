@@ -56,7 +56,7 @@ function optimize(optimizeLevel: 2 | 3, passes?: string[]) {
 
 async function f(bytes: Uint8Array, a: number, b: number) {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
-  return (instance.exports.f as (a: number, b: number) => number)(a, b);
+  return (instance.exports['f'] as (a: number, b: number) => number)(a, b);
 }
 
 const want = (a: number, b: number) => {

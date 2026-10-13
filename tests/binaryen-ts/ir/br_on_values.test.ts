@@ -85,7 +85,7 @@ describe('br_on carries its branch values', () => {
     const bytes = writeWasm(m.build());
     assert(WebAssembly.validate(bytes as BufferSource), 'the carried value must be on the stack');
     const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
-    const f = instance.exports.f as (r: unknown) => number;
+    const f = instance.exports['f'] as (r: unknown) => number;
     assertEquals(f(null), 7, 'null ref: branch to $l with the carried 7');
     assertEquals(f({}), 9, 'non-null ref: fall through');
   });

@@ -237,7 +237,7 @@ for (const name of wastFiles) {
       } catch (e) {
         thrown = e;
       }
-      // deno-lint-ignore no-explicit-any
+      // biome-ignore lint/suspicious/noExplicitAny: a diagnostic script reads untyped IR or engine values
       const isException = thrown instanceof (WebAssembly as any).Exception;
       const isTrap = thrown instanceof WebAssembly.RuntimeError;
       if (c.type === 'assert_exception') {

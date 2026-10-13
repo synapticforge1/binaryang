@@ -134,23 +134,23 @@ function collect(root: string): SpecInput[] {
     }
     const cmds = manifest.commands;
     for (const [i, c] of cmds.entries()) {
-      const file = c.filename as string | undefined;
-      if (c.type !== 'module' || !file?.endsWith('.wasm')) continue;
+      const file = c['filename'] as string | undefined;
+      if (c['type'] !== 'module' || !file?.endsWith('.wasm')) continue;
       const invokes: Invoke[] = [];
       // Each export's signature as the manifest shows it: its arguments'
       // types, and an `assert_return`'s expected types — borrowed by an
       // invocation of the same export that shows no results (`assert_trap`).
       const sigs = new Map<string, Sig>();
       for (const later of cmds.slice(i + 1)) {
-        if (later.type === 'module') break;
-        const a = later.action as
+        if (later['type'] === 'module') break;
+        const a = later['action'] as
           | { type: string; module?: string; field: string; args: Invoke['args'] }
           | undefined;
         // An invocation of a NAMED module is another module's; skip it.
         if (a?.type !== 'invoke' || a.module !== undefined) continue;
-        invokes.push({ line: later.line as number, field: a.field, args: a.args });
-        const expected = later.expected as { type: string }[] | undefined;
-        if (later.type === 'assert_return' && expected !== undefined && !sigs.has(a.field)) {
+        invokes.push({ line: later['line'] as number, field: a.field, args: a.args });
+        const expected = later['expected'] as { type: string }[] | undefined;
+        if (later['type'] === 'assert_return' && expected !== undefined && !sigs.has(a.field)) {
           sigs.set(a.field, {
             params: a.args.map((x) => x.type),
             results: expected.map((x) => x.type),

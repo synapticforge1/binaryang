@@ -84,7 +84,7 @@ describe('elem — abbreviated element expressions', () => {
     const buf = new ArrayBuffer(binary.byteLength);
     new Uint8Array(buf).set(binary);
     const { instance } = await WebAssembly.instantiate(buf);
-    const table = instance.exports.t as WebAssembly.Table;
+    const table = instance.exports['t'] as WebAssembly.Table;
     assertEquals(table.length, 3);
     assertEquals((table.get(0) as () => number)(), 11);
     assertEquals(table.get(1), null);

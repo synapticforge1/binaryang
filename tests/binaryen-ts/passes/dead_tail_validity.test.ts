@@ -105,7 +105,7 @@ describe('dead-code removal keeps the output valid', () => {
         i32.const 7)))`;
     assertValidAtEveryLevel(wat, 'br_if tail');
     const run = (b: Uint8Array, x: number) =>
-      (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as (
+      (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports['f'] as (
         v: number,
       ) => number)(x);
     for (const [o, s] of LEVELS) {
@@ -124,7 +124,7 @@ describe('dead-code removal keeps the output valid', () => {
         drop
         i32.const 7)))`;
     const run = (b: Uint8Array) =>
-      (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports.f as () =>
+      (new WebAssembly.Instance(new WebAssembly.Module(b as BufferSource)).exports['f'] as () =>
         number)();
     assertEquals(run(wat2wasm(wat, { textForm: false }).binary), 8);
     for (const [o, s] of LEVELS) assertEquals(run(optimized(wat, o, s)), 8, `-O${o} shrink ${s}`);

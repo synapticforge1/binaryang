@@ -214,7 +214,7 @@ Deno.test('element segment: flag-4 (expression-form) active funcref segment roun
   const out = writeWasm(mod);
   const compiled = await WebAssembly.compile(out as BufferSource);
   const instance = new WebAssembly.Instance(compiled);
-  const callA = instance.exports.callA as (x: number) => number;
+  const callA = instance.exports['callA'] as (x: number) => number;
   assertEquals(callA(10), 11); // dispatches to $a: 10 + 1
 });
 

@@ -31,7 +31,7 @@ async function same(before: Uint8Array, after: Uint8Array, inputs: number[][]) {
   const run = async (b: Uint8Array, a: number[]) => {
     const { instance } = await WebAssembly.instantiate(b as BufferSource);
     try {
-      return String((instance.exports.f as (...x: number[]) => unknown)(...a));
+      return String((instance.exports['f'] as (...x: number[]) => unknown)(...a));
     } catch (e) {
       return `trap: ${(e as Error).message}`;
     }

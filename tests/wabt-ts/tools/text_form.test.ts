@@ -159,13 +159,16 @@ describe('S7 — wat2wasm → wasm2wat keeps every instruction’s form', () => 
     const x = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource), {
       env: { log: () => {} },
     }).exports as Record<string, (i?: number) => number>;
-    assertEquals([x.lin!(4), x.both!(4), x.siblings!(), x.partial!(4), x.nested!(0)], [
-      5,
-      1,
-      3,
-      -6,
-      6,
-    ]);
+    assertEquals(
+      [x['lin']!(4), x['both']!(4), x['siblings']!(), x['partial']!(4), x['nested']!(0)],
+      [
+        5,
+        1,
+        3,
+        -6,
+        6,
+      ],
+    );
   });
 
   // A VOID call written inside another call's parens is legal grouping — it

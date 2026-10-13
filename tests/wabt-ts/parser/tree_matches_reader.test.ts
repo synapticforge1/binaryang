@@ -57,7 +57,7 @@ describe("the parser's tree is the reader's", () => {
     const m = prepareForPasses(parsed(wat));
     new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
     const run = async (b: Uint8Array, x: number) =>
-      ((await WebAssembly.instantiate(b as BufferSource)).instance.exports.f as (
+      ((await WebAssembly.instantiate(b as BufferSource)).instance.exports['f'] as (
         x: number,
       ) => number)(x);
     for (const x of [0, 1]) {

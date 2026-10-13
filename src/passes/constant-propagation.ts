@@ -137,7 +137,7 @@ function _propagateFunction(fn: WasmFunction): void {
   const seen = new Map<Expression, Value>();
   const assigned = new Map<Expression, Value>();
 
-  const valueOf = (e: Expression, type: unknown): Value => {
+  const valueOfExpr = (e: Expression, type: unknown): Value => {
     switch (e.kind) {
       case ExpressionKind.Const:
         return e.value.type === type ? e.value : VARIES;
@@ -160,7 +160,7 @@ function _propagateFunction(fn: WasmFunction): void {
         const origin = a.origin as Extract<Expression, { kind: typeof ExpressionKind.LocalSet }>;
         const v = s[a.index] === undefined
           ? undefined // a path no one has reached yet assigns nothing yet
-          : valueOf(origin.value, fn.locals[a.index]!.type);
+          : valueOfExpr(origin.value, fn.locals[a.index]!.type);
         s[a.index] = v;
         assigned.set(a.origin, v);
       }

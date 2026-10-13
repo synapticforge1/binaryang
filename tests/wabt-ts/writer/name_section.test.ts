@@ -142,7 +142,7 @@ const UPSTREAM_PROBE = hex(`
 describe('the name section, for the kinds upstream writes', () => {
   it("is upstream --debug-names's, byte for byte, once our label subsection is set aside", () => {
     const payload = namePayload(assemble(PROBE));
-    const ours = subsections(payload).filter(([id]) => id !== 3).map(([, b]) => [...b]).flat();
+    const ours = subsections(payload).filter(([id]) => id !== 3).flatMap(([, b]) => [...b]);
     assertEquals(new Uint8Array(ours), UPSTREAM_PROBE);
   });
 

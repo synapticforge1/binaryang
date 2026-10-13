@@ -55,8 +55,8 @@ Deno.test('toWat writes every kind, and the text assembles to the same module (K
   assert(wat.includes('i32.add') && wat.includes('(loop $l'), wat);
   const r = wat2wasm(wat);
   assert(!hasErrors(r.errors), `assembles:\n${wat}`);
-  const f = new WebAssembly.Instance(new WebAssembly.Module(r.binary as BufferSource)).exports
-    .f as (x: number) => number;
+  const f = new WebAssembly.Instance(new WebAssembly.Module(r.binary as BufferSource))
+    .exports['f'] as (x: number) => number;
   assertEquals(f(41), 42);
 });
 

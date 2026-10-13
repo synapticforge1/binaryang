@@ -148,7 +148,7 @@ describe('the reader gives the name section to the module', () => {
       if (Array.isArray(v)) { for (const x of v) walk(x); }
       else if (v && typeof v === 'object') {
         const o = v as Record<string, unknown>;
-        if (typeof o.label === 'string') labels.push(`${o.kind}:${o.label}`);
+        if (typeof o['label'] === 'string') labels.push(`${o['kind']}:${o['label']}`);
         for (const [k, x] of Object.entries(o)) if (k !== 'loc') walk(x);
       }
     };

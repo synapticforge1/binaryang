@@ -89,7 +89,7 @@ function exitCode(bytes: Uint8Array): number {
       new WebAssembly.Module(bytes as BufferSource),
       imports as WebAssembly.Imports,
     );
-    (instance.exports._start as () => void)();
+    (instance.exports['_start'] as () => void)();
   } catch {
     // proc_exit unwinds by design
   }

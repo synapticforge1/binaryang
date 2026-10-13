@@ -36,7 +36,7 @@ const CONSTS = [
 /** What the constant's bits read as, through `reinterpret` -- by RUNNING it. */
 async function bitsAtRuntime(bytes: Uint8Array): Promise<string> {
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
-  const v = (instance.exports.f as () => number | bigint)();
+  const v = (instance.exports['f'] as () => number | bigint)();
   return typeof v === 'bigint' ? BigInt.asUintN(64, v).toString(16) : (v >>> 0).toString(16);
 }
 

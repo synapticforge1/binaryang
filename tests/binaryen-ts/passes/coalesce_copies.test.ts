@@ -26,7 +26,7 @@ function coalesce(wat: string) {
 async function run(wat: string, ...args: number[]): Promise<number> {
   const bytes = writeWasm(coalesce(wat));
   const { instance } = await WebAssembly.instantiate(bytes as BufferSource);
-  return (instance.exports.f as (...a: number[]) => number)(...args);
+  return (instance.exports['f'] as (...a: number[]) => number)(...args);
 }
 
 describe('a copy shares its source slot and disappears', () => {

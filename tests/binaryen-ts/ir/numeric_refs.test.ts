@@ -66,8 +66,8 @@ describe('encoder — numeric entity references resolve as indices', () => {
     const inst = new WebAssembly.Instance(
       new WebAssembly.Module(writeWasm(readWat(wat)) as BufferSource),
     );
-    assertEquals((inst.exports.byName as () => number)(), 11);
-    assertEquals((inst.exports.byIndex as () => number)(), 22, 'index 1 must be $g, not $f');
+    assertEquals((inst.exports['byName'] as () => number)(), 11);
+    assertEquals((inst.exports['byIndex'] as () => number)(), 22, 'index 1 must be $g, not $f');
   });
 
   // The guarantee the numeric path must not erode.

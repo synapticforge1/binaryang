@@ -467,7 +467,6 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
 
     // Imports
-    let funcImportIdx = 0;
     for (const imp of m.imports) {
       switch (imp.kind) {
         case ExternalKind.Func: {
@@ -482,7 +481,6 @@ class ModuleValidator implements ExprVisitorDelegate {
           }
           const sigIdx = varIdx(imp.func.typeVar);
           this.acc(this.sv.onFunction(locOf(imp.func), sigIdx, imp.exact === true));
-          funcImportIdx++;
           break;
         }
         case ExternalKind.Table:

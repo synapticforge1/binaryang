@@ -87,7 +87,7 @@ async function readGlobalG(bytes: Uint8Array): Promise<number> {
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const { instance } = await WebAssembly.instantiate(buf, {});
-  return (instance.exports.g as WebAssembly.Global).value as number;
+  return (instance.exports['g'] as WebAssembly.Global).value as number;
 }
 
 function hasSection(bytes: Uint8Array, id: number): boolean {

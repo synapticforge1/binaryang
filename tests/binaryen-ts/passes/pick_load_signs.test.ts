@@ -96,7 +96,7 @@ function run(optimized: boolean): number {
   const buf = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buf).set(bytes);
   const inst = new WebAssembly.Instance(new WebAssembly.Module(buf), {});
-  return (inst.exports.f as () => number)();
+  return (inst.exports['f'] as () => number)();
 }
 
 Deno.test('PickLoadSigns: a value carried by `br` is a real use, not an invisible one', () => {

@@ -67,7 +67,7 @@ const MISORDERED = new Uint8Array([
 ]);
 
 const run = (bytes: Uint8Array) =>
-  (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports.f as () =>
+  (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports['f'] as () =>
     number)();
 
 async function viaWasmOpt(bytes: Uint8Array, optimizeLevel: 0 | 2): Promise<Uint8Array> {
