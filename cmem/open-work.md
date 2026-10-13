@@ -66,8 +66,9 @@ PUSHED; the version stays 1.10.0):**
   `comparison/scripts/` were deleted; `comparison/` stays outside Biome's scope.
 - **Who runs what, now:** Deno for JSR publishing, plus `deno fmt` (until B3's formatting half)
   and `deno check` / `deno test` (until B5). `deno lint` is gone.
-- **Still 6 open items**, unchanged in number: 13, 14, 15, 25, 26 (**next: B3's formatting
-  half**, dprint measured against `deno fmt` first; then B5, B6, B7), 28. The `code-lens-13`
+- **7 open items:** 13, 14, 15, 25, 26 (**next: B3's formatting half**, dprint measured against
+  `deno fmt` first; then B5, B6, B7), 28, and **29 (new, 2026-10-13: npm as a second registry,
+  with or after B6)**. The `code-lens-13`
   conflict above still stands.
 - ⚠️ A `git checkout` + `merge` touching ~150 files failed half-way on this machine and tore the
   working tree; recovered, nothing lost. The recipe is in `local/environment.md` (private).
@@ -288,6 +289,16 @@ fatigue.
     engine, which needs the referee rule), **B6** (CI and the release path: the one step that
     cannot be undone; `publish.yml` keeps `deno publish` for provenance), **B7** (delete
     `deno.json`). The owner orders it against items 13 and 14.
+
+29. ⬚ 🗓️ **Publish to npm as well as JSR, in case JSR shuts down** (owner, 2026-10-13: "just in
+    case the jsr gets shut down for some reason. We probably need to do this for all of our repos").
+    JSR stays the source. Needs a `tsc` build to `dist/` (Node will not strip types in
+    `node_modules`), an npm manifest GENERATED from `jsr.json`, a `bin`, the licence files, proof on
+    the packed tarball, and an npm job on the same tag. Lands with or after item 26's B6. The owner
+    decides the name (both `@jrmarcum/binaryang` and `binaryang` free on 2026-10-13), the npm
+    account setup, and when the first publish happens. Plan: [publishing.md](publishing.md) § "npm as
+    a SECOND registry"; for the other repos, [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § 5b
+    (binaryang first: wasmtk depends on it).
 
 (Item 21 closed 2026-10-09: one `src/` tree by concept, one declaration per name, one IR
 subpath — [one-tree.md](one-tree.md): the four phases, the decisions, what the gate found. Its

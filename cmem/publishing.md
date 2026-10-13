@@ -18,6 +18,59 @@ reached only by pushing a bumped `main` without its tag, and fails loudly (`acto
 The sections below are in the order they were found, so a later one can narrow an earlier one — the
 last section, "The tag-push path works unaided", narrows the manual-step warnings above it.
 
+## 🆕 npm as a SECOND registry — DECIDED, planned (owner, 2026-10-13; open-work item 29)
+
+Owner: "I think it would be good to add this repo to npm also just in case the jsr gets shut down
+for some reason. We probably need to do this for all of our repos just make sure we have adequate
+coverage." **JSR stays the source**; npm is added beside it, not instead. Nothing is built or
+published yet.
+
+**Why, beyond JSR's survival** (JSR is run by the Deno team, now Cloudflare; the announcement says
+it keeps running): a plain `npm install` with no `.npmrc`; a `bin` so `npx` runs the CLI (JSR has
+no `bin`); npm takes `"license": "MIT OR Apache-2.0"`, which JSR cannot ([licensing.md](licensing.md)).
+
+**Facts, 2026-10-13 (re-derive before acting):** the published code has NO runtime dependencies
+(the only `jsr:` strings in `src/` are 8 doc-comment examples). `binaryang` and
+`@jrmarcum/binaryang` are both FREE on registry.npmjs.org (404). JSR already serves npm clients
+1.10.0 as `@jsr/jrmarcum__binaryang` from `npm.jsr.io`, which needs `@jsr:registry=…` in the user's
+`.npmrc`: a stopgap that dies with JSR, so it is not the coverage asked for.
+
+**What an npm package needs that JSR does for us:**
+
+| need | why | plan |
+| ---- | --- | ---- |
+| compiled JS + `.d.ts` | Node will NOT strip types inside `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`); JSR compiles for its npm layer, npm does not | `tsc` emit to `dist/` with `rewriteRelativeImportExtensions` (99 `src` files import `./x.ts`) |
+| a manifest | `package.json` is `private`, and `version_sync` REFUSES `name` / `version` / `exports` / `bin` there (B2), so `jsr.json` stays the one manifest | GENERATE `dist/package.json` from `jsr.json` at build time: name, version, the 22 exports mapped to `dist/`, `types`, `bin`, `license: "MIT OR Apache-2.0"`, `engines` (Node ≥ 22.18), `files` |
+| the CLI | `bin` needs a JS entry with `#!/usr/bin/env node` | the built `main.js`; check how `main.ts` detects being the entry (`import.meta.main` notes in `src/tools/wasm-opt.ts`) |
+| licence + notice files | Apache §4 obligations travel with every copy | `LICENSE`, `LICENSE-MIT`, `LICENSE-APACHE`, `NOTICE.md`, `README.md` in `files` |
+| `src/definitions/*.json` | in JSR's `publish.include`, yet no `src` file imports them | decide: copy, or drop from both |
+
+**Proof before any publish** (the gate's style: shown, not assumed): pack the tarball, install it
+into a scratch project OUTSIDE the repo, import all 22 exports and run the CLI through `npx` on
+Node 22 / 24 / 26 and Bun — the same CLI hash as the source runs; `tsc` against the shipped `.d.ts`;
+the browser check over `dist/`; and diff the export list and types against JSR's own npm build of
+the same version (`npm.jsr.io`), which is an independent reference.
+
+**Release path:** one tag publishes to BOTH (the npm job after JSR's; versions are immutable on
+both, so a failed second job is re-run alone, never re-tagged). npm's trusted publishing (GitHub
+OIDC, provenance) replaces any token, and like JSR's provenance it must be CHECKED on the first
+publish, not assumed (§ "The one thing to understand"). This lands with or after B6, which rebuilds
+CI and the release path anyway.
+
+**The owner's calls:** the npm name (scoped `@jrmarcum/binaryang` matches JSR exactly;
+unscoped `binaryang` is shorter for `npx`; both are free today); the npm account and its 2FA /
+trusted-publisher setup; WHEN the first npm publish happens. A first publish claims a name
+permanently, so it is never done without the owner's word.
+
+**Dependencies must be on npmjs.org too.** The published code has none, but the TESTS use
+`@std/assert` / `@std/expect`, which exist only on JSR (B5 keeps them deliberately, through JSR's
+npm layer). If JSR went away, the package would survive and the test suite would not install.
+Decide with B5: keep (accepting that), vendor them, or move to `node:assert` / an npm library.
+
+**Order across the repos:** a package whose npm build depends on another of ours needs that one on
+npm FIRST. wasmtk pins `@jrmarcum/binaryang` (`compat/*`, `wasm-validate`), so binaryang goes first.
+The recipe for the other packages is [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § 5b.
+
 ## RULE — never bump the version in the same change that merges to `main`
 
 **Merge first, unbumped. Bump as its own commit afterwards.**

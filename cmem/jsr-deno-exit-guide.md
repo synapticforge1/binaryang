@@ -385,6 +385,41 @@ Full record: binaryang `cmem/bun-migration.md` § "B3 lint". What carries over:
 - **universal-wasm-loader IS a browser loader**, so `check-browser.ts` applies to it as it stands.
   wasmtk's published code calls `Deno.*`, so it needs the runtime port of § 6 first.
 
+## 5b. npm as a SECOND registry, for every package (owner, 2026-10-13)
+
+Owner: "I think it would be good to add this repo to npm also just in case the jsr gets shut down
+for some reason. We probably need to do this for all of our repos just make sure we have adequate
+coverage." **JSR stays the source; npm is added beside it.** binaryang's plan, with the reasoning,
+is its `cmem/publishing.md` § "npm as a SECOND registry". What carries over:
+
+- **JSR's npm layer is not coverage.** JSR already serves every package to npm clients as
+  `@jsr/<scope>__<name>` from `npm.jsr.io`, but that registry goes with JSR. The copy must be on
+  registry.npmjs.org.
+- **Your DEPENDENCIES must be on npmjs.org too, or the copy is not coverage.** `@std/*` packages
+  live only on JSR. A package that imports `@std/path` at runtime, published to npm, still breaks
+  the day JSR does. Replace them with `node:` builtins or web APIs, or with npm packages, or
+  vendor the few functions used. (binaryang's published code has no dependencies at all. Its
+  TESTS use `@std/assert` / `@std/expect` through JSR; that is a dev-time exposure, recorded there.)
+- **Ship compiled JavaScript and `.d.ts`.** Node refuses to strip types inside `node_modules`, so
+  a `.ts`-only npm package does not load on Node. `tsc` with `rewriteRelativeImportExtensions` if
+  sources import `./x.ts`. A package written in JavaScript plus `.d.ts` (universal-wasm-loader)
+  needs no build.
+- **Generate the npm manifest from `jsr.json`** at build time, so there is still ONE version source
+  (F1). Put `bin` there: npm runs a CLI through `npx`, which JSR cannot. `license` may be an SPDX
+  expression (`"MIT OR Apache-2.0"`) on npm.
+- **Prove the TARBALL, not the tree:** pack it, install it into a scratch project outside the repo,
+  import every export and run the CLI on each supported runtime. JSR's own npm build of the same
+  version (`npm.jsr.io`) is an independent reference for the export list and types.
+- **Publish order follows dependencies.** wasmtk depends on binaryang, so binaryang goes to npm
+  first, and wasmtk's npm manifest names the npm package, not `@jsr/…`.
+- **The first npm publish claims a name permanently.** Choose the name (the scoped `@jrmarcum/…`
+  matches JSR) and set up npm trusted publishing (GitHub OIDC, provenance) before it; check
+  provenance on that first publish rather than assume it.
+- Per package: **universal-wasm-loader** is the easiest (JS + `.d.ts`, one export, no imports).
+  **wasmtk** needs its runtime port (§ 6) and its `jsr:@std` / `npm:binaryen` imports settled
+  first, and binaryang on npm. **s3d-reportcompiler**: not surveyed. Repos that are not JSR
+  packages (the Rust and Zig runtimes) are a different registry question, not covered here.
+
 ## 6. Notes per package
 
 ### wasmtk (2.0.3 on JSR), surveyed read-only 2026-10-12
