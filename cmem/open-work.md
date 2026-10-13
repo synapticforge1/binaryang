@@ -66,9 +66,10 @@ PUSHED; the version stays 1.10.0):**
   `comparison/scripts/` were deleted; `comparison/` stays outside Biome's scope.
 - **Who runs what, now:** Deno for JSR publishing, plus `deno fmt` (until B3's formatting half)
   and `deno check` / `deno test` (until B5). `deno lint` is gone.
-- **7 open items:** 13, 14, 15, 25, 26 (**next: B3's formatting half**, dprint measured against
-  `deno fmt` first; then B5, B6, B7), 28, and **29 (new, 2026-10-13: npm as a second registry,
-  with or after B6)**. The `code-lens-13`
+- **6 open items:** 13, 14, 15, 25, 26 (**next: B3's formatting half**, dprint measured against
+  `deno fmt` first; then B5, B6, B7), 28. **29 (npm as a second registry) was opened and PARKED the
+  same day** as a contingency (owner: "I am leaving it on jsr until it becomes necessary to do
+  otherwise"); see § "Not tasks, by decision". The `code-lens-13`
   conflict above still stands.
 - ⚠️ A `git checkout` + `merge` touching ~150 files failed half-way on this machine and tore the
   working tree; recovered, nothing lost. The recipe is in `local/environment.md` (private).
@@ -290,16 +291,6 @@ fatigue.
     cannot be undone; `publish.yml` keeps `deno publish` for provenance), **B7** (delete
     `deno.json`). The owner orders it against items 13 and 14.
 
-29. ⬚ 🗓️ **Publish to npm as well as JSR, in case JSR shuts down** (owner, 2026-10-13: "just in
-    case the jsr gets shut down for some reason. We probably need to do this for all of our repos").
-    JSR stays the source. Needs a `tsc` build to `dist/` (Node will not strip types in
-    `node_modules`), an npm manifest GENERATED from `jsr.json`, a `bin`, the licence files, proof on
-    the packed tarball, and an npm job on the same tag. Lands with or after item 26's B6. The owner
-    decides the name (both `@jrmarcum/binaryang` and `binaryang` free on 2026-10-13), the npm
-    account setup, and when the first publish happens. Plan: [publishing.md](publishing.md) § "npm as
-    a SECOND registry"; for the other repos, [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § 5b
-    (binaryang first: wasmtk depends on it).
-
 (Item 21 closed 2026-10-09: one `src/` tree by concept, one declaration per name, one IR
 subpath — [one-tree.md](one-tree.md): the four phases, the decisions, what the gate found. Its
 number is kept free; the follow-up is item 25 above.)
@@ -347,6 +338,16 @@ sent and answered (their reply reached us 2026-09-29) — closed in [handoffs.md
   - It is not part of the IR merge: the IR is the tree's shape, this is the passes' speed.
   - The doc mapping of `wasm/demo_bytes` to `./wasm` is correct: `./wasm` exports `DEMO_BYTES`
     (checked 2026-09-29).
+- **29. npm as a second registry — PARKED as a contingency** (owner, 2026-10-13). First: "I think
+  it would be good to add this repo to npm also just in case the jsr gets shut down … We probably
+  need to do this for all of our repos"; then, after creating the `synapticforge` organization on
+  npm and GitHub: "I am leaving it on jsr until it becomes necessary to do otherwise." The GitHub
+  repo stays `jrmarcum/binaryang` and the JSR scope stays `@jrmarcum` (both "not now" / "no").
+  - The plan is kept, ready: [publishing.md](publishing.md) § "npm as a SECOND registry"; for the
+    other repos, [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § 5b.
+  - **Trigger to reopen:** JSR announces an end or degrades, or a consumer needs the package from
+    npm. The npm name is chosen THEN; `@synapticforge/binaryang` was free on 2026-10-13.
+  - Not blocked by anything; B6 is still the natural place for the release-path half.
 - **A local directory path in git history — leave it** (owner, 2026-09-14). The copies in
   `b472b4aa4` and `df3659840` name no account, token or secret, and are not worth a force push. Do
   not re-open.

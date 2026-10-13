@@ -390,7 +390,10 @@ Full record: binaryang `cmem/bun-migration.md` § "B3 lint". What carries over:
 Owner: "I think it would be good to add this repo to npm also just in case the jsr gets shut down
 for some reason. We probably need to do this for all of our repos just make sure we have adequate
 coverage." **JSR stays the source; npm is added beside it.** binaryang's plan, with the reasoning,
-is its `cmem/publishing.md` § "npm as a SECOND registry". What carries over:
+is its `cmem/publishing.md` § "npm as a SECOND registry". ⏸ **For binaryang it is PARKED as a
+contingency** (owner, same day: "I am leaving it on jsr until it becomes necessary to do
+otherwise"); an npm and GitHub organization, `synapticforge`, now exists for that day. Each package
+decides for itself; binaryang's choice is not a rule for the others. What carries over:
 
 - **JSR's npm layer is not coverage.** JSR already serves every package to npm clients as
   `@jsr/<scope>__<name>` from `npm.jsr.io`, but that registry goes with JSR. The copy must be on
