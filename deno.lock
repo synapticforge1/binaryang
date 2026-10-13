@@ -79,6 +79,7 @@
       "dependencies": [
         "npm:@biomejs/biome@2.5.14",
         "npm:@types/node@22.18",
+        "npm:dprint@0.57.4",
         "npm:typescript@7.0.2"
       ]
     }
