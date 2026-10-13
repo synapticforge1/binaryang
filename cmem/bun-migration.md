@@ -196,6 +196,14 @@ notations to the bun migration file"):**
   test code; the list from the removal test corrected that. With the comments removed, Biome
   reports exactly those 21 `noExplicitAny` and nothing else. One new `biome-ignore`:
   `noApproximativeNumericConstant` on a test's `3.14159`.
+- **Dead `deno-lint-ignore-file no-import-prefix` comments, 4, DELETED** (owner, 2026-10-13: "yes
+  delete the comments if they no longer apply"): `comparison/scripts/` `diag_roundtrip.ts`,
+  `diff_wat.ts`, `headtohead_bench.ts`, `trace_failing.ts`. They never applied: `comparison/` was
+  outside `deno lint`'s scope, and is outside Biome's. Tested on scratch copies first: Biome
+  reports nothing without them (a planted `any` / `var` proved the run live). The reason half of
+  each comment (the npm: import of upstream binaryen is deliberate) stays as a plain comment.
+  `comparison/` stays OUT of Biome's scope; adding it was asked and not taken up. No
+  `deno-lint` text remains in the code.
 - **Code fixes, by rule:**
   - `useImportType`: `src/ir/ir.ts`, `src/parser/token.ts`, `src/parser/wast-parser.ts`,
     `src/tools/wasm2ts.ts`, `scripts/check-direct-behaviour.ts` (6 imports);

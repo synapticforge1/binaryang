@@ -1,4 +1,4 @@
-// deno-lint-ignore-file no-import-prefix -- diagnostic: upstream binaryen as trusted disassembler.
+// Diagnostic: imports upstream binaryen via an npm: specifier as a trusted disassembler.
 
 /**
  * @module scripts/binaryen-ts/diag_roundtrip

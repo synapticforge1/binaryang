@@ -1,5 +1,4 @@
-// deno-lint-ignore-file no-import-prefix -- diagnostic script: intentionally
-// imports upstream binaryen via npm: specifier for head-to-head comparison.
+// Diagnostic script: intentionally imports upstream binaryen via npm: specifier for head-to-head comparison.
 
 /**
  * Trace a small failing module to find the producer instruction whose

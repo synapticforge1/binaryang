@@ -1,5 +1,4 @@
-// deno-lint-ignore-file no-import-prefix -- diagnostic script: intentionally
-// imports upstream binaryen via npm: specifier as a trusted disassembler.
+// Diagnostic script: intentionally imports upstream binaryen via npm: specifier as a trusted disassembler.
 
 /**
  * @module scripts/binaryen-ts/diff_wat
