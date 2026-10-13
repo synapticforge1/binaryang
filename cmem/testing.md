@@ -9,6 +9,20 @@ gates.
 
 ## Running
 
+**Since Bun migration B5 (2026-10-13)** the suite runs on `node:test` ([bun-migration.md](bun-migration.md) § "B5"):
+
+```sh
+bun run test           # node --test on Node 24, the V8 referee: THE verdict (5,902 leaf tests, 2026-10-13)
+bun run test:bun       # the same files on Bun; its failures must be exactly tests/bun-known-differences.json
+bun run check          # tsc over src/, scripts/ and tests/ (two tests/ tsconfigs)
+```
+
+In a test, a file or a temp dir is `tests/test_fs.ts` (`fsx.readTextFile`, `fsx.makeTempDir`, …; no
+`Deno.*`), and the CLI as a child process is `tests/run_ts.ts` (`runTsAsync(main, [tool, …])`). Deno
+runs `node:test` too, so `deno task test` still works until B7, but it is no longer the gate.
+
+The Deno-era commands, kept for the record:
+
 ```sh
 deno task check        # type-check src/ + main.ts + tests/ + scripts/
 deno task test         # the full suite — 1265 tests / 0 ignored (2026-09-19); 1043 (2026-09-12); was 912 tests / 3153 steps / 2 ignored (2026-08-27)

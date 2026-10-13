@@ -56,6 +56,8 @@
 
 import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
+import * as fsx from '../../test_fs.ts';
+import { runTsAsync } from '../../run_ts.ts';
 
 const TOOLS = ['wat2wasm', 'wasm2wat', 'wasm-validate', 'wasm-objdump', 'wasm-strip'];
 
@@ -70,7 +72,7 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
 
     for (const tool of TOOLS) {
       const url = new URL(`../../../src/tools/${tool}.ts`, import.meta.url);
-      const src = await Deno.readTextFile(url);
+      const src = await fsx.readTextFile(url);
       const at = src.search(/export (async )?function main\(/);
       assert(at !== -1, `${tool}: no exported main() entry`);
       scanned++;
@@ -100,7 +102,7 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
   it('each tool imports the shared guarded helpers', async () => {
     for (const tool of TOOLS) {
       const url = new URL(`../../../src/tools/${tool}.ts`, import.meta.url);
-      const src = await Deno.readTextFile(url);
+      const src = await fsx.readTextFile(url);
       // A11 lifted five byte-identical private copies into one shared module.
       // The gate above passes vacuously if a tool does no I/O at all, so pin
       // that each one still reaches for the helper.
@@ -118,31 +120,26 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. Behavioural checks — need `run`; skipped loudly without it
+// 2. Behavioural checks — the CLI as a child of the runtime running the tests
 // ---------------------------------------------------------------------------
-
-const canRun = (await Deno.permissions.query({ name: 'run' })).state === 'granted' &&
-  (await Deno.permissions.query({ name: 'write' })).state === 'granted';
 
 async function runCli(tool: string, args: string[]): Promise<{ code: number; err: string }> {
   // Through the unified dispatcher, which is now the only way in: the tools no
   // longer self-execute, which is the whole point of A9-A12.
-  const entry = new URL('../../../main.ts', import.meta.url);
-  const cmd = new Deno.Command(Deno.execPath(), {
-    args: ['run', '-A', '--quiet', entry.pathname, tool, ...args],
-    stdout: 'piped',
-    stderr: 'piped',
-  });
-  const { code, stderr } = await cmd.output();
-  return { code, err: new TextDecoder().decode(stderr) };
+  const main = new URL('../../../main.ts', import.meta.url);
+  const { code, stderr } = await runTsAsync(main, [tool, ...args]);
+  return { code, err: stderr };
 }
 
-/** Deno renders an uncaught throw with an `Uncaught` banner and `at ` frames. */
+/**
+ * An uncaught throw: Deno renders an `Uncaught` banner, every runtime prints `at ` frames
+ * (Node and Bun also show the throwing source line).
+ */
 function looksLikeStackTrace(s: string): boolean {
   return /Uncaught/.test(s) || /^\s+at /m.test(s);
 }
 
-describe('T13.31 — the CLIs actually report I/O failures', { skip: !canRun }, () => {
+describe('T13.31 — the CLIs actually report I/O failures', () => {
   for (const tool of TOOLS) {
     it(`${tool} reports a missing input file`, async () => {
       const { code, err } = await runCli(tool, ['definitely-not-here.wasm']);
@@ -158,7 +155,7 @@ describe('T13.31 — the CLIs actually report I/O failures', { skip: !canRun }, 
     });
 
     it(`${tool} reports a directory given as input`, async () => {
-      const dir = await Deno.makeTempDir();
+      const dir = await fsx.makeTempDir();
       try {
         const { code, err } = await runCli(tool, [dir]);
         assertEquals(code, 1);
@@ -167,44 +164,44 @@ describe('T13.31 — the CLIs actually report I/O failures', { skip: !canRun }, 
           `${tool} dumped a stack trace for a directory:\n${err.slice(0, 400)}`,
         );
       } finally {
-        await Deno.remove(dir);
+        await fsx.remove(dir);
       }
     });
   }
 
   it('reports an unwritable output path without a stack trace', async () => {
-    const dir = await Deno.makeTempDir();
+    const dir = await fsx.makeTempDir();
     try {
       const wat = `${dir}/in.wat`;
-      await Deno.writeTextFile(wat, '(module (func))');
+      await fsx.writeTextFile(wat, '(module (func))');
       const { code, err } = await runCli('wat2wasm', [wat, '-o', `${dir}/nope/out.wasm`]);
       assertEquals(code, 1);
       assert(!looksLikeStackTrace(err), `stack trace on write failure:\n${err.slice(0, 400)}`);
       assert(/cannot write/.test(err), `did not name the write failure:\n${err.slice(0, 200)}`);
     } finally {
-      await Deno.remove(dir, { recursive: true });
+      await fsx.remove(dir, { recursive: true });
     }
   });
 
   it('still succeeds on a valid input', async () => {
     // The guard against over-correcting: exiting 1 on everything would satisfy
     // every assertion above.
-    const dir = await Deno.makeTempDir();
+    const dir = await fsx.makeTempDir();
     try {
       const wat = `${dir}/ok.wat`;
       const wasm = `${dir}/ok.wasm`;
-      await Deno.writeTextFile(wat, '(module (func (export "f") (result i32) (i32.const 42)))');
+      await fsx.writeTextFile(wat, '(module (func (export "f") (result i32) (i32.const 42)))');
 
       const enc = await runCli('wat2wasm', [wat, '-o', wasm]);
       assertEquals(enc.code, 0, `wat2wasm failed on valid input: ${enc.err}`);
-      assert((await Deno.stat(wasm)).size > 8, 'wat2wasm produced no output');
+      assert((await fsx.stat(wasm)).size > 8, 'wat2wasm produced no output');
 
       for (const tool of ['wasm2wat', 'wasm-validate', 'wasm-objdump']) {
         const r = await runCli(tool, [wasm]);
         assertEquals(r.code, 0, `${tool} failed on a valid module: ${r.err}`);
       }
     } finally {
-      await Deno.remove(dir, { recursive: true });
+      await fsx.remove(dir, { recursive: true });
     }
   });
 });

@@ -32,6 +32,7 @@
 
 import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
+import * as fsx from '../../test_fs.ts';
 
 // `cmem/` and `README.md` are in scope too, and were NOT at first — which is
 // how T13.28 happened: five control bytes accumulated across three memory
@@ -58,7 +59,7 @@ function controlBytes(bytes: Uint8Array): number[] {
 }
 
 async function* walk(dir: string): AsyncGenerator<string> {
-  for await (const e of Deno.readDir(dir)) {
+  for await (const e of fsx.readDir(dir)) {
     const p = `${dir}/${e.name}`;
     if (e.isDirectory) yield* walk(p);
     else if (e.isFile && (p.endsWith('.ts') || p.endsWith('.md'))) yield p;
@@ -73,7 +74,7 @@ describe('T13.25 — source stays greppable', () => {
 
     for (const path of EXTRA_FILES.map((f) => `${base}${f}`)) {
       scanned++;
-      const bad = controlBytes(await Deno.readFile(path));
+      const bad = controlBytes(await fsx.readFile(path));
       if (bad.length > 0) {
         offenders.push(
           `${path.slice(base.length)}: ${bad.length} control byte(s), first at offset ${bad[0]}`,
@@ -83,7 +84,7 @@ describe('T13.25 — source stays greppable', () => {
     for (const root of ROOTS) {
       for await (const path of walk(`${base}${root}`)) {
         scanned++;
-        const bad = controlBytes(await Deno.readFile(path));
+        const bad = controlBytes(await fsx.readFile(path));
         if (bad.length > 0) {
           const rel = path.slice(base.length);
           offenders.push(`${rel}: ${bad.length} control byte(s), first at offset ${bad[0]}`);

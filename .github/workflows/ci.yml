@@ -59,9 +59,9 @@ jobs:
       - name: Type-check
         run: deno task check
 
-      # The Bun / Node type check (B2): `tsc` over the shipped code and scripts/, with
-      # @types/node pinned to the Node floor and the strict lint flags (noUnusedLocals, …). Runs
-      # NEXT TO `deno task check` until tests/ moves over in B5.
+      # The Bun / Node type check (B2): `tsc` over the shipped code, scripts/ and (since B5)
+      # tests/, with @types/node pinned to the Node floor and the strict lint flags
+      # (noUnusedLocals, …). Runs NEXT TO `deno task check` until deno.json goes (B7).
       - name: Type-check (tsc, for Bun and Node)
         run: bun run check
 
@@ -91,8 +91,21 @@ jobs:
       - name: Every export loads in a browser
         run: bun run browser
 
-      - name: Test
-        run: deno task test
+      # Node 24 is the V8 REFEREE (scripts/v8.ts): 220 test files use the host WebAssembly engine,
+      # so the suite's verdict comes from it (Bun migration B5; owner: "Node 24 authoritative, Bun
+      # too"). scripts/test.ts takes `node` from PATH only if it is that major.
+      - name: Install Node (the V8 referee)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Test (node:test on Node 24, the referee)
+        run: bun run test
+
+      # The portability leg: the same files on Bun (JavaScriptCore). Its failures must be EXACTLY
+      # the measured engine differences in tests/bun-known-differences.json, no more and no fewer.
+      - name: Test (Bun, against the known JavaScriptCore differences)
+        run: bun run test:bun
 
       # A pure relocation must not move a byte. This is NOT a test: it pins
       # output bytes, so a deliberate encoder improvement is supposed to fail it

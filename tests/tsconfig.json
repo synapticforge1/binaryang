@@ -1,0 +1,11 @@
+{
+  // The test tree under `tsc` (Bun migration B5, 2026-10-13): the root's strictness, with the
+  // test-only exception the Deno workspace member made — `tests/binaryen-ts/tsconfig.json` turns
+  // `noUncheckedIndexedAccess` off there, as `tests/binaryen-ts/deno.json` does for `deno check`.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["./**/*.ts"],
+  "exclude": ["./binaryen-ts/**"]
+}

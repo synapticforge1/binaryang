@@ -40,6 +40,7 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
 import { heapTypeNameToType, Type } from '../../../src/core/types.ts';
 import type { Module } from '../../../src/ir/ir.ts';
+import * as fsx from '../../test_fs.ts';
 
 function compile(wat: string): Uint8Array {
   const { binary, errors } = wat2wasm(wat);
@@ -327,9 +328,9 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
   it('holds across the whole spec testsuite', () => {
     // `wasmtk/` is a gitignored sibling checkout; skip when absent.
     const dir = 'wasmtk/tests/module/wasm_wast/testsuite-main';
-    let entries: Deno.DirEntry[];
+    let entries: fsx.DirEntry[];
     try {
-      entries = [...Deno.readDirSync(dir)];
+      entries = [...fsx.readDirSync(dir)];
     } catch {
       return;
     }
@@ -338,7 +339,7 @@ describe('resolveNames leaves no unresolved name-var (standing guard)', () => {
       if (!e.name.endsWith('.wast')) continue;
       let script;
       try {
-        const r = parseWastScript(Deno.readTextFileSync(`${dir}/${e.name}`));
+        const r = parseWastScript(fsx.readTextFileSync(`${dir}/${e.name}`));
         if (hasErrors(r.errors)) continue;
         script = r.script;
       } catch {

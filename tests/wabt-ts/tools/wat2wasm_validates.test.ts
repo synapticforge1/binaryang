@@ -19,6 +19,7 @@ import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { main } from '../../../src/tools/wat2wasm.ts';
 import process from 'node:process';
+import * as fsx from '../../test_fs.ts';
 
 const verdict = (wat: string): string => {
   const r = wat2wasm(wat, { filename: 't.wat', validate: true });
@@ -103,7 +104,7 @@ describe('labels by name reach the right depth', () => {
 
 describe('the CLI validates by default', () => {
   async function cli(args: string[]): Promise<{ code: number | undefined; stderr: string }> {
-    const dir = await Deno.makeTempDir();
+    const dir = await fsx.makeTempDir();
     const errs: string[] = [];
     // The tool reports through console.error and ends with process.exit: both
     // are captured for the call, and both restored after it.
@@ -116,14 +117,14 @@ describe('the CLI validates by default', () => {
       throw new Error('exit');
     }) as typeof process.exit;
     try {
-      await Deno.writeTextFile(`${dir}/in.wat`, INVALID);
-      await Deno.writeTextFile(`${dir}/gc.wat`, GC);
-      await Deno.writeTextFile(`${dir}/ok.wat`, '(module (func))');
+      await fsx.writeTextFile(`${dir}/in.wat`, INVALID);
+      await fsx.writeTextFile(`${dir}/gc.wat`, GC);
+      await fsx.writeTextFile(`${dir}/ok.wat`, '(module (func))');
       await main(args.map((a) => a.replace('DIR', dir))).catch(() => {});
     } finally {
       console.error = origError;
       process.exit = origExit;
-      await Deno.remove(dir, { recursive: true });
+      await fsx.remove(dir, { recursive: true });
     }
     return { code, stderr: errs.join('\n') };
   }

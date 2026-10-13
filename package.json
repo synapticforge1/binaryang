@@ -2,7 +2,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "tsc -p tsconfig.json && tsc -p scripts/binaryen-ts/tsconfig.json",
+    "check": "tsc -p tsconfig.json && tsc -p scripts/binaryen-ts/tsconfig.json && tsc -p tests/tsconfig.json && tsc -p tests/binaryen-ts/tsconfig.json",
+    "test": "bun scripts/test.ts",
+    "test:bun": "bun scripts/test.ts --bun",
     "naming": "bun scripts/check-naming.ts",
     "portability": "bun scripts/check-portability.ts",
     "collisions": "bun scripts/count-collisions.ts",

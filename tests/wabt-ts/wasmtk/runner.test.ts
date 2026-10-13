@@ -43,6 +43,7 @@ import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
 import { allFeatures } from '../../../src/core/feature.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { Result } from '../../../src/core/result.ts';
+import * as fsx from '../../test_fs.ts';
 
 /**
  * Files in THIS SNAPSHOT that are invalid wasm. All seven fail the same way: a
@@ -78,7 +79,7 @@ const WAT_DIR = new URL('.', import.meta.url);
 
 async function listWatFiles(): Promise<string[]> {
   const out: string[] = [];
-  for await (const entry of Deno.readDir(WAT_DIR)) {
+  for await (const entry of fsx.readDir(WAT_DIR)) {
     if (entry.isFile && entry.name.endsWith('.wat')) out.push(entry.name);
   }
   return out.sort();
@@ -90,7 +91,7 @@ describe(`wasmtk WAT corpus (${files.length} files)`, () => {
   for (const file of files) {
     it(file, async () => {
       const path = new URL(file, WAT_DIR);
-      const src = await Deno.readTextFile(path);
+      const src = await fsx.readTextFile(path);
       const result = wat2wasm(src);
       // wat2wasm returns Result.Ok on a clean compile + validate. Errors
       // are accumulated in result.errors (parse, resolveNames,

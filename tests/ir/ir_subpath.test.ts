@@ -10,6 +10,7 @@
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
+import { spawnSync } from 'node:child_process';
 import * as ir from '../../src/ir/index.ts';
 import * as binaryenView from '../../src/ir/binaryen-ts.ts';
 import * as wabtView from '../../src/ir/wabt-ts.ts';
@@ -26,15 +27,16 @@ const ENTRIES = {
 } as const;
 
 /** Every exported name of an entry file, types included, and where each is declared. */
-async function exported(entry: string): Promise<Map<string, string>> {
+function exported(entry: string): Map<string, string> {
   const path = new URL(entry, import.meta.url);
-  const out = await new Deno.Command(Deno.execPath(), {
-    args: ['doc', '--json', path.href],
-    stdout: 'piped',
-    stderr: 'piped',
-  }).output();
-  if (!out.success) throw new Error(new TextDecoder().decode(out.stderr));
-  const doc = JSON.parse(new TextDecoder().decode(out.stdout)) as {
+  // `deno doc` lists a module's exports, types included, as JSR sees them: a JSR question, so
+  // Deno answers it (owner, 2026-10-12: Deno for JSR) whichever runtime runs the tests.
+  const out = spawnSync('deno', ['doc', '--json', path.href], {
+    encoding: 'utf8',
+    maxBuffer: 64 << 20,
+  });
+  if (out.status !== 0) throw new Error(out.stderr || String(out.error));
+  const doc = JSON.parse(out.stdout) as {
     nodes: Record<string, {
       symbols: { name: string; declarations: { location: { filename: string; line: number } }[] }[];
     }>;
@@ -49,12 +51,12 @@ async function exported(entry: string): Promise<Map<string, string>> {
 describe('./ir — one subpath for the IR', () => {
   it(
     'exports every name the three deprecated subpaths export, from the same declaration',
-    async () => {
-      const all = await exported(ENTRIES['./ir']);
+    () => {
+      const all = exported(ENTRIES['./ir']);
       const missing: string[] = [];
       const moved: string[] = [];
       for (const old of ['./ir/binaryen-ts', './ir/wabt-ts', './core/wabt-ts'] as const) {
-        for (const [name, where] of await exported(ENTRIES[old])) {
+        for (const [name, where] of exported(ENTRIES[old])) {
           if (!all.has(name)) missing.push(`${old}: ${name}`);
           else if (all.get(name) !== where) {
             moved.push(

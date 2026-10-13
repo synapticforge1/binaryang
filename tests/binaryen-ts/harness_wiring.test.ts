@@ -23,17 +23,19 @@
 
 import { assert } from '@std/assert';
 import { test } from 'node:test';
+import * as fsx from '../test_fs.ts';
+import { TEST_DIRS } from '../../scripts/test.ts';
 
 test('the test task names every tree under tests/', async () => {
   const root = new URL('../../', import.meta.url);
-  const cfg = JSON.parse(await Deno.readTextFile(new URL('deno.json', root))) as {
+  const cfg = JSON.parse(await fsx.readTextFile(new URL('deno.json', root))) as {
     tasks: Record<string, string>;
   };
   const task = cfg.tasks['test'];
   assert(task, 'no `test` task in deno.json');
 
   const trees: string[] = [];
-  for await (const e of Deno.readDir(new URL('tests/', root))) {
+  for await (const e of fsx.readDir(new URL('tests/', root))) {
     if (e.isDirectory) trees.push(e.name);
   }
   assert(trees.length > 0, 'no test trees found');
@@ -45,4 +47,17 @@ test('the test task names every tree under tests/', async () => {
       `A bare \`deno test tests/\` silently collects only the workspace member ` +
       `and exits 0 — half the suite, reported green.\nTask is: ${task}`,
   );
+});
+
+// The same rule for the runner off Deno (Bun migration B5, 2026-10-13): `bun run test` (Node, the
+// referee) and `bun run test:bun` take their trees from `TEST_DIRS`, and a tree left out of it
+// would go quietly unrun on both.
+test('scripts/test.ts names every tree under tests/', async () => {
+  const trees: string[] = [];
+  for await (const e of fsx.readDir(new URL('../../tests/', import.meta.url))) {
+    if (e.isDirectory) trees.push(e.name);
+  }
+  assert(trees.length > 0, 'no test trees found');
+  const missing = trees.filter((t) => !TEST_DIRS.includes(`tests/${t}`));
+  assert(missing.length === 0, `TEST_DIRS in scripts/test.ts does not name: ${missing.join(', ')}`);
 });

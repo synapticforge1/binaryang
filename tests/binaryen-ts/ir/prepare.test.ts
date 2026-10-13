@@ -33,9 +33,10 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { prepareForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
+import * as fsx from '../../test_fs.ts';
 
 const FIXTURE = new URL('./fixtures/direct_path_modules.json', import.meta.url);
-const MODULES: { from: string; wat: string }[] = JSON.parse(Deno.readTextFileSync(FIXTURE));
+const MODULES: { from: string; wat: string }[] = JSON.parse(fsx.readTextFileSync(FIXTURE));
 
 /** The direct path: `wat2wasm`'s front end, then `prepareForPasses`. */
 function prepared(wat: string) {

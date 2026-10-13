@@ -44,7 +44,8 @@ const traps = (f: () => unknown) => {
     caught = e;
   }
   expect(caught).toBeInstanceOf(WebAssembly.RuntimeError);
-  expect((caught as Error).message).toMatch(/out of bounds/);
+  // Any engine's wording: V8 says "out of bounds", JavaScriptCore "Out of bounds" (Bun, B5).
+  expect((caught as Error).message).toMatch(/out of bounds/i);
 };
 
 const ACCESSORS = `

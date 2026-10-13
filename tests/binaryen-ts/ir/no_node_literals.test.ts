@@ -9,11 +9,12 @@
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
+import * as fsx from '../../test_fs.ts';
 
 const SRC = new URL('../../../src/', import.meta.url);
 
 function* tsFiles(dir: URL): Generator<URL> {
-  for (const e of Deno.readDirSync(dir)) {
+  for (const e of fsx.readDirSync(dir)) {
     const u = new URL(e.name + (e.isDirectory ? '/' : ''), dir);
     if (e.isDirectory) yield* tsFiles(u);
     else if (e.name.endsWith('.ts')) yield u;
@@ -25,7 +26,7 @@ describe('no expression node is built as a literal outside its factories', () =>
     const found: string[] = [];
     for (const f of tsFiles(SRC)) {
       if (f.pathname.endsWith('/ir/expressions.ts')) continue;
-      const lines = Deno.readTextFileSync(f).split('\n');
+      const lines = fsx.readTextFileSync(f).split('\n');
       lines.forEach((l, i) => {
         if (/kind: ExpressionKind\.\w+,/.test(l)) {
           found.push(`${f.pathname.split('/src/')[1]}:${i + 1}: ${l.trim()}`);

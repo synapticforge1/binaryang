@@ -59,6 +59,7 @@ import { ValType } from '../../../src/ir/types.ts';
 import { mapExpression } from '../../../src/ir/walk.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
 import { test } from 'node:test';
+import process from 'node:process';
 
 // ---------------------------------------------------------------------------
 // Seeded PRNG (mulberry32) — deterministic so failures are reproducible.
@@ -292,8 +293,8 @@ function ozPrefix(bytes: Uint8Array, n: number): Uint8Array {
 // ---------------------------------------------------------------------------
 
 test('optimize fuzz: full -Oz preserves validity + behavior on random i32 functions', () => {
-  const ITERS = Number(Deno.env.get('FUZZ_ITERS') ?? '350');
-  const BASE = Number(Deno.env.get('FUZZ_SEED') ?? '1');
+  const ITERS = Number(process.env['FUZZ_ITERS'] ?? '350');
+  const BASE = Number(process.env['FUZZ_SEED'] ?? '1');
 
   for (let i = 0; i < ITERS; i++) {
     const seed = BASE + i;

@@ -17,9 +17,10 @@ import {
 import { allFeatures, defaultFeatures } from '../../src/core/feature.ts';
 import { FeatureFlags } from '../../src/cli/feature-flags.ts';
 import { contentHash } from '../../scripts/definitions.ts';
+import * as fsx from '../test_fs.ts';
 
 const source = (f: string) =>
-  JSON.parse(Deno.readTextFileSync(new URL(`../../src/definitions/${f}`, import.meta.url)));
+  JSON.parse(fsx.readTextFileSync(new URL(`../../src/definitions/${f}`, import.meta.url)));
 
 describe('the generated module is its sources', () => {
   for (

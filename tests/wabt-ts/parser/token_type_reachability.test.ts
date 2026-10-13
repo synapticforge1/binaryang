@@ -30,6 +30,7 @@
 import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 import { TokenType } from '../../../src/parser/token.ts';
+import * as fsx from '../../test_fs.ts';
 
 const LEXER_SRC = new URL('../../../src/parser/wast-lexer.ts', import.meta.url);
 const PARSER_SRC = new URL('../../../src/parser/wast-parser.ts', import.meta.url);
@@ -53,7 +54,7 @@ function tokenTypeMembers(): Promise<string[]> {
 }
 
 async function referenced(url: URL): Promise<Set<string>> {
-  const src = await Deno.readTextFile(url);
+  const src = await fsx.readTextFile(url);
   return new Set([...src.matchAll(/TokenType\.(\w+)/g)].map((m) => m[1]!));
 }
 

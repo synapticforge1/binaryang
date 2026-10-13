@@ -35,6 +35,7 @@ import { makeErrorList } from '../../../src/core/error.ts';
 import { blockTypeOf, makeModule, UNASSIGNED_TYPE_INDEX } from '../../../src/ir/ir.ts';
 import { FidelityTable } from '../../../src/ir/fidelity.ts';
 import type { BlockExpr, Expr, Module, SelectExpr } from '../../../src/ir/ir.ts';
+import * as fsx from '../../test_fs.ts';
 
 const CORPUS = new URL('../wasmtk/', import.meta.url);
 
@@ -164,9 +165,9 @@ describe('S3 — the table survives the real pipeline, over the whole corpus', (
     let selects = 0;
     const mismatched: string[] = [];
 
-    for await (const entry of Deno.readDir(CORPUS)) {
+    for await (const entry of fsx.readDir(CORPUS)) {
       if (!entry.isFile || !entry.name.endsWith('.wat')) continue;
-      const text = await Deno.readTextFile(new URL(entry.name, CORPUS));
+      const text = await fsx.readTextFile(new URL(entry.name, CORPUS));
       const asm = wat2wasm(text, { filename: entry.name });
       if (!asm.binary) continue;
 
@@ -219,9 +220,9 @@ describe('S3 — all four families, recorded and consistent across the corpus', 
       return out;
     };
 
-    for await (const entry of Deno.readDir(CORPUS)) {
+    for await (const entry of fsx.readDir(CORPUS)) {
       if (!entry.isFile || !entry.name.endsWith('.wat')) continue;
-      const text = await Deno.readTextFile(new URL(entry.name, CORPUS));
+      const text = await fsx.readTextFile(new URL(entry.name, CORPUS));
       const asm = wat2wasm(text, { filename: entry.name });
       if (!asm.binary) continue;
       const mod = readBinaryIr(asm.binary, makeErrorList());
@@ -251,9 +252,9 @@ describe('S3 — all four families, recorded and consistent across the corpus', 
     let checked = 0;
     const bad: string[] = [];
 
-    for await (const entry of Deno.readDir(CORPUS)) {
+    for await (const entry of fsx.readDir(CORPUS)) {
       if (!entry.isFile || !entry.name.endsWith('.wat')) continue;
-      const text = await Deno.readTextFile(new URL(entry.name, CORPUS));
+      const text = await fsx.readTextFile(new URL(entry.name, CORPUS));
       const asm = wat2wasm(text, { filename: entry.name });
       if (!asm.binary) continue;
       const mod = readBinaryIr(asm.binary, makeErrorList());

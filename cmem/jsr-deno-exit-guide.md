@@ -362,6 +362,26 @@ Full record: binaryang `cmem/bun-migration.md` § "B3 lint". What carries over:
 - Keep `deno.json`'s `fmt` options until `deno.json` goes, for editors that format on save
   with Deno.
 
+### Tests off Deno: `node:test`, per-file counts, a known-differences list (2026-10-13)
+
+binaryang's B5, for your packages (its bun-migration.md § "B5" has the detail):
+- **Count first, per file, by LEAF test.** Deno's JUnit reporter lists only top-level tests (a
+  `describe` is one case); parse the default reporter for tests and steps with no children.
+- **Deno runs `node:test`.** Convert `@std/testing/bdd` → `node:test` (`describe`, `it`) and
+  `Deno.test` → `test` first, and `deno test` keeps running the suite with identical counts, so
+  the switch can go in steps, green after each. `{ ignore }` is `{ skip }`.
+- **Keep `@std/assert` / `@std/expect`** if you like, as `package.json` aliases to
+  `npm:@jsr/std__assert@<ver>` with `@jsr:registry=https://npm.jsr.io` in `.npmrc` (they then
+  depend on JSR at test time).
+- **`Deno.*` in tests:** one small module with the same names on `node:fs` turns the port into a
+  rename. A child process of "this runtime": `deno run -A` / `node file.ts` / `bun file.ts`.
+- **Which engine judges:** if tests use `WebAssembly`, Bun (JavaScriptCore) differs from V8; run
+  the verdict on Node, and Bun against a committed list checked BOTH ways (unlisted failure fails,
+  passing listed entry fails).
+- **Guard "ran nothing":** require every tracked test file to have run a test. In node's JUnit a
+  file with no tests still appears, as one case named by its path; node also writes raw `>` in
+  attribute values.
+
 ### The web: every export must LOAD in a browser
 
 - **The trap, measured in binaryang: 15 of 22 exports would not even bundle for a browser**,

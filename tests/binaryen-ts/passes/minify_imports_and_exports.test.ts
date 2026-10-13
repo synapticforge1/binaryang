@@ -23,6 +23,7 @@ import {
 } from '../../../src/passes/index.ts';
 import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
 import { test } from 'node:test';
+import * as fsx from '../../test_fs.ts';
 
 const WAT = `(module
  (import "env" "log" (func $log (param i32)))
@@ -206,9 +207,9 @@ test('minify: the name sequence skips reserved words, as upstream', () => {
 });
 
 test('wasm-opt: --minify-imports-and-exports hands over the map, once, under --converge too', async () => {
-  const path = await Deno.makeTempFile({ suffix: '.wasm' });
+  const path = await fsx.makeTempFile({ suffix: '.wasm' });
   try {
-    await Deno.writeFile(path, writeWasm(readWat(WAT)));
+    await fsx.writeFile(path, writeWasm(readWat(WAT)));
     for (const converge of [false, true]) {
       const maps: MinifyMap[] = [];
       const out = await wasmOpt(path, {
@@ -223,7 +224,7 @@ test('wasm-opt: --minify-imports-and-exports hands over the map, once, under --c
       for (const [, n] of maps[0]!.exports) assert(now.has(n), `${converge}: ${n}`);
     }
   } finally {
-    await Deno.remove(path);
+    await fsx.remove(path);
   }
 });
 

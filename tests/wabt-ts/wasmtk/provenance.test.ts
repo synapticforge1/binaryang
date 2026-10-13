@@ -3,6 +3,7 @@
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
+import * as fsx from '../../test_fs.ts';
 
 // T13.45. `tests/wabt-ts/wasmtk/` is a frozen snapshot of another project's build
 // output. Its PROVENANCE.md carried "Snapshot date: unknown" and "Source
@@ -18,7 +19,7 @@ import { expect } from '@std/expect';
 // mode, and it is the one a human is most likely to commit in a hurry.
 
 const DIR = 'tests/wabt-ts/wasmtk';
-const DOC = await Deno.readTextFile(`${DIR}/PROVENANCE.md`);
+const DOC = await fsx.readTextFile(`${DIR}/PROVENANCE.md`);
 
 /** The value cell of a `| Label | value |` row. */
 function row(label: string): string {
@@ -32,7 +33,7 @@ function row(label: string): string {
 
 async function watCount(): Promise<number> {
   let n = 0;
-  for await (const e of Deno.readDir(DIR)) {
+  for await (const e of fsx.readDir(DIR)) {
     if (e.isFile && e.name.endsWith('.wat')) n++;
   }
   return n;

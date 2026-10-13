@@ -33,6 +33,8 @@ import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { validateModule } from '../../../src/validator/validator.ts';
 import { test } from 'node:test';
+import * as fsx from '../../test_fs.ts';
+import { spawnSync } from 'node:child_process';
 
 /** A call's outcome: a returned value, or an exception carrying tag `e`'s first payload value. */
 type Outcome = { value: number | bigint } | { thrown: number | bigint | 'other' } | { trap: true };
@@ -91,19 +93,9 @@ function outcomes(bytes: Uint8Array, inputs: number[], fn = 'f'): Outcome[] {
 }
 
 let wasmtimeChecked: boolean | undefined;
-async function haveWasmtime(): Promise<boolean> {
-  if (wasmtimeChecked === undefined) {
-    try {
-      const p = new Deno.Command('wasmtime', {
-        args: ['--version'],
-        stdout: 'null',
-        stderr: 'null',
-      });
-      wasmtimeChecked = (await p.output()).success;
-    } catch {
-      wasmtimeChecked = false;
-    }
-  }
+function haveWasmtime(): boolean {
+  // A missing binary is `error` (ENOENT), not a throw.
+  wasmtimeChecked ??= spawnSync('wasmtime', ['--version'], { stdio: 'ignore' }).status === 0;
   return wasmtimeChecked;
 }
 
@@ -114,30 +106,31 @@ async function assertWasmtimeAgrees(
   want: Outcome[],
   fn: string,
 ) {
-  if (!(await haveWasmtime())) return;
-  const file = await Deno.makeTempFile({ suffix: '.wasm' });
+  if (!haveWasmtime()) return;
+  const file = await fsx.makeTempFile({ suffix: '.wasm' });
   try {
-    await Deno.writeFile(file, bytes);
+    await fsx.writeFile(file, bytes);
     for (const [i, x] of inputs.entries()) {
-      const o = await new Deno.Command('wasmtime', {
-        args: ['run', '-W', 'exceptions=y', '--invoke', fn, file, String(x)],
-        stdout: 'piped',
-        stderr: 'piped',
-      }).output();
+      const o = spawnSync(
+        'wasmtime',
+        ['run', '-W', 'exceptions=y', '--invoke', fn, file, String(x)],
+        { encoding: 'utf8' },
+      );
+      const ok = o.status === 0;
       const w = want[i]!;
       if ('value' in w) {
-        assert(o.success, `wasmtime ${fn}(${x}): ${new TextDecoder().decode(o.stderr)}`);
+        assert(ok, `wasmtime ${fn}(${x}): ${o.stderr}`);
         assertEquals(
-          new TextDecoder().decode(o.stdout).trim(),
+          o.stdout.trim(),
           String(w.value),
           `wasmtime ${fn}(${x})`,
         );
       } else {
-        assert(!o.success, `wasmtime ${fn}(${x}) returned, V8 said ${JSON.stringify(w)}`);
+        assert(!ok, `wasmtime ${fn}(${x}) returned, V8 said ${JSON.stringify(w)}`);
       }
     }
   } finally {
-    await Deno.remove(file);
+    await fsx.remove(file);
   }
 }
 
