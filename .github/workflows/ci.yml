@@ -44,8 +44,11 @@ jobs:
       - name: Install dev dependencies
         run: bun install --frozen-lockfile
 
+      # dprint replaces `deno fmt` (Bun migration B3, cmem/bun-migration.md): the same TypeScript,
+      # JSON and Markdown plugins Deno 2.9.7 bundles, pinned by checksum in dprint.json, shown to
+      # produce identical bytes. The canary fails a config that checks nothing or the wrong style.
       - name: Format check
-        run: deno fmt --check
+        run: bun run fmt:check
 
       # Biome replaces `deno lint` (Bun migration B3, cmem/bun-migration.md): Biome's recommended
       # rules plus deno lint's require-await / no-var / prefer-const, each disabled rule with its

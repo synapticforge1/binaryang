@@ -41,7 +41,7 @@ for JSR only (owner, 2026-10-12) ([bun-migration.md](bun-migration.md) § "The e
 
 CI's steps first, read from `.github/workflows/ci.yml` rather than from memory of it:
 
-`deno fmt --check` · `bun install --frozen-lockfile` · `bun run lint` (Biome, since B3, 2026-10-13; it replaced `deno lint`) · `deno task ci` · `bun run check`
+`bun install --frozen-lockfile` · `bun run fmt:check` (dprint + its canary, since B3, 2026-10-13; it replaced `deno fmt --check`) · `bun run lint` (Biome, since B3, 2026-10-13; it replaced `deno lint`) · `deno task ci` · `bun run check`
 (the `tsc` check, since Bun migration B2, 2026-10-12) · `bun run naming` · `bun run portability` ·
 `bun run browser` (every export bundles for the browser, open-work 28, 2026-10-12) ·
 `bun run baseline` · `deno publish --dry-run --allow-dirty --config jsr.json` — and the `runtimes` job's
@@ -182,7 +182,9 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
 
 ## Tools
 
-- ⚠️ **Never run `deno fmt` on `cmem/`.** `deno.json`'s `fmt.include` leaves `cmem/` out, so the
+- ⚠️ **Never run a formatter on `cmem/`.** (Since B3, 2026-10-13, the formatter is dprint, which
+  REFUSES a path outside its includes — `No files found`, exit 14 — so this trap was `deno fmt`'s.
+  `deno fmt` still runs if called, so the history below stands.) `deno.json`'s `fmt.include` leaves `cmem/` out, so the
   gate's `deno fmt --check` never looks at it — but naming a path explicitly overrides the include,
   and `deno fmt cmem/<file>` then REWRAPS the whole file and RENUMBERS its ordered lists. On
   2026-10-07 it turned open-work items 21 / 22 / 24 into 16 / 17 / 18 on `main` (16 and 17 are

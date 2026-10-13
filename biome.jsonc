@@ -1,6 +1,6 @@
 {
   // Biome replaces `deno lint` (Bun migration B3, 2026-10-12; cmem/bun-migration.md). The LINTER
-  // only: formatting stays with `deno fmt` until that half of B3 is decided, and import sorting
+  // only: formatting is dprint's (dprint.json, B3's other half, 2026-10-13), and import sorting
   // (`assist`) is off because it would reorder hundreds of files for no checked property.
   // Run: `bun run lint`.
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",

@@ -49,14 +49,15 @@ export async function contentHash(source: Record<string, unknown>): Promise<stri
 }
 
 function fmt(ts: string): string {
-  // `deno fmt` explicitly, not the running runtime: the generated module must match the repo's
-  // formatter, which is Deno's until B3 moves formatting to dprint (cmem/bun-migration.md).
-  const out = spawnSync('deno', ['fmt', '--ext=ts', '-'], {
+  // The repo's formatter (dprint since Bun migration B3, 2026-10-13; it replaced `deno fmt` byte
+  // for byte), through dprint.json: `--stdin <path>` picks the config and plugin by that path.
+  const bin = 'node_modules/.bin/dprint' + (process.platform === 'win32' ? '.exe' : '');
+  const out = spawnSync(bin, ['fmt', '--stdin', 'src/definitions/data.ts'], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     input: ts,
     stdio: ['pipe', 'pipe', 'inherit'],
   });
-  if (out.status !== 0) throw new Error('deno fmt failed on the generated module');
+  if (out.status !== 0) throw new Error('dprint failed on the generated module');
   return out.stdout.toString('utf8');
 }
 

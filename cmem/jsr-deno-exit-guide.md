@@ -342,6 +342,26 @@ Full record: binaryang `cmem/bun-migration.md` § "B3 lint". What carries over:
   unless all fire. It must be a real file: `--stdin-file-path` reports no diagnostics in 2.5.14.
   It must not be gitignored, because Biome honours `.gitignore`.
 
+### Formatting off Deno: dprint, byte for byte (2026-10-13)
+
+`deno fmt` IS dprint, so dprint can match it exactly. binaryang did it with 0 differing bytes.
+- **Take the plugin versions from YOUR Deno's `Cargo.lock`** (`raw.githubusercontent.com/denoland/deno/v<version>/Cargo.lock`, the
+  `dprint-plugin-typescript` / `-json` / `-markdown` entries), and pin those builds from
+  `plugins.dprint.dev` by SHA-256. For Deno 2.9.7: 0.96.1 / 0.21.3 / 0.20.0.
+- Each plugin gets `"deno": true` plus your `fmt` options; `singleQuote: true` is
+  `quoteStyle: "preferSingle"`. `deno-fmt-ignore-file` is honoured by the Deno preset.
+- ⚠️ **Count your scope first.** `deno fmt` formats a WORKSPACE MEMBER's files even when the
+  root's `fmt.include` leaves them out (binaryang: 532 checked, 522 in the include list, the rest
+  `comparison/`). Compare dprint's `output-file-paths` count with `deno fmt --check`'s
+  "Checked N files" before anything else.
+- **Prove it by differential:** copy the in-scope files to two scratch trees, damage them the same
+  way (strip indentation, CRLF, double quotes), format one with each tool, compare bytes.
+- **Add a canary** (binaryang's `scripts/check-fmt-canary.ts`): a planted misformat must be
+  reported, the line width checked from both sides, and a minimum file count, so an `includes`
+  typo cannot pass by checking nothing.
+- Keep `deno.json`'s `fmt` options until `deno.json` goes, for editors that format on save
+  with Deno.
+
 ### The web: every export must LOAD in a browser
 
 - **The trap, measured in binaryang: 15 of 22 exports would not even bundle for a browser**,

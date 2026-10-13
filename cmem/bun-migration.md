@@ -94,7 +94,7 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | B1   | **`jsr.json` is the one package manifest.** `deno.json` loses `name` / `version` / `license` / `exports` / `publish`. The bump, release driver, entry check, `RELEASE_FILES`, the three workflows and `version_sync` read `jsr.json`. `version_sync` also fails if `deno.json` names the package again. | ✅ on `bun-1-jsr-manifest`, gate below                                         |
 | B2   | **Bun project files next to Deno's.** ✅ Built 2026-10-12 on `bun-2-project-files`: `package.json` (private; dev dependencies `typescript` 7.0.2 and `@types/node` ~22.18, the Node floor; script `check`), `tsconfig.json` (deno.json's strictness flags, `types: ["node"]` so a Bun-only API fails), `bun.lock`, and a CI step `bun install --frozen-lockfile && bun run check`. **Scope, by decision:** `tsc` checks the SHIPPED code (`main.ts`, `src/`), 0 errors in 668 ms, and an injected `TS2322` fails it. tests/, scripts/ and comparison/ still use Deno globals; each joins `include` as B4 / B5 converts it, with its own `tsconfig` for the 3 `noUncheckedIndexedAccess: false` members. `.npmrc` / `@std` aliases and `dprint` / a linter come with B3 and B5, when something first needs them. `version_sync` also refuses `name` / `version` / `exports` / `bin` in `package.json`. ⚠️ On this machine's exFAT drive `bun install` cannot write `bun.lock` (`local/environment.md`). | ✅ `tsc` and `deno check` both green on the same commit                       |
-| B3   | **Formatting and lint off Deno.** ✅ **LINT half done 2026-10-13 (owner: "add the tsc lint flags and use Biome to replace deno lint")**, see § "B3 lint: Biome and the tsc lint flags" below. **Formatting still open:** `deno fmt` IS dprint's TypeScript plugin, so `dprint` with the same settings (`lineWidth` 100, `indentWidth` 2, `singleQuote`) should leave the tree byte-identical. Measure that first: `dprint check` on the current tree must report 0 files. (Biome's formatter is OFF; it is a different style.) | lint: ✅; fmt: `dprint check` 0 diffs |
+| B3   | **Formatting and lint off Deno.** ✅ **LINT half done 2026-10-13 (owner: "add the tsc lint flags and use Biome to replace deno lint")**, see § "B3 lint: Biome and the tsc lint flags" below. ✅ **FORMATTING half done 2026-10-13 (owner: "move on to 26 and 28")**: dprint 0.57.4 replaces `deno fmt`, with the plugins Deno 2.9.7 bundles; byte-identical on the tree and on three damaged copies of it. See § "B3 formatting: dprint replaces deno fmt". (Biome's formatter stays OFF; it is a different style.) | lint: ✅; fmt: ✅ `dprint check` 0 diffs, differential 0 |
 | B4   | ✅ **Built 2026-10-12 on `bun-4-scripts`:** all 51 script files are `node:`-only (no `Deno.*` in code, no `@std` / `jsr:` imports), and the 20 tasks are `package.json` scripts. Bun runs them, except the engine oracles, which run on Node (§ "The engine oracle"); `proposals` picks an engine per proposal. tsc checks `scripts/`. **Differential, old Deno vs new, same inputs:** every output identical, and every corpus tree byte-identical (core 7,422, legacy 29, translate-eh 29, proposals 874 files). Expected differences only: the `bump` usage line; the 4 `proposals` summary lines that now name their engine; `hostile`'s DEPTH table, which measures each runtime's stack (its mutation half is identical). Found: item 27 (an interp defect on `main`) and the gen_demo_bytes drift (below). **Original plan:** **Scripts on `node:` builtins, RUN BY BUN** (owner, 2026-10-12: "All of our scripts will now be run from bun instead of deno"; each `deno task` becomes a `package.json` script run by `bun run`). `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
 | B5   | **Tests on `node:test`, run by both Bun and Node** (§ "Bun or Node", DECIDED 2026-10-12). `@std/testing/bdd` → `node:test`'s `describe` / `it` (required: bdd calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. ⚠️ `@std/*` exists only on JSR, so these test dependencies would not survive JSR (open-work 29, parked as a contingency 2026-10-13): decide here whether to keep, vendor, or replace them. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | test counts equal; injected-mutant check                                       |
 | B6   | **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
@@ -200,7 +200,10 @@ notations to the bun migration file"):**
 - **Dead `deno-lint-ignore-file no-import-prefix` comments, 4, DELETED** (owner, 2026-10-13: "yes
   delete the comments if they no longer apply"): `comparison/scripts/` `diag_roundtrip.ts`,
   `diff_wat.ts`, `headtohead_bench.ts`, `trace_failing.ts`. They never applied: `comparison/` was
-  outside `deno lint`'s scope, and is outside Biome's. Tested on scratch copies first: Biome
+  outside `deno lint`'s scope, and is outside Biome's. ⚠️ **Corrected 2026-10-13:** "outside `deno
+  lint`'s scope" was never measured, and B3's formatting half found that `deno fmt` DOES cover
+  `comparison/` as a workspace member, whatever the root's `include` says; `deno lint` probably
+  did too, so the comments may have applied. Deleting them stands: `deno lint` no longer runs. Tested on scratch copies first: Biome
   reports nothing without them (a planted `any` / `var` proved the run live). The reason half of
   each comment (the npm: import of upstream binaryen is deliberate) stays as a plain comment.
   `comparison/` stays OUT of Biome's scope; adding it was asked and not taken up. No
@@ -290,6 +293,46 @@ code; **no `biome-ignore` remains**, and `bun run lint` passes.
 - **`noApproximativeNumericConstant` (1):** `wat2wasm.test.ts`' `3.14159` → `3.25`, in the WAT
   and the assertion (exactly representable; the round trip is tested as before).
 - **The canary's comment** said the suppressions guarded `"none"` by accident; rewritten (above).
+
+## B3 formatting: dprint replaces `deno fmt` (2026-10-13)
+
+Owner: "move on to 26 and 28". `deno fmt` IS dprint, so the question was only whether dprint can
+be configured to match it byte for byte. Measured, then switched.
+
+- **Versions, from Deno 2.9.7's own `Cargo.lock`** (tag `v2.9.7`): `dprint-plugin-typescript`
+  0.96.1, `dprint-plugin-json` 0.21.3, `dprint-plugin-markdown` 0.20.0. Those exact plugin builds,
+  pinned by SHA-256 in `dprint.json`. The CLI is `dprint` 0.57.4 from npm (2026-09-05; the newest
+  release over two weeks old; 0.63.0 was a day old), a dev dependency. It installs without its
+  postinstall (the binary is a per-platform optional package).
+- **Settings:** each plugin `"deno": true` (Deno's preset) plus `lineWidth` 100, `indentWidth` 2,
+  `useTabs` false, and `quoteStyle: "preferSingle"` (what `singleQuote: true` maps to).
+- **The scope had a hidden member.** `deno fmt --check` said "Checked 532 files" where the
+  include list held 522. The other 10 are `comparison/`, a WORKSPACE MEMBER with no `fmt` section:
+  `deno fmt` formats a member's files whatever the root's `include` says. Shown by planting a
+  misformatted file there (533, and it failed). `dprint.json` includes `comparison/**`.
+- **Proof, a differential, not a green check:** all 532 files copied to scratch trees, damaged
+  the same way, formatted by `deno fmt` and by dprint, compared byte for byte. As-is: 0 differ.
+  Indentation stripped (216 files changed): 0 differ. CRLF everywhere: 0 differ. Import specifiers
+  double-quoted (508 files): 0 differ. `deno-fmt-ignore-file` (`src/wasm/demo_bytes.ts`) is honoured
+  by dprint's Deno preset: a damaged copy stayed untouched while a plain file beside it changed.
+- **The canary, `scripts/check-fmt-canary.ts`**, after every `dprint check` (`bun run fmt:check`):
+  dprint must list ≥ 500 files; a planted double-quoted file MUST be reported; a correct 92–98
+  column line must NOT be; a 103–108 column one MUST be. Shown: the real config passes, and it fails
+  for quoteStyle removed, lineWidth 80, lineWidth 120, lineWidth removed, and an includes typo.
+  Two traps met building it: matching the canary's path anywhere in the output matched a diff of
+  the canary script ITSELF (only `from <path>:` header lines count now), and dprint's output has
+  colour codes and CRLF (stripped before matching).
+- **`scripts/definitions.ts`** formats the generated `data.ts` with `dprint fmt --stdin
+  src/definitions/data.ts` (was `deno fmt --ext=ts -`). `definitions --check` passes, and a
+  mutant that skips formatting fails it, so the formatter is on that path.
+- **Wiring:** `package.json` scripts `fmt` / `fmt:check` and the dev dependency; `bun.lock`
+  (generated on C:, the exFAT rule); CI's Format check is `bun run fmt:check`, after the install;
+  `deno.json` loses the `fmt` / `fmt:check` TASKS but KEEPS its `fmt` options until B7, so a
+  Deno-aware editor that formats on save produces dprint's bytes, not width-80 double quotes;
+  `biome.jsonc`'s header; working-rules' gate list.
+- **dprint is safer on cmem than `deno fmt`:** given a path outside its includes
+  (`dprint check cmem/INDEX.md`) it refuses ("No files found", exit 14) instead of formatting it.
+  Still: cmem is edited by hand.
 
 ## The engine oracle — Bun's WebAssembly is NOT V8 (found in B4, 2026-10-12)
 

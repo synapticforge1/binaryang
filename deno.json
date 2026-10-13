@@ -36,8 +36,6 @@
   "tasks": {
     "check": "deno check src/**/*.ts main.ts tests/**/*.ts scripts/**/*.ts",
     "test": "deno test --allow-read --allow-write --allow-run --allow-env tests/binaryen-ts/ tests/wabt-ts/ tests/ir/ tests/definitions/",
-    "fmt": "deno fmt",
-    "fmt:check": "deno fmt --check",
     "ci": "deno task check && deno task test",
     "publish:dry": "deno publish --dry-run --allow-dirty --config jsr.json",
     "comparison": "deno check comparison/ && deno test --allow-read --allow-write --allow-run --allow-env --allow-net comparison/tests/*.compare.ts"
