@@ -31,11 +31,12 @@ import {
 } from '../../../src/interp/numeric.ts';
 import type { Literal } from '../../../src/ir/expressions.ts';
 import { ValType } from '../../../src/ir/types.ts';
+import { type InstrCode, isInstrCode } from '../../../src/definitions/instr-code.ts';
 
 type T = 'i32' | 'i64' | 'f32' | 'f64';
 interface Op {
   name: string;
-  code: number;
+  code: InstrCode;
   params: T[];
   result: T;
 }
@@ -47,6 +48,7 @@ const OPS: Op[] = opcodes.entries.flatMap((e) => {
   if (sig.results.length !== 1 || sig.params.length < 1 || sig.params.length > 2) return [];
   if (![...sig.params, ...sig.results].every((t) => SCALAR.has(t))) return [];
   const code = e.prefix === null ? e.opcode : (Number(e.prefix) << 16) | e.opcode;
+  if (!isInstrCode(code)) throw new Error(`${e.name}: 0x${code.toString(16)} is no instruction`);
   return [{ name: e.name, code, params: sig.params as T[], result: sig.results[0] as T }];
 });
 

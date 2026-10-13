@@ -1564,6 +1564,11 @@ files where the gate's bare `deno fmt --check` checks 446: the new test file was
 neither of my runs and failed the gate. **How to apply:** before the gate, run its commands
 verbatim, not a narrowed equivalent.
 
+🔁 **Recurred 2026-10-13 (open-work 28):** `deno check src/**/*.ts tests/**/*.ts …` typed into Git
+Bash showed 0 errors after `Opcode` narrowed; the gate's `deno task check` found 20 in two test
+files. Bash without `globstar` does not recurse `**`, so the hand-typed run checked a fraction of
+the tree. Run the TASK (`deno task check`, `bun run check`), never a retyped glob.
+
 ## 🆕 Lessons from constant propagation and the evaluator (open-work 2 / 23, 2026-10-07)
 
 ### Two measurements do not add unless the passes are independent
