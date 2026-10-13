@@ -37,13 +37,13 @@ import { resolveNames } from '../../../src/ir/resolve-names.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
 
 /** The `memidx` var of the first expression carrying one, at any depth. */
-// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-function findMemidx(x: any): { kind: string; name?: string; value?: number } | null {
+type MemidxVar = { kind: string; name?: string; value?: number };
+function findMemidx(x: unknown): MemidxVar | null {
   if (!x || typeof x !== 'object') return null;
-  if (x.memidx) return x.memidx;
-  for (const k of Object.keys(x)) {
+  const memidx = (x as { memidx?: MemidxVar }).memidx;
+  if (memidx) return memidx;
+  for (const [k, v] of Object.entries(x)) {
     if (k === 'loc') continue;
-    const v = x[k];
     const hit = Array.isArray(v) ? v.map(findMemidx).find(Boolean) : findMemidx(v);
     if (hit) return hit;
   }

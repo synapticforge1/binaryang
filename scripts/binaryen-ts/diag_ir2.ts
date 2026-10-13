@@ -24,24 +24,32 @@ const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const mod1 = readForPasses(orig);
 const mod2 = readForPasses(writeWasm(mod1));
 
-// biome-ignore lint/suspicious/noExplicitAny: a diagnostic script reads untyped IR or engine values
-function dump(e: any, depth: number, out: string[]): void {
-  if (!e) {
+/** Any IR node: an object with a `kind`. */
+const isNode = (v: unknown): v is object =>
+  !!v && typeof v === 'object' && !!(v as { kind?: unknown }).kind;
+
+function dump(e: unknown, depth: number, out: string[]): void {
+  if (!e || typeof e !== 'object') {
     out.push('  '.repeat(depth) + '<null>');
     return;
   }
-  const t = e.type !== undefined ? `:${JSON.stringify(e.type)}` : '';
+  const n = e as {
+    readonly [k: string]: unknown;
+    readonly kind?: unknown;
+    readonly type?: unknown;
+  };
+  const t = n.type !== undefined ? `:${JSON.stringify(n.type)}` : '';
   const extra: string[] = [];
   for (const k of ['op', 'name', 'var', 'index', 'target', 'func']) {
-    if (e[k] !== undefined && typeof e[k] !== 'object') extra.push(`${k}=${e[k]}`);
+    if (n[k] !== undefined && typeof n[k] !== 'object') extra.push(`${k}=${n[k]}`);
   }
-  out.push('  '.repeat(depth) + `${e.kind}${t} ${extra.join(' ')}`);
+  out.push('  '.repeat(depth) + `${n.kind}${t} ${extra.join(' ')}`);
   for (const k of Object.keys(e)) {
-    const v = e[k];
-    if (v && typeof v === 'object' && v.kind) dump(v, depth + 1, out);
+    const v = n[k];
+    if (isNode(v)) dump(v, depth + 1, out);
     else if (Array.isArray(v)) {
       for (const item of v) {
-        if (item && typeof item === 'object' && item.kind) dump(item, depth + 1, out);
+        if (isNode(item)) dump(item, depth + 1, out);
       }
     }
   }

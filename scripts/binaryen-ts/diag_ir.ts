@@ -27,25 +27,33 @@ console.log(
   }`,
 );
 
-// biome-ignore lint/suspicious/noExplicitAny: a diagnostic script reads untyped IR or engine values
-function dump(e: any, depth: number): void {
-  if (!e) {
+/** Any IR node: an object with a `kind`. */
+const isNode = (v: unknown): v is object =>
+  !!v && typeof v === 'object' && !!(v as { kind?: unknown }).kind;
+
+function dump(e: unknown, depth: number): void {
+  if (!e || typeof e !== 'object') {
     console.log('  '.repeat(depth) + '<null>');
     return;
   }
-  const t = e.type !== undefined ? ` :${JSON.stringify(e.type)}` : '';
+  const n = e as {
+    readonly [k: string]: unknown;
+    readonly kind?: unknown;
+    readonly type?: unknown;
+  };
+  const t = n.type !== undefined ? ` :${JSON.stringify(n.type)}` : '';
   const extra: string[] = [];
   for (const k of ['op', 'name', 'var', 'index', 'label', 'target', 'func']) {
-    if (e[k] !== undefined && typeof e[k] !== 'object') extra.push(`${k}=${e[k]}`);
+    if (n[k] !== undefined && typeof n[k] !== 'object') extra.push(`${k}=${n[k]}`);
   }
-  console.log('  '.repeat(depth) + `${e.kind}${t} ${extra.join(' ')}`);
+  console.log('  '.repeat(depth) + `${n.kind}${t} ${extra.join(' ')}`);
   // recurse into known child fields
   for (const k of Object.keys(e)) {
-    const v = e[k];
-    if (v && typeof v === 'object' && v.kind) dump(v, depth + 1);
+    const v = n[k];
+    if (isNode(v)) dump(v, depth + 1);
     else if (Array.isArray(v)) {
       for (const item of v) {
-        if (item && typeof item === 'object' && item.kind) dump(item, depth + 1);
+        if (isNode(item)) dump(item, depth + 1);
       }
     }
   }

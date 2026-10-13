@@ -43,13 +43,12 @@ import { resolveNames } from '../../../src/ir/resolve-names.ts';
 import { formatErrors, hasErrors, makeErrorList } from '../../../src/core/error.ts';
 
 /** Collects every `Var` still in name form, at any depth. */
-// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-function nameVars(x: any, out: string[] = []): string[] {
+function nameVars(x: unknown, out: string[] = []): string[] {
   if (!x || typeof x !== 'object') return out;
-  if (x.kind === 'name' && typeof x.name === 'string') out.push(x.name);
-  for (const k of Object.keys(x)) {
+  const v0 = x as { kind?: unknown; name?: unknown };
+  if (v0.kind === 'name' && typeof v0.name === 'string') out.push(v0.name);
+  for (const [k, v] of Object.entries(x)) {
     if (k === 'loc') continue;
-    const v = x[k];
     if (Array.isArray(v)) v.forEach((el) => nameVars(el, out));
     else nameVars(v, out);
   }

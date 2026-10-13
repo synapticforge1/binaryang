@@ -228,21 +228,28 @@ function buildModule(seed: number): { mod: WasmModule; nParams: number; ir: stri
   return { mod, nParams, ir: irToString(body) };
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-function irToString(e: any): string {
-  if (!e) return '_';
-  let r = e.kind;
-  if (e.opcode) r += `[${e.opcode}]`;
-  if (e.index !== undefined) {
-    r += `#${typeof e.index === 'object' && 'kind' in e.index ? JSON.stringify(e.index) : e.index}`;
+/** Any IR node: an object with a `kind`. */
+const isNode = (v: unknown): v is object =>
+  !!v && typeof v === 'object' && !!(v as { kind?: unknown }).kind;
+
+function irToString(e: unknown): string {
+  if (!e || typeof e !== 'object') return '_';
+  const n = e as { kind?: unknown; opcode?: unknown; index?: unknown; value?: { i32?: unknown } };
+  let r = String(n.kind);
+  if (n.opcode) r += `[${n.opcode}]`;
+  if (n.index !== undefined) {
+    r += `#${
+      typeof n.index === 'object' && n.index !== null && 'kind' in n.index
+        ? JSON.stringify(n.index)
+        : n.index
+    }`;
   }
-  if (e.kind === 'const') r += `=${e.value?.i32}`;
+  if (n.kind === 'const') r += `=${n.value?.i32}`;
   const kids: string[] = [];
-  for (const k of Object.keys(e)) {
-    const v = e[k];
-    if (v && typeof v === 'object' && v.kind) kids.push(irToString(v));
+  for (const v of Object.values(e)) {
+    if (isNode(v)) kids.push(irToString(v));
     else if (Array.isArray(v)) {
-      for (const it of v) if (it && typeof it === 'object' && it.kind) kids.push(irToString(it));
+      for (const it of v) if (isNode(it)) kids.push(irToString(it));
     }
   }
   return kids.length ? `${r}(${kids.join(',')})` : r;
