@@ -73,17 +73,15 @@ function assertValid(bytes: Uint8Array): void {
 function outcomes(bytes: Uint8Array, inputs: number[], fn = 'f'): Outcome[] {
   const inst = new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource));
   const f = inst.exports[fn] as (x: number) => number | bigint;
-  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-  const W = WebAssembly as any;
   const tag = inst.exports['e'];
   return inputs.map((x): Outcome => {
     try {
       return { value: f(x) };
     } catch (err) {
-      if (err instanceof W.Exception) {
-        // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-        const exn = err as any;
-        return { thrown: tag && exn.is(tag) ? exn.getArg(tag, 0) : 'other' };
+      if (err instanceof WebAssembly.Exception) {
+        return {
+          thrown: tag instanceof WebAssembly.Tag && err.is(tag) ? err.getArg(tag, 0) : 'other',
+        };
       }
       if (err instanceof WebAssembly.RuntimeError) return { trap: true };
       throw err;

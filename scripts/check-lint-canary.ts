@@ -17,9 +17,10 @@
  * diagnostics, measured 2026-10-13.) Not gitignored on purpose: Biome honours `.gitignore`
  * (`useIgnoreFile`) and would then skip the file.
  *
- * In THIS repo, `"preset": "none"` also fails the lint by accident: the `biome-ignore` comments
- * become "suppression comment has no effect" warnings, and `--error-on-warnings` fails. That
- * protection ends the day the last suppression goes; the canary does not depend on it.
+ * This canary is the ONLY guard. Until 2026-10-13 `"preset": "none"` also failed the lint by
+ * accident (the `biome-ignore` comments became "suppression comment has no effect" warnings);
+ * the last suppression went that day, and with `"none"` `biome lint --error-on-warnings` now
+ * passes on all 521 files while this canary fails naming 3 rules (measured 2026-10-13).
  *
  * ```sh
  * bun scripts/check-lint-canary.ts

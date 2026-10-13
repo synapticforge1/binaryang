@@ -262,7 +262,8 @@ fatigue.
     2026-10-12: "not the V8 items"): `deno publish` stays unless JSR offers something better, and
     Deno keeps working after its development ends. No deadline.
     **B3's lint half is done** (2026-10-13: Biome replaces `deno lint`, and tsc has the strict lint
-    flags; bun-migration.md § "B3 lint"). **Next: B3's formatting half** (dprint should match `deno fmt` byte for byte, measure first), **B5** (tests: `@std/testing/bdd` → `node:test`,
+    flags; bun-migration.md § "B3 lint"; no `biome-ignore` remains: all 22 were fixed in the code, and
+    the lint canary is the only guard against a silenced config). **Next: B3's formatting half** (dprint should match `deno fmt` byte for byte, measure first), **B5** (tests: `@std/testing/bdd` → `node:test`,
     keeping `@std/assert` / `@std/expect`; per-file counts must match; 220 test files use the host
     engine, which needs the referee rule), **B6** (CI and the release path: the one step that
     cannot be undone; `publish.yml` keeps `deno publish` for provenance), **B7** (delete

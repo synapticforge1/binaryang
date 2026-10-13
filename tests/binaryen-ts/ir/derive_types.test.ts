@@ -21,6 +21,7 @@ import { makeErrorList } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { deriveTypes } from '../../../src/ir/derive-types.ts';
 import { None, Unreachable, ValType } from '../../../src/ir/types.ts';
+import { allOf as all } from '../../expr_walk.ts';
 
 /** The optimizer route from text: parse, resolve, synthesize, name, derive. */
 function fromText(wat: string, derive = true): W.Module {
@@ -54,9 +55,12 @@ function fromBinary(wat: string): W.Module {
  * two-value `br_if` stays a statement in both.)
  */
 function lift(list: unknown[], i: number, slot: 'value' | 'values'): void {
-  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-  const node = list[i] as any;
-  const operand = slot === 'value' ? node.value : node.values[0];
+  const node = list[i] as {
+    readonly value?: unknown;
+    readonly values?: readonly unknown[];
+    readonly loc?: unknown;
+  };
+  const operand = slot === 'value' ? node.value : node.values?.[0];
   const pop = { kind: 'pop', loc: node.loc };
   const rest = slot === 'value' ? { ...node, value: pop } : { ...node, values: [] };
   list.splice(i, 1, operand, rest);
@@ -67,21 +71,6 @@ function blockOf(m: W.Module, f = 0): unknown[] {
   const b = m.functions[f]!.body.children.find((e) => e.kind === 'block');
   assert(b?.kind === 'block');
   return b.children;
-}
-
-/** Every node of `kind` under `root`, in document order. */
-// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-function all(root: unknown, kind: string): any[] {
-  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-  const out: any[] = [];
-  const walk = (v: unknown): void => {
-    if (v === null || typeof v !== 'object') return;
-    if (Array.isArray(v)) return v.forEach(walk);
-    if ((v as { kind?: unknown }).kind === kind) out.push(v);
-    for (const [k, x] of Object.entries(v)) if (k !== 'loc') walk(x);
-  };
-  walk(root);
-  return out;
 }
 
 /** Every expression node under `root` that has no `type`. */
@@ -102,7 +91,7 @@ function untyped(root: unknown): string[] {
   return out;
 }
 
-const I31_REF = { heapType: { kind: 'abstract', name: 'i31' }, nullable: false };
+const I31_REF: W.RefValueType = { heapType: { kind: 'abstract', name: 'i31' }, nullable: false };
 
 describe('M8d — deriveTypes: every node, every body and constant expression', () => {
   it('leaves no node untyped', () => {
@@ -129,7 +118,7 @@ describe('M8d — deriveTypes: every node, every body and constant expression', 
         (drop (table.get 0 (i32.const 0)))
         (call $two) (drop) (drop)))`);
     const f = m.functions[1]!.body;
-    const typed = { heapType: { kind: 'index', value: 0 }, nullable: true };
+    const typed: W.RefValueType = { heapType: { kind: 'index', value: 0 }, nullable: true };
     assertEquals(
       all(f, 'local.get')[0].type,
       typed,
@@ -168,7 +157,10 @@ describe('M8d — deriveTypes: every node, every body and constant expression', 
         (drop (array.get_u $a (local.get 2) (i32.const 0)))
         (drop (any.convert_extern (extern.convert_any (local.get 1))))))`);
     const f = m.functions[1]!.body;
-    const refS = (nullable: boolean) => ({ heapType: { kind: 'index', value: 0 }, nullable });
+    const refS = (nullable: boolean): W.RefValueType => ({
+      heapType: { kind: 'index', value: 0 },
+      nullable,
+    });
     assertEquals(all(f, 'ref.null').map((n) => n.type), [ValType.FuncRef, refS(true)]);
     assertEquals(all(f, 'ref.func')[0].type, ValType.FuncRef);
     assertEquals(all(f, 'ref.i31')[0].type, I31_REF, 'non-null (the bridge made it nullable)');
@@ -468,7 +460,8 @@ describe("M8d — deriveTypes: branches follow wasm's rule where the tree shape 
       false,
     );
     const get = all(missing.functions[0]!.body, 'struct.get')[0];
-    get.fieldVar = { kind: 'index', value: 5 };
+    // Corrupt the (readonly) field reference on purpose: the test is that deriveTypes refuses it.
+    (get as { fieldVar: W.Var }).fieldVar = { kind: 'index', value: 5 };
     assertThrows(() => deriveTypes(missing), Error, 'struct.get names no such field');
   });
 });

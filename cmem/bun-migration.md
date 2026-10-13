@@ -136,7 +136,7 @@ recommended set first found 2,257 diagnostics in 378 files; each rule was read b
 | `useTemplate` | 154 | off: style; `deno lint` never had it |
 | `useIterableCallbackReturn` | 24 | off: expression-bodied `forEach` callbacks, style |
 | `noVoidTypeReturn` | 22 | off: `if (…) return this.shortSection();`, a deliberate early return |
-| `noExplicitAny` | 21 | ON (deno's `no-explicit-any`): the 21 `deno-lint-ignore` comments became `biome-ignore` with a reason. With them removed, Biome reports exactly those 21 and nothing else (owner asked to see it) |
+| `noExplicitAny` | 21 | ON (deno's `no-explicit-any`): the 21 `deno-lint-ignore` comments became `biome-ignore` with a reason. With them removed, Biome reports exactly those 21 and nothing else (owner asked to see it). **All 21 then FIXED in the code, 2026-10-13** (below) |
 | `noAssignInExpressions` | 19 | off: the memo idiom `map.set(k, s = new Set())`; deno's `no-cond-assign` only covered conditions |
 | `noImplicitAnyLet` | 15 | off: TS types an unannotated `let` from its assignments; tsc's noImplicitAny reports a true implicit any |
 | `useSimpleNumberKeys` | 9 | off: wants opcode keys like `0xfc` in decimal |
@@ -145,7 +145,7 @@ recommended set first found 2,257 diagnostics in 378 files; each rule was read b
 | `noShadowRestrictedNames` | 2 | fixed: locals `valueOf` → `valueOfExpr`, `escape` → `markEscaped` |
 | `noCommaOperator`, `noUselessStringRaw`, `useFlatMap`, `useRegexLiterals`, `noGlobalIsFinite`, `noPrototypeBuiltins` | 1–2 each | fixed (`Number.isFinite`, `Object.hasOwn`, `flatMap`, a regex literal, …) |
 | `noUnusedVariables` | 1 | fixed: `funcImportIdx` in `validator.ts`, incremented but never read (tsc counts `x++` as a read) |
-| `noApproximativeNumericConstant` | 1 | `biome-ignore`: the test's `3.14159` is WAT input, not π |
+| `noApproximativeNumericConstant` | 1 | was `biome-ignore` (the test's `3.14159` is WAT input, not π); the test now uses `3.25`, 2026-10-13 |
 
 **deno lint rules kept on purpose:** `require-await` → `useAwait`, `no-var` → `noVar`, `prefer-const`
 → `useConst`, enabled explicitly; 0 sites today (`require-await` caught 7 during B4). Measured
@@ -195,7 +195,8 @@ notations to the bun migration file"):**
   `scripts/binaryen-ts/diag_*.ts` and `check-translate-eh.ts`). The first conversion called all 21
   test code; the list from the removal test corrected that. With the comments removed, Biome
   reports exactly those 21 `noExplicitAny` and nothing else. One new `biome-ignore`:
-  `noApproximativeNumericConstant` on a test's `3.14159`.
+  `noApproximativeNumericConstant` on a test's `3.14159`. **Superseded the same day: all 22 were
+  fixed in the code and no `biome-ignore` remains** ("The 22 suppressions, removed", below).
 - **Dead `deno-lint-ignore-file no-import-prefix` comments, 4, DELETED** (owner, 2026-10-13: "yes
   delete the comments if they no longer apply"): `comparison/scripts/` `diag_roundtrip.ts`,
   `diff_wat.ts`, `headtohead_bench.ts`, `trace_failing.ts`. They never applied: `comparison/` was
@@ -235,13 +236,60 @@ always deletes it, and fails unless every rule fired. Shown: the real config pas
   and reports no diagnostics (measured). The canary's first version used it and failed even on
   the real config, which is how that was found.
 - The temporary file is not gitignored on purpose: Biome honours `.gitignore` and would skip it.
-- **In binaryang, `"preset": "none"` also fails by accident:** the 21 `biome-ignore` comments
-  become "suppression comment has no effect" warnings, and `--error-on-warnings` fails. That
-  ends the day the last suppression goes, and a repo with none (the loader) never had it. The
-  canary does not depend on it.
+- **The canary is the ONLY guard.** Until 2026-10-13 `"preset": "none"` also failed by accident
+  (the `biome-ignore` comments became "suppression comment has no effect" warnings). The last
+  suppression went that day; measured after: with `"none"`, `biome lint --error-on-warnings`
+  passes on all 521 files, and the canary fails naming 3 rules.
 - ⚠️ A mutant that silently does nothing proves nothing: the first attempt to remove the explicit
   rules was a text replace that matched nothing, and it "showed" all six still firing. The probe
   that settled it asserts the lines are gone before running.
+
+**The 22 suppressions, removed (2026-10-13).** Owner: "I want to make sure that the
+'biome-ignore' comments are necessary. Can we remove them and run the linter … I am hoping that
+the issues that were issues are either corrected or addressed in other ways", then "Yes do all
+22". With the comments stripped (a scratch probe, tree restored), all 22 still fired (21
+`noExplicitAny`, 1 `noApproximativeNumericConstant`): none was stale. Each was then fixed in the
+code; **no `biome-ignore` remains**, and `bun run lint` passes.
+
+- **The tree walkers (11 sites, 5 files):** `all` / `first` in `derive_types`, `name_references`,
+  `call_indirect_arity`, `phantom_branch_value`, `function_label_arity` were five copies of one
+  walk returning `any`. Now ONE typed module, **`tests/expr_walk.ts`**: `allOf(root, kind)` /
+  `firstOf(root, kind)` return `ExprOf<K>`, the `W.Expr` member(s) whose `kind` includes `K`. Not
+  `Extract<W.Expr, {kind: K}>`: one member covers two kinds (`'any.convert_extern' |
+  'extern.convert_any'`) and `Extract` dropped it (`never`). Each file keeps its own parse step.
+  `ExprOf` was proven by a type probe (scratch): it finds the two-kind member, narrows `'br'` to
+  exactly `BrExpr`, rejects a field `BrExpr` lacks, rejects an unknown kind, and is narrower than
+  `W.Expr` (a union-typed `const` is narrowed by its initializer, so that last check needs a
+  parameter: the probe's first version passed wrongly).
+- **What the types found, that `any` had hidden:**
+  - `asyncify.test.ts`: a function `body` built as a `block` behind `as any`. A body is a
+    `RegionExpr`; it is now `makeRegion([...], ValType.I32)`, the block's contents. 16 tests pass.
+  - `name_references.test.ts`: `all(f.body, 'br_on_null')[0]?.target ?? all(f.body, 'br_on')…`.
+    `'br_on_null'` is no kind (the null and cast pairs merged into `br_on`), so the first half
+    could never match. Now `all(f.body, 'br_on')[0]!.target`.
+  - `derive_types.test.ts`: expected values (`I31_REF`, `typed`, `refS`) were untyped literals
+    whose `kind` widened to `string`; now `W.RefValueType`. A deliberate write to a readonly
+    `fieldVar` (the test corrupts it) is now an explicit, commented cast.
+  - `call_indirect_arity.test.ts`: `operands[0].value.value === 1` → `assert(arg.kind ===
+    'const')` and `assertEquals(arg.value, constI32(1))`, which checks the type as well.
+  - `noUncheckedIndexedAccess` reached the walkers' results: `[0]!` (the repo idiom), and
+    optional fields (`tag` of a catch, `delegate`) asserted where the test knows they are set.
+- **Structure scans (2):** `findMemidx` (`atomic_memidx`) and `nameVars` (`table_get_index`) look
+  at ANY object, not one kind: `unknown` plus a narrowed view, return types unchanged.
+- **`WebAssembly.Exception` (3):** `check-translate-eh.ts` and `translate_eh.test.ts` cast
+  `WebAssembly as any`. ⚠️ The session first said neither checker types `Exception` / `Tag`
+  (a grep of the `.d.ts` files found no `getArg`). WRONG: TypeScript 7 builds its lib into the
+  compiler. A probe passed in `deno check` and tsc (`--lib esnext,dom`), with a negative control
+  proving the check live. Now `instanceof WebAssembly.Exception`, `tag instanceof
+  WebAssembly.Tag && err.is(tag)`. The tests assert payloads (`thrown(20)`, …), so the path runs.
+- **Printers (4):** `irToString` (`optimize_fuzz`) and the three `dump`s in
+  `scripts/binaryen-ts/diag_*.ts`: `unknown`, a narrowed view, an `isNode` guard. Output proven
+  identical, old vs new, over every function body of every `.wat` under `tests/` (421 files,
+  7,620 bodies; 9.7 M chars for `irToString`, 1,018,243 lines for `dump`). The `diag_*` scripts
+  read `upstream/test/`, absent on this machine, so they were not run end to end.
+- **`noApproximativeNumericConstant` (1):** `wat2wasm.test.ts`' `3.14159` → `3.25`, in the WAT
+  and the assertion (exactly representable; the round trip is tested as before).
+- **The canary's comment** said the suppressions guarded `"none"` by accident; rewritten (above).
 
 ## The engine oracle — Bun's WebAssembly is NOT V8 (found in B4, 2026-10-12)
 

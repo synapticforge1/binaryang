@@ -18,6 +18,7 @@ import { resolveNames } from '../../src/ir/resolve-names.ts';
 import { synthesizeTypes } from '../../src/ir/synthesize-types.ts';
 import { nameEveryEntity } from '../../src/ir/made-up-names.ts';
 import { nameReferences } from '../../src/ir/name-references.ts';
+import { allOf as all } from '../expr_walk.ts';
 
 /** The optimizer route up to M8c: parse, resolve, synthesize, name. */
 function load(wat: string, name = true): W.Module {
@@ -27,21 +28,6 @@ function load(wat: string, name = true): W.Module {
   synthesizeTypes(p.module);
   if (name) nameReferences(p.module);
   return p.module;
-}
-
-/** Every node of `kind` under `root`, in document order. */
-// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-function all(root: unknown, kind: string): any[] {
-  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-  const out: any[] = [];
-  const walk = (v: unknown): void => {
-    if (Array.isArray(v)) return v.forEach(walk);
-    if (v === null || typeof v !== 'object') return;
-    if ((v as { kind?: unknown }).kind === kind) out.push(v);
-    for (const [k, x] of Object.entries(v)) if (k !== 'loc') walk(x);
-  };
-  walk(root);
-  return out;
 }
 
 const name = (v: W.Var): string => {
@@ -96,10 +82,10 @@ describe('M8c — nameReferences: entities', () => {
   it('calls, ref.func, globals, call_indirect tables and tags become names', () => {
     assertEquals(all(body, 'call').map((c) => name(c.func)), ['$func0', '$named']);
     assertEquals(all(body, 'ref.func').map((c) => name(c.func)), ['$named']);
-    assertEquals(name(all(body, 'global.get')[0].var), '$global0');
-    assertEquals(name(all(body, 'global.set')[0].var), '$g2');
-    assertEquals(name(all(body, 'call_indirect')[0].table), '$table0');
-    assertEquals(name(all(body, 'throw')[0].tag), '$tag0');
+    assertEquals(name(all(body, 'global.get')[0]!.var), '$global0');
+    assertEquals(name(all(body, 'global.set')[0]!.var), '$g2');
+    assertEquals(name(all(body, 'call_indirect')[0]!.table), '$table0');
+    assertEquals(name(all(body, 'throw')[0]!.tag), '$tag0');
   });
 
   it("start, every export, and an active segment's table and entries become names", () => {
@@ -121,9 +107,9 @@ describe('M8c — nameReferences: entities', () => {
     const t = load(`(module (memory 1) (table 1 funcref) (type $t (func)) (func (local i32)
       i32.const 0 i32.load drop local.get 0 drop i32.const 0 call_indirect (type $t)))`);
     const body = t.functions[0]!.body;
-    assertEquals(all(body, 'local.get')[0].var, varIndex(0));
-    assertEquals(all(body, 'load')[0].memidx, varIndex(0));
-    assertEquals(all(body, 'call_indirect')[0].typeVar, varIndex(0));
+    assertEquals(all(body, 'local.get')[0]!.var, varIndex(0));
+    assertEquals(all(body, 'load')[0]!.memidx, varIndex(0));
+    assertEquals(all(body, 'call_indirect')[0]!.typeVar, varIndex(0));
   });
 
   it("a module that already has a record (a binary's) is not named again", () => {
@@ -133,7 +119,7 @@ describe('M8c — nameReferences: entities', () => {
     nameReferences(t);
     assert(t.explicitNames === record, "the reader's record is kept, not remade");
     assert(!t.explicitNames!.functions.has('$func0'), 'a made-up name must not become real');
-    assertEquals(name(all(t.functions[1]!.body, 'call')[0].func), '$func0');
+    assertEquals(name(all(t.functions[1]!.body, 'call')[0]!.func), '$func0');
   });
 
   it('imports come first in every space; constant expressions are named too', () => {
@@ -147,9 +133,9 @@ describe('M8c — nameReferences: entities', () => {
       (data (global.get 0) "")
       (export "m" (memory 1)))`);
     assertEquals(name(t.exports[0]!.var), 'mem1', 'the defined memory follows the imported one');
-    assertEquals(name(all(t.globals[0]!.init, 'global.get')[0].var), '$global0');
-    assertEquals(name(all(t.tables[0]!.init, 'ref.func')[0].func), '$f');
-    assertEquals(name(all(t.dataSegments[0]!.offset, 'global.get')[0].var), '$global0');
+    assertEquals(name(all(t.globals[0]!.init, 'global.get')[0]!.var), '$global0');
+    assertEquals(name(all(t.tables[0]!.init, 'ref.func')[0]!.func), '$f');
+    assertEquals(name(all(t.dataSegments[0]!.offset, 'global.get')[0]!.var), '$global0');
   });
 
   it('an index out of range is refused, never guessed', () => {
@@ -175,12 +161,14 @@ describe('M8c — nameReferences: labels', () => {
         br 0
       end))`);
     const f = m.functions[0]!;
-    const [outer, inner] = all(f.body, 'block');
+    const blocks = all(f.body, 'block');
+    const outer = blocks[0]!;
+    const inner = blocks[1]!;
     assertEquals(inner.label, '$b');
     assert(outer.label !== '', 'every carrier is named');
     assertEquals(f.bodyFrameLabel, '$l0_frame');
     const brs = all(f.body, 'br').map((b) => name(b.target));
-    const ifLabel = all(f.body, 'if')[0].label;
+    const ifLabel = all(f.body, 'if')[0]!.label;
     assert(ifLabel !== '', 'an if is named, so a branch to it is expressible');
     assertEquals(brs, [outer.label, '$b', '$l0_frame', ifLabel]);
     // A made-up label is not real: it is never written.
@@ -201,7 +189,7 @@ describe('M8c — nameReferences: labels', () => {
   it('br_table names every target and the default', () => {
     const f = load(`(module (func (param i32)
       block $a block $b local.get 0 br_table 0 1 2 end end))`).functions[0]!;
-    const bt = all(f.body, 'br_table')[0];
+    const bt = all(f.body, 'br_table')[0]!;
     assertEquals(bt.targets.map(name), ['$b', '$a']);
     assertEquals(name(bt.defaultTarget), '$l0_frame');
   });
@@ -210,7 +198,7 @@ describe('M8c — nameReferences: labels', () => {
     const f = load(`(module (func (param externref)
       block $x local.get 0 br_on_null 0 drop end))`).functions[0]!;
     assertEquals(
-      name(all(f.body, 'br_on_null')[0]?.target ?? all(f.body, 'br_on')[0].target),
+      name(all(f.body, 'br_on')[0]!.target),
       '$x',
     );
   });
@@ -222,11 +210,11 @@ describe('M8c — nameReferences: labels', () => {
           br 0
         end
       end))`).functions[0]!;
-    const tt = all(f.body, 'try_table')[0];
+    const tt = all(f.body, 'try_table')[0]!;
     assertEquals(tt.catches.map((c: W.TableCatch) => name(c.target)), ['$h', '$h']);
-    assertEquals(name(tt.catches[0].tag), '$e');
+    assertEquals(name(tt.catches[0]!.tag!), '$e');
     assertEquals(
-      name(all(tt.body, 'br')[0].target),
+      name(all(tt.body, 'br')[0]!.target),
       '$tt',
       'inside the body, depth 0 is the try_table',
     );
@@ -243,10 +231,10 @@ describe('M8c — nameReferences: labels', () => {
         end
       end))`).functions[0]!;
     const tries = all(f.body, 'try');
-    assertEquals(tries[0].label, '$t');
-    assertEquals(name(tries[1].delegate), '$t');
-    assertEquals(name(tries[2].delegate), '$outer');
-    assertEquals(name(all(f.body, 'rethrow')[0].target), '$t');
-    assertEquals(name(tries[0].catches[0].tag), '$e');
+    assertEquals(tries[0]!.label, '$t');
+    assertEquals(name(tries[1]!.delegate!), '$t');
+    assertEquals(name(tries[2]!.delegate!), '$outer');
+    assertEquals(name(all(f.body, 'rethrow')[0]!.target), '$t');
+    assertEquals(name(tries[0]!.catches[0]!.tag!), '$e');
   });
 });

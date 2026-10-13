@@ -326,7 +326,13 @@ Full record: binaryang `cmem/bun-migration.md` § "B3 lint". What carries over:
   otherwise). Count the recommended set's findings per rule first, then decide each rule.
   ⚠️ **`useLiteralKeys` contradicts `noPropertyAccessFromIndexSignature`**: switch it off if you use
   that flag. `deno-lint-ignore X` comments become `biome-ignore lint/<group>/<rule>: <reason>` (a
-  reason is required).
+  reason is required). **Better: fix them instead.** binaryang converted 21, then removed all 22
+  (2026-10-13): untyped test tree walkers became one walker typed by `kind` (see binaryang's
+  `tests/expr_walk.ts`, and `Extract` misses a member with two kinds), generic printers took
+  `unknown`, and `WebAssembly.Exception` / `Tag` ARE typed in TypeScript 7 and Deno, so
+  `WebAssembly as any` is unnecessary. The types then found an invalid IR shape and a dead branch
+  that `any` had hidden. Once the last suppression is gone, the lint canary is your only guard
+  against `"preset": "none"`.
 - **`useAwait` and `noVar` are NOT in Biome's recommended preset** (deno's `require-await` and
   `no-var` were): enable them. `useConst` is in it.
 - ⚠️ **`biome migrate` (2.5.14) rewrote `"recommended": true` as `"preset": "none"`**, which silences

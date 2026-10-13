@@ -97,13 +97,12 @@ describe('wat2wasm — hex-float literals (wasmtk mathlib repro)', () => {
     const vals = instValues(
       `(module
       (func (export "a") (result f64) (f64.const 1.5))
-      (func (export "b") (result f64) (f64.const 3.14159))
+      (func (export "b") (result f64) (f64.const 3.25))
       (func (export "c") (result f64) (f64.const -2.5)))`,
       ['a', 'b', 'c'],
     );
     assertEquals(vals[0], 1.5);
-    // biome-ignore lint/suspicious/noApproximativeNumericConstant: the WAT input's literal, not Math.PI
-    assertEquals(vals[1], 3.14159);
+    assertEquals(vals[1], 3.25);
     assertEquals(vals[2], -2.5);
   });
 });

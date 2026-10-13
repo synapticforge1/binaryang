@@ -18,6 +18,7 @@ import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
 import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
 import { hasErrors, makeErrorList } from '../../../src/core/error.ts';
 import type { Expr, Module } from '../../../src/ir/ir.ts';
+import { type ExprOf, firstOf } from '../../expr_walk.ts';
 
 const WAT = `(module
   (func (export "br") (result i32)
@@ -53,19 +54,8 @@ function read(): Module {
 }
 
 /** The first node of `kind` in function `f`, anywhere in its body. */
-// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-function first(m: Module, f: number, kind: string): any {
-  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-  let found: any;
-  const walk = (v: unknown): void => {
-    if (found !== undefined || v === null || typeof v !== 'object') return;
-    if (Array.isArray(v)) return v.forEach(walk);
-    if ((v as Expr).kind === kind) found = v;
-    else for (const [k, x] of Object.entries(v)) if (k !== 'loc') walk(x);
-  };
-  walk(m.functions[f]!.body);
-  assert(found, `a ${kind} in function ${f}`);
-  return found;
+function first<K extends Expr['kind']>(m: Module, f: number, kind: K): ExprOf<K> {
+  return firstOf(m.functions[f]!.body, kind, `a ${kind} in function ${f}`);
 }
 
 const kinds = (es: Expr[]) => es.map((e) => e.kind);
@@ -79,7 +69,7 @@ describe('a branch to the function label carries the function’s results', () =
 
   it('br_if holds its value, and is the drop’s operand', () => {
     const drop = first(read(), 1, 'drop');
-    assertEquals(drop.value.kind, 'br');
+    assert(drop.value.kind === 'br', `the drop's operand is a br, not ${drop.value.kind}`);
     assertEquals(kinds(drop.value.values), ['const']);
   });
 

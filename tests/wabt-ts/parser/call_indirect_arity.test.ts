@@ -16,22 +16,15 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import type * as W from '../../../src/ir/ir.ts';
+import { constI32 } from '../../../src/ir/ir.ts';
+import { allOf, type ExprOf } from '../../expr_walk.ts';
 
 /** Every node of `kind` in function `fn`'s body, in document order. */
-// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-function all(wat: string, kind: string, fn = 0): any[] {
+function all<K extends W.Expr['kind']>(wat: string, kind: K, fn = 0): ExprOf<K>[] {
   const p = parseWatModule(wat);
   assert(p.module, 'the module parses');
-  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-  const out: any[] = [];
-  const walk = (v: unknown): void => {
-    if (v === null || typeof v !== 'object') return;
-    if (Array.isArray(v)) return v.forEach(walk);
-    if ((v as { kind?: unknown }).kind === kind) out.push(v);
-    for (const [k, x] of Object.entries(v)) if (k !== 'loc') walk(x);
-  };
-  walk(p.module.functions[fn]!.body);
-  return out;
+  return allOf(p.module.functions[fn]!.body, kind);
 }
 
 const kinds = (xs: { kind: string }[]) => xs.map((x) => x.kind);
@@ -47,10 +40,10 @@ describe("a linear indirect call takes its signature's arguments, not the whole 
           call_indirect (type $t)
           br_if 0
         end))`;
-    const [call] = all(wat, 'call_indirect');
+    const call = all(wat, 'call_indirect')[0]!;
     assertEquals(kinds(call.operands), ['local.get']);
     assertEquals(call.callee.kind, 'const');
-    const [br] = all(wat, 'br');
+    const br = all(wat, 'br')[0]!;
     assertEquals(kinds(br.values), ['const'], "the i32.const 7 is the br_if's value");
   });
 
@@ -62,7 +55,7 @@ describe("a linear indirect call takes its signature's arguments, not the whole 
         i32.const 0
         call_indirect (param i32) (result i32)
         drop))`;
-    const [call] = all(wat, 'call_indirect');
+    const call = all(wat, 'call_indirect')[0]!;
     assertEquals(call.operands.length, 1);
   });
 
@@ -73,7 +66,7 @@ describe("a linear indirect call takes its signature's arguments, not the whole 
         local.get 0
         i32.const 0
         return_call_indirect (type $t)))`;
-    const [call] = all(wat, 'call_indirect');
+    const call = all(wat, 'call_indirect')[0]!;
     assertEquals(kinds(call.operands), ['local.get']);
   });
 
@@ -87,8 +80,10 @@ describe("a linear indirect call takes its signature's arguments, not the whole 
         ref.func $g
         call_ref $t
         drop))`;
-    const [call] = all(wat, 'call_ref', 1);
+    const call = all(wat, 'call_ref', 1)[0]!;
     assertEquals(kinds(call.operands), ['const']);
-    assertEquals(call.operands[0].value.value, 1);
+    const arg = call.operands[0]!;
+    assert(arg.kind === 'const');
+    assertEquals(arg.value, constI32(1));
   });
 });

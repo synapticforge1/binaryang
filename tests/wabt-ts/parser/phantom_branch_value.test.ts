@@ -25,30 +25,21 @@ import { describe, it } from '@std/testing/bdd';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import type * as W from '../../../src/ir/ir.ts';
+import { type ExprOf, firstOf } from '../../expr_walk.ts';
 
 /** The first node of `kind` in function 0's body. */
-// biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-function first(wat: string, kind: string): any {
+function first<K extends W.Expr['kind']>(wat: string, kind: K): ExprOf<K> {
   const p = parseWatModule(wat);
   assert(p.module, 'the module parses');
-  // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-  let found: any;
-  const walk = (v: unknown): void => {
-    if (found !== undefined || v === null || typeof v !== 'object') return;
-    if (Array.isArray(v)) return v.forEach(walk);
-    if ((v as { kind?: unknown }).kind === kind) found = v;
-    else for (const [k, x] of Object.entries(v)) if (k !== 'loc') walk(x);
-  };
-  walk(p.module.functions[0]!.body);
-  assert(found, `a ${kind} node`);
-  return found;
+  return firstOf(p.module.functions[0]!.body, kind);
 }
 
 describe('linear branches carry no phantom value', () => {
   it('br_if to a void block carries nothing', () => {
     const br = first('(module (func (param i32) block local.get 0 br_if 0 end))', 'br');
     assertEquals(br.values, []);
-    assertEquals(br.condition.kind, 'local.get');
+    assertEquals(br.condition?.kind, 'local.get');
   });
 
   it('br_on_null to a void block carries nothing', () => {

@@ -57,16 +57,12 @@ function moduleWithImport(): WasmModule {
       name: '$foo',
       sig: { params: [ValType.I32], results: [ValType.I32] },
       locals: [{ type: ValType.I32 }],
-      body: {
-        kind: ExpressionKind.Block,
-        type: ValType.I32,
-        label: '',
-        children: [
-          { kind: ExpressionKind.Call, type: 'none', func: varName('$sleep'), operands: [] },
-          { kind: ExpressionKind.LocalGet, type: ValType.I32, var: varIndex(0) },
-        ],
-        // biome-ignore lint/suspicious/noExplicitAny: test code reads untyped IR or engine values
-      } as any,
+      // A function body is a region (it was an unnamed block here, behind an `as any`, until
+      // 2026-10-13); the region takes the block's contents.
+      body: makeRegion([
+        { kind: ExpressionKind.Call, type: 'none', func: varName('$sleep'), operands: [] },
+        { kind: ExpressionKind.LocalGet, type: ValType.I32, var: varIndex(0) },
+      ], ValType.I32),
     }],
     globals: [],
     memories: [{ name: '$mem', limits: limitsOf(1) }],
