@@ -1725,6 +1725,13 @@ run. **How to apply:** judge a gate by ITS printed steps and its own exit code, 
 Make a runner refuse to start when a prerequisite (the expected `node`) is missing, and use POSIX
 paths (`/c/…`) on PATH in Git Bash.
 
+🔁 **It recurred the next day (2026-10-13)**, in an ad-hoc command:
+`deno fmt --check <files> | tail -1 && git add -A && git commit …`. The check failed, `tail`
+returned 0, and the commit went in. (That failure was itself false: the file named was outside
+`fmt.include`; see the formatter lesson above.) **How to apply, sharper:** never put a check
+before `&&` through a pipe. Run it alone, `cmd >/dev/null 2>&1; echo "exit $?"`, read the code,
+and only then run the next step.
+
 ### A numeric `enum` lets any number through — converting it exposes the lies
 
 Converting the 20 enums to const objects (open-work 28 part 4) turned three typing lies into
@@ -1744,6 +1751,39 @@ Node 22's V8 12.4 failed the behaviour gate outright, and Node 24's V8 13.6 agre
 None of that showed until each engine validated the same corpus. **How to apply:** before a gate
 that judges with the host engine changes runtime or version, validate the whole corpus on old and
 new and diff the verdicts. Record which engine referees, and when that engine reaches end of life.
+
+## 🆕 Lessons from the lint migration (Bun migration B3, 2026-10-13)
+
+### A suppression hides more than the rule it names — fix it, then see what the types find
+
+The 21 `noExplicitAny` suppressions in tests and scripts each looked reasonable ("test code reads
+untyped IR"). Typing them instead (owner: "I am hoping that the issues … are either corrected or
+addressed in other ways") found what `any` had hidden: a test that built a function body as a
+`block` (a body is a region: invalid IR the pass under test tolerated), a lookup of a node kind
+that no longer exists (`'br_on_null'`, the dead half of a `??`), and expected values whose `kind`
+had widened to `string`. None of it showed in a passing suite. **How to apply:** before
+converting a suppression, delete it and look at what fires; prefer one TYPED helper over many
+untyped copies (`tests/expr_walk.ts`); count a suppression as unmeasured code, not as handled.
+
+### "Not in the type files" is not "not in the compiler" — settle a type question by compiling
+
+The session told the owner `WebAssembly.Exception` / `Tag` had no types (no `getArg` in any
+`.d.ts` under `node_modules` or in `deno types`). Wrong: TypeScript 7 builds its standard library
+into the compiler, and both checkers accepted a three-line probe. **How to apply:** answer "does
+the checker know X" with a probe file that uses X, run through the real checker, plus a negative
+control (a deliberate error) proving the check runs. A probe can lie too: one `@ts-expect-error`
+went unused because a union-typed `const` is narrowed by its initializer, so the "wider" value was
+already narrow. Use a function parameter for "is A assignable to B", and make every expected error
+show that it bites.
+
+### Naming a file to a tool overrides the tool's scope — a failure there is not the gate's
+
+`deno fmt --check cmem/bun-migration.md` reported "not formatted"; the gate's `deno fmt --check`
+never looks at `cmem/`, and running `deno fmt` on the file to "fix" it reflowed the whole file
+(526 lines changed; undone). The same holds for linters and checkers given explicit paths. **How
+to apply:** check a file the way the gate does (no path, or only paths inside its include); before
+acting on a failure for an explicit path, confirm the path is in the tool's scope
+(`fmt.include`, `files.includes`).
 
 ## Where to go for the rest
 

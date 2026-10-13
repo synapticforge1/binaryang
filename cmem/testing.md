@@ -44,11 +44,19 @@ silently rewrote a file long before you read the diff. See [best-practices.md](b
 
 ## Test tree
 
-`tests/binaryen-ts/` · `tests/wabt-ts/` · `tests/bridge/`, each mirroring its `src/` counterpart.
+`tests/binaryen-ts/` · `tests/wabt-ts/` · `tests/ir/` · `tests/definitions/` (2026-10-13; `tests/bridge/`
+went with the bridge), each mirroring its `src/` counterpart.
 
-⚠️ **`deno task test` enumerates those three directories by name.** A fourth top-level test
-directory will not run until it is added there — `tests/bridge/` needed exactly that when the bridge
-moved, and the whole bridge suite would have gone quiet without it.
+⚠️ **`deno task test` enumerates those directories by name.** A new top-level test directory will
+not run until it is added there — `tests/bridge/` needed exactly that when the bridge moved, and the
+whole bridge suite would have gone quiet without it.
+
+**Finding IR nodes in a test: `tests/expr_walk.ts`** (2026-10-13). `allOf(root, kind)` /
+`firstOf(root, kind)` walk the tree by STRUCTURE (not the IR's own visitor, so a test does not lean
+on the code it checks) and return `ExprOf<K>`, the `W.Expr` member(s) whose `kind` includes `K` —
+typed, so a test reading a field the node does not have fails `deno check`. Use it instead of a
+local walker returning `any`; five such copies were folded into it ([bun-migration.md](bun-migration.md)
+§ "The 22 suppressions, removed"). Not a test file, so no task lists it; `deno check` covers it.
 
 ### `noUncheckedIndexedAccess` is ON at the root, OFF in `tests/binaryen-ts/`
 

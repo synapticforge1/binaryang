@@ -52,6 +52,26 @@ PUSHED; the version stays 1.10.0):**
 - **Owner, 2026-10-12: the NEXT project is universal-wasm-loader** (Bun cannot import `.wasm`;
   the guide's F11), worked in ITS repo, not from here.
 
+**State, end of 2026-10-13 (supersedes the 2026-10-12 paragraph where they differ; all merged to
+`main` at `3e719faf6`, NOT PUSHED; the version stays 1.10.0):**
+- **Done this session: B3's LINT half** ([bun-migration.md](bun-migration.md) § "B3 lint").
+  Biome 2.5.14 replaces `deno lint` (`bun run lint`, in CI after `bun install --frozen-lockfile`);
+  tsc has the seven lint flags (`deno.json` six: Deno 2.9.7 ignores
+  `noUncheckedSideEffectImports`); `scripts/check-lint-canary.ts` fails a silenced config (the
+  `biome migrate` → `"preset": "none"` trap) and is now the ONLY guard against it.
+- **No suppression comment remains:** the 21 `deno-lint-ignore` became `biome-ignore`, then all
+  22 were fixed in the code (owner: "Yes do all 22"); the types found an invalid IR shape and a
+  dead branch in tests. The shared typed test walker is `tests/expr_walk.ts`
+  ([testing.md](testing.md) § "Test tree"). The 4 dead `deno-lint-ignore-file` comments in
+  `comparison/scripts/` were deleted; `comparison/` stays outside Biome's scope.
+- **Who runs what, now:** Deno for JSR publishing, plus `deno fmt` (until B3's formatting half)
+  and `deno check` / `deno test` (until B5). `deno lint` is gone.
+- **Still 6 open items**, unchanged in number: 13, 14, 15, 25, 26 (**next: B3's formatting
+  half**, dprint measured against `deno fmt` first; then B5, B6, B7), 28. The `code-lens-13`
+  conflict above still stands.
+- ⚠️ A `git checkout` + `merge` touching ~150 files failed half-way on this machine and tore the
+  working tree; recovered, nothing lost. The recipe is in `local/environment.md` (private).
+
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
 **Cut back to open items on 2026-09-29** (the second time; the first was 2026-09-14). The file had
