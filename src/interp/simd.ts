@@ -46,6 +46,7 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import { ValType } from '../ir/types.ts';
+import type { Opcode } from '../core/opcode.ts';
 import { evalBinary, evalUnary, type NumericResult } from './numeric.ts';
 
 /** The `v128` literal. */
@@ -159,8 +160,8 @@ function scalar(r: NumericResult | null): Literal {
   if (r === null || 'trap' in r) throw new Error('simd: a lane operator gave no value');
   return r.value;
 }
-const lane1 = (op: number, a: Literal): Literal => scalar(evalUnary(op, a));
-const lane2 = (op: number, a: Literal, b: Literal): Literal => scalar(evalBinary(op, a, b));
+const lane1 = (op: Opcode, a: Literal): Literal => scalar(evalUnary(op, a));
+const lane2 = (op: Opcode, a: Literal, b: Literal): Literal => scalar(evalBinary(op, a, b));
 
 /** Whether any float lane of `bytes`, read as `f32x4` or `f64x2` per `wide`, is NaN. */
 export function isNaNLane(bytes: Uint8Array, wide: boolean): boolean {
@@ -492,24 +493,24 @@ const cmpInts = (
 const cmpLongs = (a: Uint8Array, b: Uint8Array, f: (x: bigint, y: bigint) => boolean) =>
   zipLongs(true, a, b, (x, y) => (f(x, y) ? -1n : 0n));
 /** A float comparison's lanes, through the scalar comparison. */
-const cmpF32 = (op: number, a: Uint8Array, b: Uint8Array): Uint8Array => {
+const cmpF32 = (op: Opcode, a: Uint8Array, b: Uint8Array): Uint8Array => {
   const xs = f32s(a), ys = f32s(b);
   return fromInts(
     32,
     xs.map((x, i) => mask((lane2(op, x, ys[i]!) as { value: number }).value !== 0)),
   );
 };
-const cmpF64 = (op: number, a: Uint8Array, b: Uint8Array): Uint8Array => {
+const cmpF64 = (op: Opcode, a: Uint8Array, b: Uint8Array): Uint8Array => {
   const xs = f64s(a), ys = f64s(b);
   return fromLongs(
     xs.map((x, i) => ((lane2(op, x, ys[i]!) as { value: number }).value !== 0 ? -1n : 0n)),
   );
 };
-const zipF32 = (op: number, a: Uint8Array, b: Uint8Array): Uint8Array => {
+const zipF32 = (op: Opcode, a: Uint8Array, b: Uint8Array): Uint8Array => {
   const ys = f32s(b);
   return fromScalars(f32s(a).map((x, i) => lane2(op, x, ys[i]!)));
 };
-const zipF64 = (op: number, a: Uint8Array, b: Uint8Array): Uint8Array => {
+const zipF64 = (op: Opcode, a: Uint8Array, b: Uint8Array): Uint8Array => {
   const ys = f64s(b);
   return fromScalars(f64s(a).map((x, i) => lane2(op, x, ys[i]!)));
 };

@@ -24,6 +24,7 @@ import {
   PREFIX_THREADS,
 } from '../core/opcode.ts';
 import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
+import { isInstrCode } from '../definitions/instr-code.ts';
 import { isValType, Type } from '../core/types.ts';
 import { LexerSource } from './lexer-source.ts';
 import { isRefKindToken, LiteralType, TokenType } from './token.ts';
@@ -44,7 +45,7 @@ interface KwBare {
 }
 interface KwOp {
   readonly tt: TokenType;
-  readonly op: number;
+  readonly op: Opcode;
 }
 interface KwType {
   readonly tt: TokenType;
@@ -55,7 +56,14 @@ type KwInfo = KwBare | KwOp | KwType;
 function bare(tt: TokenType): KwBare {
   return { tt };
 }
+/**
+ * A keyword's opcode, checked once as the table is built (open-work 28, 2026-10-13): only a real
+ * instruction (`InstrCode`), so a typo in the table fails at load instead of reaching the IR.
+ */
 function op(tt: TokenType, o: number): KwOp {
+  if (!isInstrCode(o)) {
+    throw new Error(`wast-lexer: keyword opcode 0x${o.toString(16)} is no instruction`);
+  }
   return { tt, op: o };
 }
 function vt(tt: TokenType, v: Type): KwType {
@@ -945,12 +953,8 @@ export class WastLexer {
     return { loc: this.getLocation(), tokenType: tt, text };
   }
 
-  private opcodeToken(tt: TokenType, o: number): Token {
-    return {
-      loc: this.getLocation(),
-      tokenType: tt,
-      opcode: o as unknown as typeof Opcode[keyof typeof Opcode],
-    };
+  private opcodeToken(tt: TokenType, o: Opcode): Token {
+    return { loc: this.getLocation(), tokenType: tt, opcode: o };
   }
 
   private typeToken(tt: TokenType, v: Type): Token {

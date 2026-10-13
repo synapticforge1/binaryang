@@ -136,3 +136,18 @@ public summary is `CHANGELOG.md` § 1.10.0.
 - **NEW** — `readValidForPasses` (from `ir/prepare.ts`), `readValidWat` (`tools/read-wat.ts`), and
   `isStackExhausted` / `NESTING_TOO_DEEP` / `nestingTooDeep` (`core/error.ts`, public through
   `./ir` and `./core/wabt-ts`); `deno task hostile` (repo only).
+- **Behaviour — the binary reader refuses a SIMD sub-opcode that is no instruction** (2026-10-13,
+  open-work 28, found by typing the opcodes). A reserved `0xfd 0x9a` (20 such values inside the
+  SIMD range, and any beyond `0x113`) decoded as a binary operator: `wasm-validate` passed the
+  module, `wasm2wat` printed `<opcode:0xfd009a>`, and V8 refused it. Now an error, "unknown SIMD
+  opcode: 0xfd 0x9a", like the misc / atomic / GC decoders, which already refused theirs (held by
+  `reserved_subopcodes.test.ts`). Who could have hit it: anyone reading a malformed binary with a
+  reserved SIMD sub-opcode; no valid module changes.
+- ⚠️ **BREAKING (type level only) — `Opcode` is the union of the 582 real instructions** (2026-10-13,
+  open-work 28, owner: "One generated instruction union"). It was `number`. `Opcode` and every
+  operator type (`UnaryOp`, `BinaryOp`, the SIMD ones, `QuaternaryOp`, `BrOnOp`) now accept
+  exactly the instructions in `src/definitions/opcodes.json`, in the IR's encoding (the byte, or
+  `(prefix << 16) | sub`), generated into `src/definitions/instr-code.ts` (`InstrCode`,
+  `INSTR_CODES`, `isInstrCode`). Code that passes a computed `number` where an `Opcode` is expected
+  stops compiling: check it with `isInstrCode` first. No value at run time changes; the prefixed
+  operator-table members are now hex literals (`0xfd007a`), the same numbers.
