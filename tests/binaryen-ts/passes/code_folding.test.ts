@@ -5,7 +5,7 @@
 // written once, after the `if`. Each case RUNS the module before and after
 // the pass alone, and asserts whether the fold happened.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';

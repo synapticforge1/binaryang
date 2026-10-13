@@ -20,7 +20,7 @@
 // exact types, so `--flatten` gave `struct.new_desc`'s descriptor an inexact
 // temporary (open-work 9).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasmValidate } from '../../../src/tools/wasm-validate.ts';

@@ -1,4 +1,4 @@
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertExists } from '@std/assert';
 
 import { Type } from '../../../src/core/types.ts';

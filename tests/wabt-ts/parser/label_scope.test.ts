@@ -25,7 +25,7 @@
 // `ExprVisitor` walks neither, so both are read explicitly — which is also why
 // they get their own cases below.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

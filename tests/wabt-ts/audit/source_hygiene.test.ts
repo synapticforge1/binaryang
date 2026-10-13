@@ -30,7 +30,7 @@
 // visible `'<if-frame>'`, which cannot collide with a real label either, since
 // those always begin with `$`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 // `cmem/` and `README.md` are in scope too, and were NOT at first — which is

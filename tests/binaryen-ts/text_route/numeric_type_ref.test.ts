@@ -19,7 +19,7 @@
 // call_indirect fixture needs a table and an element segment, and those carry
 // their own unrelated gaps. The signature is the property this fix is about.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasmValidate } from '../../../src/tools/wasm-validate.ts';

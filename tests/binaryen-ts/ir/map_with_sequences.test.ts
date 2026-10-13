@@ -27,6 +27,7 @@ import {
 import { mapWithSequences, type Sequence } from '../../../src/ir/walk.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 /** `local.get 1` → `drop (local.get 0)`, `unreachable`. */
 function trapOnSecondLocal(e: Expression): Expression | Sequence {
@@ -60,7 +61,7 @@ function rewrite(funcs: string) {
   return { kinds: f.body.children.map((c) => c.kind), body: f.body, call, n };
 }
 
-Deno.test('in a list, the statements are spliced — no block', () => {
+test('in a list, the statements are spliced — no block', () => {
   const { kinds, call } = rewrite(
     '(func (export "f") (param i32 i32) (result i32) (local.get 1))',
   );
@@ -68,7 +69,7 @@ Deno.test('in a list, the statements are spliced — no block', () => {
   assertEquals(call(), 'trap');
 });
 
-Deno.test('in an operand slot, the consumer goes: earlier operands kept, later ones dead', () => {
+test('in an operand slot, the consumer goes: earlier operands kept, later ones dead', () => {
   // i32.add (call $side) (i32.sub (local.get 1) (call $side)): the FIRST call
   // runs before the trap, the second never would.
   const { kinds, call, n, body } = rewrite(
@@ -81,7 +82,7 @@ Deno.test('in an operand slot, the consumer goes: earlier operands kept, later o
   assertEquals([call(), n.value], ['trap', 1]);
 });
 
-Deno.test("a carrier's operand: the if never runs, and is replaced", () => {
+test("a carrier's operand: the if never runs, and is replaced", () => {
   const { kinds, call } = rewrite(
     '(func (export "f") (param i32 i32) (result i32)' +
       ' (if (result i32) (local.get 1) (then (i32.const 1)) (else (i32.const 2))))',
@@ -90,7 +91,7 @@ Deno.test("a carrier's operand: the if never runs, and is replaced", () => {
   assertEquals(call(), 'trap');
 });
 
-Deno.test('inside a block, the block absorbs it and keeps its declared type', () => {
+test('inside a block, the block absorbs it and keeps its declared type', () => {
   const { body, call } = rewrite(
     '(func (export "f") (param i32 i32) (result i32)' +
       ' (i32.add (block (result i32) (local.get 1)) (i32.const 1)))',
@@ -107,7 +108,7 @@ Deno.test('inside a block, the block absorbs it and keeps its declared type', ()
   assertEquals(call(), 'trap');
 });
 
-Deno.test('untouched nodes pass through, and a later sequence still settles', () => {
+test('untouched nodes pass through, and a later sequence still settles', () => {
   const { kinds, call, n } = rewrite(
     '(func (export "f") (param i32 i32) (result i32)' +
       ' (drop (call $side)) (drop (local.get 0)) (local.get 1))',
@@ -121,7 +122,7 @@ Deno.test('untouched nodes pass through, and a later sequence still settles', ()
   assertEquals([call(), n.value], ['trap', 1]);
 });
 
-Deno.test("a block's ENTRY VALUE is an operand: the block never runs, and is replaced", () => {
+test("a block's ENTRY VALUE is an operand: the block never runs, and is replaced", () => {
   const { kinds, call, n } = rewrite(
     '(type $p (func (param i32 i32) (result i32)))' +
       '(func (export "f") (param i32 i32) (result i32)' +

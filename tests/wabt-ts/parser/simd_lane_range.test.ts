@@ -29,7 +29,7 @@
 //
 // assert_malformed (quoted): 828 -> 869 / 1229. Other six metrics unmoved.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -9,7 +9,7 @@
 // `table.get`s mistyped, and 99 more nodes typed from them. A type reaches no
 // byte by itself, so no byte gate saw it; a pass dispatching on it would have.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';

@@ -15,7 +15,7 @@
 //
 // Surfaced alongside the `ref.null` heap-type fix, but independent of it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

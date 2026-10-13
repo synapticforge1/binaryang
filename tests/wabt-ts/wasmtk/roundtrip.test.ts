@@ -14,7 +14,7 @@
  * disassembler emitted invalid WAT.
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

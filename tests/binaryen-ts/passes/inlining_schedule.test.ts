@@ -5,7 +5,7 @@
 // inlined at each level, and that the default -O2 / -Oz schedule inlines and
 // cleans up after it. Every case that inlines RUNS the module before and after.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

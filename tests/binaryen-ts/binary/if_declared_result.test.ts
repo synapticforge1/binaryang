@@ -24,7 +24,7 @@
 // its absence emits invalid modules. The bridge already worked around the same
 // gap with `withDeclaredType`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';

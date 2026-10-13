@@ -37,6 +37,7 @@ import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -198,32 +199,32 @@ const VOID_STORE = `(module
 // Behavioral equivalence
 // ---------------------------------------------------------------------------
 
-Deno.test('flatten preserves semantics — arithmetic', () => {
+test('flatten preserves semantics — arithmetic', () => {
   assertEquivalent(ARITH, 'f', [[3, 4], [0, 0], [-5, 9], [100, -100]]);
 });
 
-Deno.test('flatten preserves semantics — if/else', () => {
+test('flatten preserves semantics — if/else', () => {
   assertEquivalent(IFELSE, 'f', [[3], [10], [11], [-1], [9]]);
 });
 
-Deno.test('flatten preserves semantics — loop (sum 0..n)', () => {
+test('flatten preserves semantics — loop (sum 0..n)', () => {
   assertEquivalent(LOOP_SUM, 'f', [[0], [1], [5], [10], [100]]);
 });
 
-Deno.test('flatten preserves semantics — nested defined-function calls', () => {
+test('flatten preserves semantics — nested defined-function calls', () => {
   assertEquivalent(NESTED_CALLS, 'f', [[0], [5], [-3], [42]]);
 });
 
-Deno.test('flatten preserves semantics — recursion (factorial)', () => {
+test('flatten preserves semantics — recursion (factorial)', () => {
   assertEquivalent(FACTORIAL, 'f', [[0], [1], [5], [7], [10]]);
 });
 
-Deno.test('flatten preserves semantics — import calls with eval order', () => {
+test('flatten preserves semantics — import calls with eval order', () => {
   const imports = { env: { dbl: (x: number) => x * 2 } };
   assertEquivalent(IMPORT_CALL, 'f', [[3], [0], [-4]], imports);
 });
 
-Deno.test('flatten preserves semantics — void store then load', () => {
+test('flatten preserves semantics — void store then load', () => {
   assertEquivalent(VOID_STORE, 'f', [[3], [0], [35]]);
 });
 
@@ -231,13 +232,13 @@ Deno.test('flatten preserves semantics — void store then load', () => {
 // Flatness invariants
 // ---------------------------------------------------------------------------
 
-Deno.test('flatten output is flat — no local.tee, trivial conditions & operands', () => {
+test('flatten output is flat — no local.tee, trivial conditions & operands', () => {
   for (const wat of [ARITH, IFELSE, LOOP_SUM, NESTED_CALLS, FACTORIAL, IMPORT_CALL, VOID_STORE]) {
     assertFlat(flattenParsed(wat));
   }
 });
 
-Deno.test('flatten hoists every call to a standalone statement operand set', () => {
+test('flatten hoists every call to a standalone statement operand set', () => {
   // The Asyncify-critical property: no call is nested inside another value
   // expression — each call's operands are trivial (checked by assertFlat), so a
   // call only ever appears as the RHS of a local.set / drop / return.
@@ -256,7 +257,7 @@ Deno.test('flatten hoists every call to a standalone statement operand set', () 
 // sibling operand that writes the SAME local. Before the fix, flatten returned
 // `local.get tee.index` (the original local), which the second tee's prelude
 // clobbered → both operands read the second value. (sub(10,3)=7, not 3-3=0.)
-Deno.test('flatten — two tees to the same local as sibling operands are not clobbered', () => {
+test('flatten — two tees to the same local as sibling operands are not clobbered', () => {
   assertEquivalent(
     `(module (func $f (export "f") (result i32) (local $t i32)
       (i32.sub (local.tee $t (i32.const 10)) (local.tee $t (i32.const 3)))))`,
@@ -277,7 +278,7 @@ Deno.test('flatten — two tees to the same local as sibling operands are not cl
 // reversed, so Flatten would hoist a side-effecting target ahead of the operands,
 // silently miscompiling any interface/func-value call whose target and operands
 // interact. Assert both the map primitive and the visitor yield operand→target.
-Deno.test('walk — call_indirect visits operands before the table index', () => {
+test('walk — call_indirect visits operands before the table index', () => {
   const ci = makeCallIndirect(
     varName('$t'),
     makeI32Const(200), // target (table index) — must be visited LAST
@@ -301,7 +302,7 @@ Deno.test('walk — call_indirect visits operands before the table index', () =>
 // Regression: a non-last `unreachable` inside a block is trivial with an empty
 // prelude, so the old flattenBlock appended it nowhere and the trap vanished —
 // letting control fall through. It must survive flattening.
-Deno.test('flatten — a non-last unreachable inside a block is preserved', () => {
+test('flatten — a non-last unreachable inside a block is preserved', () => {
   const mod = flattenParsed(
     `(module (func $f (export "f") (result i32) (local $x i32)
       (block
@@ -318,7 +319,7 @@ Deno.test('flatten — a non-last unreachable inside a block is preserved', () =
   assert(unreachables >= 1, 'flatten dropped the non-last unreachable (trap elided)');
 });
 
-Deno.test('Flatten: buildCallResultTypes keeps a multi-result signature whole', () => {
+test('Flatten: buildCallResultTypes keeps a multi-result signature whole', () => {
   // It used to record `results[0]`, so a 2-result function looked like a plain
   // i32 function. `callEffectiveType` would then hoist the call into ONE local
   // and silently drop the second value.
@@ -334,7 +335,7 @@ Deno.test('Flatten: buildCallResultTypes keeps a multi-result signature whole', 
   assertEquals(map.get('none'), None);
 });
 
-Deno.test('Flatten: an unresolvable call target fails loudly instead of typing it void', () => {
+test('Flatten: an unresolvable call target fails loudly instead of typing it void', () => {
   // `buildCallResultTypes` registers every import and defined function, so a
   // miss means a dangling target. Typing it `none` silently discarded the
   // call's value — the same defect the WAT parser's `inferFuncResultType` stub
@@ -346,7 +347,7 @@ Deno.test('Flatten: an unresolvable call target fails loudly instead of typing i
   assertThrows(() => new FlattenPass().run(mod, FLATTEN_OPTS), Error, 'unresolved call target');
 });
 
-Deno.test('Flatten: an `if` keeps its label, so a `br` to the `if` still resolves', () => {
+test('Flatten: an `if` keeps its label, so a `br` to the `if` still resolves', () => {
   // Flatten rebuilt the `if` as a literal without `name`. The `br $l` inside
   // then named a label no enclosing construct carried, and the encoder threw
   // "unresolved branch label" on a valid module. The binary decoder labels
@@ -380,7 +381,7 @@ const callF = (bytes: Uint8Array, ...args: number[]) =>
     ...a: number[]
   ) => number)(...args);
 
-Deno.test('Flatten: a result-typed body that never falls through stays valid', () => {
+test('Flatten: a result-typed body that never falls through stays valid', () => {
   // 🔧 A body ending in `return` was flattened as a VOID statement, and the
   // function then ended on a void block: "expected 1 elements on the stack for
   // fallthru" — 131 of 2,919 modules came out INVALID, silently. The shapes of
@@ -407,7 +408,7 @@ Deno.test('Flatten: a result-typed body that never falls through stays valid', (
   }
 });
 
-Deno.test('flatten preserves semantics — a value if whose arms are several instructions', () => {
+test('flatten preserves semantics — a value if whose arms are several instructions', () => {
   // A multi-instruction arm flattens as a block DECLARING the arm's value type
   // (S6 step 5 item 5 (3)); declared void, its value is lost to the result temp.
   assertEquivalent(
@@ -443,7 +444,7 @@ function assertFlattensSame(wat: string): void {
   for (const x of [0, 1, 2, 3]) assertEquals(outcome(out, x), outcome(original, x), `f(${x})`);
 }
 
-Deno.test('Flatten: br, br_if and br_table carrying a value', () => {
+test('Flatten: br, br_if and br_table carrying a value', () => {
   for (
     const wat of [
       '(module (func (export "f") (param i32) (result i32) (block (result i32) (br 0 (i32.add (local.get 0) (i32.const 1))))))',
@@ -460,7 +461,7 @@ Deno.test('Flatten: br, br_if and br_table carrying a value', () => {
   ) assertFlattensSame(wat);
 });
 
-Deno.test('Flatten: a value branch to the function frame becomes a return', () => {
+test('Flatten: a value branch to the function frame becomes a return', () => {
   assertFlattensSame(
     '(module (func (export "f") (param i32) (result i32) (drop (br_if 0 (i32.const 11) (local.get 0))) (i32.const 22)))',
   );
@@ -477,7 +478,7 @@ Deno.test('Flatten: a value branch to the function frame becomes a return', () =
   );
 });
 
-Deno.test("Flatten: a block's value may sit under trailing void statements", () => {
+test("Flatten: a block's value may sit under trailing void statements", () => {
   // 🔧 The block's LAST child was always taken as its value, writing
   // `local.set $tmp (nop)` — invalid (`spec/nop/nop.0`).
   assertFlattensSame(
@@ -485,7 +486,7 @@ Deno.test("Flatten: a block's value may sit under trailing void statements", () 
   );
 });
 
-Deno.test('Flatten: a value a statement leaves is taken by a later instruction', () => {
+test('Flatten: a value a statement leaves is taken by a later instruction', () => {
   // Stack-form code the reader keeps: a `br_if` / `br` / `br_table` that shows
   // no value takes the one a statement left below it. Flatten models the
   // frame's stack. 🔧 Discarding the value lost an operand; reading such a `br`
@@ -511,7 +512,7 @@ Deno.test('Flatten: a value a statement leaves is taken by a later instruction',
   );
 });
 
-Deno.test('Flatten: an arm or loop of one `unreachable` still traps', () => {
+test('Flatten: an arm or loop of one `unreachable` still traps', () => {
   // 🔧 The arm kept only a concrete value; the trivial `unreachable` was
   // dropped and the arm fell through (`spec/unreachable` "as-if-then").
   assertFlattensSame(
@@ -522,7 +523,7 @@ Deno.test('Flatten: an arm or loop of one `unreachable` still traps', () => {
   );
 });
 
-Deno.test('Flatten: a construct whose end is unreachable sets no temps there', () => {
+test('Flatten: a construct whose end is unreachable sets no temps there', () => {
   // Nothing falls through, so nothing is routed: no dead `local.set $t
   // (unreachable)` for a value no path produces.
   const mod = flattenParsed(
@@ -540,7 +541,7 @@ Deno.test('Flatten: a construct whose end is unreachable sets no temps there', (
   assertEquals(deadSets, 0);
 });
 
-Deno.test('Flatten: after what never falls through, the stack is polymorphic', () => {
+test('Flatten: after what never falls through, the stack is polymorphic', () => {
   for (
     const wat of [
       // A void call whose operand traps (`spec/call_ref` 1's shape).
@@ -580,7 +581,7 @@ function assertSameResults(wat: string, inputs = [0, 1, 2, 5]): void {
 const PAIR =
   '(func $pair (param i32) (result i32 i32) (local.get 0) (i32.add (local.get 0) (i32.const 10)))';
 
-Deno.test('Flatten: multi-value calls, bodies and constructs', () => {
+test('Flatten: multi-value calls, bodies and constructs', () => {
   for (
     const wat of [
       // 🔧 Were refused (a 2-value result "cannot be hoisted into a single
@@ -597,7 +598,7 @@ Deno.test('Flatten: multi-value calls, bodies and constructs', () => {
   ) assertSameResults(wat);
 });
 
-Deno.test('Flatten: a pop may stand for a value a LATER sibling leaves (fac-ssa)', () => {
+test('Flatten: a pop may stand for a value a LATER sibling leaves (fac-ssa)', () => {
   // `spec/fac` "fac-ssa": `$pick1` leaves three values, each consumer takes
   // fewer, through a loop with parameters — the outer `pop`s are what nested
   // producers leave under their siblings' results.
@@ -615,7 +616,7 @@ Deno.test('Flatten: a pop may stand for a value a LATER sibling leaves (fac-ssa)
   );
 });
 
-Deno.test('Flatten: a legacy try, its handlers entered with the payload', () => {
+test('Flatten: a legacy try, its handlers entered with the payload', () => {
   for (
     const wat of [
       '(module (tag $e (param i32)) (func (export "f") (param i32) (result i32) (try (result i32) (do (if (local.get 0) (then (throw $e (i32.add (local.get 0) (i32.const 40))))) (i32.const 1)) (catch $e (i32.add (i32.const 100))) (catch_all (i32.const 2)))))',
@@ -624,7 +625,7 @@ Deno.test('Flatten: a legacy try, its handlers entered with the payload', () => 
   ) assertSameResults(wat);
 });
 
-Deno.test('Flatten: br_on_* and try_table are refused by name, as upstream refuses them', () => {
+test('Flatten: br_on_* and try_table are refused by name, as upstream refuses them', () => {
   assertThrows(
     () =>
       flattenRouteB(

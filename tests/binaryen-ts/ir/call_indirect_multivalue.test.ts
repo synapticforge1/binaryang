@@ -7,7 +7,7 @@
 // it. No byte changes with the fix — the node's type is not written — so these
 // hold the type, and that a pass still handles the tuple-typed node.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { makeCallIndirect, makeI32Const } from '../../../src/ir/expressions.ts';

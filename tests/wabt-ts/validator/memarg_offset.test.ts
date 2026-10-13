@@ -24,7 +24,7 @@
 // Campaign metrics unmoved: agreement 2120/2120, assert_invalid 2664/2737 —
 // no spec-testsuite module exercises this, which is why four metrics missed it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

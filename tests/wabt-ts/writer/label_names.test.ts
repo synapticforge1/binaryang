@@ -35,7 +35,7 @@
 // that needs an origin marker, and is only worth adding for a text→text
 // consumer; there is none today.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

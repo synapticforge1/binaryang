@@ -29,7 +29,7 @@
 // cannot justify. What changed is that `toBinary` wraps that in an error naming
 // itself, and the docs now say it throws.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import wabt from '../../../src/compat/wabt-compat.ts';

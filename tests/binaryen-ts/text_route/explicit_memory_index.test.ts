@@ -16,7 +16,7 @@
 // op must behave exactly as `wat2wasm`'s module does. `$b` has 2 pages and `$a`
 // 1, so an index that was dropped or swapped gives a different answer.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

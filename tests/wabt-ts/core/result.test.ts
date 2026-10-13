@@ -1,4 +1,4 @@
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 import { combineResults, failed, Result, succeeded } from '../../../src/core/result.ts';
 

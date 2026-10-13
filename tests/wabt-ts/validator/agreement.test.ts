@@ -42,7 +42,7 @@
 // answer — `Type.Ref` / `Type.RefNull` (what ref.test / ref.cast report) and
 // `Type.StructRef` (what every concrete `(ref $T)` collapses to).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

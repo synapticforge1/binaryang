@@ -18,7 +18,7 @@
 // `br_table` joined in post-M8 fix 9 (its default target's values); its tests
 // are br_table_values.test.ts and br_table_operands.test.ts.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

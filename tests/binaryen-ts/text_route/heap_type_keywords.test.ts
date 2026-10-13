@@ -22,7 +22,7 @@
 // support at all (`(ref null any)` → `unexpected token "any"`), which is the
 // same limitation that makes it skip 30 files in `deno task spec:prepare`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readWat, WatInputError } from '../../../src/tools/read-wat.ts';

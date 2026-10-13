@@ -31,7 +31,7 @@
 // reads both out of the source, so adding a case to one and not the other is
 // red at once rather than a silently different module later.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

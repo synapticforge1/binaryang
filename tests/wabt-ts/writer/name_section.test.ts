@@ -13,7 +13,7 @@
 // equal on all 421 corpus modules. LABEL and GC FIELD names go beyond upstream
 // (FEATURE N2) and are pinned on their own.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

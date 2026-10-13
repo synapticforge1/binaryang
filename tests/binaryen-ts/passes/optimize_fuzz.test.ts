@@ -58,6 +58,7 @@ import { ModuleBuilder, type WasmModule } from '../../../src/ir/module.ts';
 import { ValType } from '../../../src/ir/types.ts';
 import { mapExpression } from '../../../src/ir/walk.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Seeded PRNG (mulberry32) — deterministic so failures are reproducible.
@@ -290,7 +291,7 @@ function ozPrefix(bytes: Uint8Array, n: number): Uint8Array {
 
 // ---------------------------------------------------------------------------
 
-Deno.test('optimize fuzz: full -Oz preserves validity + behavior on random i32 functions', () => {
+test('optimize fuzz: full -Oz preserves validity + behavior on random i32 functions', () => {
   const ITERS = Number(Deno.env.get('FUZZ_ITERS') ?? '350');
   const BASE = Number(Deno.env.get('FUZZ_SEED') ?? '1');
 

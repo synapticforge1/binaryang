@@ -14,7 +14,7 @@
 // locals, labels, types, tables, memories, globals, segments, tags — and the
 // round trip is a byte fixed point on all 421 modules, folded and linear.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 import { localNameEntries } from '../../../src/ir/ir.ts';
 

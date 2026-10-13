@@ -22,7 +22,7 @@
  *     carries index-vars (not name-vars) for locals.
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { LexerSource } from '../../../src/parser/lexer-source.ts';

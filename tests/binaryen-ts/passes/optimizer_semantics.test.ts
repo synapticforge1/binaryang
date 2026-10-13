@@ -14,7 +14,7 @@
 // - Any pass that maps a tree refused `elem.drop`, so a module holding one could
 //   not be optimized at all.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

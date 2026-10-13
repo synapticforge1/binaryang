@@ -17,7 +17,7 @@
 // tool under test cannot show that the tool is wrong (an earlier version of the
 // NaN-payload test built its `-0` case with `wat2wasm` and compared +0 to +0).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

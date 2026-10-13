@@ -20,7 +20,7 @@
 //   - some expressions carry NO operand field (`i31.get` is `{kind, signed}`),
 //     so the operand is not reachable from the node to fold into it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

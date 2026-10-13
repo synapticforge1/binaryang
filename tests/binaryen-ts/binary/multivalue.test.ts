@@ -55,6 +55,7 @@ import { formatErrors } from '../../../src/core/error.ts';
 import { varName } from '../../../src/ir/ir.ts';
 import { ExternalKind } from '../../../src/core/binary.ts';
 import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
+import { test } from 'node:test';
 
 // --- byte helpers ---------------------------------------------------------
 
@@ -151,16 +152,16 @@ const BLOCK_WITH_INPUT = Uint8Array.from([
 
 // --- tests ----------------------------------------------------------------
 
-Deno.test('multi-result block: fixture is valid and returns both values', async () => {
+test('multi-result block: fixture is valid and returns both values', async () => {
   assertEquals(await run(MULTI_RESULT_BLOCK), [1, 2]);
 });
 
-Deno.test('multi-result block: survives a bare parse-encode round-trip', async () => {
+test('multi-result block: survives a bare parse-encode round-trip', async () => {
   const out = writeWasm(readForPasses(MULTI_RESULT_BLOCK));
   assertEquals(await run(out), [1, 2]);
 });
 
-Deno.test('multi-result block: decodes to a tuple-typed block, no nop placeholders', () => {
+test('multi-result block: decodes to a tuple-typed block, no nop placeholders', () => {
   const mod = readForPasses(MULTI_RESULT_BLOCK);
   const body = mod.functions[0].body;
   const seen = kinds(body);
@@ -175,13 +176,13 @@ Deno.test('multi-result block: decodes to a tuple-typed block, no nop placeholde
   assertEquals(blockType, [ValType.I32, ValType.I32]);
 });
 
-Deno.test('multi-value br: carries both values, not none', async () => {
+test('multi-value br: carries both values, not none', async () => {
   assertEquals(await run(MULTI_VALUE_BR), [7, 9]);
   const out = writeWasm(readForPasses(MULTI_VALUE_BR));
   assertEquals(await run(out), [7, 9], 'values were dropped across the round-trip');
 });
 
-Deno.test('multi-value br: the branch decodes holding BOTH values in its list', () => {
+test('multi-value br: the branch decodes holding BOTH values in its list', () => {
   // Was "decodes to a tuple.make" — the container S6 decision 6A removed.
   const br = findKind(readForPasses(MULTI_VALUE_BR).functions[0].body, ExpressionKind.Break) as
     | BreakExpr
@@ -207,7 +208,7 @@ const MULTI_VALUE_RETURN = Uint8Array.from([
   ...sec(10, vecOf([fnBody([0x00, 0x41, 0x01, 0x41, 0x02, 0x0f, 0x0b])])),
 ]);
 
-Deno.test('multi-value return: decodes holding EVERY value, none left loose', async () => {
+test('multi-value return: decodes holding EVERY value, none left loose', async () => {
   assertEquals(await run(MULTI_VALUE_RETURN), [1, 2]);
   const body = readForPasses(MULTI_VALUE_RETURN).functions[0].body;
   assertEquals(body.children.map((c) => c.kind), [ExpressionKind.Return]);
@@ -216,7 +217,7 @@ Deno.test('multi-value return: decodes holding EVERY value, none left loose', as
   assertEquals(await run(writeWasm(readForPasses(MULTI_VALUE_RETURN))), [1, 2]);
 });
 
-Deno.test('multi-result block: round-trip is a fixed point', () => {
+test('multi-result block: round-trip is a fixed point', () => {
   const first = readForPasses(MULTI_RESULT_BLOCK);
   const second = readForPasses(writeWasm(first));
   const third = readForPasses(writeWasm(second));
@@ -250,7 +251,7 @@ async function allPaths(bytes: Uint8Array, expected: unknown): Promise<void> {
   assertEquals(await run(writeWasm(optimized)), expected, 'lowered by PassRunner, then -Oz');
 }
 
-Deno.test('block WITH INPUTS: entry values reach the body', async () => {
+test('block WITH INPUTS: entry values reach the body', async () => {
   // `i32.const 7; block (param i32) (result i32) end` — the parameter falls
   // straight through, so the function returns 7. Lowered, the parameter is
   // spilled to a local before the block and read back inside it; getting that
@@ -276,7 +277,7 @@ const IF_WITH_INPUT = Uint8Array.from([
   ),
 ]);
 
-Deno.test('if WITH INPUTS: both arms see the parameter, evaluated once', async () => {
+test('if WITH INPUTS: both arms see the parameter, evaluated once', async () => {
   await allPaths(IF_WITH_INPUT, 7);
 });
 
@@ -289,7 +290,7 @@ const LOOP_WITH_INPUT = Uint8Array.from([
   ...sec(10, vecOf([fnBody([0x00, 0x41, 0x07, 0x03, 0x01, 0x0b, 0x0b])])),
 ]);
 
-Deno.test('loop WITH INPUTS: entry values reach the body', async () => {
+test('loop WITH INPUTS: entry values reach the body', async () => {
   await allPaths(LOOP_WITH_INPUT, 7);
 });
 
@@ -349,7 +350,7 @@ const LOOP_BACKEDGE = Uint8Array.from([
   ),
 ]);
 
-Deno.test('loop back-edge br_if: parameter re-supplied, fall-through value kept', async () => {
+test('loop back-edge br_if: parameter re-supplied, fall-through value kept', async () => {
   // Kept, the `br_if` simply carries the parameter. Lowered, the rewrite must
   // preserve it: writing the loop's temp unconditionally without restoring the
   // stack would strip the fall-through value.
@@ -408,7 +409,7 @@ const BR_TABLE_MIXED = Uint8Array.from([
   ),
 ]);
 
-Deno.test('br_table mixing a parametrised loop with other targets: dispatch trampoline', async () => {
+test('br_table mixing a parametrised loop with other targets: dispatch trampoline', async () => {
   // Kept, the table carries its value to either target like any other. Lowered,
   // the trampoline demotes the table to selecting a CASE, then each case
   // branches in its own convention: the loop case writes the loop's temps and
@@ -417,7 +418,7 @@ Deno.test('br_table mixing a parametrised loop with other targets: dispatch tram
   await allPaths(BR_TABLE_MIXED, 0);
 });
 
-Deno.test('br_table trampoline: survives the optimizer at every level', async () => {
+test('br_table trampoline: survives the optimizer at every level', async () => {
   // The trampoline's wrapper blocks were typed `unreachable` — inferred from
   // their last child, a branch — though each is a branch TARGET whose end is
   // reachable. DCE believed the type and deleted every case after the first:
@@ -429,7 +430,7 @@ Deno.test('br_table trampoline: survives the optimizer at every level', async ()
   }
 });
 
-Deno.test('br_table trampoline: round-trip converges', () => {
+test('br_table trampoline: round-trip converges', () => {
   // The spill/dispatch rewrite legitimately adds local.set/local.get nodes on
   // the FIRST trip. It must not keep growing after that. Lowering asked for on
   // every trip — the default keeps the parameters and would converge trivially.
@@ -455,7 +456,7 @@ const BAD_BLOCK_TYPE_INDEX = Uint8Array.from([
   ...sec(10, vecOf([fnBody([0x00, 0x02, 0x09, 0x41, 0x01, 0x41, 0x02, 0x0b, 0x0b])])),
 ]);
 
-Deno.test('an out-of-range block type index is kept as written, and invalid', () => {
+test('an out-of-range block type index is kept as written, and invalid', () => {
   // The module declares 2 types; the block names index 9. Silently treating an
   // unresolvable blocktype as void is how the ORIGINAL multi-value defect
   // corrupted modules, so this must stay loud.
@@ -471,7 +472,7 @@ Deno.test('an out-of-range block type index is kept as written, and invalid', ()
   );
 });
 
-Deno.test('if WITH INPUTS: the two arms do not share expression nodes', () => {
+test('if WITH INPUTS: the two arms do not share expression nodes', () => {
   // This IR requires every expression node to have exactly ONE parent. Seeding
   // both arms with the same `local.get` objects (rather than fresh reads per
   // arm) aliases one node into two tree positions — a pass that rewrites or
@@ -528,12 +529,12 @@ const BLOCK_TYPE_INDEX_ORDER = Uint8Array.from([
   ...sec(10, vecOf([fnBody([0x00, 0x02, 0x00, 0x41, 0x01, 0x41, 0x02, 0x0b, 0x1a, 0x0b])])),
 ]);
 
-Deno.test('multi-result block: the emitted blocktype index addresses the emitted type section', async () => {
+test('multi-result block: the emitted blocktype index addresses the emitted type section', async () => {
   assertEquals(await run(BLOCK_TYPE_INDEX_ORDER), 1);
   assertEquals(await run(writeWasm(readForPasses(BLOCK_TYPE_INDEX_ORDER))), 1);
 });
 
-Deno.test('multi-result block: type-index ordering survives the full -Oz pipeline', async () => {
+test('multi-result block: type-index ordering survives the full -Oz pipeline', async () => {
   const mod = readForPasses(BLOCK_TYPE_INDEX_ORDER);
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 })
     .addDefaultOptimizationPasses()
@@ -557,7 +558,7 @@ Deno.test('multi-result block: type-index ordering survives the full -Oz pipelin
 // the same way.
 // ---------------------------------------------------------------------------
 
-Deno.test('type collection reaches a call_indirect carried as a multi-value branch value', async () => {
+test('type collection reaches a call_indirect carried as a multi-value branch value', async () => {
   const b = new ModuleBuilder();
   b.addTable('$t', ValType.FuncRef, 1, null);
 

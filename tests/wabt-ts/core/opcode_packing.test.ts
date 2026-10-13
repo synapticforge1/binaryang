@@ -35,7 +35,7 @@
 //
 // Spec testsuite: fully V8-valid 222 -> 229.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import {

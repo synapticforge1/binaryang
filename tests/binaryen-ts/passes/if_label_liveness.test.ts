@@ -11,7 +11,7 @@
 // returned −2 instead of −14 at -O2 and up, on both routes. The module stayed
 // VALID — only running it showed anything.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

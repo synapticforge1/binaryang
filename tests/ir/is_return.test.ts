@@ -7,7 +7,7 @@
 // alike. The type now admits only `true`, so `false` is unrepresentable: the
 // inversion is compile-time, and `deno task check` enforces it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import type * as W from '../../src/ir/ir.ts';

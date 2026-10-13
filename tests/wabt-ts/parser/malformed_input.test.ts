@@ -32,7 +32,7 @@
 //    a Reserved token when an id-char trails the literal — it just never saw
 //    the offending `_`, because `readNum` had eaten it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

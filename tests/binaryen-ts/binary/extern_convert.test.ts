@@ -13,7 +13,7 @@
 // heap-type text, so it cannot assemble this module. Input comes from wabt-ts;
 // the independent authority is V8 — validation AND a run.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -15,7 +15,7 @@
 //   - text PARSED by the caller keeps the author's indices (`toText()`), as
 //     N8 does for labels.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

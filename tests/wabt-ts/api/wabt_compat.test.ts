@@ -7,7 +7,7 @@
  * `npm:wabt`, so a one-line import-map flip lets wasmtk migrate.
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import wabt from '../../../src/compat/wabt-compat.ts';

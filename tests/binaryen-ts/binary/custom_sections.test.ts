@@ -17,7 +17,7 @@
 // cannot reproduce. Probed against wasm-opt 132 on all four of `(no passes)`,
 // `-g`, `-O2`, `-O2 -g`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

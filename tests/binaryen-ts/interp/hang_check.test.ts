@@ -9,7 +9,7 @@
 // that could change anything else. Pinned both ways: every proof fires, and
 // nothing that merely LOOKS stuck — a counter, a memory write, a call — does.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { readWat } from '../../../src/tools/read-wat.ts';
 import { Interpreter, Stop } from '../../../src/interp/interpreter.ts';

@@ -23,7 +23,7 @@
 // module is the only one either gate sees. Removing a module removes it from
 // both gates too.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

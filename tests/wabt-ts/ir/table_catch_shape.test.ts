@@ -23,7 +23,7 @@
 // wired: every clause through the parser, the binary writer, the binary reader
 // and the text writer.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import type { Catch, Expr, TableCatch } from '../../../src/ir/ir.ts';

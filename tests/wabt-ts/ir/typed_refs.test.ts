@@ -27,7 +27,7 @@
 // Spec testsuite: fully V8-valid files 187 -> 200, and the whole
 // "expected structref, got (ref $t)" cluster is gone.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

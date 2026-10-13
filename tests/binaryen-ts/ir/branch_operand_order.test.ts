@@ -10,7 +10,7 @@
 // turned `(br_if $l (throw $e) (call $bump))` into "call $bump, then trap" — a
 // side effect wasm never performs, since the throw comes first.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

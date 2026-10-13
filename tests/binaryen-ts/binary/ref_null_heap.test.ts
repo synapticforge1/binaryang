@@ -37,6 +37,7 @@ import { ModuleBuilder } from '../../../src/ir/module.ts';
 import { ValType } from '../../../src/ir/types.ts';
 import { AbstractHeapType, isRefType, type RefType } from '../../../src/ir/gc-types.ts';
 import { heapAbstract, varIndex } from '../../../src/ir/ir.ts';
+import { test } from 'node:test';
 
 /**
  * `WebAssembly/binaryen/test/unit/input/gc_target_feature.wasm`, minus its custom sections:
@@ -144,7 +145,7 @@ function kinds(root: unknown, out: string[] = []): string[] {
   return out;
 }
 
-Deno.test('ref.null preserves non-func, non-extern heap types byte-for-byte', async () => {
+test('ref.null preserves non-func, non-extern heap types byte-for-byte', async () => {
   const out = writeWasm(readForPasses(REF_NULL_HEAP_MODULE));
   assertEquals(
     Array.from(section(out, 6)),
@@ -157,14 +158,14 @@ Deno.test('ref.null preserves non-func, non-extern heap types byte-for-byte', as
   await WebAssembly.compile(buf);
 });
 
-Deno.test('ref.null of `none` decodes to nullref, not externref', () => {
+test('ref.null of `none` decodes to nullref, not externref', () => {
   const mod = readForPasses(REF_NULL_HEAP_MODULE);
   assertEquals(mod.globals.length, 2);
   assertEquals(mod.globals[0].init!.type, ValType.NullExternRef); // ref.null noextern
   assertEquals(mod.globals[1].init!.type, ValType.NullRef); //       ref.null none
 });
 
-Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', () => {
+test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', () => {
   // `writeU32` and `writeI32` agree below 64. At 64 the unsigned form (0x40)
   // reads back as -64 under the signed `s33` decode and resolves to an abstract
   // heap type, silently retargeting the null.
@@ -189,7 +190,7 @@ Deno.test('ref.null of a concrete heap type index >= 64 survives (signed LEB)', 
   assertEquals((initType as RefType).heapType, varIndex(target));
 });
 
-Deno.test('a phantom pop in stack-polymorphic code yields unreachable, not nop', () => {
+test('a phantom pop in stack-polymorphic code yields unreachable, not nop', () => {
   const mod = readForPasses(UNREACHABLE_POPS_MODULE);
   const seen = kinds(mod.functions[0].body);
   assertEquals(
@@ -212,7 +213,7 @@ Deno.test('a phantom pop in stack-polymorphic code yields unreachable, not nop',
   );
 });
 
-Deno.test('stack-polymorphic decode is a round-trip fixed point', () => {
+test('stack-polymorphic decode is a round-trip fixed point', () => {
   // Previously each trip added a spurious `nop` opcode, so the expression
   // count grew without bound.
   const first = readForPasses(UNREACHABLE_POPS_MODULE);
@@ -254,7 +255,7 @@ function globalSection(type: ValType, node: Expression): number[] {
   return Array.from(section(writeWasm(m.build()), 6));
 }
 
-Deno.test('makeRefNull sets refType, and the heap byte written is that heap type', () => {
+test('makeRefNull sets refType, and the heap byte written is that heap type', () => {
   for (const [vt, heap, byte] of SHORTHANDS) {
     const node = makeRefNull(vt);
     assertEquals(node.refType, heapAbstract(heap), `ref.null of ${vt}`);
@@ -266,12 +267,12 @@ Deno.test('makeRefNull sets refType, and the heap byte written is that heap type
   assertEquals(makeRefNull(refT).refType, varIndex(3));
 });
 
-Deno.test('the encoder writes refType — the immediate — not a heap derived from type', () => {
+test('the encoder writes refType — the immediate — not a heap derived from type', () => {
   // Disagreeing on purpose: the instruction names `func`; the type says anyref.
   const node = { ...makeRefNull(ValType.AnyRef), refType: heapAbstract(AbstractHeapType.Func) };
   assertEquals(globalSection(ValType.AnyRef, node).slice(-3), [0xd0, 0x70, 0x0b]);
 });
 
-Deno.test('ref.null of a non-reference type is refused', () => {
+test('ref.null of a non-reference type is refused', () => {
   assertThrows(() => makeRefNull(ValType.I32), Error, 'non-reference type');
 });

@@ -11,7 +11,7 @@
 // operands were written where they had been read — the IR said something else.
 // Found while naming tags for N1 P4.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

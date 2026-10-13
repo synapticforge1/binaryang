@@ -14,7 +14,7 @@
 // Through BYTES they are still lost until the name section is written and read
 // (steps P2 and P3). This pins the text half.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 import { localNameEntries } from '../../../src/ir/ir.ts';
 

@@ -19,7 +19,7 @@
 // (divergence S1). Upstream `wasm-opt` does that too; wat2wasm does not, and
 // now neither do we.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { writeWasm } from '../../../src/ir/write-wasm.ts';

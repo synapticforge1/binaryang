@@ -40,7 +40,7 @@
 //
 // assert_malformed (binary): 638 -> 711 / 711. Other six metrics unmoved.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { readBinaryIr } from '../../../src/reader/binary-reader.ts';

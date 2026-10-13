@@ -8,7 +8,7 @@
  * round-trip. See cmem/wabt-ts.md § "2026-06-09 silent-corruption audit".
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { region } from '../../../src/ir/ir.ts';
 import { assert, assertEquals } from '@std/assert';
 

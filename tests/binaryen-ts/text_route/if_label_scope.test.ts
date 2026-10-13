@@ -20,7 +20,7 @@
 // AFTER the if so the two answers differ — 99 when the branch hits the if, 5
 // when it escapes to the block.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

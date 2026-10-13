@@ -16,7 +16,7 @@
 // and `labelName` throws on a depth rather than guessing. The encoder, which
 // inserts nothing, may write a depth as written.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import {

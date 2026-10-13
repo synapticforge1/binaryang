@@ -22,6 +22,7 @@ import { assert, assertEquals } from '@std/assert';
 
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 /**
  * `binary` with its `name` custom section cut out, byte for byte, so the hex
@@ -72,7 +73,7 @@ const SAME_FUNCTION = `(module
       (local.set $r (i32.const 7)))
     (local.get $r)))`;
 
-Deno.test('delegate: a named branch after it in the same function keeps its depth', () => {
+test('delegate: a named branch after it in the same function keeps its depth', () => {
   const bytes = assemble(SAME_FUNCTION);
   // Upstream wat2wasm 1.0.41's bytes for the module above, taken 2026-09-14.
   // The branch is the `0c 00` — the leak wrote `0c 01`.
@@ -86,7 +87,7 @@ Deno.test('delegate: a named branch after it in the same function keeps its dept
   assertEquals(g(), 7);
 });
 
-Deno.test('delegate: a function after one that delegates still assembles', () => {
+test('delegate: a function after one that delegates still assembles', () => {
   for (const delegate of ['(delegate $t)', '(delegate 1)']) {
     const r = wat2wasm(`(module (tag $e)
       (func (try $t (do (try (do (throw $e)) ${delegate})) (catch_all)))

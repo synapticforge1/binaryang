@@ -32,7 +32,7 @@
 // This is T7.1's "never throw, never hang" rule, which was applied to the WAT
 // parser and never to the binary path — the same rule, the other front door.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

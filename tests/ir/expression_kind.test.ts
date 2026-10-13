@@ -12,7 +12,7 @@
 //
 // The pins below are compile-time; `deno task check` enforces them.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import type { Expr } from '../../src/ir/ir.ts';

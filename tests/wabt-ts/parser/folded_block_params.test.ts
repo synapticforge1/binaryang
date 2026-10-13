@@ -15,7 +15,7 @@
 //
 // Each case runs the module: the answer depends on the parameter arriving.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

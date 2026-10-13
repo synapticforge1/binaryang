@@ -20,7 +20,7 @@
 // Adding the validator stage dropped twenty to five. Three quarters of that
 // first finding was the instrument.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';

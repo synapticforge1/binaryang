@@ -18,7 +18,7 @@
 // divergence, and why the writer spells each position in the form BOTH tools
 // accept (`(before type)`, never `(before first)`).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

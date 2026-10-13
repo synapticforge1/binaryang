@@ -8,7 +8,7 @@
 // had the same defect and the same fix at M6c (`tests/wabt-ts/reader/
 // local_limits.test.ts`), and the two decoders now share the limit.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';

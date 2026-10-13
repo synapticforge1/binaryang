@@ -14,8 +14,9 @@ import { ExpressionKind } from '../../../src/ir/expressions.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
-Deno.test('RemoveUnusedNames: a value loop with no back-edge becomes a block of its type', () => {
+test('RemoveUnusedNames: a value loop with no back-edge becomes a block of its type', () => {
   const r = wat2wasm(
     `(module (func (export "f") (param i32) (result i32)
       (i32.add (loop $l (result i32) (drop (local.get 0)) (i32.const 5)) (i32.const 1))))`,

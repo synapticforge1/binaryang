@@ -24,7 +24,7 @@
 // what was recorded. Nothing about the export itself was wrong, and no check
 // that inspected exports as a SET could see it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

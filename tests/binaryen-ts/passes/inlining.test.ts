@@ -39,6 +39,7 @@ import { varName } from '../../../src/ir/ir.ts';
 import { nameOf } from '../../../src/ir/ir.ts';
 import { region, soleOf } from '../region_helpers.ts';
 import { ExternalKind } from '../../../src/core/binary.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -83,7 +84,7 @@ function hasCall(expr: Expression, target: string): boolean {
 // Pass registry
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: registered in pass list', () => {
+test('Inlining: registered in pass list', () => {
   const passes = listPasses();
   assertEquals(passes.includes('Inlining'), true);
   assertEquals(passes.includes('InliningOptimizing'), true);
@@ -93,11 +94,11 @@ Deno.test('Inlining: registered in pass list', () => {
 // measureSize helper
 // ---------------------------------------------------------------------------
 
-Deno.test('measureSize: leaf expression counts as 1', () => {
+test('measureSize: leaf expression counts as 1', () => {
   assertEquals(measureSize(makeI32Const(0)), 1);
 });
 
-Deno.test('measureSize: binary counts as 3 (binary + 2 children)', () => {
+test('measureSize: binary counts as 3 (binary + 2 children)', () => {
   assertEquals(
     measureSize(makeBinary(BinaryOp.AddI32, makeI32Const(1), makeI32Const(2))),
     3,
@@ -108,7 +109,7 @@ Deno.test('measureSize: binary counts as 3 (binary + 2 children)', () => {
 // deepCopy helper
 // ---------------------------------------------------------------------------
 
-Deno.test('deepCopy: produces a structurally equal but distinct tree', () => {
+test('deepCopy: produces a structurally equal but distinct tree', () => {
   const orig = makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(0), ValType.I32), makeI32Const(1));
   const copy = deepCopy(orig);
   assertEquals(copy.kind, orig.kind);
@@ -123,7 +124,7 @@ Deno.test('deepCopy: produces a structurally equal but distinct tree', () => {
 // Always-inline: trivial function (size ≤ 2)
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: trivial callee (size 2) is inlined', () => {
+test('Inlining: trivial callee (size 2) is inlined', () => {
   // callee: (func $double (param i32) (result i32) (local.get 0))
   // body size = 1 (single local.get) → always inline
   const callee: WasmFunction = {
@@ -156,7 +157,7 @@ Deno.test('Inlining: trivial callee (size 2) is inlined', () => {
 // The START function is called by the host at instantiation, so it is used
 // even when one call site is its only reference: inlining that call must not
 // remove it. Nothing pinned this — a mutant dropping the seed survived (M8b1).
-Deno.test('Inlining: a single-caller START function is inlined but kept', () => {
+test('Inlining: a single-caller START function is inlined but kept', () => {
   const init: WasmFunction = {
     name: 'init',
     sig: { params: [], results: [] },
@@ -184,7 +185,7 @@ Deno.test('Inlining: a single-caller START function is inlined but kept', () => 
 // One-caller inline: single-ref function under threshold
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: single-caller small callee is inlined and removed', () => {
+test('Inlining: single-caller small callee is inlined and removed', () => {
   // callee: adds two params — size 3 (add + local.get + local.get)
   const callee: WasmFunction = {
     name: 'add',
@@ -224,7 +225,7 @@ Deno.test('Inlining: single-caller small callee is inlined and removed', () => {
 // Argument passing: operands assigned to param locals
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: call operands become local.set in the inlined block', () => {
+test('Inlining: call operands become local.set in the inlined block', () => {
   const callee: WasmFunction = {
     name: 'inc',
     sig: { params: [ValType.I32], results: [ValType.I32] },
@@ -257,7 +258,7 @@ Deno.test('Inlining: call operands become local.set in the inlined block', () =>
 // Return handling: return inside callee becomes br to inlined block
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: return in callee body becomes break to wrapper block', () => {
+test('Inlining: return in callee body becomes break to wrapper block', () => {
   // callee has an explicit return
   const callee: WasmFunction = {
     name: 'ret_const',
@@ -288,7 +289,7 @@ Deno.test('Inlining: return in callee body becomes break to wrapper block', () =
 // Recursive calls are NOT inlined
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: recursive call is not inlined', () => {
+test('Inlining: recursive call is not inlined', () => {
   // factorial: size is small but calls itself
   const factorial: WasmFunction = {
     name: 'factorial',
@@ -319,7 +320,7 @@ Deno.test('Inlining: recursive call is not inlined', () => {
 // Exported callee is inlined but NOT removed
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: single-caller callee with a $-prefixed name is removed (regression)', () => {
+test('Inlining: single-caller callee with a $-prefixed name is removed (regression)', () => {
   // Real parsers name functions `$funcN` (binary) / `$add` (WAT) — i.e. with a
   // leading `$`. The dead-callee counter recovered the callee name from the
   // `__inlined_func$<callee>` wrapper via `name.split("$")[1]`, which for a
@@ -358,7 +359,7 @@ Deno.test('Inlining: single-caller callee with a $-prefixed name is removed (reg
   assertEquals(names.includes('$main'), true);
 });
 
-Deno.test('Inlining: exported callee stays in module even after inlining', () => {
+test('Inlining: exported callee stays in module even after inlining', () => {
   const callee: WasmFunction = {
     name: 'helper',
     sig: { params: [], results: [ValType.I32] },
@@ -392,7 +393,7 @@ Deno.test('Inlining: exported callee stays in module even after inlining', () =>
 // Large callee is NOT inlined (exceeds FLEXIBLE_INLINE_MAX_SIZE at optLevel 2)
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: large function is not inlined at optimizeLevel 2', () => {
+test('Inlining: large function is not inlined at optimizeLevel 2', () => {
   // Build a body with > 20 expression nodes.
   // chain of adds: add(add(add(... add(0, 1), 2), 3), ...)
   let expr: Expression = makeI32Const(0);
@@ -439,7 +440,7 @@ Deno.test('Inlining: large function is not inlined at optimizeLevel 2', () => {
 // Non-param locals are zero-initialised in inlined code
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: non-param local is zero-initialised after inlining', () => {
+test('Inlining: non-param local is zero-initialised after inlining', () => {
   // callee has a non-param local it writes to and returns
   const callee: WasmFunction = {
     name: 'localfn',
@@ -487,7 +488,7 @@ Deno.test('Inlining: non-param local is zero-initialised after inlining', () => 
 // Multi-caller: NOT removed (both refs remain after inlining)
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: multi-caller callee kept when inlined at multiple sites', () => {
+test('Inlining: multi-caller callee kept when inlined at multiple sites', () => {
   const callee: WasmFunction = {
     name: 'helper',
     sig: { params: [], results: [ValType.I32] },
@@ -527,7 +528,7 @@ Deno.test('Inlining: multi-caller callee kept when inlined at multiple sites', (
 // Void callee (no return value)
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: void callee inlined correctly', () => {
+test('Inlining: void callee inlined correctly', () => {
   const callee: WasmFunction = {
     name: 'side_effect',
     sig: { params: [], results: [] },
@@ -558,7 +559,7 @@ Deno.test('Inlining: void callee inlined correctly', () => {
 // Unreachable call stays unreachable after inlining
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: unreachable before call keeps body unreachable', () => {
+test('Inlining: unreachable before call keeps body unreachable', () => {
   const callee: WasmFunction = {
     name: 'tiny',
     sig: { params: [], results: [ValType.I32] },
@@ -591,7 +592,7 @@ Deno.test('Inlining: unreachable before call keeps body unreachable', () => {
 // InliningOptimizing: registered and runs without errors
 // ---------------------------------------------------------------------------
 
-Deno.test('InliningOptimizing: runs without error on simple module', () => {
+test('InliningOptimizing: runs without error on simple module', () => {
   const callee: WasmFunction = {
     name: 'const_fn',
     sig: { params: [], results: [ValType.I32] },
@@ -614,7 +615,7 @@ Deno.test('InliningOptimizing: runs without error on simple module', () => {
   assertEquals(hasCall(caller.body, 'const_fn'), false);
 });
 
-Deno.test('InliningOptimizing: cleans up inlined body — Binary fold', () => {
+test('InliningOptimizing: cleans up inlined body — Binary fold', () => {
   // Callee returns `2 + 3`. After plain Inlining, the caller body has a
   // wrapper block containing the (i32.add (i32.const 2) (i32.const 3)) tree.
   // After InliningOptimizing, OptimizeInstructions runs over the modified
@@ -662,7 +663,7 @@ Deno.test('InliningOptimizing: cleans up inlined body — Binary fold', () => {
   }
 });
 
-Deno.test('InliningOptimizing: cleans up inlined body — Vacuum drops nop', () => {
+test('InliningOptimizing: cleans up inlined body — Vacuum drops nop', () => {
   // Callee body is a block containing a nop followed by a return value;
   // after inlining, the wrapper block contains a nop. Vacuum should remove
   // the nop. Compare nop count before/after.
@@ -721,7 +722,7 @@ function makePatternABody(padNops: number): Expression {
   return makeBlock(items);
 }
 
-Deno.test('split-inlining: disabled by default — Pattern A function is untouched', () => {
+test('split-inlining: disabled by default — Pattern A function is untouched', () => {
   const callee: WasmFunction = {
     name: 'early_exit',
     sig: { params: [ValType.I32], results: [] },
@@ -758,7 +759,7 @@ Deno.test('split-inlining: disabled by default — Pattern A function is untouch
   );
 });
 
-Deno.test('split-inlining: Pattern A — caller gets shell, outlined function added', () => {
+test('split-inlining: Pattern A — caller gets shell, outlined function added', () => {
   const callee: WasmFunction = {
     name: 'early_exit',
     sig: { params: [ValType.I32], results: [] },
@@ -798,7 +799,7 @@ Deno.test('split-inlining: Pattern A — caller gets shell, outlined function ad
   assertEquals(hasCall(caller2.body, 'byn-split-outlined-A$early_exit'), true);
 });
 
-Deno.test('split-inlining: Pattern A with simple outlined chunk collapses to Full', () => {
+test('split-inlining: Pattern A with simple outlined chunk collapses to Full', () => {
   // Body is just (if (local.get 0) return) (nop). Outlined would be size 2
   // (block + nop), which passes outlinedFunctionWorthInlining → "Full" mode.
   // The whole callee gets inlined; no split-* functions appear.
@@ -836,7 +837,7 @@ Deno.test('split-inlining: Pattern A with simple outlined chunk collapses to Ful
   );
 });
 
-Deno.test('split-inlining: non-simple condition rejects Pattern A', () => {
+test('split-inlining: non-simple condition rejects Pattern A', () => {
   // Condition is (i32.add x x) — not in isSimple's allow-list (no Binary).
   // Splitter must classify as Uninlineable; calls remain.
   const callee: WasmFunction = {
@@ -886,7 +887,7 @@ Deno.test('split-inlining: non-simple condition rejects Pattern A', () => {
 // Phase 5.2 — return-call (`isReturn: true`) inlining semantics
 // ---------------------------------------------------------------------------
 
-Deno.test('return-call inlining: callee return propagates as caller return (value)', () => {
+test('return-call inlining: callee return propagates as caller return (value)', () => {
   // Callee returns i32 42. Caller has `return_call` to callee. After inline:
   // the call site becomes a Return wrapping the inlined block, so the value
   // of the inlined body is returned from the caller — not bound to a
@@ -915,7 +916,7 @@ Deno.test('return-call inlining: callee return propagates as caller return (valu
   soleOf(caller.body, ExpressionKind.Return);
 });
 
-Deno.test('return-call inlining: void callee — body executes then return', () => {
+test('return-call inlining: void callee — body executes then return', () => {
   // Callee returns void. Caller has `return_call`. Inlined shape:
   //   (block (wrapper-block (callee body)) (return null))
   // i.e. the wrapper executes for side effects, then an unconditional Return
@@ -946,7 +947,7 @@ Deno.test('return-call inlining: void callee — body executes then return', () 
   assertEquals(outer.children[outer.children.length - 1]!.kind, ExpressionKind.Return);
 });
 
-Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a break", () => {
+test("return-call inlining: callee's explicit return is NOT rewritten to a break", () => {
   // Callee body contains an explicit `(return 42)`. For plain call inlining
   // that return becomes `br $__inlined_func$callee$N 42`. For tail-call
   // inlining the return stays as a Return — it propagates out of the caller.
@@ -1003,7 +1004,7 @@ Deno.test("return-call inlining: callee's explicit return is NOT rewritten to a 
   }
 });
 
-Deno.test('split-inlining: Pattern B — multiple ifs become outlined helpers', () => {
+test('split-inlining: Pattern B — multiple ifs become outlined helpers', () => {
   // Body: two `if (local.get N) { ...heavy }` ifs followed by no final item.
   // Each if body has type none (lots of nops, no return). Both conditions
   // are simple. With partialInliningIfs=4, each if's body gets outlined.
@@ -1071,7 +1072,7 @@ Deno.test('split-inlining: Pattern B — multiple ifs become outlined helpers', 
 // Regression: wrapper-block fallthru validity
 // ---------------------------------------------------------------------------
 
-Deno.test('Inlining: callee that returns via a block-wrapped `return` yields a valid wrapper fallthru', async () => {
+test('Inlining: callee that returns via a block-wrapped `return` yields a valid wrapper fallthru', async () => {
   // The callee delivers its result with an explicit `return` nested inside a
   // block, so the callee body block is typed `unreachable` (it ends in an
   // unconditional control transfer). Before the fix, inlining produced

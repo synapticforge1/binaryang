@@ -25,7 +25,7 @@
 // 1156/1156 "malformed TEXT rejected" axis runs wabt-ts's parser. That is why a
 // parser that accepted malformed literals was invisible to a 100% spec score.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readWat, WatInputError } from '../../../src/tools/read-wat.ts';

@@ -8,7 +8,7 @@
 // 64 KiB memory is larger), operand order before a trap, active segments, and
 // linking through `#pages`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

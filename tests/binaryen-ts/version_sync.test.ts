@@ -28,10 +28,11 @@
  */
 
 import { assertEquals } from '@std/assert';
+import { test } from 'node:test';
 
 const root = new URL('../../', import.meta.url);
 
-Deno.test('version: main.ts VERSION matches jsr.json', async () => {
+test('version: main.ts VERSION matches jsr.json', async () => {
   const manifest = JSON.parse(await Deno.readTextFile(new URL('jsr.json', root))) as {
     version?: string;
   };
@@ -59,7 +60,7 @@ Deno.test('version: main.ts VERSION matches jsr.json', async () => {
   );
 });
 
-Deno.test('version: deno.json does not name the package (jsr.json is the one manifest)', async () => {
+test('version: deno.json does not name the package (jsr.json is the one manifest)', async () => {
   const deno = JSON.parse(await Deno.readTextFile(new URL('deno.json', root))) as Record<
     string,
     unknown
@@ -76,7 +77,7 @@ Deno.test('version: deno.json does not name the package (jsr.json is the one man
 // package.json exists for Bun and Node (dev dependencies and scripts, B2). It is never published,
 // so a `version` there is a second copy that drifts. A `name` invites `npx jsr publish`, which
 // skips the type check when a package.json is present (cmem/bun-migration.md, finding 2).
-Deno.test('version: package.json does not name the package either', async () => {
+test('version: package.json does not name the package either', async () => {
   const pkg = JSON.parse(await Deno.readTextFile(new URL('package.json', root))) as Record<
     string,
     unknown

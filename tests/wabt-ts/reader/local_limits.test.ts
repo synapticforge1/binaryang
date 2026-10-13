@@ -12,7 +12,7 @@
 // call the module malformed. The groups are read first now, and a legal-but-
 // hostile count is REFUSED rather than materialized.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readBinaryIr } from '../../../src/reader/binary-reader.ts';

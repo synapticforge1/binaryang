@@ -7,7 +7,7 @@
 // references is where a wrong index yields a VALID module of the WRONG type, so
 // the cases that could compute something else RUN the module.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

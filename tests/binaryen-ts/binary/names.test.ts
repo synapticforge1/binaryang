@@ -16,7 +16,7 @@
 // name in binaryen-ts, 8,298/8,298; and upstream's name section survives
 // decode → encode exactly, 421/421.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

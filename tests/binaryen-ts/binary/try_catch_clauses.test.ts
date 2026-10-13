@@ -24,7 +24,7 @@
 // "not yet supported" at the bridge, because there was no slot for the flag and
 // dropping it would change what the handler receives.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';

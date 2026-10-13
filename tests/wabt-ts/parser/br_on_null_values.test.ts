@@ -21,7 +21,7 @@
 // Spec testsuite: V8-valid 255 -> 257 — every module in all 257 files now
 // encodes to wasm V8 accepts.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

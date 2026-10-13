@@ -25,7 +25,7 @@
 // heap type — the same path `ref.test` / `ref.cast` already used. V8 accepts
 // every binary below.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWastScript } from '../../../src/parser/wast-parser.ts';

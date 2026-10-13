@@ -17,7 +17,7 @@
 // 1.0.41's module returned when probed; the linear case is 4 × 10 − 2. Each
 // output is RUN, at no optimization and at -Oz.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wasmOpt } from '../../../src/tools/wasm-opt.ts';

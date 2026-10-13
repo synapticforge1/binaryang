@@ -7,7 +7,7 @@
 // the binary. A named block, or one with parameters, stays. Each case RUNS
 // the module before and after.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';

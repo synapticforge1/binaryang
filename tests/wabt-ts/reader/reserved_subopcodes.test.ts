@@ -14,7 +14,7 @@
 // Every case is a one-function module whose body is `<prefix> <LEB sub> end`: the decoder must
 // refuse the opcode before reading anything after it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readBinaryIr } from '../../../src/reader/binary-reader.ts';

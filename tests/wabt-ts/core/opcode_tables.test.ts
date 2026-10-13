@@ -24,7 +24,7 @@
 // review pass that found nothing new in either — the point is to keep it that
 // way when the next proposal lands.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { WastLexer } from '../../../src/parser/wast-lexer.ts';

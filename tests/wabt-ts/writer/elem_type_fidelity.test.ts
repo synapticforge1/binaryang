@@ -39,7 +39,7 @@
 // assert_invalid 2629 -> 2632 / 2737, and round-trip fidelity is unchanged at
 // 1961/2120 — the WAT-writer half of the fix is what keeps it there.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

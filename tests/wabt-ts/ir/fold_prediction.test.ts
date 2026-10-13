@@ -9,7 +9,7 @@
 // multi-value producer, written as its operands' items and then a bare head,
 // all inside the enclosing parens — was predicted as one item.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

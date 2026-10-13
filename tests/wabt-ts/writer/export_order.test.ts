@@ -25,7 +25,7 @@
 // (12 hard failures -> 1); wasmtk WASI corpus 1 -> 50 / 270, which is the
 // whole export group — 100% of that corpus's differences were T10.1.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -31,47 +31,48 @@ import {
   TRANSITIVE,
   TWO_IMPORTS,
 } from './asyncify_helpers.ts';
+import { test } from 'node:test';
 
-Deno.test('analyzeModule — import caller is instrumented, pure function is not', () => {
+test('analyzeModule — import caller is instrumented, pure function is not', () => {
   const s = ourInstrumentSet(IMPORT_CALL, {});
   assertEquals(s, new Set(['foo']));
 });
 
-Deno.test('analyzeModule — state change propagates transitively up the call graph', () => {
+test('analyzeModule — state change propagates transitively up the call graph', () => {
   const s = ourInstrumentSet(TRANSITIVE, {});
   assertEquals(s, new Set(['a', 'b']));
 });
 
-Deno.test('analyzeModule — indirect calls change state by default', () => {
+test('analyzeModule — indirect calls change state by default', () => {
   assertEquals(ourInstrumentSet(INDIRECT, {}), new Set(['foo']));
 });
 
-Deno.test('analyzeModule — asyncify-ignore-indirect drops indirect-only functions', () => {
+test('analyzeModule — asyncify-ignore-indirect drops indirect-only functions', () => {
   assertEquals(ourInstrumentSet(INDIRECT, { 'asyncify-ignore-indirect': '' }), new Set());
 });
 
-Deno.test('analyzeModule — asyncify-ignore-imports makes imports non-state-changing', () => {
+test('analyzeModule — asyncify-ignore-imports makes imports non-state-changing', () => {
   assertEquals(ourInstrumentSet(IMPORT_CALL, { 'asyncify-ignore-imports': '' }), new Set());
 });
 
-Deno.test('analyzeModule — asyncify-imports restricts to the listed imports', () => {
+test('analyzeModule — asyncify-imports restricts to the listed imports', () => {
   const s = ourInstrumentSet(TWO_IMPORTS, { 'asyncify-imports': 'env.sleep' });
   assertEquals(s, new Set(['foo']));
 });
 
-Deno.test('analyzeModule — remove-list forces a function out of the set', () => {
+test('analyzeModule — remove-list forces a function out of the set', () => {
   // $a calls $b calls import; removing $b stops propagation so only $b is
   // dropped AND $a no longer reaches a state-change → set is empty.
   const s = ourInstrumentSet(TRANSITIVE, { 'asyncify-removelist': '$b' });
   assertEquals(s, new Set());
 });
 
-Deno.test('analyzeModule — only-list restricts to exactly the listed functions', () => {
+test('analyzeModule — only-list restricts to exactly the listed functions', () => {
   const s = ourInstrumentSet(TRANSITIVE, { 'asyncify-onlylist': '$a' });
   assertEquals(s, new Set(['a']));
 });
 
-Deno.test('resolveAsyncifyImports — in-wasm asyncify.* import mode: topMost excluded, callers instrumented', () => {
+test('resolveAsyncifyImports — in-wasm asyncify.* import mode: topMost excluded, callers instrumented', () => {
   // `$park` calls asyncify.start_unwind (top of the runtime — must NOT be
   // instrumented); `$worker`/`$main` transitively call it and MUST be.
   const wat = `(module
@@ -93,7 +94,7 @@ Deno.test('resolveAsyncifyImports — in-wasm asyncify.* import mode: topMost ex
   assert(res.instrumentedFuncs.has('$main'), 'main (transitive) must be instrumented');
 });
 
-Deno.test('resolveAsyncifyImports — returns false and no-ops when there are no asyncify imports', () => {
+test('resolveAsyncifyImports — returns false and no-ops when there are no asyncify imports', () => {
   const mod = readWat(TRANSITIVE);
   assert(!resolveAsyncifyImports(mod), 'no asyncify imports → host-driven mode');
 });

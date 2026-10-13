@@ -27,7 +27,7 @@
 // binaryen-ts type written out again instead of aliased, which would start to
 // drift the moment it was.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import type * as W from '../../src/ir/ir.ts';

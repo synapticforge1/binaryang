@@ -28,7 +28,7 @@
 // single most common branch in real code. The encoder seeds its own stack with
 // `fn.bodyFrameLabel ?? ''`, so the empty name resolves there.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

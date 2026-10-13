@@ -30,6 +30,7 @@ import { varIndex } from '../../../src/ir/ir.ts';
 import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm, writeWat } from '../../../src/ir/write-wasm.ts';
+import { test } from 'node:test';
 
 const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join(' ');
 
@@ -96,12 +97,12 @@ const REC_BYTES = '00 61 73 6d 01 00 00 00 01 14 04 4e 02 60 00 00 60 00 00 60 0
   '60 01 7f 00 02 0a 01 01 4d 03 74 61 67 04 00 01 03 02 01 04 0d 07 03 00 01 00 02 00 03 07 05 ' +
   '01 01 66 00 00 0a 0b 01 09 00 20 00 04 40 08 01 0b 0b';
 
-Deno.test('wat2wasm writes the type each tag named, as the oracles do', () => {
+test('wat2wasm writes the type each tag named, as the oracles do', () => {
   assertEquals(known(assemble(TWINS)), TWINS_BYTES);
   assertEquals(known(assemble(REC)), REC_BYTES);
 });
 
-Deno.test('a binary read and written back keeps each tag on its own type', () => {
+test('a binary read and written back keeps each tag on its own type', () => {
   for (const want of [TWINS_BYTES, REC_BYTES]) {
     const bytes = new Uint8Array(want.split(' ').map((x) => parseInt(x, 16)));
     const errors = makeErrorList();
@@ -112,7 +113,7 @@ Deno.test('a binary read and written back keeps each tag on its own type', () =>
   }
 });
 
-Deno.test("wasm2wat prints a tag's (type N), and the text assembles back", () => {
+test("wasm2wat prints a tag's (type N), and the text assembles back", () => {
   for (const want of [TWINS_BYTES, REC_BYTES]) {
     const bytes = new Uint8Array(want.split(' ').map((x) => parseInt(x, 16)));
     const text = wasm2wat(bytes).text ?? '';
@@ -122,7 +123,7 @@ Deno.test("wasm2wat prints a tag's (type N), and the text assembles back", () =>
   }
 });
 
-Deno.test('W12: an import descriptor names its type', () => {
+test('W12: an import descriptor names its type', () => {
   for (
     const wat of [
       '(module (type $t (func (param i32))) (import "M" "t" (tag (type $t))))',
@@ -142,7 +143,7 @@ Deno.test('W12: an import descriptor names its type', () => {
 // reaches `synthesizeTypes` with none — one the API or a pass built. It is
 // interned as an inline one is: beside a rec group of `(func)`, a new
 // singleton, never the group's first member.
-Deno.test('a tag built with no type interns its signature, as the text does', () => {
+test('a tag built with no type interns its signature, as the text does', () => {
   const { module, errors } = parseWatModule('(module (rec (type $t1 (func)) (type $t2 (func))))');
   assert(!hasErrors(errors), formatErrors(errors));
   module.tags.push({ name: '', sig: { params: [], results: [] } });
@@ -151,7 +152,7 @@ Deno.test('a tag built with no type interns its signature, as the text does', ()
   assertEquals(module.tags[0]!.typeVar, varIndex(2));
 });
 
-Deno.test('a tag naming a type that does not exist keeps the index, for the validator', () => {
+test('a tag naming a type that does not exist keeps the index, for the validator', () => {
   // T13's rule: `(tag (type 42))` must not be repaired into some other type.
   const bytes = assemble('(module (type (func)) (tag (type 42)))');
   const { errors } = wasmValidate(bytes, { features: allFeatures() });

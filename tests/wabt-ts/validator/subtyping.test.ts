@@ -32,7 +32,7 @@
 // modules. Those 10 are logged as T9.4 rather than papered over by widening
 // the lattice again — the point of T9.3 was to stop doing that.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

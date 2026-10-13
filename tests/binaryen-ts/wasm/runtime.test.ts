@@ -29,6 +29,7 @@ import {
   loadKernel,
   WasmRuntimeError,
 } from '../../../src/wasm-runtime.ts';
+import { test } from 'node:test';
 
 const KERNEL_NAME = 'demo-runtime-test';
 
@@ -40,7 +41,7 @@ function freshSpec(): {
   return { name: KERNEL_NAME, bytes: DEMO_BYTES, exports: DEMO_KERNEL_EXPORTS };
 }
 
-Deno.test('wasm-runtime: loads demo kernel and call results match native', async () => {
+test('wasm-runtime: loads demo kernel and call results match native', async () => {
   clearKernelCache(KERNEL_NAME);
   const kernel = await loadKernel(freshSpec());
 
@@ -57,7 +58,7 @@ Deno.test('wasm-runtime: loads demo kernel and call results match native', async
   clearKernelCache(KERNEL_NAME);
 });
 
-Deno.test('wasm-runtime: second loadKernel returns cached instance', async () => {
+test('wasm-runtime: second loadKernel returns cached instance', async () => {
   clearKernelCache(KERNEL_NAME);
   const a = await loadKernel(freshSpec());
   const b = await loadKernel(freshSpec());
@@ -66,7 +67,7 @@ Deno.test('wasm-runtime: second loadKernel returns cached instance', async () =>
   clearKernelCache(KERNEL_NAME);
 });
 
-Deno.test('wasm-runtime: clearKernelCache reinstantiates', async () => {
+test('wasm-runtime: clearKernelCache reinstantiates', async () => {
   clearKernelCache(KERNEL_NAME);
   const first = await loadKernel(freshSpec());
   clearKernelCache(KERNEL_NAME);
@@ -79,7 +80,7 @@ Deno.test('wasm-runtime: clearKernelCache reinstantiates', async () => {
   clearKernelCache(KERNEL_NAME);
 });
 
-Deno.test('wasm-runtime: missing export throws WasmRuntimeError', async () => {
+test('wasm-runtime: missing export throws WasmRuntimeError', async () => {
   clearKernelCache(KERNEL_NAME);
   await assertRejects(
     () =>
@@ -94,7 +95,7 @@ Deno.test('wasm-runtime: missing export throws WasmRuntimeError', async () => {
   clearKernelCache(KERNEL_NAME);
 });
 
-Deno.test('wasm-runtime: listLoadedKernels reports cached names', async () => {
+test('wasm-runtime: listLoadedKernels reports cached names', async () => {
   clearKernelCache();
   assertEquals(listLoadedKernels(), []);
   await loadKernel(freshSpec());

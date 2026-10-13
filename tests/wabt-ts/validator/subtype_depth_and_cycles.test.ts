@@ -35,7 +35,7 @@
 // The reporting itself was free: a depth walk must already detect cycles to
 // terminate, so `inProgress` had the answer and was discarding it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

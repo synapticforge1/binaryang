@@ -23,7 +23,7 @@
 //     the mechanical pass first produced `BigInt(bigintOffsetToNumber(off))`,
 //     which type-checks and preserves the truncation exactly.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';

@@ -6,7 +6,7 @@
 // `true`, so `-h` re-set a default and could never mean anything, and `-d`
 // always came with the headers.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
@@ -32,7 +32,7 @@ async function objdump(flags: string[]): Promise<string> {
   }
 }
 
-describe('wasm-objdump shows what its flags ask for', { ignore: !canRun }, () => {
+describe('wasm-objdump shows what its flags ask for', { skip: !canRun }, () => {
   for (
     const [flags, headers, details] of [
       [[], true, false],

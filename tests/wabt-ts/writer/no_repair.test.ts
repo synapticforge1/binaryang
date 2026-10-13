@@ -46,7 +46,7 @@
 // halves complete. V8-valid reads 2118 / 2120 — the two modules above, which
 // V8 will not accept at any faithful encoding.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

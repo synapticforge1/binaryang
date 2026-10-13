@@ -6,7 +6,7 @@
 // dispatcher, so `deno run -A jsr:@jrmarcum/binaryang --help` printed nothing
 // and exited 0 on every published version.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 
 import { checkEntry } from '../../../scripts/release/entry-check.ts';
@@ -14,7 +14,7 @@ import { checkEntry } from '../../../scripts/release/entry-check.ts';
 const canRun = (await Deno.permissions.query({ name: 'run' })).state === 'granted' &&
   (await Deno.permissions.query({ name: 'write' })).state === 'granted';
 
-describe('release preflight — the package root is the CLI', { ignore: !canRun }, () => {
+describe('release preflight — the package root is the CLI', { skip: !canRun }, () => {
   it('passes on this tree', async () => {
     expect(await checkEntry(Deno.cwd())).toEqual([]);
   });

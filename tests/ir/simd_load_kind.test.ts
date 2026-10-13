@@ -13,7 +13,7 @@
 // kind. Now every front end asks `isSimdLoadOpcode` (`SIMD_LOAD_OPCODES`),
 // and binaryen-ts's `SIMDLoadOp` is pinned to the same set.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { SIMD_LOAD_OPCODES } from '../../src/ir/ir.ts';

@@ -11,7 +11,7 @@
 // side is written while the other still holds the old value — a merge there is
 // a silent miscompile, so those cases RUN the module.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

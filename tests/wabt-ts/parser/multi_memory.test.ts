@@ -34,7 +34,7 @@
 //
 // Testsuite: 179 -> 214/257 clean, zero regressions.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

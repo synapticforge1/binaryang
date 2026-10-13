@@ -13,7 +13,7 @@
 //   `funcref` segment, so an invalid module came back looking valid, and back;
 // - an entry could not be a `global.get` or any other constant expression.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

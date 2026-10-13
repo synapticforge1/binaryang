@@ -20,6 +20,7 @@ import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 const CASES: Record<string, string> = {
   // The control: this one already worked, so it shows the test can pass.
@@ -34,7 +35,7 @@ const CASES: Record<string, string> = {
 };
 
 for (const [name, construct] of Object.entries(CASES)) {
-  Deno.test(`multi-result ${name}: its values survive decode → encode`, () => {
+  test(`multi-result ${name}: its values survive decode → encode`, () => {
     const r = wat2wasm(`(module (tag $e)
       (func (export "f") (param i32) (result i32) ${construct} (i32.sub)))`);
     assertEquals(hasErrors(r.errors), false, formatErrors(r.errors));

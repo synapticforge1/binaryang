@@ -10,7 +10,7 @@
 // error before the pass; the instruments that found them (a depth probe and a
 // mutation fuzz over wasmtk's real binaries) are recorded in cmem/hardening.md.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { join } from 'node:path';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';

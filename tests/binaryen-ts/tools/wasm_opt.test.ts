@@ -44,6 +44,7 @@ import { parseArgs, wasmOpt } from '../../../src/tools/wasm-opt.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -127,12 +128,12 @@ async function withTempWasm<T>(
 // listPasses / registry
 // ---------------------------------------------------------------------------
 
-Deno.test('listPasses includes RemoveUnusedNames', () => {
+test('listPasses includes RemoveUnusedNames', () => {
   const passes = listPasses();
   assert(passes.includes('RemoveUnusedNames'), 'RemoveUnusedNames must be registered');
 });
 
-Deno.test('listPasses includes all Phase 4-5 passes', () => {
+test('listPasses includes all Phase 4-5 passes', () => {
   const passes = listPasses();
   for (
     const expected of [
@@ -158,7 +159,7 @@ Deno.test('listPasses includes all Phase 4-5 passes', () => {
 // RemoveUnusedNames — unit tests
 // ---------------------------------------------------------------------------
 
-Deno.test('RemoveUnusedNames: strips unused block name', () => {
+test('RemoveUnusedNames: strips unused block name', () => {
   const mod = emptyModule();
   // A sibling keeps the block from being the body's ONLY instruction: an
   // unnamed block that is, dissolves into the region, and the stripped name
@@ -174,7 +175,7 @@ Deno.test('RemoveUnusedNames: strips unused block name', () => {
   assertEquals(body.label, '', 'an unused block label is stripped to the empty label');
 });
 
-Deno.test('RemoveUnusedNames: keeps block name that is branched to', () => {
+test('RemoveUnusedNames: keeps block name that is branched to', () => {
   const mod = emptyModule();
   // (block $exit (br $exit))
   const body = makeBlock([makeBreak('exit')], 'exit');
@@ -186,7 +187,7 @@ Deno.test('RemoveUnusedNames: keeps block name that is branched to', () => {
   assertEquals(newBody.label, 'exit', 'used block name must be kept');
 });
 
-Deno.test('RemoveUnusedNames: replaces unused loop with body', () => {
+test('RemoveUnusedNames: replaces unused loop with body', () => {
   const mod = emptyModule();
   // (block (loop $lp (nop)))  — no br targeting $lp
   const nop = makeNop();
@@ -205,7 +206,7 @@ Deno.test('RemoveUnusedNames: replaces unused loop with body', () => {
   );
 });
 
-Deno.test('RemoveUnusedNames: keeps loop with br back-edge', () => {
+test('RemoveUnusedNames: keeps loop with br back-edge', () => {
   const mod = emptyModule();
   // (loop $lp (br $lp))  — has a back-edge
   const br = makeBreak('lp');
@@ -222,7 +223,7 @@ Deno.test('RemoveUnusedNames: keeps loop with br back-edge', () => {
   );
 });
 
-Deno.test('RemoveUnusedNames: strips outer name but keeps inner used name', () => {
+test('RemoveUnusedNames: strips outer name but keeps inner used name', () => {
   // (block $outer (block $inner (br $inner)))
   const mod = emptyModule();
   const inner = makeBlock([makeBreak('inner')], 'inner');
@@ -243,7 +244,7 @@ Deno.test('RemoveUnusedNames: strips outer name but keeps inner used name', () =
 // wasmOpt integration — native path
 // ---------------------------------------------------------------------------
 
-Deno.test('wasmOpt: native path returns valid WASM magic bytes', async () => {
+test('wasmOpt: native path returns valid WASM magic bytes', async () => {
   const input = buildAddWasm();
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 0 }));
   assertInstanceOf(result, Uint8Array);
@@ -253,7 +254,7 @@ Deno.test('wasmOpt: native path returns valid WASM magic bytes', async () => {
   assertEquals(result[3], 0x6d);
 });
 
-Deno.test('wasmOpt: output is re-parseable as valid WASM module', async () => {
+test('wasmOpt: output is re-parseable as valid WASM module', async () => {
   const input = buildAddWasm();
   const result = await withTempWasm(input, (path) => wasmOpt(path, { optimizeLevel: 2 }));
   assertInstanceOf(result, Uint8Array);
@@ -263,7 +264,7 @@ Deno.test('wasmOpt: output is re-parseable as valid WASM module', async () => {
   assertEquals(mod.exports[0].name, 'add');
 });
 
-Deno.test('wasmOpt: -O1 applies DCE and removes dead code', async () => {
+test('wasmOpt: -O1 applies DCE and removes dead code', async () => {
   const input = buildDeadCodeWasm();
   // Before optimization: body is a region of 3 (unreachable + 2 nops)
   const inputMod = readForPasses(input);
@@ -282,7 +283,7 @@ Deno.test('wasmOpt: -O1 applies DCE and removes dead code', async () => {
   );
 });
 
-Deno.test('wasmOpt: explicit passes override default pass set', async () => {
+test('wasmOpt: explicit passes override default pass set', async () => {
   // With only Vacuum specified, DCE-specific logic won't run;
   // function structure should still be present and valid
   const input = buildAddWasm();
@@ -292,7 +293,7 @@ Deno.test('wasmOpt: explicit passes override default pass set', async () => {
   assertEquals(mod.functions.length, 1, 'function should still be present after Vacuum pass');
 });
 
-Deno.test('wasmOpt: empty module round-trips cleanly', async () => {
+test('wasmOpt: empty module round-trips cleanly', async () => {
   const input = writeWasm({
     functions: [],
     globals: [],
@@ -315,7 +316,7 @@ Deno.test('wasmOpt: empty module round-trips cleanly', async () => {
   assert((result as Uint8Array).byteLength >= 8);
 });
 
-Deno.test('wasmOpt: passArgs are accepted without error', async () => {
+test('wasmOpt: passArgs are accepted without error', async () => {
   const input = buildAddWasm();
   // passArgs forwarded — no pass currently uses them, but must not throw
   const result = await withTempWasm(input, (path) =>
@@ -330,26 +331,26 @@ Deno.test('wasmOpt: passArgs are accepted without error', async () => {
 // parseArgs — CLI flag wiring
 // ---------------------------------------------------------------------------
 
-Deno.test('parseArgs: --partial-inlining-ifs N sets PassOptions.partialInliningIfs', () => {
+test('parseArgs: --partial-inlining-ifs N sets PassOptions.partialInliningIfs', () => {
   const parsed = parseArgs(['--partial-inlining-ifs', '4', 'input.wasm']);
   assertEquals(parsed.options.partialInliningIfs, 4);
   assertEquals(parsed.input, 'input.wasm');
 });
 
-Deno.test('parseArgs: -pii N alias sets PassOptions.partialInliningIfs', () => {
+test('parseArgs: -pii N alias sets PassOptions.partialInliningIfs', () => {
   const parsed = parseArgs(['-pii', '8', 'in.wasm', '-o', 'out.wasm']);
   assertEquals(parsed.options.partialInliningIfs, 8);
   assertEquals(parsed.options.output, 'out.wasm');
 });
 
-Deno.test('parseArgs: --partial-inlining-ifs is NOT misread as a pass name', () => {
+test('parseArgs: --partial-inlining-ifs is NOT misread as a pass name', () => {
   const parsed = parseArgs(['--partial-inlining-ifs', '2', 'in.wasm']);
   assertEquals(parsed.options.partialInliningIfs, 2);
   // The flag is recognized, so it must not also appear in the explicit pass list.
   assertEquals(parsed.options.passes, undefined);
 });
 
-Deno.test('parseArgs: --partial-inlining-ifs missing/invalid arg leaves option unset', () => {
+test('parseArgs: --partial-inlining-ifs missing/invalid arg leaves option unset', () => {
   // Trailing flag with no value → no crash, option not set.
   const parsedTrailing = parseArgs(['in.wasm', '--partial-inlining-ifs']);
   assertEquals(parsedTrailing.options.partialInliningIfs, undefined);
@@ -358,7 +359,7 @@ Deno.test('parseArgs: --partial-inlining-ifs missing/invalid arg leaves option u
   assertEquals(parsedNeg.options.partialInliningIfs, undefined);
 });
 
-Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => {
+test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => {
   // Build a module with a named block that has no br targeting it.
   // RemoveUnusedNames will strip the name; the encoder then unpacks the
   // resulting null-named block; the parser re-wraps single-expression bodies
@@ -392,7 +393,7 @@ Deno.test('wasmOpt: -O2 with RemoveUnusedNames strips block names', async () => 
   );
 });
 
-Deno.test('parseArgs: trailing -o with no value throws instead of defaulting to output.wasm', () => {
+test('parseArgs: trailing -o with no value throws instead of defaulting to output.wasm', () => {
   assertThrows(() => parseArgs(['in.wasm', '-o']), Error, 'requires an output path');
   assertThrows(() => parseArgs(['in.wasm', '-o', '-O2']), Error, 'requires an output path');
   // `-` alone is stdout (2026-09-29: the guard above refused it too).
@@ -403,13 +404,13 @@ Deno.test('parseArgs: trailing -o with no value throws instead of defaulting to 
 // 1.7.0 — hybrid mode left the product; -S is native
 // ---------------------------------------------------------------------------
 
-Deno.test('parseArgs: --hybrid is refused by name, not read as a pass called "hybrid"', () => {
+test('parseArgs: --hybrid is refused by name, not read as a pass called "hybrid"', () => {
   assertThrows(() => parseArgs(['in.wasm', '--hybrid']), Error, '--hybrid was removed in 1.7.0');
 });
 
 // Open-work 28 part 5 (2026-10-12): a page holding a module's bytes can optimize them, with no
 // file system. Bytes in must give exactly what the same module read from a path gives.
-Deno.test('wasmOpt: BYTES in give the same output as the same module from a path', async () => {
+test('wasmOpt: BYTES in give the same output as the same module from a path', async () => {
   const input = buildAddWasm();
   for (const optimizeLevel of [0, 2] as const) {
     const fromPath = await withTempWasm(input, (p) => wasmOpt(p, { optimizeLevel }));
@@ -419,7 +420,7 @@ Deno.test('wasmOpt: BYTES in give the same output as the same module from a path
   }
 });
 
-Deno.test('wasmOpt: WAT given as bytes is read as text (no \\0asm magic) and computes the same', async () => {
+test('wasmOpt: WAT given as bytes is read as text (no \\0asm magic) and computes the same', async () => {
   const wat = '(module (func (export "add") (param i32 i32) (result i32) ' +
     '(i32.add (local.get 0) (local.get 1))))';
   const out = await wasmOpt(new TextEncoder().encode(wat), { optimizeLevel: 2 });
@@ -429,7 +430,7 @@ Deno.test('wasmOpt: WAT given as bytes is read as text (no \\0asm magic) and com
   assertEquals(add(2, 3), 5);
 });
 
-Deno.test('wasmOpt -S: the optimized module as text, computing what the bytes compute', async () => {
+test('wasmOpt -S: the optimized module as text, computing what the bytes compute', async () => {
   const add = (bytes: Uint8Array) =>
     (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports['add'] as (
       a: number,

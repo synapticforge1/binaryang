@@ -30,7 +30,7 @@
 // 2043 → 2074 / 2120. The four campaign metrics are unmoved (parse-clean
 // 257/257, V8-valid 2120/2120, agreement 2120/2120, assert_invalid 2664/2737).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

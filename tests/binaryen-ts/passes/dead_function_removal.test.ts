@@ -22,6 +22,7 @@ import { PassRunner } from '../../../src/passes/index.ts';
 import type { WasmModule } from '../../../src/ir/module.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 const WAT = `(module
   (table 1 funcref)
@@ -66,25 +67,25 @@ for (
     ['-Oz', { optimizeLevel: 2, shrinkLevel: 2 }],
   ] as const
 ) {
-  Deno.test(`${label}: a function nothing references is removed`, () => {
+  test(`${label}: a function nothing references is removed`, () => {
     const mod = optimize(level);
     assertEquals(survivors(mod).includes('$dead'), false, survivors(mod).join(' '));
     assertEquals(runF(mod), 12);
   });
 
-  Deno.test(`${label}: a function in a table, or the start function, is kept`, () => {
+  test(`${label}: a function in a table, or the start function, is kept`, () => {
     const names = survivors(optimize(level));
     assert(names.includes('$in_table'), names.join(' '));
     assert(names.includes('$start_fn'), names.join(' '));
   });
 }
 
-Deno.test('Inlining alone keeps a dead function it never inlined — that is not its job', () => {
+test('Inlining alone keeps a dead function it never inlined — that is not its job', () => {
   const names = survivors(optimize({ optimizeLevel: 3, shrinkLevel: 0 }, 'Inlining'));
   assert(names.includes('$dead'), names.join(' '));
 });
 
-Deno.test('Inlining alone still removes a function it inlined at every call site', () => {
+test('Inlining alone still removes a function it inlined at every call site', () => {
   const names = survivors(optimize({ optimizeLevel: 3, shrinkLevel: 0 }, 'Inlining'));
   assertEquals(names.includes('$callee'), false, names.join(' '));
 });

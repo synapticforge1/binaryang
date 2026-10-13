@@ -45,6 +45,7 @@ import { varName } from '../../../src/ir/ir.ts';
 import { soleOf } from '../region_helpers.ts';
 import { ExternalKind } from '../../../src/core/binary.ts';
 import '../../../src/passes/index.ts'; // side-effect: register built-in passes
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Minimal wasm section-builder helpers (unsigned LEB128, length-prefixed)
@@ -85,7 +86,7 @@ function assembleAndValidate(sections: number[][]): Promise<WebAssembly.Module> 
 // Bug 1 — imported-function call target naming
 // ---------------------------------------------------------------------------
 
-Deno.test('regression: call to imported function resolves to correct index after round-trip', async () => {
+test('regression: call to imported function resolves to correct index after round-trip', async () => {
   // Two imports of DIFFERENT arity so a fallback-to-index-0 bug surfaces as an
   // arity mismatch:
   //   import #0  "e"."a"  (i32)      -> (i32)
@@ -133,7 +134,7 @@ Deno.test('regression: call to imported function resolves to correct index after
 // Bug 3 — result-typed loop whose body exits via a back-edge br
 // ---------------------------------------------------------------------------
 
-Deno.test('regression: loop (result i32) with multi-expr body exiting via back-edge br validates', async () => {
+test('regression: loop (result i32) with multi-expr body exiting via back-edge br validates', async () => {
   // (func (result i32)
   //   (loop $l (result i32)        ;; multi-expr body, last is `br $l`
   //     (drop (i32.const 1))       ;; makes the body multi-expression -> wrapper
@@ -165,7 +166,7 @@ Deno.test('regression: loop (result i32) with multi-expr body exiting via back-e
 // Bug 2 — void block ending in `return` inside a value-returning function
 // ---------------------------------------------------------------------------
 
-Deno.test('regression: void block ending in return inside i32 function validates', async () => {
+test('regression: void block ending in return inside i32 function validates', async () => {
   // (func (result i32)
   //   (block            ;; VOID block whose body exits via return
   //     (i32.const 1)
@@ -198,12 +199,12 @@ Deno.test('regression: void block ending in return inside i32 function validates
 // Control-transfer node type invariants (unit-level pins for bugs 2 & 3)
 // ---------------------------------------------------------------------------
 
-Deno.test('makeReturn is always typed unreachable', () => {
+test('makeReturn is always typed unreachable', () => {
   assertEquals(makeReturn([makeI32Const(1)]).type, Unreachable);
   assertEquals(makeReturn().type, Unreachable);
 });
 
-Deno.test('makeBreak: unconditional br is unreachable; br_if follows fallthrough', () => {
+test('makeBreak: unconditional br is unreachable; br_if follows fallthrough', () => {
   // Unconditional br always transfers control -> unreachable.
   assertEquals(makeBreak('$l').type, Unreachable);
   // Conditional br_if without value falls through with nothing -> none.
@@ -212,7 +213,7 @@ Deno.test('makeBreak: unconditional br is unreachable; br_if follows fallthrough
   assertEquals(makeBreak('$l', makeI32Const(1), [makeI32Const(2)]).type, ValType.I32);
 });
 
-Deno.test('makeSwitch (br_table) is always unreachable', () => {
+test('makeSwitch (br_table) is always unreachable', () => {
   assertEquals(makeSwitch(['$a', '$b'], '$d', makeI32Const(0)).type, Unreachable);
   assertEquals(
     makeSwitch(
@@ -229,7 +230,7 @@ Deno.test('makeSwitch (br_table) is always unreachable', () => {
 // WT-2c — bugs the behavioral-equivalence harness surfaced
 // ---------------------------------------------------------------------------
 
-Deno.test("makeIf's type is what it DECLARES — never inferred from the arms", () => {
+test("makeIf's type is what it DECLARES — never inferred from the arms", () => {
   // WT-2c: the type was once `ifTrue.type`, so a then-arm ending in `return`
   // typed the `if` `unreachable` while its else fell through, and DCE deleted
   // the live code after it (`_fib` returned 0). The fix inferred the reachable
@@ -248,7 +249,7 @@ Deno.test("makeIf's type is what it DECLARES — never inferred from the arms", 
   assertEquals(makeIf(makeI32Const(1), ret()).type, None);
 });
 
-Deno.test('regression: element segments + call_indirect survive round-trip and execute', async () => {
+test('regression: element segments + call_indirect survive round-trip and execute', async () => {
   // (type $t () -> i32)
   // (table 1 funcref) (elem (i32.const 0) $target)
   // (func $target (result i32) (i32.const 42))
@@ -282,7 +283,7 @@ Deno.test('regression: element segments + call_indirect survive round-trip and e
   assertEquals((inst.exports['run'] as () => number)(), 42);
 });
 
-Deno.test('regression: LocalCSE preserves a result-typed block that exits via br', async () => {
+test('regression: LocalCSE preserves a result-typed block that exits via br', async () => {
   // (func (param i32) (result i32)
   //   (block $b (result i32)
   //     (drop (i32.add (local.get 0) (local.get 0)))   ;; CSE occurrence 1
@@ -323,7 +324,7 @@ Deno.test('regression: LocalCSE preserves a result-typed block that exits via br
   await WebAssembly.compile(writeWasm(mod) as BufferSource);
 });
 
-Deno.test('regression: CoalesceLocals preserves effective sets when remapping locals', () => {
+test('regression: CoalesceLocals preserves effective sets when remapping locals', () => {
   // (func (param i32) (result i32)
   //   (local i32 i32)
   //   (local.set 1 (i32.const 7))     ;; $1 = 7
@@ -371,7 +372,7 @@ Deno.test('regression: CoalesceLocals preserves effective sets when remapping lo
   assertEquals(run(0), 42);
 });
 
-Deno.test('regression: LocalCSE invalidates cache after a child that writes the cached local', () => {
+test('regression: LocalCSE invalidates cache after a child that writes the cached local', () => {
   // (func (param i32) (result i32)
   //   (local i32 i32)
   //   (local.set 1 (local.get 0))                            ;; $1 = $0
@@ -431,7 +432,7 @@ Deno.test('regression: LocalCSE invalidates cache after a child that writes the 
   assertEquals(run(5), 7);
 });
 
-Deno.test('regression: single-arm (if cond (then BODY)) round-trips without inverting the test', () => {
+test('regression: single-arm (if cond (then BODY)) round-trips without inverting the test', () => {
   // (func (export "f") (param i32) (result i32)
   //   (if (local.get 0)
   //     (then (i32.store (i32.const 0) (i32.const 0xAA))))
@@ -503,7 +504,7 @@ Deno.test('regression: single-arm (if cond (then BODY)) round-trips without inve
   assertEquals(rtF(1), 0xaa, 'round-trip: cond=1 must fire the store');
 });
 
-Deno.test('regression: tag exports + signature survive parse→encode and RemoveUnusedModuleElements', () => {
+test('regression: tag exports + signature survive parse→encode and RemoveUnusedModuleElements', () => {
   // Mirrors the wasmtk team's bug report: an EH tag exported by name, alongside
   // multiple type-section entries of varying arity, must round-trip with its
   // export AND its `(param ...)` signature intact.
@@ -603,7 +604,7 @@ Deno.test('regression: tag exports + signature survive parse→encode and Remove
 // by wasmtk after it began emitting short-circuit `&&`/`||` as `(if (result i32))`
 // whose condition/arms are f64 comparisons.
 
-Deno.test('regression: scalar relational binary ops are typed i32, not operand type', () => {
+test('regression: scalar relational binary ops are typed i32, not operand type', () => {
   const relational = [
     BinaryOp.LeF64,
     BinaryOp.GeF64,
@@ -624,7 +625,7 @@ Deno.test('regression: scalar relational binary ops are typed i32, not operand t
   // S6 step 5 item 5 (3) — and the round trip below is what the report was.)
 });
 
-Deno.test('regression: (if (result i32)) with f64-comparison condition+arms round-trips valid', async () => {
+test('regression: (if (result i32)) with f64-comparison condition+arms round-trips valid', async () => {
   const F64 = 0x7c;
   // type 0: (func (param f64 f64 f64) (result i32))
   const types = section(1, vec([[0x60, 0x03, F64, F64, F64, 0x01, I32]]));
@@ -670,7 +671,7 @@ Deno.test('regression: (if (result i32)) with f64-comparison condition+arms roun
 // (2 of 3), so re-encoding produced a stack-imbalanced or semantically wrong
 // module. The refusal was the right interim answer; retiring it required an
 // implementation, not a deletion.
-Deno.test('regression: an UNKNOWN 0xFC sub-opcode still fails loudly, not as a nop', () => {
+test('regression: an UNKNOWN 0xFC sub-opcode still fails loudly, not as a nop', () => {
   const types = section(1, vec([[0x60, 0x00, 0x00]])); // () -> ()
   const funcs = section(3, vec([[0x00]])); // func 0 : type 0
   // 0xFC 0x7f is not an assigned bulk-memory/table sub-opcode.
@@ -680,7 +681,7 @@ Deno.test('regression: an UNKNOWN 0xFC sub-opcode still fails loudly, not as a n
   assertThrows(() => readForPasses(bytes), WasmBinaryError);
 });
 
-Deno.test('regression: binary parser rejects an unknown opcode instead of emitting a silent nop', () => {
+test('regression: binary parser rejects an unknown opcode instead of emitting a silent nop', () => {
   // 0xFF is not a valid opcode. The decoder used to push a `nop` "to keep the
   // stack consistent", silently corrupting it. Now it throws.
   const types = section(1, vec([[0x60, 0x00, 0x00]]));
@@ -697,7 +698,7 @@ Deno.test('regression: binary parser rejects an unknown opcode instead of emitti
 // collapse to the innermost frame (the old `resolveLabel` returned 0 on a miss).
 // ---------------------------------------------------------------------------
 
-Deno.test('regression: br to the function frame from inside a block keeps its depth', async () => {
+test('regression: br to the function frame from inside a block keeps its depth', async () => {
   // (func (param i32)
   //   (block (br_if 1 (local.get 0)))   ;; br_if targets the FUNCTION frame
   //   (global.set $g (i32.const 5)))    ;; must be SKIPPED when the branch fires
@@ -727,7 +728,7 @@ Deno.test('regression: br to the function frame from inside a block keeps its de
   assertEquals(g.value, 5);
 });
 
-Deno.test('regression: br to an `if` from inside a nested block keeps its depth', async () => {
+test('regression: br to an `if` from inside a nested block keeps its depth', async () => {
   // (func (param i32)
   //   (if (local.get 0) (then
   //     (block (br 1))            ;; br targets the IF (depth 1), exiting it

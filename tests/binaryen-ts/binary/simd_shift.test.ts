@@ -43,6 +43,7 @@ import { resolveNames } from '../../../src/ir/resolve-names.ts';
 import { LexerSource } from '../../../src/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 type Lane = 'i8x16' | 'i16x8' | 'i32x4' | 'i64x2';
 type Op = 'shl' | 'shr_s' | 'shr_u';
@@ -145,7 +146,7 @@ const CASES: [Lane, Op][] = (Object.keys(SUB) as Lane[]).flatMap((lane) =>
   (['shl', 'shr_s', 'shr_u'] as Op[]).map((op): [Lane, Op] => [lane, op])
 );
 
-Deno.test('K3: the twelve lane shifts are BinaryOp members with their spec opcodes', () => {
+test('K3: the twelve lane shifts are BinaryOp members with their spec opcodes', () => {
   assertEquals(CASES.length, 12);
   for (const [lane, op] of CASES) {
     assertEquals(MEMBER[lane][op], (0xfd << 16) | SUB[lane][op], `${lane}.${op}`);
@@ -156,7 +157,7 @@ for (const [lane, op] of CASES) {
   const name = `${lane}.${op}`;
   const opcode = (0xfd << 16) | SUB[lane][op];
 
-  Deno.test(`K3: ${name} — parseWat builds a binary, encodes as wabt-ts does, and runs`, () => {
+  test(`K3: ${name} — parseWat builds a binary, encodes as wabt-ts does, and runs`, () => {
     const wat = watFor(lane, op);
     const mod = readWat(wat);
     assertBinaryShift(nodesWithOpcode(mod, opcode)[0], opcode, 'parseWat');
@@ -165,7 +166,7 @@ for (const [lane, op] of CASES) {
     run(bytes, lane, op);
   });
 
-  Deno.test(`K3: ${name} — the decoder builds a binary and re-encodes byte-identically`, () => {
+  test(`K3: ${name} — the decoder builds a binary and re-encodes byte-identically`, () => {
     const ref = wat2wasm(watFor(lane, op));
     assert(!hasErrors(ref.errors), formatErrors(ref.errors));
     const mod = readForPasses(ref.binary);
@@ -178,7 +179,7 @@ for (const [lane, op] of CASES) {
   // A GUARD, not coverage of K3: the bridge (the direct path since M8e) already built `binary` before the
   // merge, so this passed on both sides. It pins that the three entry paths now
   // agree, which is what K3 removed the exception to.
-  Deno.test(`K3: ${name} — the direct path builds the same binary`, () => {
+  test(`K3: ${name} — the direct path builds the same binary`, () => {
     const { module, errors } = parseWatModule(new LexerSource(watFor(lane, op), '<k3>'));
     assert(!hasErrors(errors), formatErrors(errors));
     const rerrs = makeErrorList();
@@ -192,7 +193,7 @@ for (const [lane, op] of CASES) {
 
   // The reason K3 went this way. LocalCSE is an allow-list of kinds; as a
   // `simd.shift` a repeated shift was never keyed, where upstream reuses it.
-  Deno.test(`K3: ${name} — LocalCSE reuses a repeated shift, and the result still runs`, () => {
+  test(`K3: ${name} — LocalCSE reuses a repeated shift, and the result still runs`, () => {
     const ref = wat2wasm(watFor(lane, op, 2));
     assert(!hasErrors(ref.errors), formatErrors(ref.errors));
     const mod = readForPasses(ref.binary);
@@ -205,7 +206,7 @@ for (const [lane, op] of CASES) {
   });
 }
 
-Deno.test('K3: there is no simd.shift kind to build', () => {
+test('K3: there is no simd.shift kind to build', () => {
   // @ts-expect-error K3 — the lane shifts are `ExpressionKind.Binary`.
   const gone: unknown = ExpressionKind.SIMDShift;
   assertEquals(gone, undefined);

@@ -12,7 +12,7 @@
 // Reported via wasmtk's shared-heap stdlib track (the exact W/X/Y cases that
 // characterized the bug are reproduced below as runtime checks).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -23,7 +23,7 @@
 // Spec testsuite: fully V8-valid 200 -> 214, and the stack-arity cluster went
 // from 14 files to 4.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

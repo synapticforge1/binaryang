@@ -6,7 +6,7 @@
 // pinned here on what those copies relied on: the index space puts IMPORTS
 // first, a name finds either kind, and a declared type's signature wins.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { readWat } from '../../src/tools/read-wat.ts';
 import { funcAt, funcSignature, varIndex, varName } from '../../src/ir/ir.ts';

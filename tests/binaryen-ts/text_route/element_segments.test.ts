@@ -25,7 +25,7 @@
 //     reconstructed a name instead of resolving an index — see the branch labels
 //     and the tag references.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

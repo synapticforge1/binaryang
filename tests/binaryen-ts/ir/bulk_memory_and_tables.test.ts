@@ -20,7 +20,7 @@
 // getting the immediate order wrong (`table.copy` takes destination then source)
 // produces a valid module that moves the wrong elements.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

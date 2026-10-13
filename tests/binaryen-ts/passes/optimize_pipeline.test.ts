@@ -57,6 +57,7 @@ import {
 import { ModuleBuilder } from '../../../src/ir/module.ts';
 import { ValType } from '../../../src/ir/types.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
+import { test } from 'node:test';
 
 // wabt-ts/compat@1.2.9 wasic output for 46_TemplateEscapes.ts (1543 bytes).
 const FIXTURE_B64 =
@@ -113,7 +114,7 @@ async function runWasi(bytes: Uint8Array): Promise<{ trap: boolean; out: number[
   return { trap, out: writes };
 }
 
-Deno.test('optimize pipeline: wasic 46_TemplateEscapes survives full -Oz (multi-value + LocalCSE)', async () => {
+test('optimize pipeline: wasic 46_TemplateEscapes survives full -Oz (multi-value + LocalCSE)', async () => {
   // Raw input is valid.
   await WebAssembly.compile(RAW as BufferSource);
 
@@ -138,7 +139,7 @@ Deno.test('optimize pipeline: wasic 46_TemplateEscapes survives full -Oz (multi-
 const xPlus7 = () =>
   makeBinary(BinaryOp.AddI32, makeLocalGet(varIndex(1), ValType.I32), makeI32Const(7));
 
-Deno.test('LocalCSE: a cached value is not substituted across a write nested in an if', async () => {
+test('LocalCSE: a cached value is not substituted across a write nested in an if', async () => {
   // f(cond, x):
   //   l2 = x + 7                   ;; occurrence #1 — CSE tees it
   //   l4 = x + 7                   ;; occurrence #2 — rewritten to the tee (CSE IS active)
@@ -187,7 +188,7 @@ Deno.test('LocalCSE: a cached value is not substituted across a write nested in 
   assertEquals(f(0, 5), 12, 'when the if does not run, x is unchanged');
 });
 
-Deno.test('LocalCSE: a cached value is not substituted across a write nested earlier in the SAME expression', async () => {
+test('LocalCSE: a cached value is not substituted across a write nested earlier in the SAME expression', async () => {
   // f(x) = ((x + 1) + (x := 99)) + (x + 1)
   //   left operand of the outer add:  (x + 1) + (tee0 99)  -> evaluates x + 1, then sets x = 99
   //   right operand:                  x + 1                 -> must read the MODIFIED x (100)

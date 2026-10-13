@@ -39,6 +39,7 @@ import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/passes/pass.ts';
 import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
+import { test } from 'node:test';
 
 // --- byte helpers ---------------------------------------------------------
 
@@ -219,7 +220,7 @@ const CASES: [name: string, body: number[], want: number][] = [
 ];
 
 for (const [name, body, want] of CASES) {
-  Deno.test(`region: ${name}`, async () => {
+  test(`region: ${name}`, async () => {
     const input = mk(body);
 
     // The fixture itself must be valid and produce `want` — otherwise the

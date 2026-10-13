@@ -23,7 +23,7 @@
 // (the binary reader has node kinds of their own), and the type checker's table
 // had no entry for those opcodes — "expected [v128] but got [i32]".
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { LexerSource } from '../../../src/parser/lexer-source.ts';

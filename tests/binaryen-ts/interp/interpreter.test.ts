@@ -11,7 +11,7 @@
 // Each result is checked against V8 running the same bytes — the engine is the
 // oracle, not what this file expects.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

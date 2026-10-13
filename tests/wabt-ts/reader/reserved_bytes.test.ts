@@ -30,7 +30,7 @@
 // 2119/2119, assert_invalid 2683/2683, round-trip 2119/2119 and 270/270 WASI,
 // execution 23,077/23,077, assert_malformed 1229/1229 and 711/711.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readBinaryIr } from '../../../src/reader/binary-reader.ts';

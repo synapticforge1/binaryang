@@ -23,7 +23,7 @@
  * blocked the entire wasmtk Phase 15 exception-handling suite.
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

@@ -7,7 +7,7 @@
 // literal of the 26 this began with was mistyped. The factories hold the rule
 // once — `makeBreak`'s unreachable-condition case, `makeReturn`'s `unreachable`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 
 const SRC = new URL('../../../src/', import.meta.url);

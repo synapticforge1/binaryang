@@ -21,7 +21,7 @@
 // keeps the decoder's type list, in its own order, duplicates included. Pinned
 // below so the row's claim is not re-copied without a case.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

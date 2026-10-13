@@ -9,7 +9,7 @@
 // not, and each is pinned here; the first was a miscompile on the direct path
 // (text tree → passes).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { LexerSource } from '../../../src/parser/lexer-source.ts';
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

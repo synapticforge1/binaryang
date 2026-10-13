@@ -12,7 +12,7 @@
 // compile silently: a value interpolated into text, `typeof === 'string'`, and
 // the reverse mapping a numeric enum adds.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { Type } from '../../src/core/types.ts';

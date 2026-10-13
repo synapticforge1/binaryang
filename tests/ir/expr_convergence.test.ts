@@ -22,7 +22,7 @@
 //
 // Compile-time; `deno task check` enforces it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import type * as W from '../../src/ir/ir.ts';

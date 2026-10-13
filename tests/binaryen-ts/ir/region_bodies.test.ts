@@ -28,7 +28,7 @@
 // fixture whose loop body is a single expression passes either way, and is the
 // control here rather than the test.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

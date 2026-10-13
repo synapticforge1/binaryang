@@ -20,7 +20,7 @@
 // sections (400 before; the 21 were these). The fixtures below are wasm-tools'
 // bytes, with upstream wat2wasm agreeing wherever it can parse the module.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

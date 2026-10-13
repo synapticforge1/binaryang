@@ -78,6 +78,8 @@
     "packageJson": {
       "dependencies": [
         "npm:@biomejs/biome@2.5.14",
+        "npm:@jsr/std__assert@1.0.19",
+        "npm:@jsr/std__expect@1.0.19",
         "npm:@types/node@22.18",
         "npm:dprint@0.57.4",
         "npm:typescript@7.0.2"

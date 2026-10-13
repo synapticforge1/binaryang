@@ -37,7 +37,7 @@
 // false REJECTIONS, and no spec-testsuite or wasmtk-corpus module contains
 // these shapes.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

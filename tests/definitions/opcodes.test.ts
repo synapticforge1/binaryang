@@ -11,7 +11,7 @@
 // Each check was inverted when it was written (a dropped or extra immediate, a
 // wrong operand type, a gate removed) — a check that cannot fail proves nothing.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { OPCODE_DEFINITIONS, opcodeKey } from '../../src/definitions/mod.ts';
 import type { OpcodeDefinition } from '../../src/definitions/mod.ts';

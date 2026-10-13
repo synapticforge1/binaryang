@@ -32,6 +32,7 @@ import { allFeatures } from '../../../src/core/feature.ts';
 import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { validateModule } from '../../../src/validator/validator.ts';
+import { test } from 'node:test';
 
 /** A call's outcome: a returned value, or an exception carrying tag `e`'s first payload value. */
 type Outcome = { value: number | bigint } | { thrown: number | bigint | 'other' } | { trap: true };
@@ -350,7 +351,7 @@ const FIXTURES: Fixture[] = [
 
 for (const fx of FIXTURES) {
   const fn = fx.fn ?? 'f';
-  Deno.test(`TranslateToExnref: ${fx.name}`, async () => {
+  test(`TranslateToExnref: ${fx.name}`, async () => {
     const legacy = assemble(fx.wat);
     assertEquals(outcomes(legacy, fx.inputs, fn), fx.expect, 'the LEGACY module, in V8');
     const translated = translate(legacy);
@@ -361,7 +362,7 @@ for (const fx of FIXTURES) {
   });
 }
 
-Deno.test('TranslateToExnref: sibling rethrow targets reuse one exnref local', () => {
+test('TranslateToExnref: sibling rethrow targets reuse one exnref local', () => {
   const fx = FIXTURES.find((f) => f.name.startsWith('sibling'))!;
   const mod = readForPasses(assemble(fx.wat));
   const before = mod.functions[0]!.locals.length;
@@ -369,7 +370,7 @@ Deno.test('TranslateToExnref: sibling rethrow targets reuse one exnref local', (
   assertEquals(mod.functions[0]!.locals.length, before + 1);
 });
 
-Deno.test('TranslateToExnref: nested rethrow targets get one exnref local per depth', () => {
+test('TranslateToExnref: nested rethrow targets get one exnref local per depth', () => {
   const fx = FIXTURES.find((f) => f.name.startsWith('rethrow to an OUTER'))!;
   const mod = readForPasses(assemble(fx.wat));
   const before = mod.functions[0]!.locals.length;
@@ -377,7 +378,7 @@ Deno.test('TranslateToExnref: nested rethrow targets get one exnref local per de
   assertEquals(mod.functions[0]!.locals.length, before + 2);
 });
 
-Deno.test('TranslateToExnref: a module with no legacy EH is left byte-identical', () => {
+test('TranslateToExnref: a module with no legacy EH is left byte-identical', () => {
   const bytes = assemble(`(module (tag $e (param i32))
     (func (export "f") (param i32) (result i32)
       (block $h (result i32)
@@ -403,7 +404,7 @@ Deno.test('TranslateToExnref: a module with no legacy EH is left byte-identical'
 // wraps the `try_table` in: with `??` in place of `||` the name is `''`, every
 // `br` out of a catch targets a block that has no name, and the encoder cannot
 // resolve it. Measured: reverting that one operator left all 1161 tests green.
-Deno.test('TranslateToExnref: a try with NO label still gets a nameable outer block', async () => {
+test('TranslateToExnref: a try with NO label still gets a nameable outer block', async () => {
   const fx = FIXTURES[0]!;
   const mod = readForPasses(assemble(fx.wat));
   let stripped = 0;
@@ -426,7 +427,7 @@ Deno.test('TranslateToExnref: a try with NO label still gets a nameable outer bl
   await assertWasmtimeAgrees(translated, fx.inputs, fx.expect, 'f');
 });
 
-Deno.test('TranslateToExnref: the upstream kebab name resolves', () => {
+test('TranslateToExnref: the upstream kebab name resolves', () => {
   const mod = readForPasses(assemble(FIXTURES[0]!.wat));
   new PassRunner(mod).add('translate-to-exnref').run();
   assertNoLegacy(writeWasm(mod));

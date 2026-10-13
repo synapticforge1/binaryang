@@ -35,7 +35,7 @@
 // does see it — went 1942 -> 1954 of 2105 modules byte-identical, 76 -> 70
 // files affected, no regressions.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

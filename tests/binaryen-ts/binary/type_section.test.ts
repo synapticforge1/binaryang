@@ -13,7 +13,7 @@
 // Measured over the spec corpus: 83 binaries carry rec groups, and all 83
 // re-encoded with a different type section before this.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

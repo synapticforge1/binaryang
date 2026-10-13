@@ -39,6 +39,7 @@ import { PassRunner } from '../../../src/passes/pass.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
 import { Opcode } from '../../../src/core/opcode.ts';
 import '../../../src/passes/index.ts'; // side-effect: pass registration
+import { test } from 'node:test';
 
 /**
  * Byte 0 of memory is `0xFF`, so the narrow load reads either `-1` (signed) or
@@ -99,7 +100,7 @@ function run(optimized: boolean): number {
   return (inst.exports['f'] as () => number)();
 }
 
-Deno.test('PickLoadSigns: a value carried by `br` is a real use, not an invisible one', () => {
+test('PickLoadSigns: a value carried by `br` is a real use, not an invisible one', () => {
   // The unoptimized program is the oracle.
   assertEquals(run(false), -1, 'fixture itself is wrong');
   // PickLoadSigns must not flip the load: the `br` observes the value.

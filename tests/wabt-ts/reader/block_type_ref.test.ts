@@ -31,7 +31,7 @@
 // modules were ACCEPTED (`ref.wast:65,69`). Fixing the representation closed
 // both, and took the suite to 100% on all four axes.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';

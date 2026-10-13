@@ -18,7 +18,7 @@
 // invisible to every byte-level check and visible only as an IR that could not
 // be folded. Assert the IR SHAPE, not the bytes.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

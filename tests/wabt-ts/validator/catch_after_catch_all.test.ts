@@ -8,7 +8,7 @@
 // wasm-tools. V8 is the oracle here for the reason `rethrow_depth.test.ts`
 // gives: it is the one engine that runs legacy EH.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

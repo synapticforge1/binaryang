@@ -50,6 +50,7 @@ import { ModuleBuilder } from '../../../src/ir/module.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
 import { ValType } from '../../../src/ir/types.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
+import { test } from 'node:test';
 
 /** i32 array heap type + a `() -> i32` func type, in that order. */
 function gcBuilder(): { m: ModuleBuilder; arrayType: number } {
@@ -276,13 +277,13 @@ function findNode(root: unknown, kind: string): Record<string, unknown> | null {
   return hit;
 }
 
-Deno.test('array.fill: the fixture fills the requested range, not one slot', async () => {
+test('array.fill: the fixture fills the requested range, not one slot', async () => {
   // The pre-fix decoder modelled array.fill as a one-element array.set, so a
   // fill of 3 wrote exactly one slot. Reading index 2 catches that directly.
   assertEquals(await runRead(ARRAY_FILL_MODULE), 7);
 });
 
-Deno.test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10', () => {
+test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10', () => {
   const mod = readForPasses(ARRAY_FILL_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayFill);
   assert(node !== null, 'array.fill did not decode to an ArrayFill node');
@@ -294,11 +295,11 @@ Deno.test('array.fill decodes to an ArrayFill node and re-encodes to 0xfb 0x10',
   assert(gcSubops(writeWasm(mod)).includes(0x10), 'encoder did not emit array.fill');
 });
 
-Deno.test('array.copy: the fixture copies the requested range', async () => {
+test('array.copy: the fixture copies the requested range', async () => {
   assertEquals(await runRead(ARRAY_COPY_MODULE), 33);
 });
 
-Deno.test('array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11', () => {
+test('array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11', () => {
   const mod = readForPasses(ARRAY_COPY_MODULE);
   const node = findNode(mod.functions[0].body, ExpressionKind.ArrayCopy);
   assert(node !== null, 'array.copy did not decode to an ArrayCopy node');
@@ -308,7 +309,7 @@ Deno.test('array.copy decodes to an ArrayCopy node and re-encodes to 0xfb 0x11',
   assert(gcSubops(writeWasm(mod)).includes(0x11), 'encoder did not emit array.copy');
 });
 
-Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref local)', async () => {
+test('array.fill fills the requested range via ModuleBuilder (typed-ref local)', async () => {
   // Buildable only because `Local.type` accepts a concrete `RefType` (UP-7).
   const { m, arrayType } = gcBuilder();
   const arrRef = { heapType: varIndex(arrayType), nullable: true };
@@ -346,7 +347,7 @@ Deno.test('array.fill fills the requested range via ModuleBuilder (typed-ref loc
   await bothAgree(m.build(), 7);
 });
 
-Deno.test('array.copy keeps dest and src type immediates in the right order', () => {
+test('array.copy keeps dest and src type immediates in the right order', () => {
   // The binary immediate order is dest THEN src. Swapping them is invisible
   // when both are the same type, so assert the decoded node directly.
   const { m, arrayType } = gcBuilder();
@@ -388,7 +389,7 @@ Deno.test('array.copy keeps dest and src type immediates in the right order', ()
   assertEquals(node['srcTypeVar'], varIndex(second));
 });
 
-Deno.test('ref.as_non_null passes a non-null reference through', async () => {
+test('ref.as_non_null passes a non-null reference through', async () => {
   const { m, arrayType } = gcBuilder();
   m.addFunction(
     'read',
@@ -412,7 +413,7 @@ Deno.test('ref.as_non_null passes a non-null reference through', async () => {
   await bothAgree(m.build(), 99);
 });
 
-Deno.test('ref.as_non_null decodes back to a RefAs node with the right opcode', () => {
+test('ref.as_non_null decodes back to a RefAs node with the right opcode', () => {
   const { m, arrayType } = gcBuilder();
   m.addFunction(
     'read',
@@ -459,7 +460,7 @@ Deno.test('ref.as_non_null decodes back to a RefAs node with the right opcode', 
 // the WAT parser's unrecognized-instruction path to a bare `nop`. Every new
 // instruction gets pinned here so the same gap cannot reopen.
 
-Deno.test('WAT: the five new GC instructions parse, none fall through to nop', () => {
+test('WAT: the five new GC instructions parse, none fall through to nop', () => {
   const mod = readWat(`
     (module
       (type $a (array (mut i32)))

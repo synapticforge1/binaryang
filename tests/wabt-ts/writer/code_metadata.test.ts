@@ -21,6 +21,7 @@ import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
 import { writeWasm, writeWat } from '../../../src/ir/write-wasm.ts';
+import { test } from 'node:test';
 
 /** Known sections by id, custom sections as `"name"=<payload hex>`. */
 function layout(b: Uint8Array): string {
@@ -146,13 +147,13 @@ const IMPORTS = `(module
     call $h))`;
 const IMPORTS_LAYOUT = '1 2 3 "metadata.code.inline"=01020107017f 10';
 
-Deno.test('wat2wasm writes each hint as upstream does (a folded one: as wasm-tools)', () => {
+test('wat2wasm writes each hint as upstream does (a folded one: as wasm-tools)', () => {
   assertEquals(layout(assemble(BRANCHES)), BRANCHES_LAYOUT);
   assertEquals(layout(assemble(NAMES)), NAMES_LAYOUT);
   assertEquals(layout(assemble(IMPORTS)), IMPORTS_LAYOUT);
 });
 
-Deno.test('the code section is unchanged by the hints it carries', () => {
+test('the code section is unchanged by the hints it carries', () => {
   const plain = (wat: string) => wat.replace(/\(@metadata\.code\.\w+ "[^"]*"\)/g, '');
   for (const wat of [BRANCHES, NAMES]) {
     assert(plain(wat) !== wat);
@@ -160,7 +161,7 @@ Deno.test('the code section is unchanged by the hints it carries', () => {
   }
 });
 
-Deno.test('the one writer writes them too, and writeWat prints them back', () => {
+test('the one writer writes them too, and writeWat prints them back', () => {
   for (const [wat, want] of [[BRANCHES, BRANCHES_LAYOUT], [NAMES, NAMES_LAYOUT]] as const) {
     assertEquals(layout(writeWasm(readWat(wat))), want);
     // `readWat` reads through the bytes, where a hint is its section: the
@@ -173,7 +174,7 @@ Deno.test('the one writer writes them too, and writeWat prints them back', () =>
 // The bytes cannot see this: they are written in binary order either way. A
 // hint left on the OPERAND stack became `i32.add`'s left operand, with
 // `i32.const 1` a statement of its own — a tree no pass or validator reads right.
-Deno.test('a hint is parsed as a statement, never as an operand', () => {
+test('a hint is parsed as a statement, never as an operand', () => {
   const r = parseWatModule(`(module (func (result i32)
     i32.const 1
     (@metadata.code.x "")
@@ -187,7 +188,7 @@ Deno.test('a hint is parsed as a statement, never as an operand', () => {
   assertEquals([add.left.kind, add.right.kind], ['pop', 'const']);
 });
 
-Deno.test('exactly one string, as upstream reads it', () => {
+test('exactly one string, as upstream reads it', () => {
   assertStringIncludes(
     refused('(module (func (@metadata.code.x "a" "b") nop))'),
     'expected )',
@@ -195,11 +196,11 @@ Deno.test('exactly one string, as upstream reads it', () => {
   assertStringIncludes(refused('(module (func (@metadata.code.x) nop))'), 'expected');
 });
 
-Deno.test('a hint is an instruction-list item, not a module field', () => {
+test('a hint is an instruction-list item, not a module field', () => {
   refused('(module (@metadata.code.x "") (func))');
 });
 
-Deno.test('a hint beside a raw section of the same name is refused, not doubled', () => {
+test('a hint beside a raw section of the same name is refused, not doubled', () => {
   assertThrows(
     () => assemble(`(module (@custom "metadata.code.x" "\\00") (func (@metadata.code.x "") nop))`),
     Error,

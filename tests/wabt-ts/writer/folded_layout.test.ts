@@ -11,7 +11,7 @@
 // prints it (upstream wabt breaks it; W18 (b)). An unnamed carrier carries
 // `;; label = @N` folded, as linear (since 2026-09-29).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertStringIncludes } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -18,7 +18,7 @@
 // SCATTERED through an instruction's operands, nesting cannot say it, so the
 // operands fold as siblings before `(op)`, which unfolds to the same sequence.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

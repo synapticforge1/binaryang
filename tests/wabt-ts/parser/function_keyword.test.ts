@@ -14,8 +14,9 @@ import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import { test } from 'node:test';
 
-Deno.test('`function` is refused wherever `func` names a function', () => {
+test('`function` is refused wherever `func` names a function', () => {
   for (
     const wat of [
       '(module (function $f))',
@@ -27,7 +28,7 @@ Deno.test('`function` is refused wherever `func` names a function', () => {
   }
 });
 
-Deno.test('`func` still is, and `function` still places a custom section', () => {
+test('`func` still is, and `function` still places a custom section', () => {
   for (
     const wat of [
       '(module (func $f) (export "x" (func $f)))',

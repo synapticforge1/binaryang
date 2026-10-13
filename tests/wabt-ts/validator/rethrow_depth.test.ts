@@ -27,7 +27,7 @@
 // primary WASI host at all. It is recorded and fixed as a soundness hole, not
 // as something reachable from the wasmtk pipeline.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

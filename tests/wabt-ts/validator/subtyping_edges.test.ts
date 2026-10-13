@@ -30,7 +30,7 @@
 //
 // So T9.3 + T9.4 together catch 28 more real errors with no false rejections.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

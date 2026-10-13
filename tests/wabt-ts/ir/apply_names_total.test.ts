@@ -28,7 +28,7 @@
 // data index on `memory.init` and an elem index on `table.init`). This file
 // gates both halves.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

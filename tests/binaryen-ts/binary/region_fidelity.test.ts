@@ -16,7 +16,7 @@
 // of the design: a block the source wrote without a label is a Block, never
 // mistaken for a wrapper — upstream wat2wasm is the oracle for their bytes.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';

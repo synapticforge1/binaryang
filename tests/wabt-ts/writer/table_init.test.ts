@@ -27,7 +27,7 @@
 // Round-trip fidelity: spec testsuite 2088 -> 2102 / 2120, files affected
 // 14 -> 10, and V8-invalid-after-round-trip 15 -> 5. Campaign metrics unmoved.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

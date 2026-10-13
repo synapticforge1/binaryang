@@ -7,7 +7,7 @@
 // type said otherwise — 222 corpus nodes. wabt-ts's own readers use `typeVar`
 // and never noticed; binaryen-ts reads `sig`, and the bridge was filling it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

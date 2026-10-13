@@ -15,7 +15,7 @@
 // And the constant-expression reader never checked its `end` byte, so a
 // two-instruction initializer lost its second instruction.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

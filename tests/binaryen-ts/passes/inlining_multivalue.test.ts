@@ -25,6 +25,7 @@ import { ValType } from '../../../src/ir/types.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 function inlined(wat: string): { before: Uint8Array; after: Uint8Array } {
   const r = wat2wasm(wat);
@@ -66,7 +67,7 @@ const CASES: Record<string, string> = {
     (func (export "f") (param i32) (result i32) (call $pair (local.get 0)) (i32.sub)))`,
 };
 
-Deno.test('Inlining a two-result callee whose body is ONE named block: no trapping unreachable', () => {
+test('Inlining a two-result callee whose body is ONE named block: no trapping unreachable', () => {
   // Decoded bodies never take this shape — the decoder seeds `Pop`s beneath a
   // multi-value producer, so the body is always several instructions and the
   // inner block is retyped to the wrapper's own type object. Built IR can: a
@@ -88,7 +89,7 @@ Deno.test('Inlining a two-result callee whose body is ONE named block: no trappi
 });
 
 for (const [name, wat] of Object.entries(CASES)) {
-  Deno.test(`Inlining a two-result callee that ${name}: valid, and computes the same`, () => {
+  test(`Inlining a two-result callee that ${name}: valid, and computes the same`, () => {
     const { before, after } = inlined(wat);
     assertEquals(run(after, [0, 2, 7]), run(before, [0, 2, 7]));
   });

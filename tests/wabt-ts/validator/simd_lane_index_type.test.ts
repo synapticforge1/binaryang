@@ -28,7 +28,7 @@
 // Nothing in the seven metrics reaches this: the spec testsuite pairs memory64
 // with SIMD lane ops nowhere, and the wasmtk corpus has no memory64 at all.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

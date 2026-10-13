@@ -11,7 +11,7 @@
 // inputs that take each path — a text check alone would pass a pass that
 // replaced the read with the wrong one of the two.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

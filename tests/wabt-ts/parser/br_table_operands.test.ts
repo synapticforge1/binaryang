@@ -11,7 +11,7 @@
 // `wat2wasm`, the only branch that did (`br` / `br_if` / `return` /
 // `br_on_null` keep theirs). The expected bytes below are upstream 1.0.41's.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

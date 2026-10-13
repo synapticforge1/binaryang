@@ -26,7 +26,7 @@
 // is T7.13, and leaving it off dropped V8-valid from 257 to 256 the moment the
 // decoder was introduced.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
