@@ -42,11 +42,12 @@ import {
 } from '../../../src/interp/simd.ts';
 import type { Literal } from '../../../src/ir/expressions.ts';
 import { ValType } from '../../../src/ir/types.ts';
+import { type InstrCode, isInstrCode } from '../../../src/definitions/instr-code.ts';
 
 type T = 'i32' | 'i64' | 'f32' | 'f64' | 'v128';
 interface Op {
   name: string;
-  code: number;
+  code: InstrCode;
   params: T[];
   result: T;
   /** `laneidx`, `lane16`, or nothing. */
@@ -61,9 +62,11 @@ const OPS: Op[] = opcodes.entries.flatMap((e) => {
     e.immediates.length > 1 ||
     (e.immediates[0] !== undefined && !['laneidx', 'lane16'].includes(e.immediates[0]))
   ) return [];
+  const code = (0xfd << 16) | e.opcode;
+  if (!isInstrCode(code)) throw new Error(`${e.name}: 0x${code.toString(16)} is no instruction`);
   return [{
     name: e.name,
-    code: (0xfd << 16) | e.opcode,
+    code,
     params: sig.params as T[],
     result: sig.results[0] as T,
     immediate: e.immediates[0],
@@ -416,15 +419,15 @@ describe('relaxed SIMD in the deterministic profile', () => {
   it('a relaxed operator is never folded; an exact SIMD result is; a NaN lane from arithmetic is not', () => {
     const v = (b: Uint8Array): Literal => ({ type: ValType.V128, bytes: b });
     const ones = ofF32(1, 2, 3, 4);
-    const relaxedMin = (0xfd << 16) | 0x10d;
+    const relaxedMin = 0xfd010d; // f32x4.relaxed_min
     expect(evalBinary(relaxedMin, v(ones), v(ones))).not.toBeNull();
     expect(foldedLiteral(relaxedMin, evalBinary(relaxedMin, v(ones), v(ones)))).toBeNull();
-    const add = (0xfd << 16) | 0xe4; // f32x4.add
+    const add = 0xfd00e4; // f32x4.add
     expect(foldedLiteral(add, evalBinary(add, v(ones), v(ones)))).not.toBeNull();
     expect(foldedLiteral(add, evalBinary(add, v(ofF32(NaN, 0, 0, 0)), v(ones)))).toBeNull();
-    const neg = (0xfd << 16) | 0xe1; // f32x4.neg: exact on the bits
+    const neg = 0xfd00e1; // f32x4.neg: exact on the bits
     expect(foldedLiteral(neg, evalUnary(neg, v(ofF32(NaN, 0, 0, 0))))).not.toBeNull();
-    const eq = (0xfd << 16) | 0x37; // i32x4.eq: integer lanes that LOOK like NaNs
+    const eq = 0xfd0037; // i32x4.eq: integer lanes that LOOK like NaNs
     expect(foldedLiteral(eq, evalBinary(eq, v(ones), v(ones)))).not.toBeNull();
   });
 });

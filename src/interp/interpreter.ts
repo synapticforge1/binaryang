@@ -51,6 +51,7 @@ import { simdExtract, simdReplace, simdShuffle, simdTernary } from './simd.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { ExternalKind } from '../core/binary.ts';
+import type { Opcode } from '../core/opcode.ts';
 import { isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import type {
   BlockResult,
@@ -555,7 +556,7 @@ function readElement(data: Uint8Array, at: number, type: StorageType): Value {
 }
 
 /** A load's bytes as its value. */
-function readValue(mem: MemoryCell, at: number, opcode: number): Value {
+function readValue(mem: MemoryCell, at: number, opcode: Opcode): Value {
   const { bytes, signed, type } = loadShape(opcode);
   const v = mem.view;
   switch (type) {
@@ -589,7 +590,7 @@ function readValue(mem: MemoryCell, at: number, opcode: number): Value {
 }
 
 /** A store's value as its bytes — the low `bytes` of it for a narrow store. */
-function writeValue(mem: MemoryCell, at: number, opcode: number, value: Value): void {
+function writeValue(mem: MemoryCell, at: number, opcode: Opcode, value: Value): void {
   const { bytes } = storeShape(opcode);
   const v = mem.view;
   switch (value.type) {

@@ -912,7 +912,7 @@ function instrInputCount(tt: TokenType): number {
  */
 function instrInputCountForTok(tok: Token): number {
   if (tok.tokenType === TokenType.SimdLaneOp) {
-    const op = (tok as OpcodeToken).opcode as unknown as number;
+    const op = (tok as OpcodeToken).opcode;
     return isReplaceLaneOpcode(op) ? 2 : 1;
   }
   return instrInputCount(tok.tokenType);
@@ -5106,13 +5106,13 @@ export class WastParser {
       }
 
       case TokenType.Const: {
-        const c = this.parseConst((tok as OpcodeToken).opcode as unknown as number);
+        const c = this.parseConst((tok as OpcodeToken).opcode);
         if (c === null) return null;
         return { kind: 'const', value: c, loc } as ConstExpr;
       }
 
       case TokenType.Load: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
@@ -5121,7 +5121,7 @@ export class WastParser {
         if (isSimdLoadOpcode(op)) {
           return {
             kind: 'simd.load',
-            opcode: op as unknown as Opcode,
+            opcode: op,
             memidx,
             offset,
             align,
@@ -5131,7 +5131,7 @@ export class WastParser {
         }
         return {
           kind: 'load',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5140,13 +5140,13 @@ export class WastParser {
         } as LoadExpr;
       }
       case TokenType.Store: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         return {
           kind: 'store',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5334,7 +5334,7 @@ export class WastParser {
         // The lexer routes both `i31.get_s` (opcode 0x1d) and `i31.get_u`
         // (0x1e) to TokenType.I31Get, so the opcode immediate determines
         // the signedness.
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const signed = (op & 0xffff) === GcOpcode.I31GetS;
         return { kind: 'i31.get', i31: op0(), signed, loc } as I31GetExpr;
       }
@@ -5382,7 +5382,7 @@ export class WastParser {
       case TokenType.StructGet: {
         // Three lexer entries (struct.get / get_s / get_u) all route here;
         // the opcode immediate distinguishes signedness for packed-field reads.
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const byte = op & 0xff;
         const signed = byte === GcOpcode.StructGetS
           ? true
@@ -5471,7 +5471,7 @@ export class WastParser {
       case TokenType.ArrayGet: {
         // Three lexer entries (array.get / get_s / get_u) all route here;
         // opcode immediate distinguishes signedness for packed elements.
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const byte = op & 0xff;
         const signed = byte === GcOpcode.ArrayGetS
           ? true
@@ -5636,13 +5636,13 @@ export class WastParser {
       case TokenType.AtomicFence:
         return { kind: 'atomic.fence', consistencyModel: 0, loc } as AtomicFenceExpr;
       case TokenType.AtomicLoad: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.load',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5651,13 +5651,13 @@ export class WastParser {
         } as AtomicLoadExpr;
       }
       case TokenType.AtomicStore: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.store',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5667,13 +5667,13 @@ export class WastParser {
         } as AtomicStoreExpr;
       }
       case TokenType.AtomicRmw: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.rmw',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5683,13 +5683,13 @@ export class WastParser {
         } as AtomicRmwExpr;
       }
       case TokenType.AtomicRmwCmpxchg: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.cmpxchg',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5700,13 +5700,13 @@ export class WastParser {
         } as AtomicRmwCmpxchgExpr;
       }
       case TokenType.AtomicNotify: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.notify',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5716,13 +5716,13 @@ export class WastParser {
         } as AtomicNotifyExpr;
       }
       case TokenType.AtomicWait: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         return {
           kind: 'atomic.wait',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5734,13 +5734,13 @@ export class WastParser {
       }
 
       case TokenType.SimdLaneOp: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const lane = this.parseSimdLane();
         const isReplace = isReplaceLaneOpcode(op);
         const node: SimdExtractExpr | SimdReplaceExpr = isReplace
           ? {
             kind: 'simd.replace',
-            opcode: op as unknown as Opcode,
+            opcode: op,
             lane,
             vec: op0(),
             value: op1(),
@@ -5748,7 +5748,7 @@ export class WastParser {
           }
           : {
             kind: 'simd.extract',
-            opcode: op as unknown as Opcode,
+            opcode: op,
             lane,
             vec: op0(),
             loc,
@@ -5784,14 +5784,14 @@ export class WastParser {
         } as SimdShuffleOpExpr;
       }
       case TokenType.SimdLoadLane: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseSimdLaneMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         const lane = this.parseSimdLane();
         return {
           kind: 'simd.load_store_lane',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,
@@ -5802,14 +5802,14 @@ export class WastParser {
         } as SimdLoadLaneExpr;
       }
       case TokenType.SimdStoreLane: {
-        const op = (tok as OpcodeToken).opcode as unknown as number;
+        const op = (tok as OpcodeToken).opcode;
         const memidx = this.parseSimdLaneMemidxOpt(loc);
         const offset = this.parseOffsetOpt();
         const align = this.parseAlignOpt(op);
         const lane = this.parseSimdLane();
         return {
           kind: 'simd.load_store_lane',
-          opcode: op as unknown as Opcode,
+          opcode: op,
           memidx,
           offset,
           align,

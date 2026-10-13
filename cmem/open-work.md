@@ -144,10 +144,22 @@ Its number is kept free.)
     precise union is a follow-up); a name-section set holding unknown ids. **Open:** part 3 (a real
     headless-browser run: headless Chrome, V8 15.6, running the library on the corpus with the
     same hash as the other runtimes; it may also be the engine REFEREE once Deno is gone, item 26);
-    the in-browser optimization measurement (below); and, as a follow-up, precise operator types.
-    The IR's `opcode` fields and `UnaryOp` / `BinaryOp` / … are `number` today, and a union of
-    each table's values needs its 244 `(prefix << 16) | sub` entries written as hex literals, plus
-    casts where the reader builds operators from decoded bytes.
+    the in-browser optimization measurement (below). **Precise operator types DONE 2026-10-13**
+    (owner: "Precise operator types first", then "One generated instruction union"). ⚠️ The
+    follow-up's premise was wrong: "a union of each table's values" would have made the ~116
+    instructions no table names (atomics, relaxed SIMD) unrepresentable, against S6 stage 1
+    ([ir-convergence.md](ir-convergence.md)). Instead `scripts/definitions.ts` generates
+    `src/definitions/instr-code.ts` from `opcodes.json`: `InstrCode` (the 582 real instructions, in
+    the IR's encoding), `INSTR_CODES`, `isInstrCode`; `Opcode = InstrCode`, so every operator type
+    narrows with it. Measured first: every value the code uses (the `Opcode` / `MiscOpcode` /
+    `GcOpcode` tables, all 9 operator tables) is among the 582. The 244 prefixed table members are
+    hex literals (values proven identical); all **43 opcode casts are gone**: the binary reader's
+    misc / SIMD / atomic decoders ask `isInstrCode` first, the lexer's keyword table checks each
+    entry at load, the parser reads typed tokens. **What the types found:** the SIMD decoder took
+    ANY sub-opcode as a binary op (reserved `0xfd 0x9a` validated clean, `wasm2wat` printed
+    `<opcode:0xfd009a>`, V8 refused it); fixed, `reserved_subopcodes.test.ts` (fails 22 cases on the
+    old reader). Public: `InstrCode` / `INSTR_CODES` / `isInstrCode` beside `Opcode`
+    ([unreleased.md](unreleased.md): a type-level BREAKING entry and a behaviour fix).
 
     **Node LTS policy (owner, 2026-10-12): "support and test all currently available lts
     versions."** As of 2026-10-12 that is Node 22 "Jod" (22.23.3) and Node 24 "Krypton" (24.21.0),

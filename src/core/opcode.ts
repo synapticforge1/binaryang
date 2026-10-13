@@ -15,6 +15,7 @@
  */
 
 import { OPCODE_DEFINITIONS } from '../definitions/data.ts';
+import type { InstrCode } from '../definitions/instr-code.ts';
 
 // ---------------------------------------------------------------------------
 // Prefix bytes for multi-byte opcode groups
@@ -267,7 +268,7 @@ export const Opcode = {
  * 4, 2026-10-12, when the enums became const objects. Each member is still an exact type
  * (`Opcode.I32Add`).
  */
-export type Opcode = number;
+export type Opcode = InstrCode;
 /** Each member as a type (`Opcode.Unreachable`), as when Opcode was an `enum`. */
 export declare namespace Opcode {
   type Unreachable = typeof Opcode.Unreachable;
@@ -657,13 +658,13 @@ export function opcodeName(op: Opcode): string | undefined {
  * The table below is keyed by the composed value, so this is the one place the
  * constant belongs.
  */
-export const OPCODE_I8X16_SHUFFLE: Opcode = ((PREFIX_SIMD << 16) | 0x0d) as Opcode;
+export const OPCODE_I8X16_SHUFFLE: Opcode = 0xfd000d;
 
 /** `v128.load` — the 16-byte plain SIMD load, `0xFD 0x00`. */
-export const OPCODE_V128_LOAD: Opcode = ((PREFIX_SIMD << 16) | 0x00) as Opcode;
+export const OPCODE_V128_LOAD: Opcode = 0xfd0000;
 
 /** `v128.store` — the 16-byte plain SIMD store, `0xFD 0x0B`. */
-export const OPCODE_V128_STORE: Opcode = ((PREFIX_SIMD << 16) | 0x0b) as Opcode;
+export const OPCODE_V128_STORE: Opcode = 0xfd000b;
 
 // The names and access widths come from D1 — `src/definitions/opcodes.json`,
 // the instruction table binaryang publishes for other projects to generate

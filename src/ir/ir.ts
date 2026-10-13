@@ -27,6 +27,9 @@ import type { NodeId } from './fidelity.ts';
 
 // Re-export so consumers can import everything from this module.
 export { Opcode };
+// What `Opcode` is (open-work 28, 2026-10-13): the 582 real instructions, and the run-time check a
+// computed number needs before it can be one.
+export { INSTR_CODES, type InstrCode, isInstrCode } from '../definitions/instr-code.ts';
 export { ExternalKind };
 export { Type };
 

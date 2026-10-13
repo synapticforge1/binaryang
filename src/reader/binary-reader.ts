@@ -32,6 +32,7 @@ import {
   PREFIX_SIMD,
   PREFIX_THREADS,
 } from '../core/opcode.ts';
+import { isInstrCode } from '../definitions/instr-code.ts';
 import {
   decodeS32Leb128,
   decodeS64Leb128,
@@ -2189,7 +2190,7 @@ export class BinaryReader {
           const address = stack.pop() ?? operandPlaceholder(loc);
           stack.push({
             kind: 'load',
-            opcode: op as Opcode,
+            opcode: op,
             align,
             offset: memOffset,
             memidx,
@@ -2212,7 +2213,7 @@ export class BinaryReader {
           const address = stack.pop() ?? operandPlaceholder(loc);
           pushStmt(stack, stmts, {
             kind: 'store',
-            opcode: op as Opcode,
+            opcode: op,
             align,
             offset: memOffset,
             memidx,
@@ -2291,7 +2292,7 @@ export class BinaryReader {
         case Opcode.F64Ge: {
           const right = stack.pop() ?? operandPlaceholder(loc);
           const left = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'binary', opcode: op as Opcode, left, right, loc });
+          stack.push({ kind: 'binary', opcode: op, left, right, loc });
           break;
         }
 
@@ -2324,7 +2325,7 @@ export class BinaryReader {
         case Opcode.I64Extend16S:
         case Opcode.I64Extend32S: {
           const operand = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'unary', opcode: op as Opcode, value: operand, loc });
+          stack.push({ kind: 'unary', opcode: op, value: operand, loc });
           break;
         }
 
@@ -2375,7 +2376,7 @@ export class BinaryReader {
         case Opcode.F64Copysign: {
           const right = stack.pop() ?? operandPlaceholder(loc);
           const left = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'binary', opcode: op as Opcode, left, right, loc });
+          stack.push({ kind: 'binary', opcode: op, left, right, loc });
           break;
         }
 
@@ -2406,7 +2407,7 @@ export class BinaryReader {
         case Opcode.F32ReinterpretI32:
         case Opcode.F64ReinterpretI64: {
           const operand = stack.pop() ?? operandPlaceholder(loc);
-          stack.push({ kind: 'unary', opcode: op as Opcode, value: operand, loc });
+          stack.push({ kind: 'unary', opcode: op, value: operand, loc });
           break;
         }
 
@@ -2542,6 +2543,14 @@ export class BinaryReader {
   // ---------------------------------------------------------------------------
 
   private decodeMiscOp(op: number, stack: Expr[], stmts: Expr[], _m: Module, loc: Location): void {
+    // Only a real instruction becomes an opcode (open-work 28: `InstrCode`); the message is the one
+    // the `default` below has always given an unknown misc opcode.
+    const code = (PREFIX_MISC << 16) | op;
+    if (!isInstrCode(code)) {
+      this.err(`unknown misc opcode: ${op}`);
+      return;
+    }
+    const opcode = code;
     switch (op) {
       // Saturating truncation (unary, 1 pop 1 push)
       case MiscOpcode.I32TruncSatF32S:
@@ -2552,9 +2561,8 @@ export class BinaryReader {
       case MiscOpcode.I64TruncSatF32U:
       case MiscOpcode.I64TruncSatF64S:
       case MiscOpcode.I64TruncSatF64U: {
-        const opcode = (PREFIX_MISC << 16) | op;
         const operand = stack.pop() ?? operandPlaceholder(loc);
-        stack.push({ kind: 'unary', opcode: opcode as Opcode, value: operand, loc });
+        stack.push({ kind: 'unary', opcode, value: operand, loc });
         break;
       }
       case MiscOpcode.MemoryInit: {
@@ -2695,7 +2703,7 @@ export class BinaryReader {
         const left = stack.pop() ?? operandPlaceholder(loc);
         stack.push({
           kind: 'binary',
-          opcode: ((PREFIX_MISC << 16) | op) as Opcode,
+          opcode,
           left,
           right,
           loc,
@@ -2715,7 +2723,7 @@ export class BinaryReader {
         const a = stack.pop() ?? operandPlaceholder(loc);
         stack.push({
           kind: 'quaternary',
-          opcode: ((PREFIX_MISC << 16) | op) as Opcode,
+          opcode,
           a,
           b,
           c,
@@ -2734,7 +2742,15 @@ export class BinaryReader {
   // ---------------------------------------------------------------------------
 
   private decodeSimdOp(op: number, stack: Expr[], stmts: Expr[], _m: Module, loc: Location): void {
-    const opcode = (PREFIX_SIMD << 16) | op;
+    // Only a real instruction becomes an opcode (open-work 28: `InstrCode`). 🔧 Until 2026-10-13 the
+    // binary fallback at the end took ANY other sub-opcode (a reserved 0xfd 0x9a, …) as a binary
+    // op: `wasm-validate` passed it, `wasm2wat` printed `<opcode:0xfd009a>`, V8 refused it.
+    const code = (PREFIX_SIMD << 16) | op;
+    if (!isInstrCode(code)) {
+      this.err(`unknown SIMD opcode: 0xfd 0x${op.toString(16)}`);
+      return;
+    }
+    const opcode = code;
 
     // v128.load + extending loads (0x00-0x06): memarg, 1 pop (address),
     // 1 push (v128). `v128.load` is a `load`; the extending loads are
@@ -2744,7 +2760,7 @@ export class BinaryReader {
       const { align, offset, memidx } = this.readMemArg();
       const address = stack.pop() ?? operandPlaceholder(loc);
       const kind = isSimdLoadOpcode(opcode) ? 'simd.load' : 'load';
-      stack.push({ kind, opcode: opcode as Opcode, align, offset, memidx, address, loc });
+      stack.push({ kind, opcode, align, offset, memidx, address, loc });
       return;
     }
 
@@ -2756,7 +2772,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'simd.load',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -2774,7 +2790,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       pushStmt(stack, stmts, {
         kind: 'store',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -2805,14 +2821,14 @@ export class BinaryReader {
       // i8x16.swizzle: binary
       const right = stack.pop() ?? operandPlaceholder(loc);
       const left = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'binary', opcode: opcode as Opcode, left, right, loc });
+      stack.push({ kind: 'binary', opcode, left, right, loc });
       return;
     }
 
     // splat ops (0x0f-0x14): unary, 1 pop, 1 push
     if (op >= 0x0f && op <= 0x14) {
       const operand = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'unary', opcode: opcode as Opcode, value: operand, loc });
+      stack.push({ kind: 'unary', opcode, value: operand, loc });
       return;
     }
 
@@ -2830,7 +2846,7 @@ export class BinaryReader {
         const vec = stack.pop() ?? operandPlaceholder(loc);
         stack.push({
           kind: 'simd.replace',
-          opcode: opcode as Opcode,
+          opcode,
           lane,
           vec,
           value,
@@ -2838,7 +2854,7 @@ export class BinaryReader {
         });
       } else {
         const vec = stack.pop() ?? operandPlaceholder(loc);
-        stack.push({ kind: 'simd.extract', opcode: opcode as Opcode, lane, vec, loc });
+        stack.push({ kind: 'simd.extract', opcode, lane, vec, loc });
       }
       return;
     }
@@ -2853,7 +2869,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'simd.load_store_lane',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -2871,7 +2887,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'simd.load',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -2889,7 +2905,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       pushStmt(stack, stmts, {
         kind: 'simd.load_store_lane',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -2913,13 +2929,13 @@ export class BinaryReader {
       const c = stack.pop() ?? operandPlaceholder(loc);
       const b = stack.pop() ?? operandPlaceholder(loc);
       const a = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'simd.ternary', opcode: opcode as Opcode, a, b, c, loc });
+      stack.push({ kind: 'simd.ternary', opcode, a, b, c, loc });
       return;
     }
     if (SIMD_UNARY_OPS.has(op)) {
       // 1 pop, 1 push (abs/neg/sqrt/ceil/.../convert/not/any_true/...).
       const operand = stack.pop() ?? operandPlaceholder(loc);
-      stack.push({ kind: 'unary', opcode: opcode as Opcode, value: operand, loc });
+      stack.push({ kind: 'unary', opcode, value: operand, loc });
       return;
     }
     // Default: binary (2 pops, 1 push) — add/sub/mul/div/min/max/pmin/pmax,
@@ -2929,7 +2945,7 @@ export class BinaryReader {
     // dot_add) are taken as ternary above, the relaxed truncs as unary.
     const right = stack.pop() ?? operandPlaceholder(loc);
     const left = stack.pop() ?? operandPlaceholder(loc);
-    stack.push({ kind: 'binary', opcode: opcode as Opcode, left, right, loc });
+    stack.push({ kind: 'binary', opcode, left, right, loc });
   }
 
   // ---------------------------------------------------------------------------
@@ -2943,7 +2959,14 @@ export class BinaryReader {
     _m: Module,
     loc: Location,
   ): void {
-    const opcode = (PREFIX_THREADS << 16) | op;
+    // Only a real instruction becomes an opcode (open-work 28: `InstrCode`); the message is the
+    // one the end of this decoder has always given an unknown atomic opcode.
+    const code = (PREFIX_THREADS << 16) | op;
+    if (!isInstrCode(code)) {
+      this.err(`unknown atomic opcode: 0xfe 0x${op.toString(16)}`);
+      return;
+    }
+    const opcode = code;
 
     if (op === 0x03) {
       // atomic.fence: consistency_model byte
@@ -2969,7 +2992,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'atomic.wait',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -2987,7 +3010,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'atomic.load',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -3004,7 +3027,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       pushStmt(stack, stmts, {
         kind: 'atomic.store',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -3022,7 +3045,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'atomic.rmw',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
@@ -3041,7 +3064,7 @@ export class BinaryReader {
       const address = stack.pop() ?? operandPlaceholder(loc);
       stack.push({
         kind: 'atomic.cmpxchg',
-        opcode: opcode as Opcode,
+        opcode,
         align,
         offset,
         memidx,
