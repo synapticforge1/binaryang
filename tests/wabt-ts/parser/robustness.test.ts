@@ -27,7 +27,7 @@
 // error in the survey had to be post-processed through the TokenType enum by
 // hand before it was actionable.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWastScript, parseWatModule } from '../../../src/parser/wast-parser.ts';

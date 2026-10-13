@@ -23,7 +23,7 @@
 // was which. `\u{...}` is the one escape that legitimately expands, because it
 // names a code point rather than a byte.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

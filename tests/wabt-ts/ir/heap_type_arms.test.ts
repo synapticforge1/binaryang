@@ -23,7 +23,7 @@
 // is asserted directly, over both front ends — the WAT parser and the binary
 // reader — because they are the two places heap types enter the IR.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

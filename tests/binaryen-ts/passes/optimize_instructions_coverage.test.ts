@@ -7,7 +7,7 @@
 // after on inputs at the edges (wrap-around, sign bits, above 2^53), and asserts
 // the rewrite fired — a test whose rewrite never ran proves nothing.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';

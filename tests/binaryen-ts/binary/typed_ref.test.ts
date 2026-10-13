@@ -34,6 +34,7 @@ import { ValType } from '../../../src/ir/types.ts';
 import { isRefType, type RefType } from '../../../src/ir/gc-types.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
+import { test } from 'node:test';
 
 /**
  * Hand-built GC module with a `(ref null 0)` LOCAL:
@@ -155,11 +156,11 @@ function localDeclBytes(bytes: Uint8Array): number[] {
   return [];
 }
 
-Deno.test('typed-ref local: the fixture runs', async () => {
+test('typed-ref local: the fixture runs', async () => {
   assertEquals(await runRead(TYPED_REF_LOCAL_MODULE), 7);
 });
 
-Deno.test('typed-ref local: survives a bare parse-encode round-trip', async () => {
+test('typed-ref local: survives a bare parse-encode round-trip', async () => {
   const out = writeWasm(readForPasses(TYPED_REF_LOCAL_MODULE));
   // 0x63 = (ref null ht), 0x00 = heap type index 0. Widening it to anyref
   // (0x6e) is the UP-7 bug and makes the module invalid.
@@ -167,7 +168,7 @@ Deno.test('typed-ref local: survives a bare parse-encode round-trip', async () =
   assertEquals(await runRead(out), 7);
 });
 
-Deno.test('typed-ref local: the parser records a RefType, not AnyRef', () => {
+test('typed-ref local: the parser records a RefType, not AnyRef', () => {
   const mod = readForPasses(TYPED_REF_LOCAL_MODULE);
   const local = mod.functions[0].locals[0];
   assert(
@@ -179,7 +180,7 @@ Deno.test('typed-ref local: the parser records a RefType, not AnyRef', () => {
   assertEquals(rt.nullable, true);
 });
 
-Deno.test('typed-ref: ModuleBuilder accepts a concrete ref for a local and a global', async () => {
+test('typed-ref: ModuleBuilder accepts a concrete ref for a local and a global', async () => {
   const m = new ModuleBuilder();
   const t = m.addType({
     name: '',
@@ -201,7 +202,7 @@ Deno.test('typed-ref: ModuleBuilder accepts a concrete ref for a local and a glo
   assert(isRefType(parsed.functions[0].locals[0].type), 'local lost its concrete ref type');
 });
 
-Deno.test('typed-ref: two func types differing only in heap type are no longer ambiguous', () => {
+test('typed-ref: two func types differing only in heap type are no longer ambiguous', () => {
   // Before UP-7 both signatures collapsed to `(anyref) -> ()`, so
   // `gcFuncTypeIndex` found two matches and threw "ambiguous GC function type".
   const m = new ModuleBuilder();
@@ -238,7 +239,7 @@ Deno.test('typed-ref: two func types differing only in heap type are no longer a
   assertEquals((p1 as RefType).heapType, varIndex(b));
 });
 
-Deno.test('WAT: (ref null $t) parses to a real RefType, not anyref', () => {
+test('WAT: (ref null $t) parses to a real RefType, not anyref', () => {
   const mod = readWat(`
     (module
       (type $a (array (mut i32)))
@@ -252,7 +253,7 @@ Deno.test('WAT: (ref null $t) parses to a real RefType, not anyref', () => {
   assertEquals((local.type as RefType).nullable, true);
 });
 
-Deno.test('WAT: (ref $t) is non-nullable', () => {
+test('WAT: (ref $t) is non-nullable', () => {
   const mod = readWat(`
     (module
       (type $a (array (mut i32)))
@@ -264,7 +265,7 @@ Deno.test('WAT: (ref $t) is non-nullable', () => {
   assertEquals((p as RefType).nullable, false);
 });
 
-Deno.test('typed-ref local.get carries the concrete type into the IR', () => {
+test('typed-ref local.get carries the concrete type into the IR', () => {
   const mod = readForPasses(TYPED_REF_LOCAL_MODULE);
   let seen: unknown = null;
   const walk = (e: unknown): void => {
@@ -284,7 +285,7 @@ Deno.test('typed-ref local.get carries the concrete type into the IR', () => {
   assert(isRefType(seen), `local.get typed ${JSON.stringify(seen)}, expected a RefType`);
 });
 
-Deno.test('makeLocalGet on an out-of-range local index fails loudly', () => {
+test('makeLocalGet on an out-of-range local index fails loudly', () => {
   // Previously `locals[idx]?.type ?? ValType.I32` silently typed it i32.
   const bad = Uint8Array.from(TYPED_REF_LOCAL_MODULE);
   // rewrite the first `local.get 0` operand (0x20 0x00) to index 9

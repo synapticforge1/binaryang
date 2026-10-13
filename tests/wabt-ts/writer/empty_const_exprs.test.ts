@@ -15,7 +15,7 @@
 // both. A global's empty init needed nothing: `(global i32)` reads back as the
 // same empty init. Closed 2026-09-29.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';

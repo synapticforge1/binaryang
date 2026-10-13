@@ -22,6 +22,7 @@ import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 const WAT = `(module
   ;; recursive: must survive being inlined into $f
@@ -52,7 +53,7 @@ for (
     ['-O3', (r: PassRunner) => r.addDefaultOptimizationPasses()],
   ] as const
 ) {
-  Deno.test(`${label}: a recursive callee survives, and the module still computes the same`, () => {
+  test(`${label}: a recursive callee survives, and the module still computes the same`, () => {
     const bytes = assemble(WAT);
     const mod = readForPasses(bytes);
     configure(new PassRunner(mod, { optimizeLevel: 3, shrinkLevel: 0 })).run();
@@ -63,7 +64,7 @@ for (
   });
 }
 
-Deno.test('Inlining: a callee inlined at every call site is still removed', () => {
+test('Inlining: a callee inlined at every call site is still removed', () => {
   const mod = readForPasses(assemble(WAT));
   new PassRunner(mod, { optimizeLevel: 3, shrinkLevel: 0 }).add('Inlining').run();
   assertEquals(mod.functions.some((fn) => fn.name === '$double'), false);

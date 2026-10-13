@@ -7,7 +7,7 @@
 // of several identical types (T1); writing 0 would be worse. A mutant writing
 // index 0 survived every test until this one.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

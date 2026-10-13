@@ -16,7 +16,7 @@
 // two agree — otherwise it would type-check one program and the writer would
 // emit another.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import {

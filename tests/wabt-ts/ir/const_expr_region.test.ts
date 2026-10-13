@@ -21,6 +21,7 @@ import type { Module } from '../../../src/ir/ir.ts';
 import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
 import { writeBinaryIr } from '../../../src/writer/binary-writer.ts';
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';
+import { test } from 'node:test';
 
 const HEADER = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
@@ -34,7 +35,7 @@ function roundTrips(bytes: Uint8Array, m: Module): void {
   assertEquals(writeBinaryIr(m, { writeDebugNames: false }), bytes);
 }
 
-Deno.test('a table with a present-but-EMPTY initializer keeps it (it was written without one)', () => {
+test('a table with a present-but-EMPTY initializer keeps it (it was written without one)', () => {
   // table section: 1 table, 0x40 0x00 (init form), funcref, limits {min 1}, `end`
   const { m, bytes } = read([0x04, 0x07, 0x01, 0x40, 0x00, 0x70, 0x00, 0x01, 0x0b]);
   const init = m.tables[0]!.init;
@@ -43,13 +44,13 @@ Deno.test('a table with a present-but-EMPTY initializer keeps it (it was written
   roundTrips(bytes, m);
 });
 
-Deno.test('a table without an initializer has NO init field', () => {
+test('a table without an initializer has NO init field', () => {
   const { m, bytes } = read([0x04, 0x04, 0x01, 0x70, 0x00, 0x01]);
   assertEquals('init' in m.tables[0]!, false);
   roundTrips(bytes, m);
 });
 
-Deno.test('an active offset holds exactly what was read — two instructions stay two', () => {
+test('an active offset holds exactly what was read — two instructions stay two', () => {
   // memory 1; data: active, offset `i32.const 0 i32.const 0 end` (invalid: two values), 0 bytes
   const { m, bytes } = read([
     0x05,
@@ -72,7 +73,7 @@ Deno.test('an active offset holds exactly what was read — two instructions sta
   roundTrips(bytes, m);
 });
 
-Deno.test('a passive segment and an imported global carry no expression at all', () => {
+test('a passive segment and an imported global carry no expression at all', () => {
   const { module: m } = parseWatModule(
     '(module (import "e" "g" (global i32)) (memory 1) (table 1 funcref) (func $f)' +
       ' (data "x") (elem funcref (ref.func $f)) (global i32 (i32.const 7)))',
@@ -86,7 +87,7 @@ Deno.test('a passive segment and an imported global carry no expression at all',
   assertEquals(m.elements[0]!.elemExprs.map((r) => r.kind), ['region']);
 });
 
-Deno.test('the writer refuses an ACTIVE segment with no offset rather than inventing one', () => {
+test('the writer refuses an ACTIVE segment with no offset rather than inventing one', () => {
   const { m } = read([
     0x05,
     0x03,
@@ -113,7 +114,7 @@ Deno.test('the writer refuses an ACTIVE segment with no offset rather than inven
   );
 });
 
-Deno.test('the validator sees an EMPTY initializer as one — a non-null table is not "missing" it', () => {
+test('the validator sees an EMPTY initializer as one — a non-null table is not "missing" it', () => {
   // (table 1 (ref func)) with the init form and nothing in it: invalid for the
   // EXPRESSION (no value), not for lacking an initializer, which it has.
   const { m } = read([0x04, 0x08, 0x01, 0x40, 0x00, 0x64, 0x70, 0x00, 0x01, 0x0b]);
@@ -123,7 +124,7 @@ Deno.test('the validator sees an EMPTY initializer as one — a non-null table i
   assert(errors[0]!.message.includes('expected 1 elements on the stack'), errors[0]!.message);
 });
 
-Deno.test('a passive segment read from BINARY has no offset field', () => {
+test('a passive segment read from BINARY has no offset field', () => {
   // memory 1, table 1 funcref, a function; data: passive "x"; elem: passive funcref (ref.func 0)
   const { m, bytes } = read([
     0x01,

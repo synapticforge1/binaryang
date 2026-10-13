@@ -22,6 +22,7 @@ import {
   takeMinifyMap,
 } from '../../../src/passes/index.ts';
 import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
+import { test } from 'node:test';
 
 const WAT = `(module
  (import "env" "log" (func $log (param i32)))
@@ -83,7 +84,7 @@ const iface = (bytes: Uint8Array) => {
   };
 };
 
-Deno.test("minify: the map is upstream's, name for name", () => {
+test("minify: the map is upstream's, name for name", () => {
   assertEquals(
     formatMinifyMap(runPass('minify-imports-and-exports-and-modules').map),
     UPSTREAM_AND_MODULES,
@@ -91,7 +92,7 @@ Deno.test("minify: the map is upstream's, name for name", () => {
   assertEquals(formatMinifyMap(runPass('minify-imports').map), UPSTREAM_IMPORTS);
 });
 
-Deno.test('minify: the bytes carry exactly the names the map gives', () => {
+test('minify: the bytes carry exactly the names the map gives', () => {
   const { m } = runPass('MinifyImportsAndExportsAndModules');
   assertEquals(iface(writeWasm(m)), {
     imports: ['a.c', 'a.d', 'a.e', 'a.f', 'a.a', 'a.b'], // import ORDER is kept
@@ -111,7 +112,7 @@ Deno.test('minify: the bytes carry exactly the names the map gives', () => {
   });
 });
 
-Deno.test('minify: a host that applies the map sees the same module', () => {
+test('minify: a host that applies the map sees the same module', () => {
   const orig = writeWasm(readWat(WAT));
   const { m, map } = runPass('MinifyImportsAndExportsAndModules');
   const min = writeWasm(m);
@@ -160,7 +161,7 @@ Deno.test('minify: a host that applies the map sees the same module', () => {
   assert(b[exp.get('mem')!] instanceof WebAssembly.Memory);
 });
 
-Deno.test('minify: two imports of one (module, field) share one name and one entry', () => {
+test('minify: two imports of one (module, field) share one name and one entry', () => {
   const m = readWat(`(module
     (import "env" "f" (func (param i32)))
     (import "env" "f" (func (param i32)))
@@ -176,7 +177,7 @@ Deno.test('minify: two imports of one (module, field) share one name and one ent
   ]);
 });
 
-Deno.test('minify: the name sequence skips reserved words, as upstream', () => {
+test('minify: the name sequence skips reserved words, as upstream', () => {
   // Upstream's 4,000-name sequence (measured): …, `h`, then the 55th name is
   // `aa`; `if`, `in` and `do` never appear.
   let wat = '(module\n';
@@ -204,7 +205,7 @@ Deno.test('minify: the name sequence skips reserved words, as upstream', () => {
   assertEquals(listed, [...listed].sort());
 });
 
-Deno.test('wasm-opt: --minify-imports-and-exports hands over the map, once, under --converge too', async () => {
+test('wasm-opt: --minify-imports-and-exports hands over the map, once, under --converge too', async () => {
   const path = await Deno.makeTempFile({ suffix: '.wasm' });
   try {
     await Deno.writeFile(path, writeWasm(readWat(WAT)));
@@ -226,7 +227,7 @@ Deno.test('wasm-opt: --minify-imports-and-exports hands over the map, once, unde
   }
 });
 
-Deno.test('minify: a second run COMPOSES — the map still starts from the originals', () => {
+test('minify: a second run COMPOSES — the map still starts from the originals', () => {
   const m = readWat(WAT);
   new PassRunner(m, {}).add('MinifyImportsAndExports').run();
   new PassRunner(m, {}).add('MinifyImportsAndExportsAndModules').run();

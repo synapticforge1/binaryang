@@ -25,7 +25,7 @@
 // (`inlineExport` defaults to true), so this compounded the wasm-opt round trip
 // rather than sitting beside it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

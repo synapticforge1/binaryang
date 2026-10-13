@@ -27,7 +27,7 @@
 //
 // Testsuite: 145 -> 179/257 clean, zero regressions, matching the projection.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWastScript } from '../../../src/parser/wast-parser.ts';

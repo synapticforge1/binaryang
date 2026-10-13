@@ -12,7 +12,7 @@
 // Two or more carried values stay a statement, as upstream folds them: one stack
 // slot for a tuple would let a `drop` take all of it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

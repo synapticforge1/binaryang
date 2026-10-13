@@ -34,7 +34,7 @@
 // assert_invalid correctly rejected: 2632 -> 2641 of 2737. Agreement with V8
 // on valid modules is back to 2120/2120.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

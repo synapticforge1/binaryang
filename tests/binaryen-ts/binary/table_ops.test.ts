@@ -19,8 +19,9 @@ import {
 import { readWat } from '../../../src/tools/read-wat.ts';
 import { elemFuncNames } from '../../../src/ir/module.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
+import { test } from 'node:test';
 
-Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode + table-index slot', () => {
+test('table.get: WAT → encode → parse round-trip preserves the opcode + table-index slot', () => {
   // funcref table at index 0; `f` reads element 0 and returns it.
   // Note: binary form stores tables by numeric index, and the reader keeps a
   // table reference as that index (binaryen-ts's decoder, deleted at 1.6.0,
@@ -39,7 +40,7 @@ Deno.test('table.get: WAT → encode → parse round-trip preserves the opcode +
   assertEquals(g.index.kind, ExpressionKind.Const);
 });
 
-Deno.test('table.set: WAT → encode → parse round-trip preserves the opcode', () => {
+test('table.set: WAT → encode → parse round-trip preserves the opcode', () => {
   // externref table; `f` writes a null ref at index 0.
   const mod = readWat(`(module
     (table $t 1 externref)
@@ -54,7 +55,7 @@ Deno.test('table.set: WAT → encode → parse round-trip preserves the opcode',
   assertEquals(s.index.kind, ExpressionKind.Const);
 });
 
-Deno.test('table.get with default table reference (no $name prefix)', () => {
+test('table.get with default table reference (no $name prefix)', () => {
   // Bare `(table.get index)` — default to the first table.
   const mod = readWat(`(module
     (table $only 2 funcref)
@@ -68,7 +69,7 @@ Deno.test('table.get with default table reference (no $name prefix)', () => {
   assertEquals(g.table, varIndex(0));
 });
 
-Deno.test('element segment: flag-4 (expression-form) active funcref segment round-trips and dispatches', async () => {
+test('element segment: flag-4 (expression-form) active funcref segment round-trips and dispatches', async () => {
   // Hand-crafted module equivalent to:
   //   (table 4 funcref)
   //   (elem (i32.const 0) func $a $b)
@@ -241,7 +242,7 @@ const MAGIC = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 // function NAMES, and omitting the entry shifted every later table index, so
 // refusing was better than dropping. M3 holds each entry as the constant
 // expression it is, so the entry is kept, and the segment round-trips.
-Deno.test('element segment: a ref.null entry is kept, and re-encodes as itself', () => {
+test('element segment: a ref.null entry is kept, and re-encodes as itself', () => {
   // 1 segment, flag 4 (active, expr-list), offset i32.const 0, one `ref.null func`
   // — into table 0, which the module declares: without it the segment names a
   // table that does not exist, which the reader refuses (binaryen-ts's deleted
@@ -272,7 +273,7 @@ Deno.test('element segment: a ref.null entry is kept, and re-encodes as itself',
 // The history is worth keeping: a passive segment was once parsed-and-dropped,
 // so a `table.init` consuming it found an empty table. Refusing was better than
 // dropping; representing it is better than refusing.
-Deno.test('element segment: a passive segment is read as passive, not as active', () => {
+test('element segment: a passive segment is read as passive, not as active', () => {
   // Element section: 1 segment, flag 1 (passive), elemkind 0x00, no entries.
   const body = [0x01, 0x01, 0x00, 0x00];
   const bytes = new Uint8Array([...MAGIC, 0x09, body.length, ...body]);
@@ -283,7 +284,7 @@ Deno.test('element segment: a passive segment is read as passive, not as active'
   assertEquals('offset' in mod.elements[0]!, false, 'a passive segment has no offset');
 });
 
-Deno.test('element segment: a declared segment is read as declared', () => {
+test('element segment: a declared segment is read as declared', () => {
   // Flag 3 (declarative) — bit 0 and bit 1. ⚠️ The table-index test was
   // `flags & 2`, which would have consumed an index this segment does not have;
   // it is `(flags & 3) === 2` now. That expression was correct only while flags

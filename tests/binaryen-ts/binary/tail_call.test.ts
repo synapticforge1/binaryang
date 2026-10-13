@@ -24,6 +24,7 @@ import {
 } from '../../../src/ir/expressions.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
 import { varName } from '../../../src/ir/ir.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Hand-crafted binary fixture — module with `f(): void` whose body is
@@ -78,7 +79,7 @@ const RETURN_CALL_MODULE = new Uint8Array([
   0x0b,
 ]);
 
-Deno.test('Phase 13: parser decodes 0x12 as Call with isReturn=true', () => {
+test('Phase 13: parser decodes 0x12 as Call with isReturn=true', () => {
   const mod = readForPasses(RETURN_CALL_MODULE);
   assertEquals(mod.functions.length, 1);
   const body = mod.functions[0].body;
@@ -90,7 +91,7 @@ Deno.test('Phase 13: parser decodes 0x12 as Call with isReturn=true', () => {
   assertEquals(call.func, varName('$func0'));
 });
 
-Deno.test('Phase 13: parser distinguishes call vs return_call', () => {
+test('Phase 13: parser distinguishes call vs return_call', () => {
   // Same module but opcode 0x10 (plain call) instead of 0x12.
   const plainCallModule = new Uint8Array(RETURN_CALL_MODULE);
   // The opcode byte is at offset 30 in this fixture (right before func index 0x00).
@@ -105,7 +106,7 @@ Deno.test('Phase 13: parser distinguishes call vs return_call', () => {
   assertEquals((target as CallExpr).isReturn, undefined);
 });
 
-Deno.test('Phase 13: encoder emits 0x12 for isReturn=true Call', () => {
+test('Phase 13: encoder emits 0x12 for isReturn=true Call', () => {
   const mod = readForPasses(RETURN_CALL_MODULE);
   const out = writeWasm(mod);
   // Re-parse: isReturn must survive the round-trip.
@@ -114,7 +115,7 @@ Deno.test('Phase 13: encoder emits 0x12 for isReturn=true Call', () => {
   assertEquals((target as CallExpr).isReturn, true);
 });
 
-Deno.test('Phase 13: WAT (return_call $f) → encode → parse round-trip preserves isReturn', () => {
+test('Phase 13: WAT (return_call $f) → encode → parse round-trip preserves isReturn', () => {
   const mod = readWat(`(module
     (func $f
       (return_call $f)))`);
@@ -125,7 +126,7 @@ Deno.test('Phase 13: WAT (return_call $f) → encode → parse round-trip preser
   assertEquals((target as CallExpr).isReturn, true);
 });
 
-Deno.test('Phase 13: WAT (return_call_indirect ...) with explicit (param ...)/(result ...) round-trips', () => {
+test('Phase 13: WAT (return_call_indirect ...) with explicit (param ...)/(result ...) round-trips', () => {
   const mod = readWat(`(module
     (table $t 1 funcref)
     (func $f (param i32) (result i32)
@@ -137,7 +138,7 @@ Deno.test('Phase 13: WAT (return_call_indirect ...) with explicit (param ...)/(r
   assertEquals((target as CallIndirectExpr).isReturn, true);
 });
 
-Deno.test('Phase 13 + Phase 1: WAT (return_call_indirect (type $sig) ...) resolves type ref', () => {
+test('Phase 13 + Phase 1: WAT (return_call_indirect (type $sig) ...) resolves type ref', () => {
   // Same as the test above but using `(type $sig)` to reference a
   // module-level function-type declaration. Exercises the Phase 1 fix that
   // makes parseCallIndirect look up the signature via `funcTypeDefs`

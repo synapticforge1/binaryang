@@ -18,7 +18,7 @@
 // So these tests use NON-COMMUTATIVE callees throughout. With `i32.add` every
 // assertion here would pass under the reversed reading too.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

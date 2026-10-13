@@ -15,6 +15,7 @@ import { ModuleBuilder } from '../../../src/ir/module.ts';
 import { type Var, varIndex } from '../../../src/ir/ir.ts';
 import { soleInstr } from '../region_helpers.ts';
 import type { RefType } from '../../../src/ir/gc-types.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -163,7 +164,7 @@ const REF_TEST_MODULE = module(
 // Tests — binary parser
 // ---------------------------------------------------------------------------
 
-Deno.test('GC parser: struct type definition is decoded', () => {
+test('GC parser: struct type definition is decoded', () => {
   const mod = readForPasses(STRUCT_MODULE);
   assertEquals(mod.types.length, 2);
 
@@ -177,7 +178,7 @@ Deno.test('GC parser: struct type definition is decoded', () => {
   assertEquals(structDef.fields[1].mutable, false);
 });
 
-Deno.test('GC parser: func type in types has RefType result', () => {
+test('GC parser: func type in types has RefType result', () => {
   const mod = readForPasses(STRUCT_MODULE);
   const funcDef = mod.types[1];
   assertEquals(funcDef.kind, 'func');
@@ -192,7 +193,7 @@ Deno.test('GC parser: func type in types has RefType result', () => {
   assertEquals(ref.heapType, varIndex(0)); // non-nullable ref to type 0
 });
 
-Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr directly)', () => {
+test('GC parser: struct.new decoded as StructNewExpr (body is the expr directly)', () => {
   const mod = readForPasses(STRUCT_MODULE);
   assertEquals(mod.functions.length, 1);
   // Single-result function body: the body IS the struct.new (no wrapper block)
@@ -206,7 +207,7 @@ Deno.test('GC parser: struct.new decoded as StructNewExpr (body is the expr dire
   assertEquals(sn.defaultInit, undefined);
 });
 
-Deno.test('GC parser: array type definition is decoded', () => {
+test('GC parser: array type definition is decoded', () => {
   const mod = readForPasses(ARRAY_MODULE);
   assertEquals(mod.types.length, 2);
 
@@ -217,7 +218,7 @@ Deno.test('GC parser: array type definition is decoded', () => {
   assertEquals(arrayDef.field.mutable, true);
 });
 
-Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init', () => {
+test('GC parser: array.new_default decoded as ArrayNewExpr with null init', () => {
   const mod = readForPasses(ARRAY_MODULE);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.ArrayNew);
@@ -226,7 +227,7 @@ Deno.test('GC parser: array.new_default decoded as ArrayNewExpr with null init',
   assertEquals('init' in an, false, 'array.new_default carries no init at all');
 });
 
-Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
+test('GC parser: ref.test decoded as RefTestExpr', () => {
   const mod = readForPasses(REF_TEST_MODULE);
   const body = soleInstr(mod.functions[0].body);
   assertEquals(body.kind, ExpressionKind.RefTest);
@@ -239,7 +240,7 @@ Deno.test('GC parser: ref.test decoded as RefTestExpr', () => {
 // Tests — binary encoder round-trip
 // ---------------------------------------------------------------------------
 
-Deno.test('GC encoder: struct module round-trips through encode+parse', () => {
+test('GC encoder: struct module round-trips through encode+parse', () => {
   const mod = readForPasses(STRUCT_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
 
@@ -249,7 +250,7 @@ Deno.test('GC encoder: struct module round-trips through encode+parse', () => {
   assertEquals(mod2.functions.length, 1);
 });
 
-Deno.test('GC encoder: struct fields preserved after round-trip', () => {
+test('GC encoder: struct fields preserved after round-trip', () => {
   const mod = readForPasses(STRUCT_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
 
@@ -262,7 +263,7 @@ Deno.test('GC encoder: struct fields preserved after round-trip', () => {
   assertEquals(s0.fields[1].mutable, false);
 });
 
-Deno.test('GC encoder: struct.new preserved after round-trip', () => {
+test('GC encoder: struct.new preserved after round-trip', () => {
   const mod = readForPasses(STRUCT_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
   const body = soleInstr(mod2.functions[0].body);
@@ -272,7 +273,7 @@ Deno.test('GC encoder: struct.new preserved after round-trip', () => {
   assertEquals(sn.operands.length, 2);
 });
 
-Deno.test('GC encoder: array module round-trips through encode+parse', () => {
+test('GC encoder: array module round-trips through encode+parse', () => {
   const mod = readForPasses(ARRAY_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
 
@@ -283,7 +284,7 @@ Deno.test('GC encoder: array module round-trips through encode+parse', () => {
   assertEquals(a0.field.mutable, true);
 });
 
-Deno.test('GC encoder: array.new_default preserved after round-trip', () => {
+test('GC encoder: array.new_default preserved after round-trip', () => {
   const mod = readForPasses(ARRAY_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
   const body = soleInstr(mod2.functions[0].body);
@@ -292,7 +293,7 @@ Deno.test('GC encoder: array.new_default preserved after round-trip', () => {
   assertEquals('init' in an, false, 'array.new_default carries no init at all');
 });
 
-Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
+test('GC encoder: ref.test round-trips through encode+parse', () => {
   const mod = readForPasses(REF_TEST_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
   const body = soleInstr(mod2.functions[0].body);
@@ -302,7 +303,7 @@ Deno.test('GC encoder: ref.test round-trips through encode+parse', () => {
   assertEquals(rt.nullable, false);
 });
 
-Deno.test('GC encoder: IR-built struct type encodes and parses', () => {
+test('GC encoder: IR-built struct type encodes and parses', () => {
   const builder = new ModuleBuilder();
   builder.addType({
     name: '',
@@ -326,7 +327,7 @@ Deno.test('GC encoder: IR-built struct type encodes and parses', () => {
   assertEquals(s.fields[1].mutable, true);
 });
 
-Deno.test('GC encoder: IR-built array type encodes and parses', () => {
+test('GC encoder: IR-built array type encodes and parses', () => {
   const builder = new ModuleBuilder();
   builder.addType({
     name: '',

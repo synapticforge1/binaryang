@@ -14,7 +14,7 @@
 // ⚠️ W10a is NOT this: where a statement splits operands upstream folds none
 // and we fold what we hold — kept by the owner. The two are tested apart.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

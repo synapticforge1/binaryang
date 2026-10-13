@@ -29,7 +29,7 @@
 // of T13.29 could never have seen — that asked whether the decoder survives
 // malformed input, not whether it NOTICES.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readBinaryIr } from '../../../src/reader/binary-reader.ts';

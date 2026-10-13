@@ -15,7 +15,7 @@
 // rule: `(else)` with no instructions is no `else`, and `wasm2wat` prints an
 // `else` only when it has instructions.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import type { Expr, Module } from '../../../src/ir/ir.ts';

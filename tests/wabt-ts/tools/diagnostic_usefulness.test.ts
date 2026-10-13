@@ -13,7 +13,7 @@
 //   malformed binaries with >1 error  75 → 0  (up to 9, the real one first)
 //   wasm-opt on an invalid input  blamed the OPTIMIZER, in V8's words
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import {
   ErrorFormat,

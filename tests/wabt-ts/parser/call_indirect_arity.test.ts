@@ -12,7 +12,7 @@
 // byte gate saw it; the TREE was wrong, a call with more arguments than its
 // signature takes, and M8d's type derivation refused it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

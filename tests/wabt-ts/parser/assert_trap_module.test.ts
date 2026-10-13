@@ -27,7 +27,7 @@
 // after the fix: all 19 real ones are still V8-accepted, so the conclusion holds
 // and the number is now honest.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWastScript } from '../../../src/parser/wast-parser.ts';

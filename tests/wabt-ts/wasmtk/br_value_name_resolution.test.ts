@@ -26,7 +26,7 @@
  * splice. A plain validate gate can't catch it; this test executes the result.
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

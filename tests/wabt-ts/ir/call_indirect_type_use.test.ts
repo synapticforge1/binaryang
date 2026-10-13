@@ -14,7 +14,7 @@
 // guessed: deriving it structurally picks the first of several identical types
 // (T1).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import type { CallIndirectExpr, Module } from '../../../src/ir/ir.ts';

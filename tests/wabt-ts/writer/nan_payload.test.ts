@@ -28,7 +28,7 @@
 // With these, **round-trip fidelity is 2120 / 2120** on the spec testsuite and
 // 270 / 270 on the wasmtk WASI corpus. The metric is exhausted.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

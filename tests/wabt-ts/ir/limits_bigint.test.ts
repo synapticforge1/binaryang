@@ -30,7 +30,7 @@
 // 2118 -> 2119 / 2119. The one module left is a 2^48-page `memory i64`, which
 // Wasmtime accepts and V8 rejects on its own implementation limit.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

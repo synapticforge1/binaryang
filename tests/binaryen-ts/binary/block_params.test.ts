@@ -14,7 +14,7 @@
 // back-edge / trampoline fixtures in multivalue.test.ts cover the same three
 // paths for those constructs.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';

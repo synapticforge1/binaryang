@@ -6,7 +6,7 @@
  * findings surfaced by the second sweep. See cmem/wabt-ts.md § "2026-06-09 silent-corruption audit".
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { region } from '../../../src/ir/ir.ts';

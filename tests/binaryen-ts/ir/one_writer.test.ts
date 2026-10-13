@@ -17,7 +17,7 @@
 // - binaryen-ts's encoder wrote every ternary SIMD instruction as
 //   `v128.bitselect`, and an empty memory section for an imported memory.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -34,7 +34,7 @@
 // the same audit that found the atomic `memidx` gap, widened from `Var` fields
 // to `Expr` fields.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -11,7 +11,7 @@
 // from 256 a DIFFERENT memory. The item that listed it named only size / grow;
 // the other four sites were the same defect. wabt-ts reads and writes a LEB.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

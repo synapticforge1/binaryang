@@ -15,7 +15,7 @@
 // A binary that CARRIES a DataCount it does not need keeps it through both
 // halves, so a binary round trip still changes nothing.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

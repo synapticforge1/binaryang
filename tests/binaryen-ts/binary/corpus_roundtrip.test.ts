@@ -29,6 +29,7 @@
 import { assert, assertEquals } from '@std/assert';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { test } from 'node:test';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
@@ -148,11 +149,11 @@ async function validates(bytes: Uint8Array): Promise<boolean> {
   }
 }
 
-Deno.test({
-  name: 'corpus: parse->encode->parse is lossless and stays valid',
-  ignore: CORPUS === null,
-  fn: async () => {
-    // Non-null by the `ignore` gate above, which is `CORPUS === null`.
+test(
+  'corpus: parse->encode->parse is lossless and stays valid',
+  { skip: CORPUS === null },
+  async () => {
+    // Non-null by the `skip` gate above, which is `CORPUS === null`.
     const corpus = CORPUS!;
     const files = await findWasm(corpus);
     assert(files.length > 0, `no .wasm files under ${corpus}`);
@@ -266,4 +267,4 @@ Deno.test({
         }`,
     );
   },
-});
+);

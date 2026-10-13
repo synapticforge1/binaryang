@@ -58,6 +58,7 @@ import { heapAbstract, varName } from '../../../src/ir/ir.ts';
 import { Opcode } from '../../../src/core/opcode.ts';
 import { region, soleInstr, soleOf } from '../region_helpers.ts';
 import { ExternalKind } from '../../../src/core/binary.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -95,7 +96,7 @@ function emptyModule(): WasmModule {
 // Pass registry
 // ---------------------------------------------------------------------------
 
-Deno.test('listPasses: all Phase 4 passes are registered', () => {
+test('listPasses: all Phase 4 passes are registered', () => {
   const passes = listPasses();
   const expected = [
     'CoalesceLocals',
@@ -117,7 +118,7 @@ Deno.test('listPasses: all Phase 4 passes are registered', () => {
 // Vacuum pass
 // ---------------------------------------------------------------------------
 
-Deno.test('Vacuum: removes nop from block children', () => {
+test('Vacuum: removes nop from block children', () => {
   const mod = emptyModule();
   const body = makeBlock([makeNop(), makeI32Const(42), makeNop()]);
   mod.functions.push(makeTestFn('f', body));
@@ -128,7 +129,7 @@ Deno.test('Vacuum: removes nop from block children', () => {
   assertEquals(region(mod.functions[0].body).children.map((c) => c.kind), [ExpressionKind.Const]);
 });
 
-Deno.test('Vacuum: an all-nop body vacuums to an EMPTY region', () => {
+test('Vacuum: an all-nop body vacuums to an EMPTY region', () => {
   const mod = emptyModule();
   const body = makeBlock([makeNop(), makeNop()]);
   mod.functions.push(makeTestFn('f', body));
@@ -138,7 +139,7 @@ Deno.test('Vacuum: an all-nop body vacuums to an EMPTY region', () => {
   assertEquals(region(mod.functions[0].body).children.length, 0);
 });
 
-Deno.test('Vacuum: drop(const) becomes nop', () => {
+test('Vacuum: drop(const) becomes nop', () => {
   const mod = emptyModule();
   // Block with drop(const) which should become nop → then block collapses
   const body = makeBlock([makeDrop(makeI32Const(5))]);
@@ -149,7 +150,7 @@ Deno.test('Vacuum: drop(const) becomes nop', () => {
   assertEquals(region(mod.functions[0].body).children.length, 0);
 });
 
-Deno.test('Vacuum: drop(local.get) becomes nop', () => {
+test('Vacuum: drop(local.get) becomes nop', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -164,7 +165,7 @@ Deno.test('Vacuum: drop(local.get) becomes nop', () => {
   assertEquals(region(mod.functions[0].body).children.length, 0);
 });
 
-Deno.test('Vacuum: unnamed single-child block collapses', () => {
+test('Vacuum: unnamed single-child block collapses', () => {
   const mod = emptyModule();
   const inner = makeI32Const(7);
   // The block under test must be a real one INSIDE the body: an unnamed block
@@ -185,7 +186,7 @@ Deno.test('Vacuum: unnamed single-child block collapses', () => {
 // "unnamed?" test to one that is never true left the whole suite green.
 // A region with a SECOND child cannot be flattened that way, so only Vacuum can
 // collapse the block, and this fixture holds it to that.
-Deno.test('Vacuum: an unnamed single-child block collapses among SIBLINGS too', () => {
+test('Vacuum: an unnamed single-child block collapses among SIBLINGS too', () => {
   const mod = emptyModule();
   const set = () => makeLocalSet(varIndex(0), makeI32Const(7));
   mod.functions.push(makeTestFn('f', makeBlock([set(), makeBlock([set()])])));
@@ -198,7 +199,7 @@ Deno.test('Vacuum: an unnamed single-child block collapses among SIBLINGS too', 
   );
 });
 
-Deno.test('Vacuum: a NAMED single-child block among siblings is kept', () => {
+test('Vacuum: a NAMED single-child block among siblings is kept', () => {
   const mod = emptyModule();
   const set = () => makeLocalSet(varIndex(0), makeI32Const(7));
   mod.functions.push(makeTestFn('f', makeBlock([set(), makeBlock([set()], '$keep')])));
@@ -215,7 +216,7 @@ Deno.test('Vacuum: a NAMED single-child block among siblings is kept', () => {
 // OptimizeInstructions — algebraic identities
 // ---------------------------------------------------------------------------
 
-Deno.test('OptimizeInstructions: add(x, 0) → x', () => {
+test('OptimizeInstructions: add(x, 0) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -236,7 +237,7 @@ Deno.test('OptimizeInstructions: add(x, 0) → x', () => {
   assertEquals(ret.values[0]?.kind, ExpressionKind.LocalGet);
 });
 
-Deno.test('OptimizeInstructions: mul(x, 1) → x', () => {
+test('OptimizeInstructions: mul(x, 1) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -254,7 +255,7 @@ Deno.test('OptimizeInstructions: mul(x, 1) → x', () => {
   assertEquals(ret.values[0]?.kind, ExpressionKind.LocalGet);
 });
 
-Deno.test('OptimizeInstructions: constant folding i32.add(3, 4) → 7', () => {
+test('OptimizeInstructions: constant folding i32.add(3, 4) → 7', () => {
   const mod = emptyModule();
   mod.functions.push({
     name: 'f',
@@ -270,7 +271,7 @@ Deno.test('OptimizeInstructions: constant folding i32.add(3, 4) → 7', () => {
   assertEquals(((ret.values[0] as ConstExpr).value as { value: number }).value, 7);
 });
 
-Deno.test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
+test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
   const mod = emptyModule();
   mod.functions.push({
     name: 'f',
@@ -286,7 +287,7 @@ Deno.test('OptimizeInstructions: constant folding i32.mul(6, 7) → 42', () => {
   assertEquals(((ret.values[0] as ConstExpr).value as { value: number }).value, 42);
 });
 
-Deno.test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
+test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
   const mod = emptyModule();
   mod.functions.push({
     name: 'f',
@@ -302,7 +303,7 @@ Deno.test('OptimizeInstructions: constant folding i32.eqz(0) → 1', () => {
   assertEquals(((ret.values[0] as ConstExpr).value as { value: number }).value, 1);
 });
 
-Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
+test('OptimizeInstructions: and(x, -1) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -320,7 +321,7 @@ Deno.test('OptimizeInstructions: and(x, -1) → x', () => {
   assertEquals(ret.values[0]?.kind, ExpressionKind.LocalGet);
 });
 
-Deno.test('OptimizeInstructions: i64 add(x, 0) → x', () => {
+test('OptimizeInstructions: i64 add(x, 0) → x', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -342,7 +343,7 @@ Deno.test('OptimizeInstructions: i64 add(x, 0) → x', () => {
 // RemoveUnusedBrs pass
 // ---------------------------------------------------------------------------
 
-Deno.test('RemoveUnusedBrs: br at tail of own block is removed', () => {
+test('RemoveUnusedBrs: br at tail of own block is removed', () => {
   // (block $B (nop) (br $B))  →  (block $B (nop))  →  nop (via Vacuum)
   const mod = emptyModule();
   const nop = makeNop();
@@ -364,7 +365,7 @@ Deno.test('RemoveUnusedBrs: br at tail of own block is removed', () => {
   }
 });
 
-Deno.test('RemoveUnusedBrs: solo br to own block → nop', () => {
+test('RemoveUnusedBrs: solo br to own block → nop', () => {
   const mod = emptyModule();
   const body: ReturnType<typeof makeBlock> = {
     kind: ExpressionKind.Block,
@@ -383,7 +384,7 @@ Deno.test('RemoveUnusedBrs: solo br to own block → nop', () => {
 // SimplifyLocals pass
 // ---------------------------------------------------------------------------
 
-Deno.test('SimplifyLocals: local.set + local.get → local.tee', () => {
+test('SimplifyLocals: local.set + local.get → local.tee', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -402,7 +403,7 @@ Deno.test('SimplifyLocals: local.set + local.get → local.tee', () => {
   soleOf(mod.functions[0].body, ExpressionKind.Const);
 });
 
-Deno.test('SimplifyLocals: a local read twice keeps its value in a tee', () => {
+test('SimplifyLocals: a local read twice keeps its value in a tee', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -426,7 +427,7 @@ Deno.test('SimplifyLocals: a local read twice keeps its value in a tee', () => {
   assertEquals(drop.kind === ExpressionKind.Drop && drop.value.kind, ExpressionKind.LocalTee);
 });
 
-Deno.test('SimplifyLocals: non-matching indices are not merged', () => {
+test('SimplifyLocals: non-matching indices are not merged', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -452,7 +453,7 @@ Deno.test('SimplifyLocals: non-matching indices are not merged', () => {
 // CoalesceLocals pass — dead-write elimination
 // ---------------------------------------------------------------------------
 
-Deno.test('CoalesceLocals: dead local.set becomes drop', () => {
+test('CoalesceLocals: dead local.set becomes drop', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -469,7 +470,7 @@ Deno.test('CoalesceLocals: dead local.set becomes drop', () => {
   soleOf(mod.functions[0].body, ExpressionKind.Drop);
 });
 
-Deno.test('CoalesceLocals: used local.set is preserved', () => {
+test('CoalesceLocals: used local.set is preserved', () => {
   const mod = emptyModule();
   const fn: WasmFunction = {
     name: 'f',
@@ -492,7 +493,7 @@ Deno.test('CoalesceLocals: used local.set is preserved', () => {
   );
 });
 
-Deno.test('CoalesceLocals: two locals with disjoint live ranges coalesce', () => {
+test('CoalesceLocals: two locals with disjoint live ranges coalesce', () => {
   // Two locals used in sequence:
   //   local.set $a 1
   //   call $use $a
@@ -520,7 +521,7 @@ Deno.test('CoalesceLocals: two locals with disjoint live ranges coalesce', () =>
   assertEquals(mod.functions[0].locals.length, 1);
 });
 
-Deno.test('CoalesceLocals: two locals with overlapping live ranges stay distinct', () => {
+test('CoalesceLocals: two locals with overlapping live ranges stay distinct', () => {
   // Both live simultaneously: $a's set + use brackets $b's set + use.
   //   set $a 1; set $b 2; use $a; use $b
   // Can't coalesce.
@@ -545,7 +546,7 @@ Deno.test('CoalesceLocals: two locals with overlapping live ranges stay distinct
   assertEquals(mod.functions[0].locals.length, 2);
 });
 
-Deno.test("CoalesceLocals: single local with two value lifetimes doesn't blow up", () => {
+test("CoalesceLocals: single local with two value lifetimes doesn't blow up", () => {
   // Same local written twice — two separate value lifetimes for the same
   // slot. After coalescing, just one local should remain (mapped to itself).
   const mod = emptyModule();
@@ -571,7 +572,7 @@ Deno.test("CoalesceLocals: single local with two value lifetimes doesn't blow up
 // CoalesceLocals — exception-handling liveness (EH-aware CFG)
 // ---------------------------------------------------------------------------
 
-Deno.test('CoalesceLocals: throwing call in try body keeps the pre-try value live', () => {
+test('CoalesceLocals: throwing call in try body keeps the pre-try value live', () => {
   // `let r = -1; try { r = mayThrow() } catch {} return r`
   // If `mayThrow()` throws, the inner `set $r` never completes, so `r` keeps -1
   // and the catch falls through to `return r` (= -1). The body's `set $r` must
@@ -603,7 +604,7 @@ Deno.test('CoalesceLocals: throwing call in try body keeps the pre-try value liv
   assertEquals(region(mod.functions[0].body).children[0]!.kind, ExpressionKind.LocalSet);
 });
 
-Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the inner catch var', () => {
+test('CoalesceLocals: nested rethrow keeps an outer local distinct from the inner catch var', () => {
   // Mirrors 15_LexicalShadowing_Stress:
   //   e = 100
   //   try { try { throw t(200) } catch { catchE = 200; rethrow } }
@@ -675,7 +676,7 @@ Deno.test('CoalesceLocals: nested rethrow keeps an outer local distinct from the
 // CoalesceLocals — CFG-based liveness (loop back-edge cases)
 // ---------------------------------------------------------------------------
 
-Deno.test('CoalesceLocals: loop-carried value interferes via back-edge', () => {
+test('CoalesceLocals: loop-carried value interferes via back-edge', () => {
   // $A is set before the loop and read at the loop top every iteration.
   // $B is set/used entirely inside the body, source-order AFTER $A's read.
   // With strictly-sequential ordinals the two ranges look disjoint, but $A's
@@ -706,7 +707,7 @@ Deno.test('CoalesceLocals: loop-carried value interferes via back-edge', () => {
   assertEquals(mod.functions[0].locals.length, 2);
 });
 
-Deno.test(
+test(
   'CoalesceLocals: two locals entirely within loop body coalesce when ranges are disjoint',
   () => {
     // $A and $B are both confined to one iteration; their live ranges don't
@@ -739,7 +740,7 @@ Deno.test(
   },
 );
 
-Deno.test('CoalesceLocals: loop counter live across back-edge stays distinct from temp', () => {
+test('CoalesceLocals: loop counter live across back-edge stays distinct from temp', () => {
   // Classic counter pattern: $i is the loop counter (set outside, read +
   // mutated inside, used as the back-edge condition); $tmp is a single-
   // iteration scratch that comes after the counter update. Reading $i for
@@ -780,7 +781,7 @@ Deno.test('CoalesceLocals: loop counter live across back-edge stays distinct fro
   assertEquals(mod.functions[0].locals.length, 2);
 });
 
-Deno.test('CoalesceLocals: if-else with overlapping liveness on merge stays distinct', () => {
+test('CoalesceLocals: if-else with overlapping liveness on merge stays distinct', () => {
   // $A is set in the then-branch and read on the merge path; $B is set in
   // the else-branch and read on the same merge path. Both arrive at the
   // merge live (their values flow from one of the two branches). The merge-
@@ -824,7 +825,7 @@ Deno.test('CoalesceLocals: if-else with overlapping liveness on merge stays dist
   assert(a !== b, `$A and $B share slot ${a}`);
 });
 
-Deno.test('CoalesceLocals: dead set inside loop is replaced with drop', () => {
+test('CoalesceLocals: dead set inside loop is replaced with drop', () => {
   // A local set inside a loop whose value is never read should still be
   // identified as ineffective by CFG-based liveness — same outcome as the
   // straight-line case, just verifying the CFG path doesn't lose this.
@@ -864,7 +865,7 @@ Deno.test('CoalesceLocals: dead set inside loop is replaced with drop', () => {
 // RemoveUnusedModuleElements pass
 // ---------------------------------------------------------------------------
 
-Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
+test('RemoveUnusedModuleElements: unreachable function is removed', () => {
   const mod: WasmModule = {
     functions: [
       {
@@ -901,7 +902,7 @@ Deno.test('RemoveUnusedModuleElements: unreachable function is removed', () => {
   assertEquals(mod.functions[0].name, 'exported');
 });
 
-Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () => {
+test('RemoveUnusedModuleElements: callee of exported function is kept', () => {
   const mod: WasmModule = {
     functions: [
       {
@@ -946,7 +947,7 @@ Deno.test('RemoveUnusedModuleElements: callee of exported function is kept', () 
   assertEquals(names.includes('helper'), true);
 });
 
-Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
+test('RemoveUnusedModuleElements: dead global is removed', () => {
   const mod: WasmModule = {
     functions: [
       {
@@ -988,7 +989,7 @@ Deno.test('RemoveUnusedModuleElements: dead global is removed', () => {
 // LocalCSE pass
 // ---------------------------------------------------------------------------
 
-Deno.test('LocalCSE: repeated pure expression is extracted to local', () => {
+test('LocalCSE: repeated pure expression is extracted to local', () => {
   const mod = emptyModule();
   // Two occurrences of add(local.get(0), 1) in a block
   const fn: WasmFunction = {
@@ -1013,7 +1014,7 @@ Deno.test('LocalCSE: repeated pure expression is extracted to local', () => {
   assertEquals(mod.functions[0].locals.length > originalLocalCount, true);
 });
 
-Deno.test("LocalCSE: caches only what upstream's isRelevant would (divergence C1)", () => {
+test("LocalCSE: caches only what upstream's isRelevant would (divergence C1)", () => {
   // Upstream LocalCSE.cpp `isRelevant`: never a local.get or a constant; then
   // size >= 3 when shrinking, size >= 2 when not. The port cached a bare
   // local.get and a constant too — teeing a read only to read the tee back —
@@ -1050,7 +1051,7 @@ Deno.test("LocalCSE: caches only what upstream's isRelevant would (divergence C1
 // PickLoadSigns pass (no-opcode when no narrow loads present)
 // ---------------------------------------------------------------------------
 
-Deno.test('PickLoadSigns: no crash on empty module', () => {
+test('PickLoadSigns: no crash on empty module', () => {
   const mod = emptyModule();
   // Should run without errors even with no functions
   new PassRunner(mod).add('PickLoadSigns').run();
@@ -1061,7 +1062,7 @@ Deno.test('PickLoadSigns: no crash on empty module', () => {
 // PassRunner integration: DCE + Vacuum chain
 // ---------------------------------------------------------------------------
 
-Deno.test('PassRunner: DCE + Vacuum chain removes unreachable code', () => {
+test('PassRunner: DCE + Vacuum chain removes unreachable code', () => {
   const mod = emptyModule();
   mod.functions.push({
     name: 'f',
@@ -1081,7 +1082,7 @@ Deno.test('PassRunner: DCE + Vacuum chain removes unreachable code', () => {
   assertEquals(soleInstr(body).kind, ExpressionKind.Unreachable);
 });
 
-Deno.test('Vacuum: single-child unnamed block keeps its declared type on a concrete-type mismatch', () => {
+test('Vacuum: single-child unnamed block keeps its declared type on a concrete-type mismatch', () => {
   // A result-typed (i32) unnamed block whose only non-nop child is void-typed
   // (a `local.set`). Collapsing to that child would present `none` where `i32`
   // was declared, silently changing the type the block's parent relies on.
@@ -1113,7 +1114,7 @@ Deno.test('Vacuum: single-child unnamed block keeps its declared type on a concr
 // Phase 8.1b — DCE recurses into Try / TryTable
 // ---------------------------------------------------------------------------
 
-Deno.test('DCE: recurses into TryTable body — dead tail after throw is trimmed', () => {
+test('DCE: recurses into TryTable body — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   // try_table body = (block [throw $e, i32.const 99 /* dead */])
   const innerBlock = makeBlock([
@@ -1133,7 +1134,7 @@ Deno.test('DCE: recurses into TryTable body — dead tail after throw is trimmed
   assertEquals(ttOut.body.children[0].kind, ExpressionKind.Throw);
 });
 
-Deno.test('DCE: recurses into Try body — dead tail after throw is trimmed', () => {
+test('DCE: recurses into Try body — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   const innerBlock = makeBlock([
     makeThrow(varName('$e'), []),
@@ -1153,7 +1154,7 @@ Deno.test('DCE: recurses into Try body — dead tail after throw is trimmed', ()
 // CoalesceLocals — call_indirect operand/index evaluation-order regression
 // ---------------------------------------------------------------------------
 
-Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the index is preserved', async () => {
+test('CoalesceLocals: a local.tee in a call_indirect operand feeding the index is preserved', async () => {
   // wasm evaluates call_indirect operands BEFORE the table index. The CFG used
   // to visit the index (`target`) first, so a `local.tee $t` in an operand —
   // whose written value is consumed only by the index expression of the SAME
@@ -1227,7 +1228,7 @@ Deno.test('CoalesceLocals: a local.tee in a call_indirect operand feeding the in
   assertEquals(dispatch(4), 104);
 });
 
-Deno.test('DCE: recurses into Try catch bodies — dead tail after throw is trimmed', () => {
+test('DCE: recurses into Try catch bodies — dead tail after throw is trimmed', () => {
   const mod = emptyModule();
   const catchBody = makeBlock([
     makeThrow(varName('$e'), []),
@@ -1245,7 +1246,7 @@ Deno.test('DCE: recurses into Try catch bodies — dead tail after throw is trim
   assertEquals(region(tOut.catches[0]!.body).children[0]!.kind, ExpressionKind.Throw);
 });
 
-Deno.test('DCE: Try expression itself is preserved (recursion does not strip the node)', () => {
+test('DCE: Try expression itself is preserved (recursion does not strip the node)', () => {
   const mod = emptyModule();
   const t = makeTry(null, makeNop(), [], null, None);
   mod.functions.push(makeTestFn('f', makeBlock([t, makeI32Const(1)])));
@@ -1262,11 +1263,11 @@ Deno.test('DCE: Try expression itself is preserved (recursion does not strip the
 // Phase 8.1c — StripEH pass
 // ---------------------------------------------------------------------------
 
-Deno.test('StripEH: registered in pass registry', () => {
+test('StripEH: registered in pass registry', () => {
   assertEquals(listPasses().includes('StripEH'), true);
 });
 
-Deno.test('StripEH: throw becomes unreachable, operands wrapped in drop', () => {
+test('StripEH: throw becomes unreachable, operands wrapped in drop', () => {
   const mod = emptyModule();
   // throw $e (i32.const 42)
   mod.functions.push(makeTestFn('f', makeBlock([makeThrow(varName('$e'), [makeI32Const(42)])])));
@@ -1283,7 +1284,7 @@ Deno.test('StripEH: throw becomes unreachable, operands wrapped in drop', () => 
   ]);
 });
 
-Deno.test('StripEH: throw with no operands becomes bare unreachable', () => {
+test('StripEH: throw with no operands becomes bare unreachable', () => {
   const mod = emptyModule();
   mod.functions.push(makeTestFn('f', makeBlock([makeThrow(varName('$e'), [])])));
   mod.tags.push({ name: '$e', sig: { params: [], results: [] } });
@@ -1294,7 +1295,7 @@ Deno.test('StripEH: throw with no operands becomes bare unreachable', () => {
   assertEquals(outer.children[0].kind, ExpressionKind.Unreachable);
 });
 
-Deno.test('StripEH: try is replaced by its body; catch is discarded', () => {
+test('StripEH: try is replaced by its body; catch is discarded', () => {
   const mod = emptyModule();
   const tryBody = makeI32Const(1);
   const catchBody = makeI32Const(99);
@@ -1310,7 +1311,7 @@ Deno.test('StripEH: try is replaced by its body; catch is discarded', () => {
   assertEquals((outer.children[0] as { value: { value: number } }).value.value, 1);
 });
 
-Deno.test('StripEH: try_table is replaced by its body', () => {
+test('StripEH: try_table is replaced by its body', () => {
   const mod = emptyModule();
   const tt = makeTryTable(null, makeI32Const(7), [], ValType.I32);
   mod.functions.push(makeTestFn('f', makeBlock([tt])));
@@ -1323,7 +1324,7 @@ Deno.test('StripEH: try_table is replaced by its body', () => {
   assertEquals((outer.children[0] as { value: { value: number } }).value.value, 7);
 });
 
-Deno.test('StripEH: module.tags cleared', () => {
+test('StripEH: module.tags cleared', () => {
   const mod = emptyModule();
   mod.functions.push(makeTestFn('f', makeBlock([makeNop()])));
   mod.tags.push({ name: '$e', sig: { params: [ValType.I32], results: [] } });
@@ -1338,7 +1339,7 @@ Deno.test('StripEH: module.tags cleared', () => {
 // ModuleBuilder + OptimizeInstructions round-trip
 // ---------------------------------------------------------------------------
 
-Deno.test('ModuleBuilder + OptimizeInstructions: add(x, 0) optimized', () => {
+test('ModuleBuilder + OptimizeInstructions: add(x, 0) optimized', () => {
   const mod = new ModuleBuilder()
     .addFunction(
       'identity',

@@ -16,7 +16,7 @@
 // V8), the folded text writer (its output parses back to the same bytes), name
 // resolution inside an entry value, and generated label names.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import type { Expr } from '../../../src/ir/ir.ts';

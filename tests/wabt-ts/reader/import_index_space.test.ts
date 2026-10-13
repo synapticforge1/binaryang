@@ -12,7 +12,7 @@
 // Found by S7's reader-agreement measurement (2026-09-19): the parser's and the
 // reader's trees for the same bytes disagreed on every such call.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -8,7 +8,7 @@
 // aliases (open-work 25 removes them). Pinned: each alias IS its new type, and
 // the handle `parseWat` returns is typed by the new name.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import initWabt, {
   type Features,

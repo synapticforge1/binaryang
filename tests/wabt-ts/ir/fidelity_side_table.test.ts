@@ -24,7 +24,7 @@
 // why the key changed. The rest verify that an opaque, spread-preserved id does
 // survive the real pipeline over the real corpus.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

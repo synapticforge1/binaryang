@@ -6,7 +6,7 @@
 // function's name only when it is REAL — a made-up `$func1` is not the
 // module's, and upstream prints only what the section says.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

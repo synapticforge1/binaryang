@@ -27,8 +27,9 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { hasErrors } from '../../../src/core/error.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
 import '../../../src/passes/index.ts'; // register built-in passes
+import { test } from 'node:test';
 
-Deno.test('toWat writes every kind, and the text assembles to the same module (K4)', () => {
+test('toWat writes every kind, and the text assembles to the same module (K4)', () => {
   // 🔧 `toWat` had its own partial serializer: it printed a `binary` as its
   // numeric opcode (`(106 …)` for `i32.add`), threw on `loop` and most kinds,
   // and `optimize(…, hybrid)` fed its text to upstream `wasm-opt`. It is the
@@ -60,7 +61,7 @@ Deno.test('toWat writes every kind, and the text assembles to the same module (K
   assertEquals(f(41), 42);
 });
 
-Deno.test('Module.optimize honors the -O level (was hardcoded to 2)', async () => {
+test('Module.optimize honors the -O level (was hardcoded to 2)', async () => {
   // A removable `nop` followed by the real result: Vacuum (level ≥ 1) drops it,
   // so -Oz output is strictly smaller than -O0 (which now runs NO passes). Before
   // the fix, optimizeLevel was hardcoded to 2 and `-O0` produced identical bytes.
@@ -79,7 +80,7 @@ Deno.test('Module.optimize honors the -O level (was hardcoded to 2)', async () =
   assert(o0.length > oz.length, `expected -O0 (${o0.length}) > -Oz (${oz.length})`);
 });
 
-Deno.test('toWat: an export prints its kind KEYWORD, not the byte that represents it', () => {
+test('toWat: an export prints its kind KEYWORD, not the byte that represents it', () => {
   // S6 step 5 item 6 (M2e): `WasmExport.kind` is the binary's kind byte now. The
   // serializer interpolated it -- `(${exp.kind} ...)` -- which compiles either
   // way and would print `(0 $f)`. Before M2e it printed `(function $f)`, which
@@ -119,7 +120,7 @@ Deno.test('toWat: an export prints its kind KEYWORD, not the byte that represent
   );
 });
 
-Deno.test('toWat: value types print as their NAMES, not as the bytes that represent them', () => {
+test('toWat: value types print as their NAMES, not as the bytes that represent them', () => {
   // S6 step 5, stage V1: `ValType` holds the wire bytes now (`I32 = 0x7f`). This
   // serializer interpolated types straight into the text -- `(param $p0 ${t})` --
   // which compiles either way and would have printed `(param $p0 127)`. No test

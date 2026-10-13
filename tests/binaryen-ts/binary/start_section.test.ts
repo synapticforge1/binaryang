@@ -26,6 +26,7 @@ import { ValType } from '../../../src/ir/types.ts';
 import { PassRunner } from '../../../src/passes/pass.ts';
 import { varName } from '../../../src/ir/ir.ts';
 import '../../../src/passes/index.ts'; // side-effect: registers the pass registry
+import { test } from 'node:test';
 
 /**
  * Hand-built module: `global $g (mut i32) = 0`, `func $init { $g = 42 }`,
@@ -106,22 +107,22 @@ function hasSection(bytes: Uint8Array, id: number): boolean {
   return false;
 }
 
-Deno.test('start section: the fixture actually runs its start function', async () => {
+test('start section: the fixture actually runs its start function', async () => {
   assertEquals(await readGlobalG(START_MODULE), 42);
 });
 
-Deno.test('start section: survives a bare parse→encode round-trip', async () => {
+test('start section: survives a bare parse→encode round-trip', async () => {
   const out = writeWasm(readForPasses(START_MODULE));
   assert(hasSection(out, 8), 're-encoded module is missing section 8');
   assertEquals(await readGlobalG(out), 42);
 });
 
-Deno.test('start section: parser records the start function under $func naming', () => {
+test('start section: parser records the start function under $func naming', () => {
   const mod = readForPasses(START_MODULE);
   assertEquals(mod.start, varName('$func0'));
 });
 
-Deno.test('start section: a non-exported start function survives full -Oz', async () => {
+test('start section: a non-exported start function survives full -Oz', async () => {
   // The trap: RemoveUnusedModuleElements seeds liveness from exports and
   // element segments. `$func0` is neither — only `mod.start` keeps it alive.
   const mod = readForPasses(START_MODULE);
@@ -140,7 +141,7 @@ Deno.test('start section: a non-exported start function survives full -Oz', asyn
   assertEquals(await readGlobalG(out), 42);
 });
 
-Deno.test('start section: absent start emits no section 8', () => {
+test('start section: absent start emits no section 8', () => {
   const mod = new ModuleBuilder()
     .addGlobal('$g', ValType.I32, true, makeI32Const(0))
     .addFunction('$f', [], [], makeGlobalSet(varName('$g'), makeI32Const(1)))
@@ -149,7 +150,7 @@ Deno.test('start section: absent start emits no section 8', () => {
   assert(!hasSection(writeWasm(mod), 8));
 });
 
-Deno.test('start section: setStart with an unknown name throws at encode time', () => {
+test('start section: setStart with an unknown name throws at encode time', () => {
   const mod = new ModuleBuilder()
     .addGlobal('$g', ValType.I32, true, makeI32Const(0))
     .addFunction('$f', [], [], makeGlobalSet(varName('$g'), makeI32Const(1)))

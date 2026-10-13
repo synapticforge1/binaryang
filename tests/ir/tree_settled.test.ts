@@ -14,7 +14,7 @@
 // - an IMPORTED function's empty body: A typed it `none`, B left it untyped —
 //   the only difference on 3,381 corpus modules.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import type { StructNewExpr } from '../../src/ir/ir.ts';

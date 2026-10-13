@@ -6,7 +6,7 @@
 // SimplifyLocals after Inlining. Each is asserted against the schedule
 // WITHOUT it, on a function where it pays, and the output is RUN.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

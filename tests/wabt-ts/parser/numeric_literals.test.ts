@@ -19,7 +19,7 @@
 // Together these moved the spec testsuite from 120/257 to 145/257 clean with
 // no regressions — exactly the +25 the scope predicted.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWastScript } from '../../../src/parser/wast-parser.ts';

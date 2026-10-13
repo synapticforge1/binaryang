@@ -7,7 +7,7 @@
 // is a valid module that starts in the wrong state. The structural claims
 // (the export gone, the statements gone) are checked on the text.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

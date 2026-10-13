@@ -7,7 +7,7 @@
 // before and after the pass alone — and asserts the parameter count, so a
 // case where nothing was removed proves nothing.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

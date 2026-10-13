@@ -22,7 +22,7 @@
 //
 // Testsuite: parse-clean 233 -> 240, fully V8-valid 216 -> 221.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

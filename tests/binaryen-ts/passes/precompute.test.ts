@@ -6,7 +6,7 @@
 // the module before and after: a fold that picks the wrong arm, drops an effect
 // or removes a trap is a valid module computing the wrong thing.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

@@ -24,7 +24,7 @@
 // parse clean with these fixes plus the ref.null and elem ones, no
 // regressions.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { expectedRefHeapType, parseWastScript } from '../../../src/parser/wast-parser.ts';

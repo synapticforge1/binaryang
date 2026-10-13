@@ -9,7 +9,7 @@
 //   - an arithmetic NaN is left to the engine; a bit-exact one (neg, abs,
 //     copysign, reinterpret) folds with its payload.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

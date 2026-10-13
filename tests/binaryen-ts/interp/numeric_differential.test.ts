@@ -19,7 +19,7 @@
 // core's must be quiet. `abs`, `neg`, `copysign` and the reinterpretations are
 // exact on the bits — no tolerance there.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import opcodes from '../../../src/definitions/opcodes.json' with { type: 'json' };
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

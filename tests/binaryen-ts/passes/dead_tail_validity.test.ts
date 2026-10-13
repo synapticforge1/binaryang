@@ -17,7 +17,7 @@
 // Both shapes are below, with a control: after a REAL terminator the tail is
 // still removed, so the fix did not simply switch dead-code removal off.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

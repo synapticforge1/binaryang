@@ -12,7 +12,7 @@
  * are text, bytes, trees and verdicts.
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertStringIncludes } from '@std/assert';
 import { wat2wasm } from '../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../src/tools/wasm2wat.ts';

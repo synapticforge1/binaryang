@@ -27,6 +27,7 @@ import { PassRunner } from '../../../src/passes/pass.ts';
 import { type Var, varName } from '../../../src/ir/ir.ts';
 import { ExternalKind } from '../../../src/core/binary.ts';
 import '../../../src/passes/index.ts'; // side-effect: registers the pass registry
+import { test } from 'node:test';
 
 /**
  * `(import "env" "imported" (tag (param i32)))`, a defined
@@ -60,7 +61,7 @@ function sectionBody(bytes: Uint8Array, id: number): Uint8Array | null {
   return null;
 }
 
-Deno.test('tag import: encodes as import kind 0x04 with a reserved attribute byte', () => {
+test('tag import: encodes as import kind 0x04 with a reserved attribute byte', () => {
   const bytes = writeWasm(moduleWithImportedAndDefinedTag());
   const imports = sectionBody(bytes, 2);
   assert(imports !== null, 'no import section emitted');
@@ -71,7 +72,7 @@ Deno.test('tag import: encodes as import kind 0x04 with a reserved attribute byt
   assertEquals(imports[expectedKindAt + 1], 0x00, 'missing reserved attribute byte');
 });
 
-Deno.test('tag import: survives a parse-encode round-trip', () => {
+test('tag import: survives a parse-encode round-trip', () => {
   const out = writeWasm(readForPasses(writeWasm(moduleWithImportedAndDefinedTag())));
   const mod = readForPasses(out);
 
@@ -82,7 +83,7 @@ Deno.test('tag import: survives a parse-encode round-trip', () => {
   assertEquals(tagImports[0]!.tag.sig.params, [ValType.I32]);
 });
 
-Deno.test('tag import: imported tags take the low end of the tag index space', () => {
+test('tag import: imported tags take the low end of the tag index space', () => {
   const mod = readForPasses(writeWasm(moduleWithImportedAndDefinedTag()));
 
   // The import is $tag0; the defined tag is numbered after it, not from zero.
@@ -93,7 +94,7 @@ Deno.test('tag import: imported tags take the low end of the tag index space', (
   assertEquals(mod.tags.map((t) => t.name), ['$tag1']);
 });
 
-Deno.test('tag import: a throw of a DEFINED tag still resolves past the import', () => {
+test('tag import: a throw of a DEFINED tag still resolves past the import', () => {
   // The teeth: numbering defined tags from zero while an import exists would
   // encode this `throw $tag1` as tag index 0 — the IMPORTED tag. Valid wasm,
   // wrong tag thrown.
@@ -115,7 +116,7 @@ Deno.test('tag import: a throw of a DEFINED tag still resolves past the import',
   assertEquals(found, [varName('$tag1')], 'throw was retargeted to the imported tag');
 });
 
-Deno.test('tag import: an imported tag can be re-exported', () => {
+test('tag import: an imported tag can be re-exported', () => {
   const mod = new ModuleBuilder()
     .addTagImport('$tag0', 'env', 'imported', [ValType.I32])
     .addExport('reexported', '$tag0', ExternalKind.Tag)
@@ -129,7 +130,7 @@ Deno.test('tag import: an imported tag can be re-exported', () => {
   assertEquals(exp.var, varName('$tag0'));
 });
 
-Deno.test('StripEH removes imported tags along with defined ones', () => {
+test('StripEH removes imported tags along with defined ones', () => {
   const mod = moduleWithImportedAndDefinedTag();
   new PassRunner(mod, {}).add('StripEH').run();
 

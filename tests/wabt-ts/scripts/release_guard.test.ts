@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import {
   RELEASE_FILES,

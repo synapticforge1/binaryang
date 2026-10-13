@@ -29,7 +29,7 @@
 // Convergence in the other direction would have REGRESSED behaviour that already
 // worked, which is the outcome the rule exists to prevent.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

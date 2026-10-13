@@ -20,7 +20,7 @@
 //
 // The three sites now share one resolver so they cannot drift apart.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

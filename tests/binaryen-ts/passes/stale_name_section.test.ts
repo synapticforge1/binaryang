@@ -17,7 +17,7 @@
 // The `data: null` entry is NOT that copy — it is the PLACEMENT marker that says
 // where a generated name section goes (W8) — so it stays.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

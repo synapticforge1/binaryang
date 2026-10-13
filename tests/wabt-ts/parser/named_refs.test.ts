@@ -32,7 +32,7 @@
 // Adding a case here is cheap and the coverage is the point: if a construct can
 // take a `$name`, it belongs in the list.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

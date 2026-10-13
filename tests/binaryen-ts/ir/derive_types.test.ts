@@ -8,7 +8,7 @@
 // the 2,490 V8-valid spec binaries with binaryen-ts's decoder except the
 // decoder's (recorded in cmem). These tests hold the rules one by one.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import type * as W from '../../../src/ir/ir.ts';

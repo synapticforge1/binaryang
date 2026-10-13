@@ -30,6 +30,7 @@ import { PassRunner } from '../../../src/passes/pass.ts';
 import { varName } from '../../../src/ir/ir.ts';
 import { region } from '../region_helpers.ts';
 import '../../../src/passes/index.ts'; // side-effect: register all built-in passes
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -209,7 +210,7 @@ const THROW_REF_MODULE = module(
 // Tests — binary parser: tag section
 // ---------------------------------------------------------------------------
 
-Deno.test('EH parser: tag section decoded — tag count and params', () => {
+test('EH parser: tag section decoded — tag count and params', () => {
   const mod = readForPasses(THROW_MODULE);
   assertEquals(mod.tags.length, 1);
   assertEquals(mod.tags[0].sig.params, [ValType.I32]);
@@ -219,7 +220,7 @@ Deno.test('EH parser: tag section decoded — tag count and params', () => {
 // Tests — binary parser: throw instruction
 // ---------------------------------------------------------------------------
 
-Deno.test('EH parser: throw decoded as ThrowExpr', () => {
+test('EH parser: throw decoded as ThrowExpr', () => {
   const mod = readForPasses(THROW_MODULE);
   assertEquals(mod.functions.length, 1);
   // Function body has [local.get, throw, unreachable] — a region of three
@@ -234,7 +235,7 @@ Deno.test('EH parser: throw decoded as ThrowExpr', () => {
   assertEquals(throwExpr!.operands[0].kind, ExpressionKind.LocalGet);
 });
 
-Deno.test('EH parser: throw tag name resolved from tag section', () => {
+test('EH parser: throw tag name resolved from tag section', () => {
   const mod = readForPasses(THROW_MODULE);
   const tag0 = mod.tags[0].name;
   const body = mod.functions[0].body;
@@ -248,7 +249,7 @@ Deno.test('EH parser: throw tag name resolved from tag section', () => {
 // Tests — binary parser: try_table
 // ---------------------------------------------------------------------------
 
-Deno.test('EH parser: try_table decoded as TryTableExpr', () => {
+test('EH parser: try_table decoded as TryTableExpr', () => {
   const mod = readForPasses(TRY_TABLE_MODULE);
   assertEquals(mod.functions.length, 1);
   // Find the try_table node (nested in a block)
@@ -263,7 +264,7 @@ Deno.test('EH parser: try_table decoded as TryTableExpr', () => {
   assertEquals(ttExpr!.catches[0].tag?.kind, 'name');
 });
 
-Deno.test('EH parser: a catch tag is spelled the same in BOTH try forms', () => {
+test('EH parser: a catch tag is spelled the same in BOTH try forms', () => {
   // 🔧 `try_table` carried `tag: string | null` while the legacy `try` carried
   // `tag?: Var` — one concept, two shapes in one IR, and the encoder had to
   // wrap the first in `varFromToken()` to resolve what the second passes
@@ -278,7 +279,7 @@ Deno.test('EH parser: a catch tag is spelled the same in BOTH try forms', () => 
   assertEquals((seen as { kind: string }).kind, 'name');
 });
 
-Deno.test('EH parser: catch_all carries NO tag, and re-encodes as catch_all', () => {
+test('EH parser: catch_all carries NO tag, and re-encodes as catch_all', () => {
   // catch_all is kind byte 0x02 with no tag index; absence is what says so.
   const mod = readForPasses(TRY_TABLE_MODULE);
   const before = writeWasm(mod);
@@ -293,7 +294,7 @@ Deno.test('EH parser: catch_all carries NO tag, and re-encodes as catch_all', ()
   assert(after.length < before.length, 'dropping the tag drops its index byte too');
 });
 
-Deno.test('EH parser: try_table catch clause dest resolves to outer block label', () => {
+test('EH parser: try_table catch clause dest resolves to outer block label', () => {
   const mod = readForPasses(TRY_TABLE_MODULE);
   const tt = tryTableIn(mod.functions[0].body);
   const dest = tt!.catches[0].target;
@@ -307,13 +308,13 @@ Deno.test('EH parser: try_table catch clause dest resolves to outer block label'
 // Tests — binary parser: throw_ref
 // ---------------------------------------------------------------------------
 
-Deno.test('EH parser: exnref value type decoded in function params', () => {
+test('EH parser: exnref value type decoded in function params', () => {
   const mod = readForPasses(THROW_REF_MODULE);
   assertEquals(mod.functions.length, 1);
   assertEquals(mod.functions[0].sig.params[0], ValType.ExnRef);
 });
 
-Deno.test('EH parser: throw_ref decoded as ThrowRefExpr', () => {
+test('EH parser: throw_ref decoded as ThrowRefExpr', () => {
   const mod = readForPasses(THROW_REF_MODULE);
   const body = mod.functions[0].body;
   // The body is a region; the throw_ref is one of its instructions
@@ -329,7 +330,7 @@ Deno.test('EH parser: throw_ref decoded as ThrowRefExpr', () => {
 // Tests — binary encoder round-trip
 // ---------------------------------------------------------------------------
 
-Deno.test('EH encoder: throw module round-trips through encode+parse', () => {
+test('EH encoder: throw module round-trips through encode+parse', () => {
   const mod = readForPasses(THROW_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
   assertEquals(mod2.tags.length, 1);
@@ -337,7 +338,7 @@ Deno.test('EH encoder: throw module round-trips through encode+parse', () => {
   assertEquals(mod2.functions.length, 1);
 });
 
-Deno.test('EH encoder: throw expression preserved after round-trip', () => {
+test('EH encoder: throw expression preserved after round-trip', () => {
   const mod = readForPasses(THROW_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
   const body = mod2.functions[0].body;
@@ -349,14 +350,14 @@ Deno.test('EH encoder: throw expression preserved after round-trip', () => {
   assertEquals(throwExpr!.operands[0].kind, ExpressionKind.LocalGet);
 });
 
-Deno.test('EH encoder: try_table module round-trips through encode+parse', () => {
+test('EH encoder: try_table module round-trips through encode+parse', () => {
   const mod = readForPasses(TRY_TABLE_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
   assertEquals(mod2.tags.length, 1);
   assertEquals(mod2.functions.length, 1);
 });
 
-Deno.test('EH encoder: try_table catch clause preserved after round-trip', () => {
+test('EH encoder: try_table catch clause preserved after round-trip', () => {
   const mod = readForPasses(TRY_TABLE_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
   const tt = tryTableIn(mod2.functions[0].body);
@@ -365,7 +366,7 @@ Deno.test('EH encoder: try_table catch clause preserved after round-trip', () =>
   assertEquals(tt!.catches[0].isRef, false);
 });
 
-Deno.test('EH encoder: throw_ref module round-trips through encode+parse', () => {
+test('EH encoder: throw_ref module round-trips through encode+parse', () => {
   const mod = readForPasses(THROW_REF_MODULE);
   const mod2 = readForPasses(writeWasm(mod));
   assertEquals(mod2.functions.length, 1);
@@ -519,7 +520,7 @@ const TRY_CATCH_MODULE = new Uint8Array([
   0x0b,
 ]);
 
-Deno.test('EH encoder: multi-instruction catch handler is not wrapped in a spurious block', async () => {
+test('EH encoder: multi-instruction catch handler is not wrapped in a spurious block', async () => {
   // Sanity: the input itself is valid.
   await WebAssembly.compile(TRY_CATCH_MODULE as BufferSource);
 
@@ -620,7 +621,7 @@ const CATCH_DEAD_BINDS_MODULE = new Uint8Array([
   11,
 ]);
 
-Deno.test('EH optimize: catch binding dead tag params stays valid after full -Oz', async () => {
+test('EH optimize: catch binding dead tag params stays valid after full -Oz', async () => {
   // The raw input is valid.
   await WebAssembly.compile(CATCH_DEAD_BINDS_MODULE as BufferSource);
 
@@ -718,7 +719,7 @@ async function runF(bytes: Uint8Array): Promise<unknown> {
   return (instance.exports['f'] as () => unknown)();
 }
 
-Deno.test('try_table: a catch destination names the ENCLOSING frame, not the try_table', async () => {
+test('try_table: a catch destination names the ENCLOSING frame, not the try_table', async () => {
   assertEquals(await runF(NESTED_CATCH_TARGET), 7);
 
   const mod = readForPasses(NESTED_CATCH_TARGET);
@@ -810,7 +811,7 @@ const CATCH_ONLY_LABEL = module(
   section(0x0a, 0x01, CATCH_ONLY_BODY.length, ...CATCH_ONLY_BODY),
 );
 
-Deno.test('try_table: a label used only as a catch destination survives -Oz', async () => {
+test('try_table: a label used only as a catch destination survives -Oz', async () => {
   assertEquals(await runF(CATCH_ONLY_LABEL), 33);
   assertEquals(await runF(writeWasm(readForPasses(CATCH_ONLY_LABEL))), 33);
 
@@ -849,7 +850,7 @@ const STRAY_BODY: [name: string, body: number[], msg: string][] = [
 ];
 
 for (const [name, inner, msg] of STRAY_BODY) {
-  Deno.test(`EH: ${name} is rejected, not silently dropped`, () => {
+  test(`EH: ${name} is rejected, not silently dropped`, () => {
     const mod = module(
       section(0x01, 0x01, 0x60, 0x00, 0x00),
       section(0x03, 0x01, 0x00),
@@ -860,7 +861,7 @@ for (const [name, inner, msg] of STRAY_BODY) {
   });
 }
 
-Deno.test("a tag's type keeps its RESULTS as read — the type index is not re-derived (M2)", () => {
+test("a tag's type keeps its RESULTS as read — the type index is not re-derived (M2)", () => {
   // type 0: (func (result i32)); tag section: 1 tag, attribute 0, type 0.
   // Invalid — a tag's type must have no results — and binary-expressible. The
   // tag held `params` alone, so the encoder asked for `() -> ()`, found none,

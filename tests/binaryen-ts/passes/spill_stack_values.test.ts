@@ -17,7 +17,7 @@
 // tests trapped), an ENTRY value (a parameter or a caught payload), and a
 // MULTI-result producer (one local cannot hold a tuple).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

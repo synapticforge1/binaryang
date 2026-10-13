@@ -18,7 +18,7 @@
 //     `(local i8)` and `(param i16)` parsed. Upstream: "unexpected token i8".
 // Spec 100% on four axes never saw it: the testsuite has no such case.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { Type, type ValType } from '../../../src/core/types.ts';

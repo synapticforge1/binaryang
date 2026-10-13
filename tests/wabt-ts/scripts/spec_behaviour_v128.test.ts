@@ -24,6 +24,7 @@ import {
   withV128Wrappers,
   wrapperName,
 } from '../../../scripts/spec-behaviour/v128.ts';
+import { test } from 'node:test';
 
 function instance(bytes: Uint8Array): WebAssembly.Exports {
   return new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource)).exports;
@@ -31,7 +32,7 @@ function instance(bytes: Uint8Array): WebAssembly.Exports {
 
 const asm = (wat: string) => wat2wasm(wat, { textForm: false }).binary;
 
-Deno.test('a vector goes in and comes out as two i64 lanes, other values as they are', () => {
+test('a vector goes in and comes out as two i64 lanes, other values as they are', () => {
   // Beside imports, a rec group and another function, so the new type and
   // function indices are counted past all of them.
   const bytes = asm(`(module
@@ -52,19 +53,19 @@ Deno.test('a vector goes in and comes out as two i64 lanes, other values as they
   assertEquals(got, [(12n << 32n) | 11n, (9n << 32n) | 13n, 30]);
 });
 
-Deno.test('a module with nothing to wrap is returned as it was', () => {
+test('a module with nothing to wrap is returned as it was', () => {
   const bytes = asm('(module (func (export "f") (result i32) (i32.const 1)))');
   const scalar: Sig = { params: [], results: ['i32'] };
   assert(!needsWrapper(scalar));
   assertEquals(withV128Wrappers(bytes, new Map([['f', scalar]])), bytes);
 });
 
-Deno.test('a type JS cannot spell is left unwrapped rather than guessed', () => {
+test('a type JS cannot spell is left unwrapped rather than guessed', () => {
   assert(!needsWrapper({ params: ['v128', 'anyref'], results: [] }));
   assert(needsWrapper({ params: [], results: ['v128', 'externref'] }));
 });
 
-Deno.test("v128 lanes: every lane type, little-endian, negatives two's complement", () => {
+test("v128 lanes: every lane type, little-endian, negatives two's complement", () => {
   assertEquals(v128Lanes({ lane_type: 'i8', value: ['-1', ...Array(15).fill('0')] }), [0xffn, 0n]);
   assertEquals(v128Lanes({ lane_type: 'i16', value: ['1', '0', '0', '0', '2', '0', '0', '0'] }), [
     1n,
@@ -77,7 +78,7 @@ Deno.test("v128 lanes: every lane type, little-endian, negatives two's complemen
   ]);
 });
 
-Deno.test('several wrappers in one module, and a function section it had to create', () => {
+test('several wrappers in one module, and a function section it had to create', () => {
   // All functions imported: there was no function or code section to extend.
   const bytes = asm(`(module
     (import "m" "id" (func $id (param v128) (result v128)))

@@ -45,6 +45,7 @@ import { type Var, varIndex, varName } from '../../../src/ir/ir.ts';
 import { region, soleInstr } from '../region_helpers.ts';
 import { walkExpression } from '../../../src/ir/walk.ts';
 import { ExternalKind } from '../../../src/core/binary.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -93,7 +94,7 @@ function funcByName(m: WasmModule, name: string): WasmFunction | undefined {
 // Option parsing
 // ---------------------------------------------------------------------------
 
-Deno.test('parseAsyncifyOptions — reads the upstream flag surface', () => {
+test('parseAsyncifyOptions — reads the upstream flag surface', () => {
   const opts = parseAsyncifyOptions({
     'asyncify-imports': 'env.sleep,wasi_snapshot_preview1.*',
     'asyncify-ignore-indirect': '',
@@ -107,12 +108,12 @@ Deno.test('parseAsyncifyOptions — reads the upstream flag surface', () => {
   assertEquals(opts.memory, 'mymem');
 });
 
-Deno.test('parseAsyncifyOptions — accepts the Asyncify@ prefixed form', () => {
+test('parseAsyncifyOptions — accepts the Asyncify@ prefixed form', () => {
   const opts = parseAsyncifyOptions({ 'Asyncify@asyncify-ignore-imports': '' });
   assert(opts.ignoreImports);
 });
 
-Deno.test('parseAsyncifyOptions — accepts legacy blacklist/whitelist/relocatable aliases', () => {
+test('parseAsyncifyOptions — accepts legacy blacklist/whitelist/relocatable aliases', () => {
   const opts = parseAsyncifyOptions({
     'asyncify-blacklist': '$x',
     'asyncify-relocatable': '',
@@ -122,7 +123,7 @@ Deno.test('parseAsyncifyOptions — accepts legacy blacklist/whitelist/relocatab
   assertEquals(parseAsyncifyOptions({ 'asyncify-whitelist': '$y' }).onlyList, ['$y']);
 });
 
-Deno.test('parseAsyncifyOptions — splits list payloads on newlines as well as commas', () => {
+test('parseAsyncifyOptions — splits list payloads on newlines as well as commas', () => {
   const opts = parseAsyncifyOptions({ 'asyncify-onlylist': '$a\n$b,\n $c ' });
   assertEquals(opts.onlyList, ['$a', '$b', '$c']);
 });
@@ -135,7 +136,7 @@ Deno.test('parseAsyncifyOptions — splits list payloads on newlines as well as 
 // with the EXPONENT 2; converting it to 4 is invisible to validation (2 bytes is
 // a legal alignment too), so the value itself is pinned — a mutant setting it
 // back to 2 survived every other test.
-Deno.test('Asyncify — every load and store it builds is 4-byte aligned, in bytes', () => {
+test('Asyncify — every load and store it builds is 4-byte aligned, in bytes', () => {
   const m = moduleWithImport();
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,
@@ -157,7 +158,7 @@ Deno.test('Asyncify — every load and store it builds is 4-byte aligned, in byt
   assertEquals([...new Set(aligns)], [4]);
 });
 
-Deno.test('Asyncify Stage 1 — adds the 2 globals with the ABI shape', () => {
+test('Asyncify Stage 1 — adds the 2 globals with the ABI shape', () => {
   const m = moduleWithImport();
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,
@@ -177,7 +178,7 @@ Deno.test('Asyncify Stage 1 — adds the 2 globals with the ABI shape', () => {
   }
 });
 
-Deno.test('Asyncify Stage 1 — adds & exports the 5 control functions in order', () => {
+test('Asyncify Stage 1 — adds & exports the 5 control functions in order', () => {
   const m = moduleWithImport();
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,
@@ -207,7 +208,7 @@ Deno.test('Asyncify Stage 1 — adds & exports the 5 control functions in order'
   assertEquals(funcByName(m, `$${ASYNCIFY_GET_STATE}`)!.sig.results, [ValType.I32]);
 });
 
-Deno.test('Asyncify Stage 1 — synthesizes a memory for a memoryless module (result validates)', () => {
+test('Asyncify Stage 1 — synthesizes a memory for a memoryless module (result validates)', () => {
   // The control functions (and instrumented code) load/store the coroutine stack
   // from linear memory. A module reaching the pass without one must still produce
   // valid wasm — asyncify ensures a memory exists (matching MemoryUtils::ensureExists).
@@ -229,7 +230,7 @@ Deno.test('Asyncify Stage 1 — synthesizes a memory for a memoryless module (re
   );
 });
 
-Deno.test('Asyncify Stage 1 — import-globals imports the two globals instead of defining them', () => {
+test('Asyncify Stage 1 — import-globals imports the two globals instead of defining them', () => {
   const m = moduleWithImport();
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,
@@ -253,7 +254,7 @@ Deno.test('Asyncify Stage 1 — import-globals imports the two globals instead o
   );
 });
 
-Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control fns internal, validates', async () => {
+test('Asyncify — in-wasm asyncify.* import mode: imports removed, control fns internal, validates', async () => {
   // Mimics TinyGo's goroutine shape: the scheduler imports asyncify.* and calls
   // them internally; `wasm-opt --asyncify` (and now this pass) removes those
   // imports and wires the calls to the synthesized control functions.
@@ -300,7 +301,7 @@ Deno.test('Asyncify — in-wasm asyncify.* import mode: imports removed, control
   );
 });
 
-Deno.test('Asyncify Stage 1 — rejects multi-memory modules', () => {
+test('Asyncify Stage 1 — rejects multi-memory modules', () => {
   const m = moduleWithImport();
   m.memories.push({ name: '$mem2', limits: limitsOf(1) });
   assertThrows(
@@ -337,7 +338,7 @@ for (
     }],
   ] as const
 ) {
-  Deno.test(`Asyncify Stage 1 — rejects ${label}`, () => {
+  test(`Asyncify Stage 1 — rejects ${label}`, () => {
     const m = moduleWithImport();
     make(m);
     assertThrows(
@@ -356,7 +357,7 @@ for (
   });
 }
 
-Deno.test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data set, gt_u check)', () => {
+test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data set, gt_u check)', () => {
   const m = moduleWithImport();
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,
@@ -395,7 +396,7 @@ Deno.test('Asyncify Stage 1 — start_unwind body matches the ABI (state=1, data
   assertEquals(check.ifFalse, null);
 });
 
-Deno.test('Asyncify Stage 1 — get_state returns the state global; stop_* reset to 0', () => {
+test('Asyncify Stage 1 — get_state returns the state global; stop_* reset to 0', () => {
   const m = moduleWithImport();
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,
@@ -419,7 +420,7 @@ Deno.test('Asyncify Stage 1 — get_state returns the state global; stop_* reset
 // Encode → decode round-trip (validity)
 // ---------------------------------------------------------------------------
 
-Deno.test('Asyncify Stage 1 — runtime support encodes to valid wasm & round-trips', () => {
+test('Asyncify Stage 1 — runtime support encodes to valid wasm & round-trips', () => {
   const m = moduleWithImport();
   new AsyncifyPass().run(m, {
     optimizeLevel: 2,

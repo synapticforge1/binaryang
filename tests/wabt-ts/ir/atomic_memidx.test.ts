@@ -28,7 +28,7 @@
 // That is the same reason the standing "no name-var survives resolveNames"
 // guard missed it — a guard is only as wide as its corpus.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

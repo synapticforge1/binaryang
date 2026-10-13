@@ -12,7 +12,7 @@
 // generated label, which wrapped the line differently; once it stopped
 // inventing names (N1 P3) it showed everywhere.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

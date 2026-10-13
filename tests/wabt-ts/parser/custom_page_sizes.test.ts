@@ -49,7 +49,7 @@
 // No metric covers this: the proposal is not in our testsuite snapshot, which
 // is why it sat half-built. All seven are unmoved by the change.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

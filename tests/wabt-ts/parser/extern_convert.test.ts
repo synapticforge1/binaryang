@@ -22,7 +22,7 @@
 //   * an element EXPRESSION needs `(item instr*)`; the bare folded
 //     abbreviation only works for a single instruction
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

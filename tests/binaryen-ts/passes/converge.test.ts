@@ -17,6 +17,7 @@ import { optimizeToConvergence, type Pass, PassRunner } from '../../../src/passe
 import { parseArgs } from '../../../src/tools/wasm-opt.ts';
 import type { WasmModule } from '../../../src/ir/module.ts';
 import { makeNop } from '../../../src/ir/expressions.ts';
+import { test } from 'node:test';
 
 const OZ = { optimizeLevel: 2, shrinkLevel: 2 } as const;
 
@@ -35,7 +36,7 @@ const run = (bytes: Uint8Array, x: number) =>
     a: number,
   ) => number)(x);
 
-Deno.test('converge: never larger than one round, and behaves as the input', () => {
+test('converge: never larger than one round, and behaves as the input', () => {
   const once = readWat(WAT);
   new PassRunner(once, OZ).addDefaultOptimizationPasses().run();
   const oneRound = writeWasm(once);
@@ -61,7 +62,7 @@ class Nothing implements Pass {
   run(_m: WasmModule): void {}
 }
 
-Deno.test('converge: a round that repeats the last one is a fixed point', () => {
+test('converge: a round that repeats the last one is a fixed point', () => {
   const { report } = optimizeToConvergence(readWat(WAT), OZ, (r) => r.addPass(new Nothing()));
   assertEquals(report.stoppedBy, 'fixed-point');
   assertEquals(report.sizes.length, 2);
@@ -91,7 +92,7 @@ function flipFlop(): (r: PassRunner) => void {
   };
 }
 
-Deno.test('converge: a cycle stops it, and the SMALLEST round is the result', () => {
+test('converge: a cycle stops it, and the SMALLEST round is the result', () => {
   const { bytes, report } = optimizeToConvergence(readWat(WAT), {
     optimizeLevel: 0,
     shrinkLevel: 0,
@@ -103,7 +104,7 @@ Deno.test('converge: a cycle stops it, and the SMALLEST round is the result', ()
   assertEquals(bytes.length, report.sizes[1]);
 });
 
-Deno.test('converge: the threshold is averaged over the window', () => {
+test('converge: the threshold is averaged over the window', () => {
   // A pass that shrinks nothing and changes nothing would stop as a fixed
   // point; a zero threshold with maxRounds 1 stops at the cap instead.
   const capped = optimizeToConvergence(
@@ -131,7 +132,7 @@ Deno.test('converge: the threshold is averaged over the window', () => {
   );
 });
 
-Deno.test('wasm-opt: -c and --converge set converge', () => {
+test('wasm-opt: -c and --converge set converge', () => {
   assertEquals(parseArgs(['in.wasm', '-Oz', '-c']).options.converge, true);
   assertEquals(parseArgs(['in.wasm', '--converge']).options.converge, true);
   assertEquals(parseArgs(['in.wasm', '--converge']).options.passes, undefined, 'not a pass name');

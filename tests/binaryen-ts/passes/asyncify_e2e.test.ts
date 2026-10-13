@@ -26,14 +26,15 @@ import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
 import { listPasses, PassRunner } from '../../../src/passes/index.ts';
 import { ADD_GET, asyncify, driveOnce, LOOP_GET } from './asyncify_helpers.ts';
+import { test } from 'node:test';
 
-Deno.test('asyncify e2e — suspend/resume across an async call (x + get())', () => {
+test('asyncify e2e — suspend/resume across an async call (x + get())', () => {
   const bytes = writeWasm(asyncify(readWat(ADD_GET)));
   // compute(10) with get() → 42 must yield 52 across the unwind/rewind.
   assertEquals(driveOnce(bytes, 'compute', [10], 'get', 42), 52);
 });
 
-Deno.test('asyncify e2e — locals survive a rewind (single suspend in a loop)', () => {
+test('asyncify e2e — locals survive a rewind (single suspend in a loop)', () => {
   // The loop suspends on the FIRST get(); on rewind, $i/$acc must be restored so
   // it continues. Our single-shot driver resumes once, so the loop runs to
   // completion after the first suspend (get() returns 7 on rewind and on every
@@ -43,7 +44,7 @@ Deno.test('asyncify e2e — locals survive a rewind (single suspend in a loop)',
   assertEquals(driveOnce(bytes, 'sum', [3], 'get', 7), 21);
 });
 
-Deno.test('asyncify e2e — suspend inside a function reached by call_ref (open-work 8)', () => {
+test('asyncify e2e — suspend inside a function reached by call_ref (open-work 8)', () => {
   // `call_ref` is an INDIRECT call, as upstream treats it: `compute` must be
   // instrumented, and the partial `x * 3` it holds across the call restored on
   // rewind. compute(10) = 30 + helper(10) = 30 + (10 + get()) = 82 with get → 42.
@@ -73,7 +74,7 @@ Deno.test('asyncify e2e — suspend inside a function reached by call_ref (open-
   assertEquals(driveOnce(bytes, 'main', [10], 'get', 42), 183);
 });
 
-Deno.test('asyncify — return_call_ref is refused, as the other tail calls are', () => {
+test('asyncify — return_call_ref is refused, as the other tail calls are', () => {
   const mod = readWat(`(module
     (memory 1)
     (type $v (func))
@@ -89,7 +90,7 @@ Deno.test('asyncify — return_call_ref is refused, as the other tail calls are'
   assert(/return_call_ref/.test(message), message);
 });
 
-Deno.test('asyncify — registered as a pass, runnable via PassRunner (lowercase name)', () => {
+test('asyncify — registered as a pass, runnable via PassRunner (lowercase name)', () => {
   assert(listPasses().includes('Asyncify'), 'Asyncify should be a registered pass');
   const mod = readWat(ADD_GET);
   // Resolve the upstream-style lowercase flag name case-insensitively.

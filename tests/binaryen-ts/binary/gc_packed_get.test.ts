@@ -42,6 +42,7 @@ import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
 import { allFeatures } from '../../../src/core/feature.ts';
 import { hasErrors } from '../../../src/core/error.ts';
 import { varIndex } from '../../../src/ir/ir.ts';
+import { test } from 'node:test';
 
 /** A one-field mutable struct holding `value`, read back via struct.get. */
 function structModule(storage: StorageType, value: number, signed: boolean): Uint8Array {
@@ -114,43 +115,43 @@ function firstSubop(bytes: Uint8Array, candidates: number[]): number {
 const STRUCT_GETS = [0x02, 0x03, 0x04];
 const ARRAY_GETS = [0x0b, 0x0c, 0x0d];
 
-Deno.test('packed struct field: signed=false encodes struct.get_u and zero-extends', async () => {
+test('packed struct field: signed=false encodes struct.get_u and zero-extends', async () => {
   const bytes = structModule(Packed.I8, 200, false);
   assertEquals(firstSubop(bytes, STRUCT_GETS), 0x04);
   assertEquals(await runRead(bytes), 200);
 });
 
-Deno.test('packed struct field: signed=true encodes struct.get_s and sign-extends', async () => {
+test('packed struct field: signed=true encodes struct.get_s and sign-extends', async () => {
   const bytes = structModule(Packed.I8, 200, true);
   assertEquals(firstSubop(bytes, STRUCT_GETS), 0x03);
   assertEquals(await runRead(bytes), -56);
 });
 
-Deno.test('non-packed struct field encodes the plain struct.get', async () => {
+test('non-packed struct field encodes the plain struct.get', async () => {
   const bytes = structModule(ValType.I32, 200, false);
   assertEquals(firstSubop(bytes, STRUCT_GETS), 0x02);
   assertEquals(await runRead(bytes), 200);
 });
 
-Deno.test('packed array element: signed=false encodes array.get_u and zero-extends', async () => {
+test('packed array element: signed=false encodes array.get_u and zero-extends', async () => {
   const bytes = arrayModule(Packed.I8, 200, false);
   assertEquals(firstSubop(bytes, ARRAY_GETS), 0x0d);
   assertEquals(await runRead(bytes), 200);
 });
 
-Deno.test('packed array element: signed=true encodes array.get_s and sign-extends', async () => {
+test('packed array element: signed=true encodes array.get_s and sign-extends', async () => {
   const bytes = arrayModule(Packed.I8, 200, true);
   assertEquals(firstSubop(bytes, ARRAY_GETS), 0x0c);
   assertEquals(await runRead(bytes), -56);
 });
 
-Deno.test('non-packed array element encodes the plain array.get', async () => {
+test('non-packed array element encodes the plain array.get', async () => {
   const bytes = arrayModule(ValType.I32, 200, false);
   assertEquals(firstSubop(bytes, ARRAY_GETS), 0x0b);
   assertEquals(await runRead(bytes), 200);
 });
 
-Deno.test('struct.get_u survives a bare parse-encode round-trip', async () => {
+test('struct.get_u survives a bare parse-encode round-trip', async () => {
   // Build the get_s form, then patch 0x03 -> 0x04 to obtain a VALID module
   // using get_u, which is what an external producer would emit.
   const input = Uint8Array.from(structModule(Packed.I8, 200, true));
@@ -170,7 +171,7 @@ Deno.test('struct.get_u survives a bare parse-encode round-trip', async () => {
   assertEquals(await runRead(out), 200);
 });
 
-Deno.test('array.get_u survives a bare parse-encode round-trip', async () => {
+test('array.get_u survives a bare parse-encode round-trip', async () => {
   const input = Uint8Array.from(arrayModule(Packed.I8, 200, true));
   let patched = false;
   for (let i = 0; i < input.length - 1; i++) {
@@ -188,7 +189,7 @@ Deno.test('array.get_u survives a bare parse-encode round-trip', async () => {
   assertEquals(await runRead(out), 200);
 });
 
-Deno.test('encoder throws on an out-of-range struct.get type index', () => {
+test('encoder throws on an out-of-range struct.get type index', () => {
   const m = new ModuleBuilder();
   const t = m.addType({
     name: '',
@@ -212,7 +213,7 @@ Deno.test('encoder throws on an out-of-range struct.get type index', () => {
   assertThrows(() => writeWasm(m.build()), WasmEncodeError, 'out of range');
 });
 
-Deno.test('encoder throws on an out-of-range struct.get field index', () => {
+test('encoder throws on an out-of-range struct.get field index', () => {
   const m = new ModuleBuilder();
   const t = m.addType({
     name: '',
@@ -256,7 +257,7 @@ function packedWat(opcode: string): string {
   `;
 }
 
-Deno.test('WAT: struct.get on a packed field is rejected', () => {
+test('WAT: struct.get on a packed field is rejected', () => {
   // Refused on the way in by the typing step after the reader — the text route
   // since One front end stage 5 (binaryen-ts's retired parser refused it itself).
   assertThrows(
@@ -268,12 +269,12 @@ Deno.test('WAT: struct.get on a packed field is rejected', () => {
   );
 });
 
-Deno.test('WAT: struct.get_u on a packed field is accepted', () => {
+test('WAT: struct.get_u on a packed field is accepted', () => {
   const mod = readWat(packedWat('struct.get_u'));
   assertEquals(firstSubop(writeWasm(mod), STRUCT_GETS), 0x04);
 });
 
-Deno.test('WAT: struct.get_s on a non-packed field is invalid — the validator refuses it', () => {
+test('WAT: struct.get_s on a non-packed field is invalid — the validator refuses it', () => {
   // binaryen-ts's retired parser refused it. On the text route since One front
   // end stage 5 — which, like our `wat2wasm`, does not validate — the text is
   // read (divergences.md R18) and the VALIDATOR is what refuses it. Written

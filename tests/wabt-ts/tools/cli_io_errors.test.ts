@@ -54,7 +54,7 @@
 // one-line `tool: cannot read '<path>': ...`, never a runtime stack trace with
 // our absolute source paths in it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 const TOOLS = ['wat2wasm', 'wasm2wat', 'wasm-validate', 'wasm-objdump', 'wasm-strip'];
@@ -142,7 +142,7 @@ function looksLikeStackTrace(s: string): boolean {
   return /Uncaught/.test(s) || /^\s+at /m.test(s);
 }
 
-describe('T13.31 — the CLIs actually report I/O failures', { ignore: !canRun }, () => {
+describe('T13.31 — the CLIs actually report I/O failures', { skip: !canRun }, () => {
   for (const tool of TOOLS) {
     it(`${tool} reports a missing input file`, async () => {
       const { code, err } = await runCli(tool, ['definitely-not-here.wasm']);

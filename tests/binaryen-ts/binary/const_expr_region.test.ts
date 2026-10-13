@@ -24,6 +24,7 @@ import { PassRunner } from '../../../src/passes/index.ts';
 import { makeI32Const, makeRegion } from '../../../src/ir/expressions.ts';
 import { ModuleBuilder } from '../../../src/ir/module.ts';
 import { ValType } from '../../../src/ir/types.ts';
+import { test } from 'node:test';
 
 /** The body of section `id`, as hex. */
 function section(bytes: Uint8Array, id: number): string {
@@ -45,7 +46,7 @@ function section(bytes: Uint8Array, id: number): string {
   return '';
 }
 
-Deno.test('the encoder writes every instruction a constant expression holds, then end', () => {
+test('the encoder writes every instruction a constant expression holds, then end', () => {
   // Two values: invalid, and exactly what a binary can say. The region holds it.
   const mod = new ModuleBuilder()
     .addGlobal('$g', ValType.I32, false, makeRegion([makeI32Const(1), makeI32Const(2)]))
@@ -54,7 +55,7 @@ Deno.test('the encoder writes every instruction a constant expression holds, the
   assertEquals(section(writeWasm(mod), 6), '01 7f 00 41 01 41 02 0b');
 });
 
-Deno.test('a global init and an active offset decode as one-instruction regions', () => {
+test('a global init and an active offset decode as one-instruction regions', () => {
   const bytes = writeWasm(
     new ModuleBuilder()
       .addMemory('$m', 1)
@@ -68,7 +69,7 @@ Deno.test('a global init and an active offset decode as one-instruction regions'
   assertEquals(writeWasm(mod), bytes);
 });
 
-Deno.test('a passive data segment has NO offset field (it was null)', () => {
+test('a passive data segment has NO offset field (it was null)', () => {
   const bytes = writeWasm(
     new ModuleBuilder().addMemory('$m', 1).addPassiveDataSegment('$p', new Uint8Array([9]))
       .build(),
@@ -91,7 +92,7 @@ function withoutInit() {
   return mod;
 }
 
-Deno.test('a defined global with no initializer is refused by the encoder', () => {
+test('a defined global with no initializer is refused by the encoder', () => {
   assertThrows(
     () => writeWasm(withoutInit()),
     WasmEncodeError,
@@ -99,14 +100,14 @@ Deno.test('a defined global with no initializer is refused by the encoder', () =
   );
 });
 
-Deno.test('a defined global with no initializer is refused by toWat', () => {
+test('a defined global with no initializer is refused by toWat', () => {
   const mod = createModule(() => {});
   mod.ir.globals.push(withoutInit().globals[0]!);
   assertThrows(() => mod.toWat(), Error, 'global $g: it has no initializer');
 });
 
 for (const pass of ['vacuum', 'optimize-instructions', 'remove-unused-module-elements']) {
-  Deno.test(`${pass} steps over a global with no initializer`, () => {
+  test(`${pass} steps over a global with no initializer`, () => {
     const mod = withoutInit();
     new PassRunner(mod, { optimizeLevel: 2 }).add(pass).run();
     assertEquals(mod.globals.find((g) => g.name === '$g')?.init, undefined);
@@ -130,7 +131,7 @@ for (
     ]],
   ] as const
 ) {
-  Deno.test(`a constant expression of several instructions decodes (${label})`, () => {
+  test(`a constant expression of several instructions decodes (${label})`, () => {
     const bytes = wat2wasm(wat).binary;
     const mod = readForPasses(bytes);
     const init = mod.globals[0]?.init ?? mod.tables[0]?.init;
@@ -139,7 +140,7 @@ for (
   });
 }
 
-Deno.test('a constant expression with no end is refused', () => {
+test('a constant expression with no end is refused', () => {
   // `(global i32 (i32.const 7))`, cut after the constant: the section is the
   // rest of the module, so the decoder runs off the end looking for `end`.
   const bytes = wat2wasm('(module (global i32 (i32.const 7)))').binary;
@@ -153,7 +154,7 @@ Deno.test('a constant expression with no end is refused', () => {
 const moduleOf = (...sections: number[][]) =>
   new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, ...sections.flat()]);
 
-Deno.test('a constant expression that consumes a value from beneath a statement: kept, and invalid', () => {
+test('a constant expression that consumes a value from beneath a statement: kept, and invalid', () => {
   // `i32.const 1` `nop` `i32.const 2` `i32.add`: the add's left operand sits under
   // the `nop`. A function body spills it to a local; a constant expression has
   // no locals to spill into, and only an invalid one can need it.
@@ -169,7 +170,7 @@ Deno.test('a constant expression that consumes a value from beneath a statement:
   assertStringIncludes(formatErrors(errors), 'constant expression required');
 });
 
-Deno.test('an element segment elemkind other than funcref (0x00) is refused', () => {
+test('an element segment elemkind other than funcref (0x00) is refused', () => {
   // `(module (func $f) (elem func $f))` — a passive segment, flag 1, elemkind 0x00.
   const bytes = wat2wasm('(module (func $f) (elem func $f))').binary;
   const at = bytes.indexOf(0x09, 8) + 4; // section id, size, count, flags → elemkind
@@ -179,7 +180,7 @@ Deno.test('an element segment elemkind other than funcref (0x00) is refused', ()
   assertThrows(() => readForPasses(bad), WasmBinaryError, 'malformed element kind: 0x1');
 });
 
-Deno.test('an element-segment entry is a constant expression, of any length (M3)', () => {
+test('an element-segment entry is a constant expression, of any length (M3)', () => {
   // `(elem funcref (ref.func $f))`: flag 5 … `d2 00 0b`. An entry is read by the
   // same decoder as any other constant expression, so a `nop` before its `end`
   // is KEPT (it was read as the end, silently, before M2g made it an error).

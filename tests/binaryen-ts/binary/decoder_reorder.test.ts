@@ -33,6 +33,7 @@ import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import type { Expression } from '../../../src/ir/expressions.ts';
 import { spillStackValues } from '../../../src/passes/spill-stack-values.ts';
+import { test } from 'node:test';
 
 // Hand-assembled module (global $g mut i32 = 100):
 //   (func (export "f") (result i32)
@@ -108,7 +109,7 @@ function nodes(e: Expression, out: Expression[] = []): Expression[] {
   return out;
 }
 
-Deno.test('decoder does not reorder a stack-held value past a write of its state (spills instead)', () => {
+test('decoder does not reorder a stack-held value past a write of its state (spills instead)', () => {
   const mod = readForPasses(VALUE_ON_STACK);
   const f = mod.functions[0];
   const all = nodes(f.body);
@@ -141,7 +142,7 @@ Deno.test('decoder does not reorder a stack-held value past a write of its state
   assert(restoresFromLocal, 'the restore should read the spilled local, not re-read the global');
 });
 
-Deno.test('the spilled decode round-trips and executes correctly (f() === 100)', async () => {
+test('the spilled decode round-trips and executes correctly (f() === 100)', async () => {
   const mod = readForPasses(VALUE_ON_STACK);
   const bytes = writeWasm(mod);
   const buf = new ArrayBuffer(bytes.byteLength);

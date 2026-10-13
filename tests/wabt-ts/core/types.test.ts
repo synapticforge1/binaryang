@@ -1,4 +1,4 @@
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 import {
   INVALID_ADDRESS,

@@ -14,7 +14,7 @@
 //   (malformed otherwise), and that instruction must be an `if` or a `br_if`
 //   (invalid otherwise — checked on the binary, where the hint points).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

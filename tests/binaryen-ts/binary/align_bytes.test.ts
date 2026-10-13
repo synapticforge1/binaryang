@@ -7,7 +7,7 @@
 // `number`, different meaning, invisible to the compiler. Only the binary holds
 // the exponent now, and the decoder and encoder are the two places it converts.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import * as binaryen from '../../../src/compat/binaryen-compat.ts';

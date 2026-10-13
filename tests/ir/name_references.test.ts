@@ -8,7 +8,7 @@
 // hold the cases the corpus never reaches: `delegate`, `br_on_*`, `try_table`
 // catch targets, `start`, a branch to the function frame, a branch to an `if`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import type * as W from '../../src/ir/ir.ts';

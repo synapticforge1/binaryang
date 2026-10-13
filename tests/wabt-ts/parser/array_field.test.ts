@@ -20,7 +20,7 @@
 // is a name to keep, leaving every other array type in the spec's own form that
 // `wasm-tools` reads.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

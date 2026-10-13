@@ -9,7 +9,7 @@
 // type is not written, so no byte changed; 4 spec binaries that name a memory
 // the module does not have are now refused, as V8 refuses them.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

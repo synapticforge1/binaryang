@@ -20,7 +20,7 @@
 // `deno task spec` cannot see any of this: it drives the wabt-ts parser, not
 // this one.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readWat, WatInputError } from '../../../src/tools/read-wat.ts';

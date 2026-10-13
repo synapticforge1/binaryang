@@ -10,7 +10,7 @@
 // values stayed siblings: folded `wasm2wat` printed `(i32.const 9) (br 0)`
 // where upstream prints `(br 0 (i32.const 9))`. The bytes were right.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

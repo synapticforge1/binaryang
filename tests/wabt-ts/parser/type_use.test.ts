@@ -38,7 +38,7 @@
 //
 // Spec testsuite: V8-valid 245 -> 251.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

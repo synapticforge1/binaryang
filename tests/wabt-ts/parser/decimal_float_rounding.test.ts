@@ -18,7 +18,7 @@
 // Surfaced by wasmtk's WASM-spec-testsuite runner (the last 4 const.wast
 // failures after A/br_if and B/hex-float were fixed). Bug C.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -20,7 +20,7 @@
 // is asserted, not assumed: a lowering that did nothing produced VALID modules,
 // because the encoder writes parameters as written, and read as a success.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

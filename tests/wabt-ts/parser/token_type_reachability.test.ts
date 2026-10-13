@@ -27,7 +27,7 @@
 // keyword. That is the same shape as T13.18's arity gate: a hand-maintained
 // correspondence, enforced from the source rather than asserted in a comment.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 import { TokenType } from '../../../src/parser/token.ts';
 

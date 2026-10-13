@@ -14,7 +14,7 @@
 // below each pair a VALID reference with an INVALID one, so a wrong depth
 // shows as a wrong verdict, not only as a throw.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { main } from '../../../src/tools/wat2wasm.ts';

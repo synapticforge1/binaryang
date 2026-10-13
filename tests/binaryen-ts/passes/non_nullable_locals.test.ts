@@ -30,6 +30,7 @@ import { allFeatures } from '../../../src/core/feature.ts';
 import { readBinaryIr } from '../../../src/reader/binary-reader-ir.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { validateModule } from '../../../src/validator/validator.ts';
+import { test } from 'node:test';
 
 const S = '(type $S (struct (field i32)))';
 
@@ -66,14 +67,14 @@ const NEW = '(struct.new $S (i32.const 1))';
 const GET_T = '(struct.get $S 0 (local.get $t))';
 const T = '(local $t (ref $S))'; // local 1
 
-Deno.test('analysis: a set at the top level covers every later read', () => {
+test('analysis: a set at the top level covers every later read', () => {
   assertEquals(
     uncovered(T, `(local.set $t ${NEW}) (if (local.get $p) (then (drop ${GET_T}))) ${GET_T}`),
     [],
   );
 });
 
-Deno.test('analysis: a set inside an if arm does not cover a read after the if', () => {
+test('analysis: a set inside an if arm does not cover a read after the if', () => {
   assertEquals(
     uncovered(
       T,
@@ -88,18 +89,18 @@ Deno.test('analysis: a set inside an if arm does not cover a read after the if',
   );
 });
 
-Deno.test('analysis: a set inside a block or loop ends with it', () => {
+test('analysis: a set inside a block or loop ends with it', () => {
   assertEquals(uncovered(T, `(block (local.set $t ${NEW})) ${GET_T}`), [1]);
   assertEquals(uncovered(T, `(loop (local.set $t ${NEW})) ${GET_T}`), [1]);
   assertEquals(uncovered(T, `(block (local.set $t ${NEW}) (drop ${GET_T})) (i32.const 0)`), []);
 });
 
-Deno.test('analysis: a tee covers the reads that follow it, not the ones inside its value', () => {
+test('analysis: a tee covers the reads that follow it, not the ones inside its value', () => {
   assertEquals(uncovered(T, `(i32.add (struct.get $S 0 (local.tee $t ${NEW})) ${GET_T})`), []);
   assertEquals(uncovered(T, `(local.set $t (struct.new $S ${GET_T})) (i32.const 0)`), [1]);
 });
 
-Deno.test("analysis: a branch's values are evaluated before its condition", () => {
+test("analysis: a branch's values are evaluated before its condition", () => {
   // The shared walker visits the condition first; wasm evaluates the value first,
   // so this read precedes the tee and is NOT covered.
   assertEquals(
@@ -113,7 +114,7 @@ Deno.test("analysis: a branch's values are evaluated before its condition", () =
   );
 });
 
-Deno.test('analysis: params and nullable locals are never flagged', () => {
+test('analysis: params and nullable locals are never flagged', () => {
   assertEquals(
     uncovered(
       '(local $n (ref null $S))',
@@ -123,7 +124,7 @@ Deno.test('analysis: params and nullable locals are never flagged', () => {
   );
 });
 
-Deno.test('fixup: a function with nothing uncovered is left as the same objects', () => {
+test('fixup: a function with nothing uncovered is left as the same objects', () => {
   const mod = readForPasses(
     assemble(`(module ${S} (func (result i32) ${T} (local.set $t ${NEW}) ${GET_T}))`),
   );
@@ -138,7 +139,7 @@ const FLATTEN_IF = `(module ${S}
     (struct.get $S 0 (if (result (ref $S)) (local.get 0)
       (then (struct.new $S (i32.const 10))) (else (struct.new $S (i32.const 20)))))))`;
 
-Deno.test('Flatten on an if typed (ref $S) leaves a valid module that computes the same', () => {
+test('Flatten on an if typed (ref $S) leaves a valid module that computes the same', () => {
   const bytes = assemble(FLATTEN_IF);
   const mod = readForPasses(bytes);
   new PassRunner(mod).add('Flatten').run();
@@ -147,7 +148,7 @@ Deno.test('Flatten on an if typed (ref $S) leaves a valid module that computes t
   assertEquals(run(out, [0, 1]), run(bytes, [0, 1]));
 });
 
-Deno.test('PassRunner runs the fixup after a pass that declares it, and only then', () => {
+test('PassRunner runs the fixup after a pass that declares it, and only then', () => {
   // A module whose read is uncovered on the way IN; a pass that does nothing
   // isolates what the runner itself does with the flag.
   const wat = `(module ${S}

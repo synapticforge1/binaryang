@@ -6,7 +6,7 @@
 // tool's own surface: which exports run, how an argument is read, how a
 // result, a trap and a stop are printed.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

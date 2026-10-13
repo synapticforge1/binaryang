@@ -22,7 +22,7 @@
 // than assumed, in both directions: the bytes come back identical AND the
 // engine still accepts them.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import type { DropExpr, Expr, IfExpr, RegionExpr, TryExpr } from '../../src/ir/ir.ts';

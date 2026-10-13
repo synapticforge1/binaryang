@@ -20,7 +20,7 @@
 // and left a reference behind — and a `map.get(name) ?? 0` fallback would encode
 // index 0, producing a valid-but-wrong binary. A named miss must still throw.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

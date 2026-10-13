@@ -11,7 +11,7 @@
 // program, and binaryen-ts's decoder (which has always modelled it per value)
 // disagreed on 41 corpus functions (One front end, stage 2, 2026-09-19).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -7,7 +7,7 @@
  * fail-loud gaps). See cmem/wabt-ts.md § "2026-06-09 silent-corruption audit".
  */
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

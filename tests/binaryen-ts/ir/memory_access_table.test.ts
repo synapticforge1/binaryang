@@ -17,7 +17,7 @@
 // Either check alone would have missed half of it: the rotated encoder had every
 // NAME right and every WIDTH wrong.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertThrows } from '@std/assert';
 
 import {

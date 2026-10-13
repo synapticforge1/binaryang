@@ -22,7 +22,7 @@
 // not their oracle: the spec testsuite's `either` lists judge them (through
 // `deno task interp`); here they are only required to evaluate.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import opcodes from '../../../src/definitions/opcodes.json' with { type: 'json' };
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -17,7 +17,7 @@
 //
 // Compile-time pins; `deno task check` enforces them.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 import type { Type as DeprecatedBType } from '../../src/ir/binaryen-ts.ts';
 

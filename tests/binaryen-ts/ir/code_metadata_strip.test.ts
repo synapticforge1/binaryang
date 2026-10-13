@@ -28,6 +28,7 @@ import { stripCodeMetadata, walkExpression } from '../../../src/ir/walk.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 const hint = (): CodeMetadataExpr => ({
   kind: ExpressionKind.CodeMetadata,
@@ -69,7 +70,7 @@ function call(bytes: Uint8Array, x: number): number {
   ) => number)(x);
 }
 
-Deno.test('an optimization run strips every annotation, at any depth, before its first pass', () => {
+test('an optimization run strips every annotation, at any depth, before its first pass', () => {
   const mod = annotated();
   assertEquals(annotations(mod), 2, 'the fixture holds two');
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).add('Vacuum').run();
@@ -79,13 +80,13 @@ Deno.test('an optimization run strips every annotation, at any depth, before its
   assert(!new TextDecoder().decode(out).includes('metadata.code.'), 'no section either');
 });
 
-Deno.test('a plain write keeps them, as their metadata.code section — not nothing', () => {
+test('a plain write keeps them, as their metadata.code section — not nothing', () => {
   const out = writeWasm(annotated());
   assert(new TextDecoder().decode(out).includes('metadata.code.branch_hint'));
   assertEquals([call(out, 1), call(out, 0)], [1, 2]);
 });
 
-Deno.test('a PassRunner with nothing queued keeps it — only an optimization run strips', () => {
+test('a PassRunner with nothing queued keeps it — only an optimization run strips', () => {
   const mod = annotated();
   new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 0 }).run();
   assertEquals(annotations(mod), 2);
@@ -94,7 +95,7 @@ Deno.test('a PassRunner with nothing queued keeps it — only an optimization ru
 // W8: a binary's `metadata.code.*` sections are kept RAW by the reader. Their
 // offsets point into the bodies a pass rewrites, so an optimization run drops
 // them as it drops the annotations; a plain read-and-write keeps them.
-Deno.test('an optimization run drops a raw metadata.code section; a plain write keeps it', () => {
+test('an optimization run drops a raw metadata.code section; a plain write keeps it', () => {
   const r = wat2wasm(`(module (func (export "f") (param i32) (result i32)
     local.get 0
     (@metadata.code.branch_hint "\\01")
@@ -117,14 +118,14 @@ Deno.test('an optimization run drops a raw metadata.code section; a plain write 
   assertEquals([call(out, 1), call(out, 0)], [1, 2]);
 });
 
-Deno.test('one outside a statement list is refused, not dropped', () => {
+test('one outside a statement list is refused, not dropped', () => {
   const mod = annotated();
   const fn = mod.functions[0]!;
   fn.body = { ...fn.body, children: [makeDrop(hint()), ...fn.body.children] };
   assertThrows(() => stripCodeMetadata(fn.body), Error, 'outside a statement list');
 });
 
-Deno.test('a block of nothing but annotations is left an empty block', () => {
+test('a block of nothing but annotations is left an empty block', () => {
   const region = annotated().functions[0]!.body;
   // Beside another statement: a region's SOLE unnamed block dissolves (asRegion).
   const stripped = stripCodeMetadata({

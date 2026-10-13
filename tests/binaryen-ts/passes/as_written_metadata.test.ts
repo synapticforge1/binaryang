@@ -8,7 +8,7 @@
 // has always said binaryen-ts's passes would; a run with none is a plain read
 // and write, and keeps them.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

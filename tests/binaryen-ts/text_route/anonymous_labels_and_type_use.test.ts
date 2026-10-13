@@ -33,7 +33,7 @@
 // case never reached the parser. Confirmed by reverting the fix and watching
 // these fail; the round-trip spelling of the same fixtures did not.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

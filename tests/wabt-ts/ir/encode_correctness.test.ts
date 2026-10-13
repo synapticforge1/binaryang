@@ -31,7 +31,7 @@
 // The final test is a standing guard for the whole class: after resolveNames,
 // no name-var may survive anywhere in the IR.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWastScript, parseWatModule } from '../../../src/parser/wast-parser.ts';

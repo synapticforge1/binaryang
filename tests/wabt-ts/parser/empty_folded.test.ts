@@ -1,7 +1,7 @@
 // Bug D repro: empty-folded ops should consume preceding stack values.
 // `(local.set $x)` with no children should pop 1 from the surrounding stack.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

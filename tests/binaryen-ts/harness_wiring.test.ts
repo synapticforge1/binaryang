@@ -22,8 +22,9 @@
 // always collected, so the guard itself cannot be skipped by the bug it guards.
 
 import { assert } from '@std/assert';
+import { test } from 'node:test';
 
-Deno.test('the test task names every tree under tests/', async () => {
+test('the test task names every tree under tests/', async () => {
   const root = new URL('../../', import.meta.url);
   const cfg = JSON.parse(await Deno.readTextFile(new URL('deno.json', root))) as {
     tasks: Record<string, string>;

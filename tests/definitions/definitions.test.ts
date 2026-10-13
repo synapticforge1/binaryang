@@ -5,7 +5,7 @@
 // JSON sources, each stated hash is the content's, and D2 says what the code
 // does — binaryang is the definitions' first consumer.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import {
   FEATURE_DEFINITIONS,

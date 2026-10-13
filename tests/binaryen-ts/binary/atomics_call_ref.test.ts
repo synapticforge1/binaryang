@@ -24,6 +24,7 @@ import type { WasmModule } from '../../../src/ir/module.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -116,7 +117,7 @@ const FIX: Record<string, { wat: string; kinds: string[]; args: number[]; want: 
 };
 
 for (const [name, fx] of Object.entries(FIX)) {
-  Deno.test(`${name}: decoded to its nodes, and re-encoded byte for byte`, () => {
+  test(`${name}: decoded to its nodes, and re-encoded byte for byte`, () => {
     const bytes = assemble(fx.wat);
     const mod = readForPasses(bytes);
     const seen = kinds(mod);
@@ -125,7 +126,7 @@ for (const [name, fx] of Object.entries(FIX)) {
     assertEquals(run(bytes, ...fx.args), fx.want, 'the fixture computes what it says');
   });
 
-  Deno.test(`${name}: every -O level validates and computes the same`, () => {
+  test(`${name}: every -O level validates and computes the same`, () => {
     const bytes = assemble(fx.wat);
     for (const [o, s] of [[1, 0], [2, 0], [3, 0], [2, 1], [2, 2]] as const) {
       const mod = readForPasses(bytes);
@@ -138,7 +139,7 @@ for (const [name, fx] of Object.entries(FIX)) {
   });
 }
 
-Deno.test('the walkers reach every operand of every atomic, in order', () => {
+test('the walkers reach every operand of every atomic, in order', () => {
   const mod = readForPasses(assemble(FIX['atomics']!.wat));
   const body = mod.functions[0]!.body;
   const walked: string[] = [];
@@ -185,7 +186,7 @@ Deno.test('the walkers reach every operand of every atomic, in order', () => {
   assertEquals(waitMapped, consts.length);
 });
 
-Deno.test("each atomic's type is its instruction's result — i64 for an i64 instruction", () => {
+test("each atomic's type is its instruction's result — i64 for an i64 instruction", () => {
   const types = new Map<string, unknown[]>();
   for (const fx of [FIX['atomics']!, FIX['wait']!]) {
     walkExpression(readForPasses(assemble(fx.wat)).functions[0]!.body, (e) => {
@@ -204,7 +205,7 @@ Deno.test("each atomic's type is its instruction's result — i64 for an i64 ins
   });
 });
 
-Deno.test("call_ref's type is its signature's results — a tuple for several", () => {
+test("call_ref's type is its signature's results — a tuple for several", () => {
   const types: unknown[] = [];
   for (const fx of [FIX['call_ref']!, FIX['call_ref, two results']!]) {
     walkExpression(readForPasses(assemble(fx.wat)).functions.at(-1)!.body, (e) => {
@@ -214,7 +215,7 @@ Deno.test("call_ref's type is its signature's results — a tuple for several", 
   assertEquals(types, [ValType.I32, [ValType.I32, ValType.I32]]);
 });
 
-Deno.test('LocalCSE: a global read is not reused across a call_ref that writes it', () => {
+test('LocalCSE: a global read is not reused across a call_ref that writes it', () => {
   // The callee sets $g to 42 between two identical `global.get $g + x`. Reusing
   // the first sum gives 2; the module computes 44. LocalCSE evicted on `call`
   // and `call_indirect` and knew nothing of `call_ref`.
@@ -232,7 +233,7 @@ Deno.test('LocalCSE: a global read is not reused across a call_ref that writes i
   assertEquals([run(bytes, 1), run(writeWasm(mod), 1)], [44, 44]);
 });
 
-Deno.test('CoalesceLocals: a throwing call_ref in a try keeps the pre-try value live', () => {
+test('CoalesceLocals: a throwing call_ref in a try keeps the pre-try value live', () => {
   // `r = -1; try { r = call_ref mayThrow } catch {} return r` — the CFG's
   // exceptional edge leaves the call BEFORE the set, so -1 is live on the
   // handler path. Without a `call_ref` case the CFG drew no edge, the entry
@@ -249,7 +250,7 @@ Deno.test('CoalesceLocals: a throwing call_ref in a try keeps the pre-try value 
   assertEquals([run(bytes), run(writeWasm(mod))], [-1, -1]);
 });
 
-Deno.test('Asyncify instruments call_ref as an indirect call (open-work 8; it refused it)', () => {
+test('Asyncify instruments call_ref as an indirect call (open-work 8; it refused it)', () => {
   // It refused rather than leave the call uninstrumented. Now every stage
   // treats it as `call_indirect` — the run across an unwind / rewind is
   // `asyncify_e2e.test.ts`'s; here, the fixture is accepted and stays valid.
@@ -258,7 +259,7 @@ Deno.test('Asyncify instruments call_ref as an indirect call (open-work 8; it re
   assert(WebAssembly.validate(writeWasm(mod) as BufferSource), 'valid after asyncify');
 });
 
-Deno.test('Flatten takes a call_ref with several results: N temps, not a tuple', () => {
+test('Flatten takes a call_ref with several results: N temps, not a tuple', () => {
   // It refused one (2026-09 — "call_ref returns 2 values"): this IR has no
   // tuple kind. Flatten keeps an N-value result in N temps now (2026-09-28),
   // captured off the stack as wasm leaves it.
@@ -280,7 +281,7 @@ Deno.test('Flatten takes a call_ref with several results: N temps, not a tuple',
   for (const x of [0, 3, 7]) assertEquals(f(out)(x), f(bytes)(x), `f(${x})`);
 });
 
-Deno.test('an unknown 0xfe sub-opcode is still refused, naming it', () => {
+test('an unknown 0xfe sub-opcode is still refused, naming it', () => {
   const bytes = assemble(
     '(module (memory 1 1 shared) (func (drop (i32.atomic.load (i32.const 0)))))',
   );

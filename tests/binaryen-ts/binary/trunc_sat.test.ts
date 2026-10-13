@@ -11,7 +11,7 @@
 // Found measuring whether the wabt-ts reader can feed the optimizer (One front
 // end, cmem/ir-convergence.md); that route was already right.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

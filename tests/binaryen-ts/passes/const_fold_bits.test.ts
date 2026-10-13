@@ -14,7 +14,7 @@
 // And the key LocalCSE uses: `${-0}` is `"0"`, so a number-keyed `0.0` and
 // `-0.0` were ONE key, which would let CSE substitute one for the other.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readForPasses } from '../../../src/ir/prepare.ts';

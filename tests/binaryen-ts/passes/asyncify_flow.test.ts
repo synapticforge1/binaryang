@@ -33,6 +33,7 @@ import {
 import type { WasmFunction, WasmModule } from '../../../src/ir/module.ts';
 import { nameOf, sameVar, type Var, varName } from '../../../src/ir/ir.ts';
 import { region } from '../region_helpers.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -118,7 +119,7 @@ const LOOP_CALL = `(module
 // Tests
 // ---------------------------------------------------------------------------
 
-Deno.test('flow — body starts with the rewind prelude (pop call index)', () => {
+test('flow — body starts with the rewind prelude (pop call index)', () => {
   const foo = fn(flowModule(ONE_CALL), '$foo');
   const first = region(foo.body).children[0]!;
   assertEquals(first.kind, ExpressionKind.If);
@@ -126,7 +127,7 @@ Deno.test('flow — body starts with the rewind prelude (pop call index)', () =>
   assertEquals(countCallsTo(first, GET_INDEX), 1);
 });
 
-Deno.test('flow — wraps a single state-changing call with a check + unwind', () => {
+test('flow — wraps a single state-changing call with a check + unwind', () => {
   const foo = fn(flowModule(ONE_CALL), '$foo');
   // 1 check-call-index guard, 1 unwind note, 1 rewind-prelude get-index.
   assertEquals(countCallsTo(foo.body, CHECK_INDEX), 1);
@@ -134,7 +135,7 @@ Deno.test('flow — wraps a single state-changing call with a check + unwind', (
   assertEquals(countCallsTo(foo.body, GET_INDEX), 1);
 });
 
-Deno.test('flow — each call gets a distinct index (two calls → two checks/unwinds)', () => {
+test('flow — each call gets a distinct index (two calls → two checks/unwinds)', () => {
   const foo = fn(flowModule(TWO_CALLS), '$foo');
   assertEquals(countCallsTo(foo.body, CHECK_INDEX), 2);
   assertEquals(countCallsTo(foo.body, UNWIND), 2);
@@ -149,7 +150,7 @@ Deno.test('flow — each call gets a distinct index (two calls → two checks/un
   assertEquals(indices.sort(), [0, 1]);
 });
 
-Deno.test('flow — instruments a call inside an if arm (linearized)', () => {
+test('flow — instruments a call inside an if arm (linearized)', () => {
   const foo = fn(flowModule(IF_CALL), '$foo');
   assertEquals(countCallsTo(foo.body, CHECK_INDEX), 1);
   assertEquals(countCallsTo(foo.body, UNWIND), 1);
@@ -166,7 +167,7 @@ Deno.test('flow — instruments a call inside an if arm (linearized)', () => {
   assert(stateReads >= 3, 'expected several __asyncify_state checks after linearization');
 });
 
-Deno.test('flow — instruments a call inside a loop', () => {
+test('flow — instruments a call inside a loop', () => {
   const foo = fn(flowModule(LOOP_CALL), '$foo');
   assertEquals(countCallsTo(foo.body, CHECK_INDEX), 1);
   assertEquals(countCallsTo(foo.body, UNWIND), 1);
@@ -179,7 +180,7 @@ Deno.test('flow — instruments a call inside a loop', () => {
   assertEquals(loops, 1);
 });
 
-Deno.test('flow — leaves non-instrumented (pure) functions untouched', () => {
+test('flow — leaves non-instrumented (pure) functions untouched', () => {
   const mod = flowModule(ONE_CALL);
   const pure = fn(mod, '$pure');
   // pure was never flattened/flowed; its body is the original const.
@@ -187,7 +188,7 @@ Deno.test('flow — leaves non-instrumented (pure) functions untouched', () => {
   assertEquals(countCallsTo(pure.body, GET_INDEX), 0);
 });
 
-Deno.test('flow — a state-changing local.set defers via a fake global', () => {
+test('flow — a state-changing local.set defers via a fake global', () => {
   // TWO_CALLS stores each call result; the deferred set uses a fake global.
   const mod = flowModule(TWO_CALLS);
   const foo = fn(mod, '$foo');

@@ -6,7 +6,7 @@
 // before and after and compares the whole memory; the leave-alone cases
 // assert the segments are untouched.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';

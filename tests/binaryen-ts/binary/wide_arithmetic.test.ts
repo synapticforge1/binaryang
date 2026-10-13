@@ -30,7 +30,7 @@
 // against our own second implementation: `wat2wasm --enable-wide-arithmetic`
 // produces the same 40 bytes and `wasm-objdump` reads `fc 13` as `i64.add128`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

@@ -17,7 +17,7 @@
 // with a deliberate re-baseline in the same commit. The baseline is not a test:
 // it pins bytes, so a genuine encoder improvement is SUPPOSED to move it.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

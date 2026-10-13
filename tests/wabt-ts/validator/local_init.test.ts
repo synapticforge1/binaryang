@@ -31,7 +31,7 @@
 // assert_invalid 2654 -> 2658 of 2737 — the whole category — with agreement on
 // valid modules unchanged at 2120/2120.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

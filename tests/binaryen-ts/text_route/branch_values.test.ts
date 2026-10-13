@@ -13,7 +13,7 @@
 // so these pin the OUTPUT, not the representation: they hold across S6 decision
 // 6, which changes how values are stored.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

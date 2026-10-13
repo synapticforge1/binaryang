@@ -33,7 +33,7 @@
 // made the decoder's rotation visible for the first time — every i64 narrow
 // store in a round-tripped module would have changed width.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

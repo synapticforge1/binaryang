@@ -14,7 +14,7 @@
 // rebuilds the grouping from it; the optimizer drops it with the rest of that
 // metadata.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertNotEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

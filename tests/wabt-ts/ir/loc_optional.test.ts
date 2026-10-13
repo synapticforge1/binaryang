@@ -10,7 +10,7 @@
 // as one that does, and a diagnostic about such a node is reported at the
 // unknown location rather than crashing or carrying `undefined`.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals, assertNotStrictEquals, assertStrictEquals } from '@std/assert';
 
 import type { Module } from '../../../src/ir/ir.ts';

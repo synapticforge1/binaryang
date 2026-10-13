@@ -15,7 +15,7 @@
 // wabt-ts's `Const` holds the raw IEEE 754 bit pattern, so fidelity binds and
 // its form controls (S6 step 5, stage C1).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

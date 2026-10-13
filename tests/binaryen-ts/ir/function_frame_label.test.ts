@@ -16,7 +16,7 @@
 // `br` leaves the function, 2 if it only leaves the inner construct (whose value
 // is then dropped).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
 
 import {

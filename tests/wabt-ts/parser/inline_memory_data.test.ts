@@ -17,6 +17,7 @@ import { assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { formatErrors } from '../../../src/core/error.ts';
+import { test } from 'node:test';
 
 /** The memory section's payload, as hex. */
 function memorySection(b: Uint8Array): string {
@@ -43,7 +44,7 @@ for (
     ['(module (memory (pagesize 65536) (data "xyz")))', '01 09 01 01 10'],
   ] as const
 ) {
-  Deno.test(`inline memory data: ${wat}`, () => {
+  test(`inline memory data: ${wat}`, () => {
     const r = wat2wasm(wat, { textForm: false });
     assertEquals(r.errors.length, 0, formatErrors(r.errors));
     // Bytes only: V8 does not implement custom page sizes (flags 0x9).
@@ -51,7 +52,7 @@ for (
   });
 }
 
-Deno.test('an inline-data memory cannot grow past its data (min = max)', () => {
+test('an inline-data memory cannot grow past its data (min = max)', () => {
   const r = wat2wasm(
     '(module (memory (export "m") (data "xyz")) (func (export "g") (result i32) (memory.grow (i32.const 1))))',
   );

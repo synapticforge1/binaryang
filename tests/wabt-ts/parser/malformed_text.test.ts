@@ -14,7 +14,7 @@
 //
 // Upstream wabt 1.0.41 and wasm-tools 1.259.0 were the oracles for every row.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';

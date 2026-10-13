@@ -16,6 +16,7 @@ import { ExpressionKind } from '../../../src/ir/expressions.ts';
 import { ValType } from '../../../src/ir/types.ts';
 import { type Var, varName } from '../../../src/ir/ir.ts';
 import { ExternalKind } from '../../../src/core/binary.ts';
+import { test } from 'node:test';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -138,21 +139,21 @@ const GLOBAL_MODULE = new Uint8Array([
 // Tests
 // ---------------------------------------------------------------------------
 
-Deno.test('parseWasm rejects bad magic', () => {
+test('parseWasm rejects bad magic', () => {
   const bad = new Uint8Array([0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00]);
   assertThrows(() => readForPasses(bad), WasmBinaryError, 'magic header not detected');
 });
 
-Deno.test('parseWasm rejects wrong version', () => {
+test('parseWasm rejects wrong version', () => {
   const bad = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x02, 0x00, 0x00, 0x00]);
   assertThrows(() => readForPasses(bad), WasmBinaryError, 'unknown binary version');
 });
 
-Deno.test('parseWasm rejects truncated input', () => {
+test('parseWasm rejects truncated input', () => {
   assertThrows(() => readForPasses(new Uint8Array([0x00, 0x61, 0x73])), WasmBinaryError);
 });
 
-Deno.test('parseWasm accepts empty module', () => {
+test('parseWasm accepts empty module', () => {
   const mod = readForPasses(EMPTY_MODULE);
   assertEquals(mod.functions.length, 0);
   assertEquals(mod.globals.length, 0);
@@ -160,7 +161,7 @@ Deno.test('parseWasm accepts empty module', () => {
   assertEquals(mod.exports.length, 0);
 });
 
-Deno.test('parseWasm: add function has correct signature', () => {
+test('parseWasm: add function has correct signature', () => {
   const mod = readForPasses(ADD_MODULE);
   assertEquals(mod.functions.length, 1);
   const fn = mod.functions[0];
@@ -168,14 +169,14 @@ Deno.test('parseWasm: add function has correct signature', () => {
   assertEquals(fn.sig.results, [ValType.I32]);
 });
 
-Deno.test("parseWasm: add function is exported as 'add'", () => {
+test("parseWasm: add function is exported as 'add'", () => {
   const mod = readForPasses(ADD_MODULE);
   assertEquals(mod.exports.length, 1);
   assertEquals(mod.exports[0].name, 'add');
   assertEquals(mod.exports[0].kind, ExternalKind.Func);
 });
 
-Deno.test('parseWasm: add function body contains binary opcode', () => {
+test('parseWasm: add function body contains binary opcode', () => {
   const mod = readForPasses(ADD_MODULE);
   const fn = mod.functions[0];
   // Body is a block or direct binary expression
@@ -194,7 +195,7 @@ Deno.test('parseWasm: add function body contains binary opcode', () => {
   assertEquals(found, true);
 });
 
-Deno.test('parseWasm: global module has one global with init i32.const 42', () => {
+test('parseWasm: global module has one global with init i32.const 42', () => {
   const mod = readForPasses(GLOBAL_MODULE);
   assertEquals(mod.globals.length, 1);
   const g = mod.globals[0];
@@ -208,7 +209,7 @@ Deno.test('parseWasm: global module has one global with init i32.const 42', () =
   }
 });
 
-Deno.test('parseWasm: global.get in function body', () => {
+test('parseWasm: global.get in function body', () => {
   const mod = readForPasses(GLOBAL_MODULE);
   assertEquals(mod.functions.length, 1);
   const fn = mod.functions[0];
@@ -225,7 +226,7 @@ Deno.test('parseWasm: global.get in function body', () => {
   assertEquals(found, true);
 });
 
-Deno.test('an unknown export kind is rejected, not silently dropped', () => {
+test('an unknown export kind is rejected, not silently dropped', () => {
   // Export kind 0x07 does not exist. The old `default: break;` discarded the
   // export entirely and carried on — which is precisely how tag exports
   // (kind 0x04) went missing before that case was added: modules round-tripped
@@ -274,7 +275,7 @@ Deno.test('an unknown export kind is rejected, not silently dropped', () => {
 const HDR = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 const sec = (id: number, body: number[]): number[] => [id, body.length, ...body];
 
-Deno.test('an unknown section id is rejected, not skipped', () => {
+test('an unknown section id is rejected, not skipped', () => {
   // Skipping it dropped the section from the re-encoded module with no
   // diagnostic — the same "valid wasm, wrong behaviour" shape the start
   // section had until it was materialized, but for every future section at
@@ -283,7 +284,7 @@ Deno.test('an unknown section id is rejected, not skipped', () => {
   assertThrows(() => readForPasses(mod), WasmBinaryError, 'malformed section id');
 });
 
-Deno.test('a type index naming a struct is rejected where a function type is required', () => {
+test('a type index naming a struct is rejected where a function type is required', () => {
   // `funcTypes` mirrors the type section index-for-index, and a struct/array
   // entry used to occupy its slot with a placeholder `() -> ()` — indistinguish-
   // able from a real one. A `call_indirect` naming that index therefore popped
@@ -307,7 +308,7 @@ Deno.test('a type index naming a struct is rejected where a function type is req
   assert(hasErrors(errors), 'the validator must refuse a struct type used as a function type');
 });
 
-Deno.test('call_indirect keeps its table index instead of assuming table 0', () => {
+test('call_indirect keeps its table index instead of assuming table 0', () => {
   // The table index was read and DISCARDED, so every indirect call decoded
   // against table 0. The element-segment and `table.get`/`table.set` decoders
   // were already index-aware; this one was not, and the encoder's

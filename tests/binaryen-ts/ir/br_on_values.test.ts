@@ -14,7 +14,7 @@
 // the node by hand -- both walkers must see the values, and the encoder must
 // emit them before the ref -- because a wabt-ts tree will bring them.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import {

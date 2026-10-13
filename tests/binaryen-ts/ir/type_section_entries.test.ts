@@ -26,7 +26,7 @@
 // Closing it took byte-identical output from 309/421 to 420/421 with a total
 // size delta of ZERO.
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 
 import { readWat } from '../../../src/tools/read-wat.ts';

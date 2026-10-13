@@ -8,7 +8,7 @@
 // runtime value is the IDENTICAL object, and the one name whose meaning
 // differs is `Type` (core's enum in `./ir`; binaryen-ts's union is `ExprType`).
 
-import { describe, it } from '@std/testing/bdd';
+import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as ir from '../../src/ir/index.ts';
 import * as binaryenView from '../../src/ir/binaryen-ts.ts';

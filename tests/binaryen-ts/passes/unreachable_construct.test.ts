@@ -44,6 +44,7 @@ import { readWat } from '../../../src/tools/read-wat.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
+import { test } from 'node:test';
 
 function assemble(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -85,24 +86,24 @@ const PLAIN_BLOCK = `(module
       (if (local.get 0) (then (unreachable)) (else (unreachable)))
       (i32.const 2))))`;
 
-Deno.test('DCE: a void if whose arms both throw keeps what its try needs after it', () => {
+test('DCE: a void if whose arms both throw keeps what its try needs after it', () => {
   const out = runPass(assemble(LEGACY_TRY), 'DCE');
   assertEquals([call(out, 1), call(out, 0)], [3, 4]);
 });
 
-Deno.test('DCE: the same, with no EH — a void if whose arms both trap', () => {
+test('DCE: the same, with no EH — a void if whose arms both trap', () => {
   const out = runPass(assemble(PLAIN_BLOCK), 'DCE');
   assertEquals([call(out, 1), call(out, 0)], ['trap', 'trap']);
 });
 
-Deno.test('decode → encode: a void if with unreachable arms writes no extra byte', () => {
+test('decode → encode: a void if with unreachable arms writes no extra byte', () => {
   for (const wat of [LEGACY_TRY, PLAIN_BLOCK]) {
     const bytes = assemble(wat);
     assertEquals(writeWasm(readForPasses(bytes)), bytes);
   }
 });
 
-Deno.test('StripEH: a throw that is the last instruction of a typed block still leaves it valid', () => {
+test('StripEH: a throw that is the last instruction of a typed block still leaves it valid', () => {
   // The throw's `drop`s + `unreachable` are spliced into the block, whose
   // `i32` the `unreachable` then satisfies. (It was a void block typed
   // `unreachable`, valid only because the encoder wrote an `unreachable` after
@@ -175,7 +176,7 @@ function codeSection(bytes: Uint8Array): Uint8Array {
 }
 
 for (const [name, wat] of Object.entries(TEXT_CARRIERS)) {
-  Deno.test(`text path: a ${name} carries its declared type, as the decoder's does`, () => {
+  test(`text path: a ${name} carries its declared type, as the decoder's does`, () => {
     const bytes = assemble(wat);
     const fromText = readWat(wat);
     const fromBinary = readForPasses(bytes);
@@ -233,7 +234,7 @@ const PASS_BUILT: [string, string, string, (bytes: Uint8Array) => unknown][] = [
 ];
 
 for (const [pass, name, wat, observe] of PASS_BUILT) {
-  Deno.test(`${pass}: ${name} — no construct typed unreachable, and it validates`, () => {
+  test(`${pass}: ${name} — no construct typed unreachable, and it validates`, () => {
     const mod = readForPasses(assemble(wat));
     new PassRunner(mod, { optimizeLevel: 2, shrinkLevel: 2 }).add(pass).run();
     assertEquals(unreachableCarriers(mod), []);
@@ -244,7 +245,7 @@ for (const [pass, name, wat, observe] of PASS_BUILT) {
   });
 }
 
-Deno.test("StripEH: a try's body block declares the TRY's type, not its body's last instruction's", () => {
+test("StripEH: a try's body block declares the TRY's type, not its body's last instruction's", () => {
   // Through the TEXT parser, whose region takes its last instruction's type
   // (`unreachable` here); the decoder's region already carries the declared one,
   // so a binary fixture cannot tell the two apart. An operand, so the block is
@@ -258,7 +259,7 @@ Deno.test("StripEH: a try's body block declares the TRY's type, not its body's l
   assertEquals(call(writeWasm(mod), 1), 'trap');
 });
 
-Deno.test('encoder: a construct typed unreachable is REFUSED, not written as a void one', () => {
+test('encoder: a construct typed unreachable is REFUSED, not written as a void one', () => {
   // Reachable only by building a node around the type (a cast, or JSON): the
   // carriers' `type` is a `BlockResult`. Writing it as `0x40` gave the construct
   // a declaration it never had.
@@ -269,7 +270,7 @@ Deno.test('encoder: a construct typed unreachable is REFUSED, not written as a v
   assertThrows(() => writeWasm(mod), WasmEncodeError, 'typed `unreachable`');
 });
 
-Deno.test('makeBlock / makeIf DECLARE — void when not told, whatever the children', () => {
+test('makeBlock / makeIf DECLARE — void when not told, whatever the children', () => {
   const trap = makeBlock([makeUnreachable()]);
   const value = makeBlock([makeI32Const(1)]);
   const arms = makeIf(makeI32Const(1), makeUnreachable(), makeUnreachable());
