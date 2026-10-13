@@ -18,12 +18,19 @@ reached only by pushing a bumped `main` without its tag, and fails loudly (`acto
 The sections below are in the order they were found, so a later one can narrow an earlier one — the
 last section, "The tag-push path works unaided", narrows the manual-step warnings above it.
 
-## 🆕 npm as a SECOND registry — DECIDED, planned (owner, 2026-10-13; open-work item 29)
+## 🆕 npm as a SECOND registry — a PARKED contingency (owner, 2026-10-13; open-work 29)
+
+⏸ **Parked the same day:** the owner created a `synapticforge` organization on npm and GitHub, then
+decided "I am leaving it on jsr until it becomes necessary to do otherwise." The repo stays
+`jrmarcum/binaryang`, the JSR scope `@jrmarcum`. **Trigger to reopen:** JSR announces an end or
+degrades, or a consumer needs npm. Then the name is chosen (`@synapticforge/binaryang` was free on
+2026-10-13; the GitHub org existed, created 2026-10-13, 0 repos; npmjs.com blocks scripted checks,
+so the npm org was not verified from here). The plan below is kept so that day starts from it.
 
 Owner: "I think it would be good to add this repo to npm also just in case the jsr gets shut down
 for some reason. We probably need to do this for all of our repos just make sure we have adequate
-coverage." **JSR stays the source**; npm is added beside it, not instead. Nothing is built or
-published yet.
+coverage." **JSR stays the source**; npm would be added beside it, not instead. Nothing is built
+or published.
 
 **Why, beyond JSR's survival** (JSR is run by the Deno team, now Cloudflare; the announcement says
 it keeps running): a plain `npm install` with no `.npmrc`; a `bin` so `npx` runs the CLI (JSR has
@@ -57,8 +64,9 @@ OIDC, provenance) replaces any token, and like JSR's provenance it must be CHECK
 publish, not assumed (§ "The one thing to understand"). This lands with or after B6, which rebuilds
 CI and the release path anyway.
 
-**The owner's calls:** the npm name (scoped `@jrmarcum/binaryang` matches JSR exactly;
-unscoped `binaryang` is shorter for `npx`; both are free today); the npm account and its 2FA /
+**The owner's calls:** the npm name (`@synapticforge/binaryang` under the org; scoped
+`@jrmarcum/binaryang` matches JSR exactly; unscoped `binaryang` is shorter for `npx`; all free on
+2026-10-13); the npm account and its 2FA /
 trusted-publisher setup; WHEN the first npm publish happens. A first publish claims a name
 permanently, so it is never done without the owner's word.
 
