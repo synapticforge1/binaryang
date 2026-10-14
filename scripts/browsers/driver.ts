@@ -30,13 +30,29 @@ if (!url || !specsJson) {
   console.error('usage: node driver.ts <page-url> <BrowserSpec[] JSON>');
   process.exit(2);
 }
+/**
+ * `p`, or a rejection after `ms`. The timer also keeps the process alive: a launch whose promise
+ * never settled let Node exit 13 with no output (Vivaldi under its wrapper script, CI 2026-10-13).
+ */
+function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_ok, bad) => {
+    timer = setTimeout(() => bad(new Error(`${what} did not settle in ${ms / 1000} s`)), ms);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
 for (const spec of JSON.parse(specsJson) as BrowserSpec[]) {
   try {
-    const browser = await ENGINES[spec.engine].launch({
-      headless: true,
-      ...(spec.channel ? { channel: spec.channel } : {}),
-      ...(spec.executablePath ? { executablePath: spec.executablePath } : {}),
-    });
+    const browser = await within(
+      ENGINES[spec.engine].launch({
+        headless: true,
+        ...(spec.channel ? { channel: spec.channel } : {}),
+        ...(spec.executablePath ? { executablePath: spec.executablePath } : {}),
+      }),
+      120_000,
+      'the launch',
+    );
     try {
       const page = await browser.newPage();
       const consoleErrors: string[] = [];

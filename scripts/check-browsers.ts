@@ -81,6 +81,9 @@ export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
       'BINARYANG_VIVALDI',
       `${LOCALAPP}/Vivaldi/Application/vivaldi.exe`,
       'C:/Program Files/Vivaldi/Application/vivaldi.exe',
+      // The binary, before the wrapper scripts: under the wrapper, CI's driver exited 13 (a launch
+      // that never settled; 2026-10-13).
+      '/opt/vivaldi/vivaldi-bin',
       '/usr/bin/vivaldi',
       '/opt/vivaldi/vivaldi',
     ),
