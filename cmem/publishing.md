@@ -15,11 +15,8 @@ the PAT only fixes the `auto-tag` → dispatch path, which the pattern never tak
 reached only by pushing a bumped `main` without its tag, and fails loudly (`actorNotScopeMember`);
 § "Recovery when this happens" applies. The sections below that call the PAT open predate this.
 
-⚠️ **The next release is the FIRST from the B6 workflow** (2026-10-13, [bun-migration.md](bun-migration.md)
-§ "B6"): publish.yml now installs Bun, the dev dependencies and Node 24, and tests with `bun run
-test` / `test:bun` before the direct `deno publish` (bare since B7: no deno.json, so Deno finds `jsr.json`
-itself); auto-tag reads `jsr.json` with Bun. Watch that run's "Verify provenance was recorded on JSR" step and record its
-`rekorLogId`: it is B6's (and B7's) acceptance, and the workflow is not proven until then.
+✅ **The B6 / B7 workflow is PROVEN** (2026-10-14): 1.11.0, its first release, published GREEN with
+provenance (Rekor `3247643457`); § "1.11.0" below.
 
 The sections below are in the order they were found, so a later one can narrow an earlier one — the
 last section, "The tag-push path works unaided", narrows the manual-step warnings above it.
@@ -841,6 +838,36 @@ The flow, as for 1.6.0:
 Asked the same day to "bump and publish 1.6.0" again, the answer was that it already was — check
 `https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
 arming anything.
+
+## 1.11.0 — a MINOR from `main` (2026-10-14 UTC) — 🚀 PUBLISHED by `bun run release`; the first publish through the Bun workflow (B6 / B7), provenance recorded
+
+The owner's go ("lets update the project memory files and then ship 1.11.0"). Every step checked
+through the GitHub and JSR APIs:
+
+1. `main` pushed unbumped at `0842a28fc` (101 commits) — ⚠️ **CI RED, the Gates job's Bun leg.**
+   The log needs admin rights, so it was found by timing: `bun test` fails a test slower than 5 s
+   by default (`node --test` has none), and `fold_prediction`'s corpus test takes ~4 s here.
+   Bun's Linux build was NOT the cause (Bun 1.4.3 for Linux in WSL, with Deno 2.9.7, gave exactly
+   the 36 listed differences). Fixed by `--timeout=600000` in `scripts/test.ts` (a 3 s mutant
+   reproduced the CI failure exactly), pushed `5286fb7ec`: CI GREEN, which confirmed the diagnosis.
+2. The suite from a FRESH CLONE of the commit (the 1.10.0 rule): install, tsc, `bun run test`
+   (5,906; 1 skip: the corpus test, whose external corpus a clone lacks), `bun run test:bun` (the
+   36 listed), `bun run publish:dry`: all exit 0.
+3. `CHANGELOG.md` § 1.11.0 committed (the Unreleased section, plus what it lacked: browser-loadable
+   exports, `wasmOpt` bytes, `InstrCode`, the enums and `Opcode` breaking entries, the reserved-SIMD
+   reader fix, the Asyncify and interpreter fixes).
+4. 1.11.0 typed BY HAND in `jsr.json` and `main.ts` (a minor; `bun run bump` only patches);
+   `version_sync` green; JSR `1.11.0` 404, no remote tag. `bun run release`: the cold `deno publish
+   --dry-run` in an empty `DENO_DIR`, `bun run check`, the entry check, then `bump to v1.11.0`
+   (`fc021fe08`), tag, and ONE push of `main` + `v1.11.0`.
+5. The tag push fired publish.yml (Bun, the dev dependencies, Node 24, `bun run check`, both test
+   legs, then the bare `deno publish`): **GREEN end to end**, with CI and auto-tag green on the same
+   commit. JSR: 1.11.0 created 2026-10-14T01:12:58Z, not yanked, **Rekor log id `3247643457`**;
+   `latestVersion` 1.11.0.
+
+**What this proves:** B6 and B7 of the Bun migration (open-work 26, now closed): auto-tag with no
+Deno, publish.yml judged by CI's checks, and `deno publish` with no deno.json all hold on a real
+release, provenance included.
 
 ## 1.10.0 — a MINOR from `main` (2026-10-09) — 🚀 PUBLISHED by the hand-pushed tag; the dispatch path failed again, 0-for-5
 

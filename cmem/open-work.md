@@ -53,15 +53,15 @@ PUSHED; the version stays 1.10.0):**
   the guide's F11), worked in ITS repo, not from here.
 
 **State, end of 2026-10-13 (supersedes the 2026-10-12 paragraph where they differ; all merged to
-`main` at `0df7f0cfa`, NOT YET PUSHED at the time of writing; owner: "lets update the project
-memory files and then ship 1.11.0"):**
-- **Item 26, the Bun migration: done except B6's proof.** B3 (Biome for `deno lint`, dprint for
+`main` and PUSHED; owner: "lets update the project memory files and then ship 1.11.0"):**
+- 🚀 **1.11.0 PUBLISHED** 2026-10-14T01:12:58Z (UTC) with provenance (Rekor `3247643457`), the first
+  publish through the Bun workflow: B6 / B7 proven, **item 26 CLOSED**. ([publishing.md](publishing.md) § "1.11.0".)
+- **Item 26, the Bun migration: DONE (closed with the 1.11.0 publish).** B3 (Biome for `deno lint`, dprint for
   `deno fmt` byte for byte, each with a canary; no `biome-ignore` left), B5 (the suite on
   `node:test`: `bun run test` on Node 24 is the verdict, `bun run test:bun` must fail exactly 36
   listed JavaScriptCore differences), B6 (auto-tag off Deno; publish.yml runs CI's checks, then
   the one direct `deno publish`), B7 (no `deno.json`; `deno publish` finds `jsr.json` itself; the
-  standalone `comparison/` runs again). **B6 / B7's proof is the 1.11.0 publish: its provenance
-  step must record a `rekorLogId`.** [bun-migration.md](bun-migration.md) has each step.
+  standalone `comparison/` runs again). **B6 / B7 proven by the 1.11.0 publish (Rekor `3247643457`).** [bun-migration.md](bun-migration.md) has each step.
 - **Who runs what:** Deno for `deno publish` (and `deno doc` in one test, and the Deno-run
   `comparison/`); Node 24 for the test verdict and the engine-oracle scripts; Bun for everything
   else.
@@ -75,7 +75,7 @@ memory files and then ship 1.11.0"):**
   (`wg-counter: 45` on wasmtime and wasmer).
 - **1.11.0** carries all of it ([unreleased.md](unreleased.md)): a MINOR (new exports, type-level
   BREAKING entries: the enums as const objects, `Opcode` narrowed).
-- **6 open items:** 13, 14, 15, 25 (after 1.11.0 ships), 26 (B6's proof), 28. 29 (npm as a second
+- **5 open items:** 13, 14, 15, 25 (now schedulable: 1.11.0 shipped), 28. 29 (npm as a second
   registry) PARKED as a contingency. The `code-lens-13` conflict above still stands.
 - ⚠️ This machine's exFAT drive can fail a big `git merge`; check status and `MERGE_HEAD`, and if
   clean, retry (`local/environment.md`, private).
@@ -282,34 +282,13 @@ fatigue.
     / `WasmModule` aliases in `src/compat/wabt-compat.ts`; `ir_subpath.test.ts` and
     `compat_type_names.test.ts` then pin the new surface. A letter to wasmtk first: they pin
     `compat/*` and `wasm-validate`, not the IR subpaths, and declare their own types for the
-    compat names, but say so. **When is the owner's call** — not before the `./ir` release is out.
+    compat names, but say so. **When is the owner's call** — the `./ir` release (1.11.0) went out 2026-10-14, so it can be scheduled now.
 
-26. ◐ 🗓️ **Move the development toolchain from Deno to Bun; JSR stays the source** (owner,
-    2026-10-12). Deno runtime development ends around 2027-10 (the team joined Cloudflare). The
-    published package was already runtime-neutral; tests, scripts, fmt / lint / check and CI were
-    not. Steps B1–B7 with findings and risks: [bun-migration.md](bun-migration.md).
-    ✅ **Decided 2026-10-12: code that runs on both Bun and Node, with Bun as the main runtime**
-    (bun-migration.md § "Bun or Node"), and **all scripts run from Bun** (owner). **Deno is for JSR
-    only** (owner, 2026-10-12: "not the V8 items"): `deno publish` stays unless JSR offers something
-    better, and Deno keeps working after its development ends. No deadline.
-    **The engine referee** (bun-migration.md § "The engine oracle"): Bun's WebAssembly is
-    JavaScriptCore (it differs on 300 of 6,753 corpus modules), so oracle scripts and the test
-    suite's verdict run on the V8 REFEREE, Node 24 (`scripts/v8.ts`), with Node 26 for
-    custom-descriptors and Bun for wide-arithmetic, each measured equal to Deno's results.
-    **Where it stands (2026-10-13), all merged, NOT pushed:**
-    - ✅ B1 (`jsr.json` the one manifest), B2 (`package.json`, `tsconfig.json`, `tsc` 7.0.2,
-      `bun.lock`), B4 (51 scripts `node:`-only, run by `bun run`), 2026-10-12.
-    - ✅ B3: Biome replaces `deno lint` (no `biome-ignore` left; a lint canary) and dprint replaces
-      `deno fmt` byte for byte (a format canary), § "B3 lint" / "B3 formatting".
-    - ✅ B5: the suite on `node:test`; `bun run test` (Node 24) is the verdict, `bun run test:bun`
-      must fail exactly the 36 listed JavaScriptCore differences, § "B5".
-    - ◐ B6: auto-tag off Deno; publish.yml runs the CI gate's checks, then the one direct `deno
-      publish`, § "B6". **PROOF PENDING: the next release, provenance verified (`rekorLogId`).**
-    - ✅ B7: `deno.json`, `deno.lock` and both workspace-member configs deleted; `deno publish`
-      finds `jsr.json` itself (the same 122 files), § "B7". `comparison/` is now standalone
-      (`comparison/deno.json`, its own lock) and runs again: it had been broken since B2.
-    **What is left:** only B6's proof, which is the owner's next release (1.11.0). The owner
-    orders the release against items 13 and 14.
+(Item 26 closed 2026-10-14 (UTC) with the 1.11.0 publish: the development toolchain moved from Deno
+to Bun, JSR kept as the source. B1–B7 are in [bun-migration.md](bun-migration.md); the proof of the
+last two, the first publish through the new workflow, recorded provenance, Rekor log id
+`3247643457`. Deno remains for `deno publish`, one `deno doc` test and the Deno-run `comparison/`.
+Its number is kept free.)
 
 (Item 21 closed 2026-10-09: one `src/` tree by concept, one declaration per name, one IR
 subpath — [one-tree.md](one-tree.md): the four phases, the decisions, what the gate found. Its
