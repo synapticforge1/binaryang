@@ -76,17 +76,21 @@ export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
       '/usr/bin/opera',
       '/usr/lib/x86_64-linux-gnu/opera/opera',
     ),
-    path(
-      'vivaldi',
-      'BINARYANG_VIVALDI',
-      `${LOCALAPP}/Vivaldi/Application/vivaldi.exe`,
-      'C:/Program Files/Vivaldi/Application/vivaldi.exe',
-      // The binary, before the wrapper scripts: under the wrapper, CI's driver exited 13 (a launch
-      // that never settled; 2026-10-13).
-      '/opt/vivaldi/vivaldi-bin',
-      '/usr/bin/vivaldi',
-      '/opt/vivaldi/vivaldi',
-    ),
+    // Vivaldi opens its page in its default context: on CI it launched, then never answered
+    // `newPage()` in a new one (2026-10-13; see BrowserSpec.defaultContext). The binary comes
+    // first, before the wrapper scripts.
+    {
+      ...path(
+        'vivaldi',
+        'BINARYANG_VIVALDI',
+        `${LOCALAPP}/Vivaldi/Application/vivaldi.exe`,
+        'C:/Program Files/Vivaldi/Application/vivaldi.exe',
+        '/opt/vivaldi/vivaldi-bin',
+        '/usr/bin/vivaldi',
+        '/opt/vivaldi/vivaldi',
+      ),
+      defaultContext: true,
+    },
     { name: 'firefox', engine: 'firefox' },
     // Safari's engine, JavaScriptCore, as Playwright ships it: Safari itself is automatable only
     // on macOS (safaridriver).
