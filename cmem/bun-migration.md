@@ -413,6 +413,12 @@ Owner: "move on to 26 and 28"; decided: `@std/assert` / `@std/expect` KEPT via J
   that registers NO test still appears in node's JUnit, as one case named by its own path. (3)
   The converter's import scan looped forever on a trailing `// comment`: bound every scan.
   (4) Biome's `noShadowRestrictedNames` caught a helper named `unescape`.
+  (5) **CI found what this machine could not:** `bun test` fails any test slower than 5 s by
+  default (node --test has no limit); `fold_prediction`'s corpus test, ~4 s here, timed out on
+  GitHub's runner on the first push (2026-10-13) and the Bun leg failed as "not a known
+  difference". `scripts/test.ts` passes `--timeout=600000`; a 3 s mutant reproduces the CI failure
+  exactly. Read from the timing, not the log (job logs need admin rights): the next CI run is the
+  confirmation.
 
 ## B3 formatting: dprint replaces `deno fmt` (2026-10-13)
 
