@@ -315,10 +315,13 @@ provenance verified (`rekorLogId`) — waits for the owner's release** (1.11.0 i
   Deno. Each shown to fail on its mutant of the real file.
 - All three workflows parse (`Bun.YAML`), with the steps in the intended order. CI's `runtimes`
   matrix keeps its Deno leg (consumers on Deno remain).
-- ⚠️ A trap met: writing the new test through an inline `bun -e` stripped every backslash (`s` → `s`,
-  `` → a literal backspace byte), which the editor's view does not show. A parse error caught
-  one; the rest would have been regexes that quietly match the wrong thing. Test code goes through
-  the Write tool, never a shell string.
+- ⚠️ A trap met: writing the new test through an inline `bun -e` stripped every backslash (`\s` → `s`,
+  `\b` → a literal backspace byte), which the editor's view does not show. A parse error caught
+  one; the rest would have been regexes that quietly match the wrong thing. It struck TWICE: this
+  very note, first written the same way, carried a backspace byte where `\b` should be, and the
+  gate's `source_hygiene.test.ts` (no control bytes in any file) failed both test legs on it. Any
+  text holding a backslash (code, a regex, prose ABOUT escapes) goes through the Write / Edit
+  tools, never a shell string.
 
 ## B5: the suite on `node:test` (2026-10-13)
 
