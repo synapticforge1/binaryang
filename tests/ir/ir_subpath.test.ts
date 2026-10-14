@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 //
 // Open-work 21, phase 4: `./ir` replaced `./ir/wabt-ts`, `./ir/binaryen-ts` and `./core/wabt-ts`,
-// deprecated in 1.11.0 and REMOVED after it (open-work 25, 2026-10-14). Their files stay, as the
+// deprecated in 1.11.0 and REMOVED after it (open-work 25, 2026-10-13). Their files stay, as the
 // internal barrels `./ir` is built from. What is pinned: the three are no longer published; `./ir`
 // exports every name the three barrels export — types included, read from `deno doc` — from the
 // same declaration, with no exception now that binaryen-ts's deprecated `Type` alias is gone;

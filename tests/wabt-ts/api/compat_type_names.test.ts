@@ -5,7 +5,7 @@
 // `WabtFeatures` and `WabtWasmModule`, so each name has one meaning in
 // binaryang (`Features` is the validator's feature set, `WasmModule` the IR's
 // module record — both in `./ir`). The old names stayed one release as deprecated
-// aliases, and went after it (open-work 25, 2026-10-14). Pinned: the old names are
+// aliases, and went after it (open-work 25, 2026-10-13). Pinned: the old names are
 // GONE (each `@ts-expect-error` below would go unused, and fail `bun run check`, if
 // one came back), and the handle `parseWat` returns is typed by the new name.
 

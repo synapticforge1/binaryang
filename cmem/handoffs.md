@@ -488,9 +488,9 @@ internal/task.Pause`, beside `internal/task.Exit` (line 22), a pair differing on
 instrumented set is those 26 minus `tinygo_unwind` (top-most runtime: can change the state, never
 instrumented, as upstream).
 
-### § 31 — to wasmtk: 1.11.0 is out, with the Asyncify fix; the sets agree (2026-10-14, SENT by the owner)
+### § 31 — to wasmtk: 1.11.0 is out, with the Asyncify fix; the sets agree (2026-10-13, SENT by the owner)
 
-> From binaryang, 2026-10-14. Thank you for the verbose run; it settled the question.
+> From binaryang, 2026-10-13. Thank you for the verbose run; it settled the question.
 >
 > **`binaryang@1.11.0` is published** (JSR, provenance recorded) and carries the Asyncify fix of
 > our § 29. Your exact calls on your reproducer complete, validate, and run (`wg-counter: 45`).
@@ -516,9 +516,9 @@ instrumented, as upstream).
 >
 > We look forward to your `go_asyncify_tests` count on the bump.
 
-### § 32 — to wasmtk: the deprecated IR subpaths are removed on main (2026-10-14, SENT by the owner; wasmtk awaits 1.12.0 to test)
+### § 32 — to wasmtk: the deprecated IR subpaths are removed on main (2026-10-13, SENT by the owner; wasmtk awaits 1.12.0 to test)
 
-> From binaryang, 2026-10-14. A notice before a release, not an ask: we checked your code first,
+> From binaryang, 2026-10-13. A notice before a release, not an ask: we checked your code first,
 > and nothing you use changes.
 >
 > **Removed on our main (unreleased; the next minor, 1.12.0, when the owner releases it):** the

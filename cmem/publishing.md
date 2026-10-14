@@ -15,7 +15,7 @@ the PAT only fixes the `auto-tag` → dispatch path, which the pattern never tak
 reached only by pushing a bumped `main` without its tag, and fails loudly (`actorNotScopeMember`);
 § "Recovery when this happens" applies. The sections below that call the PAT open predate this.
 
-✅ **The B6 / B7 workflow is PROVEN** (2026-10-14): 1.11.0, its first release, published GREEN with
+✅ **The B6 / B7 workflow is PROVEN** (2026-10-13): 1.11.0, its first release, published GREEN with
 provenance (Rekor `3247643457`); § "1.11.0" below.
 
 The sections below are in the order they were found, so a later one can narrow an earlier one — the
@@ -839,7 +839,7 @@ Asked the same day to "bump and publish 1.6.0" again, the answer was that it alr
 `https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
 arming anything.
 
-## 1.12.0 — a MINOR from `main` (2026-10-14 UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
+## 1.12.0 — a MINOR from `main` (2026-10-13 UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
 
 The owner's go: "wasmtk has been notified already and is awaiting release 1.12.0 for testing. do the
 release". It removes the subpaths and type names 1.11.0 deprecated (open-work 25; BREAKING, hence a
@@ -852,10 +852,10 @@ minor). Every step checked through the APIs:
 3. 1.12.0 typed by hand in `jsr.json` and `main.ts`; `version_sync` green; JSR 404, no remote tag;
    `bun run release` (cold publish dry run, tsc, entry check) committed `bump to v1.12.0`
    (`604b33cf8`) and pushed `main` + `v1.12.0` together.
-4. publish.yml GREEN, with CI and auto-tag; JSR 1.12.0 created 2026-10-14T01:39:42Z, not yanked,
+4. publish.yml GREEN, with CI and auto-tag; JSR 1.12.0 created 2026-10-13T01:39:42Z, not yanked,
    **Rekor log id `3247710678`**, `latestVersion` 1.12.0.
 
-## 1.11.0 — a MINOR from `main` (2026-10-14 UTC) — 🚀 PUBLISHED by `bun run release`; the first publish through the Bun workflow (B6 / B7), provenance recorded
+## 1.11.0 — a MINOR from `main` (2026-10-13 UTC) — 🚀 PUBLISHED by `bun run release`; the first publish through the Bun workflow (B6 / B7), provenance recorded
 
 The owner's go ("lets update the project memory files and then ship 1.11.0"). Every step checked
 through the GitHub and JSR APIs:
@@ -878,7 +878,7 @@ through the GitHub and JSR APIs:
    (`fc021fe08`), tag, and ONE push of `main` + `v1.11.0`.
 5. The tag push fired publish.yml (Bun, the dev dependencies, Node 24, `bun run check`, both test
    legs, then the bare `deno publish`): **GREEN end to end**, with CI and auto-tag green on the same
-   commit. JSR: 1.11.0 created 2026-10-14T01:12:58Z, not yanked, **Rekor log id `3247643457`**;
+   commit. JSR: 1.11.0 created 2026-10-13T01:12:58Z, not yanked, **Rekor log id `3247643457`**;
    `latestVersion` 1.11.0.
 
 **What this proves:** B6 and B7 of the Bun migration (open-work 26, now closed): auto-tag with no

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 //
-// The real-browser job (open-work 28.3, 2026-10-14) runs the browsers the owner named: "chromium
+// The real-browser job (open-work 28.3, 2026-10-13) runs the browsers the owner named: "chromium
 // based, firefox, opera, vivaldi, brave, edge", and Safari (owner: "add safari instead of
 // duckduckgo"), as WebKit, its engine. Pinned: that list and each browser's engine, and that CI
 // installs them and runs the job with `--require-all`, so a browser that cannot launch FAILS there
