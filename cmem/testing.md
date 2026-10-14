@@ -15,6 +15,7 @@ gates.
 bun run test           # node --test on Node 24, the V8 referee: THE verdict (5,902 leaf tests, 2026-10-13)
 bun run test:bun       # the same files on Bun; its failures must be exactly tests/bun-known-differences.json
 bun run check          # tsc over src/, scripts/ and tests/ (two tests/ tsconfigs)
+bun run browsers       # the library in REAL browsers (open-work 28.3): the installed ones here; CI requires all
 ```
 
 In a test, a file or a temp dir is `tests/test_fs.ts` (`fsx.readTextFile`, `fsx.makeTempDir`, …; no

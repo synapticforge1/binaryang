@@ -48,46 +48,65 @@ export function staticNodeImports(js: string): string[] {
   return [...new Set(js.match(STATIC_NODE) ?? [])];
 }
 
-if (import.meta.main) {
-  const root = fileURLToPath(new URL('..', import.meta.url));
+/** Each export's bundle file name: `./tools/wasm-opt` → `tools_wasm-opt.js`, `.` → `root.js`. */
+export const bundleName = (sub: string): string =>
+  `${sub === '.' ? 'root' : sub.slice(2).replace(/\//g, '_')}.js`;
+
+/**
+ * Bundles every export in jsr.json for the browser into `out`; the problems found (an export that
+ * does not bundle, or keeps a top-level `node:` import). Shared with `check-browsers.ts`, which
+ * then LOADS the bundles in real browsers (open-work 28.3).
+ */
+export function bundleExports(root: string, out: string): {
+  exports: Record<string, string>;
+  problems: string[];
+} {
   const cfg = JSON.parse(readFileSync(join(root, 'jsr.json'), 'utf8')) as {
     exports: Record<string, string>;
   };
-  const out = mkdtempSync(join(tmpdir(), 'binaryang-browser-'));
   const problems: string[] = [];
-  try {
-    for (const [sub, file] of Object.entries(cfg.exports)) {
-      const target = join(out, `${sub === '.' ? 'root' : sub.slice(2).replace(/\//g, '_')}.js`);
-      const r = spawnSync(
-        'bun',
-        // `--external node:*` KEEPS every node: import in the output, where STATIC_NODE can see it.
-        // Without it Bun's browser target silently STUBS some builtins: `node:fs` and
-        // `node:fs/promises` become `(() => ({}))` (every function undefined), exit 0, no warning,
-        // and the import disappears from the bundle (measured, Bun 1.4.3, 2026-10-12). `node:path`
-        // is polyfilled outright. A deferred `import("node:…")` stays visible too, and stays allowed.
-        [
-          'build',
-          join(root, file),
-          '--target=browser',
-          '--format=esm',
-          '--external',
-          'node:*',
-          `--outfile=${target}`,
-        ],
-        { encoding: 'utf8' },
-      );
-      if (r.status !== 0) {
-        const why = `${r.stderr}${r.stdout}`.split('\n').find((l) => /error/i.test(l)) ?? '';
-        problems.push(`${sub}: does not bundle for the browser: ${why.trim()}`);
-        continue;
-      }
-      const found = staticNodeImports(readFileSync(target, 'utf8'));
-      if (found.length > 0) problems.push(`${sub}: imports ${found.join(', ')} at the top level`);
+  for (const [sub, file] of Object.entries(cfg.exports)) {
+    const target = join(out, bundleName(sub));
+    const r = spawnSync(
+      'bun',
+      // `--external node:*` KEEPS every node: import in the output, where STATIC_NODE can see it.
+      // Without it Bun's browser target silently STUBS some builtins: `node:fs` and
+      // `node:fs/promises` become `(() => ({}))` (every function undefined), exit 0, no warning,
+      // and the import disappears from the bundle (measured, Bun 1.4.3, 2026-10-12). `node:path`
+      // is polyfilled outright. A deferred `import("node:…")` stays visible too, and stays allowed.
+      [
+        'build',
+        join(root, file),
+        '--target=browser',
+        '--format=esm',
+        '--external',
+        'node:*',
+        `--outfile=${target}`,
+      ],
+      { encoding: 'utf8' },
+    );
+    if (r.status !== 0) {
+      const why = `${r.stderr}${r.stdout}`.split('\n').find((l) => /error/i.test(l)) ?? '';
+      problems.push(`${sub}: does not bundle for the browser: ${why.trim()}`);
+      continue;
     }
+    const found = staticNodeImports(readFileSync(target, 'utf8'));
+    if (found.length > 0) problems.push(`${sub}: imports ${found.join(', ')} at the top level`);
+  }
+  return { exports: cfg.exports, problems };
+}
+
+if (import.meta.main) {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const out = mkdtempSync(join(tmpdir(), 'binaryang-browser-'));
+  let result: ReturnType<typeof bundleExports>;
+  try {
+    result = bundleExports(root, out);
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
-  const total = Object.keys(cfg.exports).length;
+  const { exports: cfgExports, problems } = result;
+  const total = Object.keys(cfgExports).length;
   if (problems.length > 0) {
     console.log(['Exports that do not load in a browser:', ...problems].join('\n'));
     console.log(`${problems.length} of ${total} exports fail`);

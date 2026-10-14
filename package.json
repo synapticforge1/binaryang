@@ -31,7 +31,8 @@
     "fmt": "dprint fmt",
     "fmt:check": "dprint check && bun scripts/check-fmt-canary.ts",
     "publish:dry": "deno publish --dry-run --allow-dirty",
-    "comparison": "deno check --config comparison/deno.json comparison/ && deno test --config comparison/deno.json --allow-read --allow-write --allow-run --allow-env --allow-net 'comparison/tests/*.compare.ts'"
+    "comparison": "deno check --config comparison/deno.json comparison/ && deno test --config comparison/deno.json --allow-read --allow-write --allow-run --allow-env --allow-net 'comparison/tests/*.compare.ts'",
+    "browsers": "bun scripts/check-browsers.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
@@ -39,6 +40,7 @@
     "@std/expect": "npm:@jsr/std__expect@1.0.19",
     "@types/node": "~22.18.0",
     "dprint": "0.57.4",
+    "playwright": "1.63.0",
     "typescript": "7.0.2"
   }
 }
