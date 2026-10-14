@@ -216,7 +216,19 @@ Its number is kept free.)
     operator types. What "runs everywhere" still lacks is EVIDENCE from a real browser, and the
     browser use case lacks a measurement. Two pieces, in this order (the second uses the first's
     harness), then one optional:
-    - **28.3 — a real-browser job.** *What:* a static page, served locally by Bun, that loads the
+    - **28.3 — a real-browser job.** ✅ **BUILT 2026-10-14** (owner: "1. Playright, 2. chromium based,
+      firefox, opera, vivaldi, brave, edge, duckduckgo, 3. commit as test modules", then "add safari
+      instead of duckduckgo"): `bun run browsers` (scripts/check-browsers.ts, scripts/browsers/), Playwright
+      1.63.0. Here: Chromium 153, Chrome 154, Edge 155, Firefox 155 and Safari's engine (WebKit 26.6) all
+      pass: 19 exports load, 421 corpus modules, every hash equal to the host's (smoke `7dbdcd45…`, the
+      same as every runtime's), 0 engine refusals, so tests/browser-known-differences.json is empty.
+      Brave, Opera, Vivaldi are not installed here (skipped, named). Mutants: a browser-only break
+      (`process` touched in `wat2wasm`) fails every browser; a stale list entry fails. CI: a `browsers`
+      job (scripts/ci/install-browsers.ts: Playwright's three with `--with-deps`, Brave / Opera /
+      Vivaldi from their apt repositories; Chrome and Edge from GitHub's image) runs `--require-all`;
+      **UNPROVEN until it runs on GitHub** (the Linux installs cannot be tried here). DuckDuckGo's browser
+      cannot be automated (no protocol; it is WebView2 on Windows, WebKit on macOS): Safari's engine
+      replaced it. *What (as scoped):* a static page, served locally by Bun, that loads the
       browser bundle of EVERY export and runs, through the library (no CLI): (a) the cli-smoke
       equivalent (`wat2wasm` on a fixed module), whose SHA-256 must equal the Deno / Node / Bun
       hash; (b) a corpus pass: `wat2wasm` → `wasm2wat` round trip, and `wasmOpt` bytes in →

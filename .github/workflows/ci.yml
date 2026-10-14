@@ -126,6 +126,37 @@ jobs:
           bun run collisions >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
           bun run collisions --quiet || true
 
+  # The library in REAL browsers (open-work 28.3; owner, 2026-10-14: Playwright; "chromium based,
+  # firefox, opera, vivaldi, brave, edge", and Safari as WebKit, its engine). Every export loads,
+  # the smoke hash and the corpus hashes equal the host's, and each engine's refusals match
+  # tests/browser-known-differences.json. `--require-all`: a browser that cannot launch fails.
+  browsers:
+    name: Browsers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      # Playwright's driver runs on Node (the referee major, as the tests).
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install the browsers
+        run: bun scripts/ci/install-browsers.ts
+
+      - name: Run the library in every browser
+        run: bun run browsers --require-all
+
   runtimes:
     name: CLI on ${{ matrix.name }}
     runs-on: ubuntu-latest
