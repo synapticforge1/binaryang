@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 // Open-work 23, E4: `wasm-interp` — the interpreter as a CLI. The interpreter
-// itself is held by `deno task interp` and `interpreter.test.ts`; this pins the
+// itself is held by `bun run interp` and `interpreter.test.ts`; this pins the
 // tool's own surface: which exports run, how an argument is read, how a
 // result, a trap and a stop are printed.
 

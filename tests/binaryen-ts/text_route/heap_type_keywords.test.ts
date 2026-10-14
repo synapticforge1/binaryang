@@ -13,14 +13,14 @@
 // declared them. Four of twelve keywords broken in both directions.
 //
 // Nothing caught it because nothing asserted on the keyword set: the round-trip
-// corpus is binary-sourced, and `deno task baseline` compares OUR bytes against
+// corpus is binary-sourced, and `bun run baseline` compares OUR bytes against
 // OUR bytes. wabt-ts had the right table all along (`core/types.ts`), so the
 // two implementations disagreed silently — the case for checking a vocabulary
 // against the SPEC rather than against the other half of the same repo.
 //
 // ⚠️ Upstream wabt cannot arbitrate this one: 1.0.41 has no GC heap-type text
 // support at all (`(ref null any)` → `unexpected token "any"`), which is the
-// same limitation that makes it skip 30 files in `deno task spec:prepare`.
+// same limitation that makes it skip 30 files in `bun run spec:prepare`.
 
 import { describe, it } from 'node:test';
 import { assertEquals, assertThrows } from '@std/assert';

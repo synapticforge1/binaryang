@@ -12,7 +12,7 @@
 //
 //     { kind: 'name', name: 'func' }      // a valid Var, so a valid HeapTypeRef
 //
-// Six sites built exactly that. `deno task baseline` caught one (a funcidx
+// Six sites built exactly that. `bun run baseline` caught one (a funcidx
 // elem segment stopped printing its `func` shorthand); the other five were
 // latent, in the two validators, where a keyword in the wrong arm makes
 // `sameHeap` compare unequal against a correctly-parsed one and the type

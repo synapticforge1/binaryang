@@ -17,7 +17,7 @@
 // parser now looks names up in the one table (`memory-access.ts`), so a name that
 // is not a row is not a load or store at all.
 //
-// `deno task spec` cannot see any of this: it drives the wabt-ts parser, not
+// `bun run spec` cannot see any of this: it drives the wabt-ts parser, not
 // this one.
 
 import { describe, it } from 'node:test';

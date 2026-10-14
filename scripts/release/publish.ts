@@ -11,7 +11,7 @@
  *   1. bun run bump        # writes the next version into jsr.json
  *   2. bun run release     # commits + tags + pushes (this script)
  *
- * Named `release`, not `publish`, deliberately: `deno task publish:dry` runs
+ * Named `release`, not `publish`, deliberately: `bun run publish:dry` runs
  * `deno publish --dry-run`, which checks the JSR manifest and is NOT a dry run
  * of this script. Two names one keystroke apart, doing unrelated things, with
  * only one of them irreversible.
@@ -117,34 +117,38 @@ if (remoteTag.trim() !== '') {
   process.exit(1);
 }
 
-// 0c. GUARD: a COLD type check, before anything is committed or tagged.
+// 0c. GUARD: COLD checks, before anything is committed or tagged.
 //
-// `publish.yml` type-checks with no cache; a local check does not. Editing file
-// A does not re-check file B when B's types depend on A, so a stale local cache
+// `publish.yml` checks with no cache; a local check does not. Editing file A
+// does not re-check file B when B's types depend on A, so a stale local cache
 // passes what CI fails — and CI fails AFTER the tag is public. That shipped
 // binaryen-ts v1.2.4 broken: an orphaned tag, no JSR publish, a burned version.
 // `--reload` is not enough: it does not invalidate a resolved dependency
 // VERSION, and only a fresh `DENO_DIR` proves the whole chain (cmem
-// best-practices.md). So the same `deno task check` publish.yml runs, in an
-// empty `DENO_DIR`.
+// best-practices.md).
+//
+// Since Bun migration B7 there is no deno.json and no `deno check`: the Deno
+// type check publish.yml still runs is the one inside `deno publish` itself, so
+// THAT is what runs here, as a dry run, in an empty `DENO_DIR`. (It caught, the
+// day it was written, `import.meta.main` untyped once deno.json was gone.)
 const coldDir = await mkdtemp(join(tmpdir(), 'binaryang-release-check-'));
 try {
-  console.log(`$ DENO_DIR=${coldDir} deno task check   (cold, as publish.yml runs it)`);
+  console.log(`$ DENO_DIR=${coldDir} deno publish --dry-run --allow-dirty   (cold)`);
   // `env` REPLACES the environment in node:child_process (Deno.Command merged it), so the
   // parent's is spread in: without PATH, `deno` itself would not be found.
-  const cold = spawnSync('deno', ['task', 'check'], {
+  const cold = spawnSync('deno', ['publish', '--dry-run', '--allow-dirty'], {
     env: { ...process.env, DENO_DIR: coldDir },
     stdio: 'inherit',
   });
   if (cold.status !== 0) {
-    console.error(`\nRefusing to release ${tag}: the cold type check failed.`);
+    console.error(`\nRefusing to release ${tag}: the cold publish dry run failed.`);
     console.error('  publish.yml would fail the same way, after the tag was public.');
     process.exit(1);
   }
 } finally {
   await rm(coldDir, { recursive: true }).catch(() => {});
 }
-// …and publish.yml's second type check (Bun migration B6): `tsc` over src/, scripts/ and tests/.
+// …and publish.yml's type check (Bun migration B6 / B7): `tsc` over src/, scripts/ and tests/.
 // No cache to go stale: `tsc -p` without `incremental` checks every file every time.
 console.log('$ bun run check   (tsc, as publish.yml runs it)');
 if (spawnSync('bun', ['run', 'check'], { stdio: 'inherit' }).status !== 0) {
@@ -195,6 +199,6 @@ await run(['git', 'push', 'origin', 'main', tag]);
 console.log(`\nPushed ${tag}. publish.yml will run:`);
 console.log(`  https://github.com/jrmarcum/binaryang/actions`);
 console.log('');
-console.log('It performs: version verify -> deno task check + bun run check -> bun run test');
-console.log('(Node 24) + bun run test:bun -> deno publish (with OIDC provenance) -> create');
-console.log('GitHub Release -> verify provenance on JSR.');
+console.log('It performs: version verify -> bun run check -> bun run test (Node 24) +');
+console.log('bun run test:bun -> deno publish (with OIDC provenance) -> create GitHub');
+console.log('Release -> verify provenance on JSR.');

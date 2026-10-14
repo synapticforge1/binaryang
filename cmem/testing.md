@@ -19,7 +19,8 @@ bun run check          # tsc over src/, scripts/ and tests/ (two tests/ tsconfig
 
 In a test, a file or a temp dir is `tests/test_fs.ts` (`fsx.readTextFile`, `fsx.makeTempDir`, …; no
 `Deno.*`), and the CLI as a child process is `tests/run_ts.ts` (`runTsAsync(main, [tool, …])`). Deno
-runs `node:test` too, so `deno task test` still works until B7, but it is no longer the gate.
+runs `node:test` too, but deno.json and its `test` task are gone (B7); `bun run comparison` is the
+one Deno-run suite (comparison/deno.json).
 
 The Deno-era commands, kept for the record:
 

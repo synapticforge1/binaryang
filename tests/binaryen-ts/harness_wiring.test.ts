@@ -1,57 +1,29 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 //
-// The `test` task must name every tree under `tests/` EXPLICITLY.
+// The test runner must name every tree under `tests/` EXPLICITLY.
 //
-// `deno test tests/` collects only 513 of 907 tests here and exits 0. The cause
-// is the workspace member at `tests/binaryen-ts/`: a directory containing a
-// member shadows its sibling directories during discovery, so `tests/wabt-ts/`
-// is never walked. Measured, and re-measured after the `_test.ts` -> `.test.ts`
-// rename to rule the naming convention out -- the count did not move, so the
-// member is the mechanism and the naming split was not.
+// History: `deno test tests/` collected only 513 of 907 tests and exited 0. The
+// workspace member at `tests/binaryen-ts/` shadowed its sibling directories
+// during discovery, so `tests/wabt-ts/` was never walked: a green run that
+// covered half the suite, which nothing reports, because 513 passing tests look
+// exactly like 513 passing tests. So the `deno test` task named each tree, and
+// this test held it to that.
 //
-// The failure mode is the dangerous kind: a green run that covered half the
-// suite. Nothing reports it, because 513 passing tests look exactly like 513
-// passing tests. This test is the thing that reports it.
+// The suite left Deno (Bun migration B5, 2026-10-13) and deno.json with its
+// members went (B7): the trees are `TEST_DIRS` in scripts/test.ts, which
+// `bun run test` (Node, the referee) and `bun run test:bun` both take them from.
+// The rule is the same: a tree left out would go quietly unrun on both.
 //
 // It deliberately derives the expected trees from the FILESYSTEM rather than
-// hard-coding them, so adding `tests/<new-tree>/` fails here until the task is
-// updated -- rather than silently going uncollected.
-//
-// This file lives in `tests/binaryen-ts/` on purpose: that is the tree that IS
-// always collected, so the guard itself cannot be skipped by the bug it guards.
+// hard-coding them, so adding `tests/<new-tree>/` fails here until the runner
+// names it -- rather than silently going uncollected.
 
 import { assert } from '@std/assert';
 import { test } from 'node:test';
 import * as fsx from '../test_fs.ts';
 import { TEST_DIRS } from '../../scripts/test.ts';
 
-test('the test task names every tree under tests/', async () => {
-  const root = new URL('../../', import.meta.url);
-  const cfg = JSON.parse(await fsx.readTextFile(new URL('deno.json', root))) as {
-    tasks: Record<string, string>;
-  };
-  const task = cfg.tasks['test'];
-  assert(task, 'no `test` task in deno.json');
-
-  const trees: string[] = [];
-  for await (const e of fsx.readDir(new URL('tests/', root))) {
-    if (e.isDirectory) trees.push(e.name);
-  }
-  assert(trees.length > 0, 'no test trees found');
-
-  const missing = trees.filter((t) => !task.includes(`tests/${t}/`));
-  assert(
-    missing.length === 0,
-    `the \`test\` task does not name: ${missing.join(', ')}.\n` +
-      `A bare \`deno test tests/\` silently collects only the workspace member ` +
-      `and exits 0 — half the suite, reported green.\nTask is: ${task}`,
-  );
-});
-
-// The same rule for the runner off Deno (Bun migration B5, 2026-10-13): `bun run test` (Node, the
-// referee) and `bun run test:bun` take their trees from `TEST_DIRS`, and a tree left out of it
-// would go quietly unrun on both.
 test('scripts/test.ts names every tree under tests/', async () => {
   const trees: string[] = [];
   for await (const e of fsx.readDir(new URL('../../tests/', import.meta.url))) {

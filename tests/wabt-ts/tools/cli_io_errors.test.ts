@@ -24,7 +24,7 @@
 //
 // ## Why this file has two halves
 //
-// `deno task test` ran `deno test --allow-read` when this was written, so a
+// `bun run test` ran `deno test --allow-read` when this was written, so a
 // subprocess test could not run in the normal gate — and a test that always
 // skips protects nothing. (It grants `--allow-run` now, so both halves run in
 // the gate; the split stays, for a run without that permission.) So:

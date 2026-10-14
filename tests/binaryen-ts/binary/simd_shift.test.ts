@@ -8,7 +8,7 @@
 // form, because LocalCSE keys a `Binary` and never keyed a `SIMDShift`.
 //
 // This is the gate the scoping asked for. The 421-module corpus holds ZERO SIMD
-// shifts, so `deno task baseline` and `deno task direct` cannot see K3 at all.
+// shifts, so `bun run baseline` and `bun run direct` cannot see K3 at all.
 // Every entry path is covered, because before the merge binaryen-ts held TWO
 // shapes for one instruction depending on how the module arrived (the bridge
 // built `binary`, the decoder and parseWat built `simd.shift`):

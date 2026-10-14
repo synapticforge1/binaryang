@@ -10,7 +10,7 @@
 // of the alias trial's 2,012 errors. `ExpressionKind` is now V4's shape: a const
 // object with a same-named union type, so each member IS its literal string.
 //
-// The pins below are compile-time; `deno task check` enforces them.
+// The pins below are compile-time; `bun run check` enforces them.
 
 import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';

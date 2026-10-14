@@ -36,9 +36,9 @@ describe('T13.43 — release preflight', () => {
     expect(releaseBlockers('M  jsr.json\n')).toEqual([]);
   });
 
-  // The status `deno task bump` actually leaves. The guard exempted deno.json
-  // alone while the bump also rewrites main.ts, so `deno task bump` followed by
-  // `deno task release` -- the documented flow -- refused at this guard with
+  // The status `bun run bump` actually leaves. The guard exempted deno.json
+  // alone while the bump also rewrites main.ts, so `bun run bump` followed by
+  // `bun run release` -- the documented flow -- refused at this guard with
   // `[" M main.ts"]` (found 2026-09-14). 1.5.4 shipped only because its bump
   // was committed by hand first.
   it('does not block the status a real bump leaves (jsr.json AND main.ts)', () => {
@@ -49,7 +49,7 @@ describe('T13.43 — release preflight', () => {
   // The class, not the instance: the files the bump WRITES and the files the
   // release STAGES are one list. Read off bump_version.ts's write sites, so a
   // third version literal added to the bump fails here instead of at release.
-  it('exempts exactly the files deno task bump writes', async () => {
+  it('exempts exactly the files bun run bump writes', async () => {
     const bump = await fsx.readTextFile('scripts/release/bump_version.ts');
     const names = [...bump.matchAll(/\bwriteFile\(\s*(\w+)/g)].map((m) => m[1]!);
     expect(names.length).toBeGreaterThan(0);

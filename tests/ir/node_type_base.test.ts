@@ -15,7 +15,7 @@
 // The alias trial (binaryen-ts's `Expression` := wabt-ts's `Expr`) went 305 →
 // 73 errors: 248 of them were these two facts.
 //
-// Compile-time pins; `deno task check` enforces them.
+// Compile-time pins; `bun run check` enforces them.
 
 import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';

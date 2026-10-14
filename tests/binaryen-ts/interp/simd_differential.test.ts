@@ -8,7 +8,7 @@
 //
 // The operators come from D1 (`src/definitions/opcodes.json`): every SIMD
 // instruction that is not a memory access (those are the interpreter's, run by
-// `deno task interp`) or `v128.const`. So the test also asserts COVERAGE — an
+// `bun run interp`) or `v128.const`. So the test also asserts COVERAGE — an
 // operator the core answers `null` for fails here.
 //
 // A `v128` cannot cross the JS boundary, so each operator's export takes and
@@ -20,7 +20,7 @@
 // any arithmetic NaN — both must be NaN and ours quiet. Everything else is
 // exact to the bit. The RELAXED operators are implementation-defined, so V8 is
 // not their oracle: the spec testsuite's `either` lists judge them (through
-// `deno task interp`); here they are only required to evaluate.
+// `bun run interp`); here they are only required to evaluate.
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';

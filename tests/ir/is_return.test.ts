@@ -5,7 +5,7 @@
 // ABSENT. binaryen-ts wrote `false` where wabt-ts wrote nothing — two spellings
 // of "a plain call" on 24,737 corpus nodes, which every reader already treated
 // alike. The type now admits only `true`, so `false` is unrepresentable: the
-// inversion is compile-time, and `deno task check` enforces it.
+// inversion is compile-time, and `bun run check` enforces it.
 
 import { describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';

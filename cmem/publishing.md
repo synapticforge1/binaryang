@@ -17,9 +17,9 @@ reached only by pushing a bumped `main` without its tag, and fails loudly (`acto
 
 ⚠️ **The next release is the FIRST from the B6 workflow** (2026-10-13, [bun-migration.md](bun-migration.md)
 § "B6"): publish.yml now installs Bun, the dev dependencies and Node 24, and tests with `bun run
-test` / `test:bun` before the unchanged, direct `deno publish --config jsr.json`; auto-tag reads
-`jsr.json` with Bun. Watch that run's "Verify provenance was recorded on JSR" step and record its
-`rekorLogId`: it is B6's acceptance, and the workflow is not proven until then.
+test` / `test:bun` before the direct `deno publish` (bare since B7: no deno.json, so Deno finds `jsr.json`
+itself); auto-tag reads `jsr.json` with Bun. Watch that run's "Verify provenance was recorded on JSR" step and record its
+`rekorLogId`: it is B6's (and B7's) acceptance, and the workflow is not proven until then.
 
 The sections below are in the order they were found, so a later one can narrow an earlier one — the
 last section, "The tag-push path works unaided", narrows the manual-step warnings above it.

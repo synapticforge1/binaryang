@@ -7,7 +7,7 @@
 #   runtimes  — does the CLI actually run where we say it does? The support
 #               claim in the README is a promise, and a promise wants a job.
 #
-# An exit code is not evidence in this codebase. `deno task test` proves the
+# An exit code is not evidence in this codebase. `bun run test` proves the
 # suites ran; `bun run baseline` proves the emitted bytes did not move, which
 # is a different and stronger claim.
 
@@ -27,6 +27,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Deno for the JSR dry run below only (owner, 2026-10-12: Deno for JSR).
       - name: Install Deno
         uses: denoland/setup-deno@v2
         with:
@@ -56,13 +57,10 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      # THE type check (B2; tests/ since B5; alone since B7, when deno.json and `deno check` went):
+      # `tsc` over the shipped code, scripts/ and tests/, with @types/node pinned to the Node floor
+      # and the strict lint flags (noUnusedLocals, …).
       - name: Type-check
-        run: deno task check
-
-      # The Bun / Node type check (B2): `tsc` over the shipped code, scripts/ and (since B5)
-      # tests/, with @types/node pinned to the Node floor and the strict lint flags
-      # (noUnusedLocals, …). Runs NEXT TO `deno task check` until deno.json goes (B7).
-      - name: Type-check (tsc, for Bun and Node)
         run: bun run check
 
       # BINDING (README "upstream names are reserved"). A bare upstream name may
@@ -114,10 +112,9 @@ jobs:
         run: bun run baseline
 
       - name: Verify publish manifest (dry run, no provenance)
-        # `--config jsr.json`: the package manifest is jsr.json since 2026-10-12, and with a
-        # deno.json present Deno would otherwise take the package from deno.json
-        # (cmem/bun-migration.md).
-        run: deno publish --dry-run --allow-dirty --config jsr.json
+        # jsr.json is the package manifest, and with no deno.json (B7) Deno finds it by itself;
+        # the same 122 files as with `--config jsr.json` before (cmem/bun-migration.md § "B7").
+        run: bun run publish:dry
 
       # REPORTED, NOT GATED, on purpose. This is the convergence indicator: the
       # number of exported type names declared in both `src/` trees. Failing on

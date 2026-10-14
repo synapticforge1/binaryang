@@ -1,6 +1,6 @@
 # Auto-tag main when `jsr.json` version is ahead of the latest tag.
 #
-# Closes the gap between `deno task bump` + commit and the tag push that
+# Closes the gap between `bun run bump` + commit and the tag push that
 # triggers `.github/workflows/publish.yml`. Without this workflow, the user has
 # to remember a separate `git tag vX.Y.Z && git push origin vX.Y.Z` step — and
 # missing that step silently skips the release (the publish workflow is keyed

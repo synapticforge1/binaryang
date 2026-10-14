@@ -15,7 +15,7 @@
  * present and adjacent in the published package. Cross-runtime support is a
  * published capability, so the constant stays.
  *
- * So the drift is closed from two sides instead. `deno task bump` rewrites both
+ * So the drift is closed from two sides instead. `bun run bump` rewrites both
  * files, and this test fails if they ever disagree — including if someone sets a
  * minor version by hand, which is exactly how 1.5.0 was released.
  *
@@ -57,22 +57,23 @@ test('version: main.ts VERSION matches jsr.json', async () => {
     match?.[1],
     declared,
     `main.ts reports ${match?.[1]} but jsr.json says ${declared}. ` +
-      'Run `deno task bump`, which rewrites both, or set both by hand for a minor.',
+      'Run `bun run bump`, which rewrites both, or set both by hand for a minor.',
   );
 });
 
-test('version: deno.json does not name the package (jsr.json is the one manifest)', async () => {
-  const deno = JSON.parse(await fsx.readTextFile(new URL('deno.json', root))) as Record<
-    string,
-    unknown
-  >;
-  const stray = ['name', 'version', 'exports', 'publish'].filter((k) => k in deno);
-  assertEquals(
-    stray,
-    [],
-    `deno.json carries ${stray.join(', ')}. The package lives in jsr.json only: with these in ` +
-      'deno.json, `deno publish` would take the package from deno.json instead.',
-  );
+// Bun migration B7 (2026-10-13) deleted deno.json: with one present, `deno publish` takes the
+// package from IT and ignores jsr.json (which is why publishing needed `--config jsr.json` until
+// then). Its return would silently change what is published, so its absence is pinned.
+test('version: there is no deno.json (jsr.json is the one manifest)', async () => {
+  for (const f of ['deno.json', 'deno.jsonc']) {
+    const present = await fsx.stat(new URL(f, root)).then(() => true, () => false);
+    assertEquals(
+      present,
+      false,
+      `${f} is back. With it, \`deno publish\` would take the package from it instead of ` +
+        'jsr.json (cmem/bun-migration.md § "B7").',
+    );
+  }
 });
 
 // package.json exists for Bun and Node (dev dependencies and scripts, B2). It is never published,
