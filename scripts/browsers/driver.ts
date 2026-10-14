@@ -53,25 +53,35 @@ for (const spec of JSON.parse(specsJson) as BrowserSpec[]) {
       120_000,
       'the launch',
     );
+    // Every step bounded and named: with the launch bounded, Vivaldi on CI still exited 13 with no
+    // report, so a later step's promise was left pending; the error now says which.
     try {
-      const page = await browser.newPage();
+      const page = await within(browser.newPage(), 60_000, 'newPage');
       const consoleErrors: string[] = [];
       page.on('pageerror', (e) => consoleErrors.push(String(e).slice(0, 200)));
-      await page.goto(url, { waitUntil: 'load' });
-      await page.waitForFunction(
-        () => (globalThis as { __result?: unknown }).__result !== undefined,
-        null,
-        {
-          timeout: 20 * 60_000,
-          polling: 1000,
-        },
+      await within(page.goto(url, { waitUntil: 'load' }), 60_000, 'goto');
+      await within(
+        page.waitForFunction(
+          () => (globalThis as { __result?: unknown }).__result !== undefined,
+          null,
+          {
+            timeout: 20 * 60_000,
+            polling: 1000,
+          },
+        ),
+        21 * 60_000,
+        'waiting for the harness',
       );
-      const result = await page.evaluate(() => (globalThis as { __result?: unknown }).__result);
+      const result = await within(
+        page.evaluate(() => (globalThis as { __result?: unknown }).__result),
+        60_000,
+        'reading the result',
+      );
       console.log(
         JSON.stringify({ name: spec.name, version: browser.version(), result, consoleErrors }),
       );
     } finally {
-      await browser.close();
+      await within(browser.close(), 30_000, 'close').catch(() => {});
     }
   } catch (e) {
     console.log(
