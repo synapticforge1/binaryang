@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-13: `v1.12.0` PUBLISHED; one Silent fix unreleased since (below)** (check it
-rather than trust this line: `git log --oneline
-v1.12.0..main -- src/ main.ts jsr.json`). `jsr.json` reads 1.12.0; the version line arms a release,
+**As of 2026-10-13: `main` = `v1.12.1`, PUBLISHED (the owner's "commit and bump and push") —
+nothing unreleased** (check it rather than trust this line: `git log --oneline
+v1.12.1..main -- src/ main.ts jsr.json`). `jsr.json` reads 1.12.1; the version line arms a release,
 so the next bump is the owner's decision, never a side effect of work.
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
@@ -17,10 +17,10 @@ the `wat2wasm` CLI validating by default, the reader stopping at its first error
 interpreter and its tools, `./definitions`, the optimizer within 2%) or **1.10.0** (`wasm-bundle`,
 `(@reloc data)`, the `.wit` beside the bundle) or **1.11.0** (`./ir`, browser-loadable exports,
 the enums as const objects, `Opcode` as the 582 instructions, the reserved-SIMD reader fix, the
-Asyncify fix for TinyGo 0.43, the Bun toolchain) or **1.12.0** (the deprecated subpaths and type names removed). The public summary of
+Asyncify fix for TinyGo 0.43, the Bun toolchain) or **1.12.0** (the deprecated subpaths and type names removed) or **1.12.1** (Asyncify restores a paused call's operands). The public summary of
 each is `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 769b4d3c0:cmem/unreleased.md` (to 1.7.0), this file at `7aa54e95c` (1.7.1 → 1.7.2), at
-`fb5068e47` (1.8.0), at `99f2a5b16` (1.8.1), at `82113369e` (1.9.0), at `23b9f36fb` (1.10.0), at `fc021fe08` (1.11.0), and at `604b33cf8` (1.12.0).
+`fb5068e47` (1.8.0), at `99f2a5b16` (1.8.1), at `82113369e` (1.9.0), at `23b9f36fb` (1.10.0), at `fc021fe08` (1.11.0), at `604b33cf8` (1.12.0), and at `e03d38f33` (1.12.1).
 
 ## How to use this file
 
@@ -35,17 +35,7 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.12.0
+## Since 1.12.1
 
-The 1.12.0 notes as gathered are `git show 604b33cf8:cmem/unreleased.md`; the public summary is
-`CHANGELOG.md` § 1.12.0.
-
-- **Silent fix — `Asyncify` restores a paused call's operands** (wasmtk's § 33, 2026-10-13). The
-  save set held only the locals live just AFTER a call that can unwind; a rewind re-executes the
-  call, so a temp read only as its operand was not restored. Seen as a `call_indirect` whose table
-  index was loaded from memory: the rewind called slot 0 (`uninitialized element`, or the wrong
-  function). TinyGo 0.43's nested goroutines with a pending `defer` hit it; its output now runs
-  (`nested-sum: 36`, wasmtime and wasmer, with and without `optimize()`). What a user may have
-  shipped: Asyncify output that crashes, or calls the wrong function, on the first rewind through
-  such a call. Frames grow where operands were missed (the reproducer: 34,605 → 36,576 bytes;
-  upstream 38,840). `asyncify_operand_locals.test.ts`.
+Nothing yet. The 1.12.1 notes as gathered are `git show e03d38f33:cmem/unreleased.md`; the public
+summary is `CHANGELOG.md` § 1.12.1.
