@@ -17,6 +17,13 @@ not survive a clone is not a project rule. The lessons behind them are in
 - **End every message with the attribution line** the session supplies (`Co-Authored-By: …`).
 - **Prefer a new commit over `--amend`.**
 - **Nothing is pushed** unless the owner says so.
+- **A push that is not a release does not wait for GitHub CI** (owner, 2026-10-13: "If we are not
+  pushing for a release, all we need to do is make sure the commit is on github and recorded as
+  such"). Push, confirm the remote has the commit (`git fetch` then `origin/main` equals `HEAD`),
+  record it, move on: the local gate already ran on the committed tree. Wait for CI only for a
+  RELEASE (unbumped `main` green, then `publish.yml`; [publishing.md](publishing.md)) or when CI
+  itself is what is being fixed (the Linux-only Browsers job, 2026-10-13). 🔧 Before this, every
+  push waited out a CI run, ~10 minutes each.
 - **`jsr.json` stays at the released version** — the package manifest since B1 of the Bun
   migration (2026-10-12, [bun-migration.md](bun-migration.md)); `deno.json` before that, and
   `deno.json` must no longer name the package (`version_sync.test.ts` enforces it). Publishing
