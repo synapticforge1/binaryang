@@ -133,13 +133,22 @@ function nodeRun(script: string, args: string[]): [string, string[]] | string {
   return ['node', ['--no-warnings', script, ...args]];
 }
 
-function runDriver(bin: string, args: string[]): Promise<string> {
+/** Runs the driver; its stderr is passed through, and its tail kept for a report. */
+function runDriver(
+  bin: string,
+  args: string[],
+): Promise<{ out: string; code: number | null; errTail: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'inherit'] });
+    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
+    let err = '';
     child.stdout.setEncoding('utf8').on('data', (d: string) => (out += d));
+    child.stderr.setEncoding('utf8').on('data', (d: string) => {
+      process.stderr.write(d);
+      err = (err + d).slice(-600);
+    });
     child.on('error', reject);
-    child.on('close', () => resolve(out));
+    child.on('close', (code) => resolve({ out, code, errTail: err.trim() }));
   });
 }
 
@@ -213,12 +222,23 @@ if (import.meta.main) {
     const all = browserSpecs().filter((s) => !only || only.includes(s.name));
     const skipped = all.filter((s) => s.missing);
     const toRun = all.filter((s) => !s.missing);
-    const cmd = nodeRun(join(root, 'scripts/browsers/driver.ts'), [
-      `http://127.0.0.1:${port}/`,
-      JSON.stringify(toRun),
-    ]);
-    if (typeof cmd === 'string') throw new Error(cmd);
-    const out = await runDriver(cmd[0], cmd[1]);
+    // One driver process PER BROWSER: the first CI run lost Vivaldi, Firefox and Safari to one
+    // process that died at Vivaldi ("no report from the driver"); now a crash costs one browser,
+    // and its exit code and stderr become that browser's error.
+    let out = '';
+    for (const spec of toRun) {
+      const cmd = nodeRun(join(root, 'scripts/browsers/driver.ts'), [
+        `http://127.0.0.1:${port}/`,
+        JSON.stringify([spec]),
+      ]);
+      if (typeof cmd === 'string') throw new Error(cmd);
+      const r = await runDriver(cmd[0], cmd[1]);
+      if (r.out.split('\n').some((l) => l.startsWith('{'))) out += `${r.out}\n`;
+      else {
+        const error = `driver exited ${r.code} with no report: ${r.errTail || '(no stderr)'}`;
+        out += `${JSON.stringify({ name: spec.name, error })}\n`;
+      }
+    }
     server.close();
 
     // 4. The verdict.
