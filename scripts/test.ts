@@ -127,8 +127,13 @@ function onBun(): number {
   const dir = mkdtempSync(join(tmpdir(), 'binaryang-bun-test-'));
   try {
     const report = join(dir, 'junit.xml');
+    // `--timeout`: bun test fails any test slower than 5 s by default, where node --test has no
+    // per-test limit. `fold_prediction`'s corpus test takes ~4 s here and timed out on GitHub's
+    // runner (CI, 2026-10-13): a slow-but-correct test is no engine difference. 10 minutes still
+    // catches a hang.
     const r = spawnSync('bun', [
       'test',
+      '--timeout=600000',
       '--reporter=junit',
       `--reporter-outfile=${report}`,
       ...TEST_DIRS,
