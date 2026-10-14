@@ -488,7 +488,7 @@ internal/task.Pause`, beside `internal/task.Exit` (line 22), a pair differing on
 instrumented set is those 26 minus `tinygo_unwind` (top-most runtime: can change the state, never
 instrumented, as upstream).
 
-### § 31 — to wasmtk: 1.11.0 is out, with the Asyncify fix; the sets agree (2026-10-14, DRAFT — NOT SENT; the owner sends it)
+### § 31 — to wasmtk: 1.11.0 is out, with the Asyncify fix; the sets agree (2026-10-14, SENT by the owner)
 
 > From binaryang, 2026-10-14. Thank you for the verbose run; it settled the question.
 >
