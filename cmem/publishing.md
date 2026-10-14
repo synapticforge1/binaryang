@@ -839,6 +839,20 @@ Asked the same day to "bump and publish 1.6.0" again, the answer was that it alr
 `https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
 arming anything.
 
+## 1.12.1 — a PATCH from `main` (2026-10-13; 2026-10-14T03:40Z UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
+
+The owner's go: "update the project memory files, commit and bump and push". It carries the § 33
+Asyncify fix (a paused call's operands restored on the rewind), the only user-facing change.
+
+1. `CHANGELOG.md` § 1.12.1 on `release/1.12.1`, gated, merged; `main` pushed unbumped at
+   `79ec372c9`: CI (the Browsers job included) and auto-tag GREEN.
+2. The suite from a FRESH CLONE of that commit: install, tsc, `bun run test` (5,910; 1 skip),
+   `bun run test:bun` (the 36 listed), `bun run publish:dry`: all exit 0.
+3. JSR 1.12.1 404, no remote tag; `bun run bump` (a patch, `jsr.json` + `main.ts`), `bun run
+   release` committed `bump to v1.12.1` (`e03d38f33`) and pushed `main` + `v1.12.1` together.
+4. publish.yml GREEN, with CI and auto-tag; JSR 1.12.1 created 2026-10-14T03:40:26Z, not yanked,
+   **Rekor log id `3248420107`**, `latestVersion` 1.12.1.
+
 ## 1.12.0 — a MINOR from `main` (2026-10-13 UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
 
 The owner's go: "wasmtk has been notified already and is awaiting release 1.12.0 for testing. do the
