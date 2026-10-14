@@ -54,7 +54,7 @@ PUSHED; the version stays 1.10.0):**
 
 **State, end of 2026-10-13 (supersedes the 2026-10-12 paragraph where they differ; all merged to
 `main` and PUSHED; owner: "lets update the project memory files and then ship 1.11.0"):**
-- 🚀 **1.11.0 PUBLISHED** 2026-10-14T01:12:58Z (UTC) with provenance (Rekor `3247643457`), the first
+- 🚀 **1.11.0 PUBLISHED** 2026-10-13T01:12:58Z (UTC) with provenance (Rekor `3247643457`), the first
   publish through the Bun workflow: B6 / B7 proven, **item 26 CLOSED**. ([publishing.md](publishing.md) § "1.11.0".)
 - **Item 26, the Bun migration: DONE (closed with the 1.11.0 publish).** B3 (Biome for `deno lint`, dprint for
   `deno fmt` byte for byte, each with a canary; no `biome-ignore` left), B5 (the suite on
@@ -75,10 +75,11 @@ PUSHED; the version stays 1.10.0):**
   (`wg-counter: 45` on wasmtime and wasmer).
 - **1.11.0** carries all of it ([unreleased.md](unreleased.md)): a MINOR (new exports, type-level
   BREAKING entries: the enums as const objects, `Opcode` narrowed).
-- 🚀 **1.12.0 PUBLISHED** 2026-10-14T01:39:42Z (UTC), provenance (Rekor `3247710678`): the removal of
+- 🚀 **1.12.0 PUBLISHED** 2026-10-13T01:39:42Z (UTC), provenance (Rekor `3247710678`): the removal of
   1.11.0's deprecated subpaths and type names (open-work 25). wasmtk awaits it to test.
-- **4 open items:** 13, 14, 15, 28 (28 SCOPED 2026-10-14: 28.3 a real-browser job, 28.6 the
-  in-browser optimization measurement, 28.7 optional; the driver is the owner's call). 29 (npm as a second
+- **5 open items:** 13, 14, 15, 28, 30 (28: 28.3 built, its CI job not yet green; 28.6 MEASURED
+  2026-10-13, no run-time speedup in any browser; 28.7 optional, the owner's call on the
+  recommendation; 30: the size gaps 28.6 found). 29 (npm as a second
   registry) PARKED as a contingency. The `code-lens-13` conflict above still stands.
 - ⚠️ This machine's exFAT drive can fail a big `git merge`; check status and `MERGE_HEAD`, and if
   clean, retry (`local/environment.md`, private).
@@ -210,13 +211,13 @@ Its number is kept free.)
     **Measure before building on it:** a few unoptimized (debug / `-O0`) modules; in Chrome,
     compile time and run time before vs after, and the optimizer's own time in the browser. No
     run-time speedup has been measured yet, so promise none.
-    **SCOPE OF WHAT REMAINS (2026-10-14, owner: "Scope item 28 for the items needed to achieve
+    **SCOPE OF WHAT REMAINS (2026-10-13, owner: "Scope item 28 for the items needed to achieve
     this").** Done: parts 1, 2, 4, 5 (every export bundles for the browser, held by `bun run
     browser`; the source runs on Node 22.18–26 with no flag; `wasmOpt` takes bytes) and the precise
     operator types. What "runs everywhere" still lacks is EVIDENCE from a real browser, and the
     browser use case lacks a measurement. Two pieces, in this order (the second uses the first's
     harness), then one optional:
-    - **28.3 — a real-browser job.** ✅ **BUILT 2026-10-14** (owner: "1. Playright, 2. chromium based,
+    - **28.3 — a real-browser job.** ✅ **BUILT 2026-10-13** (owner: "1. Playright, 2. chromium based,
       firefox, opera, vivaldi, brave, edge, duckduckgo, 3. commit as test modules", then "add safari
       instead of duckduckgo"): `bun run browsers` (scripts/check-browsers.ts, scripts/browsers/), Playwright
       1.63.0. Here: Chromium 153, Chrome 154, Edge 155, Firefox 155 and Safari's engine (WebKit 26.6) all
@@ -255,6 +256,14 @@ Its number is kept free.)
       after; upstream `wasm-opt` 133 (installed) on the same inputs as the quality reference.
       *Accepted when:* a dated table in cmem, and the decision it supports: whether a browser
       helper is worth shipping, or a documented recipe is enough. No speedup is promised until then.
+      ✅ **MEASURED 2026-10-13** ([optimizer.md](optimizer.md) § "Real compiler output, in three
+      browsers"; `benches/browser-opt/`, its six modules committed, `results.json` the raw run):
+      Chrome 154, Firefox 155, Safari's engine 26.6. Every optimized variant is correct in every
+      engine. binaryang optimizes in a Worker in 60 ms – 1.7 s. **There is NO run-time speedup**, from
+      ours or upstream's optimizer, even on debug builds: the engines' tiers already optimize; the gain
+      is size only (code bytes −0.1% to −27%). Two size gaps to upstream on real compiler output →
+      item 30. **Recommendation, owner to decide:** no browser helper; at most 28.7's recipe, pitched as
+      a size win for modules the site does not control, never as speed.
     - **28.7 — optional, after 28.6's numbers:** the browser recipe as documentation (or a helper):
       optimize in a Worker, keep the original, validate the result with `WebAssembly.validate` and
       fall back to the original on failure, cache the result (Cache API / IndexedDB).
@@ -289,6 +298,15 @@ every prepared spec module, at -O1 … -Oz). The hand-written traversals (`deriv
 (Item 2 closed 2026-10-08 at **1.86%** of upstream `wasm-opt -Oz` on the corpus — the owner's
 ≤ 2% — from 13% on 2026-09-19: [optimizer.md](optimizer.md), every step with its commit, the
 method, what the last 15 KB is. Its number is kept free.)
+
+30. ⬚ **Real compiler output shows size gaps the corpus did not** (found 2026-10-13 by 28.6;
+    [optimizer.md](optimizer.md) § "Real compiler output, in three browsers"). Code bytes against
+    upstream 133 at the same level: (a) **`-Oz` buys nothing over `-O2`** on any of the six modules
+    (zig-debug 47,335 vs 47,237), while upstream's `-Oz` is 10.7% smaller than its `-O2` there;
+    (b) **zig-debug -O2 is +16.8%** (47,237 vs 40,436), -Oz +31.1%; zig-releasefast +4.9%, the Rust and
+    TinyGo inputs within 2.5% at -O2. Not yet attributed: start with the section diff and the
+    `shrinkLevel` schedule difference (the corpus's -Oz figure may hide (a) because its inputs are
+    mostly small). Inputs: `benches/browser-opt/modules/*.wasm`.
 
 ## Conformance
 
@@ -328,12 +346,12 @@ fatigue.
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
-(Item 25 closed 2026-10-14: the deprecated IR subpaths and names are removed on `main`, for the next
+(Item 25 closed 2026-10-13: the deprecated IR subpaths and names are removed on `main`, for the next
 minor, 1.12.0 — [unreleased.md](unreleased.md), the letter [handoffs.md](handoffs.md) § 32. The
 premise "wasmtk does not import the IR subpaths" was checked in their repo before relying on it: true
 for their code; only their vendored copy of our old source names them. Its number is kept free.)
 
-(Item 26 closed 2026-10-14 (UTC) with the 1.11.0 publish: the development toolchain moved from Deno
+(Item 26 closed 2026-10-13 (UTC) with the 1.11.0 publish: the development toolchain moved from Deno
 to Bun, JSR kept as the source. B1–B7 are in [bun-migration.md](bun-migration.md); the proof of the
 last two, the first publish through the new workflow, recorded provenance, Rekor log id
 `3247643457`. Deno remains for `deno publish`, one `deno doc` test and the Deno-run `comparison/`.
