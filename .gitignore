@@ -25,6 +25,8 @@ Thumbs.db
 # with --emit-relocs; the build commands are in the folder's README). 🔧 1.10.0's first CI run was
 # red because these were ignored: every local run passed on files that were never committed.
 !/tests/binaryen-ts/tools/fixtures/bundle/*.wasm
+# The 28.6 browser-optimization test modules (rustc, zig, tinygo; benches/browser-opt/build.ts).
+!/benches/browser-opt/modules/*.wasm
 
 # Local-only working notes (machine-local; cmem/ is the committed source of truth)
 CLAUDE.md
