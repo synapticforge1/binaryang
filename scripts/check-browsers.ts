@@ -3,7 +3,8 @@
 
 /**
  * The library in REAL browsers (open-work 28.3, 2026-10-13; owner: "Playwright"; the browsers:
- * "chromium based, firefox, opera, vivaldi, brave, edge", and Safari, as WebKit, its engine).
+ * "chromium based, firefox, opera, vivaldi, brave, edge", and Safari, as WebKit, its engine;
+ * Vivaldi removed again, see `browserSpecs`).
  *
  * `bun run browser` proves every export BUNDLES for a browser; this proves the bundles RUN in one.
  * Bun builds the export bundles (`bundleExports`, shared with check-browser.ts) and a harness page
@@ -76,21 +77,9 @@ export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
       '/usr/bin/opera',
       '/usr/lib/x86_64-linux-gnu/opera/opera',
     ),
-    // Vivaldi opens its page in its default context: on CI it launched, then never answered
-    // `newPage()` in a new one (2026-10-13; see BrowserSpec.defaultContext). The binary comes
-    // first, before the wrapper scripts.
-    {
-      ...path(
-        'vivaldi',
-        'BINARYANG_VIVALDI',
-        `${LOCALAPP}/Vivaldi/Application/vivaldi.exe`,
-        'C:/Program Files/Vivaldi/Application/vivaldi.exe',
-        '/opt/vivaldi/vivaldi-bin',
-        '/usr/bin/vivaldi',
-        '/opt/vivaldi/vivaldi',
-      ),
-      defaultContext: true,
-    },
+    // No Vivaldi (owner, 2026-10-13: "lets remove vivaldi from the checks. most of the other
+    // chromium distributions are applicable"): headless under Playwright on CI's Linux it never
+    // became usable (a new context's `newPage()`, then a default context's launch, never settled).
     { name: 'firefox', engine: 'firefox' },
     // Safari's engine, JavaScriptCore, as Playwright ships it: Safari itself is automatable only
     // on macOS (safaridriver).
@@ -229,8 +218,8 @@ if (import.meta.main) {
     const all = browserSpecs().filter((s) => !only || only.includes(s.name));
     const skipped = all.filter((s) => s.missing);
     const toRun = all.filter((s) => !s.missing);
-    // One driver process PER BROWSER: the first CI run lost Vivaldi, Firefox and Safari to one
-    // process that died at Vivaldi ("no report from the driver"); now a crash costs one browser,
+    // One driver process PER BROWSER: the first CI run lost Vivaldi (since removed), Firefox and
+    // Safari to one process that died at Vivaldi ("no report from the driver"); now a crash costs one browser,
     // and its exit code and stderr become that browser's error.
     let out = '';
     for (const spec of toRun) {

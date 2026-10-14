@@ -230,7 +230,15 @@ Its number is kept free.)
       (`process` touched in `wat2wasm`) fails every browser; a stale list entry fails. CI: a `browsers`
       job (scripts/ci/install-browsers.ts: Playwright's three with `--with-deps`, Brave / Opera /
       Vivaldi from their apt repositories; Chrome and Edge from GitHub's image) runs `--require-all`;
-      **UNPROVEN until it runs on GitHub** (the Linux installs cannot be tried here). DuckDuckGo's browser
+      **UNPROVEN until it runs on GitHub** (the Linux installs cannot be tried here).
+      🔧 **On GitHub, 2026-10-13:** the first run failed with no readable cause (job logs need admin
+      rights through the API), so failures became annotations; they showed one driver process dying
+      at Vivaldi and silencing Firefox and Safari, so each browser got its own process, and every
+      driver step a named time bound. Then 7 of 8 passed on Linux, and Vivaldi never became usable
+      headless (a new context's `newPage()` never settled; in its default context the launch never
+      settled). **Vivaldi REMOVED** (owner: "lets remove vivaldi from the checks. most of the other
+      chromium distributions are applicable"): the job runs chromium, Chrome, Edge, Brave, Opera,
+      Firefox and WebKit. DuckDuckGo's browser
       cannot be automated (no protocol; it is WebView2 on Windows, WebKit on macOS): Safari's engine
       replaced it. *What (as scoped):* a static page, served locally by Bun, that loads the
       browser bundle of EVERY export and runs, through the library (no CLI): (a) the cli-smoke
