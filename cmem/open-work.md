@@ -75,7 +75,7 @@ PUSHED; the version stays 1.10.0):**
   (`wg-counter: 45` on wasmtime and wasmer).
 - **1.11.0** carries all of it ([unreleased.md](unreleased.md)): a MINOR (new exports, type-level
   BREAKING entries: the enums as const objects, `Opcode` narrowed).
-- **5 open items:** 13, 14, 15, 25 (now schedulable: 1.11.0 shipped), 28. 29 (npm as a second
+- **4 open items:** 13, 14, 15, 28. (25 closed 2026-10-14: the deprecated subpaths removed on main, for 1.12.0.) 29 (npm as a second
   registry) PARKED as a contingency. The `code-lens-13` conflict above still stands.
 - ⚠️ This machine's exFAT drive can fail a big `git merge`; check status and `MERGE_HEAD`, and if
   clean, retry (`local/environment.md`, private).
@@ -274,15 +274,10 @@ fatigue.
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
-25. ⬚ 🗓️ **Remove the deprecated IR subpaths and names — in a minor AFTER the one that ships
-    `./ir`** (open-work 21 phase 4, owner 2026-10-09: "I agree with your suggestion. Proceed").
-    Remove `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` from `deno.json` (the files stay
-    as `./ir`'s internal barrels or fold into `src/ir/index.ts`), and the deprecated `Type` alias
-    of `ExprType` in `src/ir/binaryen-ts.ts` and `src/api/index.ts`, and the deprecated `Features`
-    / `WasmModule` aliases in `src/compat/wabt-compat.ts`; `ir_subpath.test.ts` and
-    `compat_type_names.test.ts` then pin the new surface. A letter to wasmtk first: they pin
-    `compat/*` and `wasm-validate`, not the IR subpaths, and declare their own types for the
-    compat names, but say so. **When is the owner's call** — the `./ir` release (1.11.0) went out 2026-10-14, so it can be scheduled now.
+(Item 25 closed 2026-10-14: the deprecated IR subpaths and names are removed on `main`, for the next
+minor, 1.12.0 — [unreleased.md](unreleased.md), the letter [handoffs.md](handoffs.md) § 32. The
+premise "wasmtk does not import the IR subpaths" was checked in their repo before relying on it: true
+for their code; only their vendored copy of our old source names them. Its number is kept free.)
 
 (Item 26 closed 2026-10-14 (UTC) with the 1.11.0 publish: the development toolchain moved from Deno
 to Bun, JSR kept as the source. B1–B7 are in [bun-migration.md](bun-migration.md); the proof of the

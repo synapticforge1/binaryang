@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+
+- ⚠️ **Breaking:** the subpaths `@jrmarcum/binaryang/ir/binaryen-ts`, `…/ir/wabt-ts` and
+  `…/core/wabt-ts`, deprecated in 1.11.0. Import from `@jrmarcum/binaryang/ir`, which exports
+  everything they did, under the same names and from the same declarations.
+- ⚠️ **Breaking (type level):** the deprecated type names `Type` (the node-type union) in `./api`,
+  which is `ExprType`, and `Features` / `WasmModule` in `./compat/wabt`, which are `WabtFeatures`
+  / `WabtWasmModule`. Nothing changes at run time.
+
 ## 1.11.0
 
 ### New

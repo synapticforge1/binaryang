@@ -18,8 +18,8 @@
  *   makeI32Const,
  *   makeLocalGet,
  *   ValType,
- * } from "@jrmarcum/binaryang/ir/binaryen-ts";
- * import { varIndex } from "@jrmarcum/binaryang/ir/wabt-ts";
+ *   varIndex,
+ * } from "@jrmarcum/binaryang/ir";
  *
  * const expr = makeBinary(
  *   BinaryOp.AddI32,

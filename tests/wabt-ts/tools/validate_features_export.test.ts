@@ -6,18 +6,19 @@
 // only pass one it wrote by hand (wasmtk's letter of 2026-09-28, item 2: they
 // want `wasmValidate` as the oracle for modules V8 refuses only for its own
 // limits — 2^48-page memories, 2^64-element tables — and will not copy our
-// feature list). Exported now from `./wasm-validate` and `./core/wabt-ts`.
+// feature list). Exported from `./wasm-validate` and `./ir` (`./core/wabt-ts` until it was removed
+// after 1.11.0, open-work 25).
 
 import { assert, assertEquals } from '@std/assert';
 
 import * as validate from '../../../src/tools/wasm-validate.ts';
-import * as core from '../../../src/core/index.ts';
+import * as ir from '../../../src/ir/index.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { Result } from '../../../src/core/result.ts';
 import { test } from 'node:test';
 
 test('allFeatures / defaultFeatures are exported where wasmValidate is', () => {
-  for (const [where, mod] of [['./wasm-validate', validate], ['./core/wabt-ts', core]] as const) {
+  for (const [where, mod] of [['./wasm-validate', validate], ['./ir', ir]] as const) {
     assertEquals(typeof mod.allFeatures, 'function', `${where} allFeatures`);
     assertEquals(typeof mod.defaultFeatures, 'function', `${where} defaultFeatures`);
   }
@@ -35,6 +36,6 @@ test('with allFeatures, wasmValidate accepts what the defaults refuse', () => {
   );
   const all = validate.wasmValidate(binary, { features: validate.allFeatures() });
   assert(all.result === Result.Ok, 'allFeatures accepts it');
-  const viaCore = validate.wasmValidate(binary, { features: core.allFeatures() });
-  assert(viaCore.result === Result.Ok, "./core/wabt-ts's allFeatures is the same set");
+  const viaIr = validate.wasmValidate(binary, { features: ir.allFeatures() });
+  assert(viaIr.result === Result.Ok, "./ir's allFeatures is the same set");
 });

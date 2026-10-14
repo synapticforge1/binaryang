@@ -20,7 +20,7 @@
  *
  * ```ts
  * import { wasmValidate } from "jsr:@jrmarcum/binaryang/wasm-validate";
- * import { Result, formatErrors } from "jsr:@jrmarcum/binaryang/core/wabt-ts";
+ * import { Result, formatErrors } from "jsr:@jrmarcum/binaryang/ir";
  *
  * const bytes = await Deno.readFile("module.wasm");
  * const r = wasmValidate(bytes);

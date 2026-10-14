@@ -20,7 +20,7 @@
  *
  * ```ts
  * import { wat2wasm } from "jsr:@jrmarcum/binaryang/wat2wasm";
- * import { Result, formatErrors } from "jsr:@jrmarcum/binaryang/core/wabt-ts";
+ * import { Result, formatErrors } from "jsr:@jrmarcum/binaryang/ir";
  *
  * const r = wat2wasm("(module (func (export \"f\") (result i32) (i32.const 42)))");
  * if (r.result !== Result.Ok) throw new Error(formatErrors(r.errors));

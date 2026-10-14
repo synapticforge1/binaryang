@@ -12,8 +12,7 @@
  *
  * @example
  * ```ts
- * import { AbstractHeapType, heapAbstract, type RefType } from "@jrmarcum/binaryang/ir/binaryen-ts";
- * import { varIndex } from "@jrmarcum/binaryang/ir/wabt-ts";
+ * import { AbstractHeapType, heapAbstract, type RefType, varIndex } from "@jrmarcum/binaryang/ir";
  *
  * const i31ref: RefType = { heapType: heapAbstract(AbstractHeapType.I31), nullable: true };
  * const ref0: RefType   = { heapType: varIndex(0), nullable: false }; // (ref $0)

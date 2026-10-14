@@ -1,10 +1,10 @@
 /**
  * @module
- * wabt-ts core vocabulary — entry point for the `./core/wabt-ts` subpath.
+ * wabt-ts core vocabulary.
  *
- * ⚠️ **Deprecated since 1.11.0 — import from `@jrmarcum/binaryang/ir`**, which
- * exports everything this subpath does, under the same names. This subpath stays
- * for one release and is removed in a later minor.
+ * An internal barrel since open-work 25 (2026-10-14): `./core/wabt-ts` was a published subpath until
+ * 1.11.0 (deprecated there) and is not one now. `@jrmarcum/binaryang/ir` re-exports everything
+ * here, under the same names.
  *
  * Authored during the binaryang merge, to close a gap the narrow root created.
  *

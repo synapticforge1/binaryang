@@ -155,19 +155,6 @@ export interface WabtWasmModule {
   destroy(): void;
 }
 
-/**
- * @deprecated Use `WabtFeatures` — the same type. Renamed in 1.11.0 so the name
- * `Features` has one meaning in binaryang (the validator's feature set,
- * `@jrmarcum/binaryang/ir`); this alias goes in a later minor.
- */
-export type { WabtFeatures as Features };
-/**
- * @deprecated Use `WabtWasmModule` — the same type. Renamed in 1.11.0 so the name
- * `WasmModule` has one meaning in binaryang (the IR's module record,
- * `@jrmarcum/binaryang/ir`); this alias goes in a later minor.
- */
-export type { WabtWasmModule as WasmModule };
-
 /** The factory return value — equivalent to upstream's `WabtModule`. */
 export interface WabtModule {
   /**

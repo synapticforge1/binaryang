@@ -4,26 +4,27 @@
 // 1.11.0: `./compat/wabt`'s `Features` and `WasmModule` were renamed
 // `WabtFeatures` and `WabtWasmModule`, so each name has one meaning in
 // binaryang (`Features` is the validator's feature set, `WasmModule` the IR's
-// module record — both in `./ir`). The old names stay one release as deprecated
-// aliases (open-work 25 removes them). Pinned: each alias IS its new type, and
-// the handle `parseWat` returns is typed by the new name.
+// module record — both in `./ir`). The old names stayed one release as deprecated
+// aliases, and went after it (open-work 25, 2026-10-14). Pinned: the old names are
+// GONE (each `@ts-expect-error` below would go unused, and fail `bun run check`, if
+// one came back), and the handle `parseWat` returns is typed by the new name.
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import initWabt, {
-  type Features,
   type WabtFeatures,
   type WabtWasmModule,
-  type WasmModule,
 } from '../../../src/compat/wabt-compat.ts';
-
-type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+// @ts-expect-error -- `Features` was removed after 1.11.0: use `WabtFeatures`
+import type { Features as _GoneFeatures } from '../../../src/compat/wabt-compat.ts';
+// @ts-expect-error -- `WasmModule` was removed after 1.11.0: use `WabtWasmModule`
+import type { WasmModule as _GoneWasmModule } from '../../../src/compat/wabt-compat.ts';
 
 describe('compat/wabt type names', () => {
-  it('the deprecated names are aliases of the new ones', () => {
-    const features: Same<Features, WabtFeatures> = true;
-    const module: Same<WasmModule, WabtWasmModule> = true;
-    expect([features, module]).toEqual([true, true]);
+  it('the old names are gone (the imports above must fail to type-check)', () => {
+    // Referenced so the imports count as used; what is pinned is that importing them is an error.
+    const gone: [_GoneFeatures?, _GoneWasmModule?] = [];
+    expect(gone).toEqual([]);
   });
 
   it('parseWat returns a WabtWasmModule and takes WabtFeatures', async () => {
