@@ -151,3 +151,14 @@ public summary is `CHANGELOG.md` § 1.10.0.
   `INSTR_CODES`, `isInstrCode`). Code that passes a computed `number` where an `Opcode` is expected
   stops compiling: check it with `isInstrCode` first. No value at run time changes; the prefixed
   operator-table members are now hex literals (`0xfd007a`), the same numbers.
+- **Silent fix — `Asyncify` on a module that drives its own unwinding (TinyGo 0.43)** (2026-10-13,
+  wasmtk's report, [handoffs.md](handoffs.md) §§ 28-29). In import mode (`asyncify.*` imported),
+  a function calling `asyncify.stop_unwind` / `start_rewind` (the bottom-most runtime) that ALSO
+  reached a suspend was instrumented, where upstream's propagation stops at it; flattening it then
+  threw `Flatten: unresolved call target "$asyncify_stop_unwind"`. TinyGo 0.43's goroutine builds
+  have such a function (`…asyncifysuspendcatch.0.paniccatch`), so `Asyncify` failed on every one.
+  Now the analysis follows upstream (the bottom-most runtime is a propagation barrier; control
+  calls judged by name), and Flatten knows the control functions' types. wasmtk's reproducer runs
+  correctly after the pass (wasmtime and wasmer: `wg-counter: 45`). Who could have hit it: any
+  `Asyncify` / `wasm-opt --asyncify` user on such a module; it failed loudly, it never produced a
+  wrong module. Held by `asyncify.test.ts` (two tests, each shown to fail without its fix).

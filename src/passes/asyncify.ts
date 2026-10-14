@@ -465,6 +465,23 @@ const ASYNCIFY_IMPORT_TO_CONTROL: Record<string, string> = {
 };
 
 /**
+ * The result type of each control function {@link synthesizeRuntimeSupport} adds, by internal
+ * name. In import mode the redirected calls name these functions BEFORE they exist (they are added
+ * after instrumentation, as upstream adds them), so Flatten, which types every direct call by its
+ * target, is given them here. 🔧 Without it, an instrumented function calling a control function
+ * failed: `Flatten: unresolved call target "$asyncify_stop_unwind"` on TinyGo 0.43's
+ * `…asyncifysuspendcatch.0.paniccatch` (wasmtk, 2026-10-13). Upstream never sees it: it RENAMES
+ * the imports and removes them only after instrumenting, so the target is declared throughout.
+ */
+export const CONTROL_RESULT_TYPES: ReadonlyMap<string, ExprType> = new Map<string, ExprType>([
+  [`$${ASYNCIFY_START_UNWIND}`, None],
+  [`$${ASYNCIFY_STOP_UNWIND}`, None],
+  [`$${ASYNCIFY_START_REWIND}`, None],
+  [`$${ASYNCIFY_STOP_REWIND}`, None],
+  [`$${ASYNCIFY_GET_STATE}`, ValType.I32],
+]);
+
+/**
  * Control-function internal names whose CALL begins an unwind/rewind — the
  * caller "can change state" and is the top of the runtime (Asyncify.cpp
  * 641-650: START_UNWIND / STOP_REWIND). Such a function is NOT itself
@@ -706,8 +723,15 @@ export function analyzeModule(
   if (options.propagateAddList) applyAddList();
 
   // Backward propagation: any function that (transitively) calls a
-  // state-changing function also changes state. remove-list funcs never receive
-  // the property and so do not propagate it further.
+  // state-changing function also changes state. remove-list funcs and the
+  // BOTTOM-MOST runtime never receive the property and so do not propagate it
+  // further (Asyncify.cpp 722-726: `!info.isBottomMostRuntime &&
+  // !info.inRemoveList`). 🔧 The bottom-most half was missing until 2026-10-13:
+  // a resume-boundary function that also calls something that can unwind was
+  // INSTRUMENTED here and not upstream — TinyGo 0.43's
+  // `…asyncifysuspendcatch.0.paniccatch` (calls `asyncify.stop_unwind`), found
+  // by wasmtk as a Flatten crash. Held by asyncify.test.ts, "the bottom-most
+  // runtime is a propagation barrier".
   const worklist: string[] = [];
   for (const [name, changes] of canChangeState) {
     if (changes && !inRemoveList.has(name)) worklist.push(name);
@@ -715,7 +739,7 @@ export function analyzeModule(
   while (worklist.length > 0) {
     const callee = worklist.pop()!;
     for (const caller of calledBy.get(callee) ?? []) {
-      if (!inRemoveList.has(caller) && !canChangeState.get(caller)) {
+      if (!inRemoveList.has(caller) && !bottomMost.has(caller) && !canChangeState.get(caller)) {
         canChangeState.set(caller, true);
         worklist.push(caller);
       }
@@ -811,17 +835,24 @@ function makeMaybeSkip(curr: Expression): Expression {
 function exprCanChangeState(expr: Expression, ctx: FlowCtx): boolean {
   let changes = false;
   let indirect = false;
+  let bottom = false;
   walkExpression(expr, (e) => {
     if (e.kind === ExpressionKind.Call) {
-      if (ctx.canChangeState.get(requireName((e as CallExpr).func, 'call target'))) {
-        changes = true;
-      }
+      const target = requireName((e as CallExpr).func, 'call target');
+      // The control functions are not in `canChangeState` (they are added after
+      // instrumentation), so they are decided by name, as upstream does
+      // (Asyncify.cpp `canChangeState(Expression*)`): starting an unwind or
+      // stopping a rewind changes the state; stopping an unwind or starting a
+      // rewind is the bottom-most runtime, which never does.
+      if (ASYNCIFY_STATE_STARTERS.has(target)) changes = true;
+      else if (ASYNCIFY_RUNTIME_BOTTOM.has(target)) bottom = true;
+      else if (ctx.canChangeState.get(target)) changes = true;
     } else if (e.kind === ExpressionKind.CallIndirect || e.kind === ExpressionKind.CallRef) {
       indirect = true;
     }
   });
   if (indirect && (ctx.canIndirect || ctx.addedFromList.has(ctx.func.name))) changes = true;
-  return changes;
+  return changes && !bottom;
 }
 
 /** Does `curr` perform a call (possibly under a `local.set` or `drop`)? */
@@ -1417,6 +1448,10 @@ export class AsyncifyPass implements Pass {
     // functions are never themselves considered for instrumentation.
     const analysis = analyzeModule(module, opts);
     const callResultTypes = buildCallResultTypes(module);
+    // The control functions the redirected calls now name are added only after instrumentation.
+    if (importMode) {
+      for (const [name, type] of CONTROL_RESULT_TYPES) callResultTypes.set(name, type);
+    }
 
     for (const func of module.functions) {
       if (!analysis.instrumentedFuncs.has(func.name)) continue;

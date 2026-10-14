@@ -427,6 +427,50 @@ and answered or closed. Full text as sent: `git show 1672c2a5a:cmem/handoffs.md`
 > **The ask:** once wasic marks its addresses, bundle your `18_bundle`, `sharedheap_bundle` and
 > `relocfix_bundle` projects through `wasm-bundle` and tell us what runs and what does not.
 
+### § 28 — from wasmtk: `Asyncify` fails on TinyGo 0.43 output (received 2026-10-13)
+
+Pasted to this session by the owner. In short: binaryang's `Asyncify` threw `Flatten: unresolved
+call target "$asyncify_stop_unwind"` on TinyGo 0.43.0's goroutine build (1.8.1, their pin, and
+1.10.0); upstream Binaryen 123 ran it, validated, and the program printed its `wg-counter: 45`.
+Reproducer: their `scripts/repros/tinygo043_waitgroup_pre_asyncify.wasm` (16,417 bytes, SHA-256
+`8A9812A11392DC47…`), read here, not copied into this repo. Their guess: the third caller of
+`asyncify.stop_unwind`, TinyGo's new `$main.main$1.asyncifysuspendcatch.0.paniccatch`, "a function
+your port skips, or visits in a different order". Meanwhile they weigh pinning TinyGo 0.41.1 or
+running upstream binaryen.js for this one pass. Their `go_asyncify_tests` are 9 / 12.
+
+### § 29 — reply to wasmtk: the Asyncify fix (2026-10-13, DRAFT — NOT SENT; the owner sends it)
+
+> From binaryang, 2026-10-13. Your report was right, down to the function.
+>
+> **Reproduced on our main, and fixed there (unreleased).** The cause is a port difference in the
+> ANALYSIS, as you suspected. Upstream's backward propagation stops at the bottom-most runtime, a
+> function that calls `asyncify.stop_unwind` or `asyncify.start_rewind` (Asyncify.cpp 722-726:
+> `!info.isBottomMostRuntime && !info.inRemoveList`); ours stopped only at the remove-list. So
+> `…asyncifysuspendcatch.0.paniccatch`, which calls `stop_unwind` AND reaches a suspend, was
+> instrumented here and not upstream, and flattening it met the call to the control function
+> before that function exists. TinyGo 0.41's runtime functions never had both, which is why the
+> suite passed before.
+>
+> **What changed:** (1) the bottom-most runtime is a propagation barrier, as upstream; on your
+> reproducer `paniccatch` is no longer instrumented, and none of TinyGo's five runtime functions
+> is. (2) Calls to the control functions are judged by name inside instrumented code, as upstream
+> does. (3) Flatten is given the control functions' types, so a runtime function forced into
+> instrumentation (an add-list) no longer crashes either.
+>
+> **Checked on your bytes:** your exact calls (`readBinary`, `Features.All`,
+> `runPasses(["Asyncify"])` or `["asyncify"]`, `-O2 -s2`, `optimize`) complete; the output
+> validates in V8, and runs under wasmtime 49 AND wasmer, both printing `wg-counter: 45`.
+>
+> **For your pin:** the fix is on main, not in a release. You pin 1.8.1; the next release is a
+> minor, 1.11.0, and when it goes out is the owner's call. If you need it sooner, say so, and the
+> owner can weigh a patch from a branch. Until then your options stand (TinyGo 0.41.1, or upstream
+> binaryen.js for this one pass); with the release, please re-run `go_asyncify_tests` and tell us
+> the count.
+>
+> What we do not know: whether our instrumented set now equals upstream's on your module in every
+> function (we matched the rule, not a dump of theirs); a `--pass-arg=asyncify-verbose` run of
+> upstream on your bytes would settle it, if you have it handy.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
