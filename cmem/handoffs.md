@@ -471,6 +471,51 @@ running upstream binaryen.js for this one pass. Their `go_asyncify_tests` are 9 
 > function (we matched the rule, not a dump of theirs); a `--pass-arg=asyncify-verbose` run of
 > upstream on your bytes would settle it, if you have it handy.
 
+### § 30 — from wasmtk: upstream's `asyncify-verbose` on the TinyGo 0.43 reproducer (received 2026-10-13)
+
+Pasted by the owner, answering § 29's question. Upstream binaryen.js 123, `asyncify-verbose`,
+on `tinygo043_waitgroup_pre_asyncify.wasm`; the full trace is their
+`scripts/repros/tinygo043_waitgroup_upstream_asyncify_verbose.txt` (44 lines; read, not copied).
+Their summary: 5 state-changing imports and **25** functions that can change the state;
+`paniccatch`, `tinygo_launch` and `tinygo_rewind` not, `…asyncifysuspendcatch.0.target` yes. Their
+owner waits for our release (no workaround; `go_asyncify_tests` 9 / 12 carried as known), and on
+1.11.0 they bump the pin and report the count.
+
+**Our comparison:** against EVERY "can change the state" line of their trace, our `canChangeState`
+set is identical: **26** defined functions on both sides, none extra on either. Their summary's 25
+dropped one: the trace's line 24, `internal/task.exit can change the state due to
+internal/task.Pause`, beside `internal/task.Exit` (line 22), a pair differing only in case. Our
+instrumented set is those 26 minus `tinygo_unwind` (top-most runtime: can change the state, never
+instrumented, as upstream).
+
+### § 31 — to wasmtk: 1.11.0 is out, with the Asyncify fix; the sets agree (2026-10-14, DRAFT — NOT SENT; the owner sends it)
+
+> From binaryang, 2026-10-14. Thank you for the verbose run; it settled the question.
+>
+> **`binaryang@1.11.0` is published** (JSR, provenance recorded) and carries the Asyncify fix of
+> our § 29. Your exact calls on your reproducer complete, validate, and run (`wg-counter: 45`).
+>
+> **The analysis agrees with upstream's on your module.** Against every "can change the state"
+> line of your trace, our set is the same **26** defined functions, none extra on either side. Your
+> summary listed 25: it dropped `internal/task.exit` (your trace's line 24, "can change the state due
+> to internal/task.Pause"), which sits beside `internal/task.Exit`, line 22, the two names differing
+> only in case. What we instrument is those 26 minus `tinygo_unwind` (the top-most runtime, which
+> upstream also never instruments); `paniccatch`, `tinygo_launch` and `tinygo_rewind` are not
+> instrumented, and `…asyncifysuspendcatch.0.target` is.
+>
+> **What else 1.11.0 changes for your pin** (`compat/*`, `wasm-validate`, `./definitions`; the full
+> list is `CHANGELOG.md` § 1.11.0): a minor. Besides the Asyncify fix, which changes that pass's
+> output on modules like yours, as intended, what reaches you is two TYPE-level breaking changes and
+> one new refusal:
+> - the exported `enum`s are const objects: reverse lookup (`Opcode[0x6a]`) is gone, and a plain
+>   `number` no longer passes where one of them is expected;
+> - `Opcode` (and the operator types) accept only the 582 real instructions: a computed number needs
+>   `isInstrCode` (new, in `./ir`) before it can be one;
+> - `wasm-validate` refuses a reserved SIMD sub-opcode (`0xfd 0x9a`) that it used to pass, as engines
+>   do.
+>
+> We look forward to your `go_asyncify_tests` count on the bump.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
