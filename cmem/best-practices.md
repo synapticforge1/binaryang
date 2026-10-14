@@ -1790,6 +1790,50 @@ to apply:** check a file the way the gate does (no path, or only paths inside it
 acting on a failure for an explicit path, confirm the path is in the tool's scope
 (`fmt.include`, `files.includes`).
 
+## 🆕 Lessons from B5–B7 and wasmtk's Asyncify report (2026-10-13)
+
+### A crash in a port can be the SYMPTOM of a divergence — compare the rule before patching the site
+
+wasmtk's TinyGo 0.43 module crashed `Asyncify` in Flatten ("unresolved call target"). The first
+patch, giving Flatten the missing types, made the crash go away and the output run correctly.
+Reading upstream's `Asyncify.cpp` then showed the real defect one level up: upstream's propagation
+stops at the bottom-most runtime, ours did not, so we instrumented a function upstream never
+touches. The crash was only where the divergence became visible. **How to apply:** when a port
+fails where upstream does not, find the upstream rule that decides the failing case and compare it
+line by line BEFORE settling for a fix at the crash site; keep the site fix too only if upstream
+would also survive that path.
+
+### A rename "in comments" that runs over whole files rewrites code too
+
+`deno task <name>` → `bun run <name>` was meant for comments; one hit was a string inside an
+assertion, `not.toContain('deno task test')`, which then FORBADE the step it guarded. The targeted
+test run had come before the rename; the full gate caught it. **How to apply:** a mechanical rename
+touches comment lines only, or its non-comment hits are listed (`git show | grep -v` comment
+prefixes) and read one by one before committing.
+
+### Text holding a backslash never goes through a shell string
+
+Code, a regex, or prose ABOUT escapes, written through an inline `bun -e` / heredoc, lost every
+backslash: `\s` became `s`, `\b` a literal backspace byte the editor does not show. It struck
+twice in one day, the second time in the note describing the first; `source_hygiene.test.ts` (no
+control bytes) caught it. **How to apply:** such text goes through the Write / Edit tools; a scratch
+file then spliced in by a script is fine, a string literal in a shell command is not.
+
+### A suite outside the gate breaks unseen — keep it in the LOCAL full gate
+
+`comparison/` (Deno, `npm:binaryen`) is outside CI by design (it needs upstream tools). It broke
+when B2 added `package.json` and `node_modules` (Deno then resolved `npm:` there) and stayed broken
+until B7, a day later, because nothing ran it. **How to apply:** a suite kept out of CI for cause
+still runs in the local `--full` gate (it does now), so a change that breaks it is seen the same
+day.
+
+### Deleting a config changes what the tools read in its place
+
+With `deno.json` gone, `deno publish` type-checked with `tsconfig.json`'s compilerOptions, but not
+the `@types/node` they name, and `import.meta.main` failed the publish check that had passed the
+day before. **How to apply:** after removing a config, run every tool that read it (here the
+publish dry run, cold), and prove the output did not change (the same 122 files).
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

@@ -585,12 +585,13 @@ for every published binaryang version.
 ## The flow
 
 ```sh
-git add -A && git commit -m "..."   # commit ALL source changes FIRST -- see the guard below
-deno task bump                      # rewrites deno.json AND main.ts (sub-version capped at 9)
-deno task release                   # guard, commit the bump, tag, push commit + tag atomically
+git add -A && git commit -F <file>  # commit ALL source changes FIRST -- see the guard below
+bun run bump                        # a PATCH: rewrites jsr.json AND main.ts (sub-version capped at 9)
+                                    # (a MINOR is typed by hand in the same two files)
+bun run release                     # guard, cold publish dry run + tsc, commit the bump, tag, push commit + tag atomically
 ```
 
-**The bump and the release share ONE file list**: `RELEASE_FILES` (`deno.json`, `main.ts`) in
+**The bump and the release share ONE file list**: `RELEASE_FILES` (`jsr.json`, `main.ts`; `deno.json` until 2026-10-12) in
 `scripts/release/release-guard.ts`. `publish.ts` stages exactly those, and the dirty-tree guard
 exempts exactly those. 🔧 **Until 2026-09-14 this flow refused at its own guard.** Both halves named
 `deno.json` alone, while the bump also rewrites `main.ts`, so the guard returned `[" M main.ts"]`
@@ -600,8 +601,8 @@ list against `bump_version.ts`'s write sites, and `publish_preflight_wiring.test
 `git add` stages the list. Verified by a real `deno task bump` with the actual `git status` fed to
 the guard (no blockers), then restored.
 
-The tag push fires `publish.yml`, which verifies the tag matches `deno.json`, runs `check` and
-`test`, then calls `deno publish` **directly** — never through `deno task`, because that indirection
+The tag push fires `publish.yml`, which verifies the tag matches `jsr.json`, runs `bun run check`,
+`bun run test` and `bun run test:bun` (since B6), then calls `deno publish` **directly** — never through `deno task`, because that indirection
 spawns a subprocess and loses OIDC — and finally creates a GitHub Release.
 
 ⚠️ **A DISPATCHED release needs a manual step**, because `RELEASE_PAT` is not set (and will not

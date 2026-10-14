@@ -438,7 +438,7 @@ Reproducer: their `scripts/repros/tinygo043_waitgroup_pre_asyncify.wasm` (16,417
 your port skips, or visits in a different order". Meanwhile they weigh pinning TinyGo 0.41.1 or
 running upstream binaryen.js for this one pass. Their `go_asyncify_tests` are 9 / 12.
 
-### § 29 — reply to wasmtk: the Asyncify fix (2026-10-13, DRAFT — NOT SENT; the owner sends it)
+### § 29 — reply to wasmtk: the Asyncify fix (2026-10-13, SENT by the owner)
 
 > From binaryang, 2026-10-13. Your report was right, down to the function.
 >
