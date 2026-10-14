@@ -97,7 +97,7 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 | B3   | **Formatting and lint off Deno.** ✅ **LINT half done 2026-10-13 (owner: "add the tsc lint flags and use Biome to replace deno lint")**, see § "B3 lint: Biome and the tsc lint flags" below. ✅ **FORMATTING half done 2026-10-13 (owner: "move on to 26 and 28")**: dprint 0.57.4 replaces `deno fmt`, with the plugins Deno 2.9.7 bundles; byte-identical on the tree and on three damaged copies of it. See § "B3 formatting: dprint replaces deno fmt". (Biome's formatter stays OFF; it is a different style.) | lint: ✅; fmt: ✅ `dprint check` 0 diffs, differential 0 |
 | B4   | ✅ **Built 2026-10-12 on `bun-4-scripts`:** all 51 script files are `node:`-only (no `Deno.*` in code, no `@std` / `jsr:` imports), and the 20 tasks are `package.json` scripts. Bun runs them, except the engine oracles, which run on Node (§ "The engine oracle"); `proposals` picks an engine per proposal. tsc checks `scripts/`. **Differential, old Deno vs new, same inputs:** every output identical, and every corpus tree byte-identical (core 7,422, legacy 29, translate-eh 29, proposals 874 files). Expected differences only: the `bump` usage line; the 4 `proposals` summary lines that now name their engine; `hostile`'s DEPTH table, which measures each runtime's stack (its mutation half is identical). Found: item 27 (an interp defect on `main`) and the gen_demo_bytes drift (below). **Original plan:** **Scripts on `node:` builtins, RUN BY BUN** (owner, 2026-10-12: "All of our scripts will now be run from bun instead of deno"; each `deno task` becomes a `package.json` script run by `bun run`). `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
 | B5   | ✅ **DONE 2026-10-13** (§ "B5: the suite on node:test"): 346 files on `node:test`, Deno.* gone from tests, `bun run test` (Node 24, the verdict) and `bun run test:bun` (Bun, 36 listed JavaScriptCore differences) in CI. As planned: **Tests on `node:test`, run by both Bun and Node** (§ "Bun or Node", DECIDED 2026-10-12). `@std/testing/bdd` → `node:test`'s `describe` / `it` (required: bdd calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. **Decided 2026-10-13 (owner):** `@std/assert` / `@std/expect` are KEPT via JSR (the same "leave it on JSR until necessary" stance as open-work 29; vendoring is the fallback), and **Node 24, the V8 referee, is AUTHORITATIVE for the suite** (220 test files use the host engine), with Bun also running it as a portability leg and a measured, listed set of JavaScriptCore-only differences. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | ✅ per-file counts equal (346 files, 5,901 leaves); an injected failure fails both legs |
-| B6   | **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
+| B6   | ◐ **PREPARED 2026-10-13 (owner: "proceed with B6"), PROOF PENDING A RELEASE** (§ "B6"). As planned: **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
 | B7   | **Delete `deno.json` and `deno.lock`.** `--config jsr.json` comes off the publish commands, since `jsr.json` is then found on its own. `version_sync`'s second test turns into "there is no `deno.json`". `cmem/` updated throughout. | gate green with no `deno.json` in the tree                                     |
 
 **B6 is the only step that is hard to undo**, because a JSR version is immutable. The other
@@ -293,6 +293,35 @@ code; **no `biome-ignore` remains**, and `bun run lint` passes.
 - **`noApproximativeNumericConstant` (1):** `wat2wasm.test.ts`' `3.14159` → `3.25`, in the WAT
   and the assertion (exactly representable; the round trip is tested as before).
 - **The canary's comment** said the suppressions guarded `"none"` by accident; rewritten (above).
+
+## B6: the release path off Deno, except the publish (2026-10-13; proof pending)
+
+Owner: "proceed with B6". Done locally; **the acceptance — one release published from the new path,
+provenance verified (`rekorLogId`) — waits for the owner's release** (1.11.0 is next).
+
+- **`auto-tag.yml`:** `setup-bun` instead of `setup-deno`; the version from `jsr.json` by `bun -e`.
+  No Deno at all.
+- **`publish.yml`:** keeps `setup-deno` and calls `deno publish --config jsr.json` DIRECTLY (provenance:
+  finding 2, publishing.md). Before it, the CI gate's tooling: `setup-bun` 1.4.3, `bun install
+  --frozen-lockfile`, `setup-node` 24; `deno task check` (until B7) AND `bun run check`; `bun run
+  test` (Node 24, the verdict) and `bun run test:bun` replace `deno task test`. The three `deno
+  eval` one-liners (version, package name, the Rekor ID parse) are `bun -e`, each shown to give
+  the same output (a non-JSON body still yields an empty line).
+- **`scripts/release/publish.ts`** (the local release) adds `bun run check` after its cold `deno
+  task check`, so it refuses what publish.yml would fail; its closing message names the new steps.
+- **Held by tests** (`publish_preflight_wiring.test.ts`, a new describe): publish.yml publishes with
+  `deno publish --config jsr.json` and never `bunx` / `npx jsr` or a `release` task; both type
+  checks and both test legs run BEFORE the publish, and `deno task test` is gone; auto-tag has no
+  Deno. Each shown to fail on its mutant of the real file.
+- All three workflows parse (`Bun.YAML`), with the steps in the intended order. CI's `runtimes`
+  matrix keeps its Deno leg (consumers on Deno remain).
+- ⚠️ A trap met: writing the new test through an inline `bun -e` stripped every backslash (`\s` → `s`,
+  `\b` → a literal backspace byte), which the editor's view does not show. A parse error caught
+  one; the rest would have been regexes that quietly match the wrong thing. It struck TWICE: this
+  very note, first written the same way, carried a backspace byte where `\b` should be, and the
+  gate's `source_hygiene.test.ts` (no control bytes in any file) failed both test legs on it. Any
+  text holding a backslash (code, a regex, prose ABOUT escapes) goes through the Write / Edit
+  tools, never a shell string.
 
 ## B5: the suite on `node:test` (2026-10-13)
 

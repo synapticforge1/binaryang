@@ -66,7 +66,7 @@ PUSHED; the version stays 1.10.0):**
   `comparison/scripts/` were deleted; `comparison/` stays outside Biome's scope.
 - **Who runs what, now:** Deno for JSR publishing, `deno check` (until B7) and `deno doc` (one test).
   `deno lint`, `deno fmt` and `deno test` are gone from the gate (Biome, dprint, node:test).
-- **6 open items:** 13, 14, 15, 25, 26 (B3 and B5 DONE; **next: B6**, then B7), 28. **29 (npm as a second registry) was opened and PARKED the
+- **6 open items:** 13, 14, 15, 25, 26 (B3, B5 DONE; B6 PREPARED, proven by the next release; then B7), 28. **29 (npm as a second registry) was opened and PARKED the
   same day** as a contingency (owner: "I am leaving it on jsr until it becomes necessary to do
   otherwise"); see § "Not tasks, by decision". The `code-lens-13`
   conflict above still stands.
@@ -296,7 +296,7 @@ fatigue.
     Deno keeps working after its development ends. No deadline.
     **B3's lint half is done** (2026-10-13: Biome replaces `deno lint`, and tsc has the strict lint
     flags; bun-migration.md § "B3 lint"; no `biome-ignore` remains: all 22 were fixed in the code, and
-    the lint canary is the only guard against a silenced config). **B3's formatting half is done too** (2026-10-13: dprint 0.57.4 with Deno 2.9.7's own plugins, byte-identical by differential; bun-migration.md § "B3 formatting"). **B5 is done too** (2026-10-13: the suite on node:test; Node 24 the verdict, Bun with 36 listed JavaScriptCore differences; bun-migration.md § "B5"). **Next: B6** (tests: `@std/testing/bdd` → `node:test`,
+    the lint canary is the only guard against a silenced config). **B3's formatting half is done too** (2026-10-13: dprint 0.57.4 with Deno 2.9.7's own plugins, byte-identical by differential; bun-migration.md § "B3 formatting"). **B5 is done too** (2026-10-13: the suite on node:test; Node 24 the verdict, Bun with 36 listed JavaScriptCore differences; bun-migration.md § "B5"). **B6 is PREPARED** (2026-10-13: auto-tag off Deno; publish.yml keeps only `deno publish` and `deno task check`, with the CI gate's tests before it; bun-migration.md § "B6"); **its proof is the next release** (provenance verified). **Then B7** (tests: `@std/testing/bdd` → `node:test`,
     keeping `@std/assert` / `@std/expect`; per-file counts must match; 220 test files use the host
     engine, which needs the referee rule), **B6** (CI and the release path: the one step that
     cannot be undone; `publish.yml` keeps `deno publish` for provenance), **B7** (delete

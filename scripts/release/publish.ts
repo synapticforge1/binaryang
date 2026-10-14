@@ -144,6 +144,14 @@ try {
 } finally {
   await rm(coldDir, { recursive: true }).catch(() => {});
 }
+// …and publish.yml's second type check (Bun migration B6): `tsc` over src/, scripts/ and tests/.
+// No cache to go stale: `tsc -p` without `incremental` checks every file every time.
+console.log('$ bun run check   (tsc, as publish.yml runs it)');
+if (spawnSync('bun', ['run', 'check'], { stdio: 'inherit' }).status !== 0) {
+  console.error(`\nRefusing to release ${tag}: the tsc type check failed.`);
+  console.error('  publish.yml would fail the same way, after the tag was public.');
+  process.exit(1);
+}
 
 // 0d. GUARD: the published ROOT is the CLI, run as a user runs it.
 //
@@ -187,5 +195,6 @@ await run(['git', 'push', 'origin', 'main', tag]);
 console.log(`\nPushed ${tag}. publish.yml will run:`);
 console.log(`  https://github.com/jrmarcum/binaryang/actions`);
 console.log('');
-console.log('It performs: version verify -> check -> test -> deno publish (with OIDC');
-console.log('provenance) -> create GitHub Release.');
+console.log('It performs: version verify -> deno task check + bun run check -> bun run test');
+console.log('(Node 24) + bun run test:bun -> deno publish (with OIDC provenance) -> create');
+console.log('GitHub Release -> verify provenance on JSR.');
