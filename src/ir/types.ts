@@ -15,12 +15,12 @@
  *
  * @example
  * ```ts
- * import { ValType, Type, typeToString } from "@jrmarcum/binaryang/ir/binaryen-ts";
+ * import { type ExprType, typeToString, ValType } from "@jrmarcum/binaryang/ir";
  *
- * const t: Type = ValType.I32;
+ * const t: ExprType = ValType.I32;
  * console.log(typeToString(t)); // "i32"
  *
- * const tuple: Type = [ValType.I32, ValType.F64];
+ * const tuple: ExprType = [ValType.I32, ValType.F64];
  * console.log(typeToString(tuple)); // "(i32 f64)"
  * ```
  *

@@ -1,7 +1,7 @@
 # Unreleased on `main` — what the next release note must say
 
 **As of 2026-10-14 (UTC): `main` = `v1.11.0`, PUBLISHED (the owner's "ship 1.11.0"; `bun run
-release` pushed the bump and the tag together) — nothing unreleased** (check it rather than trust
+release` pushed the bump and the tag together) — see § "Since 1.11.0"** (check it rather than trust
 this line: `git log --oneline v1.11.0..main -- src/ main.ts jsr.json`). `jsr.json` reads 1.11.0;
 the version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
@@ -38,5 +38,19 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.11.0
 
-Nothing yet. The 1.11.0 notes as gathered, entry by entry, are `git show fc021fe08:cmem/unreleased.md`;
+- ⚠️ **BREAKING — the three deprecated subpaths and the deprecated type names are REMOVED**
+  (2026-10-14, open-work 25, owner: "proceed with item 25"). Gone from `jsr.json`: `./ir/binaryen-ts`,
+  `./ir/wabt-ts`, `./core/wabt-ts` (deprecated in 1.11.0; their files stay as `./ir`'s internal
+  barrels). Gone as names: `Type` as the node-type union in `./api` (and in the old binaryen-ts
+  view), which is `ExprType`; `./compat/wabt`'s `Features` / `WasmModule`, which are `WabtFeatures`
+  / `WabtWasmModule`. **The release is a MINOR, 1.12.0.** Who it reaches: anyone importing the three
+  subpaths or those names; `./ir` has had everything since 1.11.0. wasmtk checked: its code imports
+  none of the three subpaths (only its vendored copy of our old source names them, in doc comments)
+  and takes `compat/wabt`'s default export only, never `Features` / `WasmModule`
+  ([handoffs.md](handoffs.md) § 32). Held by `ir_subpath.test.ts` (the three are not in `jsr.json`;
+  `./ir` exports every name of the three barrels from the same declaration, now with no exception)
+  and `compat_type_names.test.ts` (importing the old names must fail `bun run check`, shown by
+  bringing one back).
+
+The 1.11.0 notes as gathered, entry by entry, are `git show fc021fe08:cmem/unreleased.md`;
 the public summary is `CHANGELOG.md` § 1.11.0.

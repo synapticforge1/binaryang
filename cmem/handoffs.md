@@ -516,6 +516,24 @@ instrumented, as upstream).
 >
 > We look forward to your `go_asyncify_tests` count on the bump.
 
+### § 32 — to wasmtk: the deprecated IR subpaths are removed on main (2026-10-14, DRAFT — NOT SENT; the owner sends it)
+
+> From binaryang, 2026-10-14. A notice before a release, not an ask: we checked your code first,
+> and nothing you use changes.
+>
+> **Removed on our main (unreleased; the next minor, 1.12.0, when the owner releases it):** the
+> subpaths `@jrmarcum/binaryang/ir/binaryen-ts`, `…/ir/wabt-ts` and `…/core/wabt-ts`, deprecated in
+> 1.11.0 (`./ir` exports everything they did, under the same names), and three deprecated type
+> names: `Type` as the node-type union in `./api` (`ExprType`), and `./compat/wabt`'s `Features` /
+> `WasmModule` (`WabtFeatures` / `WabtWasmModule`).
+>
+> **What we checked in your repo, read only:** your import map maps `compat/binaryen`,
+> `wasm-validate` and `compat/wabt` (pinned 1.8.1); your code imports `compat/wabt`'s default export
+> only (`import wabt from "wabt"`, 8 files) and never `Features` or `WasmModule`; and none of the
+> three subpaths is imported by your code. They appear only under `upstream/binaryang/`, your copy
+> of our older source, in doc comments and the README. So moving your pin to 1.12.0 should need no
+> change on your side for this; tell us if a build of yours disagrees.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the

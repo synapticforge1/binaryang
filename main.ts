@@ -34,7 +34,7 @@
  *
  * | subpath | what |
  * | ------- | ---- |
- * | `./ir` | the IR, its builder and factories, and the vocabulary tool results use (`./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` are deprecated aliases since 1.11.0) |
+ * | `./ir` | the IR, its builder and factories, and the vocabulary tool results use |
  * | `./compat/binaryen`, `./compat/wabt` | the two upstream API shapes |
  * | `./api`, `./passes`, `./wasm` | the Binaryen side: building, optimizing |
  * | `./wat2wasm`, `./wasm2wat`, `./wasm-validate`, `./wasm-objdump`, `./wasm-strip`, `./tools/wasm-opt` | each tool as a library function (`wat2wasm(text)`, …) |

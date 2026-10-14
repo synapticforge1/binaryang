@@ -154,7 +154,6 @@ npm run binaryang -- wat2wasm add.wat -o add.wasm
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@jrmarcum/binaryang/wat2wasm` … `/wasm2ts`          | the six WABT tools, one subpath each                                                                                                                                   |
 | `@jrmarcum/binaryang/ir`                             | the IR: its records, the expression factories, the module builder, the value and GC types, and the vocabulary tool results use (`Result`, `ErrorList`, `formatErrors`) |
-| `…/ir/wabt-ts`, `…/ir/binaryen-ts`, `…/core/wabt-ts` | ⚠️ deprecated since 1.11.0 — `./ir` exports all of them; removed in a later minor                                                                                      |
 | `@jrmarcum/binaryang/api`                            | high-level builder API                                                                                                                                                 |
 | `@jrmarcum/binaryang/passes`                         | optimisation pass registry and runner                                                                                                                                  |
 | `@jrmarcum/binaryang/wasm` · `/wasm-runtime`         | WASM helpers and a small runtime                                                                                                                                       |
@@ -174,8 +173,7 @@ package. The `compat/*` subpaths reproduce upstream's API _shapes_; they do not 
 **One IR, one subpath.** The reader, writers and validator and the optimisation passes all work on
 one IR, and `./ir` exports it under both WABT's names (`Expr`, `Module`) and Binaryen's
 (`Expression`, `WasmModule`) — the same types. One name means one thing: `Type` is the value-type
-enum (`Type.I32`); the type of a node's `type` field is `ExprType` (`./ir/binaryen-ts` called it
-`Type`, and still does, deprecated).
+enum (`Type.I32`); the type of a node's `type` field is `ExprType`.
 
 ## Runtime support
 
@@ -219,8 +217,8 @@ From either predecessor, this is a package rename plus two subpaths.
 | the WABT IR, via the `wabt-ts` package **root**         | `@jrmarcum/binaryang/ir`              |
 | `Result`, `ErrorList`, `formatErrors`, via the **root** | `@jrmarcum/binaryang/ir`              |
 
-¹ Binaryen's `Type` union is `ExprType` there. (Until 1.11.0 these three were `./ir/binaryen-ts`,
-`./ir/wabt-ts` and `./core/wabt-ts`, which remain for one release, deprecated.)
+¹ Binaryen's `Type` union is `ExprType` there. (Through 1.11.0 these three were also
+`./ir/binaryen-ts`, `./ir/wabt-ts` and `./core/wabt-ts`, deprecated in 1.11.0 and removed after.)
 
 Everything else keeps its name: `./api`, `./passes`, `./wasm`, `./wasm-runtime`, `./tools/wasm-opt`,
 and the six WABT tool subpaths. (`./binary` and `./encoder` were removed at 1.6.0, and `./interop` —

@@ -1,29 +1,29 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 //
-// Open-work 21, phase 4: `./ir` replaces `./ir/wabt-ts`, `./ir/binaryen-ts` and
-// `./core/wabt-ts` (deprecated for one release). The claim is that a caller
-// can switch every import to `./ir` and lose nothing: every name the three
-// export — types included, read from `deno doc` — is exported by `./ir`, every
-// runtime value is the IDENTICAL object, and the one name whose meaning
-// differs is `Type` (core's enum in `./ir`; binaryen-ts's union is `ExprType`).
+// Open-work 21, phase 4: `./ir` replaced `./ir/wabt-ts`, `./ir/binaryen-ts` and `./core/wabt-ts`,
+// deprecated in 1.11.0 and REMOVED after it (open-work 25, 2026-10-14). Their files stay, as the
+// internal barrels `./ir` is built from. What is pinned: the three are no longer published; `./ir`
+// exports every name the three barrels export — types included, read from `deno doc` — from the
+// same declaration, with no exception now that binaryen-ts's deprecated `Type` alias is gone;
+// every runtime value is the IDENTICAL object; and `Type` in `./ir` is core's enum, the node-type
+// union being `ExprType`.
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import * as ir from '../../src/ir/index.ts';
 import * as binaryenView from '../../src/ir/binaryen-ts.ts';
 import * as wabtView from '../../src/ir/wabt-ts.ts';
 import * as core from '../../src/core/index.ts';
 import { Type as CoreType } from '../../src/core/types.ts';
 import type { ExprType, Type as IrType } from '../../src/ir/index.ts';
-import type { Type as DeprecatedBType } from '../../src/ir/binaryen-ts.ts';
 
-const ENTRIES = {
-  './ir': '../../src/ir/index.ts',
-  './ir/binaryen-ts': '../../src/ir/binaryen-ts.ts',
-  './ir/wabt-ts': '../../src/ir/wabt-ts.ts',
-  './core/wabt-ts': '../../src/core/index.ts',
+const BARRELS = {
+  'src/ir/binaryen-ts.ts': '../../src/ir/binaryen-ts.ts',
+  'src/ir/wabt-ts.ts': '../../src/ir/wabt-ts.ts',
+  'src/core/index.ts': '../../src/core/index.ts',
 } as const;
 
 /** Every exported name of an entry file, types included, and where each is declared. */
@@ -48,36 +48,36 @@ function exported(entry: string): Map<string, string> {
   }));
 }
 
-describe('./ir — one subpath for the IR', () => {
-  it(
-    'exports every name the three deprecated subpaths export, from the same declaration',
-    () => {
-      const all = exported(ENTRIES['./ir']);
-      const missing: string[] = [];
-      const moved: string[] = [];
-      for (const old of ['./ir/binaryen-ts', './ir/wabt-ts', './core/wabt-ts'] as const) {
-        for (const [name, where] of exported(ENTRIES[old])) {
-          if (!all.has(name)) missing.push(`${old}: ${name}`);
-          else if (all.get(name) !== where) {
-            moved.push(
-              `${old}: ${name} (${where} -> ${all.get(name)})`,
-            );
-          }
+describe('./ir — the one subpath for the IR', () => {
+  it('is published, and the three subpaths it replaced are not', () => {
+    const jsr = JSON.parse(readFileSync(new URL('../../jsr.json', import.meta.url), 'utf8')) as {
+      exports: Record<string, string>;
+    };
+    expect(jsr.exports['./ir']).toBe('./src/ir/index.ts');
+    for (const gone of ['./ir/binaryen-ts', './ir/wabt-ts', './core/wabt-ts']) {
+      expect([gone, gone in jsr.exports]).toEqual([gone, false]);
+    }
+  });
+
+  it('exports every name of the three barrels it is built from, from the same declaration', () => {
+    const all = exported('../../src/ir/index.ts');
+    const missing: string[] = [];
+    const moved: string[] = [];
+    for (const [barrel, path] of Object.entries(BARRELS)) {
+      for (const [name, where] of exported(path)) {
+        if (!all.has(name)) missing.push(`${barrel}: ${name}`);
+        else if (all.get(name) !== where) {
+          moved.push(`${barrel}: ${name} (${where} -> ${all.get(name)})`);
         }
       }
-      expect(missing).toEqual([]);
-      // The ONE name whose declaration differs: binaryen-ts's deprecated `Type` alias
-      // of `ExprType`, where `./ir` has core's enum.
-      expect(moved).toHaveLength(1);
-      // (`deno doc` places an alias re-export at its `export type { … as Type }` line.)
-      expect(moved[0]).toMatch(
-        /^\.\/ir\/binaryen-ts: Type \(src\/ir\/binaryen-ts\.ts:\d+ -> src\/core\/types\.ts:\d+\)$/,
-      );
-      expect(all.has('ExprType')).toBe(true);
-    },
-  );
+    }
+    expect(missing).toEqual([]);
+    // No exception any more: binaryen-ts's deprecated `Type` alias of `ExprType` was the one.
+    expect(moved).toEqual([]);
+    expect(all.has('ExprType')).toBe(true);
+  });
 
-  it('gives every runtime value of the three as the identical object', () => {
+  it('gives every runtime value of the three barrels as the identical object', () => {
     const irValues = ir as Record<string, unknown>;
     for (const view of [binaryenView, wabtView, core] as Record<string, unknown>[]) {
       for (const [name, value] of Object.entries(view)) {
@@ -86,14 +86,13 @@ describe('./ir — one subpath for the IR', () => {
     }
   });
 
-  it("`Type` is core's enum, and binaryen-ts's union is `ExprType`", () => {
+  it("`Type` is core's enum, and the node-type union is `ExprType`", () => {
     expect(ir.Type).toBe(CoreType);
     expect(ir.Type.I32).toBe(CoreType.I32);
     // Compile-time: each line compiles only if the claim holds.
     type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
     const enumType: Same<IrType, CoreType> = true;
-    const union: Same<ExprType, DeprecatedBType> = true;
     const differ: Same<IrType, ExprType> = false;
-    expect([enumType, union, differ]).toEqual([true, true, false]);
+    expect([enumType, differ]).toEqual([true, false]);
   });
 });

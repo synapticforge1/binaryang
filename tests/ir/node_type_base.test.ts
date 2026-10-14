@@ -19,7 +19,6 @@
 
 import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
-import type { Type as DeprecatedBType } from '../../src/ir/binaryen-ts.ts';
 
 import type {
   BlockResult,
@@ -57,8 +56,7 @@ describe('the node base: `type`', () => {
   });
 
   it("(4b) any other node's type is optional in both, and one type", () => {
-    // binaryen-ts's union, still offered as `Type` by the deprecated subpath, IS `ExprType`.
-    same<DeprecatedBType, ExprType>(true);
+    // (binaryen-ts's deprecated `Type` alias of `ExprType` went with its subpath, open-work 25.)
     same<NonNullable<CallExpr['type']>, ExprType>(true);
     same<IsRequired<CallExpr, 'type'>, false>(true);
     same<IsRequired<WCallExpr, 'type'>, false>(true);
