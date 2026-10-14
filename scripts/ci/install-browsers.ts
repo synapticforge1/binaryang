@@ -3,8 +3,8 @@
 
 /**
  * CI only (Ubuntu): installs the browsers `bun run browsers --require-all` runs (open-work 28.3).
- * Playwright's own Chromium, Firefox and WebKit (with their system libraries); Brave, Opera and
- * Vivaldi from each vendor's apt repository. Chrome and Edge come with GitHub's Ubuntu image, and
+ * Playwright's own Chromium, Firefox and WebKit (with their system libraries); Brave and Opera
+ * from each vendor's apt repository. Chrome and Edge come with GitHub's Ubuntu image, and
  * the job fails loudly (`--require-all`) if either is ever missing.
  *
  * Logic in TypeScript, not in the workflow's shell (the working rules): each step is one command,
@@ -43,14 +43,6 @@ const APT: AptBrowser[] = [
     list: '/etc/apt/sources.list.d/opera-stable.list',
     pkg: 'opera-stable',
   },
-  {
-    name: 'vivaldi',
-    key: 'https://repo.vivaldi.com/archive/linux_signing_key.pub',
-    keyring: '/usr/share/keyrings/vivaldi-browser.gpg',
-    source: 'https://repo.vivaldi.com/archive/deb/ stable main',
-    list: '/etc/apt/sources.list.d/vivaldi.list',
-    pkg: 'vivaldi-stable',
-  },
 ];
 
 function step(label: string, cmd: string, args: string[], input?: string | Buffer): void {
@@ -85,7 +77,7 @@ for (const b of APT) {
     console.error(`✗ ${b.name}: could not fetch its signing key`);
     process.exit(1);
   }
-  // Brave publishes a binary keyring, Opera and Vivaldi ASCII-armored keys: only the armored ones
+  // Brave publishes a binary keyring, Opera an ASCII-armored key: only an armored one
   // go through `gpg --dearmor`; a binary one is written as it is.
   const armored = key.stdout.subarray(0, 32).toString('latin1').includes('-----BEGIN');
   step(

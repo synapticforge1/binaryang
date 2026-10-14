@@ -11,9 +11,6 @@
  *   node scripts/browsers/driver.ts <page-url> '<BrowserSpec[] as JSON>'
  */
 
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import process from 'node:process';
 import { chromium, firefox, type Page, webkit } from 'playwright';
 
@@ -23,14 +20,8 @@ export interface BrowserSpec {
   engine: 'chromium' | 'firefox' | 'webkit';
   /** An installed Chrome / Edge, by Playwright channel (`chrome`, `msedge`). */
   channel?: string;
-  /** Any other Chromium-based browser (Brave, Opera, Vivaldi): its executable. */
+  /** Any other Chromium-based browser (Brave, Opera): its executable. */
   executablePath?: string;
-  /**
-   * Open the page in the browser's DEFAULT context (`launchPersistentContext`, a fresh profile)
-   * instead of a new one: Vivaldi on CI launched, then never answered `newPage()` in a new context
-   * ("newPage did not settle in 60 s", 2026-10-13).
-   */
-  defaultContext?: boolean;
 }
 
 const ENGINES = { chromium, firefox, webkit };
@@ -41,7 +32,8 @@ if (!url || !specsJson) {
 }
 /**
  * `p`, or a rejection after `ms`. The timer also keeps the process alive: a promise that never
- * settled let Node exit 13 with no output (Vivaldi's `newPage()` on CI, 2026-10-13).
+ * settled let Node exit 13 with no output (Vivaldi's `newPage()` on CI, 2026-10-13; Vivaldi is
+ * no longer run).
  */
 function within<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -62,23 +54,6 @@ async function open(spec: BrowserSpec): Promise<{
     ...(spec.channel ? { channel: spec.channel } : {}),
     ...(spec.executablePath ? { executablePath: spec.executablePath } : {}),
   };
-  if (spec.defaultContext) {
-    const profile = mkdtempSync(join(tmpdir(), `binaryang-${spec.name}-`));
-    const context = await within(
-      ENGINES[spec.engine].launchPersistentContext(profile, options),
-      120_000,
-      'the launch',
-    );
-    const page = context.pages()[0] ?? (await within(context.newPage(), 60_000, 'newPage'));
-    return {
-      page,
-      version: context.browser()?.version() ?? 'unknown',
-      close: async () => {
-        await context.close();
-        rmSync(profile, { recursive: true, force: true });
-      },
-    };
-  }
   const browser = await within(ENGINES[spec.engine].launch(options), 120_000, 'the launch');
   try {
     const page = await within(browser.newPage(), 60_000, 'newPage');
@@ -92,8 +67,8 @@ async function open(spec: BrowserSpec): Promise<{
 for (const spec of JSON.parse(specsJson) as BrowserSpec[]) {
   try {
     const { page, version, close } = await open(spec);
-    // Every step bounded and named: with the launch bounded, Vivaldi on CI still exited 13 with no
-    // report, so a later step's promise was left pending; the error now says which.
+    // Every step bounded and named, so a step that never settles is reported by name (Vivaldi on
+    // CI exited 13 in silence before this).
     try {
       const consoleErrors: string[] = [];
       page.on('pageerror', (e) => consoleErrors.push(String(e).slice(0, 200)));
