@@ -79,7 +79,7 @@ PUSHED; the version stays 1.10.0):**
   1.11.0's deprecated subpaths and type names (open-work 25). wasmtk awaits it to test.
 - **wasmtk's § 33 (2026-10-13):** on 1.12.0 their nested-goroutine program trapped on the rewind;
   `Asyncify`'s save set missed a paused call's operand temps. FIXED on main (unreleased, a Silent
-  fix); the reply is DRAFTED as handoffs § 34, for the owner to send.
+  fix); the reply, handoffs § 34, SENT by the owner.
 - **5 open items:** 13, 14, 15, 28, 30 (28: 28.3 built, its CI job not yet green; 28.6 MEASURED
   2026-10-13, no run-time speedup in any browser; the owner agreed: no helper, 28.7 at most a
   recipe; 30: the size gaps 28.6 found). 29 (npm as a second
