@@ -3,7 +3,9 @@
 //
 // The real-browser job (open-work 28.3, 2026-10-13) runs the browsers the owner named: "chromium
 // based, firefox, opera, vivaldi, brave, edge", and Safari (owner: "add safari instead of
-// duckduckgo"), as WebKit, its engine. Pinned: that list and each browser's engine, and that CI
+// duckduckgo"), as WebKit, its engine; Vivaldi removed again (owner, 2026-10-13: "lets remove
+// vivaldi from the checks"; it never ran headless on CI). Pinned: that list and each browser's
+// engine, and that CI
 // installs them and runs the job with `--require-all`, so a browser that cannot launch FAILS there
 // rather than being skipped as it is on a machine that lacks it.
 
@@ -16,11 +18,11 @@ describe('the real-browser job', () => {
   it("runs the owner's browsers, each on its engine", () => {
     const byName = new Map(browserSpecs().map((s) => [s.name, s.engine]));
     expect([...byName.keys()].sort()).toEqual(
-      ['brave', 'chrome', 'chromium', 'edge', 'firefox', 'opera', 'safari', 'vivaldi'],
+      ['brave', 'chrome', 'chromium', 'edge', 'firefox', 'opera', 'safari'],
     );
     expect(byName.get('safari')).toBe('webkit');
     expect(byName.get('firefox')).toBe('firefox');
-    for (const n of ['chromium', 'chrome', 'edge', 'brave', 'opera', 'vivaldi']) {
+    for (const n of ['chromium', 'chrome', 'edge', 'brave', 'opera']) {
       expect([n, byName.get(n)]).toEqual([n, 'chromium']);
     }
   });

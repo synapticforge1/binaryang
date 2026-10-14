@@ -126,8 +126,9 @@ jobs:
           bun run collisions >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
           bun run collisions --quiet || true
 
-  # The library in REAL browsers (open-work 28.3; owner, 2026-10-14: Playwright; "chromium based,
-  # firefox, opera, vivaldi, brave, edge", and Safari as WebKit, its engine). Every export loads,
+  # The library in REAL browsers (open-work 28.3; owner, 2026-10-13: Playwright; "chromium based,
+  # firefox, opera, brave, edge", and Safari as WebKit, its engine; Vivaldi removed, as it never
+  # ran headless here). Every export loads,
   # the smoke hash and the corpus hashes equal the host's, and each engine's refusals match
   # tests/browser-known-differences.json. `--require-all`: a browser that cannot launch fails.
   browsers:
