@@ -839,6 +839,22 @@ Asked the same day to "bump and publish 1.6.0" again, the answer was that it alr
 `https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
 arming anything.
 
+## 1.12.0 — a MINOR from `main` (2026-10-14 UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
+
+The owner's go: "wasmtk has been notified already and is awaiting release 1.12.0 for testing. do the
+release". It removes the subpaths and type names 1.11.0 deprecated (open-work 25; BREAKING, hence a
+minor). Every step checked through the APIs:
+
+1. `CHANGELOG.md` § 1.12.0 (and handoffs § 32 SENT) on `release/1.12.0`, gated, merged; `main`
+   pushed unbumped at `615802de1`: CI and auto-tag GREEN.
+2. The suite from a FRESH CLONE of that commit: install, tsc, `bun run test` (5,907; 1 skip, the
+   external corpus), `bun run test:bun` (the 36 listed), `bun run publish:dry`: all exit 0.
+3. 1.12.0 typed by hand in `jsr.json` and `main.ts`; `version_sync` green; JSR 404, no remote tag;
+   `bun run release` (cold publish dry run, tsc, entry check) committed `bump to v1.12.0`
+   (`604b33cf8`) and pushed `main` + `v1.12.0` together.
+4. publish.yml GREEN, with CI and auto-tag; JSR 1.12.0 created 2026-10-14T01:39:42Z, not yanked,
+   **Rekor log id `3247710678`**, `latestVersion` 1.12.0.
+
 ## 1.11.0 — a MINOR from `main` (2026-10-14 UTC) — 🚀 PUBLISHED by `bun run release`; the first publish through the Bun workflow (B6 / B7), provenance recorded
 
 The owner's go ("lets update the project memory files and then ship 1.11.0"). Every step checked

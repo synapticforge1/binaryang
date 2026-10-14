@@ -75,7 +75,10 @@ PUSHED; the version stays 1.10.0):**
   (`wg-counter: 45` on wasmtime and wasmer).
 - **1.11.0** carries all of it ([unreleased.md](unreleased.md)): a MINOR (new exports, type-level
   BREAKING entries: the enums as const objects, `Opcode` narrowed).
-- **4 open items:** 13, 14, 15, 28. (25 closed 2026-10-14: the deprecated subpaths removed on main, for 1.12.0.) 29 (npm as a second
+- 🚀 **1.12.0 PUBLISHED** 2026-10-14T01:39:42Z (UTC), provenance (Rekor `3247710678`): the removal of
+  1.11.0's deprecated subpaths and type names (open-work 25). wasmtk awaits it to test.
+- **4 open items:** 13, 14, 15, 28 (28 SCOPED 2026-10-14: 28.3 a real-browser job, 28.6 the
+  in-browser optimization measurement, 28.7 optional; the driver is the owner's call). 29 (npm as a second
   registry) PARKED as a contingency. The `code-lens-13` conflict above still stands.
 - ⚠️ This machine's exFAT drive can fail a big `git merge`; check status and `MERGE_HEAD`, and if
   clean, retry (`local/environment.md`, private).
@@ -207,6 +210,45 @@ Its number is kept free.)
     **Measure before building on it:** a few unoptimized (debug / `-O0`) modules; in Chrome,
     compile time and run time before vs after, and the optimizer's own time in the browser. No
     run-time speedup has been measured yet, so promise none.
+    **SCOPE OF WHAT REMAINS (2026-10-14, owner: "Scope item 28 for the items needed to achieve
+    this").** Done: parts 1, 2, 4, 5 (every export bundles for the browser, held by `bun run
+    browser`; the source runs on Node 22.18–26 with no flag; `wasmOpt` takes bytes) and the precise
+    operator types. What "runs everywhere" still lacks is EVIDENCE from a real browser, and the
+    browser use case lacks a measurement. Two pieces, in this order (the second uses the first's
+    harness), then one optional:
+    - **28.3 — a real-browser job.** *What:* a static page, served locally by Bun, that loads the
+      browser bundle of EVERY export and runs, through the library (no CLI): (a) the cli-smoke
+      equivalent (`wat2wasm` on a fixed module), whose SHA-256 must equal the Deno / Node / Bun
+      hash; (b) a corpus pass: `wat2wasm` → `wasm2wat` round trip, and `wasmOpt` bytes in →
+      `WebAssembly.validate` in THAT browser, over a corpus subset. *Engine differences:* as with
+      `test:bun`, a per-browser known-differences list, checked both ways (WebKit is JavaScriptCore
+      like Bun, so expect the memory64 / table64 family there). *Driver — the owner's call:*
+      **Playwright** (1.63.0 is the newest release over two weeks old) drives Chromium, Firefox AND
+      WebKit, i.e. V8, SpiderMonkey and JavaScriptCore, the three engines the README's "modern
+      browsers" means; its browser downloads are a few hundred MB (CI: `playwright install
+      --with-deps`, cached). **puppeteer-core** (25.12.0) is lighter and can drive the installed
+      Chrome / Edge (this machine has both, no Firefox), but has no WebKit. *CI:* a `browsers` job;
+      budget a few minutes. *Accepted when:* every export loads in each browser; the smoke hash
+      matches every runtime's; the corpus pass holds with each browser's listed differences; a
+      mutant (an export with a top-level `node:` import, or a browser-only break) fails the job.
+    - **28.6 — measure in-browser optimization, BEFORE building on it** (the owner's use case: a
+      page optimizes a module it does not control, on the user's machine). *Inputs:* unoptimized
+      modules built HERE — this machine has Rust nightly (`wasm32-unknown-unknown`,
+      `wasm32-wasip1`), Zig 0.16, TinyGo 0.43 — in debug / `-O0` and release forms, 5–8 modules
+      across sizes, each with a fixed workload to time. Kept as fixtures (anchored `.gitignore`
+      exceptions: the 1.10.0 lesson) or rebuilt for the measurement; the toolchains are not in CI,
+      so this is a recorded LOCAL measurement, not a gate. *Measure,* in a Web Worker, in Chrome
+      (and Firefox / WebKit if 28.3 brings them): binaryang's `wasmOpt` time at `-O2` and `-Oz`,
+      output size, `WebAssembly.compile` time before vs after, the workload's run time before vs
+      after; upstream `wasm-opt` 133 (installed) on the same inputs as the quality reference.
+      *Accepted when:* a dated table in cmem, and the decision it supports: whether a browser
+      helper is worth shipping, or a documented recipe is enough. No speedup is promised until then.
+    - **28.7 — optional, after 28.6's numbers:** the browser recipe as documentation (or a helper):
+      optimize in a Worker, keep the original, validate the result with `WebAssembly.validate` and
+      fall back to the original on failure, cache the result (Cache API / IndexedDB).
+    **Decisions for the owner:** (1) the driver, Playwright (all three engines) or puppeteer-core
+    (Chromium only, lighter); (2) which browsers gate CI; (3) for 28.6, whether the modules are
+    committed as fixtures or rebuilt per measurement.
 
 Items 18–20, from wasmtk's § 20, were fixed for 1.8.1 the day they arrived: L3 (a
 lowered out-of-bounds access traps as out of bounds), L4 (the placeholder; case 2 at an engine
