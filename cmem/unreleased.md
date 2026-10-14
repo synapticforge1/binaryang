@@ -1,6 +1,6 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-14 (UTC): `main` = `v1.12.0`, PUBLISHED (the owner's "do the release"; `bun run
+**As of 2026-10-13 (UTC): `main` = `v1.12.0`, PUBLISHED (the owner's "do the release"; `bun run
 release`) — nothing unreleased** (check it rather than trust this line: `git log --oneline
 v1.12.0..main -- src/ main.ts jsr.json`). `jsr.json` reads 1.12.0; the version line arms a release,
 so the next bump is the owner's decision, never a side effect of work.

@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * The library in REAL browsers (open-work 28.3, 2026-10-14; owner: "Playwright"; the browsers:
+ * The library in REAL browsers (open-work 28.3, 2026-10-13; owner: "Playwright"; the browsers:
  * "chromium based, firefox, opera, vivaldi, brave, edge", and Safari, as WebKit, its engine).
  *
  * `bun run browser` proves every export BUNDLES for a browser; this proves the bundles RUN in one.
@@ -233,6 +233,9 @@ if (import.meta.main) {
     );
     for (const s of skipped) {
       console.log(`- ${s.name}: SKIPPED, ${s.missing}`);
+      if (requireAll && env['GITHUB_ACTIONS'] === 'true') {
+        console.log(`::error title=browsers: ${s.name}::${s.missing}`);
+      }
       if (requireAll) failed = true;
     }
     for (const spec of toRun) {
@@ -280,6 +283,13 @@ if (import.meta.main) {
           }: ${res.loaded.length} exports loaded, ` +
             `${res.modules.length} modules, ${refusals.length} engine refusals (${listed.length} listed)`,
         );
+      }
+      // On GitHub Actions each failure is ALSO an annotation: the job log needs admin rights to read
+      // through the API, annotations do not (the first CI run failed with nothing else to go on).
+      if (env['GITHUB_ACTIONS'] === 'true') {
+        for (const b of bad.slice(0, 3)) {
+          console.log(`::error title=browsers: ${spec.name}::${b.replace(/\r?\n/g, ' ')}`);
+        }
       }
       for (const b of bad.slice(0, 15)) console.log(`    ${b}`);
       if (bad.length > 15) console.log(`    … ${bad.length - 15} more`);

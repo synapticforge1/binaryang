@@ -80,6 +80,49 @@ re-rank over the control: `rse`-like redundant sets (−922 `local.set` in upstr
 `simplify-globals`' remainder, the loop flip. Upstream's `wasm-ctor-eval` also finds 7.4 KB more
 than ours on the same input ([interpreter.md](interpreter.md)) — a separate matter.
 
+## Real compiler output, in three browsers (2026-10-13, open-work 28.6)
+
+`bun benches/browser-opt/measure.ts`. One workload (Mandelbrot, an LCG fill, a sort, FNV;
+`run(300) -> i32`) from rustc nightly, Zig 0.16 and TinyGo 0.43, unoptimized and optimized: six
+committed modules (`benches/browser-opt/modules`, made by `build.ts`). binaryang's `wasmOpt` ran IN a
+module Web Worker in Chrome 154, Firefox 155 and Safari's engine (WebKit 26.6), through Playwright;
+upstream `wasm-opt` 133 made the reference on the host, with `--strip-dwarf` (it dies on zig-debug's
+DWARF otherwise: "Fatal: TODO: DW_LNE_define_file"). Medians of 5, a fresh instance per run.
+
+**Code bytes** (everything outside custom sections). The debug builds are mostly DWARF, which
+binaryang keeps, as upstream does by default (rust-debug `-O2` without `-g`: 1,636,434 bytes), so
+total size compares debug info. Sizes are the same in every browser; the percentage is ours against
+upstream at the same level.
+
+| module          | original | ours -O2 | upstream -O2 |      | ours -Oz | upstream -Oz |      |
+| --------------- | -------: | -------: | -----------: | ---: | -------: | -----------: | ---: |
+| rust-debug      |   51,752 |   43,844 |       42,857 | +2.3% |   43,919 |       42,316 | +3.8% |
+| rust-release    |   19,836 |   17,879 |       17,578 | +1.7% |   17,876 |       17,524 | +2.0% |
+| zig-debug       |   64,910 |   47,237 |       40,436 | +16.8% |   47,335 |       36,113 | +31.1% |
+| zig-releasefast |   20,408 |   20,048 |       19,112 | +4.9% |   20,048 |       18,883 | +6.2% |
+| tinygo-opt1     |   12,996 |   12,958 |       12,930 | +0.2% |   12,958 |       12,848 | +0.9% |
+| tinygo-optz     |   11,389 |   11,382 |       11,392 | −0.1% |   11,382 |       11,384 | 0.0% |
+
+**binaryang's optimize time in the browser, -O2** (Chrome / Firefox / Safari, ms): rust-debug
+321 / 551 / 384; rust-release 85 / 182 / 100; zig-debug 712 / 1,662 / 871; zig-releasefast
+137 / 379 / 172; tinygo-opt1 90 / 171 / 76; tinygo-optz 60 / 98 / 60. -Oz within 15% of these.
+
+**What it shows:**
+
+- **Correct everywhere:** 4 optimized variants × 6 modules × 3 engines, every checksum equal to
+  the original's.
+- **No run-time speedup, from anyone's optimizer:** the workload's time is the same within the
+  timer's resolution (Firefox and Safari clamp to 1 ms) for the original, ours and upstream's, even
+  for the debug builds (Chrome, rust-debug: 11.0 / 11.0 / 10.8 ms). The engines' optimizing tiers
+  already do the work. `WebAssembly.compile` is under 2 ms for every variant. What optimizing in the
+  page buys here is BYTES (smaller to cache and pass on), not speed. That is the measurement behind
+  28.6's decision.
+- **Two gaps the corpus did not show** (item 2 closed at 1.86% of upstream -Oz on the corpus):
+  binaryang's `-Oz` is no smaller than its `-O2` on any of the six (upstream's -Oz saves 10.7% on
+  zig-debug), and on zig-debug our -O2 code is 16.8% larger than upstream's. Open-work 30.
+- **Limits:** one workload, a few ms long; the run-time result says "no speedup on this kind of
+  code", not "never".
+
 ## Lessons
 
 - **A written estimate that adds two measurements is wrong** — "propagation ~7.7 KB" assumed

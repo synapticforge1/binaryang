@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * Drives real browsers through Playwright (open-work 28.3; owner, 2026-10-14: "Playwright").
+ * Drives real browsers through Playwright (open-work 28.3; owner, 2026-10-13: "Playwright").
  * Runs on NODE, which Playwright supports (`check-browsers.ts`, on Bun, builds and serves the page
  * and starts this on the referee Node). For each browser spec: launch it headless, open the page,
  * wait for the harness's `__result`, and print one JSON line, `{ name, version, result }` or

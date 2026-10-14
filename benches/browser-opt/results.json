@@ -1,0 +1,1548 @@
+{
+  "date": "2026-10-14T02:11:33.566Z",
+  "upstream": "wasm-opt version 133 (version_133)",
+  "results": [
+    {
+      "name": "chrome",
+      "version": "154.0.8037.98",
+      "result": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+        "reports": [
+          {
+            "module": "rust-debug",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 1917831,
+                "codeBytes": 51752,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.8999999761581421,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 1892725,
+                "codeBytes": 43844,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 320.7999999523163,
+                "compileMs": 0.8999999761581421,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 1892800,
+                "codeBytes": 43919,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 223.89999997615814,
+                "compileMs": 1,
+                "runMs": 10.900000095367432,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 43379,
+                "codeBytes": 42857,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.19999992847442627,
+                "runMs": 10.799999952316284,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 42838,
+                "codeBytes": 42316,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.20000004768371582,
+                "runMs": 10.900000095367432,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "rust-release",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 24646,
+                "codeBytes": 19836,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.19999992847442627,
+                "runMs": 3.5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 18118,
+                "codeBytes": 17879,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 84.79999995231628,
+                "compileMs": 0.40000009536743164,
+                "runMs": 3.5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 18115,
+                "codeBytes": 17876,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 96.60000002384186,
+                "compileMs": 0.2999999523162842,
+                "runMs": 3.600000023841858,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 18100,
+                "codeBytes": 17578,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 3.8000000715255737,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 18046,
+                "codeBytes": 17524,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 3.8000000715255737,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "zig-debug",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 654513,
+                "codeBytes": 64910,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.30000007152557373,
+                "runMs": 10.399999976158142,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 633408,
+                "codeBytes": 47237,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 711.8000000715256,
+                "compileMs": 0.6000000238418579,
+                "runMs": 10.600000023841858,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 633506,
+                "codeBytes": 47335,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 648,
+                "compileMs": 0.30000007152557373,
+                "runMs": 10.199999928474426,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 40898,
+                "codeBytes": 40436,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.19999992847442627,
+                "runMs": 10.100000023841858,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 36575,
+                "codeBytes": 36113,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.19999992847442627,
+                "runMs": 9,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "zig-releasefast",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 109409,
+                "codeBytes": 20408,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 6.5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 108821,
+                "codeBytes": 20048,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 136.5,
+                "compileMs": 0.3999999761581421,
+                "runMs": 4.800000071525574,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 108821,
+                "codeBytes": 20048,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 130.59999990463257,
+                "compileMs": 0.10000002384185791,
+                "runMs": 4.300000071525574,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 19574,
+                "codeBytes": 19112,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 4.799999952316284,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 19345,
+                "codeBytes": 18883,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 4.800000071525574,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "tinygo-opt1",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 13747,
+                "codeBytes": 12996,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.300000071525574,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 13186,
+                "codeBytes": 12958,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 89.80000007152557,
+                "compileMs": 0.6000000238418579,
+                "runMs": 5.300000071525574,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 13186,
+                "codeBytes": 12958,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 71,
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.300000071525574,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 13525,
+                "codeBytes": 12930,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.199999928474426,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 13443,
+                "codeBytes": 12848,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.200000047683716,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "tinygo-optz",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 12390,
+                "codeBytes": 11389,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.399999976158142,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 11610,
+                "codeBytes": 11382,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 59.60000002384186,
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.600000023841858,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 11610,
+                "codeBytes": 11382,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 42,
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 11987,
+                "codeBytes": 11392,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 11979,
+                "codeBytes": 11384,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.400000095367432,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          }
+        ]
+      },
+      "consoleErrors": []
+    },
+    {
+      "name": "firefox",
+      "version": "155.0",
+      "result": {
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0",
+        "reports": [
+          {
+            "module": "rust-debug",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 1917831,
+                "codeBytes": 51752,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 13,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 1892725,
+                "codeBytes": 43844,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 551,
+                "compileMs": 1,
+                "runMs": 14,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 1892800,
+                "codeBytes": 43919,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 430,
+                "compileMs": 1,
+                "runMs": 12,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 43379,
+                "codeBytes": 42857,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 12,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 42838,
+                "codeBytes": 42316,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "rust-release",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 24646,
+                "codeBytes": 19836,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 18118,
+                "codeBytes": 17879,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 182,
+                "compileMs": 1,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 18115,
+                "codeBytes": 17876,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 158,
+                "compileMs": 1,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 18100,
+                "codeBytes": 17578,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 18046,
+                "codeBytes": 17524,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "zig-debug",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 654513,
+                "codeBytes": 64910,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 633408,
+                "codeBytes": 47237,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 1662,
+                "compileMs": 1,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 633506,
+                "codeBytes": 47335,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 1479,
+                "compileMs": 1,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 40898,
+                "codeBytes": 40436,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 10,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 36575,
+                "codeBytes": 36113,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 10,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "zig-releasefast",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 109409,
+                "codeBytes": 20408,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 108821,
+                "codeBytes": 20048,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 379,
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 108821,
+                "codeBytes": 20048,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 306,
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 19574,
+                "codeBytes": 19112,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 19345,
+                "codeBytes": 18883,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "tinygo-opt1",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 13747,
+                "codeBytes": 12996,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 13186,
+                "codeBytes": 12958,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 171,
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 13186,
+                "codeBytes": 12958,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 134,
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 13525,
+                "codeBytes": 12930,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 7,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 13443,
+                "codeBytes": 12848,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "tinygo-optz",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 12390,
+                "codeBytes": 11389,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 11610,
+                "codeBytes": 11382,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 98,
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 11610,
+                "codeBytes": 11382,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 103,
+                "compileMs": 0,
+                "runMs": 8,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 11987,
+                "codeBytes": 11392,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 11979,
+                "codeBytes": 11384,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          }
+        ]
+      },
+      "consoleErrors": []
+    },
+    {
+      "name": "safari",
+      "version": "26.6",
+      "result": {
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6 Safari/605.1.15",
+        "reports": [
+          {
+            "module": "rust-debug",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 1917831,
+                "codeBytes": 51752,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 14,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 1892725,
+                "codeBytes": 43844,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 384,
+                "compileMs": 1,
+                "runMs": 13,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 1892800,
+                "codeBytes": 43919,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 276,
+                "compileMs": 1,
+                "runMs": 12,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 43379,
+                "codeBytes": 42857,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 13,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 42838,
+                "codeBytes": 42316,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 13,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "rust-release",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 24646,
+                "codeBytes": 19836,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 18118,
+                "codeBytes": 17879,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 100,
+                "compileMs": 1,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 18115,
+                "codeBytes": 17876,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 88,
+                "compileMs": 1,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 18100,
+                "codeBytes": 17578,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 18046,
+                "codeBytes": 17524,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 4,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "zig-debug",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 654513,
+                "codeBytes": 64910,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 12,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 633408,
+                "codeBytes": 47237,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 871,
+                "compileMs": 1,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 633506,
+                "codeBytes": 47335,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 786,
+                "compileMs": 2,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 40898,
+                "codeBytes": 40436,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 1,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 36575,
+                "codeBytes": 36113,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 11,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "zig-releasefast",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 109409,
+                "codeBytes": 20408,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 108821,
+                "codeBytes": 20048,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 172,
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 108821,
+                "codeBytes": 20048,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 149,
+                "compileMs": 1,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 19574,
+                "codeBytes": 19112,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 19345,
+                "codeBytes": 18883,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "tinygo-opt1",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 13747,
+                "codeBytes": 12996,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 13186,
+                "codeBytes": 12958,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 76,
+                "compileMs": 1,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 13186,
+                "codeBytes": 12958,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 85,
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 13525,
+                "codeBytes": 12930,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 13443,
+                "codeBytes": 12848,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          },
+          {
+            "module": "tinygo-optz",
+            "variants": [
+              {
+                "variant": "original",
+                "bytes": 12390,
+                "codeBytes": 11389,
+                "custom": [
+                  "name",
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -O2",
+                "bytes": 11610,
+                "codeBytes": 11382,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 60,
+                "compileMs": 0,
+                "runMs": 5,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 11610,
+                "codeBytes": 11382,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 55,
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -O2",
+                "bytes": 11987,
+                "codeBytes": 11392,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "upstream -Oz",
+                "bytes": 11979,
+                "codeBytes": 11384,
+                "custom": [
+                  "producers",
+                  "target_features"
+                ],
+                "compileMs": 0,
+                "runMs": 6,
+                "checksum": 1892226719,
+                "sameResult": true
+              }
+            ]
+          }
+        ]
+      },
+      "consoleErrors": []
+    }
+  ]
+}
