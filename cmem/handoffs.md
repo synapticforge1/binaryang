@@ -516,7 +516,7 @@ instrumented, as upstream).
 >
 > We look forward to your `go_asyncify_tests` count on the bump.
 
-### § 32 — to wasmtk: the deprecated IR subpaths are removed on main (2026-10-14, DRAFT — NOT SENT; the owner sends it)
+### § 32 — to wasmtk: the deprecated IR subpaths are removed on main (2026-10-14, SENT by the owner; wasmtk awaits 1.12.0 to test)
 
 > From binaryang, 2026-10-14. A notice before a release, not an ask: we checked your code first,
 > and nothing you use changes.
