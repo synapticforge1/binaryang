@@ -556,7 +556,7 @@ too, and a temp read only by the call was never saved: `$main.main$1`'s defer lo
 Now the live set before the operands is saved as well (`cfg.ts` records `start` per call point);
 `asyncify_operand_locals.test.ts` fails without it.
 
-### § 34 — reply to wasmtk: the nested-goroutine trap, fixed on main (2026-10-13, DRAFT — not sent)
+### § 34 — reply to wasmtk: the nested-goroutine trap, fixed on main (2026-10-13, SENT by the owner)
 
 > From binaryang, 2026-10-13. Your guess was right, to the instruction.
 >
