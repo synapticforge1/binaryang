@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.12.1
+
+### Fixed
+
+- **`Asyncify` restores a paused call's operands on the rewind.** It saved only the locals still
+  needed AFTER a call that can unwind, but a rewind runs that call again, so a value read only as
+  its operand came back wrong. Seen as a `call_indirect` whose table index was loaded from memory:
+  the rewind called table slot 0 (`uninitialized element`, or the wrong function). TinyGo 0.43's
+  nested goroutines with a pending `defer` hit it; their output now runs. Asyncify frames grow
+  where operands were missed (upstream's are larger still).
+
 ## 1.12.0
 
 ### Removed
