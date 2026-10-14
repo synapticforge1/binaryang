@@ -80,7 +80,10 @@ PUSHED; the version stays 1.10.0):**
 - **wasmtk's § 33 (2026-10-13):** on 1.12.0 their nested-goroutine program trapped on the rewind;
   `Asyncify`'s save set missed a paused call's operand temps. FIXED on main (unreleased, a Silent
   fix); the reply, handoffs § 34, SENT by the owner.
-- **5 open items:** 13, 14, 15, 28, 30 (28: 28.3 built, its CI job not yet green; 28.6 MEASURED
+- **CI fully GREEN on GitHub (2026-10-13, `5e485c497`), the Browsers job included:** chromium,
+  Chrome, Edge, Brave, Opera, Firefox, WebKit (Vivaldi removed by the owner). **1.12.1** (a patch:
+  the § 33 Asyncify fix) is the owner's "commit and bump and push" of 2026-10-13.
+- **5 open items:** 13, 14, 15, 28, 30 (28: 28.3 built and GREEN on CI; 28.6 MEASURED
   2026-10-13, no run-time speedup in any browser; the owner agreed: no helper, 28.7 at most a
   recipe; 30: the size gaps 28.6 found). 29 (npm as a second
   registry) PARKED as a contingency. The `code-lens-13` conflict above still stands.
