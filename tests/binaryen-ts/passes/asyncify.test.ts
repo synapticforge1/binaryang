@@ -30,6 +30,7 @@ import { ValType } from '../../../src/ir/types.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import {
+  analyzeModule,
   ASYNCIFY_DATA,
   ASYNCIFY_GET_STATE,
   ASYNCIFY_START_REWIND,
@@ -39,8 +40,11 @@ import {
   ASYNCIFY_STOP_UNWIND,
   AsyncifyPass,
   parseAsyncifyOptions,
+  resolveAsyncifyImports,
   State,
 } from '../../../src/passes/asyncify.ts';
+import { readWat } from '../../../src/tools/read-wat.ts';
+import type { PassOptions } from '../../../src/passes/pass.ts';
 import { type Var, varIndex, varName } from '../../../src/ir/ir.ts';
 import { region, soleInstr } from '../region_helpers.ts';
 import { walkExpression } from '../../../src/ir/walk.ts';
@@ -299,6 +303,57 @@ test('Asyncify — in-wasm asyncify.* import mode: imports removed, control fns 
     WebAssembly.validate(writeWasm(m) as BufferSource),
     'asyncified import-mode module must validate',
   );
+});
+
+// wasmtk, 2026-10-13: Asyncify threw `Flatten: unresolved call target "$asyncify_stop_unwind"`
+// on TinyGo 0.43 output; upstream Binaryen 123 ran it, and its output printed the program's
+// `wg-counter: 45`. TinyGo 0.43 added a function that calls `asyncify.stop_unwind` (the resume
+// boundary: the BOTTOM-MOST runtime) AND something that can unwind. Upstream's propagation stops
+// at the bottom-most runtime (Asyncify.cpp 722-726), so that function is never instrumented; ours
+// instrumented it, and flattening it hit the control function, which exists only later.
+const BOTTOM_MOST = `(module
+  (import "asyncify" "start_unwind" (func $su (param i32)))
+  (import "asyncify" "stop_unwind" (func $stu))
+  (import "asyncify" "start_rewind" (func $sr (param i32)))
+  (import "asyncify" "stop_rewind" (func $str))
+  (import "env" "sleep" (func $sleep))
+  (memory 1)
+  ;; The resume boundary that also reaches a suspend, as TinyGo 0.43's
+  ;; \`main.main$1.asyncifysuspendcatch.0.paniccatch\`.
+  (func $catch (export "catch") (result i32)
+    (call $worker)
+    (call $stu)
+    (i32.const 7))
+  (func $worker (call $sleep))
+  (func $plain (export "plain") (call $worker)))`;
+const PASS_OPTIONS = (passArgs: Record<string, string>): PassOptions => ({
+  optimizeLevel: 2,
+  shrinkLevel: 0,
+  debugInfo: false,
+  closedWorld: false,
+  passArgs,
+  partialInliningIfs: 0,
+});
+
+test('Asyncify — the bottom-most runtime is a propagation barrier (TinyGo 0.43)', () => {
+  const m = readWat(BOTTOM_MOST);
+  resolveAsyncifyImports(m);
+  const { instrumentedFuncs } = analyzeModule(m, parseAsyncifyOptions({}));
+  assert(!instrumentedFuncs.has('$catch'), 'a function calling stop_unwind is not instrumented');
+  assert(instrumentedFuncs.has('$worker'), 'the suspending function still is');
+  assert(instrumentedFuncs.has('$plain'), 'and an ordinary caller of it still is');
+
+  const out = readWat(BOTTOM_MOST);
+  new AsyncifyPass().run(out, PASS_OPTIONS({}));
+  assert(WebAssembly.validate(writeWasm(out) as BufferSource), 'the asyncified module validates');
+});
+
+test('Asyncify — an add-listed bottom-most function is flattened, not a crash', () => {
+  // Forced into instrumentation, `$catch` is flattened while its call to the control function
+  // `$asyncify_stop_unwind` names a function not yet added; Flatten is given its type.
+  const m = readWat(BOTTOM_MOST);
+  new AsyncifyPass().run(m, PASS_OPTIONS({ 'asyncify-addlist': '$catch' }));
+  assert(WebAssembly.validate(writeWasm(m) as BufferSource), 'the asyncified module validates');
 });
 
 test('Asyncify Stage 1 — rejects multi-memory modules', () => {
