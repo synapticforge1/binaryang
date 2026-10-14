@@ -1070,7 +1070,16 @@ function callChangesState(
 /**
  * The set of local indices that must be saved/restored across a suspend: a local
  * is relevant iff it is LIVE just after some state-changing call (its value is
- * needed once the function rewinds and resumes past that call). Mirrors upstream
+ * needed once the function rewinds and resumes past that call), OR live just
+ * before the call's operands are read: a rewind skips the code before the call
+ * but EXECUTES the call again, so its operands — in flat IR, `local.get`s of
+ * temps whose `local.set` the rewind skipped — must be restored as well.
+ * 🔧 Until 2026-10-13 only the first half: a temp read only by the call (a
+ * `call_indirect`'s table index loaded from memory, in TinyGo 0.43's defer
+ * code) was never saved, and the rewind called an empty table slot (wasmtk,
+ * the nested-goroutine program; `asyncify_operand_locals.test.ts`). Upstream
+ * takes the live-in of every block holding a rewind point, which includes
+ * them (Asyncify.cpp, `findRelevantLiveLocals`). Mirrors upstream
  * Binaryen's asyncify liveness — saving only this set instead of every local
  * keeps coroutine frames small (large frames overflow the fixed asyncify stack
  * TinyGo sizes for the live-only set, e.g. on deep nested-goroutine chains).
@@ -1095,6 +1104,7 @@ export function computeRelevantLocals(
     for (const cp of block.callPoints) {
       if (callChangesState(cp.call, canChangeState, canIndirect, func.name, addedFromList)) {
         posSet.add(cp.pos);
+        posSet.add(cp.start);
       }
     }
     if (posSet.size === 0) continue;

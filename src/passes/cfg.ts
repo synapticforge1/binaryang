@@ -81,8 +81,13 @@ export interface BasicBlock {
    * backward from {@link end}). Purely additive metadata — the get/set liveness
    * consumers (CoalesceLocals, {@link computeLiveness}) ignore it. Used by the
    * Asyncify pass to compute the locals that must be saved across a suspend.
+   *
+   * `start` is the number of actions recorded before the call's OPERANDS (and a
+   * `call_indirect`'s table index) were read: a rewind re-executes the call,
+   * so what they read must be live there too. It is 0 when the operands began
+   * in an earlier block (they do not, in flat IR).
    */
-  callPoints: Array<{ pos: number; call: Expression }>;
+  callPoints: Array<{ pos: number; start: number; call: Expression }>;
 }
 
 /** Result of {@link buildCFG} — entry plus the dense block list. */
@@ -476,10 +481,13 @@ class _CFGBuilder {
       // that may throw like the others (S6 step 5 item 5 (5)).
       case ExpressionKind.CallIndirect:
       case ExpressionKind.CallRef: {
+        const before = this.current;
+        const startAt = before?.actions.length ?? 0;
         for (const opcode of e.operands) this.visit(opcode);
         this.visit(e.callee);
         if (this.current) {
-          this.current.callPoints.push({ pos: this.current.actions.length, call: e });
+          const start = this.current === before ? startAt : 0;
+          this.current.callPoints.push({ pos: this.current.actions.length, start, call: e });
         }
         this.throwingCallContinuation(); // may throw → enclosing handler (if in a try)
         return;
@@ -490,9 +498,12 @@ class _CFGBuilder {
       // to the enclosing handler plus a normal-continuation split.
       // -------------------------------------------------------------------
       case ExpressionKind.Call: {
+        const before = this.current;
+        const startAt = before?.actions.length ?? 0;
         for (const opcode of e.operands) this.visit(opcode);
         if (this.current) {
-          this.current.callPoints.push({ pos: this.current.actions.length, call: e });
+          const start = this.current === before ? startAt : 0;
+          this.current.callPoints.push({ pos: this.current.actions.length, start, call: e });
         }
         this.throwingCallContinuation();
         return;

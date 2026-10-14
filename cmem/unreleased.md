@@ -1,7 +1,7 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-13 (UTC): `main` = `v1.12.0`, PUBLISHED (the owner's "do the release"; `bun run
-release`) — nothing unreleased** (check it rather than trust this line: `git log --oneline
+**As of 2026-10-13: `v1.12.0` PUBLISHED; one Silent fix unreleased since (below)** (check it
+rather than trust this line: `git log --oneline
 v1.12.0..main -- src/ main.ts jsr.json`). `jsr.json` reads 1.12.0; the version line arms a release,
 so the next bump is the owner's decision, never a side effect of work.
 
@@ -37,5 +37,15 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.12.0
 
-Nothing yet. The 1.12.0 notes as gathered are `git show 604b33cf8:cmem/unreleased.md`; the public
-summary is `CHANGELOG.md` § 1.12.0.
+The 1.12.0 notes as gathered are `git show 604b33cf8:cmem/unreleased.md`; the public summary is
+`CHANGELOG.md` § 1.12.0.
+
+- **Silent fix — `Asyncify` restores a paused call's operands** (wasmtk's § 33, 2026-10-13). The
+  save set held only the locals live just AFTER a call that can unwind; a rewind re-executes the
+  call, so a temp read only as its operand was not restored. Seen as a `call_indirect` whose table
+  index was loaded from memory: the rewind called slot 0 (`uninitialized element`, or the wrong
+  function). TinyGo 0.43's nested goroutines with a pending `defer` hit it; its output now runs
+  (`nested-sum: 36`, wasmtime and wasmer, with and without `optimize()`). What a user may have
+  shipped: Asyncify output that crashes, or calls the wrong function, on the first rewind through
+  such a call. Frames grow where operands were missed (the reproducer: 34,605 → 36,576 bytes;
+  upstream 38,840). `asyncify_operand_locals.test.ts`.

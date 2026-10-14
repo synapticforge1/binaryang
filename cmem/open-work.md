@@ -77,9 +77,12 @@ PUSHED; the version stays 1.10.0):**
   BREAKING entries: the enums as const objects, `Opcode` narrowed).
 - 🚀 **1.12.0 PUBLISHED** 2026-10-13T01:39:42Z (UTC), provenance (Rekor `3247710678`): the removal of
   1.11.0's deprecated subpaths and type names (open-work 25). wasmtk awaits it to test.
+- **wasmtk's § 33 (2026-10-13):** on 1.12.0 their nested-goroutine program trapped on the rewind;
+  `Asyncify`'s save set missed a paused call's operand temps. FIXED on main (unreleased, a Silent
+  fix); the reply, handoffs § 34, SENT by the owner.
 - **5 open items:** 13, 14, 15, 28, 30 (28: 28.3 built, its CI job not yet green; 28.6 MEASURED
-  2026-10-13, no run-time speedup in any browser; 28.7 optional, the owner's call on the
-  recommendation; 30: the size gaps 28.6 found). 29 (npm as a second
+  2026-10-13, no run-time speedup in any browser; the owner agreed: no helper, 28.7 at most a
+  recipe; 30: the size gaps 28.6 found). 29 (npm as a second
   registry) PARKED as a contingency. The `code-lens-13` conflict above still stands.
 - ⚠️ This machine's exFAT drive can fail a big `git merge`; check status and `MERGE_HEAD`, and if
   clean, retry (`local/environment.md`, private).
@@ -262,8 +265,9 @@ Its number is kept free.)
       engine. binaryang optimizes in a Worker in 60 ms – 1.7 s. **There is NO run-time speedup**, from
       ours or upstream's optimizer, even on debug builds: the engines' tiers already optimize; the gain
       is size only (code bytes −0.1% to −27%). Two size gaps to upstream on real compiler output →
-      item 30. **Recommendation, owner to decide:** no browser helper; at most 28.7's recipe, pitched as
-      a size win for modules the site does not control, never as speed.
+      item 30. **DECIDED (owner, 2026-10-13: "I agree with the recommendation for the browser
+      interface"):** no browser helper; at most 28.7's recipe, pitched as a size win for modules the
+      site does not control, never as speed.
     - **28.7 — optional, after 28.6's numbers:** the browser recipe as documentation (or a helper):
       optimize in a Worker, keep the original, validate the result with `WebAssembly.validate` and
       fall back to the original on failure, cache the result (Cache API / IndexedDB).
