@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.11.0
 
 ### New
 
@@ -19,6 +19,17 @@
   `Stop` reason `hang` instead of waiting for fuel. It never stops a loop that could still finish.
   `wasm-interp --hang-check=SECONDS` (0 checks from the start) and `--no-hang-check`;
   `InterpreterOptions.hangCheck` in milliseconds, `null` for none.
+
+- **Every export loads in a browser.** 15 of the 22 could not even be bundled for one (`./wat2wasm`,
+  `./wasm2wat`, `./wasm-validate`, `./api`, `./passes`, `./compat/binaryen`, the `./tools/*`):
+  each tool imported `node:process` (some also `node:fs`, `node:path`) at the top for its CLI.
+  No shipped file has a top-level runtime `node:` import now, so a page can import `./wat2wasm`,
+  `./passes` and the rest directly. Calling a tool's CLI `main()` in a browser throws an error
+  naming the library function to call instead. The CLI itself is unchanged.
+- `wasmOpt(input, options)` accepts the module's bytes as well as a path: a `Uint8Array` is
+  optimized as given (binary when it starts with `\0asm`, WAT text otherwise), with no file system.
+- `InstrCode`, `INSTR_CODES` and `isInstrCode` in `./ir`: the 582 real instructions' opcodes (see
+  `Opcode` below), and the check to apply to a computed number before using it as one.
 
 ### Deprecated
 
@@ -56,6 +67,42 @@
   `nestingTooDeep` in `./ir`.
 - `wat2wasm`, `writeWasm` and `writeWat` follow about twice as much block nesting as before (name
   resolution was the shallowest stage, near 384 nested blocks; now about 700 on a cold call).
+
+- ⚠️ **Type-level breaking: the 19 exported `enum`s are const objects** (`BinarySection`,
+  `NameSectionSubsection`, `ExternalKind`, `Opcode`, `MiscOpcode`, `GcOpcode`, `Result`, `Type`,
+  `ErrorLevel`, `ErrorFormat`, `LinkingSubsection`, `SymbolKind`, `RelocType`, `NameOpts`,
+  `LabelType`, `TokenType`, `LiteralType`, `State`, `DataOffset`). Every member keeps its value,
+  and `X.Member` still works as a value and as a type. What changes: reverse lookup is gone
+  (`Opcode[0x6a]` no longer gives `"I32Add"`, and `0 in ExternalKind` is false; use
+  `Object.values(X).includes(v)`), and a plain `number` no longer passes where `X` is expected
+  (`let r = Result.Ok; r = Result.Error` needs `let r: Result`). Why: Node's type stripping refuses
+  `enum`s, and with them gone binaryang's TypeScript source runs on Node 22.18 through 26 with no
+  flag at all.
+- ⚠️ **Type-level breaking: `Opcode` is the union of the 582 real instructions**, in the IR's
+  encoding (the byte, or `(prefix << 16) | sub` for a prefixed one), generated from the
+  instruction definitions; it was `number`. The operator types (`UnaryOp`, `BinaryOp`, the SIMD
+  ones, `QuaternaryOp`, `BrOnOp`) narrow with it. Every real instruction is accepted, including
+  those no operator table names (atomics, relaxed SIMD). Code passing a computed `number` where an
+  `Opcode` is expected stops compiling: check it with `isInstrCode` first. Nothing changes at run
+  time.
+- The binary reader refuses a SIMD sub-opcode that is no instruction (a reserved `0xfd 0x9a`, or
+  any beyond the last): "unknown SIMD opcode: 0xfd 0x9a". It used to decode one as a binary
+  operator, so `wasm-validate` passed a module engines refuse and `wasm2wat` printed
+  `<opcode:0xfd009a>`. The misc, atomic and GC prefixes already refused theirs.
+
+### Fixed
+
+- **`Asyncify` on TinyGo 0.43's goroutine builds.** On a module that drives its own unwinding
+  (it imports `asyncify.*`), a function that calls `asyncify.stop_unwind` or `start_rewind` and
+  also reaches a suspend was instrumented, where upstream Binaryen leaves it alone, and the pass
+  threw `Flatten: unresolved call target "$asyncify_stop_unwind"`. TinyGo 0.43 generates such a
+  function, so `Asyncify` (and `wasm-opt --asyncify`) failed on every goroutine build. The analysis
+  now follows upstream, and the reported program runs correctly after the pass. It failed loudly;
+  it never produced a wrong module.
+- The interpreter, on a module read without validation, stops with `Stop(invalid)` ("a constant
+  expression left 0 values, 1 expected") on an element or data offset, or a global initializer,
+  that leaves no value. It threw a bare `TypeError`, or stored an `undefined` global that failed
+  later. `wasm-interp` validates its input and was never affected.
 
 ## 1.10.0
 
