@@ -534,6 +534,57 @@ instrumented, as upstream).
 > of our older source, in doc comments and the README. So moving your pin to 1.12.0 should need no
 > change on your side for this; tell us if a build of yours disagrees.
 
+### § 33 — from wasmtk: on 1.12.0 the nested-goroutine program builds, then traps (received 2026-10-13)
+
+Pasted by the owner. wasmtk bumped its pin 1.8.1 → 1.12.0: the § 29 fix holds (`go_asyncify_tests`
+9 → 11 / 12; wast 64,506 / 0 / 16, the five-engine cross-check and the `-Oz` try_table guard 42 / 42
+unchanged). The twelfth, `tests/go_fixtures/goroutines/nested/main.go` (three outer goroutines, each
+starting three inner ones and waiting on its own `sync.WaitGroup`; expects `nested-sum: 36`), passes
+`Asyncify` and TRAPS when run: `uninitialized element` in `$main.main$1`, during the REWIND, with or
+without `optimize()` after it; upstream 133's `--asyncify` runs it. Reproducer: their
+`scripts/repros/tinygo043_nested_pre_asyncify.wasm` (19,246 bytes, SHA-256 `B9A51D877B374901…`;
+read, not copied). Their guess: a value one of the four `call_indirect`s needs is not saved at the
+unwind. Also: two of their regex-over-WAT merge assumptions broke on our 1.9.0+ optimizer (a
+multi-value block type printed by index; `$__malloc` inlined away); fixed on their side, not our
+bugs, evidence for offload #1.
+
+**Diagnosed and fixed here, 2026-10-13 (unreleased):** their guess was right. The analysis matched
+upstream's (their trace, re-run here); the SAVE SET did not. Ours held the locals live just AFTER
+each state-changing call; a rewind re-executes the call, so its operands' temps must be restored
+too, and a temp read only by the call was never saved: `$main.main$1`'s defer loop loads its
+`call_indirect` table index from memory into a temp. Our frame saved 6 locals there, upstream's 19.
+Now the live set before the operands is saved as well (`cfg.ts` records `start` per call point);
+`asyncify_operand_locals.test.ts` fails without it.
+
+### § 34 — reply to wasmtk: the nested-goroutine trap, fixed on main (2026-10-13, DRAFT — not sent)
+
+> From binaryang, 2026-10-13. Your guess was right, to the instruction.
+>
+> **Reproduced on your bytes** (SHA-256 matches): our `Asyncify` output trapped `uninitialized
+> element` under wasmtime 49.0.2, upstream 133's printed `nested-sum: 36`.
+>
+> **The cause is the SAVE SET, not the analysis.** Our "can change the state" set equals upstream's
+> on this module too (checked against `--pass-arg=asyncify-verbose`). But we saved only the locals
+> live just after each call that can unwind. A rewind skips the code before that call and then
+> EXECUTES the call again, so the call's own operands must be restored as well; in flat IR they are
+> temps whose `local.set` the rewind skipped. `$main.main$1`'s defer loop loads a `call_indirect`'s
+> table index from memory (`i32.load offset=65812`) into such a temp, used by nothing but the call.
+> Never saved, it came back as 0, and the rewind dispatched to an empty slot. Our frame for that
+> function held 6 locals; upstream's holds 19. The waitgroup program had no such call, which is why
+> it passed.
+>
+> **Fixed on our main (unreleased):** the locals live before a call's operands are saved too (what
+> upstream gets from the live-in of each block with a rewind point). Your nested program now prints
+> `nested-sum: 36` after `Asyncify` alone, and with `optimize()` at -O1 and at -Oz, on wasmtime
+> 49.0.2 and wasmer 7.5.0; the waitgroup program still prints `wg-counter: 45`. A regression test
+> covers the shape (a `call_indirect` whose index is read from memory, into a callee that suspends).
+>
+> **For your pin:** the fix is on main; when it ships is the owner's call (a patch, 1.12.1, would
+> carry it). With it, please re-run `go_asyncify_tests` and tell us the count.
+>
+> Thank you for the merge notes. Agreed: they are the case for offload #1 (a merge that reads our
+> IR, not our printer).
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
