@@ -199,7 +199,7 @@ describe('the release workflows, off Deno except for the publish itself', () => 
       const at = r.indexOf(cmd);
       expect(at >= 0 && at < publish, `${cmd} runs before the publish`).toBe(true);
     }
-    expect(r).not.toContain('bun run test');
+    expect(r).not.toContain('deno task test');
   });
 
   it('auto-tag needs no Deno', () => {

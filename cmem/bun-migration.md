@@ -330,7 +330,11 @@ Owner: "proceed with item 26" (after B6). Done; the next release proves B6 and B
   the two live-binaryen tests RAN (not ignored). The gate runner runs it too.
 - **Comments:** 41 `deno task <name>` references became `bun run <name>` wherever package.json has
   the script (two naming wabt-ts's own `engine-check` left as they are); the shipped data.ts header
-  stays frozen until the next definitions release, as B4 decided.
+  stays frozen until the next definitions release, as B4 decided. ⚠️ The rename was meant for
+  COMMENTS but ran on whole files, and turned one ASSERTION, `not.toContain('deno task test')`,
+  into `not.toContain('bun run test')`: it then forbade the very step it guards. The gate caught it
+  (the targeted test run had come before the rename). A mechanical rename touches comment lines
+  only, and its non-comment hits are read one by one (`git show | grep -v` comment prefixes).
 
 ## B6: the release path off Deno, except the publish (2026-10-13; proof pending)
 
