@@ -1,6 +1,11 @@
 {
-  // `tsc` for this tree, as `deno.json` beside it does for `deno check`: `noUncheckedIndexedAccess`
-  // is OFF here only (see that file for why), everything else as the root (Bun migration B5).
+  // `tsc` for this tree (Bun migration B5; the Deno workspace member that did this for `deno check`
+  // went in B7): everything as the root, except `noUncheckedIndexedAccess`, OFF here only.
+  //
+  // Why: at the root, in `src/`, an unchecked index that turns out to be `undefined` becomes wrong
+  // bytes in a .wasm file, this project's worst failure mode. In a test it becomes a failed
+  // assertion, the test doing its job, so the ~420 `mod.functions[0]!` edits it would demand here
+  // are churn against files whose purpose is to break loudly.
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,

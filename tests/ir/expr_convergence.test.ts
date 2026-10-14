@@ -20,7 +20,7 @@
 // - `ExpressionKind` naming a kind no node has, or missing one a node has (an
 //   `Extract` over a kind with no node is `never`, and compiles).
 //
-// Compile-time; `deno task check` enforces it.
+// Compile-time; `bun run check` enforces it.
 
 import { describe, it } from 'node:test';
 import { assertEquals } from '@std/assert';
@@ -54,7 +54,7 @@ describe('S6 step 5 — Expr and Expression are one type', () => {
   });
 
   it('the kind object holds exactly the union kinds', () => {
-    // 85 kinds: the count the ratchet ended at, and `deno task operators`' shared count;
+    // 85 kinds: the count the ratchet ended at, and `bun run operators`' shared count;
     // 86 with custom descriptors' `ref.get_desc` (2026-09-28).
     assertEquals(new Set(Object.values(ExpressionKind)).size, 86);
   });

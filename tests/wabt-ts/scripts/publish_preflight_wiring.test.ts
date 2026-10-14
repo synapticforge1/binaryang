@@ -27,7 +27,6 @@ import * as fsx from '../../test_fs.ts';
 
 const PUBLISH = await fsx.readTextFile('scripts/release/publish.ts');
 const GUARD = await fsx.readTextFile('scripts/release/release-guard.ts');
-const DENO_JSON = await fsx.readTextFile('deno.json');
 
 /** Every `git` subcommand invoked in `publish.ts`, in source order. */
 function gitCalls(src: string): { sub: string; at: number }[] {
@@ -100,8 +99,12 @@ describe('T13.44 — the release preflight stays wired in', () => {
   // public (binaryen-ts v1.2.4). It must run in a FRESH `DENO_DIR` (`--reload`
   // does not re-resolve a pinned version), before any git mutation, and refuse.
   it('runs a cold type check, in a fresh DENO_DIR, before mutating anything', () => {
-    const at = PUBLISH.indexOf("spawnSync('deno', ['task', 'check']");
+    // Since Bun migration B7 the Deno type check is the one inside `deno publish` (no deno.json,
+    // no `deno check`), so the cold run is the publish DRY RUN; `bun run check` (tsc) follows it.
+    const at = PUBLISH.indexOf("spawnSync('deno', ['publish', '--dry-run', '--allow-dirty']");
     expect(at).toBeGreaterThan(-1);
+    const tsc = PUBLISH.indexOf("spawnSync('bun', ['run', 'check']");
+    expect(tsc).toBeGreaterThan(at);
     // The parent environment spread in: node:child_process REPLACES `env` (Deno.Command merged
     // it), and a cold check without PATH cannot even find `deno` (Bun migration B4).
     expect(PUBLISH).toContain('env: { ...process.env, DENO_DIR: coldDir }');
@@ -140,21 +143,16 @@ describe('T13.44 — the release preflight stays wired in', () => {
   it('keeps scripts/ inside the gate', () => {
     // T13.43 found `scripts/` type-checked, linted and formatted by nothing --
     // including the file that publishes immutable artifacts.
-    const cfg = JSON.parse(DENO_JSON) as {
-      tasks: Record<string, string>;
-      fmt: { include: string[] };
-    };
-    expect(cfg.tasks['check']).toContain('scripts/');
-    expect(cfg.fmt.include).toContain('scripts/');
-    // Linting moved from `deno lint` to Biome (Bun migration B3, 2026-10-12): its scope is
-    // biome.jsonc's `files.includes`. Line comments stripped: none of its strings holds `//`.
+    // Since Bun migration B3 / B7 the three are Biome, dprint and tsc (deno.json is gone): each
+    // config's scope must name scripts/. Line comments stripped: none of their strings holds `//`.
     const jsonc = (path: string) =>
       JSON.parse(
         fsx.readTextFileSync(path).replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'),
       );
     const biome = jsonc('biome.jsonc') as { files: { includes: string[] } };
     expect(biome.files.includes).toContain('scripts/**');
-    // And `tsc`, the second type checker, covers scripts/ too (B2).
+    const dprint = jsonc('dprint.json') as { includes: string[] };
+    expect(dprint.includes).toContain('scripts/**');
     const ts = jsonc('tsconfig.json') as { include: string[] };
     expect(ts.include).toContain('scripts/**/*.ts');
   });
@@ -183,15 +181,21 @@ describe('the release workflows, off Deno except for the publish itself', () => 
   const code = (yml: string) => yml.split('\n').filter((l) => !/^\s*#/.test(l));
 
   it('publishes with deno publish, directly, from jsr.json', () => {
-    expect(runs(PUBLISH_YML)).toContain('deno publish --config jsr.json');
+    // Bare since B7: with no deno.json, Deno finds jsr.json itself, and a `--config` naming any
+    // other file would publish from it.
+    expect(runs(PUBLISH_YML)).toContain('deno publish');
+    expect(runs(PUBLISH_YML).filter((r) => /^deno publish\b/.test(r) && r !== 'deno publish'))
+      .toEqual(
+        [],
+      );
     expect(code(PUBLISH_YML).filter((l) => /\b(bunx|npx) jsr\b/.test(l))).toEqual([]);
     expect(code(PUBLISH_YML).filter((l) => /\b(deno task|bun run) release\b/.test(l))).toEqual([]);
   });
 
   it('runs both type checks and both test legs BEFORE publishing', () => {
     const r = runs(PUBLISH_YML);
-    const publish = r.indexOf('deno publish --config jsr.json');
-    for (const cmd of ['deno task check', 'bun run check', 'bun run test', 'bun run test:bun']) {
+    const publish = r.indexOf('deno publish');
+    for (const cmd of ['bun run check', 'bun run test', 'bun run test:bun']) {
       const at = r.indexOf(cmd);
       expect(at >= 0 && at < publish, `${cmd} runs before the publish`).toBe(true);
     }

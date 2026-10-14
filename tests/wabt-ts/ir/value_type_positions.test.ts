@@ -148,7 +148,7 @@ describe('the text parser rejects a packed keyword in a value position', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Compile-time pins — `deno task check`
+// Compile-time pins — `bun run check`
 // ---------------------------------------------------------------------------
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;

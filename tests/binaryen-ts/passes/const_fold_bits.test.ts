@@ -5,7 +5,7 @@
 // that the bits found, both measured on `main` before the change:
 //
 //  - `f32.reinterpret_i32` of a constant folded to an i32 CONSTANT holding a
-//    float, so `-O2` emitted an INVALID module. `deno task optimize-corpus`
+//    float, so `-O2` emitted an INVALID module. `bun run optimize-corpus`
 //    never saw it: no corpus module reinterprets a constant.
 //  - `i32.reinterpret_f32` of a signalling NaN folded through a JS number, which
 //    quiets it: `-O2` returned 0x7fc00000 where the unoptimized module returned

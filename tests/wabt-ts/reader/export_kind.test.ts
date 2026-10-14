@@ -9,7 +9,7 @@
 // the two dispatches disagreed and only one of them was wrong.
 //
 // Found by MEASUREMENT, not by review: the A3 single-byte corruption sweep
-// (`deno task offsets`) flips each byte of a valid module and asks whether our
+// (`bun run offsets`) flips each byte of a valid module and asks whether our
 // reader plus validator still accept it while V8 rejects it. Corrupting this
 // field was the one shape our whole pipeline waved through — five instances,
 // one per subject module, all the same field.

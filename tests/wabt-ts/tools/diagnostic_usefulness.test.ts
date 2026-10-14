@@ -6,7 +6,7 @@
 // Every case below printed something a user could not act on, while the
 // wording and offset measurements (T13.37/38, A3) were green — they read the
 // `loc` and `message` fields, and a user reads the RENDERED line. Measured over
-// the spec's 4,654 must-reject cases by `deno task diagnostics`; before → after:
+// the spec's 4,654 must-reject cases by `bun run diagnostics`; before → after:
 //
 //   binary diagnostics located   0% → 99%   (every one printed `file:0:0`)
 //   placeholder subjects          420 → 0     (`type mismatch in opcode`)

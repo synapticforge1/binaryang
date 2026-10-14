@@ -98,7 +98,7 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
 | B4   | ✅ **Built 2026-10-12 on `bun-4-scripts`:** all 51 script files are `node:`-only (no `Deno.*` in code, no `@std` / `jsr:` imports), and the 20 tasks are `package.json` scripts. Bun runs them, except the engine oracles, which run on Node (§ "The engine oracle"); `proposals` picks an engine per proposal. tsc checks `scripts/`. **Differential, old Deno vs new, same inputs:** every output identical, and every corpus tree byte-identical (core 7,422, legacy 29, translate-eh 29, proposals 874 files). Expected differences only: the `bump` usage line; the 4 `proposals` summary lines that now name their engine; `hostile`'s DEPTH table, which measures each runtime's stack (its mutation half is identical). Found: item 27 (an interp defect on `main`) and the gen_demo_bytes drift (below). **Original plan:** **Scripts on `node:` builtins, RUN BY BUN** (owner, 2026-10-12: "All of our scripts will now be run from bun instead of deno"; each `deno task` becomes a `package.json` script run by `bun run`). `Deno.Command` → `node:child_process`, `Deno.args` → `process.argv.slice(2)`, `Deno.exit` → `process.exit`, file I/O → `node:fs`. Not `Bun.*`: `node:` runs on Bun, Deno and Node, so each script can run on Deno and Bun with the outputs diffed, and we are not locked into a new runtime. Corpus scripts first, release scripts last. | each script prints the same thing under `deno run -A` and `bun`                |
 | B5   | ✅ **DONE 2026-10-13** (§ "B5: the suite on node:test"): 346 files on `node:test`, Deno.* gone from tests, `bun run test` (Node 24, the verdict) and `bun run test:bun` (Bun, 36 listed JavaScriptCore differences) in CI. As planned: **Tests on `node:test`, run by both Bun and Node** (§ "Bun or Node", DECIDED 2026-10-12). `@std/testing/bdd` → `node:test`'s `describe` / `it` (required: bdd calls `Deno.test`, finding 3a), `Deno.test` → `test`. `@std/assert` and `@std/expect` STAY, by their bare names through JSR's npm layer (finding 3): fewer lines change, and JSR stays the source of our test dependencies too. **Decided 2026-10-13 (owner):** `@std/assert` / `@std/expect` are KEPT via JSR (the same "leave it on JSR until necessary" stance as open-work 29; vendoring is the fallback), and **Node 24, the V8 referee, is AUTHORITATIVE for the suite** (220 test files use the host engine), with Bun also running it as a portability leg and a measured, listed set of JavaScriptCore-only differences. The 6 `Deno.permissions` probes go. The 6 `t.step` uses become nested `describe`. **Proof: the per-file test counts match** the last Deno run, and an injected failure fails. | ✅ per-file counts equal (346 files, 5,901 leaves); an injected failure fails both legs |
 | B6   | ◐ **PREPARED 2026-10-13 (owner: "proceed with B6"), PROOF PENDING A RELEASE** (§ "B6"). As planned: **CI and the release path on Bun.** `ci.yml` gates with `setup-bun`; the `runtimes` matrix KEEPS its Deno leg (consumers on Deno remain). `publish.yml` keeps `setup-deno` + `deno publish` for provenance (finding 2). `auto-tag` reads `jsr.json` without Deno. `deno task …` → `bun run …` in the gate list in [working-rules.md](working-rules.md). | one release published from the new path, provenance verified (`rekorLogId`)    |
-| B7   | **Delete `deno.json` and `deno.lock`.** `--config jsr.json` comes off the publish commands, since `jsr.json` is then found on its own. `version_sync`'s second test turns into "there is no `deno.json`". `cmem/` updated throughout. | gate green with no `deno.json` in the tree                                     |
+| B7   | ✅ **DONE 2026-10-13** (§ "B7"; owner: "proceed with item 26"). As planned: **Delete `deno.json` and `deno.lock`.** `--config jsr.json` comes off the publish commands, since `jsr.json` is then found on its own. `version_sync`'s second test turns into "there is no `deno.json`". `cmem/` updated throughout. | gate green with no `deno.json` in the tree                                     |
 
 **B6 is the only step that is hard to undo**, because a JSR version is immutable. The other
 steps can sit on `main` in any order after their predecessor, unreleased, behind the usual merge.
@@ -293,6 +293,48 @@ code; **no `biome-ignore` remains**, and `bun run lint` passes.
 - **`noApproximativeNumericConstant` (1):** `wat2wasm.test.ts`' `3.14159` → `3.25`, in the WAT
   and the assertion (exactly representable; the round trip is tested as before).
 - **The canary's comment** said the suppressions guarded `"none"` by accident; rewritten (above).
+
+## B7: no `deno.json` (2026-10-13)
+
+Owner: "proceed with item 26" (after B6). Done; the next release proves B6 and B7 together.
+
+- **Deleted:** `deno.json`, `deno.lock`, `tests/binaryen-ts/deno.json`, `scripts/binaryen-ts/deno.json`
+  (`git rm`). Their `tsconfig.json` siblings already did the same job for `tsc`; the reason for the
+  binaryen-ts trees' relaxed `noUncheckedIndexedAccess` moved into `tests/binaryen-ts/tsconfig.json`.
+- **`deno publish` finds `jsr.json` by itself:** `--config jsr.json` is gone from publish.yml and
+  `bun run publish:dry` (new). Proven: the dry run lists the SAME 122 files as main's
+  `--config jsr.json` dry run (taken in a temporary worktree), the same `@jrmarcum/binaryang@1.10.0`.
+- ⚠️ **With no deno.json, `deno publish` type-checks with `tsconfig.json`'s compilerOptions, but
+  does NOT resolve the `@types/node` they name.** `main.ts`'s `import.meta.main` (declared by Deno's
+  types and by `@types/node`, by neither in that check) failed the dry run. Fixed in the code, not
+  the config: `(import.meta as { main?: boolean }).main`, true on every runtime. tsconfig.json
+  carries the warning.
+- **The cold release guard moved, it did not go:** `scripts/release/publish.ts` ran a cold `deno
+  task check`; the Deno type check publish.yml still runs is the one inside `deno publish`, so the
+  guard is now `deno publish --dry-run` in an empty `DENO_DIR`, then `bun run check`. (That guard
+  is what would have caught `import.meta.main`.) Its test in `publish_preflight_wiring` pins the new
+  call and the order.
+- **Tests:** `version_sync`'s second test is now "there is no deno.json (or deno.jsonc)";
+  `harness_wiring` keeps only the `TEST_DIRS` check; "keeps scripts/ inside the gate" reads
+  biome.jsonc, dprint.json and tsconfig.json; B6's tests expect a bare `deno publish` (any other
+  `deno publish …` fails) and no `deno task check`.
+- **CI:** the `deno task check` step is gone (`bun run check` is THE type check); Deno is installed
+  for the JSR dry run only; the runtimes matrix keeps its Deno leg (`deno run -A main.ts` works
+  without a config, checked).
+- **`comparison/` is standalone, and runs again.** It was broken since B2: with the root
+  package.json and node_modules beside it, Deno resolved `npm:` from node_modules and refused
+  `npm:binaryen` ("Could not find a matching package"), unseen because it is outside the gate by
+  design. `comparison/deno.json` now carries `"nodeModulesDir": "none"`, its own import map
+  (`@std/assert` 1.0.19) and the root's strictness; `comparison/deno.lock` pins binaryen 116.0.0 and
+  132.0.0 (the only stable 116.x / 132.x, so the old pins exactly). `bun run comparison`: 18 passed,
+  the two live-binaryen tests RAN (not ignored). The gate runner runs it too.
+- **Comments:** 41 `deno task <name>` references became `bun run <name>` wherever package.json has
+  the script (two naming wabt-ts's own `engine-check` left as they are); the shipped data.ts header
+  stays frozen until the next definitions release, as B4 decided. ⚠️ The rename was meant for
+  COMMENTS but ran on whole files, and turned one ASSERTION, `not.toContain('deno task test')`,
+  into `not.toContain('bun run test')`: it then forbade the very step it guards. The gate caught it
+  (the targeted test run had come before the rename). A mechanical rename touches comment lines
+  only, and its non-comment hits are read one by one (`git show | grep -v` comment prefixes).
 
 ## B6: the release path off Deno, except the publish (2026-10-13; proof pending)
 

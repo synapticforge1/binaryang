@@ -4,12 +4,12 @@
 # or dispatched on a tag ref by `.github/workflows/auto-tag.yml` after it detects a `jsr.json`
 # version bump on `main`.
 #
-# The publish step calls `deno publish` DIRECTLY — not `deno task release`. The task wraps
+# The publish step calls `deno publish` DIRECTLY — not `bun run release`. The task wraps
 # `scripts/release/publish.ts`, which spawns `deno publish` as a subprocess via `Deno.Command`.
 # That indirection breaks JSR provenance: JSR's OIDC detection runs in the workflow's primary
 # process and does not propagate cleanly into the subprocess invocation, so the published
 # version gets the "No provenance" flag. The guard script remains in place for local users —
-# running `deno task release` from a dev machine still refuses with the correct release-flow
+# running `bun run release` from a dev machine still refuses with the correct release-flow
 # instructions; CI just doesn't go through it.
 #
 # The inherited version of this comment cited sibling `wasmtk` as precedent for calling
@@ -61,8 +61,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # Deno ONLY for `deno publish` (owner, 2026-10-12: Deno for JSR) and `deno task check` (until
-      # deno.json goes, B7). Everything else is the CI gate's tooling (Bun migration B6, 2026-10-13):
+      # Deno ONLY for `deno publish` (owner, 2026-10-12: Deno for JSR). Everything else is the CI
+      # gate's tooling (Bun migration B6 / B7, 2026-10-13):
       # Bun with the dev dependencies, and Node 24, the V8 referee the suite's verdict comes from.
       - name: Install Deno
         uses: denoland/setup-deno@v2
@@ -94,9 +94,6 @@ jobs:
           echo "Versions match: $TAG_VERSION"
 
       - name: Type-check
-        run: deno task check
-
-      - name: Type-check (tsc, for Bun and Node)
         run: bun run check
 
       # The CI gate's two legs (B5): node:test on Node 24 is the verdict; Bun must fail exactly the
@@ -123,15 +120,13 @@ jobs:
       # runtime-configurable `await import(path)`; measured 2026-08-26, the merged tree
       # passes the slow-types check WITHOUT it. Keeping the flag is not neutral — JSR
       # warns that a slow-types package ships NO .d.ts for Node users, and Node support
-      # is one of binaryang's published capabilities. `deno task publish:dry` runs the
+      # is one of binaryang's published capabilities. `bun run publish:dry` runs the
       # identical command so the gate tests what actually ships.
-      # `--config jsr.json`: the package manifest is jsr.json since 2026-10-12. While a
-      # deno.json exists Deno takes the package from it and ignores jsr.json, so the
-      # manifest is named explicitly (cmem/bun-migration.md). Still `deno publish` called
-      # DIRECTLY: `bunx jsr publish` downloads Deno and runs this same command as a
+      # jsr.json is the package manifest; with no deno.json (B7, 2026-10-13) Deno finds it by
+      # itself, so `--config jsr.json` came off. Still `deno publish` called DIRECTLY: `bunx jsr publish` downloads Deno and runs this same command as a
       # subprocess, which is the indirection this header warns can lose provenance.
       - name: Publish to JSR (with provenance)
-        run: deno publish --config jsr.json
+        run: deno publish
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')

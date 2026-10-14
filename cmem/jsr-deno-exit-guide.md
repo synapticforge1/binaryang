@@ -382,6 +382,23 @@ binaryang's B5, for your packages (its bun-migration.md § "B5" has the detail):
   file with no tests still appears, as one case named by its path; node also writes raw `>` in
   attribute values.
 
+### Deleting deno.json: what binaryang's B7 found (2026-10-13)
+
+- **`deno publish` then finds `jsr.json` by itself**, and `--config jsr.json` comes off. Prove the
+  package did not change: compare the dry run's file list with the one from before (binaryang: the
+  same 122 files).
+- ⚠️ **It then type-checks with your `tsconfig.json`'s compilerOptions, but does NOT load the
+  `@types/node` that config names.** Anything only `@types/node` declares fails the publish check
+  (binaryang: `import.meta.main`; fixed with `(import.meta as { main?: boolean }).main`).
+- **Keep a COLD pre-tag check:** with no `deno check`, the Deno type check left is the one inside
+  `deno publish`, so run `deno publish --dry-run` in an empty `DENO_DIR` before tagging.
+- **A Deno-run side suite needs its own config.** binaryang's `comparison/` (Deno, `npm:binaryen`)
+  had silently broken when `package.json` and `node_modules` arrived: Deno resolved `npm:` from
+  node_modules and refused what was not listed. A standalone `deno.json` with
+  `"nodeModulesDir": "none"`, its own import map and lock fixed it.
+- Pin the absence: a test that fails if `deno.json` comes back, since with it `deno publish`
+  would silently publish from it again.
+
 ### The web: every export must LOAD in a browser
 
 - **The trap, measured in binaryang: 15 of 22 exports would not even bundle for a browser**,

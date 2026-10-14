@@ -92,7 +92,7 @@ export interface WasmValidateResult {
  * validator run over a half-decoded module reports code that was never read
  * (a truncated body is "expected 1 elements on the stack but got 0"), and the
  * real error scrolls away under it: 81 of the spec's 715 malformed binaries did
- * this (`deno task diagnostics`, 2026-09-29).
+ * this (`bun run diagnostics`, 2026-09-29).
  */
 export function wasmValidate(
   binary: Uint8Array,

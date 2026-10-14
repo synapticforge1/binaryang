@@ -17,7 +17,7 @@
 // (and upstream wabt's) NAMES for the pair, `Catch` / `TableCatch` — binaryen-ts
 // had `TryCatch` / `CatchClause`; renaming its side cost 13 errors against 17.
 //
-// ⚠️ The pins at the bottom are checked by `deno task check`, not by the test
+// ⚠️ The pins at the bottom are checked by `bun run check`, not by the test
 // run: re-adding a `kind` (or any field) to either record fails the GATE.
 // The runtime half pins the MAPPING, which type-checks whichever way it is
 // wired: every clause through the parser, the binary writer, the binary reader
@@ -148,7 +148,7 @@ describe('each try_table catch clause is its two bits, on every path', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Compile-time pins — `deno task check`
+// Compile-time pins — `bun run check`
 // ---------------------------------------------------------------------------
 
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;

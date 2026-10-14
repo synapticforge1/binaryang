@@ -162,7 +162,7 @@ export interface ReadBinaryOptions {
    * `ok()` guard that "halts decoding" never halted: past a bad byte the reader
    * decoded garbage and reported it — up to 9 errors for one malformed binary
    * (`binary.wast:126`: `expected valid local type (got 0x0)` after the real
-   * `integer too large`), 75 of the spec's 715 (`deno task diagnostics`).
+   * `integer too large`), 75 of the spec's 715 (`bun run diagnostics`).
    */
   stopOnFirstError?: boolean;
 }
@@ -1331,7 +1331,7 @@ export class BinaryReader {
       // disagreed, and only one of them was wrong.
       //
       // Found by MEASUREMENT, not review: the A3 corruption sweep
-      // (`deno task offsets`) flips each byte of a valid module and asks whether
+      // (`bun run offsets`) flips each byte of a valid module and asks whether
       // reader AND validator still accept what V8 rejects. This field was the
       // one shape the whole pipeline waved through.
       if (

@@ -21,7 +21,7 @@
 // narrow-store investigation used `i64.const 0xAAAAAAAAAAAAAAAA` and hit the
 // i64 half. The i32 half came from checking the CLASS rather than the instance.
 //
-// ⚠️ binaryen-ts's WAT parser is NOT covered by `deno task spec` — the
+// ⚠️ binaryen-ts's WAT parser is NOT covered by `bun run spec` — the
 // 1156/1156 "malformed TEXT rejected" axis runs wabt-ts's parser. That is why a
 // parser that accepted malformed literals was invisible to a 100% spec score.
 

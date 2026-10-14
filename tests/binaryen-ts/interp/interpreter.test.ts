@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 // Open-work 23, E3a: the interpreter's core — numbers, locals, globals,
-// control, calls. `deno task interp` runs it against the whole spec testsuite;
+// control, calls. `bun run interp` runs it against the whole spec testsuite;
 // these are the cases that suite does not pin by itself or that CI must see
 // without the prepared corpus: the stack-machine shapes the byte-faithful
 // reader leaves (a value under a branch, a block parameter taken by `pop`), the

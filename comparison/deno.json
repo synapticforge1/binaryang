@@ -1,14 +1,31 @@
 {
-  // The comparison suite: binaryang measured AGAINST upstream (binaryen.js, the
-  // upstream `wasm-opt`). A workspace member so it has its own compiler options,
-  // like `tests/binaryen-ts` (whose files some of these came from) — and so it
-  // is plainly NOT part of the package: no `name`, `version` or `exports`, and
-  // the root's `publish.include` names only `main.ts` and `src/`.
+  // The comparison suite: binaryang measured AGAINST upstream (binaryen.js, the upstream
+  // `wasm-opt`). Deno runs it, from THIS config alone (Bun migration B7, 2026-10-13: the root
+  // deno.json is gone, and this stopped being a workspace member). It is plainly NOT part of the
+  // package: no `name`, `version` or `exports`, and jsr.json's `publish.include` names only
+  // `main.ts` and `src/`.
   //
-  // Outside `deno task test`, the gate and CI by design: it needs upstream tools
-  // installed. Its tests are `*.compare.ts`, a name `deno test` does not
-  // discover; `deno task comparison` names them.
+  // Outside `bun run test`, the gate and CI by design: it needs upstream tools installed and the
+  // network for `npm:binaryen`. Its tests are `*.compare.ts`, which no runner discovers by itself;
+  // `bun run comparison` names them.
+  //
+  // `nodeModulesDir: "none"`: `npm:` imports come from Deno's own cache, pinned by
+  // comparison/deno.lock (binaryen 116.0.0 and 132.0.0). With the root package.json and its
+  // node_modules beside it, Deno otherwise looked there and refused `npm:binaryen` ("Could not find
+  // a matching package") -- broken that way since Bun migration B2 (2026-10-12) until B7 fixed it.
+  "nodeModulesDir": "none",
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1.0.19"
+  },
+  // The root's strictness (tsconfig.json), with the one relaxation this tree always had.
   "compilerOptions": {
-    "noUncheckedIndexedAccess": false
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "lib": ["esnext", "deno.ns", "deno.window", "dom"]
   }
 }

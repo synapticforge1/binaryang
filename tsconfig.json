@@ -1,11 +1,16 @@
 {
-  // The type check for Bun and Node (Bun migration B2, cmem/bun-migration.md): neither runtime
-  // checks types, so `tsc` replaces `deno check`. The strictness flags are deno.json's, copied.
+  // THE type check (Bun migration B2, cmem/bun-migration.md): neither Bun nor Node checks types,
+  // so `tsc` replaced `deno check`, alone since deno.json went (B7). The strictness flags were
+  // deno.json's, copied.
   //
   // Scope: the shipped code, and scripts/ since B4 converted it to node: builtins (2026-10-12).
-  // scripts/binaryen-ts/ has its own tsconfig.json (it relaxes noUncheckedIndexedAccess, as its
-  // deno.json member does); `bun run check` runs both. tests/ and comparison/ still use Deno
-  // globals; each joins when B5 converts it, and `deno check` covers them until then.
+  // scripts/binaryen-ts/, tests/ and tests/binaryen-ts/ have their own tsconfig.json (the two
+  // binaryen-ts trees relax noUncheckedIndexedAccess); `bun run check` runs all four. comparison/
+  // is Deno-run and checked by `bun run comparison`, from comparison/deno.json.
+  //
+  // ⚠️ With no deno.json, `deno publish` reads THIS file's compilerOptions too, but not the
+  // `@types/node` it names: shipped code must not rely on a type only @types/node declares
+  // (main.ts's `import.meta.main`, B7).
   //
   // `types: ["node"]` and NOT bun: code must run on Bun and Node (owner, 2026-10-12), so a
   // Bun-only API has to fail this check. @types/node is pinned to 22.18, the published Node floor,

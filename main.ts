@@ -70,7 +70,7 @@ export * from './src/index.ts';
  * Package version.
  *
  * Kept in sync with the package manifest, `jsr.json` (`deno.json` until 2026-10-12),
- * MECHANICALLY, not by hand: `deno task bump` rewrites
+ * MECHANICALLY, not by hand: `bun run bump` rewrites
  * this line as well, and `tests/binaryen-ts/version_sync.test.ts` fails if the two ever disagree.
  * The previous "keep in sync by hand" comment is what this looked like after someone
  * did not — `--version` printed 1.3.4 through two minor releases.
@@ -186,4 +186,7 @@ DOCS:
 
 // Only as the program's entry: an `import` of the package root must not run
 // the CLI (it would read the importer's argv and could `process.exit`).
-if (import.meta.main) await main();
+// The cast: `import.meta.main` exists at run time on Deno, Bun and Node 22.18+, but
+// only SOME type environments declare it (Deno's do, `@types/node` does, and with no
+// deno.json `deno publish` checks this file with neither: Bun migration B7).
+if ((import.meta as { main?: boolean }).main) await main();

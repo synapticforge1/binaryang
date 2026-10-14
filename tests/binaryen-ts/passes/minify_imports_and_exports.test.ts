@@ -4,7 +4,7 @@
  * `MinifyImports`, `MinifyImportsAndExports`, `MinifyImportsAndExportsAndModules`
  * — the interface strings renamed, the map the host applies. Every expected
  * map below is what upstream `wasm-opt` 132 printed for the same module
- * (2026-09-28); the behaviour THROUGH the map is `deno task spec-behaviour`'s
+ * (2026-09-28); the behaviour THROUGH the map is `bun run spec-behaviour`'s
  * "minify through its map" variant.
  *
  * @license MIT
