@@ -169,3 +169,36 @@ describe('T13.44 — the release preflight stays wired in', () => {
     });
   });
 });
+
+// The release path off Deno (Bun migration B6, 2026-10-13). Provenance is the reason for the shape:
+// `deno publish` must be called DIRECTLY by publish.yml (an indirection such as `bunx jsr publish`,
+// which downloads Deno and runs it as a subprocess, is the kind this repo has lost provenance
+// through), and everything before it is the CI gate's tooling, so a release is judged as CI is.
+describe('the release workflows, off Deno except for the publish itself', () => {
+  const PUBLISH_YML = fsx.readTextFileSync('.github/workflows/publish.yml');
+  const AUTO_TAG_YML = fsx.readTextFileSync('.github/workflows/auto-tag.yml');
+  /** `run:` commands, in order. */
+  const runs = (yml: string) => [...yml.matchAll(/^\s*run:\s*(.+)$/gm)].map((m) => m[1]!.trim());
+  /** The lines that are not YAML comments. */
+  const code = (yml: string) => yml.split('\n').filter((l) => !/^\s*#/.test(l));
+
+  it('publishes with deno publish, directly, from jsr.json', () => {
+    expect(runs(PUBLISH_YML)).toContain('deno publish --config jsr.json');
+    expect(code(PUBLISH_YML).filter((l) => /\b(bunx|npx) jsr\b/.test(l))).toEqual([]);
+    expect(code(PUBLISH_YML).filter((l) => /\b(deno task|bun run) release\b/.test(l))).toEqual([]);
+  });
+
+  it('runs both type checks and both test legs BEFORE publishing', () => {
+    const r = runs(PUBLISH_YML);
+    const publish = r.indexOf('deno publish --config jsr.json');
+    for (const cmd of ['deno task check', 'bun run check', 'bun run test', 'bun run test:bun']) {
+      const at = r.indexOf(cmd);
+      expect(at >= 0 && at < publish, `${cmd} runs before the publish`).toBe(true);
+    }
+    expect(r).not.toContain('deno task test');
+  });
+
+  it('auto-tag needs no Deno', () => {
+    expect(code(AUTO_TAG_YML).filter((l) => /\bdeno\b/i.test(l))).toEqual([]);
+  });
+});

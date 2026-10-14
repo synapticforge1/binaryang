@@ -61,16 +61,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Deno ONLY for `deno publish` (owner, 2026-10-12: Deno for JSR) and `deno task check` (until
+      # deno.json goes, B7). Everything else is the CI gate's tooling (Bun migration B6, 2026-10-13):
+      # Bun with the dev dependencies, and Node 24, the V8 referee the suite's verdict comes from.
       - name: Install Deno
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Node (the V8 referee)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
       - name: Verify jsr.json version matches tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION="$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("jsr.json")).version)')"
+          PKG_VERSION="$(bun -e 'console.log(JSON.parse(require("node:fs").readFileSync("jsr.json", "utf8")).version)')"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "::error::Tag version ($TAG_VERSION) does not match jsr.json version ($PKG_VERSION)"
             exit 1
@@ -80,8 +96,16 @@ jobs:
       - name: Type-check
         run: deno task check
 
-      - name: Test
-        run: deno task test
+      - name: Type-check (tsc, for Bun and Node)
+        run: bun run check
+
+      # The CI gate's two legs (B5): node:test on Node 24 is the verdict; Bun must fail exactly the
+      # known JavaScriptCore differences in tests/bun-known-differences.json.
+      - name: Test (node:test on Node 24, the referee)
+        run: bun run test
+
+      - name: Test (Bun, against the known JavaScriptCore differences)
+        run: bun run test:bun
 
       # Checks the PREREQUISITE only: are the OIDC env vars present on the runner?
       # This is a diagnostic, NOT evidence — see the header. It is here because when
@@ -126,7 +150,7 @@ jobs:
       - name: Verify provenance was recorded on JSR
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          PKG=$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("jsr.json")).name)')
+          PKG=$(bun -e 'console.log(JSON.parse(require("node:fs").readFileSync("jsr.json", "utf8")).name)')
           SCOPE=${PKG%/*}; SCOPE=${SCOPE#@}
           NAME=${PKG#*/}
           VERSION=${GITHUB_REF_NAME#v}
@@ -139,7 +163,7 @@ jobs:
           # while the cache-busted read showed rekorLogId 2618866200.
           for i in $(seq 1 12); do
             BODY=$(curl -sf -H "Accept: application/json" -H "Cache-Control: no-cache" "${URL}?cb=${GITHUB_RUN_ID}-${i}" || true)
-            REKOR=$(printf '%s' "$BODY" | deno eval 'const t = await new Response(Deno.stdin.readable).text(); try { console.log(JSON.parse(t).rekorLogId ?? "") } catch { console.log("") }' || true)
+            REKOR=$(printf '%s' "$BODY" | bun -e 'const t = await Bun.stdin.text(); try { console.log(JSON.parse(t).rekorLogId ?? "") } catch { console.log("") }' || true)
             if [ -n "$REKOR" ]; then
               echo "Provenance recorded — Rekor log ID: $REKOR"
               echo "- provenance recorded, Rekor log ID $REKOR" >> "$GITHUB_STEP_SUMMARY"

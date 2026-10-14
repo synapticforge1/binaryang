@@ -60,10 +60,12 @@ jobs:
           # publish.yml through `on: push: tags`, and the dispatch is skipped.
           token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
 
-      - name: Install Deno
-        uses: denoland/setup-deno@v2
+      # Bun reads jsr.json (Bun migration B6, 2026-10-13): nothing here needs Deno, which is kept
+      # for `deno publish` in publish.yml only.
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          deno-version: v2.x
+          bun-version: '1.4.3'
 
       # `secrets` is not dependably available in a step-level `if:`, so the presence
       # of RELEASE_PAT is turned into a plain step output and gated on that instead.
@@ -82,7 +84,7 @@ jobs:
       - name: Read version from jsr.json
         id: ver
         run: |
-          V="$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("jsr.json")).version)')"
+          V="$(bun -e 'console.log(JSON.parse(require("node:fs").readFileSync("jsr.json", "utf8")).version)')"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "jsr.json version: $V"
 
