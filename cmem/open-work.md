@@ -53,25 +53,32 @@ PUSHED; the version stays 1.10.0):**
   the guide's F11), worked in ITS repo, not from here.
 
 **State, end of 2026-10-13 (supersedes the 2026-10-12 paragraph where they differ; all merged to
-`main` at `3e719faf6`, NOT PUSHED; the version stays 1.10.0):**
-- **Done this session: B3's LINT half** ([bun-migration.md](bun-migration.md) § "B3 lint").
-  Biome 2.5.14 replaces `deno lint` (`bun run lint`, in CI after `bun install --frozen-lockfile`);
-  tsc has the seven lint flags (`deno.json` six: Deno 2.9.7 ignores
-  `noUncheckedSideEffectImports`); `scripts/check-lint-canary.ts` fails a silenced config (the
-  `biome migrate` → `"preset": "none"` trap) and is now the ONLY guard against it.
-- **No suppression comment remains:** the 21 `deno-lint-ignore` became `biome-ignore`, then all
-  22 were fixed in the code (owner: "Yes do all 22"); the types found an invalid IR shape and a
-  dead branch in tests. The shared typed test walker is `tests/expr_walk.ts`
-  ([testing.md](testing.md) § "Test tree"). The 4 dead `deno-lint-ignore-file` comments in
-  `comparison/scripts/` were deleted; `comparison/` stays outside Biome's scope.
-- **Who runs what, now:** Deno for JSR publishing, `deno check` (until B7) and `deno doc` (one test).
-  `deno lint`, `deno fmt` and `deno test` are gone from the gate (Biome, dprint, node:test).
-- **6 open items:** 13, 14, 15, 25, 26 (B3, B5, B7 DONE; B6 PREPARED, proven by the next release), 28. **29 (npm as a second registry) was opened and PARKED the
-  same day** as a contingency (owner: "I am leaving it on jsr until it becomes necessary to do
-  otherwise"); see § "Not tasks, by decision". The `code-lens-13`
-  conflict above still stands.
-- ⚠️ A `git checkout` + `merge` touching ~150 files failed half-way on this machine and tore the
-  working tree; recovered, nothing lost. The recipe is in `local/environment.md` (private).
+`main` at `0df7f0cfa`, NOT YET PUSHED at the time of writing; owner: "lets update the project
+memory files and then ship 1.11.0"):**
+- **Item 26, the Bun migration: done except B6's proof.** B3 (Biome for `deno lint`, dprint for
+  `deno fmt` byte for byte, each with a canary; no `biome-ignore` left), B5 (the suite on
+  `node:test`: `bun run test` on Node 24 is the verdict, `bun run test:bun` must fail exactly 36
+  listed JavaScriptCore differences), B6 (auto-tag off Deno; publish.yml runs CI's checks, then
+  the one direct `deno publish`), B7 (no `deno.json`; `deno publish` finds `jsr.json` itself; the
+  standalone `comparison/` runs again). **B6 / B7's proof is the 1.11.0 publish: its provenance
+  step must record a `rekorLogId`.** [bun-migration.md](bun-migration.md) has each step.
+- **Who runs what:** Deno for `deno publish` (and `deno doc` in one test, and the Deno-run
+  `comparison/`); Node 24 for the test verdict and the engine-oracle scripts; Bun for everything
+  else.
+- **Item 28:** `Opcode` is the union of the 582 real instructions, generated from `opcodes.json`
+  (`src/definitions/instr-code.ts`); the 43 opcode casts are gone; the reader now refuses a reserved
+  SIMD sub-opcode it used to accept. Open: the headless-browser run (Playwright or Puppeteer: the
+  owner's call) and the in-browser optimization measurement.
+- **wasmtk's Asyncify report (handoffs.md §§ 28-29, the reply SENT by the owner):** TinyGo 0.43's
+  goroutine builds crashed `Asyncify`; the cause was an analysis divergence (upstream stops
+  propagation at the bottom-most runtime); fixed, and wasmtk's reproducer runs correctly
+  (`wg-counter: 45` on wasmtime and wasmer).
+- **1.11.0** carries all of it ([unreleased.md](unreleased.md)): a MINOR (new exports, type-level
+  BREAKING entries: the enums as const objects, `Opcode` narrowed).
+- **6 open items:** 13, 14, 15, 25 (after 1.11.0 ships), 26 (B6's proof), 28. 29 (npm as a second
+  registry) PARKED as a contingency. The `code-lens-13` conflict above still stands.
+- ⚠️ This machine's exFAT drive can fail a big `git merge`; check status and `MERGE_HEAD`, and if
+  clean, retry (`local/environment.md`, private).
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
