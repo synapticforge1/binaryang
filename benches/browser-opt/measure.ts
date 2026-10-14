@@ -133,7 +133,7 @@ try {
       JSON.stringify(
         { date: new Date().toISOString(), upstream: upstreamVersion, results },
         null,
-        1,
+        2, // dprint's JSON layout, byte for byte, so `fmt:check` passes after a run
       )
     }\n`,
   );
