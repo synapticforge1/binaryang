@@ -100,7 +100,7 @@ describe('T13.44 — the release preflight stays wired in', () => {
   // does not re-resolve a pinned version), before any git mutation, and refuse.
   it('runs a cold type check, in a fresh DENO_DIR, before mutating anything', () => {
     // Since Bun migration B7 the Deno type check is the one inside `deno publish` (no deno.json,
-    // no `deno check`), so the cold run is the publish DRY RUN; `bun run check` (tsc) follows it.
+    // no `deno check`), so the cold run is the publish DRY RUN; `bun run check` (`bun check`) follows it.
     const at = PUBLISH.indexOf("spawnSync('deno', ['publish', '--dry-run', '--allow-dirty']");
     expect(at).toBeGreaterThan(-1);
     const tsc = PUBLISH.indexOf("spawnSync('bun', ['run', 'check']");
@@ -143,8 +143,8 @@ describe('T13.44 — the release preflight stays wired in', () => {
   it('keeps scripts/ inside the gate', () => {
     // T13.43 found `scripts/` type-checked, linted and formatted by nothing --
     // including the file that publishes immutable artifacts.
-    // Since Bun migration B3 / B7 the three are Biome, dprint and tsc (deno.json is gone): each
-    // config's scope must name scripts/. Line comments stripped: none of their strings holds `//`.
+    // Since Bun migration B3 / B7 the three are Biome, dprint and the tsconfig.json type check
+    // (deno.json is gone): each config's scope must name scripts/. Line comments stripped: none of their strings holds `//`.
     const jsonc = (path: string) =>
       JSON.parse(
         fsx.readTextFileSync(path).replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'),
