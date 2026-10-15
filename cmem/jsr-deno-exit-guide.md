@@ -109,8 +109,10 @@ source as it is. binaryang CLI start, whole tree loaded, median of 5: **Bun 106 
 Node 581 ms** (with the flag). This affects running the SOURCE only. Consumers get compiled
 JavaScript (F4).
 
-**F8. Neither Bun nor Node checks types.** Both strip types and run. `tsc` replaces
-`deno check` whichever runtime is chosen (`typescript` 7.0.2 was `latest` on npm on 2026-10-12).
+**F8. Neither Bun nor Node checks types when it RUNS a file.** Both strip types and run. `tsc`
+replaces `deno check` whichever runtime is chosen (`typescript` 7.0.2 was `latest` on npm on
+2026-10-12). 🔧 **Since Bun 1.4.3 Bun HAS a checker, `bun check`** (found 2026-10-15; binaryang
+uses it — § 5a "Type checking: `bun check`"), so a Bun project no longer needs `tsc` for this.
 `deno fmt` is dprint's TypeScript plugin, so `dprint` with the same settings should reproduce
 its output. binaryang has not measured that yet.
 
@@ -224,11 +226,49 @@ write to it) and what was measured. All of it is on binaryang's `main`.
   - `async` functions whose `await` became `spawnSync` fail `deno lint`'s `require-await`;
   - `deno fmt <dir>` / `deno lint <dir>` do NOT apply `deno.json`'s include list. Run the bare
     command the gate runs.
-- **Type checking is `tsc`** (TypeScript 7.0.2), with `types: ["node"]` (not `bun`, so a Bun-only
-  API fails the check) and `@types/node` pinned to the published Node FLOOR (so an API newer than
-  the floor fails too). `tsconfig.json`; `bun run check`.
+- **The type check reads `tsconfig.json`**, with `types: ["node"]` (not `bun`, so a Bun-only API
+  fails the check) and `@types/node` pinned to the published Node FLOOR (so an API newer than the
+  floor fails too); `bun run check`. The checker was `tsc` 7.0.2 until 2026-10-15 and is now
+  `bun check` (below).
 - **`bun install` cannot write `bun.lock` on an exFAT drive** (no atomic rename). Generate the
   lockfile on NTFS and copy it back; a lockfile holds no paths.
+
+### Type checking: `bun check`
+
+2026-10-15. Bun 1.4.3 added `bun check`, its built-in checker
+([release notes](https://bun.sh/blog/bun-v1.4.3#other-improvements),
+[docs](https://bun.com/docs/runtime/check)): a port of typescript-go that reads `tsconfig.json`,
+reports the same errors as `tsc` and passes TypeScript 7.0.2's conformance suite, per Bun. It only
+checks: no JavaScript or `.d.ts` output, no language server (editors keep TypeScript), and no
+`typescript` package needed. binaryang switched to it on 2026-10-15 (owner: "yes make the
+change"). What binaryang measured before switching, on its four projects (src, scripts/binaryen-ts,
+tests, tests/binaryen-ts; 158 + 107 + 319 + 257 files as each project counts them):
+
+- **Same verdict on the clean tree:** 0 errors from both.
+- **Same errors on a PLANTED fault** (the positive control: zero from both proves little). Two
+  faults in `src/ir/derive-types.ts`, a constructor parameter property under `erasableSyntaxOnly`
+  and a `string` assigned to a `number`: both reported the same three errors (TS1294, TS2322,
+  TS2663) at the same lines and columns with the same text. Only the path differed: `bun check`
+  printed it absolute because it ran from outside the repo.
+- **Speed:** each project 210–280 ms against `tsc`'s 470–560 ms, about 2× (Bun claims 3–6× on large
+  projects; these are small).
+
+How to adopt it, and the trap:
+
+- ⚠️ **A `package.json` script named `check` SHADOWS the built-in.** In the project directory,
+  `bun check` runs that script (`bun check --help` printed `tsc`'s help); outside it, the checker.
+  `bun --check` reaches the checker, but `bun --check -p x` reads `-p` as Bun's "print". Inside
+  the `check` script itself `bun check` IS the checker (Bun's docs say so; measured: no
+  recursion). On a Bun without the checker (before 1.4.3) such a script calls itself forever, so
+  pin Bun ≥ 1.4.3 everywhere it runs (binaryang's CI and publish pin `1.4.3`).
+- One `-p` per project: binaryang's script is
+  `bun check -p tsconfig.json && bun check -p scripts/binaryen-ts/tsconfig.json && …` (or `-b`
+  with `references`). `bun check` exits 1 on an error AND when it finds nothing to check, so a job
+  in the wrong directory fails rather than passing.
+- Keep `tsc` as a second opinion until the new checker has a record: binaryang kept `typescript`
+  7.0.2 and a `check:tsc` script on the same four projects, not in CI. A disagreement between them
+  is a bug in Bun (Bun's own words), settled by `tsc`. Diff them with
+  `bun check --no-pretty > bun.txt` against `tsc --noEmit --pretty false > tsc.txt`.
 
 ### The engine referee: Bun's WebAssembly is not V8
 
@@ -261,7 +301,7 @@ schedule. There is no deadline.
 | type check, tests, formatting | Deno for now | `deno check` / `test` / `fmt`, until binaryang's B3 / B5 move them |
 | engine-oracle scripts (behaviour, validity, optimizer corpus, hostile) | **Node 24** (the V8 referee) | `bun scripts/v8.ts <script>`: one constant, run through `fnm exec`, never PATH's `node` |
 | a proposal the referee lacks | Node 26 (custom-descriptors), Bun (wide-arithmetic) | a per-row `engine` / `node` in `scripts/proposals.ts` |
-| everything else (scripts, `tsc`, the browser and LTS checks) | **Bun** | `bun run <name>` from `package.json` |
+| everything else (scripts, the type check — `bun check` since 2026-10-15, `tsc` before — the browser and LTS checks) | **Bun** | `bun run <name>` from `package.json` |
 
 fnm holds every Node in play (binaryang's machine: 22, 24, 26), so a script names its major and
 never depends on fnm's default (which was 22 there, whose V8 fails these gates). Raising the

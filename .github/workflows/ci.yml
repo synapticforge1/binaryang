@@ -58,8 +58,9 @@ jobs:
         run: bun run lint
 
       # THE type check (B2; tests/ since B5; alone since B7, when deno.json and `deno check` went):
-      # `tsc` over the shipped code, scripts/ and tests/, with @types/node pinned to the Node floor
-      # and the strict lint flags (noUnusedLocals, …).
+      # `bun check` (Bun's built-in checker, since 2026-10-15; `tsc` before) over the shipped code,
+      # scripts/ and tests/, with @types/node pinned to the Node floor and the strict lint flags
+      # (noUnusedLocals, …). Inside the `check` script `bun check` is the checker, not the script.
       - name: Type-check
         run: bun run check
 

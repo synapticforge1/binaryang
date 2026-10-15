@@ -1,7 +1,9 @@
 {
-  // THE type check (Bun migration B2, cmem/bun-migration.md): neither Bun nor Node checks types,
-  // so `tsc` replaced `deno check`, alone since deno.json went (B7). The strictness flags were
-  // deno.json's, copied.
+  // THE type check (Bun migration B2, cmem/bun-migration.md): neither Bun nor Node checks types
+  // when it RUNS a file, so `tsc` replaced `deno check`, alone since deno.json went (B7). Since
+  // 2026-10-15 the checker reading this file is Bun's own `bun check` (a port of typescript-go,
+  // conformant to tsc 7.0.2); `bun run check:tsc` runs tsc 7.0.2 on the same four projects as a
+  // second opinion. The strictness flags were deno.json's, copied.
   //
   // Scope: the shipped code, and scripts/ since B4 converted it to node: builtins (2026-10-12).
   // scripts/binaryen-ts/, tests/ and tests/binaryen-ts/ have their own tsconfig.json (the two
