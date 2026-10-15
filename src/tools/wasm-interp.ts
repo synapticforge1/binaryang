@@ -83,8 +83,25 @@ function argValue(type: ValueType, text: string | undefined): Value {
       return { type, bits: f32BitsOf(Number(t)) };
     case ValType.F64:
       return { type, bits: f64BitsOf(Number(t)) };
+    // 🔧 A v128 zero. It fell to the reference default below, so every export
+    // taking a v128 — and every stand-in import returning one — got `ref.null`,
+    // and the run stopped as `invalid: expected a v128 operand` on a valid module
+    // (open-work 13, the code lens: the spec's relaxed-SIMD modules, run whole).
+    case ValType.V128:
+      if (text !== undefined && text !== '0') {
+        throw new Error(`cannot pass an argument of type v128 (only the zero default)`);
+      }
+      return { type, bytes: new Uint8Array(16) };
     default:
       if (text !== undefined) throw new Error(`cannot pass an argument of type ${String(type)}`);
+      // 🔧 A NON-NULLABLE reference has no default. `ref.null` was passed for
+      // `(ref extern)`, and a stand-in import returned it for one: the run went
+      // on with a value the type forbids, and printed results no valid
+      // execution has (open-work 13, the code lens: spec `local_init`,
+      // `type-equivalence`, against V8). The export is not run.
+      if (typeof type === 'object' && type !== null && 'nullable' in type && !type.nullable) {
+        throw new Stop('unsupported', 'no default value for a non-nullable reference');
+      }
       return { type: 'ref', kind: 'null' };
   }
 }
@@ -144,10 +161,11 @@ export function interpModule(
     const fn = inst.functionIndex(ex.var);
     const sig = functionSignature(module, fn);
     const given = ex.name === opts.runExport ? opts.args : [];
-    const args = sig.map((t, i) => argValue(t, given[i]));
+    let args: Value[] = [];
     inst.refuel(opts.fuel);
     let outcome: Invocation['outcome'];
     try {
+      args = sig.map((t, i) => argValue(t, given[i])); // may Stop: no default for the type
       outcome = { values: inst.invoke(ex.name, args) };
     } catch (e) {
       if (e instanceof Trap) outcome = { trap: e.message };
