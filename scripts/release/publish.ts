@@ -148,11 +148,12 @@ try {
 } finally {
   await rm(coldDir, { recursive: true }).catch(() => {});
 }
-// …and publish.yml's type check (Bun migration B6 / B7): `tsc` over src/, scripts/ and tests/.
-// No cache to go stale: `tsc -p` without `incremental` checks every file every time.
-console.log('$ bun run check   (tsc, as publish.yml runs it)');
+// …and publish.yml's type check (Bun migration B6 / B7): `bun check` over src/, scripts/ and
+// tests/ (`tsc` until 2026-10-15). No cache to go stale: `bun check` writes none and checks every
+// file every time.
+console.log('$ bun run check   (bun check, as publish.yml runs it)');
 if (spawnSync('bun', ['run', 'check'], { stdio: 'inherit' }).status !== 0) {
-  console.error(`\nRefusing to release ${tag}: the tsc type check failed.`);
+  console.error(`\nRefusing to release ${tag}: the type check failed.`);
   console.error('  publish.yml would fail the same way, after the tag was public.');
   process.exit(1);
 }
