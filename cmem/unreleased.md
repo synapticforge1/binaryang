@@ -37,5 +37,58 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.12.1
 
-Nothing yet. The 1.12.1 notes as gathered are `git show e03d38f33:cmem/unreleased.md`; the public
-summary is `CHANGELOG.md` § 1.12.1.
+The 1.12.1 notes as gathered are `git show e03d38f33:cmem/unreleased.md`; the public summary is
+`CHANGELOG.md` § 1.12.1.
+
+**The code lens, round 13, pass 1** (branch `code-lens-13`, built 2026-10-09 on the 1.10.0-era
+tree, MERGED 2026-10-15 — [hardening.md](hardening.md) § "Code lens, pass 1"; the letter is
+[handoffs.md](handoffs.md) § 35). Its entries, as gathered then; § 35 was § 28 on the branch,
+renumbered at the merge because `main` had used 28–34 for the Asyncify letters:
+
+- ⚠️ **Silent fix — `wasmValidate`'s `result` said `Ok` for an invalid module** (2026-10-09,
+  open-work 13, the code lens, [hardening.md](hardening.md) § "Code lens, pass 1"): a check that
+  REPORTS without failing — a block type naming a type that is not a function type — left the
+  error in `errors` and the result `Ok`; `wasm-validate` printed the error, then "OK", and exited
+  **0**. Now `Error` whenever an error-level diagnostic was reported. What a user may have shipped:
+  a module V8 refuses, passed by a script that read `result` or the exit status. wasmtk uses
+  `wasmValidate` as an ORACLE ([handoffs.md](handoffs.md) § 35): tell them, with how to tell
+  whether it touched them (they read `errors` → unaffected).
+- **Silent fix — the optimizer made a valid module invalid** (same day, same section): values left
+  on the stack before an `unreachable` (valid; the `unreachable` discards them) stood as bare
+  statements, and `Inlining` wrapped the code after them in a block → "type mismatch at end of
+  end"; a consumer the reader gave a discarded value as an OPERAND (`(i64.add (i32.shl …) (…
+  (unreachable)))`) looked live, and `OptimizeInstructions` rewrote it into reachable, invalid
+  code. Found only in VALID MUTANTS of producer binaries — no corpus module has the shape. Output
+  bytes move only for modules with such dead code; a no-pass read-and-write is byte-exact.
+  Measured: wasmtk's 406 producer modules at `-O2` / `-Oz`, 812 outputs byte-identical before and
+  after (on `505cf26b4`). A third, ON MAIN BEFORE TOO: the phantom collapse ended a void function
+  with a value (`select` over unreachable operands); a valid mutant of `spec/unreached-valid`.
+- ⚠️ **Behaviour — the reader refuses malformed heap types it accepted** (2026-10-09, code lens,
+  spec mutants against V8): a heap type byte that is not one (`0x7f`); a multi-byte negative heap
+  type, also MIS-DECODED before (`(-v) & 0x7f` — a padded `func` read as 0x10, -112 as `func`).
+  `wasm-validate` passed both. And a SIMD / atomic sub-opcode ≥ 0x10000, which aliased a real one
+  (`(prefix << 16) | op`) and made the validator THROW, is reported as unknown. (The branch also
+  refused an unknown SIMD sub-opcode below 0x10000; 1.11.0 shipped that from `main` through
+  `isInstrCode`, so the merge kept `main`'s check and dropped the branch's duplicate.) Verdicts on
+  the 6,735 original spec + proposal modules are unchanged (same list against V8, before and
+  after). Letter § 35 says so.
+- **Silent fix — `wasm-interp` defaulted a v128 to `ref.null`** (argument, and a stand-in import's
+  result) and stopped valid modules as `invalid`. Now a v128 zero. And it defaulted a
+  NON-NULLABLE reference to `ref.null` (results no valid run has): such an export now STOPS.
+- ⚠️ **Behaviour — the validator refuses five more invalid / malformed constructs** (`40ef4d615`,
+  same method, the re-run): data / element segment flags with an undefined bit; `br_on_cast`
+  flags past 3; `br_on_null` / `br_on_non_null` of a non-reference; `br_on_cast(_fail)` of an
+  operand not of its source type; `ref.null` of a type index past the section. Verdicts on the
+  6,735 original spec + proposal modules unchanged. Letter § 35 says so.
+- **Behaviour (hardening, found by the code lens) — a huge count in a tiny malformed module no
+  longer keeps the reader busy** (`28f840503`): nine count-driven reading loops ran past the end,
+  10–14 s per validation for a one-byte change, hours for 2^32-1; they stop at the first failed
+  read, and a local-declaration count larger than the body is refused at once (V8's wording).
+  Same verdicts, only fast. Say so in the note: a caller validating untrusted input could be
+  held for seconds or hours by a few bytes.
+- ⚠️ **Behaviour — two refusals where upstream wabt ACCEPTS** (`ba588040d`, owner: "refuse … if it
+  will not run on all platforms"): a typed `select` with no types, and an imported global / table
+  whose value type names a type that does not exist. wasm-tools, wasmtime, wasmer, WasmEdge, V8 and
+  JavaScriptCore all refuse both ([divergences.md](divergences.md) V1, V2). The `select` form still
+  reads and writes back byte for byte (it was written back as `0x1b` before — a byte change for
+  that input). Letter § 35 should say so (upstream-wabt users see us stricter).

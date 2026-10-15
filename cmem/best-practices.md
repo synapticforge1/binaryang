@@ -1834,6 +1834,69 @@ the `@types/node` they name, and `import.meta.main` failed the publish check tha
 day before. **How to apply:** after removing a config, run every tool that read it (here the
 publish dry run, cold), and prove the output did not change (the same 122 files).
 
+### A fuzz that classes outcomes by TYPE cannot see a wrong answer — ask the code question of every valid mutant
+
+The hostile fuzz asked "typed or untyped?" of 2,030 mutants and was clean. The same mutants asked
+"is it valid (ours and V8)? then does every stage take it, and is the optimizer's output valid?"
+found three defects in one evening (open-work 13, code lens, 2026-10-09): the validator's
+`result` said Ok for an invalid module, and two optimizer miscompiles of valid input. A typed
+refusal of VALID input passes a hardening fuzz by construction. **How to apply:** a mutation run
+reports two things: the contract (typed or not) and, for each mutant an independent oracle calls
+valid, the code lens (every stage works, output valid).
+
+### A record keyed by node identity dies at the first rebuild
+
+`deriveTypes` records `pop` origins and discarded values by node; `mapWithSequences` copies
+every node above what it replaces. After a collapse ran, the new drop step dropped a bare
+`local.get` (a leaf, never copied) and missed the `i64.extend` beside it (copied): no error, just
+less done. The `pop` origins have the same exposure in any function the phantom collapse touched
+(read from the code, not observed). **How to apply:**
+after any rewrite that rebuilds, derive again; or mark the nodes BEFORE the rewrite with
+something the copies carry (a symbol key survives a spread) and replace every marked node.
+
+### An inversion is undone from a backup, never from git
+
+Restoring a sabotaged file with `git checkout --` restored the COMMITTED version and wiped the
+uncommitted fix with the sabotage (2026-10-09; recovered from a copy taken first by luck).
+**How to apply:** copy the file aside before sabotaging, restore from the copy, and grep the
+restored file for both the sabotage (0) and the fix (> 0).
+
+### `deno fmt <path>` formats a file the include list leaves out
+
+`CHANGELOG.md` is outside `fmt.include`; formatting it by name rewrapped every earlier entry. Same
+trap as cmem. **How to apply:** run `deno fmt` with no path, or only on paths under `include`.
+
+### One second oracle is an opinion — ask the panel, and qualify each column first
+
+V8 alone flagged dozens of "disagreements" that were V8's own feature gaps and limits, and it
+ACCEPTS things five other engines refuse. Asking every validator and engine on the machine
+settled each case in one table ([hardening.md](hardening.md) § "The oracle panel"). Two of the
+eight columns were wrong at first — wasmtime's `all-proposals` and wasmer's `--enable-all` made
+them refuse VALID modules. **How to apply:** before reading a tool's verdict on the disputed
+input, show it accepts every valid original; then judge by the owner's rule (refuse what will
+not run everywhere), not by any single engine.
+
+### A job that prints only at the end cannot be told from a hung one
+
+The all-corpus throw-check ran an hour with nothing to show; it was stuck in C15's loop, and
+nothing distinguished "slow" from "stuck" until it was rerun with a progress file and a per-input
+timer — which then named the slow inputs in a minute. **How to apply:** any run longer than a
+few minutes writes a progress line per unit and logs any unit over a threshold. And stopping a
+process inside a `cmd1; cmd2; echo exit >> log` chain lets the chain run on: the next step wrote
+into the log being read.
+
+### A hand-counted section size is a guess — build fixtures with computed sizes
+
+Four hand-written binary fixtures in one evening had a wrong section or body size, and each
+first read as a validator result ("length out of bounds"). **How to apply:** compute sizes in the
+fixture helper, or assert the fixture's CONTROL (a valid neighbour accepted by V8) before the
+case under test.
+
+### `deno test --filter` takes a substring, or a regex between slashes
+
+`--filter "a|b"` matched nothing and printed "0 passed, 0 failed": an inversion that ran no test
+reads like one that passed. **How to apply:** `--filter "/a|b/"`, and read the passed count.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

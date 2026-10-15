@@ -1038,6 +1038,7 @@ export class SharedValidator {
         onFail ? 'br_on_cast_fail' : 'br_on_cast',
         onFail ? diff : to,
         onFail ? to : diff,
+        from,
       ),
     );
   }
@@ -1630,7 +1631,22 @@ export class SharedValidator {
 
   onRefNull(loc: Location, refType: ValueType): Result {
     this.currentLoc = loc;
-    return this.tc.onRefNull(refType);
+    // 🔧 Its heap type is checked like any declared value type's. A type
+    // index past the section was accepted — `ref.null 4991` in code, `ref.null
+    // 0` in a table's initializer with no types (open-work 13, the code lens:
+    // V8 says "Type index … is out of bounds"; spec `table`, `table_set` mutants).
+    // Only the RANGE: the features `ref.null` needs are gated where they were
+    // (`checkValueType` reads `(ref null extern)` in this record form as a typed
+    // reference and asked for function references — a default-feature
+    // `ref.null extern` was refused, `ref_null.test.ts`).
+    let r: Result = Result.Ok;
+    if (isRefValueType(refType)) {
+      const h = refType.heapType.kind === 'exact' ? refType.heapType.type : refType.heapType;
+      if (h.kind === 'index' && h.value >= this.numTypes) {
+        r = this.printError(loc, `unknown type ${h.value} in ref.null`);
+      }
+    }
+    return combineResults(r, this.tc.onRefNull(refType));
   }
 
   onRefIsNull(loc: Location): Result {

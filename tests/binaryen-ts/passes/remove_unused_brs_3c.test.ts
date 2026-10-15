@@ -65,13 +65,20 @@ describe('a return at the end of the body', () => {
     await same(before, after, 'n', INPUTS);
   });
 
-  it('🔧 NOT when it also discards values left on the stack (spec unwind.wast)', async () => {
+  // REPLACED (open-work 13, the code lens): this pinned the refusal — "NOT when
+  // it also discards values left on the stack (spec unwind.wast)" — because the
+  // `return` was what discarded them, and the values stood bare before it. What
+  // stays true once the values are DROPPED where they stand (the spill step,
+  // which reads them as binaryen's reader does): the return is a plain tail
+  // return, the values are still evaluated, the module is valid and the same.
+  it('values left on the stack are dropped first, so the return goes (spec unwind.wast)', async () => {
     const { before, after, text } = rub(`(module
       (func (export "f") (result i32)
         (i32.const 3)
         (i64.const 1)
         (return (i32.const 9))))`);
-    expect(text).toContain('return');
+    expect(text).not.toContain('return');
+    expect(text.match(/\(drop/g)?.length).toBe(2);
     await same(before, after, 'f', [[]]);
   });
 });
