@@ -185,7 +185,7 @@ if (import.meta.main) {
     // 2. Serve them.
     const byName = new Map(files.map((f) => [basename(f), f]));
     const exportsList = Object.keys(exports).map((sub) => [sub, `/bundles/${bundleName(sub)}`]);
-    // node:http, not Bun.serve: scripts are checked against Node's types (a Bun-only API fails tsc).
+    // node:http, not Bun.serve: scripts are checked against Node's types (a Bun-only API fails the type check).
     const server = createServer((req, res) => {
       const p = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
       const send = (type: string, body: string | Buffer) => {
