@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- ⚠️ **`wasmValidate` could return `Result.Ok` for an invalid module**, with the error in its
+  `errors` list. One check — a block type naming a type that is not a function type — reported
+  without failing, and `wasm-validate` then printed the error, printed "OK" and exited 0. The
+  result is now `Error` whenever an error was reported, whichever check reported it. Code that
+  read `errors` was never affected; code that read `result`, or the command's exit status, was.
+- **The optimizer could turn a valid module into an invalid one** when values were left on the
+  stack before an `unreachable` (valid wasm: the `unreachable` discards them). `Inlining` wrapped
+  the code after them in a block, which ended the discarding, and the values were left over;
+  `OptimizeInstructions` rewrote an instruction the bytes never run as if they did. Such values
+  are now dropped where they stand before the first pass runs, as binaryen's own reader reads
+  them, and an instruction whose operands the `unreachable` cut off is taken apart. Nothing
+  changes at run time, and a read-and-write with no pass is byte-exact as before. The same
+  preparation could also end a void function with a value (a `select` over unreachable operands
+  left where its consumer was removed); it now ends such code with `unreachable`.
+- **The binary reader accepted malformed heap types that V8 refuses**, so `wasm-validate` passed
+  them and a later writer failed: a heap type byte that is not one (`0x7f`, i32's code); and a
+  negative heap type in more than one byte, which was also mis-decoded (a padded `func` read
+  wrongly, and an out-of-range value read as `func`). Each is now reported where it is read. A
+  SIMD or atomic sub-opcode of 0x10000 or more could also alias a real one and make the validator
+  throw; it is reported as unknown.
+- **A huge count in a tiny malformed module could keep the reader busy for seconds or hours.** A
+  count read from the input (local declaration groups, parameters, results, struct fields, element
+  entries, `br_table` targets, `try_table` catches, `select` types, supertypes) drove a loop that
+  kept going after its reads ran past the end: 10–14 s per validation for a one-byte change to a
+  spec module, hours for a count of 2^32-1. Such a loop now stops at the first failed read, and a
+  local declaration count larger than the function body is refused at once, as V8 refuses it.
+- **The validator accepted five more invalid or malformed constructs that V8 refuses**: data and
+  element segment flags with an undefined bit (each bit was read alone and the rest ignored);
+  `br_on_cast` flags with an undefined bit; `br_on_null` / `br_on_non_null` of a value that is not
+  a reference; `br_on_cast` / `br_on_cast_fail` of an operand that is not their source type; and
+  `ref.null` of a type index past the type section. None of these changes a verdict on any module
+  of the spec or proposal testsuites. Two more, refused by every engine and validator tried except
+  upstream wabt (wasm-tools, wasmtime, wasmer, WasmEdge, V8, JavaScriptCore): a typed `select`
+  with no types (still read and written back byte for byte), and an imported global or table whose
+  type names a type that does not exist.
+- `wasm-interp` passed `ref.null` for a non-nullable reference argument it defaults (and returned
+  it from a stand-in import), printing results no valid run has. Such an export is now reported
+  as stopped: there is no default for the type.
+- `wasm-interp` passed `ref.null` for a v128 argument it defaults, and for the result of a
+  stand-in import returning a v128, and then stopped the run as `invalid`. It passes a v128 zero.
+
 ## 1.12.1
 
 ### Fixed

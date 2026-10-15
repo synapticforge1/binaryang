@@ -74,6 +74,14 @@ export interface FidelityEntry {
    * derivable from its operands. Only the *choice to write it* is not.
    */
   readonly selectResultType?: readonly ValueType[];
+  /**
+   * Written as the TYPED select (`0x1c`) with NO types — invalid (a typed
+   * select names exactly one), but well-formed, so it reads, prints and writes
+   * back as written. Without this it was the bare `0x1b`, and the validator
+   * passed it (open-work 13, the code lens: a spec `simd_lane` mutant that
+   * every engine refuses).
+   */
+  readonly selectTyped?: true;
 
   // ⚠️ `blockType` is deliberately NOT here any more (S6 step 5, stage (c2)).
   // It recorded a block's type AS DECLARED — not always the derived one

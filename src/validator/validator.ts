@@ -23,7 +23,7 @@ import {
   PREFIX_SIMD,
   PREFIX_THREADS,
 } from '../core/opcode.ts';
-import type { ErrorList, Location } from '../core/error.ts';
+import { type ErrorList, hasErrors, type Location } from '../core/error.ts';
 import type {
   ArrayCopyExpr,
   ArrayFillExpr,
@@ -268,14 +268,24 @@ function canonicalTypeKeys(types: readonly TypeEntry[]): string[] {
 // ---------------------------------------------------------------------------
 
 /** Validates a decoded WebAssembly module, appending errors to {@link errors}.
- *  Returns Result.Ok if valid, Result.Error otherwise. */
+ *  Returns Result.Ok if valid, Result.Error otherwise.
+ *
+ *  The result is `Error` whenever this run REPORTED an error, whatever the
+ *  check that found it returned. 🔧 It was the checks' returned results alone,
+ *  and a check that reports without failing — a block type naming a type that
+ *  is not a function type — gave `Ok` with the error in the list: `wasm-validate`
+ *  printed the error, then "OK", and exited 0 on a module V8 refuses
+ *  (open-work 13, the code lens; a valid-mutant run against V8 found it). */
 export function validateModule(
   module: Module,
   errors: ErrorList,
   options?: ValidateOptions,
 ): Result {
+  const before = errors.length;
   const v = new ModuleValidator(module, errors, options);
-  return v.checkModule();
+  const result = v.checkModule();
+  const reported = hasErrors(errors.slice(before)); // a warning is not a failure
+  return combineResults(result, reported ? Result.Error : Result.Ok);
 }
 
 // ---------------------------------------------------------------------------
@@ -483,13 +493,20 @@ class ModuleValidator implements ExprVisitorDelegate {
           this.acc(this.sv.onFunction(locOf(imp.func), sigIdx, imp.exact === true));
           break;
         }
+        // 🔧 An imported table's and global's value types are checked like a
+        // defined one's (`checkVt` above). They were not: `(import … (global
+        // (mut (ref 0))))` in a module with no types validated (open-work 13,
+        // the code lens: a spec `linking` mutant; wasm-tools, wasmtime,
+        // wasmer, WasmEdge, V8 and JSC all refuse it, upstream wabt does not).
         case ExternalKind.Table:
+          checkVt(imp.table.elemType, 'imported table', locOf(imp.table));
           this.acc(this.sv.onTable(locOf(imp.table), imp.table.elemType, imp.table.limits));
           break;
         case ExternalKind.Memory:
           this.acc(this.sv.onMemory(locOf(imp.memory), imp.memory.limits));
           break;
         case ExternalKind.Global:
+          checkVt(imp.global.type, 'imported global', locOf(imp.global));
           this.acc(this.sv.onGlobalImport(locOf(imp.global), imp.global.type, imp.global.mutable));
           break;
         case ExternalKind.Tag:
@@ -892,6 +909,11 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
 
   onSelectExpr(e: SelectExpr): Result {
+    // The typed form with NO types reads as a bare select in the tree; only
+    // the as-written record says it was `0x1c 0x00` — invalid arity.
+    if (this.module.fidelity?.get(e.nodeId)?.selectTyped === true && e.resultType.length === 0) {
+      return this.sv.printError(locOf(e), 'invalid arity in select instruction: 0.');
+    }
     return this.sv.onSelect(locOf(e), e.resultType);
   }
 

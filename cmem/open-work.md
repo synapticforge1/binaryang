@@ -92,6 +92,23 @@ PUSHED; the version stays 1.10.0):**
 - ⚠️ This machine's exFAT drive can fail a big `git merge`; check status and `MERGE_HEAD`, and if
   clean, retry (`local/environment.md`, private).
 
+**State, 2026-10-15 (supersedes the paragraphs above where they differ; merged to `main`, NOT
+PUSHED; the version stays 1.12.1):**
+- **`code-lens-13` is MERGED** (owner: "sort out the code-lens-13 branch and wrap that up"):
+  C1–C17 on top of 1.12.1, merge `9eb1b1de7`, full gate green on it. The ⚠️ conflict noted under
+  2026-10-12 is resolved: seven files, the decisions in the merge message (the `declare` form in
+  `derive-types.ts`; both opcode checks kept in the reader, the branch's duplicate C6 check dropped;
+  the three new tests on `node:test`). The branch is deleted.
+- **Code lens, pass 1: CLOSED.** The converging re-run on the merged tree added no row
+  ([hardening.md](hardening.md) § "Code lens, pass 1"). Item 13 goes on: the hardening re-run, then
+  the code lens again.
+- **Unreleased on `main`:** C1–C17 ([unreleased.md](unreleased.md), `CHANGELOG.md` § Unreleased).
+  The release, and its number, are the owner's call. Its letter is [handoffs.md](handoffs.md)
+  § 35 (was § 28 on the branch), a DRAFT for the owner to send.
+- **wasmtk on 1.12.1** ([handoffs.md](handoffs.md) § 36, received 2026-10-15): `go_asyncify_tests`
+  12 / 12, gate 64,506 / 0 / 16, nothing else moved. The Asyncify thread (§§ 28–34) is CLOSED.
+- **5 open items, unchanged:** 13, 14, 15, 28, 30.
+
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
 **Cut back to open items on 2026-09-29** (the second time; the first was 2026-09-14). The file had
@@ -343,7 +360,7 @@ names as labels only.
 | round     | lenses, in order                            | state                                                                                    |
 | --------- | ------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | **1.5.5** | code                                        | ✅ passes 1–7, register empty, converged — [testing.md](testing.md) § "The 1.5.5 passes" |
-| **1.5.6** | hardening → then code again                 | 13. ◐ passes 1 (the contract) and 2 (the weakest ceiling, ~384 → ~930) DONE 2026-10-09, and the fuel question answered by a sound HANG CHECK (2 s); open: the code lens again, then a hardening re-run until clean; deeper ceilings are the owner's call — [hardening.md](hardening.md) |
+| **1.5.6** | hardening → then code again                 | 13. ◐ passes 1 (the contract) and 2 (the weakest ceiling, ~384 → ~930) DONE 2026-10-09, and the fuel question answered by a sound HANG CHECK (2 s); the code lens pass 1 (C1–C17) MERGED and CLOSED 2026-10-15, its converging re-run adding no row; open: a hardening re-run until clean, then the code lens again; deeper ceilings are the owner's call — [hardening.md](hardening.md) |
 | **1.5.7** | security → then hardening → then code again | 14. ⬚ not started                                                                        |
 
 If a finding fits two lenses, file it under the **lowest** one that would have caught it:

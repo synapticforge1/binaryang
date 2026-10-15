@@ -635,8 +635,9 @@ class BodyWriter implements ExprVisitorDelegate {
     return Result.Ok;
   }
   onSelectExpr(e: SelectExpr): Result {
-    const resultType = this.fidelity.get(e.nodeId)?.selectResultType ?? e.resultType;
-    if (resultType.length === 0) {
+    const written = this.fidelity.get(e.nodeId);
+    const resultType = written?.selectResultType ?? e.resultType;
+    if (resultType.length === 0 && written?.selectTyped !== true) {
       this.s.writeU8(Opcode.Select);
     } else {
       this.s.writeU8(Opcode.SelectT);
