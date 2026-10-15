@@ -851,6 +851,11 @@ export class BinaryReader {
       if (b >= 0x40) {
         const name = abstractHeapTypeNameForByte(b);
         if (name !== null) return heapAbstract(name);
+        // 🔧 Reported. It was only named, and nothing downstream checked the
+        // name: the validator ACCEPTED `0x7f` (i32's code, not a heap type)
+        // and the writer then refused the module (open-work 13, the code
+        // lens: V8 says "Unknown heap type -1").
+        this.err(`expected valid heap type (got 0x${b.toString(16)})`);
         return varName(`<heaptype:0x${b.toString(16)}>`);
       }
       return varIndex(b);
@@ -861,10 +866,15 @@ export class BinaryReader {
     const [v, n] = decodeS32Leb128(this.data, this.pos);
     this.pos += n;
     if (v < 0) {
-      const code = (-v) & 0x7f;
-      const name = abstractHeapTypeNameForByte(code);
+      // An abstract heap type is a 7-bit two's-complement value (-0x40 … -1),
+      // whatever padding encodes it: its byte is `v & 0x7f`. 🔧 This took
+      // `(-v) & 0x7f`, so a padded `func` (-16) read as 0x10, and an
+      // out-of-range -112 read as `func` (0x70) and was accepted.
+      const code = v & 0x7f;
+      const name = v >= -0x40 ? abstractHeapTypeNameForByte(code) : null;
       if (name !== null) return heapAbstract(name);
-      return varName(`<heaptype:0x${code.toString(16)}>`);
+      this.err(`expected valid heap type (got ${v})`);
+      return varName(`<heaptype:${v}>`);
     }
     return varIndex(v);
   }
@@ -1084,7 +1094,7 @@ export class BinaryReader {
       this.pos++;
       const n = this.readU32Leb();
       const supertypes: Var[] = [];
-      for (let i = 0; i < n; i++) supertypes.push(varIndex(this.readU32Leb()));
+      for (let i = 0; i < n && this.ok(); i++) supertypes.push(varIndex(this.readU32Leb()));
       sub = { final: marker === 0x4f, supertypes };
     }
     // Custom descriptors: `0x4C x` (describes), then `0x4D y` (descriptor).
@@ -1115,15 +1125,15 @@ export class BinaryReader {
     if (marker === 0x60) {
       const paramCount = this.readU32Leb();
       const params: ValueType[] = [];
-      for (let j = 0; j < paramCount; j++) params.push(this.readValType('param'));
+      for (let j = 0; j < paramCount && this.ok(); j++) params.push(this.readValType('param'));
       const resultCount = this.readU32Leb();
       const results: ValueType[] = [];
-      for (let j = 0; j < resultCount; j++) results.push(this.readValType('result'));
+      for (let j = 0; j < resultCount && this.ok(); j++) results.push(this.readValType('result'));
       m.types.push({ kind: 'func', name: '', sig: { params, results }, loc });
     } else if (marker === 0x5f) {
       const fieldCount = this.readU32Leb();
       const fields: Field[] = [];
-      for (let j = 0; j < fieldCount; j++) {
+      for (let j = 0; j < fieldCount && this.ok(); j++) {
         const type = this.readStorageType();
         const mutable = this.readMutability();
         fields.push({ name: '', type, mutable });
@@ -1359,6 +1369,12 @@ export class BinaryReader {
       if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const flags = this.readU32Leb();
+      // Three flag bits are defined (0 … 7); as for data segments, an
+      // undefined one was ignored rather than refused.
+      if (flags > 7) {
+        this.err(`malformed element segment flags: ${flags}`);
+        return;
+      }
       const isPassive = (flags & 0x01) !== 0;
       const hasExplicitIndex = (flags & 0x02) !== 0;
       const usesExprs = (flags & 0x04) !== 0;
@@ -1404,11 +1420,11 @@ export class BinaryReader {
       const elemCount = this.readU32Leb();
 
       if (usesExprs) {
-        for (let j = 0; j < elemCount; j++) {
+        for (let j = 0; j < elemCount && this.ok(); j++) {
           elemExprs.push(this.readInitExpr(m));
         }
       } else {
-        for (let j = 0; j < elemCount; j++) {
+        for (let j = 0; j < elemCount && this.ok(); j++) {
           const funcIdx = this.readU32Leb();
           const entryLoc = this.loc();
           const refExpr: Expr = { kind: 'ref.func', func: varIndex(funcIdx), loc: entryLoc };
@@ -1461,6 +1477,14 @@ export class BinaryReader {
       if (this.pos >= end) return this.shortSection();
       const loc = this.loc();
       const flags = this.readU32Leb();
+      // 🔧 Only 0 (active), 1 (passive) and 2 (active, explicit memory) exist.
+      // Each bit was tested alone and the rest IGNORED: `0x7f` read as passive
+      // and `wasm-validate` passed it (open-work 13, the code lens: V8 says
+      // "illegal flag value"; spec `bulk64`, `binary-leb128` mutants).
+      if (flags > 2) {
+        this.err(`malformed data segment flags: ${flags}`);
+        return;
+      }
       const isPassive = (flags & 0x01) !== 0;
       const hasExplicitMemIdx = (flags & 0x02) !== 0;
 
@@ -1533,9 +1557,19 @@ export class BinaryReader {
       // SUM at 2^32-1, so four groups of 2^30 overflow while no single one
       // does -- summing in a JS number keeps the check exact.
       const localDeclCount = this.readU32Leb();
+      // 🔧 Each group takes at least two bytes (a count, a type). A count of
+      // groups the body cannot hold is malformed, as V8 says ("local decls count
+      // bigger than remaining function size") — the loop below ran it out: a
+      // 5-byte body whose count byte became 0x80 read as ~2.8M groups, each read
+      // failing silently past the end, 10–14 s per validation (open-work 13:
+      // spec SIMD mutants; the first all-corpus throw-check ran for an hour).
+      if (localDeclCount > (bodyEnd - this.pos) / 2) {
+        this.err(`local declaration count ${localDeclCount} is larger than the function body`);
+        return;
+      }
       const groups: { type: ValueType; count: number }[] = [];
       let totalLocals = 0;
-      for (let j = 0; j < localDeclCount; j++) {
+      for (let j = 0; j < localDeclCount && this.ok(); j++) {
         const declCount = this.readU32Leb();
         const type = this.readValType('local');
         totalLocals += declCount;
@@ -1779,7 +1813,7 @@ export class BinaryReader {
           const bt = this.readBlockType();
           const catchCount = this.readU32Leb();
           const tableCatches: TableCatch[] = [];
-          for (let i = 0; i < catchCount; i++) {
+          for (let i = 0; i < catchCount && this.ok(); i++) {
             const catchKind = this.readU8();
             if (catchKind > 0x03) {
               // Unknown catch-kind byte. 0x00/0x01 read a tag varint and
@@ -1963,7 +1997,9 @@ export class BinaryReader {
         case Opcode.BrTable: {
           const numTargets = this.readU32Leb();
           const targets: Var[] = [];
-          for (let i = 0; i < numTargets; i++) targets.push(varIndex(this.readU32Leb()));
+          for (let i = 0; i < numTargets && this.ok(); i++) {
+            targets.push(varIndex(this.readU32Leb()));
+          }
           const defaultDepth = this.readU32Leb();
           const defaultTarget = varIndex(defaultDepth);
           const value = stack.pop() ?? operandPlaceholder(loc);
@@ -2115,11 +2151,17 @@ export class BinaryReader {
         case Opcode.SelectT: {
           const numTypes = this.readU32Leb();
           const resultType: ValueType[] = [];
-          for (let i = 0; i < numTypes; i++) resultType.push(this.readValType('select'));
+          for (let i = 0; i < numTypes && this.ok(); i++) {
+            resultType.push(this.readValType('select'));
+          }
           const cond_ = stack.pop() ?? operandPlaceholder(loc);
           const val2 = stack.pop() ?? operandPlaceholder(loc);
           const val1 = stack.pop() ?? operandPlaceholder(loc);
-          const nodeId = m.fidelity.record({ selectResultType: resultType });
+          const nodeId = m.fidelity.record(
+            numTypes === 0
+              ? { selectResultType: resultType, selectTyped: true }
+              : { selectResultType: resultType },
+          );
           stack.push({ kind: 'select', val1, val2, condition: cond_, resultType, loc, nodeId });
           break;
         }
@@ -2745,8 +2787,12 @@ export class BinaryReader {
     // Only a real instruction becomes an opcode (open-work 28: `InstrCode`). 🔧 Until 2026-10-13 the
     // binary fallback at the end took ANY other sub-opcode (a reserved 0xfd 0x9a, …) as a binary
     // op: `wasm-validate` passed it, `wasm2wat` printed `<opcode:0xfd009a>`, V8 refused it.
+    // 🔧 `(prefix << 16) | op` is one key only for op < 0x10000: 0x80060 ORs into 0xfd0060, a real
+    // opcode, and passed as it — then an opcode table that did not fit THREW from the validator
+    // (open-work 13, the code lens: a `spec/simd_f32x4` mutant; V8 says "Invalid prefixed opcode
+    // 524384"). `isInstrCode` cannot see that alias, so the range is checked first.
     const code = (PREFIX_SIMD << 16) | op;
-    if (!isInstrCode(code)) {
+    if (op > 0xffff || !isInstrCode(code)) {
       this.err(`unknown SIMD opcode: 0xfd 0x${op.toString(16)}`);
       return;
     }
@@ -2960,9 +3006,10 @@ export class BinaryReader {
     loc: Location,
   ): void {
     // Only a real instruction becomes an opcode (open-work 28: `InstrCode`); the message is the
-    // one the end of this decoder has always given an unknown atomic opcode.
+    // one the end of this decoder has always given an unknown atomic opcode. As for SIMD: past
+    // 0xffff the combined key would alias a real opcode, so the range is checked first.
     const code = (PREFIX_THREADS << 16) | op;
-    if (!isInstrCode(code)) {
+    if (op > 0xffff || !isInstrCode(code)) {
       this.err(`unknown atomic opcode: 0xfe 0x${op.toString(16)}`);
       return;
     }
@@ -3649,6 +3696,9 @@ export class BinaryReader {
       case GcOpcode.BrOnCast:
       case GcOpcode.BrOnCastFail: {
         const flags = this.readU8();
+        // Two flag bits (each type nullable); an undefined one was ignored and
+        // accepted (open-work 13, the code lens: V8 says "invalid br_on_cast flags").
+        if (flags > 3) this.err(`malformed cast flags: 0x${flags.toString(16)}`);
         const depth = this.readU32Leb();
         const fromHeap = this.readHeapTypeVar();
         const toHeap = this.readHeapTypeVar();
@@ -3703,6 +3753,9 @@ export class BinaryReader {
       case GcOpcode.BrOnCastDescEqFail: {
         // As br_on_cast, with the descriptor above the ref.
         const flags = this.readU8();
+        // Two flag bits (each type nullable); an undefined one was ignored and
+        // accepted (open-work 13, the code lens: V8 says "invalid br_on_cast flags").
+        if (flags > 3) this.err(`malformed cast flags: 0x${flags.toString(16)}`);
         const depth = this.readU32Leb();
         const fromHeap = this.readHeapTypeVar();
         const toHeap = this.readHeapTypeVar();

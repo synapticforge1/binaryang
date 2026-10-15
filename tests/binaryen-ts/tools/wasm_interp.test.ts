@@ -49,4 +49,46 @@ describe('wasm-interp', () => {
       'host() => i32:0',
     ]);
   });
+
+  // 🔧 A v128 default was `ref.null`: every export taking a v128, and every
+  // stand-in import returning one, stopped as `invalid` on a valid module
+  // (open-work 13, the code lens: the spec's relaxed-SIMD modules, run whole).
+  it('defaults a v128 argument, and a stand-in v128 result, to zero', () => {
+    const simd = readForPasses(
+      wat2wasm(
+        `(module
+          (import "env" "v" (func $v (result v128)))
+          (func (export "not") (param v128) (result v128) (v128.not (local.get 0)))
+          (func (export "host") (result v128) (call $v)))`,
+        { textForm: false },
+      ).binary,
+    );
+    expect(lines(interpModule(simd, { runAllExports: true, dummyImportFunc: true }))).toEqual([
+      'not(v128:0x00000000000000000000000000000000) => v128:0xffffffffffffffffffffffffffffffff',
+      'host() => v128:0x00000000000000000000000000000000',
+    ]);
+  });
+
+  // 🔧 `ref.null` was passed for a NON-NULLABLE reference, and a stand-in import
+  // returned it for one: results no valid execution has (spec `local_init`,
+  // against V8, which refuses the call with a TypeError).
+  it('does not invent a null for a non-nullable reference: the export stops', () => {
+    const refs = readForPasses(
+      wat2wasm(
+        `(module
+          (import "env" "r" (func $r (result (ref extern))))
+          (func (export "id") (param (ref extern)) (result (ref extern)) (local.get 0))
+          (func (export "host") (result (ref extern)) (call $r))
+          (func (export "nullable") (param externref) (result i32) (ref.is_null (local.get 0))))`,
+        { textForm: false },
+      ).binary,
+    );
+    const out = interpModule(refs, { runAllExports: true, dummyImportFunc: true });
+    expect(out.map((i) => [i.name, Object.keys(i.outcome)[0]])).toEqual([
+      ['id', 'stop'],
+      ['host', 'stop'],
+      ['nullable', 'values'],
+    ]);
+    expect(lines(out)[2]).toBe('nullable(ref.null) => i32:1');
+  });
 });

@@ -145,6 +145,116 @@ ordinary run is ever sampled, and a stuck spin is reported in 2–3 s instead of
 **Noted, not fixed:** a bare `(loop (br 0))` runs ~10× slower per instruction than a counted loop —
 every branch is a thrown JavaScript exception. A speed item for the interpreter, not hardening.
 
+## Code lens, pass 1 — 2026-10-09 (owner: "proceed with the code lens")
+
+**The question** ([open-work.md](open-work.md) § "Quality passes"): is it WRONG on VALID input? The
+method that paid in 1.5.5 — find a check whose predicate is weaker than its name — pointed at our
+own instrument: the hostile fuzz classes an outcome as typed or untyped, so a stage that REFUSES a
+valid input with a typed error passes it. The same mutants were asked the code question instead:
+
+- **valid-mutants** (scratch `code13/valid-mutants.ts`): every input BOTH our validator
+  (all features) and V8 call valid must pass `readForPasses`, `compat.readBinary`, `-O2` and `-Oz`
+  (output valid to ours AND V8), and the interpreter without an `invalid` stop; every input where
+  the two validators DISAGREE is listed with V8's message; and `result` must agree with `errors`.
+- **behaviour-mutants**: for valid inputs with function-only imports, every export the
+  interpreter completes (zero arguments, stand-in imports answering zeros) is run in V8 and
+  compared; then the `-O2` / `-Oz` outputs in V8 against the original in V8. Positive control: a
+  planted off-by-one in the comparison was reported.
+- **originals**: our verdict against V8's on every original spec + proposal module (6,735) — the
+  guard that a new refusal refuses nothing valid; the same list before and after every fix.
+
+**Found and fixed** (branch `code-lens-13`, four commits, gate green on each):
+
+| # | defect | how it showed | commit |
+| --- | --- | --- | --- |
+| C1 | `wasmValidate`'s `result` was `Ok` with an error in `errors` (a block type naming a non-function type reported without failing); `wasm-validate` printed the error, "OK", exit 0 | V8 disagreed on a producer mutant | `91e4730c4` |
+| C2 | optimizer: values a polymorphic point DISCARDS stood as bare statements; `Inlining` wrapped the code after them in a block → invalid | producer mutant, `-O2` output invalid to both | `91e4730c4` |
+| C3 | optimizer: a consumer the reader gave a discarded value as an OPERAND (`(i64.add (i32.shl …) (… (unreachable)))`) looked live; `OptimizeInstructions` made it reachable and invalid | producer mutant | `91e4730c4` |
+| C4 | the phantom collapse ended a sequence with a node only TYPED unreachable (`select` over unreachable operands pushes when written) → a void function ended with a value. ON MAIN BEFORE | spec `unreached-valid` mutant | `505cf26b4` |
+| C5 | reader: heap type `0x7f` kept as an unchecked name; a multi-byte negative heap type decoded as `(-v) & 0x7f` (padded `func` misread, -112 read as `func`) | spec mutants, V8 "Unknown heap type" | `505cf26b4` |
+| C6 | reader: an unknown SIMD sub-opcode fell to the binary default and was accepted | spec mutant | `505cf26b4` |
+| C7 | `wasm-interp` defaulted v128 to `ref.null` → `invalid` stops on valid modules (relaxed SIMD, run whole) | interpreter `invalid` on spec originals | `505cf26b4` |
+| C8 | data / element segment flags read bit by bit, undefined bits ignored | spec mutants, V8 "illegal flag value" | `40ef4d615` |
+| C9 | `br_on_cast` flags past 3 accepted | spec mutant | `40ef4d615` |
+| C10 | `br_on_null` / `br_on_non_null` operand dropped unchecked (an i32 validated) | spec mutant | `40ef4d615` |
+| C11 | `br_on_cast(_fail)` operand dropped unchecked (not checked against its source type) | spec mutant | `40ef4d615` |
+| C12 | `ref.null` of a type index past the section accepted (code and const exprs) | spec mutants | `40ef4d615` |
+| C13 | `wasm-interp` defaulted a NON-NULLABLE reference to `ref.null` (results no valid run has; V8 refuses the call) | behaviour run, V8 TypeError | `40ef4d615` |
+| C14 | a SIMD / atomic sub-opcode ≥ 0x10000 aliased a real one (`(prefix << 16) \| op`); the validator THREW | a second spec sample crashed the harness | `0fbf90019` |
+| C15 | a count read from the input drove a READING loop past the end, every read failing silently: 10–14 s per validation for a one-byte change (local-group count 0x80 → ~2.8M groups in a 5-byte body), HOURS for 2^32-1; nine such loops (locals, params, results, fields, elem entries / exprs, `br_table` targets, `try_table` catches, `select` types, supertypes) | the all-corpus throw-check ran an hour without finishing; rerun with a progress file showed the slow inputs | `28f840503` |
+| C16 | a typed `select` (`0x1c`) with NO types read as the bare one: validated, and written back as `0x1b` | 8-oracle panel: only ours and upstream wabt accepted | `ba588040d` |
+| C17 | an IMPORTED global's / table's value type was never range-checked (`(mut (ref 0))` with no types) | 8-oracle panel: only ours and upstream wabt accepted | `ba588040d` |
+
+C15 is a hardening-lens defect (unbounded work from tiny input), found by the code lens's own
+instrument; C16 and C17 make us stricter than upstream wabt on purpose — [divergences.md](divergences.md)
+V1, V2.
+
+**The oracle panel** (owner, 2026-10-09: "continue to refuse … if it will not run on all
+platforms"). A disputed input is asked of every validator and engine on this machine — ours,
+upstream wabt 1.0.41, wasm-tools 1.261, wasmtime 49 (`compile -W gc=y,function-references=y,
+exceptions=y,memory64=y,multi-memory=y,tail-call=y,relaxed-simd=y,wide-arithmetic=y,
+custom-page-sizes=y`; `-W all-proposals=y` turns on stack switching, which this build cannot
+compile), wasmer 7.5 (`validate`, no `--enable-all`: that finds no backend), WasmEdge 0.18,
+Node 24 (V8), Bun 1.4 (JavaScriptCore). A tool's column counts only once it accepts every VALID
+original (two were wrong until their flags were fixed). **Rule: a module any of them refuses for
+a reason other than a feature it lacks or an implementation limit, we refuse too.** Scratch
+`code13/oracles.ts`.
+
+**What was measured to bound the fixes:** wasmtk's 406 producer modules at `-O2` / `-Oz`: 812
+outputs byte-identical before and after (on `505cf26b4`). The originals list against V8 unchanged
+by every fix (no module V8 accepts is refused). Producer corpus, all 406, 14,622 inputs (2,822
+valid): nothing found after C1–C3. Behaviour: producer corpus with mutants, 4,082 export calls and
+5,404 optimized runs agree with V8 (the one difference was V8's `RangeError` for stack exhaustion
+against our `trap`, the same verdict).
+
+**Not defects (classified):** V8 does not enable custom descriptors, custom page sizes, wide
+arithmetic or exact types here; V8's implementation limits (2^48-page memories, 2^32-element
+tables); V8 lagging the spec on `br_on_cast` typing of some spec originals (the spec gate's
+must-accept axis passes them against the manifest); an instantiation trap is the right answer for
+a segment out of bounds.
+
+**Decided — the `br_on_cast_fail` typing question** (was open). A custom-descriptors mutant
+(`br_on_cast_fail.3`, byte 16 → 0: the parameter becomes `(ref $t)`) that V8 accepts and we
+refuse ("type mismatch in end"), on `main` before too. By the GC spec `br_on_cast_fail $l rt1 rt2`
+falls through with `rt2` = `(ref null $t)`, which the block's `(ref $t)` cannot take; V8 and
+wasmer refine the fall-through by the operand's non-nullness. The panel: wabt, wasm-tools (which
+tracks the proposals), wasmtime, WasmEdge and JavaScriptCore refuse it. Under the owner's rule it
+stays refused — [divergences.md](divergences.md) V4. Likewise the element segment typed `0x7f`
+(V3: only V8 and wasmer load it).
+
+**Convergence — at 2026-10-09: NOT yet shown.** After C14 the four spec quarters, the proposals,
+the producer corpus and the behaviour run had nothing left but classified V8 gaps and V3 / V4; C15
+was found by the throw-check after that, and C16 / C17 by the panel. No full re-run had been made
+on `ba588040d`.
+
+**✅ Convergence SHOWN 2026-10-15 — pass 1 CLOSED.** The branch merged onto 1.12.1 (`9eb1b1de7`,
+full gate green on it; the merge decisions are in its message), and the re-run was made on THAT
+tree, so it also covers what the merge changed. The instruments are the 2026-10-09 scripts ported
+to `node:` builtins with their logic unchanged, run on Node 24 (the V8 referee); **positive
+control:** pointed at the branch's base `713c1c098`, valid-mutants re-found C1 on the producer
+sample (`RESULT-DISAGREES-WITH-ERRORS`, V8 "block type index N is not a signature").
+
+| run | inputs | result |
+| --- | --- | --- |
+| valid-mutants, spec, 4 quarters (stride 4, offsets 0–3) | 209,168 | only classified rows |
+| valid-mutants, proposals (811 modules) | 28,926 | the same 13 kinds, the same counts as 2026-10-09 |
+| valid-mutants, producer corpus (all 415; 406 on 2026-10-09) | 14,968 (2,928 valid) | NOTHING FOUND |
+| behaviour-mutants, spec (stride 4) | 34,532; 8,355 export calls, 2,826 optimized runs | NOTHING FOUND |
+| behaviour-mutants, producer corpus | 9,988; 4,048 export calls, 5,548 optimized runs | NOTHING FOUND |
+| throw-check: core, legacy, proposals, producer | 253,696 | nothing thrown, nothing over 1 s (slowest 24 ms) |
+
+"Classified rows", every one already on the 2026-10-09 list: V8's implementation limits (memory
+and table sizes); V8 lagging the spec on `br_on_cast` / `br_on_cast_fail` typing of the spec
+originals `br_on_cast.4/.6/.7`, `br_on_cast_fail.4/.6/.7` (and mutants of them that keep the
+shape); V3 (the element type `0x7f`); V4 (`br_on_cast_fail.3` @16); proposals V8 does not enable.
+No REFUSED, OPT-INVALID, INTERP-INVALID or result / errors disagreement anywhere; no new kind, so
+nothing went to the panel. The 2026-10-09 behaviour rows (`type-equivalence`, `local_init`: our
+values against V8's `TypeError`) are gone — C13 makes those exports stop — and the producer
+`RangeError`-against-`trap` row did not recur.
+
+**Next (round 13 goes on):** a hardening re-run (`bun run hostile`, which should now also report a
+SLOW validation) until a pass finds nothing, then the code lens again.
+
 **Found in my own gate runner (scratch, not the repo):** the `interp` step's legacy corpus was
 passed `translate-eh`'s flat output instead of a `spec:prepare`d corpus, so it ran **0** assertions
 in every gate of 2026-10-09 and read as green. The legacy corpus is 70 / 0 / 0 on the tree after

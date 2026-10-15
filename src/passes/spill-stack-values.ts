@@ -60,6 +60,22 @@
  * becomes `unreachable`: that is the phantom value wasm gives it, and unlike a
  * `pop` it is self-contained.
  *
+ * **Values NOTHING takes** (open-work 13, the code lens). Where an
+ * `unreachable`-typed instruction made the stack polymorphic, the values still on
+ * it are discarded — valid wasm, kept by the reader as written. Left so, a pass
+ * that wraps the code after them in a block leaves them on a stack that is no
+ * longer polymorphic, and the module is invalid (`Inlining` did it). So:
+ *
+ * - such a value standing as a STATEMENT is dropped where it stands, as
+ *   binaryen's reader reads it;
+ * - one the reader made an OPERAND — `(i64.add (i32.shl …) (… (unreachable)))`,
+ *   where the add really takes the bottom value — means its consumer never
+ *   runs: the consumer is taken apart into its operands, evaluated in order,
+ *   then `unreachable`.
+ *
+ * Which values those are is the derivation's to say ({@link Discarded}), like
+ * the `pop` origins.
+ *
  * ⚠️ Which node a `pop` will find is not something to re-derive here: it takes
  * every arity rule in the language (a `br_if`'s target, a multi-value call, a
  * polymorphic stack). `deriveTypes` already simulates exactly that to type the
@@ -73,17 +89,19 @@ import {
   type Expression,
   ExpressionKind,
   type IfExpr,
+  makeDrop,
   makeLocalGet,
   makeLocalSet,
   makeUnreachable,
   type RegionExpr,
   typeOf,
 } from '../ir/expressions.ts';
-import { deriveTypes, type PopSources, slots } from '../ir/derive-types.ts';
+import { deriveTypes, type Discarded, type PopSources, slots } from '../ir/derive-types.ts';
 import type { ValueType } from '../ir/gc-types.ts';
+import { Unreachable } from '../ir/types.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
-import { mapExpression, visitChildren, walkExpression } from '../ir/walk.ts';
-import { collapsePhantomConsumers } from '../ir/phantoms.ts';
+import { mapExpression, mapWithSequences, visitChildren, walkExpression } from '../ir/walk.ts';
+import { collapsePhantomConsumers, evaluated, operandsInOrder } from '../ir/phantoms.ts';
 import { varIndex } from '../ir/ir.ts';
 
 /** Every sequence of instructions in `e`'s subtree, each with its own stack. */
@@ -166,15 +184,17 @@ function producedCount(e: Expression): number {
  * functions were rewritten.
  */
 export function spillStackValues(module: WasmModule): number {
-  // Nothing to make explicit unless the tree HOLDS a `pop`. Worth checking first
+  // Nothing to make explicit unless the tree HOLDS a `pop`, or a value left on
+  // the stack. Worth checking first
   // rather than deriving types to find out: a module built by hand or by a pass
   // has none, and asking `deriveTypes` about one costs a full walk — and can
   // fail, since a hand-built module may name a function it does not contain
   // (6 tests did exactly that when this ran unconditionally).
-  if (!module.functions.some((f) => holdsPop(f.body as unknown as Expression))) return 0;
+  if (!module.functions.some((f) => holdsStackValue(f.body as unknown as Expression))) return 0;
   const sources: PopSources = new Map();
+  const discarded: Discarded = new Set();
   try {
-    deriveTypes(module, sources);
+    deriveTypes(module, sources, discarded);
   } catch {
     // The stack cannot be simulated, so which value each `pop` takes is unknown
     // and there is nothing safe to rewrite. Route B's trees always come through
@@ -182,21 +202,79 @@ export function spillStackValues(module: WasmModule): number {
     // somewhere else — left exactly as it was, which is what it got before.
     return 0;
   }
-  let count = 0;
+  const changed = new Set<WasmFunction>();
   for (const f of module.functions) {
-    if (rewriteFunction(f, sources)) count++;
+    if (collapseDeadConsumers(f, sources, discarded)) changed.add(f);
   }
-  return count;
+  if (changed.size > 0) {
+    // 🔧 The collapse REBUILDS every node above what it replaced (`mapWithSequences`
+    // copies a node whose children it mapped), and `sources` / `discarded` name
+    // nodes by identity — a producer with operands of its own was no longer found,
+    // so the spill below silently skipped it. The simulation is run again on the
+    // tree as it now is (open-work 13, the code lens).
+    sources.clear();
+    discarded.clear();
+    try {
+      deriveTypes(module, sources, discarded);
+    } catch {
+      return changed.size; // as above: nothing more is safe to rewrite
+    }
+  }
+  for (const f of module.functions) {
+    let rewrote = false;
+    for (const region of regionsIn(f.body as unknown as Expression)) {
+      if (rewriteRegion(region, f, sources, discarded)) rewrote = true;
+    }
+    if (rewrote) changed.add(f);
+  }
+  return changed.size;
 }
 
-function rewriteFunction(f: WasmFunction, sources: PopSources): boolean {
+/** Marks a consumer {@link collapseDeadConsumers} takes apart; a copy keeps it (spread copies symbol keys). */
+const TAKES_DISCARDED = Symbol('takes a discarded operand');
+
+/**
+ * Takes apart, in `f`, every consumer that never runs because the stack went
+ * polymorphic while its operands were being evaluated. Returns whether anything
+ * changed — the caller then derives the stack again, since this rebuilds nodes.
+ */
+function collapseDeadConsumers(
+  f: WasmFunction,
+  sources: PopSources,
+  discarded: Discarded,
+): boolean {
   let changed = false;
-  // First, a phantom that a LATER operand's transfer makes dead must not become
-  // an `unreachable` that runs before it — `br 0; i32.add` trapped instead of
+  // A consumer one of whose OPERANDS nothing takes: the reader gave it a
+  // value the stack no longer held when it ran — `i32.shl …; unreachable;
+  // i32.load; i64.extend_i32_u; i64.add` reads as `(i64.add (i32.shl …)
+  // (i64.extend_i32_u (i32.load (unreachable))))`, byte-faithful and ill-typed,
+  // since the `i64.add` takes the bottom value, not the `i32.shl`. A later operand
+  // never returned, so the consumer never runs: it is taken apart into its
+  // operands, evaluated in order, then `unreachable`. Left whole, it looked like
+  // a live `i64.add` of an i32, and `OptimizeInstructions` rewrote it into
+  // reachable, invalid code (open-work 13, the code lens: a valid mutant of a
+  // wasmtk producer binary). Its `pop`s are all phantoms — the stack was
+  // polymorphic before it took them — and go.
+  //
+  // Both collapses rebuild nodes, and `discarded` names nodes by identity, so
+  // such a consumer is MARKED first, while the tree is the one the set describes
+  // (`walkExpression` visits nodes in place); the mark rides on the copies the
+  // maps make. Every marked node is replaced, so none reaches the output.
+  let holdsDiscarded = false;
+  walkExpression(f.body as unknown as Expression, (e) => {
+    if (operandsInOrder(e).some((o) => discarded.has(o))) {
+      (e as unknown as Record<symbol, true>)[TAKES_DISCARDED] = true;
+      holdsDiscarded = true;
+    }
+  });
+  // A phantom that a LATER operand's transfer makes dead must not become an
+  // `unreachable` that runs before it — `br 0; i32.add` trapped instead of
   // branching (`spec/br/br.0.wasm`). Such a consumer never runs; it is taken
   // apart (`ir/phantoms.ts`). What is left is phantoms in code already dead.
   // RECORDED with nothing behind it: a bare `pop` statement is never taken as an
-  // operand, so it is not in `sources` at all — and it is not a phantom.
+  // operand, so it is not in `sources` at all — and it is not a phantom. (A
+  // `pop` has no operands, so a copy is never made of one: `sources` still
+  // names every `pop` here.)
   const phantom = (e: Expression) =>
     e.kind === ExpressionKind.Pop && sources.has(e) && sources.get(e) === undefined;
   let holdsPhantom = false;
@@ -204,19 +282,26 @@ function rewriteFunction(f: WasmFunction, sources: PopSources): boolean {
     if (phantom(e)) holdsPhantom = true;
   });
   if (holdsPhantom) {
+    changed = true;
     (f as { body: RegionExpr }).body = collapsePhantomConsumers(f.body as RegionExpr, phantom);
   }
-  for (const region of regionsIn(f.body as unknown as Expression)) {
-    if (rewriteRegion(region, f, sources)) changed = true;
+  if (holdsDiscarded) {
+    changed = true;
+    (f as { body: RegionExpr }).body = mapWithSequences(f.body as RegionExpr, (n) => {
+      if (!(TAKES_DISCARDED in n)) return n;
+      const ops = operandsInOrder(n).filter((o) => o.kind !== ExpressionKind.Pop);
+      return { sequence: [...ops.map(evaluated), makeUnreachable()] };
+    });
   }
   return changed;
 }
 
-/** One sequence: spill what a pass could separate, leave the rest. */
+/** One sequence: spill what a pass could separate, drop what nothing takes, leave the rest. */
 function rewriteRegion(
   holder: { children: readonly Expression[] },
   f: WasmFunction,
   sources: PopSources,
+  discarded: Discarded,
 ): boolean {
   const children = holder.children;
   const indexOf = new Map<Expression, number>();
@@ -312,7 +397,27 @@ function rewriteRegion(
       replacement.set(pop, makeLocalGet(varIndex(local), typeOf(from) as ValueType));
     }
   }
-  if (replacement.size === 0) return false;
+  // A statement whose value NOTHING takes — still on the stack when a
+  // polymorphic point discarded it (`local.get 0; i32.const 8; unreachable`) —
+  // is dropped where it stands, as binaryen's reader reads it. Left bare, it is
+  // valid only while the code after it stays polymorphic at this level, and a
+  // pass that wraps that code in a block ends that: `Inlining` turned a call
+  // with an `unreachable` operand into a typed block, and the `then` arm ended
+  // with two values on its stack (open-work 13, the code lens; a valid mutant
+  // of a wasmtk producer binary). Evaluated as before, so nothing changes at
+  // run time.
+  // A `br_on` is not one: it leaves its carried values AND its reference, and
+  // its node type is the reference alone, so a `drop` would leave the rest.
+  const dead = new Set<number>();
+  children.forEach((c, j) => {
+    if (
+      discarded.has(c) && producedCount(c) === 1 && c.kind !== ExpressionKind.BrOn &&
+      !spilled.has(j) && !nested.has(j)
+    ) {
+      dead.add(j);
+    }
+  });
+  if (replacement.size === 0 && dead.size === 0) return false;
 
   // A producer moved into its consumer is rewritten TOO: it may be the consumer
   // of the statement before it. 🔧 It was inserted as it stood, so in a chain —
@@ -329,18 +434,35 @@ function rewriteRegion(
   for (const [j, child] of children.entries()) {
     if (nested.has(j)) continue; // moved into its consumer
     const local = spilled.get(j);
-    const held = local === undefined ? child : makeLocalSet(varIndex(local), child);
+    const held = local !== undefined
+      ? makeLocalSet(varIndex(local), child)
+      : dead.has(j)
+      ? makeDrop(child)
+      : child;
     rebuilt.push(mapExpression(held, resolve));
   }
   (holder as { children: Expression[] }).children = rebuilt;
   return true;
 }
 
-/** Whether `e`'s subtree holds a `pop` at all. */
-function holdsPop(e: Expression): boolean {
+/**
+ * Whether `e`'s subtree holds a `pop`, a statement that leaves a value on its
+ * sequence's stack before the end, or a node that never returns INSIDE a
+ * statement's operands (where an earlier operand's value may be one nothing
+ * takes) — something for this step to make explicit.
+ */
+function holdsStackValue(e: Expression): boolean {
   let found = false;
   walkExpression(e, (n) => {
     if (n.kind === ExpressionKind.Pop) found = true;
   });
-  return found;
+  if (found) return true;
+  const neverReturns = (n: Expression): boolean =>
+    operandsIn(n).some((o) => typeOf(o) === Unreachable || neverReturns(o));
+  for (const region of regionsIn(e)) {
+    const c = region.children;
+    for (let i = 0; i < c.length - 1; i++) if (producedCount(c[i]!) > 0) return true;
+    if (c.some(neverReturns)) return true;
+  }
+  return false;
 }
