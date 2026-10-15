@@ -1,8 +1,10 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-13: `main` = `v1.12.1`, PUBLISHED (the owner's "commit and bump and push") —
-nothing unreleased** (check it rather than trust this line: `git log --oneline
-v1.12.1..main -- src/ main.ts jsr.json`). `jsr.json` reads 1.12.1; the version line arms a release,
+**As of 2026-10-15: the last release is `v1.12.1`; on `main` since then, UNRELEASED: the code lens,
+round 13, pass 1 (C1–C17, merged from `code-lens-13`)** — § "Since 1.12.1" below (check it rather
+than trust this line: `git log --oneline v1.12.1..main -- src/ main.ts jsr.json`). Its entries are
+Behaviour and Silent fixes, none BREAKING and no new export; the version, and when, are the
+owner's call. `jsr.json` reads 1.12.1; the version line arms a release,
 so the next bump is the owner's decision, never a side effect of work.
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since

@@ -222,13 +222,38 @@ tracks the proposals), wasmtime, WasmEdge and JavaScriptCore refuse it. Under th
 stays refused — [divergences.md](divergences.md) V4. Likewise the element segment typed `0x7f`
 (V3: only V8 and wasmer load it).
 
-**Convergence — NOT yet shown.** After C14 the four spec quarters, the proposals, the producer
-corpus and the behaviour run had nothing left but classified V8 gaps and V3 / V4; C15 was found
-by the throw-check after that, and C16 / C17 by the panel. No full re-run has been made on
-`ba588040d`. **Next:** re-run valid-mutants (all four spec offsets, proposals, producer corpus),
-behaviour-mutants and the throw-check on the current tree, every V8 disagreement through the
-panel; a run that adds no row closes pass 1. Then a hardening re-run (`deno task hostile`, which
-should now also report a SLOW validation), then the code lens again.
+**Convergence — at 2026-10-09: NOT yet shown.** After C14 the four spec quarters, the proposals,
+the producer corpus and the behaviour run had nothing left but classified V8 gaps and V3 / V4; C15
+was found by the throw-check after that, and C16 / C17 by the panel. No full re-run had been made
+on `ba588040d`.
+
+**✅ Convergence SHOWN 2026-10-15 — pass 1 CLOSED.** The branch merged onto 1.12.1 (`9eb1b1de7`,
+full gate green on it; the merge decisions are in its message), and the re-run was made on THAT
+tree, so it also covers what the merge changed. The instruments are the 2026-10-09 scripts ported
+to `node:` builtins with their logic unchanged, run on Node 24 (the V8 referee); **positive
+control:** pointed at the branch's base `713c1c098`, valid-mutants re-found C1 on the producer
+sample (`RESULT-DISAGREES-WITH-ERRORS`, V8 "block type index N is not a signature").
+
+| run | inputs | result |
+| --- | --- | --- |
+| valid-mutants, spec, 4 quarters (stride 4, offsets 0–3) | 209,168 | only classified rows |
+| valid-mutants, proposals (811 modules) | 28,926 | the same 13 kinds, the same counts as 2026-10-09 |
+| valid-mutants, producer corpus (all 415; 406 on 2026-10-09) | 14,968 (2,928 valid) | NOTHING FOUND |
+| behaviour-mutants, spec (stride 4) | 34,532; 8,355 export calls, 2,826 optimized runs | NOTHING FOUND |
+| behaviour-mutants, producer corpus | 9,988; 4,048 export calls, 5,548 optimized runs | NOTHING FOUND |
+| throw-check: core, legacy, proposals, producer | 253,696 | nothing thrown, nothing over 1 s (slowest 24 ms) |
+
+"Classified rows", every one already on the 2026-10-09 list: V8's implementation limits (memory
+and table sizes); V8 lagging the spec on `br_on_cast` / `br_on_cast_fail` typing of the spec
+originals `br_on_cast.4/.6/.7`, `br_on_cast_fail.4/.6/.7` (and mutants of them that keep the
+shape); V3 (the element type `0x7f`); V4 (`br_on_cast_fail.3` @16); proposals V8 does not enable.
+No REFUSED, OPT-INVALID, INTERP-INVALID or result / errors disagreement anywhere; no new kind, so
+nothing went to the panel. The 2026-10-09 behaviour rows (`type-equivalence`, `local_init`: our
+values against V8's `TypeError`) are gone — C13 makes those exports stop — and the producer
+`RangeError`-against-`trap` row did not recur.
+
+**Next (round 13 goes on):** a hardening re-run (`bun run hostile`, which should now also report a
+SLOW validation) until a pass finds nothing, then the code lens again.
 
 **Found in my own gate runner (scratch, not the repo):** the `interp` step's legacy corpus was
 passed `translate-eh`'s flat output instead of a `spec:prepare`d corpus, so it ran **0** assertions

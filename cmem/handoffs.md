@@ -638,6 +638,26 @@ Now the live set before the operands is saved as well (`cfg.ts` records `start` 
 > status as its verdict? If so, re-run it on the release that carries this when it is out; a
 > module that starts failing is one V8 already refused.
 
+### § 36 — from wasmtk: 1.12.1 holds; the Asyncify thread is closed (received 2026-10-15)
+
+Their reply to § 34, as the owner passed it on. They bumped their pin 1.12.0 → **1.12.1** and ran
+their full gate:
+
+- The NESTED goroutine program (`scripts/repros/tinygo043_nested_pre_asyncify.wasm`, TinyGo
+  0.43.0, Go 1.27.2) prints `nested-sum: 36` through their in-house asyncify path;
+  **`go_asyncify_tests` 12 / 12** (from 11) — the count § 34 asked for. Nothing in wasmtk is
+  carried as known-failing any more.
+- Their prediction from our CHANGELOG (Asyncify only: that one count moves, nothing else) held
+  exactly: wasi 458 / 458; golden-WAT 515 byte-identical, nothing re-recorded (the optimizer's
+  output moved on none of them); wast **64,506 / 0 / 16** (unchanged since § 22); the five-engine
+  cross-check on its baseline; the `-Oz` `try_table` guard 42 / 42; every other suite at its
+  previous count.
+- "Thank you for both fixes. Nothing of ours is open with you on Asyncify."
+
+✅ **Closed — nothing asked.** §§ 28–34 (the Asyncify thread) end here. Open with wasmtk: only
+§ 35, still a DRAFT for the owner to send; it now says "the next release", and wasmtk's 1.12.1 gate
+above is its baseline (64,506 / 0 / 16).
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
