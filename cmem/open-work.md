@@ -120,7 +120,10 @@ PUSHED; the version stays 1.12.1):**
 - **Item 28 CLOSED** (owner: "lets complete item 28 first"): 28.7's browser recipe,
   `examples/browser-optimize/`, run by `bun run browsers` in every browser, and the README's
   § "Optimizing in the browser" ([run-everywhere.md](run-everywhere.md)).
-- **4 open items:** 13, 14, 15, 30.
+- **Item 30 CLOSED** (owner: "lets close out item 30 now", then "Top shapes, then decide"): four
+  optimizer steps and a shipped-crash fix, each gated and merged on its own
+  ([optimizer.md](optimizer.md) § "Open-work 30: the gaps on real compiler output").
+- **3 open items:** 13, 14, 15.
 - ⚠️ The merge `8b52828d5` took its message by `-m`, not `-F` (working-rules.md, Git). The text
   is plain and intact; left as is, unpushed, for the owner to judge.
 
@@ -181,14 +184,14 @@ every prepared spec module, at -O1 … -Oz). The hand-written traversals (`deriv
 ≤ 2% — from 13% on 2026-09-19: [optimizer.md](optimizer.md), every step with its commit, the
 method, what the last 15 KB is. Its number is kept free.)
 
-30. ⬚ **Real compiler output shows size gaps the corpus did not** (found 2026-10-13 by 28.6;
-    [optimizer.md](optimizer.md) § "Real compiler output, in three browsers"). Code bytes against
-    upstream 133 at the same level: (a) **`-Oz` buys nothing over `-O2`** on any of the six modules
-    (zig-debug 47,335 vs 47,237), while upstream's `-Oz` is 10.7% smaller than its `-O2` there;
-    (b) **zig-debug -O2 is +16.8%** (47,237 vs 40,436), -Oz +31.1%; zig-releasefast +4.9%, the Rust and
-    TinyGo inputs within 2.5% at -O2. Not yet attributed: start with the section diff and the
-    `shrinkLevel` schedule difference (the corpus's -Oz figure may hide (a) because its inputs are
-    mostly small). Inputs: `benches/browser-opt/modules/*.wasm`.
+(Item 30 closed 2026-10-15 — owner: "Top shapes, then decide": on the six real-compiler modules our
+-Oz went from 10.4% to **4.9%** over upstream 133 (zig-debug +31.1% → +14.0%), -O2 from 6.3% to 1.5%,
+the corpus -Oz from 1.86% to 1.60%, in four steps: OptimizeInstructions' bit rules, CodeFolding's
+terminating tails, RUME's unreachable table slots, MergeSimilarFunctions. On the way, a SHIPPED crash
+(1.11.0 – 1.12.1: a legacy `try` ending both arms of an `if` threw at -O2+) was found and fixed.
+Gap (a) was the schedule, not a defect. Every step, the defects and what is left, ranked:
+[optimizer.md](optimizer.md) § "Open-work 30: the gaps on real compiler output". Its number is
+kept free.)
 
 ## Conformance
 

@@ -79,6 +79,22 @@ describe('identical terminating tails are written once', () => {
   });
 });
 
+describe('a legacy try in both arms (1.11.0 – 1.12.1 threw here)', () => {
+  // 🔧 The structural key wrote each `catch` clause as plain JSON: an `i64.const` in its body
+  // threw "cannot serialize a BigInt" out of the optimizer at -O2 and above (open-work 30).
+  it('is keyed as code: the shared tail moves after the if', async () => {
+    const t = '(try (do (global.set $w (i64.const 1))) (catch $e (global.set $w (i64.const 7))))';
+    const { before, after, text } = fold(`(module ${PANIC}
+      (global $w (mut i64) (i64.const 0)) (tag $e)
+      (func (export "f") (param i32)
+        (if (local.get 0)
+          (then (global.set $g (i32.const 2)) ${t})
+          (else (global.set $g (i32.const 3)) ${t}))))`);
+    expect(count(text, 'try')).toBe(1);
+    await same(before, after, [0, 1]);
+  });
+});
+
 describe('not folded', () => {
   it('when it does not pay: two one-node tails', async () => {
     const { before, after, text } = fold(`(module ${PANIC}

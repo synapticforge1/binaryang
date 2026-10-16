@@ -1,7 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
 **As of 2026-10-15: the last release is `v1.12.1`; on `main` since then, UNRELEASED: the code lens,
-round 13, pass 1 (C1–C17, merged from `code-lens-13`)** — § "Since 1.12.1" below (check it rather
+round 13, pass 1 (C1–C17, merged from `code-lens-13`), open-work 30's optimizer steps and the
+shipped-crash fix, and the browser recipe (docs)** — § "Since 1.12.1" below (check it rather
 than trust this line: `git log --oneline v1.12.1..main -- src/ main.ts jsr.json`). Its entries are
 Behaviour and Silent fixes, none BREAKING and no new export; the version, and when, are the
 owner's call. `jsr.json` reads 1.12.1; the version line arms a release,
@@ -38,6 +39,19 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.12.1
+
+- **Behaviour — optimizer output bytes move at -O2 and above** (2026-10-15, open-work 30, closed;
+  [optimizer.md](optimizer.md) § "Open-work 30: the gaps on real compiler output"): four steps,
+  `6958502cc` (OptimizeInstructions: masks a value already fits, `eqz` of an integer comparison,
+  a local compared with itself), `a1b07e9f3` (CodeFolding: terminating tails), `a676e31a9`
+  (RemoveUnusedModuleElements: a slot of a table only this module sees that no `call_indirect` of
+  its signature reaches keeps its slot, not its body), `49c730b76` (**NEW pass**
+  `MergeSimilarFunctions`, in the -Oz schedule). Every behaviour gate unchanged. Real compiler
+  output -Oz 10.4% → 4.9% over upstream; the corpus 1.86% → 1.60%.
+- ⚠️ **Fixed — the optimizer could THROW** (`4a19c39a2`; shipped 1.11.0 – 1.12.1, reproduced on
+  the pre-item-30 tree): CodeFolding's structural key wrote a `catch` clause as plain JSON, so a
+  legacy `try` ending both arms of an `if` with an `i64.const` in a catch body failed at -O2+ with
+  "cannot serialize a BigInt". Loud, never wrong output.
 
 - **Docs — the browser recipe** (2026-10-15, open-work 28.7, the item's close): README § "Optimizing
   in the browser" and `examples/browser-optimize/` (repo only; not in the package), run by

@@ -119,9 +119,58 @@ upstream at the same level.
   28.6's decision.
 - **Two gaps the corpus did not show** (item 2 closed at 1.86% of upstream -Oz on the corpus):
   binaryang's `-Oz` is no smaller than its `-O2` on any of the six (upstream's -Oz saves 10.7% on
-  zig-debug), and on zig-debug our -O2 code is 16.8% larger than upstream's. Open-work 30.
+  zig-debug), and on zig-debug our -O2 code is 16.8% larger than upstream's. Open-work 30 (closed
+  2026-10-15, below).
 - **Limits:** one workload, a few ms long; the run-time result says "no speedup on this kind of
   code", not "never".
+
+## Open-work 30: the gaps on real compiler output (2026-10-13 → closed 2026-10-15)
+
+**Done when** (owner, 2026-10-15, asked once the gap was attributed): "Top shapes, then decide" —
+build the four attributed fixes, each gated and merged on its own, then re-measure and close with
+the rest recorded and ranked. (Not "≤ 2%", which item 2 used: that would have meant the whole list.)
+
+**The method was item 2's** (§ "The method"), on the six `benches/browser-opt/modules`: each
+upstream 133 pass alone on OUR -Oz output, then our -Oz again, against the control (upstream's bare
+read-and-write); `--strip-dwarf` on every upstream run (it dies on zig-debug's DWARF, and DWARF never
+counts in code bytes); per-instruction deltas (`opdelta`) to turn a pass's number into a shape;
+upstream's own source for each rule. Scratch: `gap.ts`, `passrank.ts`, `opdelta.ts`, `corpus.ts`.
+
+**Attributed** (2026-10-15): our -Oz was 10.4% over upstream on the six (153,470 vs 139,020 code
+bytes), 11.2 KB of the 14.5 KB in zig-debug. Gap (a), "-Oz buys nothing over -O2", was the SCHEDULE,
+not a defect: item 2 had put most of upstream's -Oz-only passes (local-cse, code-folding,
+precompute-propagate) into our -O2 already.
+
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| — | before | | 153,470 (+10.4%) | 825,077 (+1.86%) |
+| 1 | OptimizeInstructions knows a value's bits: `and(x, 2^n-1)` → `x` when `x` fits; `eqz(cmp)` → the inverse integer comparison; `x op x` of a local is a constant | `6958502cc` | 150,181 (+8.0%) | 823,398 |
+| 2 | CodeFolding writes TERMINATING tails once: what several places end with before `unreachable` (Zig's `call $panic … unreachable`), upstream's `optimizeTerminatingTails` | `a1b07e9f3` `159715c50` | 148,211 (+6.6%) | 823,349 |
+| 3 | RemoveUnusedModuleElements empties a slot of a table only this module sees that no `call_indirect` of its signature can reach (Zig's vtables) | `a676e31a9` `9c5655cff` | 146,667 (+5.5%) | 823,322 |
+| 4 | MergeSimilarFunctions (new, -Oz): functions differing only in constants share one body, each a thunk | `49c730b76` `4a19c39a2` | **145,859 (+4.9%)** | **822,964 (+1.60%)** |
+
+Per module after: rust-debug +2.7%, rust-release +0.4%, zig-debug **+14.0%** (from +31.1%),
+zig-releasefast +2.3%, tinygo +0.8% / 0.0%. At -O2 the six are **+1.5%** (from +6.3%; zig-debug
++3.6% from +16.8%), and our -Oz is now smaller than our -O2 (145,859 vs 146,481).
+
+**Defects found on the way, all fixed:**
+- **A shipped crash** (1.11.0 – 1.12.1): `deepKey` wrote each `catch` clause as plain JSON, so a
+  legacy `try` ending both arms of an `if`, with an `i64.const` in a catch body, made the optimizer
+  THROW at -O2 and above ("cannot serialize a BigInt"; reproduced on the pre-item-30 tree). Found
+  when step 4 keyed whole bodies and the gate's `optimize-corpus` failed ten legacy-EH modules.
+  `4a19c39a2`; `code_folding_tails.test.ts` holds the CodeFolding case.
+- `Func.locals` is EVERY local, parameters first: step 4's first shared function wrote 0 locals
+  (invalid, caught by `wasmOpt`'s own validation), and step 3 had dropped an emptied function's
+  parameter entries (no byte changed; `9c5655cff`).
+- Table references inside code may be by INDEX: step 3's first version threw on `table.get 0`
+  (caught by its own test before merging).
+
+**What is left** (re-ranked on the result; control 144,254 vs upstream 139,068 on the six):
+remove-unused-brs 1,361 (zig-debug 1,140) · simplify-locals 906 · dae-optimizing 816 (zig-debug
+730) · simplify-locals-nostructure 696 · code-folding 406 (its return tails and the tails before
+several `br`s, not built) · rse 301 · ssa-nomerge 175 · smaller ones; optimize-instructions now −285
+(upstream's makes ours larger). Not built in step 4: upstream's parameterized CALL targets (`call_ref`,
+GC only). None of these is an open item; a new one starts from this list.
 
 ## Lessons
 
@@ -133,3 +182,8 @@ upstream at the same level.
   so in the test instead of pretending the mutant can be caught.
 - **Labels are compared by position, never by name**, when two subtrees are asked whether they
   are the same code: the reader names every block and `if` it reads.
+- **A helper's branch no test reached is a shipped bug waiting for a wider caller** (open-work 30):
+  `deepKey`'s `catches` branch had never run, until whole function bodies were keyed — and its
+  first caller could reach it too. Before reusing a helper on a bigger scope, run its every branch.
+- **Read a field's convention from its WRITER before building one** (`Func.locals` holds the
+  parameters first; the writer skips `params.length` of them): it bit twice in one item.
