@@ -1,0 +1,13 @@
+{
+  // The browser recipe (open-work 28.7): the root's strictness and the PUBLISHED specifier mapped to
+  // the source, so the example imports what a user imports (`@jrmarcum/binaryang/tools/wasm-opt`)
+  // and this repository type-checks it (`bun run check`) and bundles and runs it in every browser
+  // (`bun run browsers`). Node's types stay on: the source it reaches names them in its CLI paths.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@jrmarcum/binaryang/tools/wasm-opt": ["../../src/tools/wasm-opt.ts"]
+    }
+  },
+  "include": ["./*.ts"]
+}
