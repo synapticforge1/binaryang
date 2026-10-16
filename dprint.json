@@ -17,7 +17,7 @@
     "deno": true,
     "lineWidth": 100
   },
-  "includes": ["src/**", "tests/**", "scripts/**", "main.ts", "benches/**", "comparison/**"],
+  "includes": ["src/**", "tests/**", "scripts/**", "main.ts", "benches/**", "comparison/**", "examples/**"],
   "excludes": ["scripts/**/*.md", "tests/wabt-ts/wasmtk/**", "node_modules/**", "dist/**"],
   "plugins": [
     "https://plugins.dprint.dev/typescript-0.96.1.wasm@9c52244de2c25a33addc7ddacff4443234a2dc4b5d3f34131262d1e0df35007c",
