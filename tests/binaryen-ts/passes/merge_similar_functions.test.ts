@@ -89,6 +89,37 @@ describe('functions differing only in constants share one body', () => {
   });
 });
 
+describe('bodies holding a legacy try', () => {
+  // 🔧 The structural key serialized a `catch` clause whole: its body's `i64.const` threw
+  // "cannot serialize a BigInt" (the corpus's legacy-EH modules at -Oz), and its labels
+  // compared by name.
+  it('are keyed like any code, and merge when only constants differ', async () => {
+    const legacy = (a: number, b: number) => `
+      (local $s i64)
+      (try (do (local.set $s (i64.mul (i64.extend_i32_s (local.get 0)) (i64.const ${a}))))
+        (catch $e (local.set $s (i64.const 77)))
+        (catch_all (local.set $s (i64.const 88))))
+      (global.set $g (i32.wrap_i64 (local.get $s)))
+      (block $out (br_if $out (i64.gt_s (local.get $s) (i64.const ${b})))
+        (global.set $g (i32.add (global.get $g) (i32.const ${b}))))
+      (i32.wrap_i64 (i64.add (local.get $s) (i64.const ${b})))`;
+    const before = wat2wasm(
+      `(module ${G} (tag $e)
+        (func (export "a") (param i32 i32) (result i32) ${legacy(3, 50)})
+        (func (export "b") (param i32 i32) (result i32) ${legacy(5, 90)}))`,
+      { textForm: false, features: allFeatures() },
+    ).binary;
+    const m = readForPasses(before);
+    new PassRunner(m, {}).add('MergeSimilarFunctions').run();
+    const after = writeWasm(m);
+    expect(wasmValidate(after, { features: allFeatures() }).errors.map((e) => e.message)).toEqual(
+      [],
+    );
+    expect(m.functions.filter((f) => f.name.startsWith('mgfn-shared$')).length).toBe(1);
+    await same(before, after, ['a', 'b'], INPUTS);
+  });
+});
+
 describe('not merged', () => {
   it('when the glue would cost more than the body saves', async () => {
     const { before, after, shared } = msf(`(module ${G}

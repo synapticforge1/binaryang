@@ -129,24 +129,29 @@ export function deepKey(e: Expression, labels: string[] = []): string {
       continue;
     }
     if (k === 'catches' && Array.isArray(v)) {
-      own[k] = v.map((c) =>
-        JSON.stringify({ ...c, target: isVar(c.target) ? ordinal(labelName(c.target)) : c.target })
-      );
+      // Each clause as a nested record: its `target` by position like any branch, and a legacy
+      // `catch`'s BODY keyed as code. 🔧 It was one plain `JSON.stringify` per clause: a body's
+      // labels compared by NAME, and an `i64.const` in it threw "cannot serialize a BigInt"
+      // (open-work 30 step 4, keying whole functions: the corpus's legacy-EH modules).
+      parts.push(`${k}=[${v.map((c) => deepKey(c as Expression, inner)).join(',')}]`);
       continue;
     }
     if (isExpr(v)) parts.push(`${k}=${deepKey(v, inner)}`);
     else if (Array.isArray(v) && v.some(isExpr)) {
       parts.push(
-        `${k}=[${v.map((x) => (isExpr(x) ? deepKey(x, inner) : JSON.stringify(x))).join(',')}]`,
+        `${k}=[${v.map((x) => (isExpr(x) ? deepKey(x, inner) : _json(x))).join(',')}]`,
       );
     } else if (v !== null && typeof v === 'object' && !ArrayBuffer.isView(v) && !Array.isArray(v)) {
       // A nested record holding expressions (block params).
       parts.push(`${k}=${deepKey(v as Expression, inner)}`);
     } else own[k] = v;
   }
-  const head = JSON.stringify(own, (_, v) => (typeof v === 'bigint' ? `${v}n` : v));
-  return `${head}{${parts.join(';')}}`;
+  return `${_json(own)}{${parts.join(';')}}`;
 }
+
+/** `JSON.stringify` that writes a bigint (an `i64` literal) as `<n>n`. */
+const _json = (v: unknown): string =>
+  JSON.stringify(v, (_, x) => (typeof x === 'bigint' ? `${x}n` : x));
 
 const isVar = (v: unknown): v is Var =>
   v !== null && typeof v === 'object' && 'kind' in v &&
