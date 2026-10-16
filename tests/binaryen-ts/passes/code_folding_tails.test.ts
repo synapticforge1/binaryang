@@ -24,7 +24,7 @@ function fold(wat: string) {
   new PassRunner(m, {}).add('CodeFolding').run();
   const out = writeWasm(m);
   expect(wasmValidate(out, { features: allFeatures() }).errors.map((e) => e.message)).toEqual([]);
-  return { before, after: out, text: wasm2wat(out, { features: allFeatures() }).text };
+  return { before, after: out, text: wasm2wat(out).text };
 }
 
 async function same(before: Uint8Array, after: Uint8Array, inputs: number[]) {
