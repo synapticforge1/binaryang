@@ -585,7 +585,7 @@ for every published binaryang version.
 git add -A && git commit -F <file>  # commit ALL source changes FIRST -- see the guard below
 bun run bump                        # a PATCH: rewrites jsr.json AND main.ts (sub-version capped at 9)
                                     # (a MINOR is typed by hand in the same two files)
-bun run release                     # guard, cold publish dry run + tsc, commit the bump, tag, push commit + tag atomically
+bun run release                     # guard, cold publish dry run + the type check (`bun check`), commit the bump, tag, push commit + tag atomically
 ```
 
 **The bump and the release share ONE file list**: `RELEASE_FILES` (`jsr.json`, `main.ts`; `deno.json` until 2026-10-12) in

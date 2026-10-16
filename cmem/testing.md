@@ -14,7 +14,8 @@ gates.
 ```sh
 bun run test           # node --test on Node 24, the V8 referee: THE verdict (5,902 leaf tests, 2026-10-13)
 bun run test:bun       # the same files on Bun; its failures must be exactly tests/bun-known-differences.json
-bun run check          # tsc over src/, scripts/ and tests/ (two tests/ tsconfigs)
+bun run check          # `bun check` over src/, scripts/ and tests/ (four tsconfigs; tsc until 2026-10-15)
+bun run check:tsc      # tsc 7.0.2 on the same four: the second opinion, not in CI
 bun run browsers       # the library in REAL browsers (open-work 28.3): the installed ones here; CI requires all
 ```
 
