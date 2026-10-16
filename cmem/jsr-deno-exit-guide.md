@@ -269,6 +269,10 @@ How to adopt it, and the trap:
   7.0.2 and a `check:tsc` script on the same four projects, not in CI. A disagreement between them
   is a bug in Bun (Bun's own words), settled by `tsc`. Diff them with
   `bun check --no-pretty > bun.txt` against `tsc --noEmit --pretty false > tsc.txt`.
+- **`bun lint` and `bun format` are NOT in Bun 1.4.3** (canary only on 2026-10-15, though
+  bun.com/docs/lint documents them). binaryang shelved replacing Biome and dprint until a release
+  ships them (owner, 2026-10-15); the plan for then is binaryang's open-work.md, "Not tasks, by
+  decision". A `lint` script shadows `bun lint` the same way `check` shadows `bun check`.
 
 ### The engine referee: Bun's WebAssembly is not V8
 
