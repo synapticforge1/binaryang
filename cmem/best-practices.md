@@ -1897,6 +1897,42 @@ case under test.
 `--filter "a|b"` matched nothing and printed "0 passed, 0 failed": an inversion that ran no test
 reads like one that passed. **How to apply:** `--filter "/a|b/"`, and read the passed count.
 
+### Whether a tool has a feature is a claim with a date — ask the installed binary, outside the project
+
+2026-10-15, twice in one hour. "There is no `bun check`" was said from memory; Bun 1.4.3, installed
+here, had shipped one. Then the reverse: bun.com/docs/lint documents `bun lint` under a 1.4.3
+banner, and the 1.4.3 binary has none (canary only). Docs can run ahead of a release, and memory
+behind it. **How to apply:** before saying a tool has or lacks a feature, run it: `<tool> <cmd>
+--help` on the installed version, plus its release notes. Run it from OUTSIDE the project (next
+lesson).
+
+### A project script shadows a runtime's own subcommand
+
+In binaryang, `bun check --help` printed `tsc`'s help, because `package.json` has a `check` script
+and Bun runs a script before a built-in of the same name; `bun lint` does the same with our `lint`
+script. A test of the built-in inside the repo measured our script. **How to apply:** test a
+runtime's built-in from a scratch directory with no `package.json`. Inside a script of the same
+name the built-in is meant (Bun's docs), but on an older runtime without it the script calls
+itself: pin the version that has it.
+
+### Porting a Deno script to `node:fs`: a `Buffer`'s `.slice()` is a VIEW
+
+`Deno.readFileSync` returns a `Uint8Array`, whose `.slice()` copies. `readFileSync` from `node:fs`
+returns a `Buffer`, whose `.slice()` shares memory. The code lens's mutation instruments do
+`const m = b.slice(); m[at] = v;` and would have corrupted every later mutant of the same
+original, silently (2026-10-15, caught while porting). **How to apply:** wrap at the read,
+`new Uint8Array(readFileSync(p))`, in any port that mutates bytes; then run a positive control.
+
+### A long-lived branch can bring back a fix `main` made another way
+
+`code-lens-13` sat unmerged from 2026-10-09 to 2026-10-15. Its C6 refused an unknown SIMD sub-opcode
+through `extendedOpcodeName`, and `main` had meanwhile shipped the same refusal in 1.11.0 through
+`isInstrCode`. Git merged both without a conflict. The branch's copy was not harmless: a gap in
+the NAME table would have refused a real instruction that `main`'s check accepts. The same branch
+had a letter numbered § 28, which `main` had used for another thread. **How to apply:** before
+merging an old branch, list every fix it makes and check whether `main` already makes it, not
+only the hunks git marks. Keep one check per fact. Renumber records the branch created.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

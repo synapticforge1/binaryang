@@ -107,7 +107,14 @@ PUSHED; the version stays 1.12.1):**
   § 35 (was § 28 on the branch), a DRAFT for the owner to send.
 - **wasmtk on 1.12.1** ([handoffs.md](handoffs.md) § 36, received 2026-10-15): `go_asyncify_tests`
   12 / 12, gate 64,506 / 0 / 16, nothing else moved. The Asyncify thread (§§ 28–34) is CLOSED.
+- **The type check is `bun check`** (owner: "yes make the change"; merge `8b52828d5`): Bun
+  1.4.3's built-in checker on the same four projects, gate green; `tsc` 7.0.2 kept as
+  `bun run check:tsc`, not in CI ([jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § "Type
+  checking: `bun check`"). Repo-only: nothing for a release note.
+- **`bun lint` / `bun format` SHELVED** until a Bun release ships them (§ "Not tasks, by decision").
 - **5 open items, unchanged:** 13, 14, 15, 28, 30.
+- ⚠️ The merge `8b52828d5` took its message by `-m`, not `-F` (working-rules.md, Git). The text
+  is plain and intact; left as is, unpushed, for the owner to judge.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
