@@ -36,7 +36,8 @@ import { fileURLToPath } from 'node:url';
 import { bundleExports, bundleName } from './check-browser.ts';
 import { nodeCommand, REFEREE } from './v8.ts';
 import type { BrowserSpec } from './browsers/driver.ts';
-import type { HarnessResult } from './browsers/harness.ts';
+import type { HarnessResult, RecipeResult } from './browsers/harness.ts';
+import { RECIPE_MODULES } from './browsers/shared.ts';
 import { wat2wasm } from '../src/tools/wat2wasm.ts';
 import { wasmOpt } from '../src/tools/wasm-opt.ts';
 
@@ -119,6 +120,72 @@ async function hostExpectations(root: string, files: string[]) {
   return { smoke: sha(smoke), modules };
 }
 
+/**
+ * What the browser recipe must return for the first RECIPE_MODULES corpus modules that assemble:
+ * `wasmOpt -Oz` (its defaults: optimizeLevel 2, shrinkLevel 2) when that is smaller, else the
+ * original, exactly as optimize.ts decides.
+ */
+async function recipeExpectations(root: string, files: string[]) {
+  const oz = async (b: Uint8Array) => {
+    const o = await wasmOpt(b, { optimizeLevel: 2, shrinkLevel: 2, validate: true });
+    if (typeof o === 'string') throw new Error('wasmOpt returned text');
+    return o;
+  };
+  const modules: { file: string; hash: string; optimized: boolean }[] = [];
+  /** Whether -Oz shrinks the first optimized output AGAIN (it must not: the "no smaller" case). */
+  let reoptShrinks: boolean | undefined;
+  for (const f of files) {
+    if (modules.length === RECIPE_MODULES) break;
+    const bin = wat2wasm(readFileSync(join(root, f), 'utf8')).binary;
+    if (!bin) continue;
+    const opt = await oz(bin);
+    const smaller = opt.length < bin.length;
+    if (smaller && reoptShrinks === undefined) reoptShrinks = (await oz(opt)).length < opt.length;
+    modules.push({ file: basename(f), hash: sha(smaller ? opt : bin), optimized: smaller });
+  }
+  return { modules, reoptShrinks };
+}
+
+/** The recipe's verdict: each problem as one line. */
+function recipeProblems(
+  got: RecipeResult | undefined,
+  want: Awaited<ReturnType<typeof recipeExpectations>>,
+): string[] {
+  if (!got) return ['recipe: no result'];
+  if (got.error) return [`recipe: ${got.error}`];
+  const bad: string[] = [];
+  if (!want.modules.some((w) => w.optimized)) {
+    bad.push('recipe: no input shrinks, so the cache path is untested');
+  }
+  if (want.reoptShrinks) {
+    bad.push('recipe: -Oz shrinks its own output again, so "already-optimized" tests nothing');
+  }
+  for (const w of want.modules) {
+    const r = got.runs.find((x) => x.file === w.file);
+    if (!r) {
+      bad.push(`recipe: ${w.file} did not run`);
+      continue;
+    }
+    if (r.first.hash !== w.hash || r.first.optimized !== w.optimized) {
+      bad.push(`recipe: ${w.file}: ${r.first.reason}, not the host's result`);
+    }
+    if (r.first.fromCache) bad.push(`recipe: ${w.file}: a FIRST run came from the cache`);
+    if (w.optimized && (!r.second.fromCache || r.second.hash !== w.hash)) {
+      bad.push(
+        `recipe: ${w.file}: the second run did not come from the cache (${r.second.reason})`,
+      );
+    }
+  }
+  for (const c of ['malformed', 'not-binary', 'timeout', 'already-optimized'] as const) {
+    const k = got.kept.find((x) => x.case === c);
+    if (!k) bad.push(`recipe: the ${c} case did not run`);
+    else if (k.optimized || !k.same) {
+      bad.push(`recipe: ${c}: the original was not kept (${k.reason})`);
+    }
+  }
+  return bad;
+}
+
 /** The referee Node (fnm when installed, else `node` on PATH if it IS that major), running `script`. */
 function nodeRun(script: string, args: string[]): [string, string[]] | string {
   if (spawnSync('fnm', ['--version'], { stdio: 'ignore' }).status === 0) {
@@ -180,7 +247,22 @@ if (import.meta.main) {
       `--outfile=${join(dir, 'harness.js')}`,
     ], { encoding: 'utf8' });
     if (h.status !== 0) throw new Error(`the harness does not bundle: ${h.stderr}`);
+    // The README's browser recipe (open-work 28.7), bundled as a user would: its two entry points
+    // side by side, the published specifier resolved through examples/browser-optimize/tsconfig.json.
+    const recipeDir = join(dir, 'recipe');
+    const rb = spawnSync('bun', [
+      'build',
+      join(root, 'examples/browser-optimize/optimize.ts'),
+      join(root, 'examples/browser-optimize/optimize-worker.ts'),
+      '--target=browser',
+      '--format=esm',
+      '--external',
+      'node:*',
+      `--outdir=${recipeDir}`,
+    ], { encoding: 'utf8' });
+    if (rb.status !== 0) throw new Error(`the browser recipe does not bundle: ${rb.stderr}`);
     const expected = await hostExpectations(root, files);
+    const expectedRecipe = await recipeExpectations(root, files);
 
     // 2. Serve them.
     const byName = new Map(files.map((f) => [basename(f), f]));
@@ -200,6 +282,7 @@ if (import.meta.main) {
         );
       }
       if (p === '/harness.js') return send(JS, readFileSync(join(dir, 'harness.js')));
+      if (p.startsWith('/recipe/')) return send(JS, readFileSync(join(recipeDir, basename(p))));
       if (p.startsWith('/bundles/')) return send(JS, readFileSync(join(dir, basename(p))));
       if (p === '/exports.json') return send('application/json', JSON.stringify(exportsList));
       if (p === '/smoke.wat') return send('text/plain', SMOKE_WAT);
@@ -293,11 +376,16 @@ if (import.meta.main) {
         for (const x of listed.filter((x) => !refusals.includes(x))) {
           bad.push(`listed, but accepted now (delete it): ${x}`);
         }
+        bad.push(...recipeProblems(res.recipe, expectedRecipe));
+        const shrunk = res.recipe?.runs.filter((x) => x.first.optimized).length ?? 0;
         console.log(
           `${bad.length === 0 ? '✓' : '✗'} ${spec.name} ${
             r.version ?? ''
           }: ${res.loaded.length} exports loaded, ` +
-            `${res.modules.length} modules, ${refusals.length} engine refusals (${listed.length} listed)`,
+            `${res.modules.length} modules, ${refusals.length} engine refusals (${listed.length} listed), ` +
+            `recipe ${shrunk} of ${res.recipe?.runs.length ?? 0} shrunk, ${
+              res.recipe?.kept.length ?? 0
+            } kept`,
         );
       }
       // On GitHub Actions each failure is ALSO an annotation: the job log needs admin rights to read

@@ -39,6 +39,11 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.12.1
 
+- **Docs — the browser recipe** (2026-10-15, open-work 28.7, the item's close): README § "Optimizing
+  in the browser" and `examples/browser-optimize/` (repo only; not in the package), run by
+  `bun run browsers` in every browser; the README's footnote that a browser run was "planned" is
+  corrected (CI has run one since 2026-10-13). No code in the package changes.
+
 The 1.12.1 notes as gathered are `git show e03d38f33:cmem/unreleased.md`; the public summary is
 `CHANGELOG.md` § 1.12.1.
 

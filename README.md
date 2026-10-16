@@ -179,12 +179,12 @@ enum (`Type.I32`); the type of a node's `type` field is `ExprType`.
 
 Runs on **Deno, Node.js, Bun and modern browsers** from a single source tree.
 
-| runtime  | minimum     | tested in CI                    | note                                |
-| -------- | ----------- | ------------------------------- | ----------------------------------- |
-| Deno     | 2.x         | 2.x                             |                                     |
-| Node.js  | **22.18.0** | 22.18.0, latest 22, 24, 26      | no flags¹                           |
-| Bun      | **1.4.0**   | 1.4.0                           |                                     |
-| browsers | modern      | every export bundles for them²  | library surface only, not the CLI   |
+| runtime  | minimum     | tested in CI                                           | note                              |
+| -------- | ----------- | ------------------------------------------------------ | --------------------------------- |
+| Deno     | 2.x         | 2.x                                                    |                                   |
+| Node.js  | **22.18.0** | 22.18.0, latest 22, 24, 26                             | no flags¹                         |
+| Bun      | **1.4.0**   | 1.4.0                                                  |                                   |
+| browsers | modern      | Chromium, Chrome, Edge, Brave, Opera, Firefox, WebKit² | library surface only, not the CLI |
 
 ¹ Node users receive JSR's compiled JavaScript. binaryang's TypeScript **source** (a clone of this
 repository) also runs on Node with no flag: it is ERASABLE TypeScript, with no `enum`s and no
@@ -192,8 +192,32 @@ constructor parameter properties, which Node's default type stripping accepts, N
 The compiler option `erasableSyntaxOnly` keeps it that way.
 
 ² Every export is bundled for the browser target in CI and must not import a Node builtin; the
-library's command-line paths load Node's file system only when they run. That proves the exports
-LOAD in a browser. A headless-browser run of the library is planned, not yet in CI.
+library's command-line paths load Node's file system only when they run. CI then RUNS the library
+in each of these browsers, headless (WebKit is Safari's engine): every export loads, and `wat2wasm`
+and `wasmOpt` give byte-identical output to Deno, Node and Bun on 421 modules, which each browser's
+engine accepts. The browser recipe below runs there too.
+
+### Optimizing in the browser
+
+A page can shrink a WebAssembly module it does **not** control (third-party, user-supplied, a
+playground's) on the user's machine. Expect a **size** win, not speed. Measured in Chrome,
+Firefox and Safari's engine on real compiler output (Rust, Zig, TinyGo; debug and release builds of
+one compute workload): code bytes −0.1% to −27%, 60 ms to 1.7 s to optimize, and **no run-time
+speedup**, not even on the debug builds; the engines' own optimizing tiers already did that work. A
+site that builds its own module should optimize it at build time instead.
+
+[`examples/browser-optimize`](https://github.com/jrmarcum/binaryang/tree/main/examples/browser-optimize)
+is the recipe, two files to copy and bundle side by side. It runs `wasmOpt` in a Worker with a time
+limit, keeps the original whenever the browser refuses the input, the optimizer fails or the result
+is no smaller, and caches results by the input's SHA-256 (Cache API):
+
+```ts
+import { optimizeInBrowser } from './optimize.ts';
+
+const original = new Uint8Array(await (await fetch(url)).arrayBuffer());
+const { bytes, optimized, reason } = await optimizeInBrowser(original);
+const { instance } = await WebAssembly.instantiate(bytes, imports);
+```
 
 **Node.js: every current LTS line is supported and tested** (Node 22 "Jod" and Node 24
 "Krypton" as of 2026-10). Supported means not end-of-life: Node 18 ended 2025-04-30 and Node 20 on

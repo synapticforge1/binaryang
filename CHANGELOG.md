@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Documentation
+
+- **Optimizing in the browser** (README): what it is for (shrinking a module the page does not
+  control; a size win, with no run-time speedup measured), and a recipe to copy,
+  `examples/browser-optimize` in the repository, that optimizes in a Worker with a time limit,
+  keeps the original whenever that is not a win, and caches results. CI runs the recipe in every
+  browser it tests. The README now says that CI runs the library in Chromium, Chrome, Edge, Brave,
+  Opera, Firefox and WebKit (it has since 2026-10-13); it still said that run was only planned.
+
 ### Fixed
 
 - ⚠️ **`wasmValidate` could return `Result.Ok` for an invalid module**, with the error in its
