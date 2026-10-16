@@ -74,8 +74,77 @@ registerPass(RemoveUnusedBrsPass);
 
 function _removeUnusedBrsNode(expr: Expression): Expression {
   if (expr.kind === ExpressionKind.If) return _optimizeIf(expr);
+  if (expr.kind === ExpressionKind.Region) return _threadJumps(expr);
   if (expr.kind !== ExpressionKind.Block) return expr;
-  return _optimizeBlock(expr);
+  const threaded = _threadJumps(expr);
+  return threaded.kind === ExpressionKind.Block ? _optimizeBlock(threaded) : threaded;
+}
+
+const _DECLARES_LABEL = new Set<string>([
+  ExpressionKind.Block,
+  ExpressionKind.Loop,
+  ExpressionKind.If,
+  ExpressionKind.Try,
+  ExpressionKind.TryTable,
+]);
+
+/**
+ * Jump threading (open-work 31, upstream's `JumpThreader`): a block followed directly by an
+ * unconditional, valueless `br $y` — a branch to the block lands right before that `br`, so it
+ * may go to `$y` itself:
+ *
+ *     (block $x … (br_if $x c) …) (br $y)   →   (block $x … (br_if $y c) …) (br $y)
+ *
+ * The plain branches (`br`, `br_if`, `br_table`) move; when nothing else names `$x`, the block
+ * goes (Vacuum). Only when the block has no result or parameters (its branches carry nothing), no
+ * label inside it is spelled `$x` or `$y` (a shadowing label would catch the branch), and `$y` is
+ * named, not an index (an index means a depth, which differs inside the block). `$y` is in scope
+ * wherever the block is: the `br $y` after it is.
+ */
+function _threadJumps<T extends Expression & { children: Expression[] }>(e: T): T {
+  let changed = false;
+  const children = e.children.map((x, i) => {
+    const next = e.children[i + 1];
+    if (
+      x.kind !== ExpressionKind.Block || x.label === '' || x.type !== None ||
+      blockParamsOf(x) !== undefined
+    ) return x;
+    if (
+      next?.kind !== ExpressionKind.Break || next.condition !== undefined ||
+      next.values.length !== 0 || next.target.kind !== 'name'
+    ) return x;
+    const from = x.label, y = next.target;
+    if (y.name === from) return x;
+    // A label inside spelled `$x` or `$y` would catch a branch: then nothing is threaded. Other
+    // kinds of branch to `$x` (`br_on_*`, a `try_table` catch) may stay; the block stays for them.
+    let ok = true, named = false;
+    walkExpression(x, (n) => {
+      if (n === x) return;
+      if (_DECLARES_LABEL.has(n.kind)) {
+        const l = (n as { label: string }).label;
+        if (l === from || l === y.name) ok = false;
+      }
+      if (n.kind === ExpressionKind.Break && labelName(n.target) === from) named = true;
+      if (
+        n.kind === ExpressionKind.Switch &&
+        [...n.targets, n.defaultTarget].some((t) => labelName(t) === from)
+      ) named = true;
+    });
+    if (!ok || !named) return x;
+    changed = true;
+    const retarget = (n: Expression): Expression => {
+      if (n.kind === ExpressionKind.Break && labelName(n.target) === from) {
+        return { ...n, target: y };
+      }
+      if (n.kind === ExpressionKind.Switch) {
+        const t = (v: typeof n.defaultTarget) => (labelName(v) === from ? y : v);
+        return { ...n, targets: n.targets.map(t), defaultTarget: t(n.defaultTarget) };
+      }
+      return n;
+    };
+    return { ...x, children: x.children.map((c) => mapExpression(c, retarget)) };
+  });
+  return changed ? { ...e, children } : e;
 }
 
 /**
