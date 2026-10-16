@@ -184,6 +184,7 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | 2 | Effects: two plain memory accesses may change places (both trap only out of bounds; a trap's KIND stays observable, so not upstream's "any two implicit traps") — SimplifyLocals now sinks past loads | `c083bcf97` | 143,810 (+3.4%) | 822,780 (+1.58%) |
 | 3 | DeadArgumentElimination: a parameter written before any read (its incoming value is dead) goes, and rounds repeat to a fixed point | `90d200ec5` | 143,271 (+3.1%) | 822,764 (+1.58%) |
 | 4 | Local2Stack in the writer (upstream's StackIR at -O3/-Os/-Oz): a set and its one read are left out when the value can stay on the stack; `Module.optimizeStack`, `WriteBinaryOptions.stackIR` | `f69843225` | 142,587 (+2.6%) | 822,460 (+1.54%) |
+| 5 | ConstantPropagation removes a write of the constant the local already holds (upstream's rse, for constants); the first version's identity bug caught by the -Oz fuzz, fixed before merging | `1f1282029` `e3434bbf1` | 142,317 (+2.4%) | **816,938 (+0.86%)** |
 
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
@@ -203,5 +204,10 @@ The six real-compiler modules are unaffected (no import-section difference).
 - **A helper's branch no test reached is a shipped bug waiting for a wider caller** (open-work 30):
   `deepKey`'s `catches` branch had never run, until whole function bodies were keyed — and its
   first caller could reach it too. Before reusing a helper on a bigger scope, run its every branch.
+- **A tree node may sit in two places** (open-work 31 step 5): `mapExpression` hands its callback
+  a REBUILT parent, so a rewrite keyed by a parent node's identity never fires — and keying by a
+  leaf instead (a constant) hit a constant shared by two writes, and a needed write went. Every
+  corpus behaviour gate passed; the -Oz fuzz (`optimize_fuzz.test.ts`) caught it. Rewrite
+  top-down with `mapChildrenShallow` when matching nodes the analysis saw.
 - **Read a field's convention from its WRITER before building one** (`Func.locals` holds the
   parameters first; the writer skips `params.length` of them): it bit twice in one item.
