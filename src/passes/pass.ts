@@ -445,12 +445,10 @@ const FUNCTION_PASSES = [
   'RemoveUnusedNames',
   'OptimizeInstructions',
   // Constants flow through locals, then what they make known is computed, and
-  // once more: a computed constant written to a local flows on (open-work 23,
-  // E2: corpus -Oz −3.9 KB for one round, −4.4 KB for two; -O3 −6.0 KB).
-  'ConstantPropagation',
-  'Precompute',
-  'ConstantPropagation',
-  'Precompute',
+  // a computed constant written to a local flows on — until nothing changes
+  // (open-work 23, E2: two fixed rounds; open-work 31, step 8: to the fixed
+  // point, as upstream's precompute-propagate loops).
+  'PrecomputePropagate',
   'OptimizeInstructions',
   'CoalesceLocals',
   'SimplifyLocals',
@@ -460,6 +458,10 @@ const FUNCTION_PASSES = [
   // 2, step 4a: corpus -Oz −2.9 KB; moving it here instead of running it
   // twice keeps only −2.3 KB).
   'CoalesceLocals',
+  // And again: SimplifyLocals sank constants into their uses, so a tree of
+  // constants, or an `if` on one, is there to fold only now (open-work 31,
+  // step 8; the next -Oz run used to find them).
+  'PrecomputePropagate',
   // What both arms of an `if` end with, written once — after the locals
   // settle, as upstream places code-folding (open-work 2, step 6c).
   'CodeFolding',
@@ -506,8 +508,14 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     // first round turned reads of immutable constant globals into constants
     // (Precompute, open-work 2 step 6d), so a parameter every caller now
     // passes the same constant becomes a local — measured on the corpus.
-    passes.push('DeadArgumentElimination');
-    passes.push('Inlining', ...FUNCTION_PASSES, 'Vacuum');
+    // Three rounds: a function the round before shrank is now small enough to
+    // inline, and its callers' constant arguments are DAE's again — what the
+    // next -Oz run used to find (open-work 31, step 8: corpus -Oz −3.8 KB for
+    // three rounds over one; a fourth, −71 bytes, not kept). Upstream's
+    // inlining-optimizing iterates the same way.
+    for (let round = 0; round < 3; round++) {
+      passes.push('DeadArgumentElimination', 'Inlining', ...FUNCTION_PASSES, 'Vacuum');
+    }
     // Functions that differ only in constants, merged — at -Oz, after inlining
     // reduced the functions, as upstream's global post passes place it
     // (open-work 30, step 4).

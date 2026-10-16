@@ -56,7 +56,7 @@ export class ConstantPropagationPass implements Pass {
   readonly requiresNonNullableLocalFixups = false;
 
   run(module: WasmModule, _options: PassOptions): void {
-    for (const fn of module.functions) _propagateFunction(fn);
+    for (const fn of module.functions) propagateFunction(fn);
   }
 }
 
@@ -130,12 +130,13 @@ function isPropagated(type: unknown): boolean {
 // Per-function implementation
 // ---------------------------------------------------------------------------
 
-function _propagateFunction(fn: WasmFunction): void {
+/** Propagates in one function; whether anything changed (`PrecomputePropagate` iterates on it). */
+export function propagateFunction(fn: WasmFunction): boolean {
   const numLocals = fn.locals.length;
-  if (numLocals === 0) return;
+  if (numLocals === 0) return false;
   const numParams = fn.sig.params.length;
   const propagated = fn.locals.map((l) => isPropagated(l.type));
-  if (!propagated.some((p) => p)) return;
+  if (!propagated.some((p) => p)) return false;
 
   const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
   const initial: State = fn.locals.map((l, i) => i < numParams ? VARIES : zeroOf(l.type));
@@ -238,7 +239,7 @@ function _propagateFunction(fn: WasmFunction): void {
       before !== VARIES && sameLiteral(before, value.value)
     ) redundant.add(set);
   }
-  if (replace.size === 0 && redundant.size === 0) return;
+  if (replace.size === 0 && redundant.size === 0) return false;
   // Top-down on the nodes the CFG saw, so each set is recognized as ITSELF before anything is
   // rebuilt. 🔧 The first version rewrote bottom-up (`mapExpression`, whose callback gets a
   // rebuilt parent) and keyed the set by its constant instead — a constant node can sit in two
@@ -252,4 +253,5 @@ function _propagateFunction(fn: WasmFunction): void {
     return mapChildrenShallow(e, rewrite);
   };
   fn.body = rewrite(fn.body) as RegionExpr;
+  return true;
 }
