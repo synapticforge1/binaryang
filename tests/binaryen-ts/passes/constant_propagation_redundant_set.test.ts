@@ -65,6 +65,30 @@ describe('a write of the constant the local already holds goes', () => {
 });
 
 describe('a write stays', () => {
+  // 🔧 The -Oz fuzz, seed 163: the first version found redundant writes by their CONSTANT node,
+  // and one constant node can be the value of two writes — here a redundant write to $x and a
+  // needed one to $y share it, and both went.
+  it('when its constant node is shared with a redundant write of another local', async () => {
+    const before = wat2wasm(
+      `(module ${G}
+      (func (export "f") (param i32 i32) (result i32) (local $x i32) (local $y i32)
+        (local.set $y (local.get 0))
+        (local.set $x (i32.const 3))
+        (local.set $x (i32.const 3))
+        (local.set $y (i32.const 3))
+        (global.set $g (local.get $x))
+        (local.get $y)))`,
+      { textForm: false },
+    ).binary;
+    const m = readForPasses(before);
+    const body = m.functions[0]!.body.children as { value?: unknown }[];
+    body[3]!.value = body[2]!.value; // the write to $y now SHARES the redundant write's constant
+    new PassRunner(m, {}).add('ConstantPropagation').add('Vacuum').run();
+    const after = writeWasm(m);
+    expect(count(wasm2wat(after).text, 'local.set')).toBe(3); // only the second $x write went
+    await same(before, after, IN);
+  });
+
   it('when a path wrote another value', async () => {
     const { before, after, text } = cp(`(module ${G}
       (func (export "f") (param i32 i32) (result i32) (local $x i32)
