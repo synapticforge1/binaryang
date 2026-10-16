@@ -183,6 +183,12 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | 1 | RemoveUnusedBrs: jump threading (a branch to a block followed by `br $y` goes to `$y`), and RemoveUnusedBrs + RemoveUnusedNames + Vacuum after CodeFolding (item 30's folded tails had left 152 `if (c) (br …)`) | `8a91144e0` | 144,444 (+3.9%) | 822,798 (+1.58%) |
 | 2 | Effects: two plain memory accesses may change places (both trap only out of bounds; a trap's KIND stays observable, so not upstream's "any two implicit traps") — SimplifyLocals now sinks past loads | `c083bcf97` | 143,810 (+3.4%) | 822,780 (+1.58%) |
 | 3 | DeadArgumentElimination: a parameter written before any read (its incoming value is dead) goes, and rounds repeat to a fixed point | `90d200ec5` | 143,271 (+3.1%) | 822,764 (+1.58%) |
+| 4 | Local2Stack in the writer (upstream's StackIR at -O3/-Os/-Oz): a set and its one read are left out when the value can stay on the stack; `Module.optimizeStack`, `WriteBinaryOptions.stackIR` | `f69843225` | 142,587 (+2.6%) | 822,460 (+1.54%) |
+
+**Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
+compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
+section). Item 2's rule stands: never `-all` against the corpus; `--disable-compact-imports` with it.
+The six real-compiler modules are unaffected (no import-section difference).
 
 ## Lessons
 
