@@ -30,10 +30,17 @@
  * @license MIT
  */
 
-import { type Expression, ExpressionKind, type Literal, makeConst } from '../ir/expressions.ts';
+import {
+  type Expression,
+  ExpressionKind,
+  type Literal,
+  makeConst,
+  makeNop,
+  type RegionExpr,
+} from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
-import { mapExpression } from '../ir/walk.ts';
+import { mapChildrenShallow } from '../ir/walk.ts';
 import { type BasicBlock, buildCFG } from './cfg.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
@@ -133,9 +140,11 @@ function _propagateFunction(fn: WasmFunction): void {
   const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
   const initial: State = fn.locals.map((l, i) => i < numParams ? VARIES : zeroOf(l.type));
 
-  // What each read saw, and what each set / tee assigned, in the latest scan.
+  // What each read saw, and what each set / tee assigned — and what the local held just before
+  // it — in the latest scan.
   const seen = new Map<Expression, Value>();
   const assigned = new Map<Expression, Value>();
+  const held = new Map<Expression, Value>();
 
   const valueOfExpr = (e: Expression, type: unknown): Value => {
     switch (e.kind) {
@@ -161,6 +170,7 @@ function _propagateFunction(fn: WasmFunction): void {
         const v = s[a.index] === undefined
           ? undefined // a path no one has reached yet assigns nothing yet
           : valueOfExpr(origin.value, fn.locals[a.index]!.type);
+        held.set(a.origin, s[a.index]);
         s[a.index] = v;
         assigned.set(a.origin, v);
       }
@@ -203,15 +213,43 @@ function _propagateFunction(fn: WasmFunction): void {
   // sees at the fixed point.
   seen.clear();
   assigned.clear();
+  held.clear();
   for (const b of cfg.blocks) scan(b, inOf(b));
 
   const replace = new Map<Expression, Literal>();
   for (const [get, v] of seen) {
     if (v !== undefined && v !== VARIES) replace.set(get, v);
   }
-  if (replace.size === 0) return;
-  fn.body = mapExpression(fn.body, (e) => {
+  // A write of the constant the local already holds on every path that reaches it changes
+  // nothing (open-work 31; upstream's RedundantSetElimination, for constants): a set goes, a tee
+  // is its constant.
+  // A node the CFG met more than once is shared by two places in the tree: what one place held
+  // says nothing about the other. Left alone. (Defence: no input seen yet shares a SET node — its
+  // mutant is equivalent on the fuzz, 2026-10-15 — but constants are shared, below.)
+  const met = new Map<Expression, number>();
+  for (const b of cfg.blocks) {
+    for (const a of b.actions) met.set(a.origin, (met.get(a.origin) ?? 0) + 1);
+  }
+  const redundant = new Set<Expression>();
+  for (const [set, before] of held) {
+    const value = (set as { value: Expression }).value;
+    if (
+      met.get(set) === 1 && value.kind === ExpressionKind.Const && before !== undefined &&
+      before !== VARIES && sameLiteral(before, value.value)
+    ) redundant.add(set);
+  }
+  if (replace.size === 0 && redundant.size === 0) return;
+  // Top-down on the nodes the CFG saw, so each set is recognized as ITSELF before anything is
+  // rebuilt. 🔧 The first version rewrote bottom-up (`mapExpression`, whose callback gets a
+  // rebuilt parent) and keyed the set by its constant instead — a constant node can sit in two
+  // places, and a needed write went with a redundant one (the -Oz fuzz, seed 163).
+  const rewrite = (e: Expression): Expression => {
+    if (redundant.has(e)) {
+      return e.kind === ExpressionKind.LocalTee ? e.value : makeNop();
+    }
     const lit = replace.get(e);
-    return lit === undefined ? e : makeConst(lit);
-  });
+    if (lit !== undefined) return makeConst(lit);
+    return mapChildrenShallow(e, rewrite);
+  };
+  fn.body = rewrite(fn.body) as RegionExpr;
 }
