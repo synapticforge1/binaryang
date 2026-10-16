@@ -16,8 +16,10 @@
  * function takes no parameters, so there is nothing to remove from it.)
  *
  * A parameter goes when either
- * - nothing READS it, and every call passes it a value with no effect at all
- *   (dropping the operand loses nothing); or
+ * - nothing reads the value the CALLER passed (no read at all, or the function
+ *   writes it first along its straight-line start: open-work 31), and every
+ *   call passes it a value with no effect at all (dropping the operand loses
+ *   nothing); or
  * - every call passes it the SAME constant: the parameter becomes a local,
  *   set to that constant on entry.
  * Either way the parameter becomes a plain local (a write to it stays valid);
@@ -35,7 +37,7 @@ import {
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { mapChildrenShallow, mapExpression, walkExpression } from '../ir/walk.ts';
+import { mapChildrenShallow, mapExpression, visitChildren, walkExpression } from '../ir/walk.ts';
 import { deepEffects, hasSideEffects } from '../ir/effects.ts';
 import { requireIndex, type Var, varIndex } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
@@ -53,6 +55,13 @@ export class DeadArgumentEliminationPass implements Pass {
   readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
+    // Rounds until none removes anything: a parameter passed on only to one that went is unread
+    // in the next round (open-work 31; upstream's dae iterates the same way).
+    for (let round = 0; round < 10 && this._round(module); round++);
+  }
+
+  /** One round of decisions and removals; true when any parameter went. */
+  private _round(module: WasmModule): boolean {
     const imported = module.imports.filter((i) => i.kind === ExternalKind.Func).length;
     const byName = new Map(module.functions.map((f, i) => [f.name, i]));
     /** The DEFINED function a reference names, or undefined for an import. */
@@ -97,7 +106,7 @@ export class DeadArgumentEliminationPass implements Pass {
     for (const [fi, f] of module.functions.entries()) {
       const sites = calls[fi]!;
       if (escapes.has(fi) || sites.length === 0) continue;
-      const read = _readLocals(f);
+      const read = _incomingRead(f);
       const remove = new Map<number, ConstNode | null>();
       for (let p = 0; p < f.sig.params.length; p++) {
         const ops = sites.map((c) => c.operands[p]);
@@ -113,7 +122,7 @@ export class DeadArgumentEliminationPass implements Pass {
       removals.set(fi, remove);
       for (const c of sites) dropAt.set(c, new Set(remove.keys()));
     }
-    if (removals.size === 0) return;
+    if (removals.size === 0) return false;
 
     // 2. Every call loses its operands — matched by IDENTITY, so before any
     //    other rewrite copies a node.
@@ -133,6 +142,7 @@ export class DeadArgumentEliminationPass implements Pass {
       _removeParams(f, remove);
       f.typeVar = varIndex(intern(f.sig));
     }
+    return true;
   }
 }
 
@@ -144,6 +154,62 @@ function _readLocals(f: WasmFunction): Set<number> {
   walkExpression(f.body, (e) => {
     if (e.kind === ExpressionKind.LocalGet) read.add(requireIndex(e.var, 'local index'));
   });
+  return read;
+}
+
+/** Where straight-line evaluation ends: what follows may not run, or run more than once. */
+const _CONTROL = new Set<string>([
+  ExpressionKind.Block,
+  ExpressionKind.Loop,
+  ExpressionKind.If,
+  ExpressionKind.Try,
+  ExpressionKind.TryTable,
+  ExpressionKind.Break,
+  ExpressionKind.Switch,
+  ExpressionKind.Return,
+  ExpressionKind.BrOn,
+  ExpressionKind.Throw,
+  ExpressionKind.ThrowRef,
+  ExpressionKind.Rethrow,
+]);
+
+/**
+ * The parameters whose INCOMING value may be read (open-work 31): read at all, unless the first
+ * access to it, in evaluation order along the straight-line start of the body, is a WRITE — then
+ * every read sees what the function wrote, never what the caller passed. Zig's debug code moves
+ * the stack pointer into a parameter's slot that way (`local.tee $0 (stack_pointer - 16)`).
+ * From the first control flow on, a parameter not yet written counts as read.
+ */
+function _incomingRead(f: WasmFunction): Set<number> {
+  const nParams = f.sig.params.length;
+  const firstWrite = new Set<number>();
+  const touched = new Set<number>();
+  let stopped = false;
+  const visit = (e: Expression): void => {
+    if (stopped) return;
+    if (_CONTROL.has(e.kind)) {
+      stopped = true;
+      return;
+    }
+    visitChildren(e, visit);
+    if (stopped) return;
+    if (
+      e.kind === ExpressionKind.LocalGet || e.kind === ExpressionKind.LocalSet ||
+      e.kind === ExpressionKind.LocalTee
+    ) {
+      const i = requireIndex(e.var, 'local index');
+      if (i < nParams && !touched.has(i)) {
+        touched.add(i);
+        if (e.kind !== ExpressionKind.LocalGet) firstWrite.add(i);
+      }
+    }
+  };
+  for (const c of f.body.children) {
+    visit(c);
+    if (stopped) break;
+  }
+  const read = _readLocals(f);
+  for (const p of firstWrite) read.delete(p);
   return read;
 }
 
