@@ -180,6 +180,7 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
 | — | start | | 145,859 (+4.9%) | 822,964 (+1.60%) |
+| 1 | RemoveUnusedBrs: jump threading (a branch to a block followed by `br $y` goes to `$y`), and RemoveUnusedBrs + RemoveUnusedNames + Vacuum after CodeFolding (item 30's folded tails had left 152 `if (c) (br …)`) | `8a91144e0` | 144,444 (+3.9%) | 822,798 (+1.58%) |
 
 ## Lessons
 
