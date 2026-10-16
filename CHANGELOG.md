@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Changed
+
+- **Smaller optimized output on real compiler output.** Measured on Rust, Zig and TinyGo builds,
+  debug and release: `-Oz` code is 5% larger than upstream Binaryen's instead of 10% (a Zig debug
+  build 14% instead of 31%), and `-O2` 1.5% instead of 6%. `-Oz` is now smaller than `-O2` again.
+  New in the optimizer: a comparison masked with `& 1` (or any mask the value already fits) and
+  `eqz` of an integer comparison are simplified; identical code before an `unreachable` in several
+  places of a function is written once; a function in a table no `call_indirect` can reach with
+  its signature keeps its slot but not its body, when the table is not visible outside the module;
+  and, at `-Oz`, functions that differ only in constants share one body (the new
+  `MergeSimilarFunctions` pass). Every output still behaves as the input.
+
 ### Documentation
 
 - **Optimizing in the browser** (README): what it is for (shrinking a module the page does not
@@ -13,6 +25,9 @@
 
 ### Fixed
 
+- **The optimizer could throw** (`-O2` and above, since 1.11.0): a legacy `try` ending both arms of
+  an `if`, with an `i64` constant in a `catch` body, made it fail with "cannot serialize a BigInt".
+  It now folds such arms like any other code.
 - ⚠️ **`wasmValidate` could return `Result.Ok` for an invalid module**, with the error in its
   `errors` list. One check — a block type naming a type that is not a function type — reported
   without failing, and `wasm-validate` then printed the error, printed "OK" and exited 0. The
