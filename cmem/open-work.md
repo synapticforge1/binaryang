@@ -123,7 +123,7 @@ PUSHED; the version stays 1.12.1):**
 - **Item 30 CLOSED** (owner: "lets close out item 30 now", then "Top shapes, then decide"): four
   optimizer steps and a shipped-crash fix, each gated and merged on its own
   ([optimizer.md](optimizer.md) § "Open-work 30: the gaps on real compiler output").
-- **3 open items:** 13, 14, 15.
+- **3 open items:** 13, 14, 15. Then **item 31 opened** (the optimizer list, no threshold).
 - ⚠️ The merge `8b52828d5` took its message by `-m`, not `-F` (working-rules.md, Git). The text
   is plain and intact; left as is, unpushed, for the owner to judge.
 
@@ -170,6 +170,16 @@ diagnostic at the WORD, not its `(`, underlined as upstream) — [divergences.md
 CI shell scripts are TypeScript (the old item 17).
 
 ## Optimizer and IR
+
+31. ◐ **Below upstream: work the optimizer.md list with no threshold** (owner, 2026-10-15: "lets
+    close out the optimizer.md items", then "Work the list to a target, but remove the 2% limit.
+    Lets see how much more than upstream we can actually optimize."). The list is
+    [optimizer.md](optimizer.md) § "Open-work 30: the gaps on real compiler output", "What is left"
+    (re-ranked after each step), and item 2's "Not built". Method and gate as items 2 and 30: each
+    step attributed first, gated and merged on its own, the behaviour gates unchanged, the
+    real-compiler six AND the corpus measured. Start: six modules -Oz 145,859 (+4.9% over upstream
+    133's 139,020), corpus -Oz 822,964 (+1.60% over 809,986). Progress: optimizer.md § "Open-work
+    31".
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
