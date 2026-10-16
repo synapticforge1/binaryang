@@ -7,7 +7,7 @@
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
     // `deno lint`'s scope, exactly; the vendored corpus is not ours to lint.
-    "includes": ["src/**", "tests/**", "scripts/**", "main.ts", "!tests/wabt-ts/wasmtk"]
+    "includes": ["src/**", "tests/**", "scripts/**", "main.ts", "examples/**", "!tests/wabt-ts/wasmtk"]
   },
   "formatter": { "enabled": false },
   "assist": { "enabled": false },
