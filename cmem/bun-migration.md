@@ -559,7 +559,10 @@ evaluation first.
 **TypeScript is needed either way.** Neither Bun nor Node type-checks: both strip the types and
 run the file. `tsc` (7.0.2, `latest` on npm, 2026-10-12) takes over `deno check` under either
 runtime. So the real choice is the runtime, the test runner and the package manager, not "Bun
-or TypeScript".
+or TypeScript". 🔧 **Superseded 2026-10-15:** Bun 1.4.3 has its own checker, `bun check`, and it
+is now `bun run check`'s; `tsc` stays as `bun run check:tsc`. The measurements and the trap (a
+`check` script shadows the built-in) are in [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md)
+§ "Type checking: `bun check`".
 
 **Consumers are unaffected either way.** JSR serves Node and Bun compiled JavaScript with
 `.d.ts`. Measured 2026-10-12: `npx jsr add` / `bunx jsr add`, then the installed `main.js` runs
