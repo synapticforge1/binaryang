@@ -658,6 +658,32 @@ their full gate:
 § 35 (SENT by the owner later the same day, awaiting their answer); it says "the next release",
 and wasmtk's 1.12.1 gate above is its baseline (64,506 / 0 / 16).
 
+### § 37 — from wasmtk: one gate reads `result`; the defect could only hide passes (received 2026-10-15)
+
+Their answer to § 35's question, as the owner passed it on (they restate § 35 accurately first):
+
+- **Yes, one reader of `result`:** the wast runner's second `assert_invalid` oracle,
+  `binaryangInvalid` in their `src/wast.ts`. It calls `wasmValidate(bytes, { features:
+  allFeatures() })` and takes `result === Ok` as valid without reading `errors`; where `result` is
+  not `Ok` it asks whether the bytes DECODE (compat/wabt `readWasm`), so a decode failure never
+  counts as a validation verdict. They never run the `wasm-validate` CLI, and no compile path of
+  theirs validates with binaryang (V8 judges there).
+- **Two directions:** (1) `assert_invalid` where V8 cannot judge (V8 accepted, or refused only for
+  a limit of its own): our refusal is a pass, else a skip. With C1 a module flagged in `errors` but
+  `Ok` in `result` became a SKIP, never a false pass — "the bug could only hide passes". (2) The
+  SOUNDNESS GUARD (every spec-valid module, and every module they lower for custom page sizes,
+  must not be refused) reads the same `result`, so an error only in `errors` would not have
+  tripped it; our 6,735-module check says there was none, and their guard has read 0 on every run.
+- **What they expect on the release:** `assert_invalid` passes can only rise and skips fall (16
+  today); the guard stays 0. A new refusal our READER raises as a decode error moves neither way
+  for them (it stays a skip) — which covers C5's heap types, C8 / C9's flag bits and the
+  sub-opcode ≥ 0x10000, all reader errors. They will run the wast gate on the release, explain any
+  movement file by file (their bump checklist), and send the numbers.
+
+📋 **Nothing asked of us.** Open with wasmtk: their numbers on the release that carries C1–C17,
+against 64,506 / 0 / 16. A guard reading above 0 there would be a refusal of a spec-valid module:
+a defect of ours, not theirs.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
