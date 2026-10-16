@@ -457,6 +457,15 @@ const FUNCTION_PASSES = [
   // What both arms of an `if` end with, written once — after the locals
   // settle, as upstream places code-folding (open-work 2, step 6c).
   'CodeFolding',
+  // And the branches folding leaves: a terminating tail becomes `br
+  // $folding-inner`, so `if (c) (then (call $panic …) (unreachable))` is now
+  // `if (c) (then (br …))`, a `br_if`. Upstream runs remove-unused-brs after
+  // code-folding too (open-work 31).
+  'RemoveUnusedBrs',
+  // The labels its threading left unnamed, so Vacuum can splice their blocks
+  // (upstream: remove-unused-names after this remove-unused-brs).
+  'RemoveUnusedNames',
+  'Vacuum',
 ];
 
 function getDefaultOptimizationPasses(opts: PassOptions): string[] {
