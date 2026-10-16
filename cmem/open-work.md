@@ -448,6 +448,19 @@ sent and answered (their reply reached us 2026-09-29) — closed in [handoffs.md
   - **Trigger to reopen:** JSR announces an end or degrades, or a consumer needs the package from
     npm. The npm name is chosen THEN; `@synapticforge/binaryang` was free on 2026-10-13.
   - Not blocked by anything; B6 is still the natural place for the release-path half.
+- **`bun lint` / `bun format` in place of Biome / dprint — SHELVED** (owner, 2026-10-15: "We will
+  shelve that decision until it become available in a later release"). Merged to Bun's main
+  (oven-sh/bun PR #44805) and documented at bun.com/docs/lint, but NOT in Bun 1.4.3, the release
+  CI and publish pin (`bun lint` there: `Script not found "lint"`); canary only.
+  - **Trigger to reopen:** a Bun RELEASE that ships `bun lint` (check its release notes, then
+    `bun lint --rules` outside the repo: our `lint` script shadows it inside).
+  - **What deciding needs then**, the `bun check` method ([jsr-deno-exit-guide.md](jsr-deno-exit-guide.md)
+    § "Type checking: `bun check`"): Biome's recommended preset minus `biome.jsonc`'s eight
+    switched-off rules against `bun lint`'s defaults; the six canary rules map to `no-explicit-any`,
+    `no-debugger`, `eqeqeq`, `require-await`, `no-var`, `prefer-const`; a run over the tree with
+    every difference explained; the canary moved; config in `bunfig.toml`. `bun format` against
+    dprint must be byte-identical over the formatted files (dprint reproduces `deno fmt`), or
+    one deliberate reformat commit.
 - **A local directory path in git history — leave it** (owner, 2026-09-14). The copies in
   `b472b4aa4` and `df3659840` name no account, token or secret, and are not worth a force push. Do
   not re-open.
