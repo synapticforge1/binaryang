@@ -493,6 +493,10 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     // passes the same constant becomes a local — measured on the corpus.
     passes.push('DeadArgumentElimination');
     passes.push('Inlining', ...FUNCTION_PASSES, 'Vacuum');
+    // Functions that differ only in constants, merged — at -Oz, after inlining
+    // reduced the functions, as upstream's global post passes place it
+    // (open-work 30, step 4).
+    if (opts.shrinkLevel >= 2) passes.push('MergeSimilarFunctions');
   }
   if (opts.shrinkLevel >= 1) {
     passes.push('Vacuum');

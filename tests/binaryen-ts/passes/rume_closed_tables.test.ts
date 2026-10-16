@@ -23,6 +23,8 @@ function rume(wat: string) {
   const before = wat2wasm(wat, { textForm: false, features: allFeatures() }).binary;
   const m = readForPasses(before);
   new PassRunner(m, {}).add('RemoveUnusedModuleElements').run();
+  // `locals` is every local, the parameters first: an emptied function keeps its parameters'.
+  for (const f of m.functions) expect(f.locals.length).toBeGreaterThanOrEqual(f.sig.params.length);
   const out = writeWasm(m);
   expect(wasmValidate(out, { features: allFeatures() }).errors.map((e) => e.message)).toEqual([]);
   return { before, after: out, text: wasm2wat(out).text };
