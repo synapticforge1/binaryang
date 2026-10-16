@@ -186,7 +186,8 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | 4 | Local2Stack in the writer (upstream's StackIR at -O3/-Os/-Oz): a set and its one read are left out when the value can stay on the stack; `Module.optimizeStack`, `WriteBinaryOptions.stackIR` | `f69843225` | 142,587 (+2.6%) | 822,460 (+1.54%) |
 | 5 | ConstantPropagation removes a write of the constant the local already holds (upstream's rse, for constants); the first version's identity bug caught by the -Oz fuzz, fixed before merging | `1f1282029` `e3434bbf1` | 142,317 (+2.4%) | **816,938 (+0.86%)** |
 | 6 | CodeFolding folds tails before a `return` too (Zig restores its stack pointer before every return); rust-release now BELOW upstream (−0.3%) | `634237a60` | 142,115 (+2.2%) | 816,932 (+0.86%) |
-| 7 | MEASURED, NOT KEPT: SSANoMerge (a set whose every reader reads only it gets a fresh local, before the function passes at -O3/-Os/-Oz) gave −26 on the six and **+48** on the corpus, and was reverted. Kept: the exact local graph (reaching definitions) moved to `passes/local-graph.ts` for reuse | (refactor only) | (142,089) | (816,980) |
+| 7 | MEASURED, NOT KEPT: SSANoMerge (a set whose every reader reads only it gets a fresh local, before the function passes at -O3/-Os/-Oz) gave −26 on the six and **+48** on the corpus, and was reverted. Kept: the exact local graph (reaching definitions) moved to `passes/local-graph.ts` for reuse. 🔧 Its merge message says "all 27 steps": the gate ran 16 (`gate.ts --full` with no scratch path read `--full` AS the path); the full gate on step 8, which carries step 7's code, is green | (refactor only) | (142,089) | (816,980) |
+| 8 | What a SECOND run of our own -Oz found (corpus −1.5 KB, then −2.9 KB more on a third): **PrecomputePropagate** (new pass: ConstantPropagation + Precompute to the fixed point, replacing two fixed rounds; and again after SimplifyLocals, which sinks constants into their uses) — corpus 816,241 alone; and **three rounds of DAE + Inlining + the function passes** (a function the round before shrank is inlinable now) — 812,485. A fourth round: −71, not kept. -O2+ about a third slower | this step | 141,857 (+2.0%) | **812,485 (+0.31%)** |
 
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
@@ -211,5 +212,10 @@ The six real-compiler modules are unaffected (no import-section difference).
   leaf instead (a constant) hit a constant shared by two writes, and a needed write went. Every
   corpus behaviour gate passed; the -Oz fuzz (`optimize_fuzz.test.ts`) caught it. Rewrite
   top-down with `mapChildrenShallow` when matching nodes the analysis saw.
+- **Run the optimizer on its own output before ranking anyone else's pass** (open-work 31, step
+  8): passrank's control row (our -Oz again, after upstream's bare round trip) was 1.1 KB below a
+  single run, and that was most of every "prize" in the table. A pipeline that is not idempotent
+  says its schedule stops short; the second run's diff names where (here: a constant tree made
+  after the last Precompute, a function inlinable only once the round before shrank it).
 - **Read a field's convention from its WRITER before building one** (`Func.locals` holds the
   parameters first; the writer skips `params.length` of them): it bit twice in one item.
