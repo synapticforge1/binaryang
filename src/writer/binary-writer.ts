@@ -162,6 +162,7 @@ import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { blockTypeOf, BrOnOp, localNameEntries } from '../ir/ir.ts';
 import { isRealName } from '../ir/made-up-names.ts';
 import { encodeTextForm, hasWrittenForms, TEXT_FORM_SECTION } from '../ir/text-form.ts';
+import { stackOmissions } from '../passes/stack-ir.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -513,6 +514,12 @@ class BodyWriter implements ExprVisitorDelegate {
    */
   relocTarget: { start: number; sites: RelocSite[] } | undefined;
 
+  /**
+   * The current body's `local.set` / `local.get` nodes written WITHOUT their opcode (open-work
+   * 31: Local2Stack, `passes/stack-ir.ts`); empty unless the writer was asked for `stackIR`.
+   */
+  omit: ReadonlySet<unknown> = new Set();
+
   constructor(s: MemoryStream, fidelity: FidelityTable) {
     this.s = s;
     this.fidelity = fidelity;
@@ -804,12 +811,16 @@ class BodyWriter implements ExprVisitorDelegate {
   }
 
   // --- Locals & globals ---
+  // A pair in `omit` is left out: the set's value stays on the stack for the get (open-work 31,
+  // `passes/stack-ir.ts`).
   onLocalGetExpr(e: LocalGetExpr): Result {
+    if (this.omit.has(e)) return Result.Ok;
     this.s.writeU8(Opcode.LocalGet);
     writeVar(this.s, e.var);
     return Result.Ok;
   }
   onLocalSetExpr(e: LocalSetExpr): Result {
+    if (this.omit.has(e)) return Result.Ok;
     this.s.writeU8(Opcode.LocalSet);
     writeVar(this.s, e.var);
     return Result.Ok;
@@ -1397,11 +1408,13 @@ class BinaryWriter {
   };
 
   private readonly writeTextForm: boolean;
+  private readonly stackIR: boolean;
 
-  constructor(m: Module, writeDebugNames: boolean, writeTextForm: boolean) {
+  constructor(m: Module, writeDebugNames: boolean, writeTextForm: boolean, stackIR = false) {
     this.m = m;
     this.writeDebugNames = writeDebugNames;
     this.writeTextForm = writeTextForm;
+    this.stackIR = stackIR;
     this.s = new MemoryStream(4096);
     this.bodyWriter = new BodyWriter(this.s, m.fidelity);
     this.visitor = new ExprVisitor(withMetadataTargets(this.bodyWriter));
@@ -1803,7 +1816,9 @@ class BinaryWriter {
     // Body
     this.bodyWriter.beginFunctionBody(func.bodyFrameLabel);
     this.bodyWriter.codeBody = { funcIndex, start };
+    this.bodyWriter.omit = this.stackIR ? stackOmissions(func) : new Set();
     this.visitor.visitExprList(func.body.children);
+    this.bodyWriter.omit = new Set();
     this.bodyWriter.codeBody = undefined;
     this.bodyWriter.endFunctionBody(func.bodyFrameLabel);
     // Only REAL labels (owner decision 4; M7c3b b1b).
@@ -2302,6 +2317,13 @@ function requireFuncType(f: Func): Var {
 /** Options for {@link writeBinaryIr}. */
 export interface WriteBinaryOptions {
   /**
+   * Leave a value on the stack instead of storing it in a local and reading it straight back,
+   * where that is exact (open-work 31: upstream's StackIR `local2Stack`, `passes/stack-ir.ts`).
+   * Default `false`: a plain read and write changes no byte. `writeWasm` turns it on for a module
+   * an optimizing run at -O3, -Os or -Oz has marked (`Module.optimizeStack`).
+   */
+  stackIR?: boolean;
+  /**
    * Write the `name` custom section from the IR's names. Default: **`true`**.
    *
    * wabt-ts keeps names: `wat2wasm` output must disassemble back to the names
@@ -2334,5 +2356,10 @@ export interface WriteBinaryOptions {
  * encoder doesn't accumulate errors (any IR shape it can't encode throws).
  */
 export function writeBinaryIr(m: Module, opts: WriteBinaryOptions = {}): Uint8Array {
-  return new BinaryWriter(m, opts.writeDebugNames ?? true, opts.writeTextForm ?? true).write();
+  return new BinaryWriter(
+    m,
+    opts.writeDebugNames ?? true,
+    opts.writeTextForm ?? true,
+    opts.stackIR ?? false,
+  ).write();
 }
