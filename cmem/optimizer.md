@@ -172,6 +172,15 @@ several `br`s, not built) · rse 301 · ssa-nomerge 175 · smaller ones; optimiz
 (upstream's makes ours larger). Not built in step 4: upstream's parameterized CALL targets (`call_ref`,
 GC only). None of these is an open item; a new one starts from this list.
 
+## Open-work 31: below upstream (from 2026-10-15)
+
+The owner: "Work the list to a target, but remove the 2% limit. Lets see how much more than upstream
+we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 822,964 (+1.60%).
+
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| — | start | | 145,859 (+4.9%) | 822,964 (+1.60%) |
+
 ## Lessons
 
 - **A written estimate that adds two measurements is wrong** — "propagation ~7.7 KB" assumed
