@@ -182,6 +182,7 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | — | start | | 145,859 (+4.9%) | 822,964 (+1.60%) |
 | 1 | RemoveUnusedBrs: jump threading (a branch to a block followed by `br $y` goes to `$y`), and RemoveUnusedBrs + RemoveUnusedNames + Vacuum after CodeFolding (item 30's folded tails had left 152 `if (c) (br …)`) | `8a91144e0` | 144,444 (+3.9%) | 822,798 (+1.58%) |
 | 2 | Effects: two plain memory accesses may change places (both trap only out of bounds; a trap's KIND stays observable, so not upstream's "any two implicit traps") — SimplifyLocals now sinks past loads | `c083bcf97` | 143,810 (+3.4%) | 822,780 (+1.58%) |
+| 3 | DeadArgumentElimination: a parameter written before any read (its incoming value is dead) goes, and rounds repeat to a fixed point | `90d200ec5` | 143,271 (+3.1%) | 822,764 (+1.58%) |
 
 ## Lessons
 
