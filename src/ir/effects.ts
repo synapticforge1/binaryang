@@ -45,6 +45,12 @@ export interface Effects {
   calls: boolean;
   /** May trap. */
   trap: boolean;
+  /**
+   * May trap with a kind OTHER than "out of bounds memory access" (open-work 31): a trap's kind
+   * is observable (wasmtk's runner checks it), so two traps of possibly different kinds never
+   * change places — but two plain memory accesses report the same kind whichever traps first.
+   */
+  trapsOtherwise: boolean;
   /** May transfer control: a branch, return, throw, or a loop (which may not end). */
   branches: boolean;
   /** Holds a `pop`, which must stay first in its catch. */
@@ -67,6 +73,7 @@ export function noEffects(): Effects {
     writesHeap: false,
     calls: false,
     trap: false,
+    trapsOtherwise: false,
     branches: false,
     pop: false,
     unknown: false,
@@ -249,8 +256,17 @@ export function shallowEffects(expr: Expression): Effects {
     default:
       e.unknown = true;
   }
+  if (e.trap && !_OUT_OF_BOUNDS_ONLY.has(expr.kind)) e.trapsOtherwise = true;
   return e;
 }
+
+/** The instructions whose only trap is "out of bounds memory access" (atomics also trap unaligned). */
+const _OUT_OF_BOUNDS_ONLY = new Set<string>([
+  ExpressionKind.Load,
+  ExpressionKind.Store,
+  ExpressionKind.SIMDLoad,
+  ExpressionKind.SIMDLoadStoreLane,
+]);
 
 /** Adds `b` into `a`. */
 export function mergeEffects(a: Effects, b: Effects): Effects {
@@ -266,6 +282,7 @@ export function mergeEffects(a: Effects, b: Effects): Effects {
   a.writesHeap ||= b.writesHeap;
   a.calls ||= b.calls;
   a.trap ||= b.trap;
+  a.trapsOtherwise ||= b.trapsOtherwise;
   a.branches ||= b.branches;
   a.pop ||= b.pop;
   a.unknown ||= b.unknown;
@@ -354,7 +371,10 @@ export function invalidates(a: Effects, b: Effects): boolean {
   ) return true;
   if (_writesConflict(a, b) || _writesConflict(b, a)) return true;
   // A trap moved past an observable effect would show it, or hide it; two
-  // traps report different kinds.
-  if ((a.trap && (_observable(b) || b.trap)) || (b.trap && _observable(a))) return true;
+  // traps may report different kinds — unless both can only be out of bounds
+  // memory accesses, which report the same one (open-work 31; upstream lets
+  // any two implicit traps change places).
+  const twoKinds = a.trap && b.trap && (a.trapsOtherwise || b.trapsOtherwise);
+  if ((a.trap && _observable(b)) || (b.trap && _observable(a)) || twoKinds) return true;
   return false;
 }
