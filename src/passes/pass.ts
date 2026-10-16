@@ -384,6 +384,12 @@ export class PassRunner {
     // a plain read-and-write, which keeps them — the owner's rule, over
     // upstream `wasm-opt`, which strips them even then.
     if (optimized && !this._options.debugInfo) this._module.hasNameSection = false;
+    // Upstream's writer optimizes its stack code at these levels (`wasm-stack-opts.cpp`); ours
+    // does when the module says so (open-work 31, `stack-ir.ts`).
+    if (optimized) {
+      this._module.optimizeStack = this._options.optimizeLevel >= 3 ||
+        this._options.shrinkLevel >= 1;
+    }
     // The as-written metadata describes an original the passes have replaced
     // (M8b5; `fidelity.ts`): the side table's node handles and the section
     // offsets would point at code that is not there any more.
