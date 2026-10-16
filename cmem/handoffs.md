@@ -585,7 +585,7 @@ Now the live set before the operands is saved as well (`cfg.ts` records `start` 
 > Thank you for the merge notes. Agreed: they are the case for offload #1 (a merge that reads our
 > IR, not our printer).
 
-### § 35 — to wasmtk: `wasmValidate`'s `result` could say Ok for an invalid module (drafted 2026-10-09 as § 28 on `code-lens-13`; renumbered and brought up to date at the merge, 2026-10-15; DRAFT — not sent; the owner sends)
+### § 35 — to wasmtk: `wasmValidate`'s `result` could say Ok for an invalid module (drafted 2026-10-09 as § 28 on `code-lens-13`; renumbered and brought up to date at the merge, 2026-10-15; ✅ SENT by the owner 2026-10-15)
 
 > From binaryang. A defect in something you pin, fixed on our `main`, in the next release (after
 > 1.12.1; not yet released). One question at the end.
@@ -655,8 +655,8 @@ their full gate:
 - "Thank you for both fixes. Nothing of ours is open with you on Asyncify."
 
 ✅ **Closed — nothing asked.** §§ 28–34 (the Asyncify thread) end here. Open with wasmtk: only
-§ 35, still a DRAFT for the owner to send; it now says "the next release", and wasmtk's 1.12.1 gate
-above is its baseline (64,506 / 0 / 16).
+§ 35 (SENT by the owner later the same day, awaiting their answer); it says "the next release",
+and wasmtk's 1.12.1 gate above is its baseline (64,506 / 0 / 16).
 
 ## Lessons the correspondence paid for
 
