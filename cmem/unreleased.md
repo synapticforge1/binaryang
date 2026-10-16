@@ -40,6 +40,17 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.12.1
 
+- **Behaviour — optimizer output bytes move again** (2026-10-15, open-work 31, in progress;
+  [optimizer.md](optimizer.md) § "Open-work 31"): jump threading and RemoveUnusedBrs after
+  CodeFolding (`8a91144e0`); two plain memory accesses may change places in the effects analysis
+  (`c083bcf97` — a trap's KIND is still never changed); DAE removes a parameter written before it
+  is read, to a fixed point (`90d200ec5`); Local2Stack in the writer (`f69843225`). Every
+  behaviour gate unchanged. Real compiler output -Oz +4.9% → +2.6% over upstream.
+- **NEW (additive) — `Module.optimizeStack`** (`./ir`, optional) and **`WriteBinaryOptions.stackIR`**
+  (`f69843225`): an optimizing run at -O3 / -Os / -Oz marks the module, and `writeWasm` then
+  leaves a value on the stack instead of a local stored and read straight back. A plain read and
+  write changes no byte (the baseline gate holds it).
+
 - **Behaviour — optimizer output bytes move at -O2 and above** (2026-10-15, open-work 30, closed;
   [optimizer.md](optimizer.md) § "Open-work 30: the gaps on real compiler output"): four steps,
   `6958502cc` (OptimizeInstructions: masks a value already fits, `eqz` of an integer comparison,
