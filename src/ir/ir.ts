@@ -2529,6 +2529,14 @@ export interface Module {
   hasNameSection: boolean;
 
   /**
+   * Write it with values left on the stack instead of a local stored and read straight back,
+   * where that is exact (open-work 31: upstream's StackIR, `passes/stack-ir.ts`). Set by an
+   * optimizing pass run at -O3, -Os or -Oz, as upstream's writer does then; absent otherwise, and
+   * a plain read and write changes no byte.
+   */
+  optimizeStack?: boolean;
+
+  /**
    * Which names are REAL (owner decision 4; M7c3b b1b) — binaryen-ts's record,
    * now both IRs'. The binary reader names every entity the name section did
    * not (`$func3`, `$type0`, …, as binaryen-ts's decoder does) and records the

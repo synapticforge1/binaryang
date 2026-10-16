@@ -83,7 +83,10 @@ export function writeWasm(m: WasmModule): Uint8Array {
   // RangeError (open-work 13).
   return writing(() => {
     const copy = resolvedCopy(m);
-    return writeBinaryIr(copy, { writeDebugNames: copy.hasNameSection });
+    return writeBinaryIr(copy, {
+      writeDebugNames: copy.hasNameSection,
+      stackIR: m.optimizeStack === true,
+    });
   });
 }
 
