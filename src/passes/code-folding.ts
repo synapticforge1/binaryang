@@ -29,10 +29,11 @@
  * **Terminating tails** (open-work 30, step 2): what several places in a
  * function end with before an `unreachable` is written once, at the function's
  * end, each place branching to it ({@link foldTerminatingTails}). Zig's debug
- * builds end every failed check with `(call $panic …) (unreachable)`.
+ * builds end every failed check with `(call $panic …) (unreachable)`. And, the
+ * same way, what several places end with before a `return` (open-work 31: Zig
+ * restores its stack pointer before every return).
  *
- * Not built: the tails before several `br`s to one block, and `return`
- * tails (upstream folds both).
+ * Not built: the tails before several `br`s to one block (upstream folds them).
  *
  * Reference: `WebAssembly/binaryen/src/passes/CodeFolding.cpp`
  *
@@ -72,7 +73,13 @@ export class CodeFoldingPass implements Pass {
     for (const fn of module.functions) {
       fn.body = mapExpression(fn.body, _foldSequences);
       // One fold per round, as upstream: each changes the tails the next sees.
-      for (let round = 0; round < 1000 && foldTerminatingTails(fn); round++);
+      for (
+        let round = 0;
+        round < 1000 &&
+        (foldTerminatingTails(fn, ExpressionKind.Unreachable) ||
+          foldTerminatingTails(fn, ExpressionKind.Return));
+        round++
+      );
     }
   }
 }
@@ -290,10 +297,11 @@ function pinned(e: Expression): boolean {
 }
 
 /**
- * The containers ending in `unreachable`; `null` if any node is reachable
- * twice (the fold edits the containers in place, so the tree must be one).
+ * The containers ending in `ender` (`unreachable` or `return`); `null` if any
+ * node is reachable twice (the fold edits the containers in place, so the tree
+ * must be one).
  */
-function terminatingTails(body: Expression): Container[] | null {
+function terminatingTails(body: Expression, ender: string): Container[] | null {
   const seen = new Set<Expression>();
   const tails: Container[] = [];
   let shared = false;
@@ -301,7 +309,7 @@ function terminatingTails(body: Expression): Container[] | null {
     if (seen.has(e)) shared = true;
     seen.add(e);
     if (e.kind !== ExpressionKind.Region && e.kind !== ExpressionKind.Block) return;
-    if (e.children[e.children.length - 1]?.kind === ExpressionKind.Unreachable) tails.push(e);
+    if (e.children[e.children.length - 1]?.kind === ender) tails.push(e);
   });
   return shared ? null : tails;
 }
@@ -321,7 +329,7 @@ function terminatingTails(body: Expression): Container[] | null {
  * one would no longer be caught: upstream refuses the same, item by item), nor
  * in one with several results.
  */
-function foldTerminatingTails(fn: WasmFunction): boolean {
+function foldTerminatingTails(fn: WasmFunction, ender: string): boolean {
   if (fn.sig.results.length > 1 || fn.body.kind !== ExpressionKind.Region) return false;
   const body = fn.body;
   let hasTry = false;
@@ -337,7 +345,7 @@ function foldTerminatingTails(fn: WasmFunction): boolean {
   if (fallsOut && fn.sig.results.length === 1 && (last === undefined || typeOf(last) === None)) {
     return false;
   }
-  const tails = terminatingTails(body);
+  const tails = terminatingTails(body, ender);
   if (tails === null || tails.length < 2) return false;
 
   const item = (t: Container, k: number) => t.children[t.children.length - 1 - k]!;
