@@ -79,6 +79,32 @@ describe('identical terminating tails are written once', () => {
   });
 });
 
+describe('identical tails before a `return` are written once (open-work 31)', () => {
+  it('Zig restores its stack pointer before every return', async () => {
+    const tail = '(global.set $g (i32.add (local.get 0) (i32.const 16))) (return (i32.const 1))';
+    const { before, after, text } = fold(`(module ${PANIC}
+      (func (export "f") (param i32) (result i32)
+        (if (i32.eq (local.get 0) (i32.const 1)) (then ${tail}))
+        (if (i32.eq (local.get 0) (i32.const 2)) (then (call $p (local.get 0) (i32.const 3)) ${tail}))
+        (if (i32.eq (local.get 0) (i32.const 3)) (then ${tail}))
+        (i32.const 0)))`);
+    expect(count(text, 'global.set')).toBe(2); // $p's own, and one shared tail
+    await same(before, after, [0, 1, 2, 3, 4]);
+  });
+
+  it('in a function with no result', async () => {
+    const tail = '(global.set $g (i32.mul (local.get 0) (i32.const 7))) (return)';
+    const { before, after, text } = fold(`(module ${PANIC}
+      (func (export "f") (param i32)
+        (if (i32.eq (local.get 0) (i32.const 1)) (then ${tail}))
+        (if (i32.eq (local.get 0) (i32.const 2)) (then ${tail}))
+        (if (i32.eq (local.get 0) (i32.const 3)) (then ${tail}))
+        (global.set $g (i32.const 99))))`);
+    expect(count(text, 'i32.mul')).toBe(1);
+    await same(before, after, [0, 1, 2, 3, 4]);
+  });
+});
+
 describe('a legacy try in both arms (1.11.0 – 1.12.1 threw here)', () => {
   // 🔧 The structural key wrote each `catch` clause as plain JSON: an `i64.const` in its body
   // threw "cannot serialize a BigInt" out of the optimizer at -O2 and above (open-work 30).
