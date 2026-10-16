@@ -162,7 +162,8 @@ function _removeUnused(module: WasmModule): void {
     const fn = funcMap.get(name);
     if (fn === undefined || liveFuncs.has(name)) continue;
     fn.body = makeRegion([makeUnreachable()]);
-    fn.locals = [];
+    // `locals` is every local, the parameters first: the parameters stay.
+    fn.locals = fn.locals.slice(0, fn.sig.params.length);
   }
   const kept = new Set([...liveFuncs, ...tableOnly]);
 
