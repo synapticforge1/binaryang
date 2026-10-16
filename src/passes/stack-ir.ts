@@ -21,7 +21,7 @@
  *   one); a construct's start saves the stack and its end restores it, an `else` or a
  *   branch-out clears it;
  * - the pair must be exact: the get's only reaching definition is that set, and that set's only
- *   reader is that get (reaching definitions over {@link buildCFG}, upstream's LocalGraph).
+ *   reader is that get (reaching definitions, `local-graph.ts`: upstream's LocalGraph).
  *
  * Not done (upstream also does them in StackIR): removing a `drop` before an `unreachable`, and
  * dead code after an `unreachable` (our tree passes already remove it). A function with block
@@ -42,10 +42,7 @@ import {
 import type { WasmFunction } from '../ir/module.ts';
 import { requireIndex } from '../ir/ir.ts';
 import { visitChildren } from '../ir/walk.ts';
-import { buildCFG } from './cfg.ts';
-
-const ENTRY = Symbol('entry');
-type Def = Expression | typeof ENTRY;
+import { localGraph } from './local-graph.ts';
 
 /** How many values a type puts on the stack: `none` and `unreachable` none, a tuple its arity. */
 function arity(e: Expression): number {
@@ -83,7 +80,7 @@ function _omissions(fn: WasmFunction): Set<Expression> {
 
   const pairs = _candidates(fn);
   if (pairs.length === 0) return new Set();
-  const { reaching, readers } = _localGraph(fn);
+  const { reaching, readers } = localGraph(fn);
   const out = new Set<Expression>();
   for (const [set, get] of pairs) {
     const defs = reaching.get(get);
@@ -186,81 +183,4 @@ function _candidates(fn: WasmFunction): [Expression, Expression][] {
   };
   emit(fn.body);
   return pairs;
-}
-
-/**
- * Reaching definitions per `local.get` (the sets, or the entry, whose value it may read) and the
- * readers of each `local.set` / `local.tee`: upstream's LocalGraph, over {@link buildCFG}.
- */
-function _localGraph(fn: WasmFunction): {
-  reaching: Map<Expression, Set<Def>>;
-  readers: Map<Expression, Set<Expression>>;
-} {
-  const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
-  type State = Map<number, Set<Def>>;
-  const nLocals = fn.locals.length;
-  const entryState = (): State => {
-    const s: State = new Map();
-    for (let i = 0; i < nLocals; i++) s.set(i, new Set<Def>([ENTRY]));
-    return s;
-  };
-  const copy = (s: State): State => new Map([...s].map(([k, v]) => [k, new Set(v)]));
-  const transfer = (b: (typeof cfg.blocks)[number], s: State): State => {
-    const out = copy(s);
-    for (const a of b.actions) if (a.kind === 'set') out.set(a.index, new Set<Def>([a.origin]));
-    return out;
-  };
-  const ins = new Map<number, State>();
-  const outs = new Map<number, State>();
-  ins.set(cfg.entry.id, entryState());
-  const work = [cfg.entry];
-  const queued = new Set([cfg.entry.id]);
-  while (work.length > 0) {
-    const b = work.shift()!;
-    queued.delete(b.id);
-    const out = transfer(b, ins.get(b.id)!);
-    const prev = outs.get(b.id);
-    const same = prev !== undefined && [...out].every(([k, v]) => {
-      const p = prev.get(k);
-      return p !== undefined && p.size === v.size && [...v].every((d) => p.has(d));
-    });
-    if (same) continue;
-    outs.set(b.id, out);
-    for (const succ of b.out) {
-      const cur = ins.get(succ.id) ?? new Map<number, Set<Def>>();
-      for (const [k, v] of out) {
-        const set = cur.get(k) ?? new Set<Def>();
-        for (const d of v) set.add(d);
-        cur.set(k, set);
-      }
-      ins.set(succ.id, cur);
-      if (!queued.has(succ.id)) {
-        queued.add(succ.id);
-        work.push(succ);
-      }
-    }
-  }
-  const reaching = new Map<Expression, Set<Def>>();
-  const readers = new Map<Expression, Set<Expression>>();
-  for (const b of cfg.blocks) {
-    const state = ins.get(b.id);
-    if (state === undefined) continue; // no path reaches it
-    const s = copy(state);
-    for (const a of b.actions) {
-      if (a.kind === 'set') {
-        s.set(a.index, new Set<Def>([a.origin]));
-        if (!readers.has(a.origin)) readers.set(a.origin, new Set());
-        continue;
-      }
-      const defs = new Set(s.get(a.index) ?? []);
-      reaching.set(a.origin, defs);
-      for (const d of defs) {
-        if (d === ENTRY) continue;
-        const r = readers.get(d) ?? new Set<Expression>();
-        r.add(a.origin);
-        readers.set(d, r);
-      }
-    }
-  }
-  return { reaching, readers };
 }

@@ -186,6 +186,7 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | 4 | Local2Stack in the writer (upstream's StackIR at -O3/-Os/-Oz): a set and its one read are left out when the value can stay on the stack; `Module.optimizeStack`, `WriteBinaryOptions.stackIR` | `f69843225` | 142,587 (+2.6%) | 822,460 (+1.54%) |
 | 5 | ConstantPropagation removes a write of the constant the local already holds (upstream's rse, for constants); the first version's identity bug caught by the -Oz fuzz, fixed before merging | `1f1282029` `e3434bbf1` | 142,317 (+2.4%) | **816,938 (+0.86%)** |
 | 6 | CodeFolding folds tails before a `return` too (Zig restores its stack pointer before every return); rust-release now BELOW upstream (−0.3%) | `634237a60` | 142,115 (+2.2%) | 816,932 (+0.86%) |
+| 7 | MEASURED, NOT KEPT: SSANoMerge (a set whose every reader reads only it gets a fresh local, before the function passes at -O3/-Os/-Oz) gave −26 on the six and **+48** on the corpus, and was reverted. Kept: the exact local graph (reaching definitions) moved to `passes/local-graph.ts` for reuse | (refactor only) | (142,089) | (816,980) |
 
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
