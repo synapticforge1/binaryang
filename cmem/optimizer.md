@@ -185,6 +185,7 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | 3 | DeadArgumentElimination: a parameter written before any read (its incoming value is dead) goes, and rounds repeat to a fixed point | `90d200ec5` | 143,271 (+3.1%) | 822,764 (+1.58%) |
 | 4 | Local2Stack in the writer (upstream's StackIR at -O3/-Os/-Oz): a set and its one read are left out when the value can stay on the stack; `Module.optimizeStack`, `WriteBinaryOptions.stackIR` | `f69843225` | 142,587 (+2.6%) | 822,460 (+1.54%) |
 | 5 | ConstantPropagation removes a write of the constant the local already holds (upstream's rse, for constants); the first version's identity bug caught by the -Oz fuzz, fixed before merging | `1f1282029` `e3434bbf1` | 142,317 (+2.4%) | **816,938 (+0.86%)** |
+| 6 | CodeFolding folds tails before a `return` too (Zig restores its stack pointer before every return); rust-release now BELOW upstream (−0.3%) | `634237a60` | 142,115 (+2.2%) | 816,932 (+0.86%) |
 
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
