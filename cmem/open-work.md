@@ -104,7 +104,9 @@ PUSHED; the version stays 1.12.1):**
   the code lens again.
 - **Unreleased on `main`:** C1–C17 ([unreleased.md](unreleased.md), `CHANGELOG.md` § Unreleased).
   The release, and its number, are the owner's call. Its letter is [handoffs.md](handoffs.md)
-  § 35 (was § 28 on the branch), a DRAFT for the owner to send.
+  § 35 (was § 28 on the branch), ✅ SENT by the owner 2026-10-15, BEFORE the release: it asks
+  whether any wasmtk gate reads `wasmValidate(...).result` or `wasm-validate`'s exit status, and
+  to re-run it on the release that carries C1–C17. Awaiting their answer.
 - **wasmtk on 1.12.1** ([handoffs.md](handoffs.md) § 36, received 2026-10-15): `go_asyncify_tests`
   12 / 12, gate 64,506 / 0 / 16, nothing else moved. The Asyncify thread (§§ 28–34) is CLOSED.
 - **The type check is `bun check`** (owner: "yes make the change"; merge `8b52828d5`): Bun
