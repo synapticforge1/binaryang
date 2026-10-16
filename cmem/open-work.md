@@ -106,7 +106,10 @@ PUSHED; the version stays 1.12.1):**
   The release, and its number, are the owner's call. Its letter is [handoffs.md](handoffs.md)
   § 35 (was § 28 on the branch), ✅ SENT by the owner 2026-10-15, BEFORE the release: it asks
   whether any wasmtk gate reads `wasmValidate(...).result` or `wasm-validate`'s exit status, and
-  to re-run it on the release that carries C1–C17. Awaiting their answer.
+  to re-run it on the release that carries C1–C17. ANSWERED the same day (§ 37): one reader,
+  their wast runner's `assert_invalid` oracle, where the defect could only hide passes; they
+  expect passes up, skips (16) down, their soundness guard at 0, and will send the numbers after
+  the release.
 - **wasmtk on 1.12.1** ([handoffs.md](handoffs.md) § 36, received 2026-10-15): `go_asyncify_tests`
   12 / 12, gate 64,506 / 0 / 16, nothing else moved. The Asyncify thread (§§ 28–34) is CLOSED.
 - **The type check is `bun check`** (owner: "yes make the change"; merge `8b52828d5`): Bun
