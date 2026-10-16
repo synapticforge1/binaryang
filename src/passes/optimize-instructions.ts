@@ -33,6 +33,13 @@
  *     `else` swaps its arms, a `select` its operands when neither has an effect;
  *   - the constants an `add` / `sub` tree adds, gathered into one, through a
  *     `shl` / `mul` by a constant, spelled with the shorter constant.
+ *
+ * **Shapes upstream's pass still found on real compiler output** (open-work 30;
+ * Zig's debug builds mask every comparison: `(i32.and (i32.lt_u a b) (i32.const 1))`):
+ *   - `and(x, 2^n - 1)` → `x` when `x` has at most `n` low bits ({@link _maxBits32});
+ *   - `eqz(cmp a b)` → the inverse comparison, integers only (a float comparison
+ *     with a NaN is false both ways);
+ *   - a comparison of a local with itself is a constant.
  * NOT `load(add(p, c))` → `load offset=c p`: the add wraps at 32 bits and the
  * offset does not, so that needs to know low memory is unused (upstream's
  * `--low-memory-unused`), which nothing here does.
@@ -61,6 +68,7 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
+import { sameVar } from '../ir/ir.ts';
 import { ValType } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapExpression } from '../ir/walk.ts';
@@ -371,6 +379,133 @@ const _ADD_WIDTH = new Map<BinaryOp, _Width>([
 ]);
 
 // ---------------------------------------------------------------------------
+// The bits a value can have (open-work 30)
+// ---------------------------------------------------------------------------
+
+/** Every comparison: its result is 0 or 1. */
+const _COMPARISONS = new Set<BinaryOp>([
+  BinaryOp.EqI32,
+  BinaryOp.NeI32,
+  BinaryOp.LtSI32,
+  BinaryOp.LtUI32,
+  BinaryOp.LeSI32,
+  BinaryOp.LeUI32,
+  BinaryOp.GtSI32,
+  BinaryOp.GtUI32,
+  BinaryOp.GeSI32,
+  BinaryOp.GeUI32,
+  BinaryOp.EqI64,
+  BinaryOp.NeI64,
+  BinaryOp.LtSI64,
+  BinaryOp.LtUI64,
+  BinaryOp.LeSI64,
+  BinaryOp.LeUI64,
+  BinaryOp.GtSI64,
+  BinaryOp.GtUI64,
+  BinaryOp.GeSI64,
+  BinaryOp.GeUI64,
+  BinaryOp.EqF32,
+  BinaryOp.NeF32,
+  BinaryOp.LtF32,
+  BinaryOp.LeF32,
+  BinaryOp.GtF32,
+  BinaryOp.GeF32,
+  BinaryOp.EqF64,
+  BinaryOp.NeF64,
+  BinaryOp.LtF64,
+  BinaryOp.LeF64,
+  BinaryOp.GtF64,
+  BinaryOp.GeF64,
+]);
+
+/** An INTEGER comparison and its inverse: `eqz(a < b)` is `a >= b` exactly. */
+const _INVERSE = new Map<BinaryOp, BinaryOp>();
+for (
+  const [a, b] of [
+    [BinaryOp.EqI32, BinaryOp.NeI32],
+    [BinaryOp.LtSI32, BinaryOp.GeSI32],
+    [BinaryOp.LtUI32, BinaryOp.GeUI32],
+    [BinaryOp.GtSI32, BinaryOp.LeSI32],
+    [BinaryOp.GtUI32, BinaryOp.LeUI32],
+    [BinaryOp.EqI64, BinaryOp.NeI64],
+    [BinaryOp.LtSI64, BinaryOp.GeSI64],
+    [BinaryOp.LtUI64, BinaryOp.GeUI64],
+    [BinaryOp.GtSI64, BinaryOp.LeSI64],
+    [BinaryOp.GtUI64, BinaryOp.LeUI64],
+  ] as const
+) {
+  _INVERSE.set(a, b);
+  _INVERSE.set(b, a);
+}
+
+/** The integer comparisons that hold for equal operands (`x <= x`), and those that do not. */
+const _REFLEXIVE_TRUE = new Set<BinaryOp>([
+  BinaryOp.EqI32,
+  BinaryOp.LeSI32,
+  BinaryOp.LeUI32,
+  BinaryOp.GeSI32,
+  BinaryOp.GeUI32,
+  BinaryOp.EqI64,
+  BinaryOp.LeSI64,
+  BinaryOp.LeUI64,
+  BinaryOp.GeSI64,
+  BinaryOp.GeUI64,
+]);
+const _REFLEXIVE_FALSE = new Set<BinaryOp>([
+  BinaryOp.NeI32,
+  BinaryOp.LtSI32,
+  BinaryOp.LtUI32,
+  BinaryOp.GtSI32,
+  BinaryOp.GtUI32,
+  BinaryOp.NeI64,
+  BinaryOp.LtSI64,
+  BinaryOp.LtUI64,
+  BinaryOp.GtSI64,
+  BinaryOp.GtUI64,
+]);
+
+/**
+ * At most how many low bits an `i32` value can have set: 32 when nothing is
+ * known. Upstream's `Bits::getMaxBits`, for the shapes compilers emit.
+ */
+function _maxBits32(e: Expression): number {
+  switch (e.kind) {
+    case ExpressionKind.Const:
+      return e.value.type === ValType.I32 ? 32 - Math.clz32(e.value.value) : 32;
+    case ExpressionKind.Unary:
+      if (e.opcode === UnaryOp.EqzI32 || e.opcode === UnaryOp.EqzI64) return 1;
+      // 0 … 32: six bits.
+      if (
+        e.opcode === UnaryOp.ClzI32 || e.opcode === UnaryOp.CtzI32 ||
+        e.opcode === UnaryOp.PopcntI32
+      ) return 6;
+      return 32;
+    case ExpressionKind.Binary:
+      if (_COMPARISONS.has(e.opcode)) return 1;
+      if (e.opcode === BinaryOp.AndI32) return Math.min(_maxBits32(e.left), _maxBits32(e.right));
+      if (e.opcode === BinaryOp.OrI32 || e.opcode === BinaryOp.XorI32) {
+        return Math.max(_maxBits32(e.left), _maxBits32(e.right));
+      }
+      if (
+        e.opcode === BinaryOp.ShrUI32 && e.right.kind === ExpressionKind.Const &&
+        e.right.value.type === ValType.I32
+      ) return Math.max(0, _maxBits32(e.left) - (e.right.value.value & 31));
+      return 32;
+    case ExpressionKind.Load:
+      if (e.opcode === Opcode.I32Load8U) return 8;
+      if (e.opcode === Opcode.I32Load16U) return 16;
+      return 32;
+  }
+  return 32;
+}
+
+/** `and(x, m)` → `x` when `m` is a low mask (`2^n - 1`) and `x` fits in `n` bits. */
+function _maskKeepsAll(x: Expression, m: number): boolean {
+  if ((m & (m + 1)) !== 0) return false;
+  return _maxBits32(x) <= 32 - Math.clz32(m);
+}
+
+// ---------------------------------------------------------------------------
 // Binary optimizations
 // ---------------------------------------------------------------------------
 
@@ -383,6 +518,15 @@ function _optimizeBinary(
   if (left.kind === ExpressionKind.Const && right.kind === ExpressionKind.Const) {
     const folded = _foldBinary(opcode, left.value, right.value);
     if (folded !== null) return folded;
+  }
+
+  // An integer comparison of a local with itself (reading a local has no effect).
+  if (
+    left.kind === ExpressionKind.LocalGet && right.kind === ExpressionKind.LocalGet &&
+    sameVar(left.var, right.var)
+  ) {
+    if (_REFLEXIVE_TRUE.has(opcode)) return makeI32Const(1);
+    if (_REFLEXIVE_FALSE.has(opcode)) return makeI32Const(0);
   }
 
   // Algebraic identities with a constant on the right
@@ -456,6 +600,7 @@ function _simplifyRHS(
       case BinaryOp.AndI32:
         if (v === -1) return left;
         if (v === 0 && _isPure(left)) return makeI32Const(0);
+        if (_maskKeepsAll(left, v)) return left;
         break;
       case BinaryOp.OrI32:
         if (v === 0) return left;
@@ -539,6 +684,7 @@ function _simplifyLHS(
       case BinaryOp.AndI32:
         if (v === -1) return right;
         if (v === 0 && _isPure(right)) return makeI32Const(0);
+        if (_maskKeepsAll(right, v)) return right;
         break;
       case BinaryOp.OrI32:
         if (v === 0) return right;
@@ -587,6 +733,11 @@ function _optimizeUnary(
   if (expr.value.kind === ExpressionKind.Const) {
     const folded = _foldUnary(expr.opcode, expr.value.value);
     if (folded !== null) return folded;
+  }
+  // `eqz(a < b)` → `a >= b`: the same operands in the same order, one instruction fewer.
+  if (expr.opcode === UnaryOp.EqzI32 && expr.value.kind === ExpressionKind.Binary) {
+    const inverse = _INVERSE.get(expr.value.opcode);
+    if (inverse !== undefined) return makeBinary(inverse, expr.value.left, expr.value.right);
   }
   if (expr.value.kind === ExpressionKind.Load) {
     const load = expr.value;
