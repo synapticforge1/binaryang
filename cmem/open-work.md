@@ -181,9 +181,12 @@ CI shell scripts are TypeScript (the old item 17).
     133's 139,020), corpus -Oz 822,964 (+1.60% over 809,986). Progress: optimizer.md § "Open-work
     31". **State 2026-10-16, after step 8 (`20e7b292a`):** six 141,857 (+2.0%), corpus 812,485
     (+0.31%); rust-release and tinygo-optz already below upstream. Our -Oz is now nearly
-    idempotent (a second run: −151 on the corpus). Next: re-rank with passrank.ts (its prizes were
-    mostly the second-run effect, so expect a much shorter list), then simplify-locals /
-    remove-unused-brs on zig-debug, the largest remaining gap.
+    idempotent (a second run: −151 on the corpus). Re-ranked after step 8 (passrank.ts, scratch
+    `gap30/passrank10.log`): ssa-nomerge 282, simplify-locals 270, code-folding 268,
+    remove-unused-brs 248, merge-locals 74, … — the list did NOT shrink, and the control row is
+    still 977 below ours (140,928 vs 141,905). So upstream's bare read-and-write followed by our -Oz
+    finds what our own second run does not: **next, diff that control against ours on zig-debug**
+    (what does upstream's reader/writer reshape?), before working down the ranked passes.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
