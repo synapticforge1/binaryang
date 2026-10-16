@@ -44,8 +44,16 @@ contains ([handoffs.md](handoffs.md)).
   [optimizer.md](optimizer.md) § "Open-work 31"): jump threading and RemoveUnusedBrs after
   CodeFolding (`8a91144e0`); two plain memory accesses may change places in the effects analysis
   (`c083bcf97` — a trap's KIND is still never changed); DAE removes a parameter written before it
-  is read, to a fixed point (`90d200ec5`); Local2Stack in the writer (`f69843225`). Every
-  behaviour gate unchanged. Real compiler output -Oz +4.9% → +2.6% over upstream.
+  is read, to a fixed point (`90d200ec5`); Local2Stack in the writer (`f69843225`);
+  ConstantPropagation removes a write of the constant the local already holds (`1f1282029`,
+  `e3434bbf1`); CodeFolding folds tails before a `return` (`634237a60`); constants propagate and
+  fold to a fixed point, and Inlining runs three rounds (step 8, below). Every behaviour gate
+  unchanged. Real compiler output -Oz +4.9% → +2.0% over upstream; corpus -Oz +1.60% → +0.31%.
+  -O2 and above take about a third longer (corpus -Oz 8 s → 11 s).
+- **NEW pass — `PrecomputePropagate`** (open-work 31, step 8): ConstantPropagation and Precompute
+  alternated in each function until neither changes anything (upstream's
+  `precompute-propagate`). It replaces the two fixed rounds of each in the -O2+ schedule, and runs
+  again after SimplifyLocals. `ConstantPropagation` and `Precompute` remain, unchanged.
 - **NEW (additive) — `Module.optimizeStack`** (`./ir`, optional) and **`WriteBinaryOptions.stackIR`**
   (`f69843225`): an optimizing run at -O3 / -Os / -Oz marks the module, and `writeWasm` then
   leaves a value on the stack instead of a local stored and read straight back. A plain read and
