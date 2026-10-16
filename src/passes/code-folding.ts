@@ -26,8 +26,13 @@
  * `if`s with `else` end in a statement of the same kind — 206 `local.set`,
  * 161 `call`, 157 `if`, 154 `memory.copy`, 154 `block`, ….
  *
+ * **Terminating tails** (open-work 30, step 2): what several places in a
+ * function end with before an `unreachable` is written once, at the function's
+ * end, each place branching to it ({@link foldTerminatingTails}). Zig's debug
+ * builds end every failed check with `(call $panic …) (unreachable)`.
+ *
  * Not built: the tails before several `br`s to one block, and `return`
- * tails at the function's end (upstream folds both).
+ * tails (upstream folds both).
  *
  * Reference: `WebAssembly/binaryen/src/passes/CodeFolding.cpp`
  *
@@ -35,15 +40,21 @@
  */
 
 import {
+  type BlockExpr,
   type Expression,
   ExpressionKind,
   type IfExpr,
   labelName,
+  makeBlock,
+  makeBreak,
+  makeRegion,
+  makeReturn,
   type RegionExpr,
+  typeOf,
 } from '../ir/expressions.ts';
-import type { WasmModule } from '../ir/module.ts';
+import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import type { Var } from '../ir/ir.ts';
-import { None } from '../ir/types.ts';
+import { None, Unreachable } from '../ir/types.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
@@ -60,6 +71,8 @@ export class CodeFoldingPass implements Pass {
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
       fn.body = mapExpression(fn.body, _foldSequences);
+      // One fold per round, as upstream: each changes the tails the next sees.
+      for (let round = 0; round < 1000 && foldTerminatingTails(fn); round++);
     }
   }
 }
@@ -244,4 +257,125 @@ function _foldSequences(e: Expression): Expression {
     out.push({ ...child, ifTrue: cut(child.ifTrue), ifFalse: cut(child.ifFalse!) }, ...tail);
   }
   return changed ? { ...e, children: out } : e;
+}
+
+// ---------------------------------------------------------------------------
+// Terminating tails (open-work 30, step 2)
+// ---------------------------------------------------------------------------
+
+/** A region or block: a list of statements whose last may be `unreachable`. */
+type Container = RegionExpr | BlockExpr;
+
+/** Upstream's `WORTH_ADDING_BLOCK_TO_REMOVE_THIS_MUCH`: the cost of the block the fold adds. */
+const WORTH_ADDING_BLOCK = 3;
+
+/** Nodes in `e`, as upstream's `Measurer` counts them. */
+function measure(e: Expression): number {
+  let n = 0;
+  walkExpression(e, () => n++);
+  return n;
+}
+
+/** Whether `e` branches to a label it does not declare, or holds a `pop`: it cannot move. */
+function pinned(e: Expression): boolean {
+  const { declared, targets, pops } = labelsOf(e);
+  if (pops) return true;
+  for (const t of targets) if (!declared.has(t)) return true;
+  return false;
+}
+
+/**
+ * The containers ending in `unreachable`; `null` if any node is reachable
+ * twice (the fold edits the containers in place, so the tree must be one).
+ */
+function terminatingTails(body: Expression): Container[] | null {
+  const seen = new Set<Expression>();
+  const tails: Container[] = [];
+  let shared = false;
+  walkExpression(body, (e) => {
+    if (seen.has(e)) shared = true;
+    seen.add(e);
+    if (e.kind !== ExpressionKind.Region && e.kind !== ExpressionKind.Block) return;
+    if (e.children[e.children.length - 1]?.kind === ExpressionKind.Unreachable) tails.push(e);
+  });
+  return shared ? null : tails;
+}
+
+/**
+ * What several places end with before an `unreachable`, written once at the
+ * end of the function, each place branching to it:
+ *
+ *     …A… (call $panic x) (unreachable)   …B… (call $panic x) (unreachable)
+ *  →  (block $folding-inner …A… (br $folding-inner) …B… (br $folding-inner) (return))
+ *     (call $panic x) (unreachable)
+ *
+ * Upstream's `optimizeTerminatingTails`: the deepest suffix at least two places
+ * share (items that branch out of themselves, or hold a `pop`, never move), and
+ * only when the nodes saved outweigh the branches and the block added. One fold
+ * per call. Not in a function with a `try` or `try_table` (a call moved out of
+ * one would no longer be caught: upstream refuses the same, item by item), nor
+ * in one with several results.
+ */
+function foldTerminatingTails(fn: WasmFunction): boolean {
+  if (fn.sig.results.length > 1 || fn.body.kind !== ExpressionKind.Region) return false;
+  const body = fn.body;
+  let hasTry = false;
+  walkExpression(body, (e) => {
+    if (e.kind === ExpressionKind.Try || e.kind === ExpressionKind.TryTable) hasTry = true;
+  });
+  if (hasTry) return false;
+  // The old body must not fall into the shared code: it returns at its end. A
+  // valued body whose last statement is not its value is left alone.
+  const old = body.children;
+  const last = old[old.length - 1];
+  const fallsOut = last === undefined || typeOf(last) !== Unreachable;
+  if (fallsOut && fn.sig.results.length === 1 && (last === undefined || typeOf(last) === None)) {
+    return false;
+  }
+  const tails = terminatingTails(body);
+  if (tails === null || tails.length < 2) return false;
+
+  const item = (t: Container, k: number) => t.children[t.children.length - 1 - k]!;
+  let chosen: Container[] = [];
+  let depth = 0;
+  const explore = (group: Container[], num: number): boolean => {
+    const next = group.filter((t) => t.children.length > num && !pinned(item(t, num)));
+    if (next.length >= 2) {
+      const byKey = new Map<string, Container[]>();
+      for (const t of next) {
+        const k = deepKey(item(t, num));
+        byKey.set(k, [...(byKey.get(k) ?? []), t]);
+      }
+      for (const same of byKey.values()) {
+        if (same.length >= 2 && explore(same, num + 1)) return true;
+      }
+    }
+    if (num === 0) return false;
+    let saved = 0;
+    for (let k = 0; k < num; k++) saved += measure(item(group[0]!, k)) * (group.length - 1);
+    if (saved <= group.length + WORTH_ADDING_BLOCK) return false;
+    chosen = group;
+    depth = num;
+    return true;
+  };
+  if (!explore(tails, 0)) return false;
+
+  const labels = new Set<string>();
+  walkExpression(body, (e) => {
+    if (DECLARES_LABEL.has(e.kind) && (e as { label: string }).label !== '') {
+      labels.add((e as { label: string }).label);
+    }
+  });
+  let label = 'folding-inner';
+  for (let i = 0; labels.has(label); i++) label = `folding-inner${i}`;
+
+  const shared = chosen[0]!.children.slice(-depth);
+  for (const t of chosen) t.children.splice(t.children.length - depth, depth, makeBreak(label));
+  const inner = !fallsOut
+    ? old
+    : fn.sig.results.length === 0
+    ? [...old, makeReturn()]
+    : [...old.slice(0, -1), makeReturn([last!])];
+  fn.body = makeRegion([makeBlock(inner, label), ...shared]);
+  return true;
 }
