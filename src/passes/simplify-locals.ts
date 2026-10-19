@@ -21,25 +21,34 @@
  * could observe. A value that holds control flow of its own, or a `pop`, never
  * moves. Repeated to a fixed point, as a sink exposes another.
  *
- * Upstream (`SimplifyLocals.cpp`) also builds `if` / block RESULT values from
- * sets in their arms; that is not done here.
+ * A block whose every way out sets one local gets that value as its RESULT,
+ * set once ({@link _structureRound}, upstream's `optimizeBlockReturn`; open-work
+ * 31). Upstream's `if` form is not done: measured, it cost bytes here.
  *
  * @license MIT
  */
 
 import {
+  blockParamsOf,
+  type BreakExpr,
   type Expression,
   ExpressionKind,
+  labelName,
   type LocalGetExpr,
   type LocalSetExpr,
+  makeBlock,
+  makeBreak,
+  makeLocalSet,
   makeLocalTee,
   makeNop,
+  neverFallsThrough,
   typeOf,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
+import { None, Unreachable } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { mapChildrenShallow, visitChildren, walkExpression } from '../ir/walk.ts';
-import { requireIndex } from '../ir/ir.ts';
+import { requireIndex, type ValueType } from '../ir/ir.ts';
 import {
   deepEffects,
   type Effects,
@@ -60,8 +69,9 @@ export class SimplifyLocalsPass implements Pass {
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
+      // Block results only once sinking stops: a fold can expose a sink, but each costs a walk.
       for (let round = 0; round < MAX_ROUNDS; round++) {
-        if (!_sinkRound(fn)) break;
+        if (!_sinkRound(fn) && !_structureRound(fn)) break;
       }
     }
   }
@@ -231,4 +241,139 @@ function _hasStructure(e: Expression): boolean {
 
 function _sameType(a: unknown, b: unknown): boolean {
   return a === b || JSON.stringify(a) === JSON.stringify(b);
+}
+
+// ---------------------------------------------------------------------------
+// Block result values from sets (open-work 31, upstream's optimizeBlockReturn)
+// ---------------------------------------------------------------------------
+
+/** `e` is `local.set` (not a tee) whose value is a real value: the index, else undefined. */
+function _setIndex(e: Expression | undefined): number | undefined {
+  if (e?.kind !== ExpressionKind.LocalSet || typeOf(e.value) === Unreachable) return undefined;
+  return requireIndex(e.var, 'local index');
+}
+
+/**
+ * Sets at every way out of a block, of one local, become the block's RESULT, set once:
+ *
+ *     (block $b …(local.set $x a) (br $b)… …(local.set $x c))
+ *  →  (local.set $x (block $b (result T) …(br $b a)… …c))
+ *
+ * `T` is the local's declared type. For a block, every branch to it must be a plain `br`
+ * ending its list right after a set of the local (any other branch to it, or a label declared
+ * twice, stops it), and its own last statement is the fall-through's set. Nothing moves: each
+ * value runs where it ran, and the one write of the local happens as control leaves the
+ * construct, where the set it replaces was the last thing that path did. One `local.set` per
+ * way out but one goes. True when something changed.
+ *
+ * Measured, not kept: upstream's `if` form, `(if c (then … (local.set $x a)) (else … (local.set $x
+ * b)))` → `(local.set $x (if (result T) c …))`: six modules 0, corpus +1,106 bytes — the passes
+ * after it (CodeFolding's arms among them) work on void `if`s (open-work 31, step 12).
+ */
+function _structureRound(fn: WasmFunction): boolean {
+  // One walk indexes the function: the plain `br`s ending a list, and every label reference.
+  const seen = new Set<Expression>();
+  const declared = new Map<string, number>();
+  const refs = new Map<string, number>();
+  const ways = new Map<string, Array<{ list: Expression[]; at: number }>>();
+  let shared = false;
+  const ref = (l: string) => refs.set(l, (refs.get(l) ?? 0) + 1);
+  walkExpression(fn.body, (e) => {
+    if (seen.has(e)) shared = true;
+    seen.add(e);
+    switch (e.kind) {
+      case ExpressionKind.Block:
+      case ExpressionKind.Loop:
+      case ExpressionKind.If:
+      case ExpressionKind.Try:
+      case ExpressionKind.TryTable:
+        if (e.label !== '') declared.set(e.label, (declared.get(e.label) ?? 0) + 1);
+        break;
+    }
+    for (const l of branchTargetList(e)) ref(l);
+    if (e.kind !== ExpressionKind.Block && e.kind !== ExpressionKind.Region) return;
+    const last = e.children[e.children.length - 1];
+    if (
+      last?.kind === ExpressionKind.Break && last.condition === undefined &&
+      last.values.length === 0
+    ) {
+      const l = labelName(last.target);
+      ways.set(l, [...(ways.get(l) ?? []), { list: e.children, at: e.children.length - 1 }]);
+    }
+  });
+  // An edit by node identity needs a tree, not a graph.
+  if (shared) return false;
+
+  const typeOfLocal = (i: number) => fn.locals[i]?.type;
+
+  // The blocks: each whose every way out sets one local. Nested ones fold in the same round:
+  // a way's set is followed by its `br`, a fall-through's set ends its list, so no node is
+  // edited for two blocks, and the rebuild below recurses through both.
+  const chosen = new Map<
+    Expression,
+    { t: ValueType; label: string; set: LocalSetExpr; fallsThrough: boolean }
+  >();
+  const removed = new Set<Expression>();
+  const brs = new Map<Expression, LocalSetExpr>();
+  walkExpression(fn.body, (e) => {
+    if (
+      e.kind !== ExpressionKind.Block || e.label === '' || e.type !== None ||
+      blockParamsOf(e) !== undefined || declared.get(e.label) !== 1
+    ) return;
+    const into = ways.get(e.label) ?? [];
+    if (into.length === 0 || refs.get(e.label) !== into.length) return;
+    if (!into.every((w) => w.at > 0)) return;
+    // The fall-through sets the local too — or there is none: the last statement never falls
+    // through (often the block's own last `br`, one of the ways above).
+    const last = e.children[e.children.length - 1];
+    const fallsThrough = last !== undefined && !neverFallsThrough(last);
+    const set = (fallsThrough ? last : into[0]!.list[into[0]!.at - 1]) as LocalSetExpr;
+    const i = _setIndex(set);
+    const t = i === undefined ? undefined : typeOfLocal(i);
+    if (t === undefined || !into.every((w) => _setIndex(w.list[w.at - 1]) === i)) return;
+    chosen.set(e, { t, label: e.label, set, fallsThrough });
+    for (const w of into) {
+      const set = w.list[w.at - 1] as LocalSetExpr;
+      removed.add(set);
+      brs.set(w.list[w.at]!, set);
+    }
+  });
+  if (chosen.size === 0) return false;
+  // Top-down over the ORIGINAL nodes, which the index above names.
+  const rebuild = (e: Expression): Expression => {
+    const set = brs.get(e);
+    if (set !== undefined) {
+      return makeBreak(labelName((e as BreakExpr).target), undefined, [rebuild(set.value)]);
+    }
+    if (e.kind !== ExpressionKind.Block && e.kind !== ExpressionKind.Region) {
+      return mapChildrenShallow(e, rebuild);
+    }
+    const children = e.children.filter((c) => !removed.has(c)).map(rebuild);
+    const block = chosen.get(e);
+    if (block === undefined) return { ...e, children } as Expression;
+    const body = block.fallsThrough
+      ? [...children.slice(0, -1), (children[children.length - 1] as LocalSetExpr).value]
+      : children;
+    return makeLocalSet(block.set.var, makeBlock(body, block.label, block.t));
+  };
+  fn.body = rebuild(fn.body) as typeof fn.body;
+  return true;
+}
+
+/** The labels `e` itself names as a branch target (not its operands'). */
+function branchTargetList(e: Expression): string[] {
+  switch (e.kind) {
+    case ExpressionKind.Break:
+    case ExpressionKind.BrOn:
+    case ExpressionKind.Rethrow:
+      return [labelName(e.target)];
+    case ExpressionKind.Switch:
+      return [...e.targets, e.defaultTarget].map(labelName);
+    case ExpressionKind.TryTable:
+      return e.catches.map((c) => labelName(c.target));
+    case ExpressionKind.Try:
+      return e.delegate === undefined ? [] : [labelName(e.delegate)];
+    default:
+      return [];
+  }
 }
