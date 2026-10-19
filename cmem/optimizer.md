@@ -209,6 +209,15 @@ merge-locals 74 · remove-unused-names 65 · rse 62 · …; optimize-instruction
 merge-locals 74 · remove-unused-names 67 · rse 62 · simplify-locals-nostructure 52 · vacuum 38 · …;
 optimize-instructions −137.
 
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| 11 | code-folding, attributed per function: the shape item 30 left unbuilt. **CodeFolding folds the tails before a block's branches** (upstream's `visitBlock`): what every way into a block's `end` ends with — its fall-through and each plain `br` to it, ending its list — goes after the block once. A `br_if` / `br_table` / `br_on_*` to it stops the fold; a tail item is a void statement branching to no label it does not declare, holding no `pop`; not with a `try`; a label declared twice (Inlining copies them) skips only its blocks (refusing the function cost 72 on zig-debug). The first version walked every candidate per round: -Oz 30% slower on the six; indexed once per round, the same time as main | `6faca9938` | **140,587 (+1.1%)** | **811,997 (+0.25%)** |
+
+**After step 11** (`gap/passrank13.log`): code-folding 285 → 0; control 98 below ours (140,489).
+Left: ssa-nomerge 328 (step 7's version did not pay) · simplify-locals 268 · remove-unused-brs 241 ·
+merge-locals 74 · rse 62 · remove-unused-names 57 · simplify-locals-nostructure 52 · vacuum 38 · …;
+optimize-instructions −133.
+
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
 section). Item 2's rule stands: never `-all` against the corpus; `--disable-compact-imports` with it.
