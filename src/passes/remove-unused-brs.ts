@@ -15,8 +15,11 @@
  *    ends up at the block exit, so the branch becomes `(drop cond)`.
  *    (The condition is preserved because it may have side effects.)
  *
- * Only tail-position branches are considered. Branches that appear earlier in
- * a block, or that target an outer block, are left unchanged.
+ * And the same where a branch is in tail position further down: the last
+ * statement of an `if` arm or a loop body that is itself last, up to the block
+ * it names ({@link _dropFlowingBrs}, open-work 31) — with `(br_if $a x) (br $b)`
+ * there, `$a` reached by falling through, becoming `(br_if $b (i32.eqz x))`.
+ * Branches anywhere else are left unchanged, apart from jump threading below.
  *
  * Precondition: the tail child must have type `none` so that removing the
  * branch does not change the block's result type.
@@ -33,6 +36,7 @@ import {
   ExpressionKind,
   type IfExpr,
   labelName,
+  makeBreak,
   makeDrop,
   makeIf,
   makeNop,
@@ -46,7 +50,7 @@ import type { WasmModule } from '../ir/module.ts';
 import { None, ValType } from '../ir/types.ts';
 import { deepEffects, invalidates, mergeEffects } from '../ir/effects.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { branchTargets, mapExpression, walkExpression } from '../ir/walk.ts';
+import { branchTargets, mapChildrenShallow, mapExpression, walkExpression } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -61,7 +65,8 @@ export class RemoveUnusedBrsPass implements Pass {
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
-      fn.body = _tailReturn(mapExpression(fn.body, _removeUnusedBrsNode));
+      const body = _tailReturn(mapExpression(fn.body, _removeUnusedBrsNode));
+      fn.body = _dropFlowingBrs(body, new Set()) as RegionExpr;
     }
   }
 }
@@ -146,6 +151,112 @@ function _threadJumps<T extends Expression & { children: Expression[] }>(e: T): 
   });
   return changed ? { ...e, children } : e;
 }
+
+/**
+ * A plain `br` that goes where falling through would go anyway (open-work 31, upstream's
+ * flowing branches): the last statement of an arm, a loop body or a block that is itself in
+ * tail position, all the way up to the block it names:
+ *
+ *     (block $b … (if c (then … (br $b))))   →   (block $b … (if c (then …)))
+ *
+ * `tail` holds the labels whose `end` control reaches by falling off the end of `e`. A void
+ * block adds its own label for its last child; a void `if` passes `tail` (and its own label) to
+ * both arms; a loop passes `tail` to its body (falling off the body leaves the loop; a `br` to
+ * the loop's label goes back to its start, so that label is not added). A construct with a
+ * result, or any other node, starts over with none. A construct declaring a label removes that
+ * name from `tail` first, so a shadowed outer label is never matched. Only valueless,
+ * unconditional branches go. A node is rebuilt only when something under it changed.
+ */
+function _dropFlowingBrs(e: Expression, tail: ReadonlySet<string>): Expression {
+  const own = (label: string, add: boolean): Set<string> => {
+    const s = new Set(tail);
+    if (label !== '') {
+      s.delete(label);
+      if (add) s.add(label);
+    }
+    return s;
+  };
+  const list = (children: readonly Expression[], end: ReadonlySet<string>) => {
+    let changed = false;
+    const out = children.map((c, i) => {
+      const d = _dropFlowingBrs(c, i === children.length - 1 ? end : _NONE);
+      if (d !== c) changed = true;
+      return d;
+    });
+    // The list's end flows to every label in `end`. What a branch there would do, falling
+    // through does: a `br` to one goes; a `br_if` to one keeps only its condition; and
+    // `(br_if $a x) (br $b)` with `$a` in `end` is `(br_if $b (i32.eqz x))`.
+    const plain = (x: Expression | undefined): x is BreakExpr =>
+      x?.kind === ExpressionKind.Break && x.values.length === 0;
+    const last = out[out.length - 1];
+    if (plain(last) && last.condition === undefined && end.has(labelName(last.target))) {
+      out.pop();
+      changed = true;
+      const prev = out[out.length - 1];
+      if (plain(prev) && prev.condition !== undefined && end.has(labelName(prev.target))) {
+        out[out.length - 1] = makeDrop(prev.condition);
+      }
+    } else if (plain(last) && last.condition !== undefined && end.has(labelName(last.target))) {
+      out[out.length - 1] = makeDrop(last.condition);
+      changed = true;
+    } else if (plain(last) && last.condition === undefined) {
+      const prev = out[out.length - 2];
+      if (
+        plain(prev) && prev.condition !== undefined && end.has(labelName(prev.target)) &&
+        labelName(prev.target) !== labelName(last.target)
+      ) {
+        out.splice(
+          out.length - 2,
+          2,
+          makeBreak(labelName(last.target), makeUnary(UnaryOp.EqzI32, prev.condition)),
+        );
+        changed = true;
+      }
+    }
+    return changed ? out : null;
+  };
+  switch (e.kind) {
+    case ExpressionKind.Region: {
+      const out = list(e.children, tail);
+      return out === null ? e : { ...e, children: out };
+    }
+    case ExpressionKind.Block: {
+      const end = e.type === None && blockParamsOf(e) === undefined ? own(e.label, true) : _NONE;
+      const out = list(e.children, end);
+      return out === null ? e : { ...e, children: out };
+    }
+    case ExpressionKind.If: {
+      const end = e.type === None ? own(e.label, true) : _NONE;
+      const ifTrue = list(e.ifTrue.children, end);
+      const ifFalse = e.ifFalse === null ? null : list(e.ifFalse.children, end);
+      const condition = _dropFlowingBrs(e.condition, _NONE);
+      if (ifTrue === null && ifFalse === null && condition === e.condition) return e;
+      return {
+        ...e,
+        condition,
+        ifTrue: ifTrue === null ? e.ifTrue : { ...e.ifTrue, children: ifTrue },
+        ifFalse: e.ifFalse === null || ifFalse === null
+          ? e.ifFalse
+          : { ...e.ifFalse, children: ifFalse },
+      };
+    }
+    case ExpressionKind.Loop: {
+      const out = list(e.body.children, e.type === None ? own(e.label, false) : _NONE);
+      return out === null ? e : { ...e, body: { ...e.body, children: out } };
+    }
+    default: {
+      let changed = false;
+      const r = mapChildrenShallow(e, (c) => {
+        const d = _dropFlowingBrs(c, _NONE);
+        if (d !== c) changed = true;
+        return d;
+      });
+      return changed ? r : e;
+    }
+  }
+}
+
+const _NONE: ReadonlySet<string> = new Set();
 
 /**
  * A `return` that is the function body's last instruction returns to where
