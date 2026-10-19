@@ -9,6 +9,8 @@
  *   value and have no side effects).
  * - Empty blocks (after nop removal) collapse to `nop`.
  * - Unnamed single-child blocks collapse to their sole child.
+ * - Unnamed blocks splice into their parent, and a named block's head (statements before the
+ *   first that names its label) moves out in front of it.
  * - `drop(nop)` → `nop`.
  * - `drop(unreachable)` → `unreachable` (propagate unreachability).
  * - `drop(const)` → `nop` (constants have no side effects).
@@ -28,9 +30,9 @@ import {
   neverFallsThrough,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
-import { Unreachable } from '../ir/types.ts';
+import { None, Unreachable } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
-import { mapExpression } from '../ir/walk.ts';
+import { branchTargets, mapExpression, walkExpression } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -127,16 +129,52 @@ function _spliced(children: readonly Expression[]): Expression[] {
   const out: Expression[] = [];
   for (const child of children) {
     if (child.kind === ExpressionKind.Nop) continue;
-    if (
-      child.kind === ExpressionKind.Block && child.label === '' &&
-      blockParamsOf(child) === undefined
-    ) {
-      for (const c of child.children) if (c.kind !== ExpressionKind.Nop) out.push(c);
-      continue;
+    if (child.kind === ExpressionKind.Block && blockParamsOf(child) === undefined) {
+      if (child.label === '') {
+        for (const c of child.children) if (c.kind !== ExpressionKind.Nop) out.push(c);
+        continue;
+      }
+      const head = _headOutside(child.children, child.label);
+      if (head > 0) {
+        for (const c of child.children.slice(0, head)) {
+          if (c.kind !== ExpressionKind.Nop) out.push(c);
+        }
+        out.push({ ...child, children: child.children.slice(head) });
+        continue;
+      }
     }
     out.push(child);
   }
   return out;
+}
+
+/**
+ * How many of a NAMED block's leading children may stand before it instead (open-work 31,
+ * upstream MergeBlocks' head): statements that never name its label run the same outside it,
+ * since nothing can jump to the block's end before they finish. Stops at the first one that
+ * names it or has a value type, and always keeps the last child inside. Moving them is what lets
+ * the passes after it see the block as the `if` or loop it now is.
+ *
+ * ⚠️ Nothing moves out of a block holding a `pop`: a void statement is not always stack-neutral.
+ * `(local.set $a (call $two))` takes one of two results and leaves the other for a later `pop`
+ * in the same block; moved out, it leaves that value OUTSIDE, where the `pop` cannot reach
+ * (`27_number-parsing`: "expected i32 but nothing on stack").
+ */
+function _headOutside(children: readonly Expression[], label: string): number {
+  let pops = false;
+  for (const c of children) {
+    walkExpression(c, (x) => {
+      if (x.kind === ExpressionKind.Pop) pops = true;
+    });
+  }
+  if (pops) return 0;
+  let n = 0;
+  while (n < children.length - 1) {
+    const c = children[n]!;
+    if (c.type !== None || branchTargets(c).has(label)) break;
+    n++;
+  }
+  return n;
 }
 
 function _simplifyBlock(
