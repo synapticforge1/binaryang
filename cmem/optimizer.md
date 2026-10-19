@@ -187,7 +187,18 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | 5 | ConstantPropagation removes a write of the constant the local already holds (upstream's rse, for constants); the first version's identity bug caught by the -Oz fuzz, fixed before merging | `1f1282029` `e3434bbf1` | 142,317 (+2.4%) | **816,938 (+0.86%)** |
 | 6 | CodeFolding folds tails before a `return` too (Zig restores its stack pointer before every return); rust-release now BELOW upstream (−0.3%) | `634237a60` | 142,115 (+2.2%) | 816,932 (+0.86%) |
 | 7 | MEASURED, NOT KEPT: SSANoMerge (a set whose every reader reads only it gets a fresh local, before the function passes at -O3/-Os/-Oz) gave −26 on the six and **+48** on the corpus, and was reverted. Kept: the exact local graph (reaching definitions) moved to `passes/local-graph.ts` for reuse. 🔧 Its merge message says "all 27 steps": the gate ran 16 (`gate.ts --full` with no scratch path read `--full` AS the path); the full gate on step 8, which carries step 7's code, is green | (refactor only) | (142,089) | (816,980) |
-| 8 | What a SECOND run of our own -Oz found (corpus −1.5 KB, then −2.9 KB more on a third): **PrecomputePropagate** (new pass: ConstantPropagation + Precompute to the fixed point, replacing two fixed rounds; and again after SimplifyLocals, which sinks constants into their uses) — corpus 816,241 alone; and **three rounds of DAE + Inlining + the function passes** (a function the round before shrank is inlinable now) — 812,485. A fourth round: −71, not kept. -O2+ about a third slower | this step | 141,857 (+2.0%) | **812,485 (+0.31%)** |
+| 8 | What a SECOND run of our own -Oz found (corpus −1.5 KB, then −2.9 KB more on a third): **PrecomputePropagate** (new pass: ConstantPropagation + Precompute to the fixed point, replacing two fixed rounds; and again after SimplifyLocals, which sinks constants into their uses) — corpus 816,241 alone; and **three rounds of DAE + Inlining + the function passes** (a function the round before shrank is inlinable now) — 812,485. A fourth round: −71, not kept. -O2+ about a third slower | this step | 141,857 (+2.0%) 🔧 | **812,485 (+0.31%)** |
+| 9 | The control, diffed on zig-debug: upstream's BARE round trip alone shrinks our -Oz (−321 at -O2, −405 at -Oz, 0 at -O0) — its WRITER never emits code after a terminator, and ours held some, where DCE never looked. **DCE descends into operands** (a block in `(local.tee (block …))`, as stack code reads back, was never visited) and **trims after a construct that never reaches its `end`** (a block / `if` / `try` / `try_table` no branch targets, or a loop, every path ending in a terminator; the tail becomes ONE `unreachable`, since the stack after an `end` is not polymorphic). Attributed: no descent = main exactly; no structural tails = six 141,341. Measured, not kept: DCE to a fixed point (six +19, corpus 0). `branchTargets` shared in `ir/walk.ts` | `798e34a20` | **141,018 (+1.4%)** (zig-debug 38,123 → 37,306) | **812,093 (+0.26%)** |
+
+🔧 **Step 8's six-module figure:** `main` after step 8 measures **141,905**, by passrank's code-byte
+count (`passrank10.log` says the same) and by `six.ts`; the 141,857 in its row is not reproduced.
+Step 9's −887 is against 141,905. Upstream 133 -Oz on the six: 139,068 by that count.
+
+**After step 9** (passrank, scratch `gap/passrank11.log`): the control row is now 94 below ours
+(140,924 vs 141,018; was 977), so a second pass of upstream's reader and writer no longer hides much.
+What upstream's passes still find on our -Oz: ssa-nomerge 288 (ours, step 7, did not pay) ·
+code-folding 282 · simplify-locals 270 · remove-unused-brs 253 · merge-blocks 161 (was 52) ·
+merge-locals 74 · remove-unused-names 65 · rse 62 · …; optimize-instructions −136.
 
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
