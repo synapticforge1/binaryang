@@ -228,5 +228,13 @@ The six real-compiler modules are unaffected (no import-section difference).
   single run, and that was most of every "prize" in the table. A pipeline that is not idempotent
   says its schedule stops short; the second run's diff names where (here: a constant tree made
   after the last Precompute, a function inlinable only once the round before shrank it).
+- **Split a round trip by level before blaming a pass** (open-work 31, step 9): upstream's bare
+  read-and-write at -O0, -O2 and -Oz (no passes) told the WRITER (StackIR) from the reader in
+  three runs: 0, −321, −405 on zig-debug. Then `wasm-tools print` (not `wasm-dis`, which reads into
+  Binaryen IR and hides the stack form) on one function showed the shape.
+- **A walker that recurses only through control nodes misses control inside OPERANDS** (step 9):
+  DCE's `default: return expr` never saw `(local.tee (block …))`, which stack code read back is
+  full of. It cost 798 bytes on one module and no test failed. Any pass with a hand-written
+  `switch` over control kinds should `mapChildrenShallow` in its default case, or say why not.
 - **Read a field's convention from its WRITER before building one** (`Func.locals` holds the
   parameters first; the writer skips `params.length` of them): it bit twice in one item.
