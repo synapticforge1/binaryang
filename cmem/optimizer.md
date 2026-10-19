@@ -218,6 +218,16 @@ Left: ssa-nomerge 328 (step 7's version did not pay) · simplify-locals 268 · r
 merge-locals 74 · rse 62 · remove-unused-names 57 · simplify-locals-nostructure 52 · vacuum 38 · …;
 optimize-instructions −133.
 
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| 12 | simplify-locals, attributed per function: its STRUCTURE half, which ours never had. **SimplifyLocals gives a block its result from sets** (upstream's `optimizeBlockReturn`): every way out — each plain `br` ending its list right after a set of one local, and the fall-through's set, or none when the block never falls through — becomes the block's result, set once; nested blocks fold in one round; a label declared twice is skipped. Runs once sinking stops (every round: corpus 7–11% slower). **Measured, not kept:** upstream's `if` form (both arms end setting the local), six 0 / corpus **+1,106** — our later passes (CodeFolding's arms, Vacuum's heads) work on VOID constructs. Caught by the corpus before merging: an identity edit after a `mapExpression` that had rebuilt the tree (core_SwitchCase invalid) | `95ff93224` | **140,395 (+0.95%)** | **811,843 (+0.23%)** |
+
+**After step 12** (`gap/passrank14.log`): simplify-locals 268 → 87, but remove-unused-brs 241 → 310
+and simplify-locals-nostructure 52 → 127 — the new block results are shapes upstream's branch passes
+use and ours do not yet. Control 105 below ours (140,290). Left: ssa-nomerge 327 · remove-unused-brs
+310 · simplify-locals-nostructure 127 · simplify-locals 87 · merge-locals 72 · rse 60 · …;
+optimize-instructions −133.
+
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
 section). Item 2's rule stands: never `-all` against the corpus; `--disable-compact-imports` with it.
@@ -240,7 +250,14 @@ The six real-compiler modules are unaffected (no import-section difference).
   a REBUILT parent, so a rewrite keyed by a parent node's identity never fires — and keying by a
   leaf instead (a constant) hit a constant shared by two writes, and a needed write went. Every
   corpus behaviour gate passed; the -Oz fuzz (`optimize_fuzz.test.ts`) caught it. Rewrite
-  top-down with `mapChildrenShallow` when matching nodes the analysis saw.
+  top-down with `mapChildrenShallow` when matching nodes the analysis saw. 🔁 **It recurred in
+  step 12**: a `mapExpression` that changed NOTHING still rebuilt the tree, and the index built
+  before it named nodes no longer there (core_SwitchCase invalid; the corpus caught it). Any
+  `mapExpression` between an index and the edits it drives invalidates the index.
+- **A construct given a result leaves the passes that only take void ones** (step 12): upstream's
+  `if`-result fold is right in upstream's pipeline and cost 1.1 KB in ours, because CodeFolding's
+  arms, Vacuum's heads and the branch-tail fold all require `type === None`. Measure a fold that
+  changes a construct's TYPE on the whole schedule, not on its own pass.
 - **Run the optimizer on its own output before ranking anyone else's pass** (open-work 31, step
   8): passrank's control row (our -Oz again, after upstream's bare round trip) was 1.1 KB below a
   single run, and that was most of every "prize" in the table. A pipeline that is not idempotent
