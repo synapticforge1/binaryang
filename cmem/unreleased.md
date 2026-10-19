@@ -47,9 +47,12 @@ contains ([handoffs.md](handoffs.md)).
   is read, to a fixed point (`90d200ec5`); Local2Stack in the writer (`f69843225`);
   ConstantPropagation removes a write of the constant the local already holds (`1f1282029`,
   `e3434bbf1`); CodeFolding folds tails before a `return` (`634237a60`); constants propagate and
-  fold to a fixed point, and Inlining runs three rounds (step 8, below). Every behaviour gate
-  unchanged. Real compiler output -Oz +4.9% → +2.0% over upstream; corpus -Oz +1.60% → +0.31%.
-  -O2 and above take about a third longer (corpus -Oz 8 s → 11 s).
+  fold to a fixed point, and Inlining runs three rounds (step 8, below); DCE reaches blocks in
+  operand positions and removes the code after a construct that never reaches its `end`, leaving
+  one `unreachable` (`798e34a20`, step 9). Every behaviour gate unchanged. Real compiler output
+  -Oz +4.9% → +1.4% over upstream (zig-debug +14.0% → +3.3%); corpus -Oz +1.60% → +0.26%.
+  -O2 and above take about a third longer (corpus -Oz 8 s → 11 s). ⚠️ `CHANGELOG.md` § Unreleased
+  still states item 30's figures ("5% larger … 14% instead of 31%"): restate them at release.
 - **NEW pass — `PrecomputePropagate`** (open-work 31, step 8): ConstantPropagation and Precompute
   alternated in each function until neither changes anything (upstream's
   `precompute-propagate`). It replaces the two fixed rounds of each in the -O2+ schedule, and runs
