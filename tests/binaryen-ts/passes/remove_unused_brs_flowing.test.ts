@@ -10,6 +10,7 @@
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
+import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
@@ -91,6 +92,26 @@ describe('branches that go where falling through would', () => {
     expect(count(text, 'br_if')).toBe(0);
     expect(count(text, 'call')).toBe(1);
     await same(before, after, [0, 1]);
+  });
+
+  // A branch DISCARDS what earlier statements left on the stack; falling through would keep it
+  // for the `end`. The spec's `unwind.wast` (`block-nested-unwind-by-br`), as the -O2 schedule
+  // hands it to this pass and as the gate's spec-behaviour found it: no list on the way may have
+  // left a value before its last statement.
+  // The pass alone sees that value already dropped (spilling, before the first pass); the shape
+  // appears only mid-schedule, so this runs the spec's function through `wasmOpt`.
+  it('a branch that discards stack values stays (control)', async () => {
+    const bytes = wat2wasm(
+      `(module (func (export "f") (result i32)
+        (block (i32.const 3) (block (i64.const 1) (br 1)) (drop)) (i32.const 9)))`,
+      { textForm: false },
+    ).binary;
+    for (const [o, s] of [[1, 0], [2, 0], [3, 0], [2, 1], [2, 2]] as const) {
+      const out =
+        (await wasmOpt(bytes, { optimizeLevel: o, shrinkLevel: s, validate: true })) as Uint8Array;
+      const { instance } = await WebAssembly.instantiate(out as BufferSource, {});
+      expect((instance.exports['f'] as Fn)()).toBe(9);
+    }
   });
 
   it("a loop's back edge stays (control)", async () => {

@@ -176,7 +176,12 @@ function _dropFlowingBrs(e: Expression, tail: ReadonlySet<string>): Expression {
     }
     return s;
   };
-  const list = (children: readonly Expression[], end: ReadonlySet<string>) => {
+  const list = (children: readonly Expression[], reached: ReadonlySet<string>) => {
+    // 🔧 A branch also DISCARDS what earlier statements left on the stack; falling through keeps
+    // it for the `end` (spec `unwind.wast`: `(i32.const 3) (block (i64.const 1) (br 1))`, invalid
+    // at -O2 once the `br` went — found by the gate's spec-behaviour). So a list counts as
+    // reaching an end only when everything before its last statement leaves nothing.
+    const end = children.slice(0, -1).every((c) => c.type === None) ? reached : _NONE;
     let changed = false;
     const out = children.map((c, i) => {
       const d = _dropFlowingBrs(c, i === children.length - 1 ? end : _NONE);
