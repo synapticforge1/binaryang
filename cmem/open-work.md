@@ -179,14 +179,15 @@ CI shell scripts are TypeScript (the old item 17).
     step attributed first, gated and merged on its own, the behaviour gates unchanged, the
     real-compiler six AND the corpus measured. Start: six modules -Oz 145,859 (+4.9% over upstream
     133's 139,020), corpus -Oz 822,964 (+1.60% over 809,986). Progress: optimizer.md § "Open-work
-    31". **State 2026-10-19, after step 10 (merge `48ae523a1`, NOT pushed):** six 140,885 (+1.3%
-    over upstream's 139,068), corpus 812,064 (+0.26%). Step 9: the control diff (step 8's "next")
+    31". **State 2026-10-19, after step 11 (merge `8182984d2`, NOT pushed):** six 140,587 (+1.1%
+    over upstream's 139,068), corpus 811,997 (+0.25%). Step 9: the control diff (step 8's "next")
     found upstream's WRITER dropping code after terminators that our DCE never visited (blocks in
     operands) or never judged dead (constructs that never reach their `end`); fixed in DCE. Step
-    10: Vacuum moves a named block's head out (upstream merge-blocks; 161 → 16). Step 8's own six
+    10: Vacuum moves a named block's head out (upstream merge-blocks; 161 → 16). Step 11:
+    CodeFolding folds the tails before a block's branches (code-folding 285 → 0). Step 8's own six
     figure (141,857) does not reproduce: 141,905 (optimizer.md 🔧). **Next: the ranked passes**
-    (scratch `gap/passrank12.log`): ssa-nomerge 288 (step 7 did not pay), code-folding 285,
-    simplify-locals 270, remove-unused-brs 251.
+    (scratch `gap/passrank13.log`): ssa-nomerge 328 (step 7 did not pay), simplify-locals 268,
+    remove-unused-brs 241.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an

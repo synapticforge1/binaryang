@@ -50,8 +50,9 @@ contains ([handoffs.md](handoffs.md)).
   fold to a fixed point, and Inlining runs three rounds (step 8, below); DCE reaches blocks in
   operand positions and removes the code after a construct that never reaches its `end`, leaving
   one `unreachable` (`798e34a20`, step 9); Vacuum moves the head of a named block out in front of
-  it (`befd5e12a`, step 10). Every behaviour gate unchanged. Real compiler output -Oz +4.9% →
-  +1.3% over upstream (zig-debug +14.0% → +3.0%); corpus -Oz +1.60% → +0.26%.
+  it (`befd5e12a`, step 10); CodeFolding writes once what every way into a block's end ends
+  with (`6faca9938`, step 11). Every behaviour gate unchanged. Real compiler output -Oz +4.9% →
+  +1.1% over upstream (zig-debug +14.0% → +2.6%); corpus -Oz +1.60% → +0.25%.
   -O2 and above take about a third longer (corpus -Oz 8 s → 11 s). ⚠️ `CHANGELOG.md` § Unreleased
   still states item 30's figures ("5% larger … 14% instead of 31%"): restate them at release.
 - **NEW pass — `PrecomputePropagate`** (open-work 31, step 8): ConstantPropagation and Precompute
