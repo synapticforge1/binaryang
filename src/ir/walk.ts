@@ -20,6 +20,7 @@ import {
   type BlockParams,
   type Expression,
   ExpressionKind,
+  labelName,
   makeDrop,
   makeRegion,
   type QuaternaryExpr,
@@ -178,6 +179,37 @@ export function walkExpression(
 ): void {
   visitor(expr);
   _visitChildren(expr, (child) => walkExpression(child, visitor));
+}
+
+/**
+ * Every label a branch under `expr` names: `br` / `br_if`, `br_table`, `br_on_*`, a `try_table`
+ * catch destination, a `try … delegate` target and a `rethrow`. A label outside the set is one
+ * nothing jumps to, so control reaches its construct's `end` only by falling through.
+ */
+export function branchTargets(expr: Expression): Set<string> {
+  const targets = new Set<string>();
+  walkExpression(expr, (x) => {
+    switch (x.kind) {
+      case ExpressionKind.Break:
+      case ExpressionKind.BrOn:
+      case ExpressionKind.Rethrow:
+        targets.add(labelName(x.target));
+        break;
+      case ExpressionKind.Switch:
+        for (const t of x.targets) targets.add(labelName(t));
+        targets.add(labelName(x.defaultTarget));
+        break;
+      case ExpressionKind.TryTable:
+        for (const c of x.catches) targets.add(labelName(c.target));
+        break;
+      case ExpressionKind.Try:
+        if (x.delegate !== undefined) targets.add(labelName(x.delegate));
+        break;
+      default:
+        break;
+    }
+  });
+  return targets;
 }
 
 /**
