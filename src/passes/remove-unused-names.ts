@@ -24,18 +24,13 @@ import {
   asRegion,
   asStatement,
   type BlockExpr,
-  type BrOnExpr,
   type Expression,
   ExpressionKind,
-  labelName,
   type LoopExpr,
-  type RethrowExpr,
-  type TryExpr,
-  type TryTableExpr,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { None } from '../ir/types.ts';
-import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { branchTargets, mapExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 // ---------------------------------------------------------------------------
@@ -64,29 +59,7 @@ registerPass(RemoveUnusedNamesPass);
 
 function _processBody(body: Expression): Expression {
   // Pass 1: collect every branch-target name that appears in the tree.
-  const targets = new Set<string>();
-  walkExpression(body, (e) => {
-    if (e.kind === ExpressionKind.Break) {
-      targets.add(labelName(e.target));
-    } else if (e.kind === ExpressionKind.Switch) {
-      for (const t of e.targets) targets.add(labelName(t));
-      targets.add(labelName(e.defaultTarget));
-    } else if (e.kind === ExpressionKind.BrOn) {
-      // `br_on_null` / `br_on_cast` name a label exactly like `br` does.
-      targets.add(labelName((e as BrOnExpr).target));
-    } else if (e.kind === ExpressionKind.TryTable) {
-      // A catch clause branches to its `dest` when the handler fires. The
-      // label lives OUTSIDE the try_table, so it is an ordinary block label
-      // that this pass would otherwise see no reference to and strip —
-      // leaving the encoder with a dangling target it can only throw on.
-      for (const c of (e as TryTableExpr).catches) targets.add(labelName(c.target));
-    } else if (e.kind === ExpressionKind.Try) {
-      const t = (e as TryExpr).delegate;
-      if (t !== undefined) targets.add(labelName(t));
-    } else if (e.kind === ExpressionKind.Rethrow) {
-      targets.add(labelName((e as RethrowExpr).target));
-    }
-  });
+  const targets = branchTargets(body);
 
   // Pass 2: strip unused names bottom-up so inner structures are cleaned first.
   return mapExpression(body, (expr) => _strip(expr, targets));
