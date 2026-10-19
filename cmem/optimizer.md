@@ -200,6 +200,15 @@ What upstream's passes still find on our -Oz: ssa-nomerge 288 (ours, step 7, did
 code-folding 282 · simplify-locals 270 · remove-unused-brs 253 · merge-blocks 161 (was 52) ·
 merge-locals 74 · remove-unused-names 65 · rse 62 · …; optimize-instructions −136.
 
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| 10 | merge-blocks, attributed per function (scratch `passfn.ts`): its head-hoisting. **Vacuum moves a NAMED block's head out** — the leading statements before the first that names its label or has a value type, the last child kept — and our passes then collapse the block (`block { if … br } …` → an `if`). Caught by the corpus before merging: a void statement need not be stack-neutral (`(local.set $a (call $two))` leaves a result for a later `pop`), so nothing moves out of a block holding a `pop` | `befd5e12a` | **140,885 (+1.3%)** | **812,064 (+0.26%)** |
+
+**After step 10** (`gap/passrank12.log`): merge-blocks 161 → 16; control 104 below ours
+(140,781). Left: ssa-nomerge 288 · code-folding 285 · simplify-locals 270 · remove-unused-brs 251 ·
+merge-locals 74 · remove-unused-names 67 · rse 62 · simplify-locals-nostructure 52 · vacuum 38 · …;
+optimize-instructions −137.
+
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
 section). Item 2's rule stands: never `-all` against the corpus; `--disable-compact-imports` with it.
@@ -236,5 +245,10 @@ The six real-compiler modules are unaffected (no import-section difference).
   DCE's `default: return expr` never saw `(local.tee (block …))`, which stack code read back is
   full of. It cost 798 bytes on one module and no test failed. Any pass with a hand-written
   `switch` over control kinds should `mapChildrenShallow` in its default case, or say why not.
+- **A void statement is not always stack-neutral** (step 10): after `spillStackValues`, a
+  multi-value call's results can be set one statement at a time, the later ones through `pop`.
+  Moving any statement across a block boundary must keep a `pop` with its producer; the corpus
+  caught it, the behaviour gates would have too, the hand-written test did not reach it (a bare
+  `PassRunner` lacks `wasmOpt`'s presets: test through `wasmOpt` when the shape comes from there).
 - **Read a field's convention from its WRITER before building one** (`Func.locals` holds the
   parameters first; the writer skips `params.length` of them): it bit twice in one item.
