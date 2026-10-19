@@ -33,7 +33,9 @@
  * same way, what several places end with before a `return` (open-work 31: Zig
  * restores its stack pointer before every return).
  *
- * Not built: the tails before several `br`s to one block (upstream folds them).
+ * **Branch tails** (open-work 31): what every way into a block's `end` ends with — its
+ * fall-through and each plain `br` to it — is written once, after the block
+ * ({@link foldBranchTails}).
  *
  * Reference: `WebAssembly/binaryen/src/passes/CodeFolding.cpp`
  *
@@ -42,6 +44,7 @@
 
 import {
   type BlockExpr,
+  blockParamsOf,
   type Expression,
   ExpressionKind,
   type IfExpr,
@@ -50,13 +53,14 @@ import {
   makeBreak,
   makeRegion,
   makeReturn,
+  neverFallsThrough,
   type RegionExpr,
   typeOf,
 } from '../ir/expressions.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import type { Var } from '../ir/ir.ts';
 import { None, Unreachable } from '../ir/types.ts';
-import { mapExpression, walkExpression } from '../ir/walk.ts';
+import { mapChildrenShallow, mapExpression, walkExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 // ---------------------------------------------------------------------------
@@ -72,6 +76,7 @@ export class CodeFoldingPass implements Pass {
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
       fn.body = mapExpression(fn.body, _foldSequences);
+      for (let round = 0; round < 1000 && foldBranchTails(fn); round++);
       // One fold per round, as upstream: each changes the tails the next sees.
       for (
         let round = 0;
@@ -391,4 +396,152 @@ function foldTerminatingTails(fn: WasmFunction, ender: string): boolean {
     : [...old.slice(0, -1), makeReturn([last!])];
   fn.body = makeRegion([makeBlock(inner, label), ...shared]);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Tails before the branches to a block (open-work 31)
+// ---------------------------------------------------------------------------
+
+/**
+ * What every way into a block's `end` ends with, written once after the block:
+ *
+ *     (block $b …A… T… (br $b) …B… T…)   →   (block $b …A… (br $b) …B…) T…
+ *
+ * Upstream's CodeFolding `visitBlock`. The ways in are the block's own fall-through and each
+ * branch to it; every branch must be a plain `br $b` ending its list (any other branch to `$b`,
+ * a `br_if` or a `br_table`, is a way in whose tail cannot be cut, so nothing folds), and at
+ * least two ways must share the tail. A tail item moves only as a statement that branches to no
+ * label it does not declare and holds no `pop` ({@link pinned}). Not for a block with a value or
+ * parameters, nor one holding a `try` (a call moved out would no longer be caught). One fold
+ * per call, as {@link foldTerminatingTails}.
+ */
+function foldBranchTails(fn: WasmFunction): boolean {
+  // One walk indexes the function. The rebuild below edits by node identity, so a node reachable
+  // twice leaves the function alone; so does a `try` (see above). A label declared twice (Inlining
+  // copies a callee's) mixes two scopes' branches in the counts: its blocks are skipped.
+  const seen = new Set<Expression>();
+  const declared = new Set<string>();
+  const twice = new Set<string>();
+  const ways = new Map<string, WayIn[]>();
+  const brs = new Map<string, number>();
+  const other = new Set<string>();
+  const candidates: BlockExpr[] = [];
+  let refuse = false;
+  walkExpression(fn.body, (e) => {
+    if (seen.has(e)) refuse = true;
+    seen.add(e);
+    switch (e.kind) {
+      case ExpressionKind.Try:
+      case ExpressionKind.TryTable:
+        refuse = true;
+        break;
+      case ExpressionKind.Break: {
+        const t = labelName(e.target);
+        brs.set(t, (brs.get(t) ?? 0) + 1);
+        break;
+      }
+      case ExpressionKind.Switch:
+        for (const t of [...e.targets, e.defaultTarget]) other.add(labelName(t));
+        break;
+      case ExpressionKind.BrOn:
+      case ExpressionKind.Rethrow:
+        other.add(labelName(e.target));
+        break;
+      default:
+        break;
+    }
+    if (DECLARES_LABEL.has(e.kind)) {
+      const l = (e as { label: string }).label;
+      if (l !== '') {
+        if (declared.has(l)) twice.add(l);
+        declared.add(l);
+      }
+    }
+    if (e.kind !== ExpressionKind.Region && e.kind !== ExpressionKind.Block) return;
+    const last = e.children[e.children.length - 1];
+    if (
+      last?.kind === ExpressionKind.Break && last.condition === undefined &&
+      last.values.length === 0
+    ) {
+      const t = labelName(last.target);
+      ways.set(t, [...(ways.get(t) ?? []), {
+        container: e,
+        items: e.children.slice(0, -1),
+        br: last,
+      }]);
+    }
+    // Candidates: named void blocks that are statements of a list (the tail goes after them).
+    for (const c of e.children) {
+      if (
+        c.kind === ExpressionKind.Block && c.label !== '' && c.type === None &&
+        blockParamsOf(c) === undefined
+      ) candidates.push(c);
+    }
+  });
+  if (refuse) return false;
+
+  for (const b of candidates) {
+    // Every branch to the label must be one of its plain `br`s: a `br_if`, a `br_table` or a
+    // `br_on_*` to it is a way in whose tail cannot be cut.
+    const into = ways.get(b.label) ?? [];
+    if (into.length === 0 || other.has(b.label) || twice.has(b.label)) continue;
+    if (brs.get(b.label) !== into.length) continue;
+    const fold = commonWayTail(b, into);
+    if (fold === null) continue;
+    const { lists, depth } = fold;
+    const tail = lists[0]!.items.slice(-depth);
+    const edits = new Map<Expression, Expression>();
+    for (const { container, items, br } of lists) {
+      const kept = items.slice(0, items.length - depth);
+      edits.set(container, { ...container, children: br ? [...kept, br] : kept });
+    }
+    // Top-down over the ORIGINAL nodes (an edited list keeps its original children, so the
+    // lists below it are still found by identity), the tail placed after `b`.
+    const rebuild = (e: Expression): Expression => {
+      const x = edits.get(e) ?? e;
+      if (x.kind === ExpressionKind.Region || x.kind === ExpressionKind.Block) {
+        const children: Expression[] = [];
+        for (const c of x.children) {
+          children.push(rebuild(c));
+          if (c === b) children.push(...tail);
+        }
+        return { ...x, children };
+      }
+      return mapChildrenShallow(x, rebuild);
+    };
+    fn.body = rebuild(fn.body) as RegionExpr;
+    return true;
+  }
+  return false;
+}
+
+/** One way into a block's `end`: the list it ends, its statements before the `br` (if any). */
+interface WayIn {
+  container: Container;
+  items: readonly Expression[];
+  br: Expression | null;
+}
+
+/** The ways into `b`'s end (its `br`s, `into`, and its fall-through) and the statements all end with. */
+function commonWayTail(b: BlockExpr, into: WayIn[]): { lists: WayIn[]; depth: number } | null {
+  const ways = [...into];
+  // The block's own fall-through, unless its last statement never falls through.
+  const last = b.children[b.children.length - 1];
+  if (!ways.some((w) => w.container === b) && last !== undefined && !neverFallsThrough(last)) {
+    ways.push({ container: b, items: b.children, br: null });
+  }
+  if (ways.length < 2) return null;
+  let depth = 0;
+  for (;;) {
+    const k = depth + 1;
+    if (ways.some((w) => w.items.length < k)) break;
+    const at = (w: WayIn) => w.items[w.items.length - k]!;
+    const first = at(ways[0]!);
+    // The kind first: keying a whole subtree is the expensive part.
+    if (first.type !== None || ways.some((w) => at(w).kind !== first.kind) || pinned(first)) break;
+    const key = deepKey(first);
+    if (!ways.every((w) => deepKey(at(w)) === key)) break;
+    depth = k;
+  }
+  return depth === 0 ? null : { lists: ways, depth };
 }
