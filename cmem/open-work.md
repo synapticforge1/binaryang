@@ -133,7 +133,8 @@ paragraphs above call unreleased — C1–C17, open-work 30, open-work 31 steps 
 `main` = the release plus cmem; nothing unreleased ([unreleased.md](unreleased.md)). 🚨 The
 release check found Local2Stack (31 step 4) computing wrong results on real compiler output;
 fixed before the push, never shipped. **Open:** 31 (optimizer), 32 (new: lowering for engines
-without memory64 / multi-memory), 13, 14, 15. **wasmtk on 1.13.0** ([handoffs.md](handoffs.md)
+without memory64 / multi-memory), 29 (npm, reopened the same day: built and proved, not
+published), 13, 14, 15. **wasmtk on 1.13.0** ([handoffs.md](handoffs.md)
 § 39, received the same day, answering § 38): gate 64,506 / 0 / 16 unchanged, soundness guard 0,
 `go_asyncify_tests` 12 / 12; 43 golden WATs moved (merged `-Oz` libraries only), behaviour
 unchanged; nothing open either way. **The repo moved to `synapticforge/binaryang`** the same day
@@ -290,6 +291,22 @@ fatigue.
 
 ## Repo work
 
+29. ◐ **npm as a SECOND registry, as `@synapticforge/binaryang`** (parked 2026-10-13; REOPENED
+    2026-10-20, owner: "I am setup on npm now. How do I publish this package there?", then the
+    name `@synapticforge/binaryang` and "Build and prove, no publish"). JSR stays the source.
+    **BUILT and PROVED, nothing published** (branch `npm-package`): `bun run npm:build` (tsc into
+    `dist/` with `.ts` imports rewritten, the `bin` shebang, the files JSR ships, `dist/package.json`
+    generated from `jsr.json`); `bun run npm:prove` (the TARBALL installed into a scratch consumer:
+    every export imports and runs nothing on Node 22 / 24 / 26 and Bun, the installed CLI gives
+    the source's smoke hash, `npm exec binaryang`, the `.d.ts` for a consumer with no
+    `@types/node`, the browser bundle, the export list against JSR's own npm build); 7 build
+    mutants all caught; in CI's Gates job. **The npm job** in `publish.yml` runs after JSR's from
+    the same tag, OFF until the repository variable `NPM_PUBLISH` is `true`. **The owner's steps
+    to switch it on:** on npmjs.com, a trusted publisher for `@synapticforge/binaryang` naming
+    `synapticforge/binaryang` and `publish.yml` (check npm's docs: it may need the package to
+    exist first, then a one-time token for the first publish); then the variable; then the next
+    release publishes to both. Record: [publishing.md](publishing.md) § "npm as a SECOND registry".
+
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
@@ -351,16 +368,8 @@ sent and answered (their reply reached us 2026-09-29) — closed in [handoffs.md
   - It is not part of the IR merge: the IR is the tree's shape, this is the passes' speed.
   - The doc mapping of `wasm/demo_bytes` to `./wasm` is correct: `./wasm` exports `DEMO_BYTES`
     (checked 2026-09-29).
-- **29. npm as a second registry — PARKED as a contingency** (owner, 2026-10-13). First: "I think
-  it would be good to add this repo to npm also just in case the jsr gets shut down … We probably
-  need to do this for all of our repos"; then, after creating the `synapticforge` organization on
-  npm and GitHub: "I am leaving it on jsr until it becomes necessary to do otherwise." The GitHub
-  repo stays `jrmarcum/binaryang` and the JSR scope stays `@jrmarcum` (both "not now" / "no").
-  - The plan is kept, ready: [publishing.md](publishing.md) § "npm as a SECOND registry"; for the
-    other repos, [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § 5b.
-  - **Trigger to reopen:** JSR announces an end or degrades, or a consumer needs the package from
-    npm. The npm name is chosen THEN; `@synapticforge/binaryang` was free on 2026-10-13.
-  - Not blocked by anything; B6 is still the natural place for the release-path half.
+- (29, npm as a second registry, was PARKED here from 2026-10-13; REOPENED 2026-10-20 — see item
+  29 under "Repo work".)
 - **`bun lint` / `bun format` in place of Biome / dprint — SHELVED** (owner, 2026-10-15: "We will
   shelve that decision until it become available in a later release"). Merged to Bun's main
   (oven-sh/bun PR #44805) and documented at bun.com/docs/lint, but NOT in Bun 1.4.3, the release

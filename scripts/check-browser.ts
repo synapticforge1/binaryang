@@ -55,13 +55,20 @@ export const bundleName = (sub: string): string =>
 /**
  * Bundles every export in jsr.json for the browser into `out`; the problems found (an export that
  * does not bundle, or keeps a top-level `node:` import). Shared with `check-browsers.ts`, which
- * then LOADS the bundles in real browsers (open-work 28.3).
+ * then LOADS the bundles in real browsers (open-work 28.3). `exports` replaces jsr.json's map,
+ * relative to `root`: the npm package's `.js` files (`scripts/npm/prove.ts`).
  */
-export function bundleExports(root: string, out: string): {
+export function bundleExports(
+  root: string,
+  out: string,
+  exports?: Record<string, string>,
+): {
   exports: Record<string, string>;
   problems: string[];
 } {
-  const cfg = JSON.parse(readFileSync(join(root, 'jsr.json'), 'utf8')) as {
+  const cfg = exports !== undefined ? { exports } : JSON.parse(
+    readFileSync(join(root, 'jsr.json'), 'utf8'),
+  ) as {
     exports: Record<string, string>;
   };
   const problems: string[] = [];

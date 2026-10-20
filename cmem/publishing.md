@@ -28,6 +28,29 @@ last section, "The tag-push path works unaided", narrows the manual-step warning
 
 ## 🆕 npm as a SECOND registry — a PARKED contingency (owner, 2026-10-13; open-work 29)
 
+▶ **REOPENED 2026-10-20 and BUILT, nothing published** (owner: set up on npm; the name
+**`@synapticforge/binaryang`**; "Build and prove, no publish"). As built, against the plan below:
+
+| plan | built |
+| ---- | ----- |
+| compiled JS + `.d.ts` | `tsconfig.npm.json` (extends the type check; `rewriteRelativeImportExtensions`), tsc 7.0.2 emit into `dist/`, 0 `.ts` imports left |
+| a generated manifest | `scripts/npm/build.ts` `npmManifest()`: name, `jsr.json`'s version, the 19 exports as `{ types, default }`, `bin: { binaryang: ./main.js }` (shebang added at build), `license: "MIT OR Apache-2.0"`, `engines.node >=22.18`, repository / homepage / bugs on `synapticforge/binaryang`, `publishConfig: { access: public, provenance: true }`; `npm_manifest.test.ts` |
+| licence + notice files | README, LICENSE, LICENSE-MIT, LICENSE-APACHE, NOTICE.md copied in |
+| `src/definitions/*.json` | COPIED, as JSR ships them (no code imports them; consumers may) |
+| proof before any publish | `scripts/npm/prove.ts`, in CI's Gates job: pack (833 KiB, 245 files, no `.ts` source), install the tarball into a scratch consumer, every export imports and runs nothing on Node 22 / 24 / 26 and Bun, `cli-smoke.ts` on the INSTALLED `main.js` gives the source's hash on each, `npm exec binaryang --version`, the `.d.ts` type-check for a consumer with `types: []`, every export of the installed package bundles for the browser, the export list equals JSR's own npm build (`npm.jsr.io`, read from its tarball: the registry metadata omits `exports`). 7 build mutants, all caught (a wrong `types` path survived the first run: TypeScript falls back to the `.d.ts` beside the `.js`, so the proof now checks every path the manifest names) |
+| the release path | `publish.yml` job `npm`: after JSR's, same tag, `npm:prove` then `npm publish` from `dist/` (OIDC, no token), then the provenance attestation read back from the registry; **OFF until the repository variable `NPM_PUBLISH` is `true`** |
+
+**Measured on the way:** npm 11's `pack --json` prints an OBJECT keyed by package name (npm 10:
+an array); `npm` on Windows is a `.cmd` shim that `fnm exec` cannot spawn ("program not found"), so
+the proof runs `node <npm-cli.js>` beside the chosen Node.
+
+**Left to the owner, in order:** (1) on npmjs.com, a trusted publisher for
+`@synapticforge/binaryang`: GitHub Actions, `synapticforge/binaryang`, workflow `publish.yml` —
+check npm's current docs on whether the package must exist first (then one manual first publish
+with a token, from a `bun run npm:build` of a released tag); (2) the repository variable
+`NPM_PUBLISH=true`; (3) the next release then publishes to both, and its provenance is checked.
+Nothing claims the name until (1)–(3).
+
 ⏸ **Parked the same day:** the owner created a `synapticforge` organization on npm and GitHub, then
 decided "I am leaving it on jsr until it becomes necessary to do otherwise." The repo stays
 `jrmarcum/binaryang`, the JSR scope `@jrmarcum`. **Trigger to reopen:** JSR announces an end or
