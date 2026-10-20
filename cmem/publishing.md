@@ -7,8 +7,8 @@ process" below). The wing files it merged are summarized in [binaryen-ts.md](bin
 
 **Latest (2026-10-20): `@jrmarcum/binaryang@1.13.0`**, Rekor `3344028471` — § "1.13.0" below; the
 releases in between are recorded there too, newest first. **The repo is
-`synapticforge/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the package name is
-unchanged).
+`synapticforge1/binaryang` since 2026-10-20** (moved to `synapticforge`, the org then renamed to
+match the npm org: § "The move to `synapticforge`"; the JSR package name is unchanged).
 
 **Current state (2026-09-29):** `@jrmarcum/binaryang@1.8.1` is latest (`rekorLogId=3007105518`,
 § "1.8.1" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
@@ -28,13 +28,16 @@ last section, "The tag-push path works unaided", narrows the manual-step warning
 
 ## 🆕 npm as a SECOND registry — a PARKED contingency (owner, 2026-10-13; open-work 29)
 
-▶ **REOPENED 2026-10-20 and BUILT, nothing published** (owner: set up on npm; the name
-**`@synapticforge/binaryang`**; "Build and prove, no publish"). As built, against the plan below:
+▶ **REOPENED 2026-10-20 and BUILT, nothing published** (owner: set up on npm; "Build and prove,
+no publish"). The name is **`@synapticforge1/binaryang`**: npm user `synapticforgeun`, npm org
+`synapticforge1` (owner, 2026-10-20). 🔧 It was first built as `@synapticforge/binaryang`, the
+GitHub org's spelling; an npm scope is the npm org's (or user's) name, so that one was not the
+owner's to publish under. Renamed before any publish. As built, against the plan below:
 
 | plan | built |
 | ---- | ----- |
 | compiled JS + `.d.ts` | `tsconfig.npm.json` (extends the type check; `rewriteRelativeImportExtensions`), tsc 7.0.2 emit into `dist/`, 0 `.ts` imports left |
-| a generated manifest | `scripts/npm/build.ts` `npmManifest()`: name, `jsr.json`'s version, the 19 exports as `{ types, default }`, `bin: { binaryang: ./main.js }` (shebang added at build), `license: "MIT OR Apache-2.0"`, `engines.node >=22.18`, repository / homepage / bugs on `synapticforge/binaryang`, `publishConfig: { access: public, provenance: true }`; `npm_manifest.test.ts` |
+| a generated manifest | `scripts/npm/build.ts` `npmManifest()`: name, `jsr.json`'s version, the 19 exports as `{ types, default }`, `bin: { binaryang: ./main.js }` (shebang added at build), `license: "MIT OR Apache-2.0"`, `engines.node >=22.18`, repository / homepage / bugs on `synapticforge1/binaryang`, `publishConfig: { access: public, provenance: true }`; `npm_manifest.test.ts` |
 | licence + notice files | README, LICENSE, LICENSE-MIT, LICENSE-APACHE, NOTICE.md copied in |
 | `src/definitions/*.json` | COPIED, as JSR ships them (no code imports them; consumers may) |
 | proof before any publish | `scripts/npm/prove.ts`, in CI's Gates job: pack (833 KiB, 245 files, no `.ts` source), install the tarball into a scratch consumer, every export imports and runs nothing on Node 22 / 24 / 26 and Bun, `cli-smoke.ts` on the INSTALLED `main.js` gives the source's hash on each, `npm exec binaryang --version`, the `.d.ts` type-check for a consumer with `types: []`, every export of the installed package bundles for the browser, the export list equals JSR's own npm build (`npm.jsr.io`, read from its tarball: the registry metadata omits `exports`). 7 build mutants, all caught (a wrong `types` path survived the first run: TypeScript falls back to the `.d.ts` beside the `.js`, so the proof now checks every path the manifest names) |
@@ -45,7 +48,8 @@ an array); `npm` on Windows is a `.cmd` shim that `fnm exec` cannot spawn ("prog
 the proof runs `node <npm-cli.js>` beside the chosen Node.
 
 **Left to the owner, in order:** (1) on npmjs.com, a trusted publisher for
-`@synapticforge/binaryang`: GitHub Actions, `synapticforge/binaryang`, workflow `publish.yml` —
+`@synapticforge1/binaryang` (in the `synapticforge1` org): GitHub Actions, repository
+`synapticforge1/binaryang`, workflow `publish.yml` —
 check npm's current docs on whether the package must exist first (then one manual first publish
 with a token, from a `bun run npm:build` of a released tag); (2) the repository variable
 `NPM_PUBLISH=true`; (3) the next release then publishes to both, and its provenance is checked.
@@ -894,6 +898,21 @@ first, archived). Checked through the APIs:
 - **Other repos** name the old URL in a `git clone` hint or a README (wasmtk
   `scripts/upstream-link.ts`, `cmem/workflow.md`; binaryen-ts / wabt-ts READMEs): the redirect
   covers them; a handoff note if they should change.
+- **The first push from the org** (`a97255ef4`): CI and auto-tag GREEN — the org's workflow
+  permissions allow CI's and auto-tag's needs. The publish side (OIDC, provenance) is still the
+  next release's to show.
+
+**Renamed the same day: `synapticforge` → `synapticforge1`** (owner: "now my npm organization and
+my github organization are named exactly the same 'synapticforge1'"), so the GitHub org matches
+the npm org the package publishes under (`@synapticforge1/binaryang`, § "npm as a SECOND
+registry"). Checked: `repos/synapticforge/binaryang` redirects to `synapticforge1/binaryang`, the
+same repo id `1347384560`; `orgs/synapticforge` is Not Found — the old name is FREE, so its
+redirects last only until someone claims it. **JSR did not follow the rename either:** it read
+`synapticforge/binaryang` (the 22:37 link) afterwards; re-linked by the owner, then read
+`synapticforge1/binaryang`, id `1347384560`, updated 2026-10-20T23:36:03Z (checked through the
+API before 1.13.1 was tagged). In the repo:
+`origin`, the README, `publish.ts`'s printed URL and the npm manifest's repository / homepage / bugs
+name `synapticforge1`.
 
 ## 1.13.0 — a MINOR from `main` (2026-10-20; 21:37Z UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
 

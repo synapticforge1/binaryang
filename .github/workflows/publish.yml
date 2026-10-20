@@ -171,7 +171,7 @@ jobs:
           echo "::error::${PKG}@${VERSION} published WITHOUT provenance (no Sigstore/Rekor entry). The publish itself SUCCEEDED — this version exists and is immutable. Do NOT 'fix' this by editing permissions or the publish YAML: binaryen-ts's workflow is byte-identical between an unattested (v1.4.3) and an attested (v1.5.0) release, so the YAML is not the variable. Check the OIDC step above, then org/enterprise Settings → Actions → General → OIDC policy, then that the JSR↔GitHub repo link is intact. See cmem/publishing.md."
           exit 1
 
-  # npm, the SECOND registry (open-work 29; owner, 2026-10-20: `@synapticforge/binaryang`, JSR
+  # npm, the SECOND registry (open-work 29; owner, 2026-10-20: `@synapticforge1/binaryang`, JSR
   # staying the source). After JSR's job, from the same tag. OFF until the repository variable
   # NPM_PUBLISH is `true` (Settings → Secrets and variables → Actions → Variables), which the owner
   # sets once npm's trusted publisher for this package names this repository and this workflow
@@ -231,16 +231,16 @@ jobs:
       - name: Verify provenance was recorded on npm
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          URL="https://registry.npmjs.org/@synapticforge%2Fbinaryang/${VERSION}"
+          URL="https://registry.npmjs.org/@synapticforge1%2Fbinaryang/${VERSION}"
           for i in $(seq 1 12); do
             P=$(curl -sf -H "Cache-Control: no-cache" "${URL}?cb=${GITHUB_RUN_ID}-${i}" | bun -e 'const t = await Bun.stdin.text(); try { console.log(JSON.parse(t).dist?.attestations?.provenance?.predicateType ?? "") } catch { console.log("") }' || true)
             if [ -n "$P" ]; then
               echo "npm provenance recorded: $P"
-              echo "- npm: @synapticforge/binaryang@${VERSION}, provenance $P" >> "$GITHUB_STEP_SUMMARY"
+              echo "- npm: @synapticforge1/binaryang@${VERSION}, provenance $P" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             echo "  attempt $i: not visible yet, retrying in 15s"
             sleep 15
           done
-          echo "::error::@synapticforge/binaryang@${VERSION} has no provenance attestation on npm. The version exists and is immutable."
+          echo "::error::@synapticforge1/binaryang@${VERSION} has no provenance attestation on npm. The version exists and is immutable."
           exit 1
