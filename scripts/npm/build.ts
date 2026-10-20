@@ -3,7 +3,7 @@
 
 /**
  * The npm package, built into `dist/` (open-work 29; owner, 2026-10-20: publish to npm as
- * `@synapticforge/binaryang`, JSR staying the source). Nothing here publishes.
+ * `@synapticforge1/binaryang`, JSR staying the source). Nothing here publishes.
  *
  * JSR compiles the TypeScript for its own npm clients; npmjs.org does not, and Node refuses to
  * strip types inside `node_modules`, so the package ships JavaScript and `.d.ts`:
@@ -27,8 +27,12 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-/** The package's name on npmjs.org (owner, 2026-10-20). JSR's is `@jrmarcum/binaryang`. */
-export const NPM_NAME = '@synapticforge/binaryang';
+/**
+ * The package's name on npmjs.org (owner, 2026-10-20). An npm scope is the npm org's name, which is
+ * `synapticforge1`: the GitHub org is `synapticforge`, and the two need not match (the manifest's
+ * `repository` names GitHub). JSR's name is `@jrmarcum/binaryang`.
+ */
+export const NPM_NAME = '@synapticforge1/binaryang';
 
 /** The Node floor: `import.meta.main`, which `main.ts` runs on, arrived in 22.18. */
 export const NODE_FLOOR = '>=22.18';
