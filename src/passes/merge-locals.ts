@@ -146,9 +146,13 @@ export function mergeLocals(fn: WasmFunction): boolean {
   fn.body = mapExpression(fn.body, (e) => {
     const m = moved.get(e);
     if (m !== undefined) return keep.has(e) ? e : m[0];
+    // A tee of the local it reads is ours. 🔧 Matching the read alone also took out a copy that
+    // is itself a tee: bottom-up, the copy's value is that read again once its tee is gone, and a
+    // read of $b the second graph refused was left reading a local nothing wrote (spec
+    // float_exprs, `f32.epsilon` 0 at -O3 / -Oz).
     if (
       e.kind === ExpressionKind.LocalTee && e.value.kind === ExpressionKind.LocalGet &&
-      tees.has(e.value)
+      tees.has(e.value) && localOf(e) === localOf(e.value)
     ) return e.value;
     return e;
   });

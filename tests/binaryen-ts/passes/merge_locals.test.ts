@@ -89,6 +89,23 @@ describe('a read of a copy reads the original', () => {
     expect(count(text, 'local.get 2')).toBe(1); // the drop's, before the copy
     await same(before, after, INPUTS);
   });
+
+  it('a tee copy stays when a read of it is refused', async () => {
+    // The spec's float_exprs `f32.epsilon` loop: the copy is a tee, and $a is written again before
+    // the read after the loop, so that read stays a read of $b — and the copy must stay too.
+    const { before, after, text } = run(
+      `(module
+        (func (export "f") (param i32 i32) (result i32) (local i32)
+          (local.set 0 (i32.add (local.get 0) (i32.const 1)))
+          (loop $l
+            (local.set 0 (i32.shr_u (local.tee 2 (local.get 0)) (i32.const 1)))
+            (br_if $l (local.get 0)))
+          (i32.add (local.get 2) (local.get 1))))`,
+      ['MergeLocals'],
+    );
+    expect(count(text, 'local.tee 2')).toBe(1);
+    await same(before, after, INPUTS);
+  });
 });
 
 describe('refused', () => {
