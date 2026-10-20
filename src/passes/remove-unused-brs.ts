@@ -19,7 +19,10 @@
  * statement of an `if` arm or a loop body that is itself last, up to the block
  * it names ({@link _dropFlowingBrs}, open-work 31) — with `(br_if $a x) (br $b)`
  * there, `$a` reached by falling through, becoming `(br_if $b (i32.eqz x))`.
- * Branches anywhere else are left unchanged, apart from jump threading below.
+ * Branches anywhere else are left unchanged, apart from jump threading below
+ * (which also sends a block's branches to its parent when it is the parent's
+ * last statement) and adjacent `br_if`s to one label merging on `i32.or`
+ * ({@link _mergeBrIfs}).
  *
  * Precondition: the tail child must have type `none` so that removing the
  * branch does not change the block's result type.
@@ -30,14 +33,17 @@
  */
 
 import {
+  BinaryOp,
   blockParamsOf,
   type BreakExpr,
   type Expression,
   ExpressionKind,
   type IfExpr,
   labelName,
+  makeBinary,
   makeBreak,
   makeDrop,
+  makeI32Const,
   makeIf,
   makeNop,
   makeRegion,
@@ -47,8 +53,9 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import type { WasmModule } from '../ir/module.ts';
+import { varName } from '../ir/ir.ts';
 import { None, ValType } from '../ir/types.ts';
-import { deepEffects, invalidates, mergeEffects } from '../ir/effects.ts';
+import { deepEffects, hasSideEffects, invalidates, mergeEffects } from '../ir/effects.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { branchTargets, mapChildrenShallow, mapExpression, walkExpression } from '../ir/walk.ts';
 
@@ -79,10 +86,55 @@ registerPass(RemoveUnusedBrsPass);
 
 function _removeUnusedBrsNode(expr: Expression): Expression {
   if (expr.kind === ExpressionKind.If) return _optimizeIf(expr);
-  if (expr.kind === ExpressionKind.Region) return _threadJumps(expr);
+  if (expr.kind === ExpressionKind.Region) return _mergeBrIfs(_threadJumps(expr));
   if (expr.kind !== ExpressionKind.Block) return expr;
-  const threaded = _threadJumps(expr);
+  const threaded = _mergeBrIfs(_threadJumps(expr));
   return threaded.kind === ExpressionKind.Block ? _optimizeBlock(threaded) : threaded;
+}
+
+/**
+ * Adjacent conditional branches to one label are one branch on either condition (open-work 31,
+ * upstream's RemoveUnusedBrs): a byte for each `br_if` that goes.
+ *
+ *     (br_if $l a) (br_if $l b)                     →  (br_if $l (i32.or a b))
+ *     (br_if $l a) (if c (then (br_if $l x)))       →  (br_if $l (i32.or a (select x (i32.const 0) c)))
+ *
+ * The second condition now runs even when the first held, so it must have no effect at all and
+ * not trap ({@link hasSideEffects}); `x` and `c` both, as the `select` runs `x` before `c`.
+ * Valueless branches only.
+ */
+function _mergeBrIfs<T extends Expression & { children: Expression[] }>(e: T): T {
+  const brIf = (x: Expression | undefined): x is BreakExpr =>
+    x?.kind === ExpressionKind.Break && x.condition !== undefined && x.values.length === 0;
+  const pure = (x: Expression) => !hasSideEffects(deepEffects(x));
+  let changed = false;
+  const out: Expression[] = [];
+  for (const c of e.children) {
+    const prev = out[out.length - 1];
+    if (brIf(prev)) {
+      const l = labelName(prev.target);
+      let second: Expression | undefined;
+      if (brIf(c) && labelName(c.target) === l && pure(c.condition!)) second = c.condition!;
+      // The reader names every `if`: nothing branches to this one, as its only statement is a
+      // `br_if` elsewhere whose condition (pure) holds no branch.
+      if (c.kind === ExpressionKind.If && c.type === None && c.ifFalse === null) {
+        const t = _sole(c.ifTrue);
+        if (
+          brIf(t) && labelName(t.target) === l && l !== c.label && pure(t.condition!) &&
+          pure(c.condition)
+        ) {
+          second = makeSelect(t.condition!, makeI32Const(0), c.condition);
+        }
+      }
+      if (second !== undefined) {
+        out[out.length - 1] = makeBreak(l, makeBinary(BinaryOp.OrI32, prev.condition!, second));
+        changed = true;
+        continue;
+      }
+    }
+    out.push(c);
+  }
+  return changed ? { ...e, children: out } : e;
 }
 
 const _DECLARES_LABEL = new Set<string>([
@@ -114,12 +166,19 @@ function _threadJumps<T extends Expression & { children: Expression[] }>(e: T): 
       x.kind !== ExpressionKind.Block || x.label === '' || x.type !== None ||
       blockParamsOf(x) !== undefined
     ) return x;
-    if (
-      next?.kind !== ExpressionKind.Break || next.condition !== undefined ||
-      next.values.length !== 0 || next.target.kind !== 'name'
-    ) return x;
-    const from = x.label, y = next.target;
-    if (y.name === from) return x;
+    // Where a branch to the block lands: on a plain `br $y` right after it, or — the block being
+    // the last statement of a void block `$y` — on `$y`'s own end (upstream merges such names).
+    const endsParent = i === e.children.length - 1 && e.kind === ExpressionKind.Block &&
+      e.label !== '' && e.type === None && blockParamsOf(e) === undefined;
+    const viaBr = next?.kind === ExpressionKind.Break && next.condition === undefined &&
+      next.values.length === 0 && next.target.kind === 'name';
+    if (!viaBr && !endsParent) return x;
+    const from = x.label;
+    // `e` is a valid void block, so nothing before its last statement left a value: a branch to
+    // `$y` discards no more than the branch to `$x` did.
+    const yName = viaBr ? labelName((next as BreakExpr).target) : (e as { label: string }).label;
+    const y = varName(yName);
+    if (yName === from) return x;
     // A label inside spelled `$x` or `$y` would catch a branch: then nothing is threaded. Other
     // kinds of branch to `$x` (`br_on_*`, a `try_table` catch) may stay; the block stays for them.
     let ok = true, named = false;
@@ -127,7 +186,7 @@ function _threadJumps<T extends Expression & { children: Expression[] }>(e: T): 
       if (n === x) return;
       if (_DECLARES_LABEL.has(n.kind)) {
         const l = (n as { label: string }).label;
-        if (l === from || l === y.name) ok = false;
+        if (l === from || l === yName) ok = false;
       }
       if (n.kind === ExpressionKind.Break && labelName(n.target) === from) named = true;
       if (
