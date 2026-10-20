@@ -133,8 +133,13 @@ paragraphs above call unreleased — C1–C17, open-work 30, open-work 31 steps 
 `main` = the release plus cmem; nothing unreleased ([unreleased.md](unreleased.md)). 🚨 The
 release check found Local2Stack (31 step 4) computing wrong results on real compiler output;
 fixed before the push, never shipped. **Open:** 31 (optimizer), 32 (new: lowering for engines
-without memory64 / multi-memory), 13, 14, 15. **Owed by wasmtk:** their wast-gate numbers on the
-release carrying C1–C17 — that is 1.13.0 (letter § 38, ✅ SENT by the owner 2026-10-20).
+without memory64 / multi-memory), 13, 14, 15. **wasmtk on 1.13.0** ([handoffs.md](handoffs.md)
+§ 39, received the same day, answering § 38): gate 64,506 / 0 / 16 unchanged, soundness guard 0,
+`go_asyncify_tests` 12 / 12; 43 golden WATs moved (merged `-Oz` libraries only), behaviour
+unchanged; nothing open either way. **The repo moved to `synapticforge/binaryang`** the same day
+([publishing.md](publishing.md) § "The move to `synapticforge`"); the JSR link re-made by the
+owner and checked through the API. Not yet proven: a publish from the org (provenance), and the
+org's Actions settings, which the next push's CI and the next release show.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 

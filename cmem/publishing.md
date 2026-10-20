@@ -6,7 +6,9 @@ process" below). The wing files it merged are summarized in [binaryen-ts.md](bin
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
 **Latest (2026-10-20): `@jrmarcum/binaryang@1.13.0`**, Rekor `3344028471` — § "1.13.0" below; the
-releases in between are recorded there too, newest first.
+releases in between are recorded there too, newest first. **The repo is
+`synapticforge/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the package name is
+unchanged).
 
 **Current state (2026-09-29):** `@jrmarcum/binaryang@1.8.1` is latest (`rekorLogId=3007105518`,
 § "1.8.1" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
@@ -841,6 +843,34 @@ The flow, as for 1.6.0:
 Asked the same day to "bump and publish 1.6.0" again, the answer was that it already was — check
 `https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
 arming anything.
+
+## The move to `synapticforge` (2026-10-20, after 1.13.0)
+
+The owner moved the repository to the `synapticforge` organization (binaryen-ts and wabt-ts went
+first, archived). Checked through the APIs:
+
+- **GitHub transfer, not a new repo:** `api.github.com/repos/jrmarcum/binaryang` redirects to
+  `synapticforge/binaryang`, **the same repo id `1347384560`**, not archived, default branch
+  `main`, the tags with it (`v1.13.0` …). The old URL redirects for web and `git`, until a repo of
+  that name is created under `jrmarcum` again.
+- **JSR does NOT follow a transfer.** Before the owner re-linked it, `@jrmarcum/binaryang` read
+  `githubRepository: jrmarcum/binaryang` (as binaryen-ts and wabt-ts still do: harmless for them,
+  archived). Re-linked by the owner in the package settings on jsr.io; the API then read
+  `synapticforge/binaryang`, id `1347384560`, updated 2026-10-20T22:37:13Z. **Check this field
+  before any release** after a move: a stale link shows only as publish.yml's provenance failure,
+  on a version that can never be republished.
+- **The JSR package name is unchanged**, `@jrmarcum/binaryang`: the scope is JSR's, not GitHub's.
+  wasmtk's exact pin and every import are untouched.
+- **In the repo:** `origin` set to `https://github.com/synapticforge/binaryang.git`; the README's
+  CI badge and links, and the Actions URL `scripts/release/publish.ts` prints, name the org.
+  `cmem/` keeps the old URL where a dated record says it.
+- **Not proven yet:** a publish from the org with provenance (the next release), and the org's
+  Actions settings — workflow permissions must allow auto-tag's `contents: write` / `actions:
+  write` and publish's `id-token: write`, and OIDC must not be restricted (the next push's CI and
+  auto-tag show the first part).
+- **Other repos** name the old URL in a `git clone` hint or a README (wasmtk
+  `scripts/upstream-link.ts`, `cmem/workflow.md`; binaryen-ts / wabt-ts READMEs): the redirect
+  covers them; a handoff note if they should change.
 
 ## 1.13.0 — a MINOR from `main` (2026-10-20; 21:37Z UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
 

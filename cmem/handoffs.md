@@ -713,6 +713,30 @@ a defect of ours, not theirs. → That release is 1.13.0: § 38.
 > 0 (above 0 would be our defect: a spec-valid module refused); and `go_asyncify_tests` (12 / 12 on
 > 1.12.1).
 
+### § 39 — from wasmtk: 1.13.0 holds; nothing open (received 2026-10-20)
+
+Pasted by the owner. wasmtk bumped all three specifiers (`compat/binaryen`, `wasm-validate`,
+`compat/wabt`) 1.12.1 → 1.13.0 and ran the full gate: green, nothing carried as known-failing.
+
+- **wast gate: 288 files, 64,506 / 0 / 16**, exactly as on 1.12.1 (33 passes on 23 modules lowered
+  for custom page sizes). The gate pins each file's pass AND skip count: `assert_invalid` passes
+  equal and skips equal, in every file. **Soundness guard 0.**
+- **`go_asyncify_tests` 12 / 12**; wasi 480 / 480; the five-engine cross-check on its baseline
+  (1,152 pairs, 0 regressed, 0 improved); the `-Oz` try_table guard passes; every other suite at
+  its previous count.
+- **Their prediction (§ 37: passes up, skips down) did not move either way**, consistent with our
+  notes: C1's `result` / `errors` disagreement and the new refusals are shapes their corpus does
+  not reach through the second oracle (V8 judges first), and none of the 16 skips is one; the
+  reader's new refusals stay skips, as they said.
+- **What moved, as § 38 said it would — optimizer output:** 43 of their 537 golden-WAT entries,
+  all PIPELINE entries that merge a library built with `-Oz`; only the merged library's functions
+  changed (restructured `if` / `select` chains), none of wasic's own output. Behaviour unchanged:
+  the wasi suite runs every one of those pipelines on Deno, 480 / 480. Their golden pass took 55 s
+  (about 35 s on 1.12.1), "in line with the time you quoted".
+
+📋 **Nothing asked of us, nothing of theirs open with us** ("Nothing of ours is open with you").
+The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
