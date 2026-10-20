@@ -179,8 +179,8 @@ CI shell scripts are TypeScript (the old item 17).
     step attributed first, gated and merged on its own, the behaviour gates unchanged, the
     real-compiler six AND the corpus measured. Start: six modules -Oz 145,859 (+4.9% over upstream
     133's 139,020), corpus -Oz 822,964 (+1.60% over 809,986). Progress: optimizer.md § "Open-work
-    31". **State 2026-10-19, after step 14 (merge `65955f7c6`, NOT pushed):** six 140,149 (+0.78%
-    over upstream's 139,068), corpus 811,727 (+0.22%). Step 9: the control diff (step 8's "next")
+    31". **State 2026-10-20, after step 15 (merge `1982749b3`, NOT pushed):** six 140,028 (+0.69%
+    over upstream's 139,068), corpus 811,099 (+0.14%). Step 9: the control diff (step 8's "next")
     found upstream's WRITER dropping code after terminators that our DCE never visited (blocks in
     operands) or never judged dead (constructs that never reach their `end`); fixed in DCE. Step
     10: Vacuum moves a named block's head out (upstream merge-blocks; 161 → 16). Step 11:
@@ -189,15 +189,18 @@ CI shell scripts are TypeScript (the old item 17).
     measured worse, not kept). Step 13: RemoveUnusedBrs drops branches that flow to their target
     (remove-unused-brs 310 → 224; the first gate caught an `unwind.wast` regression, fixed before
     merging). Step 14: RemoveUnusedBrs sends a block's branches to the parent it ends, and merges
-    adjacent `br_if`s on `i32.or` (remove-unused-brs 224 → 125). Step 8's own six figure (141,857)
-    does not reproduce: 141,905 (optimizer.md 🔧). **Next: the ranked passes** (scratch
-    `gap/passrank16.log`): ssa-nomerge 325 (step 7 did not pay), simplify-locals-nostructure 129,
-    remove-unused-brs 125, simplify-locals 102. **Paused 2026-10-19 by the owner after step 14:**
-    working tree clean, `main` ahead of `origin/main` (`git log origin/main..main` counts it; a
-    count written here goes stale with the commit that writes it), NOTHING pushed (owner's call, as
-    is the release; unreleased.md has the bullet and the CHANGELOG flag). A new session copies the
-    scratch scripts first (cmem/local/environment.md, "Optimizer measurement scripts") and
-    re-derives the six / corpus baseline before quoting it.
+    adjacent `br_if`s on `i32.or` (remove-unused-brs 224 → 125). Step 15 (resumed 2026-10-20,
+    owner: "lets pickup where we left off", then "yes" to the plan): the new MergeLocals pass —
+    ssa-nomerge's top shape was a reused local hiding a copy (merge-locals 72 → 2, ssa-nomerge
+    325 → 249); `localGraph` on bitsets, so -Oz time is unchanged; the first gate caught a
+    wrong-output defect (a tee copy removed), fixed before merging. Step 8's own six figure
+    (141,857) does not reproduce: 141,905 (optimizer.md 🔧). **Next: the ranked passes** (scratch
+    `gap/passrank17.log`): ssa-nomerge 249, simplify-locals-nostructure 142, remove-unused-brs
+    125, simplify-locals 119. Working tree clean, `main` ahead of `origin/main` (`git log
+    origin/main..main` counts it; a count written here goes stale with the commit that writes
+    it), NOTHING pushed (owner's call, as is the release; unreleased.md has the bullet and the
+    CHANGELOG flag). A new session copies the scratch scripts first (cmem/local/environment.md,
+    "Optimizer measurement scripts") and re-derives the six / corpus baseline before quoting it.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
