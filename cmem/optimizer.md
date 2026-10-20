@@ -237,6 +237,14 @@ optimize-instructions −133.
 simplify-locals-nostructure 127 · simplify-locals 100 · merge-locals 72 · rse 60 · …;
 optimize-instructions −133.
 
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| 14 | remove-unused-brs again, two shapes. **A block that is the last statement of a void block** sends its branches to that block (jump threading's "a `br $y` right after it", with the parent's own end as `$y`; upstream merges the names): −78 / −15. **Adjacent `br_if`s to one label merge on `i32.or`**, and a `br_if` then an `if` holding only a `br_if` to the same label, through `(select x (i32.const 0) c)` — the later condition must have no effect and not trap (it now runs when the first held): −64 / −64. 🔧 The first gate failed the test step: three fixtures had two `br_if`s side by side only to dodge another rule; each kept on what it is about (a `nop` between, or the assertion it meant) | `8ec400644` `cf6c1924a` | **140,149 (+0.78%)** | **811,727 (+0.22%)** |
+
+**After step 14** (`gap/passrank16.log`): remove-unused-brs 224 → 125; control 102 below ours
+(140,047). Left: ssa-nomerge 325 · simplify-locals-nostructure 129 · remove-unused-brs 125 ·
+simplify-locals 102 · merge-locals 72 · rse 62 · vacuum 38 · …; optimize-instructions −121.
+
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
 section). Item 2's rule stands: never `-all` against the corpus; `--disable-compact-imports` with it.
@@ -254,6 +262,10 @@ The six real-compiler modules are unaffected (no import-section difference).
   discards what earlier statements left; falling through keeps it for the `end`. `_tailReturn`
   learned it from `unwind.wast` in item 2 and the new flowing-branch walk had to again, three
   levels down. Any rule that turns "branch to X" into "fall to X" checks every list on the way.
+- **A fixture shaped to dodge one rule breaks when the next rule arrives** (step 14): three
+  tests used a second, adjacent `br_if` only to keep a block from becoming an `if`, and the new
+  merge took it. Say in the fixture what each extra statement is there FOR, so the next change
+  can keep the test on its subject instead of rewriting its assertion.
 - **A shape that exists only mid-schedule needs a test through `wasmOpt`** (steps 10, 13): the
   pass alone receives the module already spilled (a value left on the stack arrives `drop`ped),
   so a test of the pass in isolation cannot reach it. Test the spec's own function, every level.
