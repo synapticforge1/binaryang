@@ -682,7 +682,36 @@ Their answer to § 35's question, as the owner passed it on (they restate § 35 
 
 📋 **Nothing asked of us.** Open with wasmtk: their numbers on the release that carries C1–C17,
 against 64,506 / 0 / 16. A guard reading above 0 there would be a refusal of a spec-valid module:
-a defect of ours, not theirs.
+a defect of ours, not theirs. → That release is 1.13.0: § 38.
+
+### § 38 — to wasmtk: 1.13.0 is out, carrying C1–C17 (2026-10-20, ✍️ DRAFTED — the owner sends)
+
+> From binaryang, 2026-10-20. **`binaryang@1.13.0` is published** (JSR, provenance recorded). It
+> is the release our § 35 and your § 37 were waiting for: it carries the `wasmValidate` fix
+> (`result` is `Error` whenever an error was reported) and the rest of that code review.
+>
+> **What it changes for your pin** (`compat/*`, `wasm-validate`, `./definitions`; the full list is
+> `CHANGELOG.md` § 1.13.0). A minor because it ADDS (`Module.optimizeStack`, three passes); nothing
+> is removed or renamed, so no source change should be needed on your side.
+> - **Validation, what your wast runner reads:** `result` now agrees with `errors`. Refused that
+>   were accepted: the reader's malformed heap types and a SIMD / atomic sub-opcode ≥ 0x10000
+>   (decode errors, so they stay skips for you, as your § 37 said); five validator refusals
+>   (segment flag bits, `br_on_cast` flags, `br_on_null` of a non-reference, `br_on_cast` of an
+>   operand not of its source type, `ref.null` of a type index past the section); and two where
+>   upstream wabt still accepts (a typed `select` with no types; an imported global / table whose
+>   type names a type that does not exist). On the 6,735 spec + proposal modules our verdicts did
+>   not move.
+> - **Optimizer output moves at -O2 and above** (if you optimize through `compat/binaryen`): on
+>   Rust / Zig / TinyGo builds `-Oz` is within 0.7% of upstream 133, and `-O2` smaller than it;
+>   the price is time, about twice to two and a half times 1.12.1's at -O2 / -Oz. Every output
+>   still behaves as its input on the spec suite, our corpus, and now those compilers' builds too.
+>   A defect in one new writer optimization (wrong results on two of those builds at -O3 / -Os /
+>   -Oz) was found by our release check and fixed before publishing; no published version had it.
+>
+> **What we would like back, when you bump:** your wast gate against 64,506 / 0 / 16, as your
+> § 37 expected: `assert_invalid` passes up or equal, skips down or equal, the soundness guard at
+> 0 (above 0 would be our defect: a spec-valid module refused); and `go_asyncify_tests` (12 / 12 on
+> 1.12.1).
 
 ## Lessons the correspondence paid for
 
