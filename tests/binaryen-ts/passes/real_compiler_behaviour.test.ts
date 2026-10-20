@@ -37,7 +37,14 @@ async function workload(bytes: Uint8Array): Promise<string> {
   }
 }
 
-const SIX = ['rust-debug', 'rust-release', 'zig-debug', 'zig-releasefast', 'tinygo-opt1', 'tinygo-optz'];
+const SIX = [
+  'rust-debug',
+  'rust-release',
+  'zig-debug',
+  'zig-releasefast',
+  'tinygo-opt1',
+  'tinygo-optz',
+];
 
 describe('real compiler output keeps its behaviour at every level', () => {
   for (const m of SIX) {
@@ -47,7 +54,8 @@ describe('real compiler output keeps its behaviour at every level', () => {
       expect(want).toMatch(/^\d+$/); // the original runs to a checksum
       const got: Record<string, string> = {};
       for (const [level, opts] of Object.entries(LEVELS)) {
-        got[level] = await workload((await wasmOpt(src, { ...opts, validate: true })) as Uint8Array);
+        const out = (await wasmOpt(src, { ...opts, validate: true })) as Uint8Array;
+        got[level] = await workload(out);
       }
       expect(got).toEqual(Object.fromEntries(Object.keys(LEVELS).map((l) => [l, want])));
     });
