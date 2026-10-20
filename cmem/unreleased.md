@@ -4,8 +4,10 @@
 round 13, pass 1 (C1–C17, merged from `code-lens-13`), open-work 30's optimizer steps and the
 shipped-crash fix, and the browser recipe (docs)** — § "Since 1.12.1" below (check it rather
 than trust this line: `git log --oneline v1.12.1..main -- src/ main.ts jsr.json`). Its entries are
-Behaviour and Silent fixes, none BREAKING and no new export; the version, and when, are the
-owner's call. `jsr.json` reads 1.12.1; the version line arms a release,
+Behaviour and Silent fixes, none BREAKING, plus NEW: `Module.optimizeStack` and three passes
+(🔧 this line said "no new export" from 2026-10-15; step 4 had added the field). **Releasing as
+1.13.0** (owner, 2026-10-20: "push a release", the version chosen as a minor); the version, and
+when, are the owner's call. `jsr.json` reads 1.12.1; the version line arms a release,
 so the next bump is the owner's decision, never a side effect of work.
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
@@ -44,7 +46,9 @@ contains ([handoffs.md](handoffs.md)).
   [optimizer.md](optimizer.md) § "Open-work 31"): jump threading and RemoveUnusedBrs after
   CodeFolding (`8a91144e0`); two plain memory accesses may change places in the effects analysis
   (`c083bcf97` — a trap's KIND is still never changed); DAE removes a parameter written before it
-  is read, to a fixed point (`90d200ec5`); Local2Stack in the writer (`f69843225`);
+  is read, to a fixed point (`90d200ec5`); Local2Stack in the writer (`f69843225`; 🚨 it gave
+  WRONG results on real compiler output at -O3 / -Os / -Oz until `b663aeaa8`, found at the
+  release check and fixed before anything shipped — optimizer.md § "Open-work 31");
   ConstantPropagation removes a write of the constant the local already holds (`1f1282029`,
   `e3434bbf1`); CodeFolding folds tails before a `return` (`634237a60`); constants propagate and
   fold to a fixed point, and Inlining runs three rounds (step 8, below); DCE reaches blocks in
@@ -58,9 +62,14 @@ contains ([handoffs.md](handoffs.md)).
   label on `i32.or` (`8ec400644`, step 14); a read of a copied local reads the original where it
   still holds the value (the new MergeLocals pass, -O3 / -Oz; `8f7fb035b`, `3437386f9`, step 15).
   Every behaviour gate unchanged. Real compiler output -Oz +4.9% → +0.69% over upstream
-  (zig-debug +14.0% → +1.9%); corpus -Oz +1.60% → +0.14%. -O2 and above take about a fifth
-  longer (corpus -Oz 8 s → 9.5 s; it was 11 s before step 15 made the local graph faster). ⚠️ `CHANGELOG.md` § Unreleased
-  still states item 30's figures ("5% larger … 14% instead of 31%"): restate them at release.
+  (zig-debug +14.0% → +1.9%); corpus -Oz +1.60% → +0.14%. 🔧 **Time, measured against a
+  `v1.12.1` tree on this machine (2026-10-20, best of 3, scratch `timeit.ts`):** corpus -Oz
+  3.95 s → 10.43 s (2.6×), -O2 4.85 s → 9.91 s (2.0×), -O1 1.75 s → 1.95 s; the six -Oz 1.35 s →
+  3.23 s. This line said "about a third longer (8 s → 11 s)", then "a fifth (8 s → 9.5 s)": the
+  8 s was never a 1.12.1 figure. Step 15's faster local graph took 10.89 s → 9.53 s off the
+  corpus, not off the release's comparison. ✅ `CHANGELOG.md` § 1.13.0 restates item 30's
+  figures with today's (2026-10-20, scratch `gap.ts`, upstream 133): -Oz +0.7% (zig-debug +1.9%),
+  -O2 −2.1% (smaller than upstream), and the times above.
 - **NEW pass — `PrecomputePropagate`** (open-work 31, step 8): ConstantPropagation and Precompute
   alternated in each function until neither changes anything (upstream's
   `precompute-propagate`). It replaces the two fixed rounds of each in the -O2+ schedule, and runs
@@ -70,7 +79,8 @@ contains ([handoffs.md](handoffs.md)).
   (upstream's `merge-locals`). In the -O3 / -Oz schedule before the first CoalesceLocals; not at
   -O1 / -O2 / -Os, as upstream.
 - **NEW (additive) — `Module.optimizeStack`** (`./ir`, optional) and **`WriteBinaryOptions.stackIR`**
-  (`f69843225`): an optimizing run at -O3 / -Os / -Oz marks the module, and `writeWasm` then
+  (`f69843225`; 🔧 `WriteBinaryOptions` is reachable from no export, so only `Module.optimizeStack`
+  is public — checked 2026-10-20): an optimizing run at -O3 / -Os / -Oz marks the module, and `writeWasm` then
   leaves a value on the stack instead of a local stored and read straight back. A plain read and
   write changes no byte (the baseline gate holds it).
 
