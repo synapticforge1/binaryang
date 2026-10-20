@@ -245,6 +245,18 @@ optimize-instructions −133.
 (140,047). Left: ssa-nomerge 325 · simplify-locals-nostructure 129 · remove-unused-brs 125 ·
 simplify-locals 102 · merge-locals 72 · rse 62 · vacuum 38 · …; optimize-instructions −121.
 
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| 15 | ssa-nomerge, attributed per function (`passfn.ts`; zig-debug −193 in funcs 23 / 22 / 41 / 29): a local the compiler REUSES hides a copy — `local.get 7; local.set 8`, then `(i32.ne (local.get 8) (local.get 7))` guarding a panic, always false. We had no merge-locals at all. **MergeLocals** (new, `merge-locals.ts`, upstream's method): a read of `$b` whose only reaching write is a copy `$b = $a` reads `$a` where a second graph shows `$a` unchanged (the copy instrumented with a tee of `$a`); OptimizeInstructions folds the reflexive comparison. Before the first CoalesceLocals at -O3 / -Oz. **Measured, not kept:** upstream's all-or-nothing per copy (six 0, corpus +3); again before the second CoalesceLocals (0). **`localGraph`** takes the locals to follow and runs gen / kill bitsets: the Map-of-Sets dataflow took MergeLocals 1.72 s on zig-debug (six -Oz 3.3 → 6.9 s); now 3.29 s, corpus 10.89 → 9.53 s; equal to the old graph on 8,208 functions (scratch `graph-eq.ts`). 🔧 The first gate failed four behaviour steps (spec float_exprs `f32.epsilon` 0 at -O3 / -Oz, direct-behaviour 1_fib-rs, the -Oz fuzz): taking the instrumentation out also took a copy that is itself a tee, leaving a refused read of a local nothing wrote; the defect was worth 52 / 96 of the first figures (−173 / −724) | `8f7fb035b` `3437386f9` `79d76918b` | **140,028 (+0.69%)** | **811,099 (+0.14%)** |
+
+**After step 15** (`gap/passrank17.log`): merge-locals 72 → 2, ssa-nomerge 325 → 249, rse 62 →
+34; simplify-locals-nostructure 129 → 142 and simplify-locals 102 → 119 (the redirected reads are
+sinking ours does not do yet). Control 89 below ours (139,939). Left: ssa-nomerge 249 ·
+simplify-locals-nostructure 142 · remove-unused-brs 125 · simplify-locals 119 · vacuum 63 ·
+local-cse 36 · precompute-propagate 35 · rse 34 · …; optimize-instructions −122. Not built: func
+41's second mechanism (panic tails that become identical once upstream re-allocates locals, then
+fold).
+
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
 section). Item 2's rule stands: never `-all` against the corpus; `--disable-compact-imports` with it.
@@ -266,6 +278,14 @@ The six real-compiler modules are unaffected (no import-section difference).
   tests used a second, adjacent `br_if` only to keep a block from becoming an `if`, and the new
   merge took it. Say in the fixture what each extra statement is there FOR, so the next change
   can keep the test on its subject instead of rewriting its assertion.
+- **Take instrumentation out by what it IS, not by what it holds** (step 15): MergeLocals' tee
+  was found by its inner read, and a bottom-up walk then found the copy (also a tee) holding the
+  same read once the instrumentation was gone. The test had a tee copy only where every read
+  moved, so the copy's loss changed nothing it ran; a refused read is the case that shows it.
+  Test each rewrite with a case where it is REFUSED next to the one where it applies.
+- **A bitwise result is signed; a `Uint32Array` element is not** (step 15): comparing `(a | b)`
+  with the stored word never held once bit 31 was set, and `localGraph`'s worklist never ended
+  (exit 127, out of memory, no message). `>>> 0` before comparing.
 - **A shape that exists only mid-schedule needs a test through `wasmOpt`** (steps 10, 13): the
   pass alone receives the module already spilled (a value left on the stack arrives `drop`ped),
   so a test of the pass in isolation cannot reach it. Test the spec's own function, every level.
