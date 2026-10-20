@@ -23,70 +23,120 @@ export type Def = Expression | typeof ENTRY;
 /**
  * Reaching definitions per `local.get` (the sets, or the entry, whose value it may read) and the
  * readers of each `local.set` / `local.tee`: upstream's LocalGraph, over {@link buildCFG}.
+ * Given `locals`, only those are followed: the gets and sets of the others are not in the result
+ * (MergeLocals asks about the few locals its copies touch, on functions with hundreds).
  */
-export function localGraph(fn: WasmFunction): {
+export function localGraph(fn: WasmFunction, locals?: ReadonlySet<number>): {
   reaching: Map<Expression, Set<Def>>;
   readers: Map<Expression, Set<Expression>>;
 } {
   const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
-  type State = Map<number, Set<Def>>;
-  const nLocals = fn.locals.length;
-  const entryState = (): State => {
-    const s: State = new Map();
-    for (let i = 0; i < nLocals; i++) s.set(i, new Set<Def>([ENTRY]));
-    return s;
+  const followed = (i: number) => locals === undefined || locals.has(i);
+
+  // Every definition numbered — each followed local's entry, then each set — so a block's state
+  // is a bitset over them, and a block's effect is gen / kill (open-work 31, step 15: a Map of
+  // Sets per block took MergeLocals 1.7 s on zig-debug).
+  const defs: Def[] = [];
+  const ofLocal = new Map<number, number[]>(); // local → its definitions' numbers
+  const define = (d: Def, local: number): number => {
+    const ids = ofLocal.get(local) ?? [];
+    ids.push(defs.length);
+    ofLocal.set(local, ids);
+    defs.push(d);
+    return defs.length - 1;
   };
-  const copy = (s: State): State => new Map([...s].map(([k, v]) => [k, new Set(v)]));
-  const transfer = (b: (typeof cfg.blocks)[number], s: State): State => {
-    const out = copy(s);
-    for (const a of b.actions) if (a.kind === 'set') out.set(a.index, new Set<Def>([a.origin]));
-    return out;
-  };
-  const ins = new Map<number, State>();
-  const outs = new Map<number, State>();
-  ins.set(cfg.entry.id, entryState());
+  for (let i = 0; i < fn.locals.length; i++) if (followed(i)) define(ENTRY, i);
+  const entryBits = defs.length;
+  const idOf = new Map<Expression, number>();
+  for (const b of cfg.blocks) {
+    for (const a of b.actions) {
+      if (a.kind === 'set' && followed(a.index)) idOf.set(a.origin, define(a.origin, a.index));
+    }
+  }
+  const W = (defs.length + 31) >>> 5;
+  const bit = (bits: Uint32Array, id: number) => (bits[id >>> 5]! >>> (id & 31)) & 1;
+  const masks = new Map<number, Uint32Array>(); // local → all its definitions
+  for (const [local, ids] of ofLocal) {
+    const m = new Uint32Array(W);
+    for (const id of ids) m[id >>> 5]! |= 1 << (id & 31);
+    masks.set(local, m);
+  }
+  const gen = cfg.blocks.map(() => new Uint32Array(W));
+  const kill = cfg.blocks.map(() => new Uint32Array(W));
+  for (const b of cfg.blocks) {
+    const last = new Map<number, number>();
+    for (const a of b.actions) {
+      if (a.kind === 'set' && followed(a.index)) last.set(a.index, idOf.get(a.origin)!);
+    }
+    const g = gen[b.id]!, k = kill[b.id]!;
+    for (const [local, id] of last) {
+      const m = masks.get(local)!;
+      for (let w = 0; w < W; w++) k[w]! |= m[w]!;
+      g[id >>> 5]! |= 1 << (id & 31);
+    }
+  }
+
+  const ins = cfg.blocks.map(() => new Uint32Array(W));
+  const outs = cfg.blocks.map(() => new Uint32Array(W));
+  const reached = new Uint8Array(cfg.blocks.length); // a path reaches it
+  const done = new Uint8Array(cfg.blocks.length); // its out has been computed once
+  const queued = new Uint8Array(cfg.blocks.length);
+  for (let id = 0; id < entryBits; id++) ins[cfg.entry.id]![id >>> 5]! |= 1 << (id & 31);
+  reached[cfg.entry.id] = 1;
   const work = [cfg.entry];
-  const queued = new Set([cfg.entry.id]);
-  while (work.length > 0) {
-    const b = work.shift()!;
-    queued.delete(b.id);
-    const out = transfer(b, ins.get(b.id)!);
-    const prev = outs.get(b.id);
-    const same = prev !== undefined && [...out].every(([k, v]) => {
-      const p = prev.get(k);
-      return p !== undefined && p.size === v.size && [...v].every((d) => p.has(d));
-    });
-    if (same) continue;
-    outs.set(b.id, out);
-    for (const succ of b.out) {
-      const cur = ins.get(succ.id) ?? new Map<number, Set<Def>>();
-      for (const [k, v] of out) {
-        const set = cur.get(k) ?? new Set<Def>();
-        for (const d of v) set.add(d);
-        cur.set(k, set);
+  queued[cfg.entry.id] = 1;
+  for (let head = 0; head < work.length; head++) {
+    const b = work[head]!;
+    queued[b.id] = 0;
+    const inn = ins[b.id]!, out = outs[b.id]!, g = gen[b.id]!, k = kill[b.id]!;
+    let changed = done[b.id] === 0;
+    for (let w = 0; w < W; w++) {
+      // `>>> 0`: a bitwise result is signed, the array's element is not; bit 31 never compared
+      // equal, and the worklist never ended.
+      const v = ((inn[w]! & ~k[w]!) | g[w]!) >>> 0;
+      if (v !== out[w]) {
+        out[w] = v;
+        changed = true;
       }
-      ins.set(succ.id, cur);
-      if (!queued.has(succ.id)) {
-        queued.add(succ.id);
+    }
+    done[b.id] = 1;
+    if (!changed) continue;
+    for (const succ of b.out) {
+      const si = ins[succ.id]!;
+      let grew = reached[succ.id] === 0;
+      reached[succ.id] = 1;
+      for (let w = 0; w < W; w++) {
+        const v = (si[w]! | out[w]!) >>> 0;
+        if (v !== si[w]) {
+          si[w] = v;
+          grew = true;
+        }
+      }
+      if (grew && queued[succ.id] === 0) {
+        queued[succ.id] = 1;
         work.push(succ);
       }
     }
   }
+
   const reaching = new Map<Expression, Set<Def>>();
   const readers = new Map<Expression, Set<Expression>>();
   for (const b of cfg.blocks) {
-    const state = ins.get(b.id);
-    if (state === undefined) continue; // no path reaches it
-    const s = copy(state);
+    if (reached[b.id] === 0) continue; // no path reaches it
+    const s = ins[b.id]!.slice();
     for (const a of b.actions) {
+      if (!followed(a.index)) continue;
       if (a.kind === 'set') {
-        s.set(a.index, new Set<Def>([a.origin]));
+        const m = masks.get(a.index)!, id = idOf.get(a.origin)!;
+        for (let w = 0; w < W; w++) s[w]! &= ~m[w]!;
+        s[id >>> 5]! |= 1 << (id & 31);
         if (!readers.has(a.origin)) readers.set(a.origin, new Set());
         continue;
       }
-      const defs = new Set(s.get(a.index) ?? []);
-      reaching.set(a.origin, defs);
-      for (const d of defs) {
+      const set = new Set<Def>();
+      for (const id of ofLocal.get(a.index) ?? []) if (bit(s, id) === 1) set.add(defs[id]!);
+      reaching.set(a.origin, set);
+      for (const d of set) {
         if (d === ENTRY) continue;
         const r = readers.get(d) ?? new Set<Expression>();
         r.add(a.origin);
