@@ -134,7 +134,7 @@ paragraphs above call unreleased — C1–C17, open-work 30, open-work 31 steps 
 release check found Local2Stack (31 step 4) computing wrong results on real compiler output;
 fixed before the push, never shipped. **Open:** 31 (optimizer), 32 (new: lowering for engines
 without memory64 / multi-memory), 13, 14, 15. **Owed by wasmtk:** their wast-gate numbers on the
-release carrying C1–C17 — that is 1.13.0 (letter § 38, DRAFTED for the owner to send).
+release carrying C1–C17 — that is 1.13.0 (letter § 38, ✅ SENT by the owner 2026-10-20).
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 

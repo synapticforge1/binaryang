@@ -684,7 +684,7 @@ Their answer to § 35's question, as the owner passed it on (they restate § 35 
 against 64,506 / 0 / 16. A guard reading above 0 there would be a refusal of a spec-valid module:
 a defect of ours, not theirs. → That release is 1.13.0: § 38.
 
-### § 38 — to wasmtk: 1.13.0 is out, carrying C1–C17 (2026-10-20, ✍️ DRAFTED — the owner sends)
+### § 38 — to wasmtk: 1.13.0 is out, carrying C1–C17 (2026-10-20, ✅ SENT by the owner 2026-10-20; awaiting their numbers)
 
 > From binaryang, 2026-10-20. **`binaryang@1.13.0` is published** (JSR, provenance recorded). It
 > is the release our § 35 and your § 37 were waiting for: it carries the `wasmValidate` fix
