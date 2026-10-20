@@ -42,6 +42,7 @@
 # under "Settings → GitHub Actions". No JSR token is needed when OIDC is configured.
 
 name: Publish to JSR
+# (and to npm, in the `npm` job below, once switched on: open-work 29)
 
 on:
   push:
@@ -168,4 +169,78 @@ jobs:
             sleep 15
           done
           echo "::error::${PKG}@${VERSION} published WITHOUT provenance (no Sigstore/Rekor entry). The publish itself SUCCEEDED — this version exists and is immutable. Do NOT 'fix' this by editing permissions or the publish YAML: binaryen-ts's workflow is byte-identical between an unattested (v1.4.3) and an attested (v1.5.0) release, so the YAML is not the variable. Check the OIDC step above, then org/enterprise Settings → Actions → General → OIDC policy, then that the JSR↔GitHub repo link is intact. See cmem/publishing.md."
+          exit 1
+
+  # npm, the SECOND registry (open-work 29; owner, 2026-10-20: `@synapticforge/binaryang`, JSR
+  # staying the source). After JSR's job, from the same tag. OFF until the repository variable
+  # NPM_PUBLISH is `true` (Settings → Secrets and variables → Actions → Variables), which the owner
+  # sets once npm's trusted publisher for this package names this repository and this workflow
+  # file. No token: npm trusted publishing takes the workflow's OIDC identity and records
+  # provenance (`publishConfig.provenance`). Versions are immutable on npm too: a failed run of
+  # this job is RE-RUN alone, never re-tagged. Before switching it on, check npm's current docs
+  # for the npm version trusted publishing needs; the step below prints the one in use.
+  npm:
+    name: Publish ${{ github.ref_name }} to npm
+    needs: publish
+    if: vars.NPM_PUBLISH == 'true' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: npm version (trusted publishing needs a recent one)
+        run: |
+          npm install -g npm@11
+          npm --version
+
+      - name: Verify jsr.json version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(bun -e 'console.log(JSON.parse(require("node:fs").readFileSync("jsr.json", "utf8")).version)')"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match jsr.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      # Builds dist/ and proves the tarball (installed and run) before anything is published.
+      - name: Build and prove the npm package
+        run: bun run npm:prove
+
+      - name: Publish to npm (trusted publishing, provenance)
+        working-directory: dist
+        run: npm publish
+
+      - name: Verify provenance was recorded on npm
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          URL="https://registry.npmjs.org/@synapticforge%2Fbinaryang/${VERSION}"
+          for i in $(seq 1 12); do
+            P=$(curl -sf -H "Cache-Control: no-cache" "${URL}?cb=${GITHUB_RUN_ID}-${i}" | bun -e 'const t = await Bun.stdin.text(); try { console.log(JSON.parse(t).dist?.attestations?.provenance?.predicateType ?? "") } catch { console.log("") }' || true)
+            if [ -n "$P" ]; then
+              echo "npm provenance recorded: $P"
+              echo "- npm: @synapticforge/binaryang@${VERSION}, provenance $P" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "  attempt $i: not visible yet, retrying in 15s"
+            sleep 15
+          done
+          echo "::error::@synapticforge/binaryang@${VERSION} has no provenance attestation on npm. The version exists and is immutable."
           exit 1

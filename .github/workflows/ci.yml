@@ -117,6 +117,13 @@ jobs:
         # the same 122 files as with `--config jsr.json` before (cmem/bun-migration.md § "B7").
         run: bun run publish:dry
 
+      # The npm package (open-work 29, `@synapticforge/binaryang`): built from jsr.json into dist/,
+      # packed, the TARBALL installed into a scratch consumer, and run there — every export imports,
+      # the CLI gives the source's smoke hash, the shipped .d.ts type-check, every export bundles
+      # for the browser, the export list equals JSR's own npm build. Nothing is published here.
+      - name: npm package (built, packed, installed, run)
+        run: bun run npm:prove
+
       # REPORTED, NOT GATED, on purpose. This is the convergence indicator: the
       # number of exported type names declared in both `src/` trees. Failing on
       # it would reward making it fall by RENAMING, which moves the number

@@ -12,6 +12,8 @@
     "diagnostics": "bun scripts/measure-diagnostics.ts",
     "bump": "bun scripts/release/bump_version.ts",
     "release": "bun scripts/release/publish.ts",
+    "npm:build": "bun scripts/npm/build.ts",
+    "npm:prove": "bun scripts/npm/prove.ts",
     "baseline": "bun scripts/wabt-ts/verify-baseline.ts",
     "operators": "bun scripts/check-operator-mapping.ts",
     "spec:prepare": "bun scripts/spec-prepare.ts",
