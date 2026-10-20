@@ -123,6 +123,21 @@ describe('the pair stays', () => {
     await same(plain, stacked, IN);
   });
 
+  it('when it is not exact, and so does every pair taken above it', async () => {
+    // `$c` is read again, so (set $c, get $c) stays; `$d`'s pair is exact, but taking it would
+    // leave `$d`'s value UNDER the kept `get $c`, and `i32.sub` would take them reversed. 🔧 The
+    // pairs were judged after the walk, which had gone on as if (c) were taken: rust-debug and
+    // zig-releasefast computed wrong results at -O3 / -Os / -Oz (found at 1.13.0's release check).
+    const { plain, stacked, saved } = both(`${HEAD}
+      (func (export "f") (param i32 i32) (result i32) (local $c i32) (local $d i32)
+        (local.set $c (i32.mul (local.get 0) (i32.const 3)))
+        (local.set $d (i32.add (local.get 1) (i32.const 5)))
+        (global.set $g (i32.sub (local.get $c) (local.get $d)))
+        (i32.add (local.get $c) (i32.const 1))))`);
+    expect(saved).toBe(0);
+    await same(plain, stacked, IN);
+  });
+
   it('when the read is inside a block: the stack before it is out of reach', async () => {
     const { plain, stacked, saved } = both(`${HEAD}
       (func (export "f") (param i32 i32) (result i32) (local $x i32)
