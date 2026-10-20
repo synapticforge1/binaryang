@@ -193,7 +193,8 @@ CI shell scripts are TypeScript (the old item 17).
     does not reproduce: 141,905 (optimizer.md 🔧). **Next: the ranked passes** (scratch
     `gap/passrank16.log`): ssa-nomerge 325 (step 7 did not pay), simplify-locals-nostructure 129,
     remove-unused-brs 125, simplify-locals 102. **Paused 2026-10-19 by the owner after step 14:**
-    working tree clean, `main` 98 commits ahead of `origin/main`, NOTHING pushed (owner's call, as
+    working tree clean, `main` ahead of `origin/main` (`git log origin/main..main` counts it; a
+    count written here goes stale with the commit that writes it), NOTHING pushed (owner's call, as
     is the release; unreleased.md has the bullet and the CHANGELOG flag). A new session copies the
     scratch scripts first (cmem/local/environment.md, "Optimizer measurement scripts") and
     re-derives the six / corpus baseline before quoting it.
