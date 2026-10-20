@@ -1,18 +1,45 @@
 # Changelog
 
-## Unreleased
+## 1.13.0
+
+A minor release: **an optimizer within 0.7% of upstream `wasm-opt -Oz` on real compiler output,
+and smaller than upstream at `-O2`**, with three new passes; a validator that could report an
+invalid module as valid, now fixed; and a reader that stops early on malformed input. Nothing is
+removed or renamed. No valid module's bytes change through `wat2wasm`, `wasm2wat` or a plain read
+and write; the optimizer's output moves, and every output still behaves as its input.
+
+### New
+
+- Passes in `./passes`: **`MergeLocals`** (a read of a local that holds a copy of another reads
+  the original instead, where the original still holds the value; upstream's `merge-locals`, at
+  `-O3` / `-Oz`), **`PrecomputePropagate`** (constants are propagated through locals and folded,
+  over and over until nothing changes; it replaces two fixed rounds of `ConstantPropagation` and
+  `Precompute` in the `-O2`+ schedule, and both remain) and **`MergeSimilarFunctions`** (at `-Oz`,
+  functions that differ only in constants share one body).
+- `Module.optimizeStack` in `./ir` (optional): an optimizing run at `-O3`, `-Os` or `-Oz` sets
+  it, and the module is then written with a value left on the stack where the code would store it
+  in a local and read it straight back (upstream's writer does the same at those levels). A plain
+  read and write never sets it and changes no byte.
 
 ### Changed
 
 - **Smaller optimized output on real compiler output.** Measured on Rust, Zig and TinyGo builds,
-  debug and release: `-Oz` code is 5% larger than upstream Binaryen's instead of 10% (a Zig debug
-  build 14% instead of 31%), and `-O2` 1.5% instead of 6%. `-Oz` is now smaller than `-O2` again.
-  New in the optimizer: a comparison masked with `& 1` (or any mask the value already fits) and
-  `eqz` of an integer comparison are simplified; identical code before an `unreachable` in several
-  places of a function is written once; a function in a table no `call_indirect` can reach with
-  its signature keeps its slot but not its body, when the table is not visible outside the module;
-  and, at `-Oz`, functions that differ only in constants share one body (the new
-  `MergeSimilarFunctions` pass). Every output still behaves as the input.
+  debug and release, against upstream Binaryen 133: `-Oz` code is 0.7% larger than upstream's
+  instead of 10% at 1.12.1 (a Zig debug build 1.9% instead of 31%; a Rust release build and a
+  TinyGo `-opt=z` build are smaller than upstream's), and `-O2` code is 2.1% SMALLER than
+  upstream's instead of 6% larger. On the 421-module corpus `-Oz` is 0.14% above upstream (1.86%
+  at 1.12.1). New in the optimizer, besides the passes above: a comparison masked with `& 1` (or
+  any mask the value already fits) and `eqz` of an integer comparison are simplified; identical
+  code is written once where several ways reach the same point (before an `unreachable`, a
+  `return`, or a block's end); a function in a table no `call_indirect` can reach with its
+  signature keeps its slot but not its body, when the table is not visible outside the module;
+  branches that go where falling through would are removed, branches to a branch go straight to
+  its target, and adjacent conditional branches to one label are merged; dead code after a
+  construct that never completes is removed; a parameter written before it is read is removed;
+  two plain memory accesses may be reordered (a trap's kind never changes); and inlining and the
+  function passes run three rounds. **The price is time:** `-O2` takes about twice as long as at
+  1.12.1 and `-Oz` about two and a half times (measured on the corpus: 4.9 s → 9.9 s and
+  4.0 s → 10.4 s); `-O1` a little (1.75 s → 1.95 s).
 
 ### Documentation
 
