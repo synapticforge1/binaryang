@@ -49,6 +49,7 @@ import './remove-unused-brs.ts';
 import './simplify-locals.ts';
 import './coalesce-locals.ts';
 import './local-cse.ts';
+import './merge-locals.ts';
 import './constant-propagation.ts';
 import './precompute.ts';
 import './precompute-propagate.ts';
