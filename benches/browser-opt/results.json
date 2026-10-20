@@ -1,12 +1,12 @@
 {
-  "date": "2026-10-14T02:11:33.566Z",
+  "date": "2026-10-20T19:45:38.933Z",
   "upstream": "wasm-opt version 133 (version_133)",
   "results": [
     {
       "name": "chrome",
-      "version": "154.0.8037.98",
+      "version": "155.0.8059.85",
       "result": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
         "reports": [
           {
             "module": "rust-debug",
@@ -26,15 +26,15 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.8999999761581421,
-                "runMs": 11,
+                "compileMs": 0.800000011920929,
+                "runMs": 10.699999988079071,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 1892725,
-                "codeBytes": 43844,
+                "bytes": 1891410,
+                "codeBytes": 42529,
                 "custom": [
                   ".debug_abbrev",
                   ".debug_info",
@@ -45,16 +45,16 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 320.7999999523163,
-                "compileMs": 0.8999999761581421,
-                "runMs": 11,
+                "optimizeMs": 536,
+                "compileMs": 1,
+                "runMs": 9.799999952316284,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 1892800,
-                "codeBytes": 43919,
+                "bytes": 1891385,
+                "codeBytes": 42504,
                 "custom": [
                   ".debug_abbrev",
                   ".debug_info",
@@ -65,9 +65,9 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 223.89999997615814,
-                "compileMs": 1,
-                "runMs": 10.900000095367432,
+                "optimizeMs": 436.0999999642372,
+                "compileMs": 0.8999999761581421,
+                "runMs": 9.800000011920929,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -79,8 +79,8 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.19999992847442627,
-                "runMs": 10.799999952316284,
+                "compileMs": 0.19999998807907104,
+                "runMs": 9.800000011920929,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -92,8 +92,8 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.20000004768371582,
-                "runMs": 10.900000095367432,
+                "compileMs": 0.19999998807907104,
+                "runMs": 10,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -111,36 +111,36 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.19999992847442627,
-                "runMs": 3.5,
+                "compileMs": 0.10000002384185791,
+                "runMs": 3.300000011920929,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 18118,
-                "codeBytes": 17879,
+                "bytes": 17656,
+                "codeBytes": 17417,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 84.79999995231628,
-                "compileMs": 0.40000009536743164,
-                "runMs": 3.5,
+                "optimizeMs": 179.30000001192093,
+                "compileMs": 0.3999999761581421,
+                "runMs": 3.300000011920929,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 18115,
-                "codeBytes": 17876,
+                "bytes": 17641,
+                "codeBytes": 17402,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 96.60000002384186,
-                "compileMs": 0.2999999523162842,
-                "runMs": 3.600000023841858,
+                "optimizeMs": 197.69999998807907,
+                "compileMs": 0.19999998807907104,
+                "runMs": 3.5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -153,7 +153,7 @@
                   "target_features"
                 ],
                 "compileMs": 0.10000002384185791,
-                "runMs": 3.8000000715255737,
+                "runMs": 3.600000023841858,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -165,8 +165,8 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.10000002384185791,
-                "runMs": 3.8000000715255737,
+                "compileMs": 0.09999996423721313,
+                "runMs": 3.5,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -192,15 +192,15 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.30000007152557373,
-                "runMs": 10.399999976158142,
+                "compileMs": 0.19999998807907104,
+                "runMs": 10.099999964237213,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 633408,
-                "codeBytes": 47237,
+                "bytes": 624078,
+                "codeBytes": 37907,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -213,16 +213,16 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 711.8000000715256,
-                "compileMs": 0.6000000238418579,
-                "runMs": 10.600000023841858,
+                "optimizeMs": 1077.9000000357628,
+                "compileMs": 0.5,
+                "runMs": 8.700000047683716,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 633506,
-                "codeBytes": 47335,
+                "bytes": 622970,
+                "codeBytes": 36799,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -235,9 +235,9 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 648,
-                "compileMs": 0.30000007152557373,
-                "runMs": 10.199999928474426,
+                "optimizeMs": 1113.1000000238419,
+                "compileMs": 0.3999999761581421,
+                "runMs": 8.900000035762787,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -249,8 +249,8 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.19999992847442627,
-                "runMs": 10.100000023841858,
+                "compileMs": 0.10000002384185791,
+                "runMs": 8.399999976158142,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -262,8 +262,8 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.19999992847442627,
-                "runMs": 9,
+                "compileMs": 0.19999998807907104,
+                "runMs": 8.199999988079071,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -289,15 +289,15 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.10000002384185791,
-                "runMs": 6.5,
+                "compileMs": 0.19999998807907104,
+                "runMs": 4.800000011920929,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 108821,
-                "codeBytes": 20048,
+                "bytes": 107949,
+                "codeBytes": 19176,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -310,16 +310,16 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 136.5,
+                "optimizeMs": 285.30000001192093,
                 "compileMs": 0.3999999761581421,
-                "runMs": 4.800000071525574,
+                "runMs": 4.899999976158142,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 108821,
-                "codeBytes": 20048,
+                "bytes": 107849,
+                "codeBytes": 19076,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -332,9 +332,9 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 130.59999990463257,
-                "compileMs": 0.10000002384185791,
-                "runMs": 4.300000071525574,
+                "optimizeMs": 371.69999998807907,
+                "compileMs": 0.19999998807907104,
+                "runMs": 4.5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -347,7 +347,7 @@
                   "target_features"
                 ],
                 "compileMs": 0.10000002384185791,
-                "runMs": 4.799999952316284,
+                "runMs": 4.699999988079071,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -360,7 +360,7 @@
                   "target_features"
                 ],
                 "compileMs": 0.10000002384185791,
-                "runMs": 4.800000071525574,
+                "runMs": 4.600000023841858,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -378,36 +378,36 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.10000002384185791,
-                "runMs": 5.300000071525574,
+                "compileMs": 0.09999996423721313,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 13186,
-                "codeBytes": 12958,
+                "bytes": 13136,
+                "codeBytes": 12908,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 89.80000007152557,
-                "compileMs": 0.6000000238418579,
-                "runMs": 5.300000071525574,
+                "optimizeMs": 164.5,
+                "compileMs": 0.10000002384185791,
+                "runMs": 5.100000023841858,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 13186,
-                "codeBytes": 12958,
+                "bytes": 13108,
+                "codeBytes": 12880,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 71,
-                "compileMs": 0.10000002384185791,
-                "runMs": 5.300000071525574,
+                "optimizeMs": 161.79999995231628,
+                "compileMs": 0.30000001192092896,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -420,7 +420,7 @@
                   "target_features"
                 ],
                 "compileMs": 0.10000002384185791,
-                "runMs": 5.199999928474426,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -432,8 +432,8 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.10000002384185791,
-                "runMs": 5.200000047683716,
+                "compileMs": 0.19999998807907104,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -451,36 +451,36 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.10000002384185791,
-                "runMs": 5.399999976158142,
+                "compileMs": 0.09999996423721313,
+                "runMs": 5.199999988079071,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 11610,
-                "codeBytes": 11382,
+                "bytes": 11603,
+                "codeBytes": 11375,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 59.60000002384186,
+                "optimizeMs": 116.90000003576279,
                 "compileMs": 0.10000002384185791,
-                "runMs": 5.600000023841858,
+                "runMs": 5.100000023841858,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 11610,
-                "codeBytes": 11382,
+                "bytes": 11599,
+                "codeBytes": 11371,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 42,
-                "compileMs": 0.10000002384185791,
-                "runMs": 5.5,
+                "optimizeMs": 102.5,
+                "compileMs": 0.19999998807907104,
+                "runMs": 5.100000023841858,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -492,8 +492,8 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0.10000002384185791,
-                "runMs": 5.5,
+                "compileMs": 0.09999996423721313,
+                "runMs": 5.199999988079071,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -506,7 +506,7 @@
                   "target_features"
                 ],
                 "compileMs": 0.10000002384185791,
-                "runMs": 5.400000095367432,
+                "runMs": 5.100000023841858,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -540,15 +540,15 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 1,
-                "runMs": 13,
+                "compileMs": 2,
+                "runMs": 12,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 1892725,
-                "codeBytes": 43844,
+                "bytes": 1891410,
+                "codeBytes": 42529,
                 "custom": [
                   ".debug_abbrev",
                   ".debug_info",
@@ -559,16 +559,16 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 551,
+                "optimizeMs": 1037,
                 "compileMs": 1,
-                "runMs": 14,
+                "runMs": 10,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 1892800,
-                "codeBytes": 43919,
+                "bytes": 1891385,
+                "codeBytes": 42504,
                 "custom": [
                   ".debug_abbrev",
                   ".debug_info",
@@ -579,9 +579,9 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 430,
+                "optimizeMs": 1011,
                 "compileMs": 1,
-                "runMs": 12,
+                "runMs": 10,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -594,7 +594,7 @@
                   "target_features"
                 ],
                 "compileMs": 1,
-                "runMs": 12,
+                "runMs": 11,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -607,7 +607,7 @@
                   "target_features"
                 ],
                 "compileMs": 1,
-                "runMs": 11,
+                "runMs": 10,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -625,34 +625,34 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 1,
+                "compileMs": 0,
                 "runMs": 4,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 18118,
-                "codeBytes": 17879,
+                "bytes": 17656,
+                "codeBytes": 17417,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 182,
-                "compileMs": 1,
+                "optimizeMs": 423,
+                "compileMs": 0,
                 "runMs": 4,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 18115,
-                "codeBytes": 17876,
+                "bytes": 17641,
+                "codeBytes": 17402,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 158,
+                "optimizeMs": 457,
                 "compileMs": 1,
                 "runMs": 4,
                 "checksum": 1892226719,
@@ -679,7 +679,7 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 1,
+                "compileMs": 0,
                 "runMs": 4,
                 "checksum": 1892226719,
                 "sameResult": true
@@ -707,14 +707,14 @@
                   "target_features"
                 ],
                 "compileMs": 1,
-                "runMs": 11,
+                "runMs": 10,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 633408,
-                "codeBytes": 47237,
+                "bytes": 624078,
+                "codeBytes": 37907,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -727,16 +727,16 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 1662,
+                "optimizeMs": 2716,
                 "compileMs": 1,
-                "runMs": 11,
+                "runMs": 9,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 633506,
-                "codeBytes": 47335,
+                "bytes": 622970,
+                "codeBytes": 36799,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -749,9 +749,9 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 1479,
+                "optimizeMs": 2724,
                 "compileMs": 1,
-                "runMs": 11,
+                "runMs": 10,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -764,7 +764,7 @@
                   "target_features"
                 ],
                 "compileMs": 1,
-                "runMs": 10,
+                "runMs": 9,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -777,7 +777,7 @@
                   "target_features"
                 ],
                 "compileMs": 1,
-                "runMs": 10,
+                "runMs": 9,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -803,15 +803,15 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 1,
+                "compileMs": 0,
                 "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 108821,
-                "codeBytes": 20048,
+                "bytes": 107949,
+                "codeBytes": 19176,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -824,7 +824,7 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 379,
+                "optimizeMs": 770,
                 "compileMs": 0,
                 "runMs": 5,
                 "checksum": 1892226719,
@@ -832,8 +832,8 @@
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 108821,
-                "codeBytes": 20048,
+                "bytes": 107849,
+                "codeBytes": 19076,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -846,9 +846,9 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 306,
+                "optimizeMs": 845,
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 4,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -860,7 +860,7 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0,
+                "compileMs": 1,
                 "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
@@ -899,29 +899,29 @@
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 13186,
-                "codeBytes": 12958,
+                "bytes": 13136,
+                "codeBytes": 12908,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 171,
+                "optimizeMs": 453,
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 13186,
-                "codeBytes": 12958,
+                "bytes": 13108,
+                "codeBytes": 12880,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 134,
+                "optimizeMs": 435,
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -934,7 +934,7 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 7,
+                "runMs": 6,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -947,7 +947,7 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 5,
+                "runMs": 6,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -972,13 +972,13 @@
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 11610,
-                "codeBytes": 11382,
+                "bytes": 11603,
+                "codeBytes": 11375,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 98,
+                "optimizeMs": 246,
                 "compileMs": 0,
                 "runMs": 6,
                 "checksum": 1892226719,
@@ -986,13 +986,13 @@
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 11610,
-                "codeBytes": 11382,
+                "bytes": 11599,
+                "codeBytes": 11371,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 103,
+                "optimizeMs": 255,
                 "compileMs": 0,
                 "runMs": 8,
                 "checksum": 1892226719,
@@ -1007,7 +1007,7 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -1020,7 +1020,7 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -1055,34 +1055,14 @@
                   "target_features"
                 ],
                 "compileMs": 1,
-                "runMs": 14,
-                "checksum": 1892226719,
-                "sameResult": true
-              },
-              {
-                "variant": "binaryang -O2",
-                "bytes": 1892725,
-                "codeBytes": 43844,
-                "custom": [
-                  ".debug_abbrev",
-                  ".debug_info",
-                  ".debug_str",
-                  ".debug_line",
-                  ".debug_ranges",
-                  ".debug_loc",
-                  "producers",
-                  "target_features"
-                ],
-                "optimizeMs": 384,
-                "compileMs": 1,
                 "runMs": 13,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
-                "variant": "binaryang -Oz",
-                "bytes": 1892800,
-                "codeBytes": 43919,
+                "variant": "binaryang -O2",
+                "bytes": 1891410,
+                "codeBytes": 42529,
                 "custom": [
                   ".debug_abbrev",
                   ".debug_info",
@@ -1093,7 +1073,27 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 276,
+                "optimizeMs": 663,
+                "compileMs": 1,
+                "runMs": 12,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 1891385,
+                "codeBytes": 42504,
+                "custom": [
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_str",
+                  ".debug_line",
+                  ".debug_ranges",
+                  ".debug_loc",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 521,
                 "compileMs": 1,
                 "runMs": 12,
                 "checksum": 1892226719,
@@ -1108,7 +1108,7 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 13,
+                "runMs": 12,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -1121,7 +1121,7 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 13,
+                "runMs": 12,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -1140,19 +1140,19 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 4,
+                "runMs": 3,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 18118,
-                "codeBytes": 17879,
+                "bytes": 17656,
+                "codeBytes": 17417,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 100,
+                "optimizeMs": 217,
                 "compileMs": 1,
                 "runMs": 4,
                 "checksum": 1892226719,
@@ -1160,14 +1160,14 @@
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 18115,
-                "codeBytes": 17876,
+                "bytes": 17641,
+                "codeBytes": 17402,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 88,
-                "compileMs": 1,
+                "optimizeMs": 240,
+                "compileMs": 0,
                 "runMs": 4,
                 "checksum": 1892226719,
                 "sameResult": true
@@ -1221,36 +1221,14 @@
                   "target_features"
                 ],
                 "compileMs": 1,
-                "runMs": 12,
-                "checksum": 1892226719,
-                "sameResult": true
-              },
-              {
-                "variant": "binaryang -O2",
-                "bytes": 633408,
-                "codeBytes": 47237,
-                "custom": [
-                  ".debug_loc",
-                  ".debug_abbrev",
-                  ".debug_info",
-                  ".debug_ranges",
-                  ".debug_str",
-                  ".debug_pubnames",
-                  ".debug_pubtypes",
-                  ".debug_line",
-                  "producers",
-                  "target_features"
-                ],
-                "optimizeMs": 871,
-                "compileMs": 1,
                 "runMs": 11,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
-                "variant": "binaryang -Oz",
-                "bytes": 633506,
-                "codeBytes": 47335,
+                "variant": "binaryang -O2",
+                "bytes": 624078,
+                "codeBytes": 37907,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -1263,8 +1241,30 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 786,
-                "compileMs": 2,
+                "optimizeMs": 1333,
+                "compileMs": 1,
+                "runMs": 10,
+                "checksum": 1892226719,
+                "sameResult": true
+              },
+              {
+                "variant": "binaryang -Oz",
+                "bytes": 622970,
+                "codeBytes": 36799,
+                "custom": [
+                  ".debug_loc",
+                  ".debug_abbrev",
+                  ".debug_info",
+                  ".debug_ranges",
+                  ".debug_str",
+                  ".debug_pubnames",
+                  ".debug_pubtypes",
+                  ".debug_line",
+                  "producers",
+                  "target_features"
+                ],
+                "optimizeMs": 1474,
+                "compileMs": 1,
                 "runMs": 11,
                 "checksum": 1892226719,
                 "sameResult": true
@@ -1278,7 +1278,7 @@
                   "target_features"
                 ],
                 "compileMs": 1,
-                "runMs": 11,
+                "runMs": 10,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -1290,8 +1290,8 @@
                   "producers",
                   "target_features"
                 ],
-                "compileMs": 0,
-                "runMs": 11,
+                "compileMs": 1,
+                "runMs": 10,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -1318,14 +1318,14 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 108821,
-                "codeBytes": 20048,
+                "bytes": 107949,
+                "codeBytes": 19176,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -1338,16 +1338,16 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 172,
-                "compileMs": 0,
-                "runMs": 6,
+                "optimizeMs": 359,
+                "compileMs": 1,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 108821,
-                "codeBytes": 20048,
+                "bytes": 107849,
+                "codeBytes": 19076,
                 "custom": [
                   ".debug_loc",
                   ".debug_abbrev",
@@ -1360,9 +1360,9 @@
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 149,
-                "compileMs": 1,
-                "runMs": 6,
+                "optimizeMs": 577,
+                "compileMs": 0,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -1407,35 +1407,35 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 13186,
-                "codeBytes": 12958,
+                "bytes": 13136,
+                "codeBytes": 12908,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 76,
+                "optimizeMs": 202,
                 "compileMs": 1,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 13186,
-                "codeBytes": 12958,
+                "bytes": 13108,
+                "codeBytes": 12880,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 85,
+                "optimizeMs": 229,
                 "compileMs": 0,
-                "runMs": 5,
+                "runMs": 6,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -1461,7 +1461,7 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               }
@@ -1480,19 +1480,19 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
               {
                 "variant": "binaryang -O2",
-                "bytes": 11610,
-                "codeBytes": 11382,
+                "bytes": 11603,
+                "codeBytes": 11375,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 60,
+                "optimizeMs": 136,
                 "compileMs": 0,
                 "runMs": 5,
                 "checksum": 1892226719,
@@ -1500,15 +1500,15 @@
               },
               {
                 "variant": "binaryang -Oz",
-                "bytes": 11610,
-                "codeBytes": 11382,
+                "bytes": 11599,
+                "codeBytes": 11371,
                 "custom": [
                   "producers",
                   "target_features"
                 ],
-                "optimizeMs": 55,
+                "optimizeMs": 150,
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               },
@@ -1534,7 +1534,7 @@
                   "target_features"
                 ],
                 "compileMs": 0,
-                "runMs": 6,
+                "runMs": 5,
                 "checksum": 1892226719,
                 "sameResult": true
               }
