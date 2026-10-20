@@ -45,4 +45,11 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.13.0
 
-Nothing yet.
+**Releasing as 1.13.1** (owner, 2026-10-20: "lets update the project memory files, bump and
+publish"; a patch, JSR only — the npm job stays off until `NPM_PUBLISH` is set).
+
+- **Docs — the repository moved** to `synapticforge1/binaryang` (via `synapticforge`, renamed the
+  same day): the README's CI badge and links. No code changes; the package name is unchanged.
+- Repo only, not in the package: the npm build and proof (`bun run npm:build` / `npm:prove`, in
+  CI), the `npm` job in `publish.yml` (off), `cli-smoke.ts`'s entry argument, `bundleExports`'
+  export map, `publish.ts`'s printed URL (open-work 29).

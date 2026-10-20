@@ -198,7 +198,7 @@ await run(['git', 'tag', '-f', tag]);
 await run(['git', 'push', 'origin', 'main', tag]);
 
 console.log(`\nPushed ${tag}. publish.yml will run:`);
-console.log(`  https://github.com/synapticforge/binaryang/actions`);
+console.log(`  https://github.com/synapticforge1/binaryang/actions`);
 console.log('');
 console.log('It performs: version verify -> bun run check -> bun run test (Node 24) +');
 console.log('bun run test:bun -> deno publish (with OIDC provenance) -> create GitHub');
