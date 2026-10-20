@@ -13,6 +13,7 @@
  * deno run -A scripts/cli-smoke.ts "deno run -A"
  * node scripts/cli-smoke.ts "node"
  * bun scripts/cli-smoke.ts "bun"
+ * node scripts/cli-smoke.ts "node" <pkg>/main.js   # another entry: the npm package's (npm:prove)
  * ```
  *
  * ⚠️ This script runs on ALL FOUR supported runtimes (CI runs it under the one
@@ -42,14 +43,16 @@ const WAT = `(module
 
 const invocation = (process.argv[2] ?? '').trim().split(/\s+/).filter((w) => w !== '');
 const [runtime, ...runtimeArgs] = invocation;
+/** The CLI entry the runtime runs: the source's `main.ts`, or the npm package's `main.js`. */
+const entry = process.argv[3] ?? 'main.ts';
 if (runtime === undefined) {
-  console.error(`usage: cli-smoke.ts '<runtime invocation>'`);
+  console.error(`usage: cli-smoke.ts '<runtime invocation>' [entry=main.ts]`);
   process.exit(2);
 }
 
-/** Runs `main.ts <args>` under the runtime; its exit status (stdout discarded). */
+/** Runs `<entry> <args>` under the runtime; its exit status (stdout discarded). */
 function cli(args: string[], stderr: 'inherit' | 'ignore' = 'inherit'): number | null {
-  const r = spawnSync(runtime!, [...runtimeArgs, 'main.ts', ...args], {
+  const r = spawnSync(runtime!, [...runtimeArgs, entry, ...args], {
     stdio: ['ignore', 'ignore', stderr],
   });
   if (r.error) throw new Error(`could not start ${runtime}: ${r.error.message}`);
@@ -58,7 +61,7 @@ function cli(args: string[], stderr: 'inherit' | 'ignore' = 'inherit'): number |
 
 function must(args: string[]): void {
   const status = cli(args);
-  if (status !== 0) throw new Error(`main.ts ${args[0]} exited ${status}`);
+  if (status !== 0) throw new Error(`${entry} ${args[0]} exited ${status}`);
 }
 
 const d = mkdtempSync(join(tmpdir(), 'cli-smoke-'));
