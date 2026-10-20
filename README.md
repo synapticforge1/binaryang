@@ -2,7 +2,7 @@
 
 [![JSR](https://jsr.io/badges/@jrmarcum/binaryang)](https://jsr.io/@jrmarcum/binaryang)
 [![JSR Score](https://jsr.io/badges/@jrmarcum/binaryang/score)](https://jsr.io/@jrmarcum/binaryang)
-[![CI](https://github.com/jrmarcum/binaryang/actions/workflows/ci.yml/badge.svg)](https://github.com/jrmarcum/binaryang/actions/workflows/ci.yml)
+[![CI](https://github.com/synapticforge/binaryang/actions/workflows/ci.yml/badge.svg)](https://github.com/synapticforge/binaryang/actions/workflows/ci.yml)
 
 A WebAssembly toolchain in TypeScript — a port of both
 [Binaryen](https://github.com/WebAssembly/binaryen) and [WABT](https://github.com/WebAssembly/wabt)
@@ -206,7 +206,7 @@ one compute workload): code bytes −0.1% to −27%, 60 ms to 1.7 s to optimize,
 speedup**, not even on the debug builds; the engines' own optimizing tiers already did that work. A
 site that builds its own module should optimize it at build time instead.
 
-[`examples/browser-optimize`](https://github.com/jrmarcum/binaryang/tree/main/examples/browser-optimize)
+[`examples/browser-optimize`](https://github.com/synapticforge/binaryang/tree/main/examples/browser-optimize)
 is the recipe, two files to copy and bundle side by side. It runs `wasmOpt` in a Worker with a time
 limit, keeps the original whenever the browser refuses the input, the optimizer fails or the result
 is no smaller, and caches results by the input's SHA-256 (Cache API):
@@ -270,8 +270,8 @@ resolving — nothing is yanked.
 
 ## Contributing
 
-Project memory lives in [`cmem/`](https://github.com/jrmarcum/binaryang/tree/main/cmem/) — start
-with [`cmem/INDEX.md`](https://github.com/jrmarcum/binaryang/blob/main/cmem/INDEX.md). Two rules are
+Project memory lives in [`cmem/`](https://github.com/synapticforge/binaryang/tree/main/cmem/) — start
+with [`cmem/INDEX.md`](https://github.com/synapticforge/binaryang/blob/main/cmem/INDEX.md). Two rules are
 binding and enforced in CI: upstream project names are reserved for upstream-compatibility paths,
 and runtime portability is enforced (no Deno-specific globals in shipped source, and no top-level
 import of a `node:` builtin anywhere in it, because those do not load in a browser; the CLI loads
@@ -282,4 +282,4 @@ Node's file system only when it runs, and every export is bundled for the browse
 MIT, with Apache-2.0 available as an alternative. binaryang is a derivative of the Apache-2.0
 WebAssembly/wabt and WebAssembly/binaryen projects and carries `LICENSE-APACHE`, `NOTICE.md` and
 per-file attribution headers. See
-[`cmem/licensing.md`](https://github.com/jrmarcum/binaryang/blob/main/cmem/licensing.md).
+[`cmem/licensing.md`](https://github.com/synapticforge/binaryang/blob/main/cmem/licensing.md).
