@@ -1,5 +1,5 @@
 {
-  // The npm build (open-work 29, owner 2026-10-20: "@synapticforge/binaryang"): what JSR compiles
+  // The npm build (open-work 29, owner 2026-10-20: "@synapticforge1/binaryang"): what JSR compiles
   // for its own npm clients, we compile for npmjs.org. Node refuses to strip types inside
   // node_modules, so the package ships JavaScript and `.d.ts`; the sources import `./x.ts`, so the
   // emit rewrites those to `./x.js`. Same strictness as THE type check (tsconfig.json), shipped code

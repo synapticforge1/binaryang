@@ -117,7 +117,7 @@ jobs:
         # the same 122 files as with `--config jsr.json` before (cmem/bun-migration.md § "B7").
         run: bun run publish:dry
 
-      # The npm package (open-work 29, `@synapticforge/binaryang`): built from jsr.json into dist/,
+      # The npm package (open-work 29, `@synapticforge1/binaryang`): built from jsr.json into dist/,
       # packed, the TARBALL installed into a scratch consumer, and run there — every export imports,
       # the CLI gives the source's smoke hash, the shipped .d.ts type-check, every export bundles
       # for the browser, the export list equals JSR's own npm build. Nothing is published here.

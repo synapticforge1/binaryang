@@ -28,8 +28,11 @@ last section, "The tag-push path works unaided", narrows the manual-step warning
 
 ## 🆕 npm as a SECOND registry — a PARKED contingency (owner, 2026-10-13; open-work 29)
 
-▶ **REOPENED 2026-10-20 and BUILT, nothing published** (owner: set up on npm; the name
-**`@synapticforge/binaryang`**; "Build and prove, no publish"). As built, against the plan below:
+▶ **REOPENED 2026-10-20 and BUILT, nothing published** (owner: set up on npm; "Build and prove,
+no publish"). The name is **`@synapticforge1/binaryang`**: npm user `synapticforgeun`, npm org
+`synapticforge1` (owner, 2026-10-20). 🔧 It was first built as `@synapticforge/binaryang`, the
+GitHub org's spelling; an npm scope is the npm org's (or user's) name, so that one was not the
+owner's to publish under. Renamed before any publish. As built, against the plan below:
 
 | plan | built |
 | ---- | ----- |
@@ -45,7 +48,8 @@ an array); `npm` on Windows is a `.cmd` shim that `fnm exec` cannot spawn ("prog
 the proof runs `node <npm-cli.js>` beside the chosen Node.
 
 **Left to the owner, in order:** (1) on npmjs.com, a trusted publisher for
-`@synapticforge/binaryang`: GitHub Actions, `synapticforge/binaryang`, workflow `publish.yml` —
+`@synapticforge1/binaryang` (in the `synapticforge1` org): GitHub Actions, repository
+`synapticforge/binaryang`, workflow `publish.yml` —
 check npm's current docs on whether the package must exist first (then one manual first publish
 with a token, from a `bun run npm:build` of a released tag); (2) the repository variable
 `NPM_PUBLISH=true`; (3) the next release then publishes to both, and its provenance is checked.

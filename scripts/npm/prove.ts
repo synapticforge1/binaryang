@@ -4,7 +4,7 @@
 /**
  * Proves the npm TARBALL, not the tree (open-work 29; cmem/jsr-deno-exit-guide.md § 5b): builds
  * `dist/`, packs it, installs the tarball into a scratch consumer OUTSIDE the repo, and checks
- * what a user of `@synapticforge/binaryang` gets. Nothing is published.
+ * what a user of `@synapticforge1/binaryang` gets. Nothing is published.
  *
  * - the tarball holds JavaScript, `.d.ts`, the definitions JSON, README and the licence files,
  *   and no TypeScript source;

@@ -20,7 +20,7 @@ const exportsMap = m['exports'] as Record<string, { types: string; default: stri
 describe('the npm manifest, from jsr.json', () => {
   it("has the npm name and jsr.json's version, and is not JSR's name", () => {
     expect(m['name']).toBe(NPM_NAME);
-    expect(m['name']).toBe('@synapticforge/binaryang');
+    expect(m['name']).toBe('@synapticforge1/binaryang');
     expect(m['version']).toBe(jsr.version);
     expect(jsr.name).toBe('@jrmarcum/binaryang');
   });

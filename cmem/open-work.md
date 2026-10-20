@@ -291,9 +291,13 @@ fatigue.
 
 ## Repo work
 
-29. ◐ **npm as a SECOND registry, as `@synapticforge/binaryang`** (parked 2026-10-13; REOPENED
-    2026-10-20, owner: "I am setup on npm now. How do I publish this package there?", then the
-    name `@synapticforge/binaryang` and "Build and prove, no publish"). JSR stays the source.
+29. ◐ **npm as a SECOND registry, as `@synapticforge1/binaryang`** (parked 2026-10-13; REOPENED
+    2026-10-20, owner: "I am setup on npm now. How do I publish this package there?", then
+    "Build and prove, no publish"). JSR stays the source. 🔧 First built as
+    `@synapticforge/binaryang`; then the owner: "my username on npm is synapticforgeun and my
+    organization name is synapticforge1" — an npm scope IS the org's name, so the first name was
+    not theirs to publish under; renamed before anything was published (the GitHub org stays
+    `synapticforge`).
     **BUILT and PROVED, nothing published** (branch `npm-package`): `bun run npm:build` (tsc into
     `dist/` with `.ts` imports rewritten, the `bin` shebang, the files JSR ships, `dist/package.json`
     generated from `jsr.json`); `bun run npm:prove` (the TARBALL installed into a scratch consumer:
@@ -302,7 +306,7 @@ fatigue.
     `@types/node`, the browser bundle, the export list against JSR's own npm build); 7 build
     mutants all caught; in CI's Gates job. **The npm job** in `publish.yml` runs after JSR's from
     the same tag, OFF until the repository variable `NPM_PUBLISH` is `true`. **The owner's steps
-    to switch it on:** on npmjs.com, a trusted publisher for `@synapticforge/binaryang` naming
+    to switch it on:** on npmjs.com, a trusted publisher for `@synapticforge1/binaryang` naming
     `synapticforge/binaryang` and `publish.yml` (check npm's docs: it may need the package to
     exist first, then a one-time token for the first publish); then the variable; then the next
     release publishes to both. Record: [publishing.md](publishing.md) § "npm as a SECOND registry".
