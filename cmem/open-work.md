@@ -192,7 +192,11 @@ CI shell scripts are TypeScript (the old item 17).
     adjacent `br_if`s on `i32.or` (remove-unused-brs 224 → 125). Step 8's own six figure (141,857)
     does not reproduce: 141,905 (optimizer.md 🔧). **Next: the ranked passes** (scratch
     `gap/passrank16.log`): ssa-nomerge 325 (step 7 did not pay), simplify-locals-nostructure 129,
-    remove-unused-brs 125, simplify-locals 102.
+    remove-unused-brs 125, simplify-locals 102. **Paused 2026-10-19 by the owner after step 14:**
+    working tree clean, `main` 98 commits ahead of `origin/main`, NOTHING pushed (owner's call, as
+    is the release; unreleased.md has the bullet and the CHANGELOG flag). A new session copies the
+    scratch scripts first (cmem/local/environment.md, "Optimizer measurement scripts") and
+    re-derives the six / corpus baseline before quoting it.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
