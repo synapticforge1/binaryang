@@ -112,7 +112,11 @@ describe('the -Oz schedule', () => {
     const after = (await wasmOpt(before, { optimizeLevel: 2, shrinkLevel: 2 })) as Uint8Array;
     const text = wasm2wat(after).text;
     expect(count(text, 'unreachable')).toBe(1);
-    expect(count(text, '(if')).toBe(0);
+    // No `if` whose arm is only a branch. (This read "no `if` at all" until open-work 31 step 14:
+    // its three `br_if`s now merge on `i32.or`, and the block they leave is one `if (eqz …)` —
+    // 83 bytes where it was 86.)
+    expect(text).not.toMatch(/\(then\s+\(br[ _]/);
+    expect(after.length).toBeLessThanOrEqual(83);
     await same(before, after, [0, 1, 2, 3, 4]);
   });
 
