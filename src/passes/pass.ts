@@ -437,7 +437,7 @@ export class PassRunner {
  * @internal
  */
 /** The function passes of `-O2` and above, in order. */
-const FUNCTION_PASSES = [
+const functionPasses = (opts: PassOptions): string[] => [
   'DCE',
   'PickLoadSigns',
   'Vacuum',
@@ -450,6 +450,11 @@ const FUNCTION_PASSES = [
   // point, as upstream's precompute-propagate loops).
   'PrecomputePropagate',
   'OptimizeInstructions',
+  // A read of a copy reads the original where it still holds the value, so
+  // CoalesceLocals can drop the copy — before it, at -O3 / -Oz, as upstream
+  // places merge-locals (open-work 31, step 15: six -Oz −121, corpus −628;
+  // again before the second CoalesceLocals, 0).
+  ...(opts.optimizeLevel >= 3 || opts.shrinkLevel >= 2 ? ['MergeLocals'] : []),
   'CoalesceLocals',
   'SimplifyLocals',
   'LocalCSE',
@@ -497,7 +502,7 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     passes.push('DCE', 'PickLoadSigns', 'Vacuum');
   }
   if (opts.optimizeLevel >= 2) {
-    passes.push(...FUNCTION_PASSES);
+    passes.push(...functionPasses(opts));
     // Inlining where upstream schedules it — after the function passes, at
     // every level from -O2 (`inlining-optimizing` in the post passes) — and
     // the function passes AGAIN after it, as `addUsefulPassesAfterInlining`
@@ -514,7 +519,7 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     // three rounds over one; a fourth, −71 bytes, not kept). Upstream's
     // inlining-optimizing iterates the same way.
     for (let round = 0; round < 3; round++) {
-      passes.push('DeadArgumentElimination', 'Inlining', ...FUNCTION_PASSES, 'Vacuum');
+      passes.push('DeadArgumentElimination', 'Inlining', ...functionPasses(opts), 'Vacuum');
     }
     // Functions that differ only in constants, merged — at -Oz, after inlining
     // reduced the functions, as upstream's global post passes place it
