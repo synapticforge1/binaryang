@@ -179,17 +179,18 @@ CI shell scripts are TypeScript (the old item 17).
     step attributed first, gated and merged on its own, the behaviour gates unchanged, the
     real-compiler six AND the corpus measured. Start: six modules -Oz 145,859 (+4.9% over upstream
     133's 139,020), corpus -Oz 822,964 (+1.60% over 809,986). Progress: optimizer.md § "Open-work
-    31". **State 2026-10-19, after step 12 (merge `6781be6b7`, NOT pushed):** six 140,395 (+0.95%
-    over upstream's 139,068), corpus 811,843 (+0.23%). Step 9: the control diff (step 8's "next")
+    31". **State 2026-10-19, after step 13 (merge `2d043ed85`, NOT pushed):** six 140,291 (+0.88%
+    over upstream's 139,068), corpus 811,806 (+0.22%). Step 9: the control diff (step 8's "next")
     found upstream's WRITER dropping code after terminators that our DCE never visited (blocks in
     operands) or never judged dead (constructs that never reach their `end`); fixed in DCE. Step
     10: Vacuum moves a named block's head out (upstream merge-blocks; 161 → 16). Step 11:
     CodeFolding folds the tails before a block's branches (code-folding 285 → 0). Step 12:
     SimplifyLocals gives a block its result from sets (simplify-locals 268 → 87; its `if` form
-    measured worse, not kept). Step 8's own six figure (141,857) does not reproduce: 141,905
-    (optimizer.md 🔧). **Next: the ranked passes** (scratch `gap/passrank14.log`): ssa-nomerge 327
-    (step 7 did not pay), remove-unused-brs 310 (up from 241: step 12's block results),
-    simplify-locals-nostructure 127.
+    measured worse, not kept). Step 13: RemoveUnusedBrs drops branches that flow to their target
+    (remove-unused-brs 310 → 224; the first gate caught an `unwind.wast` regression, fixed before
+    merging). Step 8's own six figure (141,857) does not reproduce: 141,905 (optimizer.md 🔧).
+    **Next: the ranked passes** (scratch `gap/passrank15.log`): ssa-nomerge 320 (step 7 did not
+    pay), remove-unused-brs 224, simplify-locals-nostructure 127, simplify-locals 100.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an

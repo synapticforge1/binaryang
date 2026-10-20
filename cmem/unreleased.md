@@ -52,8 +52,10 @@ contains ([handoffs.md](handoffs.md)).
   one `unreachable` (`798e34a20`, step 9); Vacuum moves the head of a named block out in front of
   it (`befd5e12a`, step 10); CodeFolding writes once what every way into a block's end ends
   with (`6faca9938`, step 11); SimplifyLocals gives a block whose every way out sets one local
-  that value as its result (`95ff93224`, step 12). Every behaviour gate unchanged. Real compiler
-  output -Oz +4.9% → +0.95% over upstream (zig-debug +14.0% → +2.4%); corpus -Oz +1.60% → +0.23%.
+  that value as its result (`95ff93224`, step 12); RemoveUnusedBrs drops a branch that goes
+  where falling through would, however deep (`79f37a9b4`, `f3956c71d`, step 13). Every behaviour
+  gate unchanged. Real compiler output -Oz +4.9% → +0.88% over upstream (zig-debug +14.0% →
+  +2.2%); corpus -Oz +1.60% → +0.22%.
   -O2 and above take about a third longer (corpus -Oz 8 s → 11 s). ⚠️ `CHANGELOG.md` § Unreleased
   still states item 30's figures ("5% larger … 14% instead of 31%"): restate them at release.
 - **NEW pass — `PrecomputePropagate`** (open-work 31, step 8): ConstantPropagation and Precompute
