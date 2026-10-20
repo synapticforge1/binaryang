@@ -452,7 +452,7 @@ const functionPasses = (opts: PassOptions): string[] => [
   'OptimizeInstructions',
   // A read of a copy reads the original where it still holds the value, so
   // CoalesceLocals can drop the copy — before it, at -O3 / -Oz, as upstream
-  // places merge-locals (open-work 31, step 15: six -Oz −173, corpus −724;
+  // places merge-locals (open-work 31, step 15: six -Oz −121, corpus −628;
   // again before the second CoalesceLocals, 0).
   ...(opts.optimizeLevel >= 3 || opts.shrinkLevel >= 2 ? ['MergeLocals'] : []),
   'CoalesceLocals',
