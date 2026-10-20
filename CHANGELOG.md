@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.13.1
+
+### Documentation
+
+- The repository has moved to
+  [github.com/synapticforge1/binaryang](https://github.com/synapticforge1/binaryang); the README's
+  links and CI badge point there. The old address redirects. The package name, `@jrmarcum/binaryang`,
+  is unchanged, and nothing in the code changed.
+
 ## 1.13.0
 
 A minor release: **an optimizer within 0.7% of upstream `wasm-opt -Oz` on real compiler output,

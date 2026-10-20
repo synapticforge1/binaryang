@@ -28,9 +28,10 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 /**
- * The package's name on npmjs.org (owner, 2026-10-20). An npm scope is the npm org's name, which is
- * `synapticforge1`: the GitHub org is `synapticforge`, and the two need not match (the manifest's
- * `repository` names GitHub). JSR's name is `@jrmarcum/binaryang`.
+ * The package's name on npmjs.org (owner, 2026-10-20). An npm scope is the npm org's name,
+ * `synapticforge1`; the GitHub org was renamed to match it the same day (it was `synapticforge`),
+ * though the two need not match: the manifest's `repository` names GitHub on its own. JSR's name
+ * is `@jrmarcum/binaryang`.
  */
 export const NPM_NAME = '@synapticforge1/binaryang';
 
@@ -69,9 +70,9 @@ export function npmManifest(jsr: JsrManifest): Record<string, unknown> {
     types: main.types,
     bin: { binaryang: main.default },
     engines: { node: NODE_FLOOR },
-    repository: { type: 'git', url: 'git+https://github.com/synapticforge/binaryang.git' },
-    homepage: 'https://github.com/synapticforge/binaryang#readme',
-    bugs: { url: 'https://github.com/synapticforge/binaryang/issues' },
+    repository: { type: 'git', url: 'git+https://github.com/synapticforge1/binaryang.git' },
+    homepage: 'https://github.com/synapticforge1/binaryang#readme',
+    bugs: { url: 'https://github.com/synapticforge1/binaryang/issues' },
     keywords: ['webassembly', 'wasm', 'binaryen', 'wabt', 'wasm-opt', 'wat2wasm', 'wasm2wat'],
     sideEffects: false,
     publishConfig: { access: 'public', provenance: true },

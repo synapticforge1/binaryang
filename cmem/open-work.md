@@ -138,9 +138,12 @@ published), 13, 14, 15. **wasmtk on 1.13.0** ([handoffs.md](handoffs.md)
 § 39, received the same day, answering § 38): gate 64,506 / 0 / 16 unchanged, soundness guard 0,
 `go_asyncify_tests` 12 / 12; 43 golden WATs moved (merged `-Oz` libraries only), behaviour
 unchanged; nothing open either way. **The repo moved to `synapticforge/binaryang`** the same day
-([publishing.md](publishing.md) § "The move to `synapticforge`"); the JSR link re-made by the
-owner and checked through the API. Not yet proven: a publish from the org (provenance), and the
-org's Actions settings, which the next push's CI and the next release show.
+([publishing.md](publishing.md) § "The move to `synapticforge`"), and **the org was then renamed
+`synapticforge1`** to match the npm org: the repo is `synapticforge1/binaryang`. The first push
+from the org ran CI and auto-tag GREEN (`a97255ef4`). JSR followed neither move nor rename; the
+owner re-linked it to `synapticforge1/binaryang` (API, 23:36Z). **1.13.1** (owner: "update the
+project memory files, bump and publish"; a patch, JSR only): the README's links to the new org,
+the first publish from the org.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -296,8 +299,8 @@ fatigue.
     "Build and prove, no publish"). JSR stays the source. 🔧 First built as
     `@synapticforge/binaryang`; then the owner: "my username on npm is synapticforgeun and my
     organization name is synapticforge1" — an npm scope IS the org's name, so the first name was
-    not theirs to publish under; renamed before anything was published (the GitHub org stays
-    `synapticforge`).
+    not theirs to publish under; renamed before anything was published. The owner then renamed
+    the GitHub org to `synapticforge1` too, so both are spelled the same.
     **BUILT and PROVED, nothing published** (branch `npm-package`): `bun run npm:build` (tsc into
     `dist/` with `.ts` imports rewritten, the `bin` shebang, the files JSR ships, `dist/package.json`
     generated from `jsr.json`); `bun run npm:prove` (the TARBALL installed into a scratch consumer:
@@ -307,7 +310,7 @@ fatigue.
     mutants all caught; in CI's Gates job. **The npm job** in `publish.yml` runs after JSR's from
     the same tag, OFF until the repository variable `NPM_PUBLISH` is `true`. **The owner's steps
     to switch it on:** on npmjs.com, a trusted publisher for `@synapticforge1/binaryang` naming
-    `synapticforge/binaryang` and `publish.yml` (check npm's docs: it may need the package to
+    `synapticforge1/binaryang` and `publish.yml` (check npm's docs: it may need the package to
     exist first, then a one-time token for the first publish); then the variable; then the next
     release publishes to both. Record: [publishing.md](publishing.md) § "npm as a SECOND registry".
 
