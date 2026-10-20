@@ -55,14 +55,20 @@ contains ([handoffs.md](handoffs.md)).
   that value as its result (`95ff93224`, step 12); RemoveUnusedBrs drops a branch that goes
   where falling through would, however deep (`79f37a9b4`, `f3956c71d`, step 13); it sends a
   block's branches to the parent block it ends, and merges adjacent conditional branches to one
-  label on `i32.or` (`8ec400644`, step 14). Every behaviour gate unchanged. Real compiler output
-  -Oz +4.9% → +0.78% over upstream (zig-debug +14.0% → +2.1%); corpus -Oz +1.60% → +0.22%.
-  -O2 and above take about a third longer (corpus -Oz 8 s → 11 s). ⚠️ `CHANGELOG.md` § Unreleased
+  label on `i32.or` (`8ec400644`, step 14); a read of a copied local reads the original where it
+  still holds the value (the new MergeLocals pass, -O3 / -Oz; `8f7fb035b`, `3437386f9`, step 15).
+  Every behaviour gate unchanged. Real compiler output -Oz +4.9% → +0.69% over upstream
+  (zig-debug +14.0% → +1.9%); corpus -Oz +1.60% → +0.14%. -O2 and above take about a fifth
+  longer (corpus -Oz 8 s → 9.5 s; it was 11 s before step 15 made the local graph faster). ⚠️ `CHANGELOG.md` § Unreleased
   still states item 30's figures ("5% larger … 14% instead of 31%"): restate them at release.
 - **NEW pass — `PrecomputePropagate`** (open-work 31, step 8): ConstantPropagation and Precompute
   alternated in each function until neither changes anything (upstream's
   `precompute-propagate`). It replaces the two fixed rounds of each in the -O2+ schedule, and runs
   again after SimplifyLocals. `ConstantPropagation` and `Precompute` remain, unchanged.
+- **NEW pass — `MergeLocals`** (open-work 31, step 15): after a copy `local.set $b (local.get
+  $a)`, a read of `$b` that only the copy feeds reads `$a`, where `$a` still holds the value
+  (upstream's `merge-locals`). In the -O3 / -Oz schedule before the first CoalesceLocals; not at
+  -O1 / -O2 / -Os, as upstream.
 - **NEW (additive) — `Module.optimizeStack`** (`./ir`, optional) and **`WriteBinaryOptions.stackIR`**
   (`f69843225`): an optimizing run at -O3 / -Os / -Oz marks the module, and `writeWasm` then
   leaves a value on the stack instead of a local stored and read straight back. A plain read and
