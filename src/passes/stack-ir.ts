@@ -78,26 +78,35 @@ function _omissions(fn: WasmFunction): Set<Expression> {
   scan(fn.body);
   if (unsupported) return new Set();
 
-  const pairs = _candidates(fn);
-  if (pairs.length === 0) return new Set();
   const { reaching, readers } = localGraph(fn);
-  const out = new Set<Expression>();
-  for (const [set, get] of pairs) {
+  const exact = (set: Expression, get: Expression): boolean => {
     const defs = reaching.get(get);
     const uses = readers.get(set);
-    if (defs?.size === 1 && defs.has(set) && uses?.size === 1 && uses.has(get)) {
-      out.add(set);
-      out.add(get);
-    }
+    return defs?.size === 1 && defs.has(set) && uses?.size === 1 && uses.has(get);
+  };
+  const out = new Set<Expression>();
+  for (const [set, get] of _pairs(fn, exact)) {
+    out.add(set);
+    out.add(get);
   }
   return out;
 }
 
 /**
  * Upstream's stack walk, on the tree in the writer's order: the (set, get) pairs where the set's
- * value could still be on top of the stack when the get would push it.
+ * value is on top of the stack when the get would push it, and the pair is exact.
+ *
+ * 🔧 Exactness is decided AT the get, as upstream decides it, not after the walk: the walk goes on
+ * as if each pair it took were left out (the get pushes nothing; the set's value stays). A pair
+ * judged afterwards and kept left a later pair, taken on that assumption, reading the wrong value:
+ * `set $c … set $d … get $c … get $d` with only (d) exact wrote `get $c` above `$d`'s value, and
+ * `get $d`'s consumer took `$c` (open-work 31, step 4 → found at 1.13.0's release check: rust-debug
+ * and zig-releasefast -O3 / -Os / -Oz computed wrong results).
  */
-function _candidates(fn: WasmFunction): [Expression, Expression][] {
+function _pairs(
+  fn: WasmFunction,
+  exact: (set: Expression, get: Expression) => boolean,
+): [Expression, Expression][] {
   /** `null` for an actual value; a set node for a value that set could leave on the stack. */
   let values: (LocalSetExpr | null)[] = [];
   const saved: (LocalSetExpr | null)[][] = [];
@@ -120,6 +129,7 @@ function _candidates(fn: WasmFunction): [Expression, Expression][] {
         const c = values[j];
         if (c === null || c === undefined) break; // an actual value in the way
         if (localOf(c) === local) {
+          if (!exact(c, e)) break; // kept: this get pushes its value, as written
           pairs.push([c, e]);
           values[j] = null; // the set's value stays on the stack as a plain value
           return;
