@@ -228,6 +228,15 @@ use and ours do not yet. Control 105 below ours (140,290). Left: ssa-nomerge 327
 310 · simplify-locals-nostructure 127 · simplify-locals 87 · merge-locals 72 · rse 60 · …;
 optimize-instructions −133.
 
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| 13 | remove-unused-brs, attributed per function: branches in tail position BELOW the block they name (ours took only that block's own last child). **RemoveUnusedBrs drops branches that flow to their target**: one top-down walk carries the labels whose `end` falling off the current list reaches (a void block adds its own; a void `if` passes them and its own to both arms; a loop passes them to its body, its own label being a back edge; a declared label leaves the set, so a shadowed name never matches). At a list's end a `br` to one goes, a `br_if` to one becomes `(drop cond)`, and `(br_if $a x) (br $b)` becomes `(br_if $b (i32.eqz x))`. Attributed: flowing `br`s −70 / −27, the `br_if` rules −34 / −10. 🔧 The first gate failed spec-behaviour: a branch DISCARDS stack values (`unwind.wast`, invalid at -O2+); a list reaches an end only when all before its last statement leave nothing | `79f37a9b4` `f3956c71d` | **140,291 (+0.88%)** | **811,806 (+0.22%)** |
+
+**After step 13** (`gap/passrank15.log`): remove-unused-brs 310 → 224; control 104 below ours
+(140,187). Left: ssa-nomerge 320 (step 7's version did not pay) · remove-unused-brs 224 ·
+simplify-locals-nostructure 127 · simplify-locals 100 · merge-locals 72 · rse 60 · …;
+optimize-instructions −133.
+
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
 section). Item 2's rule stands: never `-all` against the corpus; `--disable-compact-imports` with it.
@@ -241,6 +250,13 @@ The six real-compiler modules are unaffected (no import-section difference).
   our code on the way through, and later passes exploit it; measure the bare round trip first.
 - **A guard the pipeline makes unreachable still documents a hazard for a direct caller**; say
   so in the test instead of pretending the mutant can be caught.
+- **Removing a branch is not free when values are on the stack** (step 13): a `br` or `return`
+  discards what earlier statements left; falling through keeps it for the `end`. `_tailReturn`
+  learned it from `unwind.wast` in item 2 and the new flowing-branch walk had to again, three
+  levels down. Any rule that turns "branch to X" into "fall to X" checks every list on the way.
+- **A shape that exists only mid-schedule needs a test through `wasmOpt`** (steps 10, 13): the
+  pass alone receives the module already spilled (a value left on the stack arrives `drop`ped),
+  so a test of the pass in isolation cannot reach it. Test the spec's own function, every level.
 - **Labels are compared by position, never by name**, when two subtrees are asked whether they
   are the same code: the reader names every block and `if` it reads.
 - **A helper's branch no test reached is a shipped bug waiting for a wider caller** (open-work 30):
