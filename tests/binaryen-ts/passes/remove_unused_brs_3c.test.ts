@@ -87,11 +87,14 @@ describe('if (c) br is br_if', () => {
   // A second branch to `$out` in each fixture keeps the block: with only the
   // one, step 6b turns the whole block into an `if` on the negated condition
   // (`remove_unused_brs_6b.test.ts`), and the `br_if` this step makes is gone.
+  // The second `br_if` keeps the block from becoming an `if` (6b, below); the `nop` keeps it from
+  // merging with the first on `i32.or` (open-work 31 step 14), which this case is not about.
   it('to an outer label', async () => {
     const { before, after, text } = rub(`(module
       (func (export "f") (param i32) (result i32)
         (block $out
           (if (local.get 0) (then (br $out)))
+          (nop)
           (br_if $out (i32.eq (local.get 0) (i32.const -1)))
           (return (i32.const 7)))
         (i32.const 9)))`);
@@ -122,6 +125,7 @@ describe('if (c) br is br_if', () => {
       (func (export "f") (param i32)
         (block $out
           (if (local.get 0) (then (br $out)))
+          (nop) ;; not merged with the made br_if (open-work 31 step 14): two to count below
           (br_if $out (i32.eq (local.get 0) (i32.const -1)))
           (global.set $g (i32.const 77)))))`,
       ['DCE'],
