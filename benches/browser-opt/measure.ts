@@ -137,10 +137,11 @@ try {
       )
     }\n`,
   );
+  // A variant that trapped has no timing, and JSON carries its NaN as `null`.
   const f = (
-    x: number | undefined,
+    x: number | null | undefined,
     d = 1,
-  ) => (x === undefined || Number.isNaN(x) ? '-' : x.toFixed(d));
+  ) => (x === undefined || x === null || Number.isNaN(x) ? '-' : x.toFixed(d));
   for (const r of results) {
     console.log(
       `\n## ${r.name} ${r.version ?? ''}${r.error ? ` — ERROR ${r.error}` : ''}${

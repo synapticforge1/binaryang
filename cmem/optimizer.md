@@ -249,6 +249,29 @@ simplify-locals 102 · merge-locals 72 · rse 62 · vacuum 38 · …; optimize-i
 | --- | --- | --- | ---: | ---: |
 | 15 | ssa-nomerge, attributed per function (`passfn.ts`; zig-debug −193 in funcs 23 / 22 / 41 / 29): a local the compiler REUSES hides a copy — `local.get 7; local.set 8`, then `(i32.ne (local.get 8) (local.get 7))` guarding a panic, always false. We had no merge-locals at all. **MergeLocals** (new, `merge-locals.ts`, upstream's method): a read of `$b` whose only reaching write is a copy `$b = $a` reads `$a` where a second graph shows `$a` unchanged (the copy instrumented with a tee of `$a`); OptimizeInstructions folds the reflexive comparison. Before the first CoalesceLocals at -O3 / -Oz. **Measured, not kept:** upstream's all-or-nothing per copy (six 0, corpus +3); again before the second CoalesceLocals (0). **`localGraph`** takes the locals to follow and runs gen / kill bitsets: the Map-of-Sets dataflow took MergeLocals 1.72 s on zig-debug (six -Oz 3.3 → 6.9 s); now 3.29 s, corpus 10.89 → 9.53 s; equal to the old graph on 8,208 functions (scratch `graph-eq.ts`). 🔧 The first gate failed four behaviour steps (spec float_exprs `f32.epsilon` 0 at -O3 / -Oz, direct-behaviour 1_fib-rs, the -Oz fuzz): taking the instrumentation out also took a copy that is itself a tee, leaving a refused read of a local nothing wrote; the defect was worth 52 / 96 of the first figures (−173 / −724) | `8f7fb035b` `3437386f9` `79d76918b` | **140,028 (+0.69%)** | **811,099 (+0.14%)** |
 
+🚨 **Step 4's Local2Stack computed WRONG results on real compiler output, steps 4–15** (found
+2026-10-20 at 1.13.0's release check, before anything was pushed; never released, 1.12.1 is
+correct). Re-running `benches/browser-opt/measure.ts` for the release: rust-debug -Oz returned a
+different checksum and zig-releasefast -Oz trapped out of bounds, in Chrome, Firefox and WebKit
+alike; -O3 / -Os / -Oz, never -O2 (the levels `optimizeStack` is set at). Bisected over main's
+merges (scratch `commit-bisect.ts` + `six-run.ts`) to `021fa2fa5`, confirmed by writing the same
+optimized module with `optimizeStack` on and off. **The defect:** the stack walk took every
+candidate as a pair and went on as if both were left out; the pairs the local graph rejects were
+dropped only AFTER the walk, so a kept pair left a later, exact one taken on a stack that does not
+exist (`set $c … set $d … get $c … get $d` with only (d) exact: `get $c` written above `$d`'s
+value). Upstream judges at the get. Fixed in `b663aeaa8` (merge `42965f49b`): six -Oz 140,028 →
+140,032, corpus unchanged. **Why nothing caught it:** this item measured the six by COMPILING
+them (`six.ts` instantiates nothing), and the behaviour gates replay the spec suite and the
+corpus, where no function had the shape. `real_compiler_behaviour.test.ts` (new, in `bun run
+test`) now runs the six's workload at -O1 … -Oz against the original's checksum.
+
+🔧 **The cost in time, measured 2026-10-20 against a `v1.12.1` tree** (scratch `timeit.ts`, best of
+3, the same machine): corpus -Oz 3.95 s → 10.43 s (2.6×), -O2 4.85 s → 9.91 s (2.0×), -O1
+1.75 s → 1.95 s; the six -Oz 1.35 s → 3.23 s. The per-step notes ("-O2+ about a third slower",
+step 8) were each against the step before, and the record's "8 s" start was never measured on
+1.12.1. At -O2 the six are now **−2.1%** against upstream 133 (`gap.ts --level=O2`: 141,264 vs
+144,257), from +1.5% at item 30's close: steps 1–15 pay at -O2 too.
+
 **After step 15** (`gap/passrank17.log`): merge-locals 72 → 2, ssa-nomerge 325 → 249, rse 62 →
 34; simplify-locals-nostructure 129 → 142 and simplify-locals 102 → 119 (the redirected reads are
 sinking ours does not do yet). Control 89 below ours (139,939). Left: ssa-nomerge 249 ·
@@ -283,6 +306,13 @@ The six real-compiler modules are unaffected (no import-section difference).
   same read once the instrumentation was gone. The test had a tee copy only where every read
   moved, so the copy's loss changed nothing it ran; a refused read is the case that shows it.
   Test each rewrite with a case where it is REFUSED next to the one where it applies.
+- **A measured input must also be RUN** (steps 4–15): the six real-compiler modules were this
+  item's yardstick for eleven steps, and every measurement only compiled them. The wrong output
+  was in them from step 4; the first thing that ran them, the release's browser benchmark, found
+  it. When a module set becomes a target, its workload joins the tests the same day.
+- **A rewrite judged after a walk that assumed it** (step 4): a simulation that goes on as if a
+  candidate were taken must decide the candidate where it takes it. Filtering afterwards leaves
+  every later decision resting on a state that the filter undid.
 - **A bitwise result is signed; a `Uint32Array` element is not** (step 15): comparing `(a | b)`
   with the stored word never held once bit 31 was set, and `localGraph`'s worklist never ended
   (exit 127, out of memory, no message). `>>> 0` before comparing.
