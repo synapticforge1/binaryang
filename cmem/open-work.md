@@ -127,6 +127,15 @@ PUSHED; the version stays 1.12.1):**
 - ⚠️ The merge `8b52828d5` took its message by `-m`, not `-F` (working-rules.md, Git). The text
   is plain and intact; left as is, unpushed, for the owner to judge.
 
+**State, 2026-10-20 (supersedes the paragraphs above where they differ):** **`binaryang@1.13.0`
+is PUBLISHED** (Rekor `3344028471`; [publishing.md](publishing.md) § 1.13.0): everything the
+paragraphs above call unreleased — C1–C17, open-work 30, open-work 31 steps 1–15 — shipped in it.
+`main` = the release plus cmem; nothing unreleased ([unreleased.md](unreleased.md)). 🚨 The
+release check found Local2Stack (31 step 4) computing wrong results on real compiler output;
+fixed before the push, never shipped. **Open:** 31 (optimizer), 32 (new: lowering for engines
+without memory64 / multi-memory), 13, 14, 15. **Owed by wasmtk:** their wast-gate numbers on the
+release carrying C1–C17 — that is 1.13.0 (letter § 38, DRAFTED for the owner to send).
+
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
 **Cut back to open items on 2026-09-29** (the second time; the first was 2026-09-14). The file had
@@ -145,7 +154,23 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-**None open.** (Item 27 closed 2026-10-12: the interpreter's constant-expression evaluator never
+32. ⬚ **Lowering for engines that lack memory64 / table64 / multi-memory — "runs everywhere" for
+    our OUTPUT** (opened 2026-10-20, owner: "yes open that item after the release"). The 36 known
+    Bun differences (`tests/bun-known-differences.json`) are all JavaScriptCore refusing a module
+    V8 accepts — binaryang itself behaves the same on every runtime (`test:bun` fails exactly the
+    list; the CLI smoke hash agrees on Deno / Bun / every Node LTS; the browser gate loads every
+    export in WebKit). What is missing is a way to MAKE such a module run there: 24 are memory64 /
+    table64 (JavaScriptCore: "Memory64 is not enabled"), 5 a memory index of 127 and up, 5 a
+    legacy `delegate` form, 2 the same refusal in other words. Upstream has `--memory64-lowering`,
+    `--table64-lowering` and `--multi-memory-lowering`; we have none (`LowerCustomPageSizes` is
+    the one lowering built, item 12). **First, measure, nothing built:** (a) does JavaScriptCore
+    take TranslateToExnref's output for the 5 `delegate` cases (if so, that is the answer for
+    those, and only needs saying); (b) which lowering a real producer needs (memory64 from Rust /
+    Zig / Emscripten `-sMEMORY64`; multi-memory past 127 is rare); (c) upstream's passes as the
+    reference, and the gate: the lowered module behaves as the original on V8, and instantiates
+    on JavaScriptCore. Not the 2 message-only cases, which need nothing.
+
+No defects open. (Item 27 closed 2026-10-12: the interpreter's constant-expression evaluator never
 checked that an expression left a value, so `(offset nop)` on an unvalidated module escaped as a
 bare `TypeError`; now `Stop(invalid)` — [hardening.md](hardening.md) § "2026-10-12 — open-work 27".
 Its number is kept free.)
@@ -179,8 +204,9 @@ CI shell scripts are TypeScript (the old item 17).
     step attributed first, gated and merged on its own, the behaviour gates unchanged, the
     real-compiler six AND the corpus measured. Start: six modules -Oz 145,859 (+4.9% over upstream
     133's 139,020), corpus -Oz 822,964 (+1.60% over 809,986). Progress: optimizer.md § "Open-work
-    31". **State 2026-10-20, after step 15 (merge `1982749b3`, NOT pushed):** six 140,028 (+0.69%
-    over upstream's 139,068), corpus 811,099 (+0.14%). Step 9: the control diff (step 8's "next")
+    31". **State 2026-10-20, after step 15 — RELEASED in 1.13.0:** six 140,032 (+0.69% over
+    upstream's 139,068; 140,028 before the Local2Stack fix, `42965f49b`), corpus 811,099
+    (+0.14%); -O2 2.1% BELOW upstream. Step 9: the control diff (step 8's "next")
     found upstream's WRITER dropping code after terminators that our DCE never visited (blocks in
     operands) or never judged dead (constructs that never reach their `end`); fixed in DCE. Step
     10: Vacuum moves a named block's head out (upstream merge-blocks; 161 → 16). Step 11:
@@ -196,11 +222,11 @@ CI shell scripts are TypeScript (the old item 17).
     wrong-output defect (a tee copy removed), fixed before merging. Step 8's own six figure
     (141,857) does not reproduce: 141,905 (optimizer.md 🔧). **Next: the ranked passes** (scratch
     `gap/passrank17.log`): ssa-nomerge 249, simplify-locals-nostructure 142, remove-unused-brs
-    125, simplify-locals 119. Working tree clean, `main` ahead of `origin/main` (`git log
-    origin/main..main` counts it; a count written here goes stale with the commit that writes
-    it), NOTHING pushed (owner's call, as is the release; unreleased.md has the bullet and the
-    CHANGELOG flag). A new session copies the scratch scripts first (cmem/local/environment.md,
-    "Optimizer measurement scripts") and re-derives the six / corpus baseline before quoting it.
+    125, simplify-locals 119. Pushed and released with 1.13.0 (2026-10-20). A new session copies
+    the scratch scripts first (cmem/local/environment.md, "Optimizer measurement scripts"; add
+    `six-run.ts`, `commit-bisect.ts`, `timeit.ts`'s `LEVEL=`) and re-derives the six / corpus
+    baseline before quoting it. **Every step now also runs** `real_compiler_behaviour.test.ts`
+    (in `bun run test`): a step that only measures the six never runs them.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
