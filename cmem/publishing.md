@@ -5,6 +5,9 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
+**Latest (2026-10-20): `@jrmarcum/binaryang@1.13.0`**, Rekor `3344028471` — § "1.13.0" below; the
+releases in between are recorded there too, newest first.
+
 **Current state (2026-09-29):** `@jrmarcum/binaryang@1.8.1` is latest (`rekorLogId=3007105518`,
 § "1.8.1" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
 unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand), `deno task release`
@@ -838,6 +841,36 @@ The flow, as for 1.6.0:
 Asked the same day to "bump and publish 1.6.0" again, the answer was that it already was — check
 `https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/<v>` (cache-busted, above) before
 arming anything.
+
+## 1.13.0 — a MINOR from `main` (2026-10-20; 21:37Z UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
+
+The owner's go: "lets go ahead and push a release after we update the project memory files"; the
+version chosen as a minor ("1.13.0"): it adds `Module.optimizeStack` and three passes, removes
+nothing. It carries the code lens C1–C17 and open-work 30 / 31 steps 1–15 (CHANGELOG § 1.13.0).
+
+0. 🚨 **The release check found WRONG output first.** Re-running `benches/browser-opt/measure.ts`
+   for the CHANGELOG's figures: rust-debug and zig-releasefast at -O3 / -Os / -Oz computed wrong
+   results in all three browsers, from open-work 31 step 4 (Local2Stack). Nothing had been pushed.
+   Fixed, gated and merged (`42965f49b`), with a test that runs the six modules' workload; the
+   benchmark re-run on the fix: every variant agrees in Chrome 155, Firefox 155, Safari 26.6
+   ([optimizer.md](optimizer.md) § "Open-work 31"). **A release that re-measures is a release
+   that re-checks**: the figures were the reason to run it, and the run was the only test of
+   those modules' behaviour.
+1. `CHANGELOG.md` § 1.13.0 on `release/1.13.0`, gated (27 / 27), merged; `main` pushed unbumped at
+   `6eabf94a9`: CI and auto-tag GREEN (scratch `ci-wait.ts`, the public Actions API; `gh` is not
+   installed here).
+2. The CI half of the gate from a FRESH CLONE of that commit (on `C:`): 16 / 16 exit 0 — install,
+   fmt, lint, `bun run test`, `bun run test:bun` (the 36 listed), check, naming, portability,
+   browser, baseline, `publish:dry`, comparison, browsers, the three smokes.
+3. JSR 1.13.0 404, no remote tag; 1.13.0 typed BY HAND in `jsr.json` and `main.ts`;
+   `version_sync` green. `.claude/` (the editor's session settings, untracked) went into
+   `.git/info/exclude` so the guard's clean-tree check passes: local only, nothing committed.
+   `bun run release` (cold publish dry run, check, entry check) committed `bump to v1.13.0`
+   (`2b74934bf`) and pushed `main` + `v1.13.0` together.
+4. publish.yml GREEN, with CI and auto-tag; JSR 1.13.0 created 2026-10-20T21:37:03Z, not yanked,
+   **Rekor log id `3344028471`**, `latestVersion` 1.13.0; GitHub Release `v1.13.0` exists.
+   Verified as a user: `deno run -A --min-dep-age 0 jsr:@jrmarcum/binaryang@1.13.0 --version`
+   prints `binaryang 1.13.0`.
 
 ## 1.12.1 — a PATCH from `main` (2026-10-13; 2026-10-14T03:40Z UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
 
