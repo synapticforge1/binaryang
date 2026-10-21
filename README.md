@@ -38,6 +38,17 @@ and need no `.npmrc`. Node and Bun receive compiled JavaScript with type declara
 TypeScript setup is needed. On Deno, `import … from 'jsr:@jrmarcum/binaryang/wat2wasm'` also works
 with no install.
 
+**From npm**, the same package is published to npmjs.org as `@synapticforge1/binaryang` (from
+1.13.1), with no `.npmrc` and no alias. The name in the import changes with it:
+
+```sh
+npm install @synapticforge1/binaryang    # or: bun add / pnpm add / yarn add
+```
+
+```ts
+import { wat2wasm } from '@synapticforge1/binaryang/wat2wasm';
+```
+
 ## Quick start
 
 ### Assemble and disassemble
@@ -107,6 +118,7 @@ One entry point, seven commands:
 node node_modules/@jrmarcum/binaryang/main.js <command> [options]   # Node, after installing
 bun  node_modules/@jrmarcum/binaryang/main.js <command> [options]   # Bun, after installing
 deno run -A jsr:@jrmarcum/binaryang <command> [options]             # Deno, no install
+npx @synapticforge1/binaryang <command> [options]                   # from npm, no install
 ```
 
 | command                   | does                                                                                                                                                                                                                                                                                                                                                                         |

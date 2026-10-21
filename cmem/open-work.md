@@ -294,7 +294,11 @@ fatigue.
 
 ## Repo work
 
-29. ◐ **npm as a SECOND registry, as `@synapticforge1/binaryang`** (parked 2026-10-13; REOPENED
+29. ◐ **npm as a SECOND registry, as `@synapticforge1/binaryang`** — ✅ **1.13.1 is ON npm**
+    (2026-10-21 UTC, the first version by hand, no provenance; the trusted publisher and
+    `NPM_PUBLISH` set by the owner). **Left to close the item:** the next release's `npm` job
+    publishing by OIDC with provenance read back ([publishing.md](publishing.md) § "npm as a
+    SECOND registry": npm's 2-day window for a new trusted publisher). (Parked 2026-10-13; REOPENED
     2026-10-20, owner: "I am setup on npm now. How do I publish this package there?", then
     "Build and prove, no publish"). JSR stays the source. 🔧 First built as
     `@synapticforge/binaryang`; then the owner: "my username on npm is synapticforgeun and my
