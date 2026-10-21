@@ -5,7 +5,7 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-20): `@jrmarcum/binaryang@1.13.0`**, Rekor `3344028471` — § "1.13.0" below; the
+**Latest (2026-10-21 UTC): `@jrmarcum/binaryang@1.13.1`**, Rekor `3346116525` — § "1.13.1" below; the
 releases in between are recorded there too, newest first. **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (moved to `synapticforge`, the org then renamed to
 match the npm org: § "The move to `synapticforge`"; the JSR package name is unchanged).
@@ -891,7 +891,8 @@ first, archived). Checked through the APIs:
 - **In the repo:** `origin` set to `https://github.com/synapticforge/binaryang.git`; the README's
   CI badge and links, and the Actions URL `scripts/release/publish.ts` prints, name the org.
   `cmem/` keeps the old URL where a dated record says it.
-- **Not proven yet:** a publish from the org with provenance (the next release), and the org's
+- **Not proven yet** (✅ both proven since: CI / auto-tag on `a97255ef4`, the publish with
+  provenance by 1.13.1): a publish from the org with provenance (the next release), and the org's
   Actions settings — workflow permissions must allow auto-tag's `contents: write` / `actions:
   write` and publish's `id-token: write`, and OIDC must not be restricted (the next push's CI and
   auto-tag show the first part).
@@ -913,6 +914,34 @@ redirects last only until someone claims it. **JSR did not follow the rename eit
 API before 1.13.1 was tagged). In the repo:
 `origin`, the README, `publish.ts`'s printed URL and the npm manifest's repository / homepage / bugs
 name `synapticforge1`.
+
+## 1.13.1 — a PATCH from `main` (2026-10-20; 2026-10-21T00:08Z UTC) — 🚀 PUBLISHED by `bun run release`, the FIRST from the org, provenance recorded
+
+The owner's go: "lets update the project memory files, bump and publish"; a patch, JSR only (the
+npm job off). It carries the README's links to the new org; no code change.
+
+1. The JSR link re-made by the owner and checked through the API FIRST (`synapticforge1/binaryang`,
+   23:36:03Z) — after the move and again after the rename, JSR kept the old name.
+2. `CHANGELOG.md` § 1.13.1 and the rename fixes on a branch, gated (28 / 28, the npm step among
+   them), merged; `main` pushed unbumped at `cafe1f921`: CI and auto-tag GREEN.
+3. A FRESH CLONE from `github.com/synapticforge1/binaryang` of that commit: the CI steps, 17 / 17.
+4. JSR 1.13.1 404, no remote tag; `bun run bump` (`jsr.json` + `main.ts`), `version_sync` green;
+   `bun run release` committed `bump to v1.13.1` (`840b7d79a`) and pushed `main` + `v1.13.1`.
+5. publish.yml GREEN (the `npm` job skipped: `NPM_PUBLISH` unset), with CI and auto-tag; JSR 1.13.1
+   created 2026-10-21T00:08:58Z, not yanked, **Rekor log id `3346116525`**, `latestVersion` 1.13.1;
+   GitHub Release `v1.13.1`; `deno run … jsr:@jrmarcum/binaryang@1.13.1 --version` prints it.
+   **This proves the org's publish side:** OIDC is not restricted there, and JSR accepts the
+   provenance of `synapticforge1/binaryang`.
+
+**npm, after this release** (the owner: "I am not seeing what you are saying in the account
+settings"): npm's docs put the trusted publisher on the PACKAGE's settings page (Packages → the
+package → Settings → Trusted publishing), and `npm trust`'s docs say "The package you're
+configuring must already exist on the npm registry". So the first npm version is a manual publish
+by the owner — `npm login` as `synapticforgeun`, then `npm publish --provenance=false` from a
+`dist/` built and proved at `v1.13.1` (the manifest asks for provenance, which only CI can make) —
+then the trusted publisher (`npm trust github @synapticforge1/binaryang --file publish.yml --repo
+synapticforge1/binaryang --allow-publish`, npm ≥ 11.15, or the page), then `NPM_PUBLISH=true`.
+npm: a new trusted-publisher configuration must complete its first publish within 2 days.
 
 ## 1.13.0 — a MINOR from `main` (2026-10-20; 21:37Z UTC) — 🚀 PUBLISHED by `bun run release`, provenance recorded
 
