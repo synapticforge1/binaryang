@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-20: the last release is `v1.13.0`; nothing user-visible is unreleased on `main`**
-(check it rather than trust this line: `git log --oneline v1.13.0..main -- src/ main.ts jsr.json`).
-`jsr.json` reads 1.13.0; the version line arms a release, so the next bump is the owner's
+**As of 2026-10-21 (UTC): the last release is `v1.13.1`; nothing user-visible is unreleased on
+`main`** (check it rather than trust this line: `git log --oneline v1.13.1..main -- src/ main.ts
+jsr.json`). `jsr.json` reads 1.13.1; the version line arms a release, so the next bump is the owner's
 decision, never a side effect of work.
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
@@ -23,12 +23,13 @@ lens C1–C17 — `wasmValidate`'s `result`, the reader's malformed heap types a
 five more refusals, two where upstream wabt accepts; open-work 30 and 31 steps 1–15, the
 optimizer within 0.7% of upstream -Oz on real compiler output and below it at -O2; the passes
 `MergeLocals`, `PrecomputePropagate`, `MergeSimilarFunctions`; `Module.optimizeStack`; the
-CodeFolding crash shipped 1.11.0 – 1.12.1; the browser recipe). The public summary of each is
+CodeFolding crash shipped 1.11.0 – 1.12.1; the browser recipe) or **1.13.1** (the repository moved
+to `synapticforge1/binaryang`; docs only). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 769b4d3c0:cmem/unreleased.md` (to 1.7.0), this file at `7aa54e95c` (1.7.1 → 1.7.2), at
 `fb5068e47` (1.8.0), at `99f2a5b16` (1.8.1), at `82113369e` (1.9.0), at `23b9f36fb` (1.10.0), at
-`fc021fe08` (1.11.0), at `604b33cf8` (1.12.0), at `e03d38f33` (1.12.1), and at `2b74934bf`
-(1.13.0).
+`fc021fe08` (1.11.0), at `604b33cf8` (1.12.0), at `e03d38f33` (1.12.1), at `2b74934bf`
+(1.13.0), and at `840b7d79a` (1.13.1).
 
 ## How to use this file
 
@@ -43,13 +44,7 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.13.0
+## Since 1.13.1
 
-**Releasing as 1.13.1** (owner, 2026-10-20: "lets update the project memory files, bump and
-publish"; a patch, JSR only — the npm job stays off until `NPM_PUBLISH` is set).
-
-- **Docs — the repository moved** to `synapticforge1/binaryang` (via `synapticforge`, renamed the
-  same day): the README's CI badge and links. No code changes; the package name is unchanged.
-- Repo only, not in the package: the npm build and proof (`bun run npm:build` / `npm:prove`, in
-  CI), the `npm` job in `publish.yml` (off), `cli-smoke.ts`'s entry argument, `bundleExports`'
-  export map, `publish.ts`'s printed URL (open-work 29).
+Nothing yet. (The npm package, open-work 29, is not a change to the JSR package: its first version
+is a manual publish of the 1.13.1 tree — [publishing.md](publishing.md) § "1.13.1".)
