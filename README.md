@@ -2,6 +2,7 @@
 
 [![JSR](https://jsr.io/badges/@jrmarcum/binaryang)](https://jsr.io/@jrmarcum/binaryang)
 [![JSR Score](https://jsr.io/badges/@jrmarcum/binaryang/score)](https://jsr.io/@jrmarcum/binaryang)
+[![npm](https://img.shields.io/npm/v/@synapticforge1/binaryang)](https://www.npmjs.com/package/@synapticforge1/binaryang)
 [![CI](https://github.com/synapticforge1/binaryang/actions/workflows/ci.yml/badge.svg)](https://github.com/synapticforge1/binaryang/actions/workflows/ci.yml)
 
 A WebAssembly toolchain in TypeScript — a port of both
@@ -16,15 +17,32 @@ source tree that runs on Deno, Node, Bun and modern browsers.
 
 ## Install
 
+The same package is published to two registries, under two names. The code, the version and the
+subpaths are identical; only the package name in an import differs.
+
+| registry                                                                    | package name                | best for                                 |
+| --------------------------------------------------------------------------- | --------------------------- | ---------------------------------------- |
+| [npm](https://www.npmjs.com/package/@synapticforge1/binaryang) (from 1.13.1) | `@synapticforge1/binaryang` | Node, Bun, pnpm, yarn: no `.npmrc`, `npx` |
+| [JSR](https://jsr.io/@jrmarcum/binaryang) (the source)                      | `@jrmarcum/binaryang`       | Deno; any runtime through `jsr add`      |
+
+**From npm:**
+
+```sh
+npm install @synapticforge1/binaryang    # or: bun add / pnpm add / yarn add
+```
+
+```ts
+import { wat2wasm } from '@synapticforge1/binaryang/wat2wasm';
+```
+
+**From JSR:**
+
 ```sh
 npx  jsr add @jrmarcum/binaryang         # Node (npm)
 bunx jsr add @jrmarcum/binaryang         # Bun
 pnpm add jsr:@jrmarcum/binaryang         # pnpm 10.9+ (yarn 4.9+: yarn add jsr:@jrmarcum/binaryang)
 deno add jsr:@jrmarcum/binaryang         # Deno
 ```
-
-Install once per project, then import by the package name. The same import line works on every
-runtime:
 
 ```ts
 import { wat2wasm } from '@jrmarcum/binaryang/wat2wasm';
@@ -34,9 +52,12 @@ Only Deno can import JSR packages without installing them first. Node and Bun re
 prefix, and so do `npm install` and `bun add`. `npx jsr add` / `bunx jsr add` record the package
 as an `npm:@jsr/jrmarcum__binaryang` alias in `package.json` and write an `.npmrc` pointing the
 `@jsr` scope at JSR's registry. Commit both. pnpm 10.9+ and yarn 4.9+ understand `jsr:` natively
-and need no `.npmrc`. Node and Bun receive compiled JavaScript with type declarations, so no
-TypeScript setup is needed. On Deno, `import … from 'jsr:@jrmarcum/binaryang/wat2wasm'` also works
-with no install.
+and need no `.npmrc`. On Deno, `import … from 'jsr:@jrmarcum/binaryang/wat2wasm'` also works with
+no install.
+
+Either way, Node and Bun receive compiled JavaScript with type declarations, so no TypeScript setup
+is needed. **The examples below use the JSR name; from npm, write `@synapticforge1/binaryang`
+where they say `@jrmarcum/binaryang`.**
 
 ## Quick start
 
@@ -104,8 +125,10 @@ console.log(mod.getNumExports(), mod._inner.functions.length); // `_inner` is th
 One entry point, seven commands:
 
 ```sh
-node node_modules/@jrmarcum/binaryang/main.js <command> [options]   # Node, after installing
-bun  node_modules/@jrmarcum/binaryang/main.js <command> [options]   # Bun, after installing
+npx binaryang <command> [options]                                   # installed from npm
+npx @synapticforge1/binaryang <command> [options]                   # from npm, no install
+node node_modules/@jrmarcum/binaryang/main.js <command> [options]   # Node, installed from JSR
+bun  node_modules/@jrmarcum/binaryang/main.js <command> [options]   # Bun, installed from JSR
 deno run -A jsr:@jrmarcum/binaryang <command> [options]             # Deno, no install
 ```
 
@@ -129,13 +152,14 @@ fold where nothing is recorded, as for any other tool's binary). `--no-text-form
 upstream `wat2wasm`'s bytes exactly. Optimizing drops it, and so does `wasm-strip`.
 
 ```sh
-node node_modules/@jrmarcum/binaryang/main.js wat2wasm add.wat -o add.wasm
-node node_modules/@jrmarcum/binaryang/main.js wasm-opt add.wasm -o add.min.wasm -Oz
+npx binaryang wat2wasm add.wat -o add.wasm                                  # from npm
+npx binaryang wasm-opt add.wasm -o add.min.wasm -Oz
+node node_modules/@jrmarcum/binaryang/main.js wat2wasm add.wat -o add.wasm  # from JSR
 ```
 
-The installed package is compiled JavaScript (`main.js`), so Node needs no flags. JSR packages
-have no `bin` entry, so `npx binaryang` does not exist. A `package.json` script gives the same
-short form:
+The installed package is compiled JavaScript (`main.js`), so Node needs no flags. The npm package
+declares `binaryang` as its command. JSR packages cannot (no `bin` entry), so after a JSR install
+a `package.json` script gives the same short form:
 
 ```json
 { "scripts": { "binaryang": "node node_modules/@jrmarcum/binaryang/main.js" } }
@@ -149,6 +173,8 @@ npm run binaryang -- wat2wasm add.wat -o add.wasm
 > source (erasable TypeScript, which Node's default type stripping runs, from 22.18 through 26).
 
 ## What's in the package
+
+Each import below is the JSR name; from npm, each starts with `@synapticforge1/binaryang` instead.
 
 | import                                               | contents                                                                                                                                                               |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -186,7 +212,8 @@ Runs on **Deno, Node.js, Bun and modern browsers** from a single source tree.
 | Bun      | **1.4.0**   | 1.4.0                                                  |                                   |
 | browsers | modern      | Chromium, Chrome, Edge, Brave, Opera, Firefox, WebKit² | library surface only, not the CLI |
 
-¹ Node users receive JSR's compiled JavaScript. binaryang's TypeScript **source** (a clone of this
+¹ Node users receive compiled JavaScript: the npm package's, or JSR's own build. binaryang's
+TypeScript **source** (a clone of this
 repository) also runs on Node with no flag: it is ERASABLE TypeScript, with no `enum`s and no
 constructor parameter properties, which Node's default type stripping accepts, Node 26 included.
 The compiler option `erasableSyntaxOnly` keeps it that way.
