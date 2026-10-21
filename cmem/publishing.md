@@ -28,6 +28,19 @@ last section, "The tag-push path works unaided", narrows the manual-step warning
 
 ## 🆕 npm as a SECOND registry — a PARKED contingency (owner, 2026-10-13; open-work 29)
 
+✅ **ON npm since 2026-10-21 (UTC): `@synapticforge1/binaryang@1.13.1`**, the first version
+published BY HAND by the owner (`npm publish --provenance=false` from `dist/` built and proved at
+`v1.13.1`; published by `synapticforgeun`; no provenance on this one version, as planned). The
+public metadata answered 404 for about a minute after the org's package list already showed it
+(scratch `npm-wait.ts`). Checked as a user from npmjs.org: `npm install` then `npx binaryang
+--version` → `binaryang 1.13.1`; `npx @synapticforge1/binaryang --version` with no install;
+Node 22 imports `./wat2wasm` and runs what it builds; Bun imports `./wasm-validate`. Then, owner:
+"steps 1 and 2 are complete" — the trusted publisher configured on the package, and the
+REPOSITORY variable `NPM_PUBLISH=true` set (neither is readable from the public APIs; the next
+release's `npm` job is their proof, and its provenance read-back the evidence). **npm's 2-day
+window:** a new trusted-publisher configuration must complete a publish within 2 days, so the
+next release should come by 2026-10-22, or the configuration be re-checked first.
+
 ▶ **REOPENED 2026-10-20 and BUILT, nothing published** (owner: set up on npm; "Build and prove,
 no publish"). The name is **`@synapticforge1/binaryang`**: npm user `synapticforgeun`, npm org
 `synapticforge1` (owner, 2026-10-20). 🔧 It was first built as `@synapticforge/binaryang`, the

@@ -46,5 +46,8 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.13.1
 
-Nothing yet. (The npm package, open-work 29, is not a change to the JSR package: its first version
-is a manual publish of the 1.13.1 tree — [publishing.md](publishing.md) § "1.13.1".)
+- **Docs — README, "From npm"**: the package is on npmjs.org as `@synapticforge1/binaryang` (1.13.1
+  published there by hand, 2026-10-21; [publishing.md](publishing.md) § "npm as a SECOND
+  registry"), with its install line, its import name, and `npx @synapticforge1/binaryang`. The
+  CHANGELOG should say the package is on npm from the release that carries this, and that THAT
+  release is the first npm publish from the workflow, with provenance.
