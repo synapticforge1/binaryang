@@ -141,9 +141,9 @@ unchanged; nothing open either way. **The repo moved to `synapticforge/binaryang
 ([publishing.md](publishing.md) § "The move to `synapticforge`"), and **the org was then renamed
 `synapticforge1`** to match the npm org: the repo is `synapticforge1/binaryang`. The first push
 from the org ran CI and auto-tag GREEN (`a97255ef4`). JSR followed neither move nor rename; the
-owner re-linked it to `synapticforge1/binaryang` (API, 23:36Z). **1.13.1** (owner: "update the
-project memory files, bump and publish"; a patch, JSR only): the README's links to the new org,
-the first publish from the org.
+owner re-linked it to `synapticforge1/binaryang` (API, 23:36Z). **1.13.1 PUBLISHED** (owner:
+"update the project memory files, bump and publish"; a patch, JSR only; Rekor `3346116525`): the
+README's links to the new org — the first publish from the org, provenance recorded.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -308,11 +308,16 @@ fatigue.
     the source's smoke hash, `npm exec binaryang`, the `.d.ts` for a consumer with no
     `@types/node`, the browser bundle, the export list against JSR's own npm build); 7 build
     mutants all caught; in CI's Gates job. **The npm job** in `publish.yml` runs after JSR's from
-    the same tag, OFF until the repository variable `NPM_PUBLISH` is `true`. **The owner's steps
-    to switch it on:** on npmjs.com, a trusted publisher for `@synapticforge1/binaryang` naming
-    `synapticforge1/binaryang` and `publish.yml` (check npm's docs: it may need the package to
-    exist first, then a one-time token for the first publish); then the variable; then the next
-    release publishes to both. Record: [publishing.md](publishing.md) § "npm as a SECOND registry".
+    the same tag, OFF until the REPOSITORY variable `NPM_PUBLISH` is `true` (not an environment
+    variable: the job declares no `environment:`; an org variable shared with the repo would also
+    be read, but would reach every repo it is shared with). **The owner's steps, as npm's docs
+    settled them (checked 2026-10-20):** the trusted publisher lives on the PACKAGE's settings page
+    and the package must already exist, so (1) the first version by hand — `npm login` as
+    `synapticforgeun`, `npm publish --provenance=false` from `dist/` built and proved at `v1.13.1`;
+    (2) the trusted publisher (`npm trust github @synapticforge1/binaryang --file publish.yml
+    --repo synapticforge1/binaryang --allow-publish`, or the page); (3) `NPM_PUBLISH=true`; then
+    each release publishes to both. Record: [publishing.md](publishing.md) § "npm as a SECOND
+    registry" and § "1.13.1".
 
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
