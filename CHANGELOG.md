@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.13.2
+
+### New
+
+- **On npm:** the package is published to npmjs.org as
+  [`@synapticforge1/binaryang`](https://www.npmjs.com/package/@synapticforge1/binaryang), alongside
+  JSR's `@jrmarcum/binaryang` — the same code, version and subpaths. `npm install` needs no `.npmrc`,
+  and the command line runs as `npx binaryang`. From this version on, each release is published to
+  both registries from the same tag, with provenance on both. (1.13.1 is on npm too, published by
+  hand to create the package; it carries no provenance.)
+
+### Documentation
+
+- The README covers both registries: how to install from each, the two package names (the examples
+  use JSR's; from npm, write `@synapticforge1/binaryang`), and `npx binaryang`. Nothing in the
+  code changed.
+
 ## 1.13.1
 
 ### Documentation

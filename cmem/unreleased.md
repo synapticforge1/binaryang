@@ -46,6 +46,10 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.13.1
 
+**Releasing as 1.13.2** (owner, 2026-10-21: "are we ready to publish 1.3.2 which should fix the
+provenance?" — 1.13.2 — "and the readme", then "Yes, release 1.13.2"): JSR and npm, the first
+npm publish by the workflow, with provenance.
+
 - **Docs — README, "From npm"**: the package is on npmjs.org as `@synapticforge1/binaryang` (1.13.1
   published there by hand, 2026-10-21; [publishing.md](publishing.md) § "npm as a SECOND
   registry"), with its install line, its import name, and `npx @synapticforge1/binaryang`. The
