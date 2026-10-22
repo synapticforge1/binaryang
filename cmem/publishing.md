@@ -5,9 +5,9 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-22 UTC): 1.13.3 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@1.13.3` (Rekor `3375011478`) and npm `@synapticforge1/binaryang@1.13.3`
-(published by GitHub Actions, SLSA provenance) — § "1.13.3". Every release is recorded below,
+**Latest (2026-10-22 UTC): 1.14.0 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@1.14.0` (Rekor `3379566195`) and npm `@synapticforge1/binaryang@1.14.0`
+(published by GitHub Actions, SLSA provenance) — § "1.14.0". Every release is recorded below,
 newest first.
 **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (moved to `synapticforge`, the org then renamed to
@@ -934,6 +934,30 @@ redirects last only until someone claims it. **JSR did not follow the rename eit
 API before 1.13.1 was tagged). In the repo:
 `origin`, the README, `publish.ts`'s printed URL and the npm manifest's repository / homepage / bugs
 name `synapticforge1`.
+
+## 1.14.0 — a MINOR from `main` (2026-10-22 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "lets update the project memory files, then bump and push"; the version chosen
+as a minor ("1.14.0": a new pass, `Memory64Lowering`, and its two flags; nothing removed). It
+carries open-work 32 (CHANGELOG § 1.14.0).
+
+1. `CHANGELOG.md` § 1.14.0 and the open-work state on `release/1.14.0`, gated 17 / 17 (the full
+   29 / 29 had run on the commit before), merged; `main` pushed unbumped at `b0dc8fe77`: CI and
+   auto-tag GREEN. 🔧 Scratch `ci-wait.ts` was given a SHORT sha and listed nothing until asked:
+   the API's `head_sha` filter matches only a full sha. It now refuses anything but 40 hex digits.
+2. The CI half of the gate from a FRESH CLONE from GitHub of `b0dc8fe77`: 17 / 17 exit 0.
+3. No tag, neither registry had 1.14.0; 1.14.0 typed BY HAND in `jsr.json` and `main.ts`,
+   `version_sync` green. The release guard refused once: an untracked `--help/` of gate logs (a
+   `gate.ts --help` run had taken `--help` as its scratch path), removed. `bun run release`:
+   `bump to v1.14.0` (`e2d44d66c`), `main` + `v1.14.0` in one push.
+4. publish.yml GREEN with CI and auto-tag: **JSR** 1.14.0 created 2026-10-22T07:03:39Z, not
+   yanked, **Rekor log id `3379566195`**; **npm** `@synapticforge1/binaryang@1.14.0` at 07:05:40Z,
+   `latest`, published by **GitHub Actions** (the trusted publisher), attestation
+   `https://slsa.dev/provenance/v1`; GitHub Release `v1.14.0`. As a user: `deno run -A
+   --min-dep-age 0 jsr:@jrmarcum/binaryang@1.14.0 --version` and `npx -y
+   @synapticforge1/binaryang@1.14.0 --version` (Node 24, `npx-cli.js` run by `node`: `fnm exec`
+   cannot spawn the `.cmd` shim) both print `binaryang 1.14.0`; npx took about 5 minutes on its
+   first, uncached run, so give it a long timeout.
 
 ## 1.13.3 — a PATCH from `main` (2026-10-22 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
