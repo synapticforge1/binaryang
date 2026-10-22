@@ -178,7 +178,8 @@ diverging on either engine); real compiler output — Rust nightly and Zig wasm6
 run their workload to the right checksum on JavaScriptCore (`memory64_real_compiler.test.ts`).
 Measured, nothing built: legacy-EH `delegate` was already solved by TranslateToExnref (70 / 70);
 JavaScriptCore's multi-memory limit is 100 memories and every compiler measured emits one, so no
-multi-memory lowering; Emscripten / clang, not installed here, unmeasured. Every step and number:
+multi-memory lowering. Emscripten 6.0.13 `-sMEMORY64` (measured once installed): refused as built,
+runs lowered — and so does its JS glue, unchanged, memory growth included. Every step and number:
 [run-everywhere.md](run-everywhere.md) § "Open-work 32". Its number is kept free.)
 
 No defects open before it. (Item 27 closed 2026-10-12: the interpreter's constant-expression evaluator never
