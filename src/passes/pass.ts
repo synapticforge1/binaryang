@@ -438,6 +438,14 @@ export class PassRunner {
  */
 /** The function passes of `-O2` and above, in order. */
 const functionPasses = (opts: PassOptions): string[] => [
+  // Each value of a reused local in its own local, first, as upstream places
+  // ssa-nomerge (-O3 / -Os / -Oz): CoalesceLocals then assigns them afresh, and
+  // equal panic tails that read different locals fold (open-work 31, step 16:
+  // six -Oz −175, corpus −28; before the first CoalesceLocals only, −108 / +6;
+  // with a CoalesceLocals right after it, +10 / +1,860). Its price is optimizer
+  // time — PrecomputePropagate works over the extra locals until they coalesce —
+  // and the owner's targets are output size and run speed (unchanged, measured).
+  ...(opts.optimizeLevel >= 3 || opts.shrinkLevel >= 1 ? ['SSANoMerge'] : []),
   'DCE',
   'PickLoadSigns',
   'Vacuum',
