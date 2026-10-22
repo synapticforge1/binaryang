@@ -67,6 +67,9 @@ jobs:
         with:
           bun-version: '1.4.3'
 
+      # The decisions below are scripts/release/workflow.ts, not bash (owner rule, 2026-10-21: a
+      # condition or a loop goes in a .ts file; the shell only launches it).
+      #
       # `secrets` is not dependably available in a step-level `if:`, so the presence
       # of RELEASE_PAT is turned into a plain step output and gated on that instead.
       # Only ever emits yes/no — the secret itself is never echoed.
@@ -74,36 +77,17 @@ jobs:
         id: cred
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
-        run: |
-          if [ -n "$RELEASE_PAT" ]; then
-            echo "pat=yes" >> "$GITHUB_OUTPUT"; echo "RELEASE_PAT is configured — tag push will trigger publish.yml directly."
-          else
-            echo "pat=no"  >> "$GITHUB_OUTPUT"; echo "RELEASE_PAT is not configured — will fall back to workflow_dispatch."
-          fi
+        run: bun scripts/release/workflow.ts release-cred
 
-      - name: Read version from jsr.json
-        id: ver
-        run: |
-          V="$(bun -e 'console.log(JSON.parse(require("node:fs").readFileSync("jsr.json", "utf8")).version)')"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "jsr.json version: $V"
-
-      - name: Check whether tag already exists
+      # Outputs `version` (jsr.json's) and `exists` (whether v<version> is already a tag).
+      - name: Read the version and check whether its tag exists
         id: check
-        run: |
-          TAG="v${{ steps.ver.outputs.version }}"
-          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG already exists — nothing to do."
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG does not exist — will create + push + dispatch publish."
-          fi
+        run: bun scripts/release/workflow.ts tag-check
 
       - name: Create and push tag
         if: steps.check.outputs.exists == 'false'
         run: |
-          TAG="v${{ steps.ver.outputs.version }}"
+          TAG="v${{ steps.check.outputs.version }}"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
@@ -117,7 +101,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="v${{ steps.ver.outputs.version }}"
+          TAG="v${{ steps.check.outputs.version }}"
           echo "::warning::RELEASE_PAT is not set, so the tag was pushed by GITHUB_TOKEN and cannot trigger publish.yml. Falling back to workflow_dispatch, which has failed 0-for-3 in this scope. If the publish run fails, re-push the tag by hand: git push origin :refs/tags/$TAG && git push origin $TAG"
           gh workflow run publish.yml --ref "$TAG"
           echo "Dispatched publish.yml on ref $TAG (fallback path)"

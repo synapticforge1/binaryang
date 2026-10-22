@@ -46,9 +46,15 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.13.1
 
-**Releasing as 1.13.2** (owner, 2026-10-21: "are we ready to publish 1.3.2 which should fix the
-provenance?" — 1.13.2 — "and the readme", then "Yes, release 1.13.2"): JSR and npm, the first
-npm publish by the workflow, with provenance.
+**1.13.2 went to JSR WITHOUT provenance and NOT to npm** (owner, 2026-10-21: "Yes, release
+1.13.2"; its publish step failed after the upload — [publishing.md](publishing.md) § "1.13.2").
+The entries below are IN JSR's 1.13.2 (the README); for npm they are still unreleased, and the
+next release, 1.13.3, carries them there, with provenance on both registries.
+
+- **Repo only — the workflows' logic is TypeScript** (owner, 2026-10-21: "lets get that done"):
+  `scripts/release/workflow.ts` holds every decision and poll the workflows ran in bash
+  (`tag-matches`, `tag-check`, `release-cred`, `oidc-check`, `provenance jsr|npm`); each step is
+  one `bun` line; `workflow_steps.test.ts`. Not in the package.
 
 - **Docs — README, "From npm"**: the package is on npmjs.org as `@synapticforge1/binaryang` (1.13.1
   published there by hand, 2026-10-21; [publishing.md](publishing.md) § "npm as a SECOND
