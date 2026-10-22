@@ -101,9 +101,12 @@ describe('the hang check: when it looks', () => {
 
   it('waits for its interval, then finds the hang', () => {
     // 100 ms in, far below the fuel: the clock, read every 65,536 instructions, arms it.
+    // 🔧 The interpreter's clock is `Date.now()`, whole milliseconds: armed partway through one, it
+    // counts from that millisecond's start, so by `performance.now()` it can look up to 1 ms
+    // EARLY. Measured 2026-10-21 on Bun, in a fresh clone: 99.75 ms. So: at least 99.
     const t = performance.now();
     expect(run(spin, { hangCheck: 100, fuel: 1e12 })).toMatchObject({ stop: 'hang' });
-    expect(performance.now() - t).toBeGreaterThanOrEqual(100);
+    expect(performance.now() - t).toBeGreaterThanOrEqual(99);
   });
 
   it('does not look before its interval: fuel stops a short spin first', () => {
