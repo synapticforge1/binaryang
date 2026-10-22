@@ -199,6 +199,73 @@ describe('data segments', () => {
   });
 });
 
+describe('tables (table64): the same pass, as upstream', () => {
+  const TAB = `(module
+    (type $r (func (result i32)))
+    (table $t i64 4 funcref)
+    (elem (table $t) (i64.const 0) func $a $b)
+    (func $a (type $r) (i32.const 11))
+    (func $b (type $r) (i32.const 22))
+    (func (export "call") (param i64) (result i32) (call_indirect $t (type $r) (local.get 0)))
+    (func (export "size") (result i64) (table.size $t))
+    (func (export "grow") (param i64) (result i64) (table.grow $t (ref.null func) (local.get 0)))
+    (func (export "is_null") (param i64) (result i32) (ref.is_null (table.get $t (local.get 0))))
+    (func (export "set") (param i64) (table.set $t (local.get 0) (ref.null func)))
+    (func (export "fill") (param i64 i64) (table.fill $t (local.get 0) (ref.null func) (local.get 1))))`;
+
+  it('call_indirect at 2^32 traps, where a wrap would call entry 0', async () => {
+    await same(
+      TAB,
+      [['call', 0n], ['call', 1n], ['call', 2n], ['call', 4n], ['call', P], ['call', P + 1n], [
+        'call',
+        -1n,
+      ]],
+      ['11', '22', 'trap', 'trap', 'trap', 'trap', 'trap'],
+    );
+  });
+
+  it('table.get / set / fill at 2^32 trap; size and grow are i64', async () => {
+    await same(
+      TAB,
+      [
+        ['is_null', 0n],
+        ['is_null', 3n],
+        ['is_null', P],
+        ['set', P],
+        ['fill', 0n, P], // a length of 2^32: trap, not a wrap to 0
+        ['call', 0n], // nothing above changed entry 0
+        ['size'],
+        ['grow', 2n],
+        ['grow', P],
+        ['size'],
+      ],
+      ['0', '1', 'trap', 'trap', 'trap', '11', '4n', '4n', '-1n', '6n'],
+    );
+  });
+
+  it('a grow past the maximum returns -1 (not 2^32 - 1); a copy of length 2^32 traps', async () => {
+    await same(
+      `(module
+        (table $t i64 2 3 funcref) (table $u i64 2 funcref)
+        (func (export "grow") (param i64) (result i64) (table.grow $t (ref.null func) (local.get 0)))
+        (func (export "copy") (param i64 i64 i64) (table.copy $u $t (local.get 0) (local.get 1) (local.get 2))))`,
+      [['grow', 5n], ['grow', 1n], ['grow', 1n], ['copy', 0n, 0n, 1n], ['copy', 0n, 0n, P], [
+        'copy',
+        P,
+        0n,
+        0n,
+      ]],
+      ['-1n', '2n', '-1n', 'undefined', 'trap', 'trap'],
+    );
+  });
+
+  it("upstream's alias finds it too: --table64-lowering", () => {
+    const m = readForPasses(assemble('(module (table i64 1 funcref) (memory i64 1))'));
+    new PassRunner(m, {}).add('table64-lowering').run();
+    expect([m.tables[0]!.limits.is64, m.memories[0]!.limits.is64]).toEqual([false, false]);
+  });
+});
+
 describe('what it leaves, and what it refuses', () => {
   it('a module with no 64-bit memory is unchanged', () => {
     // The IR, not the bytes: any PassRunner run marks the module optimized, which drops names.
