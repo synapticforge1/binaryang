@@ -1075,7 +1075,7 @@ nothing. It carries the code lens C1–C17 and open-work 30 / 31 steps 1–15 (C
 1. `CHANGELOG.md` § 1.13.0 on `release/1.13.0`, gated (27 / 27), merged; `main` pushed unbumped at
    `6eabf94a9`: CI and auto-tag GREEN (scratch `ci-wait.ts`, the public Actions API; `gh` is not
    installed here).
-2. The CI half of the gate from a FRESH CLONE of that commit (on `C:`): 16 / 16 exit 0 — install,
+2. The CI half of the gate from a FRESH CLONE of that commit (on an NTFS disk): 16 / 16 exit 0 — install,
    fmt, lint, `bun run test`, `bun run test:bun` (the 36 listed), check, naming, portability,
    browser, baseline, `publish:dry`, comparison, browsers, the three smokes.
 3. JSR 1.13.0 404, no remote tag; 1.13.0 typed BY HAND in `jsr.json` and `main.ts`;
