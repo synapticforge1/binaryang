@@ -57,3 +57,10 @@ contains ([handoffs.md](handoffs.md)).
   The interface changes: an imported or exported 64-bit memory becomes a 32-bit one. Measured: the
   spec's memory64 files, 5,367 invocations, agree with the original on V8 lowered on V8 (all) and
   on JavaScriptCore (all but the JS API's NaN canonicalization and `v128` exports).
+  **Step 2, tables (table64), in the same pass** (upstream's `--table64-lowering` is an alias,
+  registered as `Table64Lowering`): `call_indirect` at an index of 2^32 or more traps with the
+  engine's own call_indirect trap (upstream calls entry 0); `table.get` / `set` / `fill` / `copy` /
+  `init` trap as out-of-bounds table accesses (upstream emits invalid code for get / set); size and
+  grow widen; element offsets narrow; a lowered table holds at most 2^32 − 2. The spec's table64
+  files: 1,257 invocations, all on V8, all but refusal wording on JavaScriptCore; trap MESSAGES
+  identical to the original's on V8 (8 / 8).
