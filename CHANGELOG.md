@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.13.3
+
+The same package as 1.13.2, released again so that it carries provenance on both registries.
+1.13.2's publish to JSR failed after the upload (a registry-side response was not JSON), so JSR
+1.13.2 has no provenance and npm never received it. 1.13.3 is published to JSR and, for the first
+time from the release workflow, to npm as `@synapticforge1/binaryang`, each with provenance.
+Nothing in the code changed.
+
 ## 1.13.2
 
 ### New
