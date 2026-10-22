@@ -27,6 +27,7 @@
     "translate-eh": "bun scripts/v8.ts scripts/check-translate-eh.ts",
     "optimize-corpus": "bun scripts/v8.ts scripts/check-optimize-corpus.ts",
     "spec-behaviour": "bun scripts/v8.ts scripts/check-spec-behaviour.ts",
+    "lowering": "bun scripts/check-lowering.ts",
     "hostile": "bun scripts/v8.ts scripts/check-hostile.ts",
     "browser": "bun scripts/check-browser.ts",
     "lts": "bun scripts/check-lts.ts",

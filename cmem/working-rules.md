@@ -64,7 +64,10 @@ not installed (owner, 2026-10-12: "support and test all currently available lts 
 all must print the same hash)
 
 then the project's own: `bun run operators` · `bun run spec <corpus>` ·
-`bun run spec-behaviour <corpus>` · `bun run direct` ·
+`bun run spec-behaviour <corpus>` · `bun run lowering <corpus>` (since 2026-10-22, open-work
+32: every spec module with a 64-bit memory or table, lowered by `Memory64Lowering`, against the
+original on V8 — on V8 and on JavaScriptCore; expect 122 modules, 1,759 invocations, 0
+diverging, 0 refused) · `bun run direct` ·
 `bun run direct-behaviour` · `bun run translate-eh <testsuite-main>/legacy <outDir>` ·
 `bun run optimize-corpus` · `bun run proposals <testsuite-main> <outDir>` · then, AFTER
 `proposals` (it prepares their corpora), `bun run interp <corpus> <legacy corpus>

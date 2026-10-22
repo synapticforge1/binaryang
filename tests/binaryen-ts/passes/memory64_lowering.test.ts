@@ -112,6 +112,46 @@ describe('loads and stores', () => {
   });
 });
 
+describe('SIMD and atomics — no spec module has them on a 64-bit memory, so these do', () => {
+  it('v128.load, a lane load and a lane store, in range and at 2^32', async () => {
+    await same(
+      `(module ${MEM}
+        (func (export "ld") (param i64) (result i64) (i64x2.extract_lane 0 (v128.load (local.get 0))))
+        (func (export "lane") (param i64) (result i64)
+          (i64x2.extract_lane 1 (v128.load64_lane 1 (local.get 0) (v128.const i64x2 0 0))))
+        (func (export "st") (param i64) (v128.store64_lane 0 (local.get 0) (v128.const i64x2 7 9))))`,
+      [['ld', 0n], ['ld', P], ['lane', 0n], ['lane', P], ['st', 8n], ['ld', 8n], ['st', P], [
+        'ld',
+        0n,
+      ]],
+      [
+        `${0x64636261n}n`,
+        'trap',
+        `${0x64636261n}n`,
+        'trap',
+        'undefined',
+        '7n',
+        'trap',
+        `${0x64636261n}n`,
+      ],
+    );
+  });
+
+  it('atomic load, store and read-modify-write, in range and at 2^32', async () => {
+    await same(
+      `(module ${MEM}
+        (func (export "ld") (param i64) (result i32) (i32.atomic.load (local.get 0)))
+        (func (export "add") (param i64) (result i32) (i32.atomic.rmw.add (local.get 0) (i32.const 1)))
+        (func (export "st") (param i64) (i32.atomic.store (local.get 0) (i32.const 5))))`,
+      [['ld', 0n], ['ld', P], ['add', 4n], ['ld', 4n], ['add', P], ['st', P], ['st', 8n], [
+        'ld',
+        8n,
+      ]],
+      [`${0x64636261}`, 'trap', '0', '1', 'trap', 'trap', 'undefined', '5'],
+    );
+  });
+});
+
 describe('size and grow', () => {
   it('memory.size is an i64; grow returns the old size, or -1', async () => {
     await same(
