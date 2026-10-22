@@ -151,6 +151,14 @@ registries with provenance** — JSR Rekor `3375011478`, npm by the workflow wit
 (§ "1.13.3"). On the way: the workflows' bash logic moved to `scripts/release/workflow.ts` (owner
 rule), and a `hang_check` test flake found by the fresh-clone check was fixed.
 
+**State, 2026-10-22 (supersedes the paragraphs above where they differ):** item 32 is CLOSED and
+goes out as **1.14.0** (owner: "lets update the project memory files, then bump and push"; a minor,
+the owner's choice: a new pass and two flags, nothing removed). It carries `Memory64Lowering` and
+the README's "Making a module run on Safari and Bun" (CHANGELOG § 1.14.0); the release record is
+[publishing.md](publishing.md) § "1.14.0". Repo only: the `lowering` gate step and the committed
+wasm64 builds of Rust, Zig and Emscripten (the last with its JS glue). **Open:** 31 (optimizer),
+13, 14, 15.
+
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
 **Cut back to open items on 2026-09-29** (the second time; the first was 2026-09-14). The file had

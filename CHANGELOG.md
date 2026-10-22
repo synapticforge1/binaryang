@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.14.0
+
+A minor release: **a module built for 64-bit memory now runs on Safari and Bun** (JavaScriptCore),
+through a new pass that keeps the module's behaviour where Binaryen's does not. Nothing is removed
+or renamed, and no other output changes. Tested on the spec suite's 64-bit modules and on real
+compiler output: Rust, Zig and Emscripten builds, Emscripten's own JavaScript glue unchanged, run
+to the right result on JavaScriptCore once lowered.
 
 ### New
 
@@ -18,6 +24,8 @@
 - **Making a module run on Safari and Bun** (README): which features JavaScriptCore refuses, and
   the pass for each — `--memory64-lowering`, and `--translate-to-exnref` for legacy exception
   handling (`delegate`), which already made such modules run there (every spec assertion holds).
+- The README said JavaScriptCore runs multi-memory modules with up to 127 memories; measured, the
+  limit is 100.
 
 ## 1.13.3
 
