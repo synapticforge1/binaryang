@@ -173,8 +173,8 @@ notations to the bun migration file"):**
 - **`package.json`:** dev dependency `@biomejs/biome` 2.5.14 (exact). Script `lint` = `biome lint
   --error-on-warnings && bun scripts/check-lint-canary.ts`. The version came from the npm
   registry's own release dates, because `npm` left PATH with scoop's Node: 2.5.15 was 12 days
-  old, under the two-week rule. `bun.lock` was generated on C: and copied back, because D:'s exFAT
-  cannot take Bun's lockfile rename (`cmem/local/environment.md`).
+  old, under the two-week rule. `bun.lock` was generated on an NTFS disk and copied back, because the
+  working disk's exFAT cannot take Bun's lockfile rename (`cmem/local/environment.md`).
 - **`biome.jsonc`** (new; `biome.json` deleted): scope, `"preset": "recommended"` spelled out, each
   disabled rule with its reason and count, the three parity rules enabled, formatter and assist
   off. The vendored folder is excluded as `!tests/wabt-ts/wasmtk` (folder form; Biome flagged the
@@ -454,7 +454,7 @@ be configured to match it byte for byte. Measured, then switched.
   src/definitions/data.ts` (was `deno fmt --ext=ts -`). `definitions --check` passes, and a
   mutant that skips formatting fails it, so the formatter is on that path.
 - **Wiring:** `package.json` scripts `fmt` / `fmt:check` and the dev dependency; `bun.lock`
-  (generated on C:, the exFAT rule); CI's Format check is `bun run fmt:check`, after the install;
+  (generated on an NTFS disk, the exFAT rule); CI's Format check is `bun run fmt:check`, after the install;
   `deno.json` loses the `fmt` / `fmt:check` TASKS but KEEPS its `fmt` options until B7, so a
   Deno-aware editor that formats on save produces dprint's bytes, not width-80 double quotes;
   `biome.jsonc`'s header; working-rules' gate list.

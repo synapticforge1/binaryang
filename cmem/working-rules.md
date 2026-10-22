@@ -198,8 +198,17 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
 - **Retargeting a reference is part of removing a doc.** Code, tests and scripts cite cmem by path
   and by § heading. Grep `src/`, `tests/`, `scripts/` and the core for both forms before deleting or
   renaming a cmem file or heading, and update them in the same commit.
-- **Nothing private in a committed cmem file** — no local path, account name, token or secret. That
-  goes in the gitignored `cmem/local/`, or nowhere.
+- **Nothing private in ANY committed file or commit message** — no token or secret, no account
+  name, no email address, and **no absolute path on the owner's machines** (owner, 2026-10-22:
+  "personal drive paths are not to be public information"; workspace `cmem/working-rules.md`
+  § Records, letter H18): not a user-profile path, and not a project or tool location either (a
+  drive path, scoop, AppData), nor which drive holds what. (Examples here are described, not
+  written out, so the scan below stays empty.) Committed files use repo- or sibling-relative
+  paths (`new URL('../../wasmtk/…', import.meta.url)`), an environment variable, or a placeholder
+  (`<repo>`, `<scratchpad>`); the real path goes in the gitignored `cmem/local/`, or nowhere.
+  Scan before committing: `git grep -I -n -i -E '[A-Za-z]:[\\/]+(Programs|Users|scoop|tools)[\\/]|/[a-z]/(Programs|Users)/'`
+  must find nothing. 🔧 `scripts/spec-prepare.ts` held an absolute default corpus path from
+  `c1c24c9d3` until 2026-10-22; it is public in history — the purge is letter H19's.
 - **Owner calls stay owner calls.** Where a record says 🗓️ OWNER or "future discussion", gather the
   evidence and stop.
 

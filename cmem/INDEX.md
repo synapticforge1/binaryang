@@ -104,7 +104,7 @@ Applied so far, each with its full text at the commit named:
 | [unreleased.md](unreleased.md)         | **Everything on `main` since the last release that a release note must say** (its first line names the release and the date) — how to classify an entry (BREAKING / behaviour / silent fix / NEW).                                                               |
 | [ir-convergence.md](ir-convergence.md) | **The IR convergence, S1–S7**: one tree, two verb sets. Status at the top, the worst-condition method, every stage's measurements and decisions (including the K3 scoping), and a merge log generated from git.                                |
 | [divergences.md](divergences.md)       | **Every divergence from upstream wabt and binaryen — and, V1–V4, from engines (refuse what will not run everywhere) — classified** — FEATURE, DESIGN, ORACLE GAP, DEFECT. Read BEFORE refactoring, optimizing, or porting an upstream pass: a faithful port can silently undo a DESIGN row.                      |
-| `local/environment.md` 🔒              | **This machine and disk — PRIVATE, gitignored, absent in a clone**: `safe.directory` on `D:`, the repack failure that grows `.git`, CRLF checkouts, the `python` Store stub that hangs, Deno quirks.                                           |
+| `local/environment.md` 🔒              | **This machine and disk — PRIVATE, gitignored, absent in a clone**: `safe.directory` on the exFAT working disk, the repack failure that grows `.git`, CRLF checkouts, the `python` Store stub that hangs, Deno quirks.                                           |
 
 ### Topics — how things work and why
 
