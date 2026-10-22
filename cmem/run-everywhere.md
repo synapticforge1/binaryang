@@ -53,6 +53,20 @@ below 65,536 pages, or a refusal when it cannot be); imported / exported 64-bit 
 (the host gives or takes a 64-bit one: lowering changes the interface); limits past 32 bits
 (refuse, with a message).
 
+### Built (2026-10-22)
+
+| step | what | commit |
+| --- | --- | --- |
+| 1 | `Memory64Lowering` (`src/passes/memory64-lowering.ts`): every access to a 64-bit memory evaluates its operands once, in order, and traps out of bounds — a 4-byte load at the all-ones address, the engine's own trap — when an address or length has a high bit set, else runs wrapped; a static offset of 2^32 or more always traps; `memory.size` widens, `memory.grow` returns −1 past 2^32; segment offsets narrow (2^32 and up → −1). A lowered memory holds at most 65,535 pages, so the rule is exact (at 4 GiB a length of 2^32 would wrap to 0) — the spec lets `grow` fail, so −1 at the very top is an engine's latitude. 14 cases, 9 mutants | `7037c1762` |
+| 2 | Tables in the same pass, as upstream's flag does (`Table64Lowering` the alias): `call_indirect`'s high index becomes −1, so the ENGINE's call_indirect trap fires; `table.get` / `set` / `fill` / `copy` / `init` trap as a `table.get` at −1; a lowered table holds at most 2^32 − 2 (−1 never in bounds, a grow's −1 only a failure). 18 cases, 17 mutants (two survived first: a `table.copy` length, a grow failing below 2^32) | `9e15903e9` |
+| 3 | `bun run lowering <corpus>` (`scripts/check-lowering.ts` + `scripts/lowering/record.ts`): the spec's 64-bit modules lowered, replayed by `spec-behaviour`'s `outcomes()` on V8 and on Bun, the original on V8 the oracle; on JavaScriptCore a NaN compares as NaN and a failed instantiation by kind. 122 modules, 1,759 invocations, 0 diverging, 0 refused. The spec has no SIMD or atomics on a 64-bit memory, so the unit test does (20 cases) | `53ace7aa7` |
+| 4 | README "Making a module run on Safari and Bun"; CHANGELOG § Unreleased. The recipe run as written: `wasm-opt --memory64-lowering --translate-to-exnref` on a memory64 and a `delegate` module, both then run on Bun | this branch |
+
+**Trap kinds, measured:** original vs lowered on V8, the engine's messages are identical, 8 / 8
+(memory out of bounds; `call_indirect` at 2^32 as at a plain out-of-range index; a null entry; a
+`table.get`). On JavaScriptCore the lowered kinds are the matching ones (memory, call_indirect,
+table access).
+
 ## 28.7 — the browser recipe (2026-10-15)
 
 The owner's decision of 2026-10-13 stands: no browser helper in the package, at most a recipe,
