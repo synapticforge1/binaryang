@@ -169,8 +169,17 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-32. ⬚ **Lowering for engines that lack memory64 / table64 / multi-memory — "runs everywhere" for
-    our OUTPUT** (opened 2026-10-20, owner: "yes open that item after the release"). The 36 known
+32. ◐ **Lowering for engines that lack memory64 / table64 / multi-memory — "runs everywhere" for
+    our OUTPUT** (opened 2026-10-20, owner: "yes open that item after the release"; FIRST, owner
+    2026-10-22: "we should work on item 32 first"). **MEASURED 2026-10-22**
+    ([run-everywhere.md](run-everywhere.md) § "Open-work 32"): (a) `delegate` is solved by
+    TranslateToExnref (70 / 70 on JavaScriptCore, -Oz too); memory64 needs lowering, and
+    upstream's matches every spec behaviour but WRAPS addresses above 2^32 (wrong reads, corrupting
+    stores, a `grow` that succeeds); table64 too, and upstream's is incomplete (invalid output on
+    `table.get` / `set`) and wraps `call_indirect`; multi-memory runs natively on JavaScriptCore
+    (only 127+ memories fail); (b) the producers are not yet checked. **Decided (owner): SOUND —
+    the lowered module traps where the original does.** Next: build `LowerMemory64` /
+    `LowerTable64` on that gate. The scope as first written: The 36 known
     Bun differences (`tests/bun-known-differences.json`) are all JavaScriptCore refusing a module
     V8 accepts — binaryang itself behaves the same on every runtime (`test:bun` fails exactly the
     list; the CLI smoke hash agrees on Deno / Bun / every Node LTS; the browser gate loads every
