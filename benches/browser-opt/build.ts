@@ -9,7 +9,13 @@
  * The toolchains are NOT in CI: the modules are committed, and this script is how they were made
  * (its output names the versions). Rebuild only on purpose; the measurement's table cites them.
  *
- *   bun benches/browser-opt/build.ts
+ * `--wasm64` builds ONLY the memory64 modules (open-work 32: real compiler output for
+ * `Memory64Lowering`), into ./modules64, leaving the six above untouched: the same workload for
+ * Rust nightly `wasm64-unknown-unknown` (tier 3: `-Zbuild-std`) and Zig `wasm64-freestanding`,
+ * release builds only (Rust's debug build is 7 MB). Each has a 64-bit memory and a 64-bit table.
+ *
+ *   bun benches/browser-opt/build.ts            # the six 32-bit modules
+ *   bun benches/browser-opt/build.ts --wasm64   # the memory64 modules
  */
 
 import { spawnSync } from 'node:child_process';
@@ -40,6 +46,59 @@ function run(
 }
 const version = (cmd: string, arg: string) =>
   spawnSync(cmd, [arg], { encoding: 'utf8' }).stdout.split('\n')[0]!.trim();
+
+if (process.argv.includes('--wasm64')) {
+  const out64 = join(here, 'modules64');
+  mkdirSync(out64, { recursive: true });
+  try {
+    console.log(
+      `rustc nightly: ${
+        spawnSync('rustc', ['+nightly', '--version'], { encoding: 'utf8' }).stdout.trim()
+      }`,
+    );
+    console.log(`zig: ${version('zig', 'version')}`);
+    // Rust: wasm64 is tier 3, so std is built for it (`-Zbuild-std`, nightly). The target dir is
+    // outside the repo, under the system temp dir: a long path breaks the build scripts on Windows.
+    const target = join(tmp, 'cargo64');
+    run(
+      'cargo +nightly build --release (wasm64)',
+      'cargo',
+      [
+        '+nightly',
+        'build',
+        '--release',
+        '--target',
+        'wasm64-unknown-unknown',
+        '-Zbuild-std=std,panic_abort',
+      ],
+      join(here, 'src', 'rust'),
+      { CARGO_TARGET_DIR: target },
+    );
+    copyFileSync(
+      join(target, 'wasm64-unknown-unknown', 'release', 'browser_opt_workload.wasm'),
+      join(out64, 'rust-release-wasm64.wasm'),
+    );
+    run('zig ReleaseFast (wasm64)', 'zig', [
+      'build-exe',
+      join(here, 'src', 'zig', 'run.zig'),
+      '-target',
+      'wasm64-freestanding',
+      '-fno-entry',
+      '-rdynamic',
+      '-O',
+      'ReleaseFast',
+      `-femit-bin=${join(out64, 'zig-releasefast-wasm64.wasm')}`,
+      '--cache-dir',
+      join(tmp, 'zig-cache64'),
+    ]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+  for (const n of ['rust-release-wasm64', 'zig-releasefast-wasm64']) {
+    console.log(`${n}.wasm: ${statSync(join(out64, `${n}.wasm`)).size} bytes`);
+  }
+  process.exit(0);
+}
 
 try {
   console.log(`rustc: ${version('rustc', '--version')}`);
