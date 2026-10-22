@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-22 (UTC): the last release is `v1.13.3`, on JSR and npm, both with provenance;
+**As of 2026-10-22 (UTC): the last release is `v1.14.0`, on JSR and npm, both with provenance;
 nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
---oneline v1.13.3..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.13.3; the
+--oneline v1.14.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.14.0; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
@@ -27,12 +27,15 @@ optimizer within 0.7% of upstream -Oz on real compiler output and below it at -O
 CodeFolding crash shipped 1.11.0 – 1.12.1; the browser recipe) or **1.13.1** (the repository moved
 to `synapticforge1/binaryang`; docs only) or **1.13.2** (the README for both registries; on JSR
 without provenance, its publish failed after the upload) or **1.13.3** (1.13.2 again, with
-provenance on JSR and, the first workflow publish there, on npm). The public summary of each is
+provenance on JSR and, the first workflow publish there, on npm) or **1.14.0** (`Memory64Lowering`
+with table64 in the same pass, sound above 2^32 where upstream's wraps; the README's "Making a
+module run on Safari and Bun"; the multi-memory limit corrected to 100). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 769b4d3c0:cmem/unreleased.md` (to 1.7.0), this file at `7aa54e95c` (1.7.1 → 1.7.2), at
 `fb5068e47` (1.8.0), at `99f2a5b16` (1.8.1), at `82113369e` (1.9.0), at `23b9f36fb` (1.10.0), at
 `fc021fe08` (1.11.0), at `604b33cf8` (1.12.0), at `e03d38f33` (1.12.1), at `2b74934bf`
-(1.13.0), at `840b7d79a` (1.13.1), at `37cf58485` (1.13.2), and at `a021ef19d` (1.13.3).
+(1.13.0), at `840b7d79a` (1.13.1), at `37cf58485` (1.13.2), at `a021ef19d` (1.13.3), and at
+`e2d44d66c` (1.14.0).
 
 ## How to use this file
 
@@ -47,28 +50,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.13.3
+## Since 1.14.0
 
-- **NEW pass — `Memory64Lowering`** (open-work 32, step 1; `wasm-opt --memory64-lowering`,
-  upstream's flag): a 64-bit memory becomes a 32-bit one so JavaScriptCore (Safari, Bun) runs the
-  module — and, unlike upstream's, with the SAME behaviour above 2^32: an address, length or offset
-  of 2^32 or more traps out of bounds (upstream wraps: wrong reads, corrupting stores, a `grow`
-  that succeeds). A lowered memory holds at most 65,535 pages; one that starts larger is refused.
-  The interface changes: an imported or exported 64-bit memory becomes a 32-bit one. Measured: the
-  spec's memory64 files, 5,367 invocations, agree with the original on V8 lowered on V8 (all) and
-  on JavaScriptCore (all but the JS API's NaN canonicalization and `v128` exports).
-  **Step 2, tables (table64), in the same pass** (upstream's `--table64-lowering` is an alias,
-  registered as `Table64Lowering`): `call_indirect` at an index of 2^32 or more traps with the
-  engine's own call_indirect trap (upstream calls entry 0); `table.get` / `set` / `fill` / `copy` /
-  `init` trap as out-of-bounds table accesses (upstream emits invalid code for get / set); size and
-  grow widen; element offsets narrow; a lowered table holds at most 2^32 − 2. The spec's table64
-  files: 1,257 invocations, all on V8, all but refusal wording on JavaScriptCore; trap MESSAGES
-  identical to the original's on V8 (8 / 8).
-- **Docs — README "Making a module run on Safari and Bun"** (open-work 32, step 4): what
-  JavaScriptCore refuses and the pass for each (`--memory64-lowering`; `--translate-to-exnref` for
-  legacy EH's `delegate`, which already ran there: 70 / 70 spec assertions). CHANGELOG § Unreleased
-  carries both entries. Repo only, not in the package: the gate step `bun run lowering`, and
-  `memory64_real_compiler.test.ts` with its committed wasm64 builds (Rust nightly, Zig, and Emscripten's standalone module and
-  program with its JS glue).
-  🔧 The README said JavaScriptCore runs multi-memory "up to 127 memories": measured, the limit
-  is 100.
+Nothing yet.

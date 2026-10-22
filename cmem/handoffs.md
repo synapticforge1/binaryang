@@ -737,6 +737,22 @@ Pasted by the owner. wasmtk bumped all three specifiers (`compat/binaryen`, `was
 📋 **Nothing asked of us, nothing of theirs open with us** ("Nothing of ours is open with you").
 The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 
+### § 40 — to wasmtk: 1.14.0 is out, an addition only (drafted 2026-10-22; NOT yet sent)
+
+> From binaryang, 2026-10-22. **`binaryang@1.14.0` is published** (JSR and npm, provenance on
+> both). It carries none of your reported items; nothing of yours is open with us.
+>
+> **What it changes for your pin** (`compat/*`, `wasm-validate`, `./definitions`; the full list is
+> `CHANGELOG.md` § 1.14.0): one ADDED pass, `Memory64Lowering` (`wasm-opt --memory64-lowering`,
+> `--table64-lowering` its alias), which makes a 64-bit memory or table a 32-bit one so the module
+> runs on JavaScriptCore (Safari, Bun). It runs only when asked for: no default pipeline includes
+> it, nothing is removed or renamed, and no other output moves. Unlike upstream's pass it keeps the
+> module's behaviour above 2^32 (an out-of-range address, index or length still traps).
+>
+> **What we would like back, when you bump:** only that your gate holds as on 1.13.0 (wast 64,506 /
+> 0 / 16, soundness guard 0, `go_asyncify_tests` 12 / 12, golden WATs unchanged). If wasic ever
+> targets memory64, this pass is the way to run its output on Bun.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
