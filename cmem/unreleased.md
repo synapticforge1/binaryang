@@ -49,4 +49,11 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.13.3
 
-Nothing yet.
+- **NEW pass — `Memory64Lowering`** (open-work 32, step 1; `wasm-opt --memory64-lowering`,
+  upstream's flag): a 64-bit memory becomes a 32-bit one so JavaScriptCore (Safari, Bun) runs the
+  module — and, unlike upstream's, with the SAME behaviour above 2^32: an address, length or offset
+  of 2^32 or more traps out of bounds (upstream wraps: wrong reads, corrupting stores, a `grow`
+  that succeeds). A lowered memory holds at most 65,535 pages; one that starts larger is refused.
+  The interface changes: an imported or exported 64-bit memory becomes a 32-bit one. Measured: the
+  spec's memory64 files, 5,367 invocations, agree with the original on V8 lowered on V8 (all) and
+  on JavaScriptCore (all but the JS API's NaN canonicalization and `v128` exports).
