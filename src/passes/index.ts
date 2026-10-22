@@ -60,6 +60,7 @@ import './remove-unused-names.ts';
 import './strip-eh.ts';
 import './translate-eh.ts';
 import './lower-custom-page-sizes.ts';
+import './memory64-lowering.ts';
 import './remove-unused-types.ts';
 import './dead-argument-elimination.ts';
 import './flatten.ts';
