@@ -276,7 +276,7 @@ function show(x: unknown): string {
  * its message: which trap an optimized module reaches first may legitimately
  * differ; that it traps, or overflows the stack, may not.
  */
-function outcomes(
+export function outcomes(
   bytes: Uint8Array,
   invokes: Invoke[],
   v128: Map<string, Sig>,
