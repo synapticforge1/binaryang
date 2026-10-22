@@ -10,6 +10,10 @@ not survive a clone is not a project rule. The lessons behind them are in
 - **Branch, commit, then `git merge --no-ff` to `main`.** Never commit directly to `main` — two
   docs-only commits did, and the owner had the history REWRITTEN so it would be uniform. Docs-only
   changes follow the same rule.
+- **Workflow logic is TypeScript too** (owner, 2026-10-21): a GitHub workflow `run:` block only
+  launches; any condition, loop or poll is a subcommand of `scripts/release/workflow.ts` (or a
+  script like it), tested in `tests/wabt-ts/scripts/workflow_steps.test.ts`. A plain command
+  sequence (tag and push, `gh release create`) stays in the workflow.
 - **Messages go through a file**: `git commit -F <file>` and `git merge --no-ff -F <file>`. Write
   the file with a file-writing tool, never a heredoc or a double-quoted `-m` (see "Do not author
   file CONTENT through a shell heredoc" in [best-practices.md](best-practices.md), which lists all
