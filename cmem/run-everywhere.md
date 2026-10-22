@@ -73,13 +73,21 @@ Owner: "I think we measure each and make the decisions based on the measurements
 | Zig 0.16 `wasm64-freestanding`, Debug / ReleaseFast | a 64-bit memory AND table | 1 memory, 17 pages, no max, exported | refused | runs, checksum 1892226719 ✓ |
 | Rust nightly 1.101 `wasm64-unknown-unknown` (`-Zbuild-std=std,panic_abort`), debug / release | the same | 1 memory, 17–18 pages, no max, exported | refused | runs, checksum ✓ |
 | Go, TinyGo | no 64-bit wasm target (`js/wasm`, `wasip1/wasm`; `wasm`, `wasm-unknown`, `wasi*`) | | | |
-| clang / Emscripten `-sMEMORY64` | NOT INSTALLED — unmeasured | | | |
+| Emscripten 6.0.13 `-O2 -sMEMORY64=1` (workload ported to C), standalone reactor | a 64-bit memory AND table | 1 memory, 258..258 pages, no imports | refused ("Memory64 is not enabled") | runs, checksum ✓ |
+| the same as a PROGRAM with its JS glue (`-sENVIRONMENT=node`), and with `-sALLOW_MEMORY_GROWTH` (a 64 MiB `malloc`, 258..32768 pages) | the same; imports `fd_write`, `emscripten_resize_heap` | the glue uses BigInt but takes the memory FROM the module (no `address: "i64"`) | `bun x.js` exits 1 | the lowered `.wasm` swapped in under the UNCHANGED glue: `bun x.js` prints the checksum, and after growth the grown byte ✓ |
 
 Decided (owner, from these): the pass stands as built; the two RELEASE builds are committed test
 modules (`benches/browser-opt/modules64/`, `build.ts --wasm64`; `.gitignore` excepts them — the
 1.10.0 lesson recorded there), run by `memory64_real_compiler.test.ts` on both engines. Rust's
 build needed a SHORT target directory: under the long scratch path its build script could not be
 run on Windows ("The system cannot find the path specified", the 260-character limit).
+
+Emscripten (measured the same day, once installed): the C port of the workload was first checked as
+plain wasm32 (checksum ✓ on both engines). Its glue already crosses the JS boundary with BigInt
+pointers, and lowering keeps the i64 signatures, so the glue needs no change — only the `.wasm`
+does. Not committed as a test module (no decision taken); the measuring script is a scratch file.
+On Windows, `emcc.bat` through `cmd.exe` mangles quoted arguments; `emcc.exe` spawned directly with
+`EMSDK`, `EM_CONFIG`, `EMSDK_PYTHON`, `EMSDK_NODE` set works.
 
 **(c) The multi-memory limit:** JavaScriptCore takes **100** memories and refuses 101 ("there can
 be at most 100"); V8 took 1,000. 🔧 This record said "a memory index of 127 and up" — the tests
