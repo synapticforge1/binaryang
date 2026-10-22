@@ -49,7 +49,10 @@ contains ([handoffs.md](handoffs.md)).
 **1.13.2 went to JSR WITHOUT provenance and NOT to npm** (owner, 2026-10-21: "Yes, release
 1.13.2"; its publish step failed after the upload — [publishing.md](publishing.md) § "1.13.2").
 The entries below are IN JSR's 1.13.2 (the README); for npm they are still unreleased, and the
-next release, 1.13.3, carries them there, with provenance on both registries.
+next release, 1.13.3, carries them there, with provenance on both registries. **Releasing as
+1.13.3** (owner, 2026-10-21: "yes", after the cause was read from the step's log: `deno publish`
+failed with "expected value at line 1 column 1" after the upload — a non-JSON response from the
+registry side; publishing.md § "1.13.2").
 
 - **Repo only — the workflows' logic is TypeScript** (owner, 2026-10-21: "lets get that done"):
   `scripts/release/workflow.ts` holds every decision and poll the workflows ran in bash
