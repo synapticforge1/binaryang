@@ -249,6 +249,15 @@ CI shell scripts are TypeScript (the old item 17).
     `six-run.ts`, `commit-bisect.ts`, `timeit.ts`'s `LEVEL=`) and re-derives the six / corpus
     baseline before quoting it. **Every step now also runs** `real_compiler_behaviour.test.ts`
     (in `bun run test`): a step that only measures the six never runs them.
+    **State 2026-10-22, after step 16 (merged, NOT pushed):** owner, "proceed with item 31";
+    the targets are now **output size and output run speed** ("The goal is smaller file and
+    faster run"; optimizer time is not one). Step 16, the new SSANoMerge: six 139,857 (+0.57%),
+    corpus 811,071 (+0.13%), run speed unchanged (scratch `gap/speed.ts`, V8 and
+    JavaScriptCore). **Next** (`gap/passrank19.log`): simplify-locals-nostructure 135,
+    simplify-locals 117, remove-unused-brs 109, vacuum 63. **Paused** there (owner: "update the
+project memory files, then pause until later today"); resume by attributing
+simplify-locals-nostructure per function (`passfn.ts <module> simplify-locals-nostructure`),
+after re-deriving the six (139,857) and corpus (811,071).
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **`SSANoMerge`** (`wasm-opt --ssa-nomerge`): a local that holds several values one after
+  another becomes one local per value, where no read can see two of them. It runs first in the
+  `-O3`, `-Os` and `-Oz` pipelines, as in Binaryen, and lets later passes merge code that differed
+  only in which local it read: smaller output on real compiler builds, the same run speed.
+
 ## 1.14.0
 
 A minor release: **a module built for 64-bit memory now runs on Safari and Bun** (JavaScriptCore),
