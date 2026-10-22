@@ -10,9 +10,20 @@
 //
 // Measured 2026-10-22 before this test: all four builds (debug and release of each) lowered and ran
 // on both engines to 1892226719; the debug builds are not committed (Rust's is 7 MB).
+//
+// Emscripten 6.0.13 (`-O2 -m64`, ./src/c) the same day: a standalone module, and a PROGRAM with
+// Emscripten's own JS glue that grows its memory. The glue passes BigInt pointers and takes the
+// memory from the module, so only the .wasm is lowered: the unchanged glue is run with the lowered
+// .wasm beside it, by this runtime (`bun test`: JavaScriptCore), and must print the checksum and a
+// byte of the grown memory.
 
 import { describe, it } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { expect } from '@std/expect';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
@@ -44,7 +55,7 @@ const hostHasMemory64 = (() => {
 })();
 
 describe('real compiler output for memory64, lowered, runs everywhere', () => {
-  for (const m of ['rust-release-wasm64', 'zig-releasefast-wasm64']) {
+  for (const m of ['rust-release-wasm64', 'zig-releasefast-wasm64', 'emcc-o2-wasm64']) {
     it(m, async () => {
       const bytes = new Uint8Array(readFileSync(new URL(`${m}.wasm`, MODULES)));
       const mod = readForPasses(bytes);
@@ -57,4 +68,29 @@ describe('real compiler output for memory64, lowered, runs everywhere', () => {
       if (hostHasMemory64) expect(await workload(bytes)).toBe(CHECKSUM);
     });
   }
+
+  it('emcc-o2-program-wasm64: Emscripten glue, unchanged, on the lowered .wasm', () => {
+    const name = 'emcc-o2-program-wasm64';
+    const bytes = new Uint8Array(readFileSync(new URL(`${name}.wasm`, MODULES)));
+    const mod = readForPasses(bytes);
+    expect(mod.memories.some((x) => x.limits.is64)).toBe(true);
+    new PassRunner(mod, {}).add('Memory64Lowering').run();
+    expect([...mod.memories, ...mod.tables].some((x) => x.limits.is64)).toBe(false);
+    const dir = mkdtempSync(join(tmpdir(), 'binaryang-emcc64-'));
+    const program = (wasm: Uint8Array) => {
+      writeFileSync(join(dir, `${name}.wasm`), wasm);
+      const r = spawnSync(process.execPath, [join(dir, `${name}.cjs`)], {
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      return `${r.status}: ${r.stdout.trim()}`;
+    };
+    try {
+      copyFileSync(fileURLToPath(new URL(`${name}.cjs`, MODULES)), join(dir, `${name}.cjs`));
+      expect(program(writeWasm(mod))).toBe(`0: ${CHECKSUM} 7`);
+      if (hostHasMemory64) expect(program(bytes)).toBe(`0: ${CHECKSUM} 7`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
