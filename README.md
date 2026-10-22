@@ -251,7 +251,8 @@ pages (4 GiB less one page) and a lowered table 2^32 − 2 elements; a module th
 refused with a message. An imported or exported 64-bit memory or table becomes a 32-bit one, so
 the host supplies or receives a 32-bit one. Every spec module with a 64-bit memory or table is
 checked lowered, against the original, on V8 and on JavaScriptCore (`bun run lowering`).
-Multi-memory needs no pass: JavaScriptCore runs it, up to 127 memories.
+Multi-memory needs no pass: JavaScriptCore runs it, up to 100 memories (V8 has no such limit), and
+no compiler measured emits more than one.
 
 ### Optimizing in the browser
 
