@@ -280,6 +280,24 @@ local-cse 36 · precompute-propagate 35 · rse 34 · …; optimize-instructions 
 41's second mechanism (panic tails that become identical once upstream re-allocates locals, then
 fold).
 
+**The owner's targets, from step 16 (2026-10-22):** "I am not as concerned with the optimization
+time cost as the wasm run time cost", then "The goal is smaller file and faster run". A step is
+judged by output size AND output run speed; optimizer time is recorded, not a reason to refuse.
+Run speed is measured by scratch `gap/speed.ts`: each of the six at -Oz from `main` (a `git
+archive` of its `src/`) and from the tree, `run(900)` timed on V8 (Node 24) and JavaScriptCore
+(Bun), the median of 21 calls, three trials A / B interleaved, results compared. The browser
+benchmark (`measure.ts`) times in whole milliseconds on a 5–11 ms workload: it cannot tell
+variants apart.
+
+| step | what | commits | six modules -Oz | corpus -Oz |
+| --- | --- | --- | ---: | ---: |
+| 16 | ssa-nomerge, attributed per function (zig-debug 161; func 23 94): Zig reuses a local across panic checks, so equal `call 7; unreachable` tails read different locals and CodeFolding cannot fold them (33 sites, 26 once re-assigned) — func 41's "second mechanism" above. **SSANoMerge** (new, `ssa-nomerge.ts`, upstream's SSAify without merges): a set of a local with more than one definition gets a fresh local unless one of its readers may read another definition; a read whose only definition is a renamed set follows it. Left alone: a local in SSA form already, a function with `try` / `try_table`, a local with a read no path reaches, one with a node in two places (a defence; no text input makes one). First in the function passes at -O3 / -Os / -Oz, as upstream. **Measured, not kept:** before the first CoalesceLocals only, −108 / +6; followed at once by CoalesceLocals, +10 / +1,860. **Run speed** (`speed.ts`): V8 0.0%, JavaScriptCore −0.9%, each module within ±2%, the same results. Optimizer time: zig-debug -Oz 1.7 → 2.9 s, PrecomputePropagate over the extra locals until they coalesce (0.65 → 1.68 s). 9 cases, 7 mutants; the first "unreached read" mutant was equivalent (it threw, and the pass's catch kept the function) | `fa30d47cf` | **139,857 (+0.57%)** | **811,071 (+0.13%)** |
+
+**After step 16** (`gap/passrank19.log`): ssa-nomerge 229 → 33; control 148 below ours
+(139,709). Left: simplify-locals-nostructure 135 · simplify-locals 117 · remove-unused-brs 109 ·
+vacuum 63 · local-cse 36 · precompute-propagate 35 · ssa-nomerge 33 · rse 32 · …;
+optimize-instructions −118.
+
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
 section). Item 2's rule stands: never `-all` against the corpus; `--disable-compact-imports` with it.

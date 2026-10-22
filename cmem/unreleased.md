@@ -52,4 +52,7 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.14.0
 
-Nothing yet.
+- **NEW pass — `SSANoMerge`** (open-work 31, step 16; upstream's `ssa-nomerge`), in the default
+  pipeline first at -O3 / -Os / -Oz. **Behaviour:** optimizer output moves at those levels
+  (smaller: the six -Oz −175, corpus −28); run speed unchanged (V8, JavaScriptCore); -Oz takes
+  longer (zig-debug 1.7 → 2.9 s).
