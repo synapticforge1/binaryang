@@ -12,6 +12,47 @@ and modern browsers" is held by evidence now, in CI:
 | what in-browser optimization is worth | 28.6's measurement: size, not speed ([optimizer.md](optimizer.md) § "Real compiler output, in three browsers") |
 | how to do it safely | 28.7's recipe, `examples/browser-optimize/`, run by `bun run browsers` |
 
+## Open-work 32 — our OUTPUT on every engine: lowering (opened 2026-10-20; measured 2026-10-22)
+
+Item 28 proved binaryang itself runs everywhere. Item 32 is the other half: a module someone
+builds may use features an engine lacks, and the 36 known Bun differences
+(`tests/bun-known-differences.json`) are exactly that — JavaScriptCore refusing modules V8 runs.
+Owner, 2026-10-22: "we should work on item 32 first, because we won't be able to tell what that
+will effect on anything else."
+
+**Measured first, nothing built** (scratch `lower/`: `runner.ts` replays one module's spec
+invocations under the engine running it — Node 24 → V8, Bun 1.4.3 → JavaScriptCore — values by
+bits, a trap as `trap`; `measure.ts` runs each spec module ORIGINAL and LOWERED by upstream
+`wasm-opt` 133, on both engines, the ORIGINAL ON V8 the oracle; `mem64-probe.ts` and
+`table64-probe.ts` add what the spec never exercises, addresses and indices at and above 2^32):
+
+| question | finding |
+| --- | --- |
+| legacy EH `delegate` (5 of the 36) | **Solved already**: `check-translate-eh.ts` under Bun — legacy 50 / 70 (all of `try_delegate.wast` refused: "delegate target isn't a try block"), **after TranslateToExnref 70 / 70, and after it -Oz 70 / 70**. Needs documenting, no code. |
+| memory64 (most of the 24) | JavaScriptCore: "Memory64 is not enabled". Upstream `--memory64-lowering` matches every spec behaviour on BOTH engines — `memory_copy64` 4,353, `memory_trap64` 170, `memory_init64` 154, `address64` 238, `float_memory64` 84, `bulk64` 65, `endianness64` 68, `memory_grow64` 45, `memory64` 45, `align64` 48, `load64` 37, `memory_fill64` 25 … — **and is UNSOUND above 2^32**: it lowers an address with a bare `i32.wrap_i64`, so (probe) a load at 2^32 READS byte 0, a store there OVERWRITES byte 0, and `memory.grow` by 2^32 pages SUCCEEDS (2, not -1); only a static offset of 2^32 becomes `unreachable`. Built for programs that never pass 4 GiB. |
+| table64 | Upstream's lowering (`--table64-lowering`, an alias) is **incomplete**: invalid output for `table.get` / `table.set` (its own validator: "table.get index must match the table index type") — `table_get64`, `table_set64`, `table_fill64`, `table_grow64` and one `table_init64` module refused — and **unsound**: `call_indirect` at index 2^32 CALLS ENTRY 0 (probe). `table_size64` 36, `call_indirect64`, `table_copy64` / `table_init64` otherwise agree. |
+| multi-memory | **JavaScriptCore runs it natively** (`memory-multi.wast` 4 / 4 unlowered). Only a memory index of 127 and up fails (5 of the 36): real producers essentially never reach it. Lowest priority. |
+| which producers emit memory64 | NOT measured. Known to exist: clang's `wasm64` target (Emscripten `-sMEMORY64`), Rust's tier-3 `wasm64-unknown-unknown` — to be checked before claiming. |
+
+**Harness artifacts, not findings** (so they are not mistaken for one later): JavaScriptCore
+CANONICALIZES NaN payloads crossing into JavaScript (every "got" was `0x7fc00000` /
+`0x7ff8000000000000`; the control, plain 32-bit `float_memory.wast` with no lowering, shows the
+same 66 / 84 there); a `v128` export cannot be called through the JS API (both engines throw,
+worded differently; the real `spec-behaviour` gate wraps them); and upstream `--all-features`
+switches on its compact-imports encoding (`unknown import kind 0x7e`) — pass
+`--disable-compact-imports` with it.
+
+**Decided (owner, 2026-10-22): the lowering is SOUND — a lowered module traps where the original
+does.** A 64-bit address or index of 2^32 and up becomes an out-of-bounds trap (not upstream's
+wrap, and not upstream's `unreachable`, a different trap KIND); `memory.grow` / `table.grow` by
+2^32 and up returns -1. The cost is a compare per access. The gate: every spec module above,
+lowered, agrees with the original-on-V8 on BOTH engines, plus the >= 2^32 probes, plus
+`real_compiler_behaviour.test.ts`. To settle while building: how the out-of-bounds trap is kept
+exact (an effective address no 32-bit memory can reach — which needs the lowered memory's maximum
+below 65,536 pages, or a refusal when it cannot be); imported / exported 64-bit memories and tables
+(the host gives or takes a 64-bit one: lowering changes the interface); limits past 32 bits
+(refuse, with a message).
+
 ## 28.7 — the browser recipe (2026-10-15)
 
 The owner's decision of 2026-10-13 stands: no browser helper in the package, at most a recipe,
