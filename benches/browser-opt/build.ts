@@ -13,6 +13,10 @@
  * `Memory64Lowering`), into ./modules64, leaving the six above untouched: the same workload for
  * Rust nightly `wasm64-unknown-unknown` (tier 3: `-Zbuild-std`) and Zig `wasm64-freestanding`,
  * release builds only (Rust's debug build is 7 MB). Each has a 64-bit memory and a 64-bit table.
+ * Emscripten (`-O2 -m64`, ./src/c; the same bytes as the deprecated `-sMEMORY64=1`) gives two more: a standalone module, and a PROGRAM
+ * with Emscripten's own JS glue (`.cjs`, the package being `"type": "module"`) that grows its
+ * memory — the glue is part of what is tested. Emscripten is found through `$EMSDK` (set by
+ * `emsdk_env`).
  *
  *   bun benches/browser-opt/build.ts            # the six 32-bit modules
  *   bun benches/browser-opt/build.ts --wasm64   # the memory64 modules
@@ -91,11 +95,54 @@ if (process.argv.includes('--wasm64')) {
       '--cache-dir',
       join(tmp, 'zig-cache64'),
     ]);
+    // Emscripten: on Windows `emcc` is a .bat, which spawnSync runs only through cmd.exe, and
+    // cmd.exe mangles quoted arguments; emsdk's `emcc.exe` launcher beside it is run directly.
+    const emsdk = process.env['EMSDK'];
+    if (emsdk === undefined) {
+      console.error('✗ EMSDK is not set (run emsdk_env first)');
+      process.exit(1);
+    }
+    const emcc = join(
+      emsdk,
+      'upstream',
+      'emscripten',
+      process.platform === 'win32' ? 'emcc.exe' : 'emcc',
+    );
+    console.log(`emcc: ${version(emcc, '--version')}`);
+    const c = join(here, 'src', 'c');
+    run('emcc -O2 -m64 (standalone)', emcc, [
+      join(c, 'workload.c'),
+      '-O2',
+      '-m64',
+      '--no-entry',
+      '-sSTANDALONE_WASM',
+      '-sEXPORTED_FUNCTIONS=_run',
+      '-o',
+      join(out64, 'emcc-o2-wasm64.wasm'),
+    ]);
+    run('emcc -O2 -m64 (program, JS glue, memory growth)', emcc, [
+      join(c, 'workload.c'),
+      join(c, 'program.c'),
+      '-O2',
+      '-m64',
+      '-sENVIRONMENT=node',
+      '-sALLOW_MEMORY_GROWTH=1',
+      '-o',
+      join(out64, 'emcc-o2-program-wasm64.cjs'),
+    ]);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
-  for (const n of ['rust-release-wasm64', 'zig-releasefast-wasm64']) {
-    console.log(`${n}.wasm: ${statSync(join(out64, `${n}.wasm`)).size} bytes`);
+  for (
+    const n of [
+      'rust-release-wasm64.wasm',
+      'zig-releasefast-wasm64.wasm',
+      'emcc-o2-wasm64.wasm',
+      'emcc-o2-program-wasm64.wasm',
+      'emcc-o2-program-wasm64.cjs',
+    ]
+  ) {
+    console.log(`${n}: ${statSync(join(out64, n)).size} bytes`);
   }
   process.exit(0);
 }
