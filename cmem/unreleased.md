@@ -68,6 +68,7 @@ contains ([handoffs.md](handoffs.md)).
   JavaScriptCore refuses and the pass for each (`--memory64-lowering`; `--translate-to-exnref` for
   legacy EH's `delegate`, which already ran there: 70 / 70 spec assertions). CHANGELOG § Unreleased
   carries both entries. Repo only, not in the package: the gate step `bun run lowering`, and
-  `memory64_real_compiler.test.ts` with its two committed wasm64 builds (Rust nightly, Zig).
+  `memory64_real_compiler.test.ts` with its committed wasm64 builds (Rust nightly, Zig, and Emscripten's standalone module and
+  program with its JS glue).
   🔧 The README said JavaScriptCore runs multi-memory "up to 127 memories": measured, the limit
   is 100.
