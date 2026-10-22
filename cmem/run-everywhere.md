@@ -85,8 +85,13 @@ run on Windows ("The system cannot find the path specified", the 260-character l
 Emscripten (measured the same day, once installed): the C port of the workload was first checked as
 plain wasm32 (checksum ✓ on both engines). Its glue already crosses the JS boundary with BigInt
 pointers, and lowering keeps the i64 signatures, so the glue needs no change — only the `.wasm`
-does. Not committed as a test module (no decision taken); the measuring script is a scratch file.
-On Windows, `emcc.bat` through `cmd.exe` mangles quoted arguments; `emcc.exe` spawned directly with
+does. Owner: "lets commit the emscripten builds as test modules, since it was part of how we made
+our decision" — so `build.ts --wasm64` builds them too (./src/c, `-O2 -m64`: the same bytes as the
+deprecated `-sMEMORY64=1`, hash-checked) and `memory64_real_compiler.test.ts` runs them: the
+standalone module in the loop, and the program as a child of the test's own runtime, the glue
+(`.cjs`, the package being `"type": "module"`; excluded from dprint) unchanged beside the lowered
+`.wasm`. A mutant without the lowering fails it on Bun. Rebuilding gave Rust and Zig byte-identical
+modules. On Windows, `emcc.bat` through `cmd.exe` mangles quoted arguments; `emcc.exe` spawned directly with
 `EMSDK`, `EM_CONFIG`, `EMSDK_PYTHON`, `EMSDK_NODE` set works.
 
 **(c) The multi-memory limit:** JavaScriptCore takes **100** memories and refuses 101 ("there can
