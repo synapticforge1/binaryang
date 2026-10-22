@@ -12,7 +12,7 @@
 //     specified. (os error 2): readfile 'nosuchfile.wasm'
 //         const binary = await Deno.readFile(input);
 //         at async Object.readFile (ext:deno_fs/30_fs.js:1:9754)
-//         at async file:///D:/…/src/tools/wasm-validate.ts:150:20
+//         at async file:///<repo>/src/tools/wasm-validate.ts:150:20
 //
 // Five tools, both failure modes, ten for ten — a wall of Deno internals plus
 // the absolute path of our own source, in response to a typo, and local paths

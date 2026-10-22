@@ -278,7 +278,19 @@ once, both texts made before either write, each written through a temp file and 
 1.15.0 in both files, no temp file left) and restored from a copy. Left with the owner: whether
 `scripts/spec-prepare.ts:74`'s default (a local drive path, no user name) may stay committed
 under the workspace's no-personal-information rule. Noted for the workspace session (not ours to
-edit): its § The gate still calls binaryang's naming check a shell script that always exits 0.
+edit): its § The gate still calls binaryang's naming check a shell script that always exits 0
+(✅ corrected there the same day).
+
+**Workspace letter H18 (personal drive paths) — acted on** (owner: "personal drive paths are not to
+be public information"): `scripts/spec-prepare.ts`'s default corpus is the sibling wasmtk checkout
+resolved from the script's own location (run with no source: 257 / 257 prepared, the same tree);
+a test comment's `file:///D:/…` became `<repo>`; four cmem lines naming this machine's drives
+reworded; the workspace scan finds nothing; commit messages carry no path. **Not done — letter
+H19, the history purge, waits on the owner:** the old path is in public history from
+`c1c24c9d3`, and every commit's author address is the owner's personal one (no local
+`user.email`; the noreply address is needed). H19's hazards for this repo: upstream wabt /
+binaryen history with third-party authors (rewrite only the owner's address), 375 branches and
+21 tags, released provenance pinned to old hashes, wasmtk's `upstream/binaryang` clone.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
