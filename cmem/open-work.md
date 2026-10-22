@@ -144,6 +144,10 @@ from the org ran CI and auto-tag GREEN (`a97255ef4`). JSR followed neither move 
 owner re-linked it to `synapticforge1/binaryang` (API, 23:36Z). **1.13.1 PUBLISHED** (owner:
 "update the project memory files, bump and publish"; a patch, JSR only; Rekor `3346116525`): the
 README's links to the new org — the first publish from the org, provenance recorded.
+⚠️ **1.13.2 (2026-10-21) reached JSR WITHOUT provenance and never reached npm**: `deno publish`
+failed after the upload; cause pending the step's log ([publishing.md](publishing.md) § "1.13.2").
+Next: the cause, then 1.13.3 to both registries. Meanwhile the workflows' bash logic moved to
+`scripts/release/workflow.ts` (owner rule).
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -296,9 +300,10 @@ fatigue.
 
 29. ◐ **npm as a SECOND registry, as `@synapticforge1/binaryang`** — ✅ **1.13.1 is ON npm**
     (2026-10-21 UTC, the first version by hand, no provenance; the trusted publisher and
-    `NPM_PUBLISH` set by the owner). **Left to close the item:** the next release's `npm` job
+    `NPM_PUBLISH` set by the owner). **Left to close the item:** a release's `npm` job
     publishing by OIDC with provenance read back ([publishing.md](publishing.md) § "npm as a
-    SECOND registry": npm's 2-day window for a new trusted publisher). (Parked 2026-10-13; REOPENED
+    SECOND registry": npm's 2-day window for a new trusted publisher). 1.13.2's never ran (its
+    JSR step failed first); so 1.13.3's. (Parked 2026-10-13; REOPENED
     2026-10-20, owner: "I am setup on npm now. How do I publish this package there?", then
     "Build and prove, no publish"). JSR stays the source. 🔧 First built as
     `@synapticforge/binaryang`; then the owner: "my username on npm is synapticforgeun and my

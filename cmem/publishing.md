@@ -5,8 +5,10 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-21 UTC): `@jrmarcum/binaryang@1.13.1`**, Rekor `3346116525` — § "1.13.1" below; the
-releases in between are recorded there too, newest first. **The repo is
+**Latest (2026-10-21 UTC): `@jrmarcum/binaryang@1.13.2`, WITHOUT provenance** — its publish step
+failed (§ "1.13.2"); the last version with provenance is 1.13.1, Rekor `3346116525`. On npm:
+`@synapticforge1/binaryang@1.13.1` (by hand). Every release is recorded below, newest first.
+**The repo is
 `synapticforge1/binaryang` since 2026-10-20** (moved to `synapticforge`, the org then renamed to
 match the npm org: § "The move to `synapticforge`"; the JSR package name is unchanged).
 
@@ -927,6 +929,32 @@ redirects last only until someone claims it. **JSR did not follow the rename eit
 API before 1.13.1 was tagged). In the repo:
 `origin`, the README, `publish.ts`'s printed URL and the npm manifest's repository / homepage / bugs
 name `synapticforge1`.
+
+## 1.13.2 — a PATCH from `main` (2026-10-21 UTC) — ⚠️ ON JSR WITHOUT PROVENANCE, NOT on npm
+
+The owner's go: "are we ready to publish 1.3.2 which should fix the provenance?" (1.13.2), "and the
+readme", then "Yes, release 1.13.2". Meant as the first npm publish by the workflow, with
+provenance; it carries the README for both registries (no code change).
+
+1. `CHANGELOG.md` § 1.13.2 on `release/1.13.2`, gated (28 / 28), merged; `main` pushed unbumped at
+   `3a815bc95`: CI and auto-tag GREEN; a fresh clone from `synapticforge1/binaryang`: 17 / 17.
+2. No tag, 1.13.2 on neither registry, JSR linked to `synapticforge1/binaryang`; `bun run bump`,
+   `version_sync` green; `bun run release` committed `bump to v1.13.2` (`37cf58485`) and pushed
+   `main` + `v1.13.2`.
+3. **publish.yml FAILED at "Publish to JSR (with provenance)"** — `deno publish` exited non-zero
+   AFTER the upload: JSR has 1.13.2 (created 2026-10-21T01:11:33Z, `latest`, not yanked) with
+   **`rekorLogId: null`**, still null 3 minutes later. Everything after the step was skipped: the
+   GitHub Release, the provenance check, and the whole `npm` job (`needs: publish`), so **npm has
+   no 1.13.2** and the trusted publisher is still untried. CI and auto-tag were green.
+4. **Cause: not yet known.** The step's log needs a GitHub login (the public API gives the step's
+   conclusion, not its output); the owner is fetching it. Same workflow, org and JSR link as
+   1.13.1 an hour earlier, which got provenance (Rekor `3346116525`) — so a signing-side failure
+   (Sigstore / Rekor) is the leading guess, not a finding. The annotations at the top of the run
+   page are NOT it: they are the Bun test leg's 36 known JavaScriptCore differences (e.g. the
+   table64 `agreement.test.ts` case), which that step expects and passes on.
+5. **Recovery:** a re-run cannot work (the JSR job would fail on the existing 1.13.2, and `npm`
+   waits for it); the plan is **1.13.3** once the cause is known — both registries, both with
+   provenance. JSR 1.13.2 stays as it is (immutable).
 
 ## 1.13.1 — a PATCH from `main` (2026-10-20; 2026-10-21T00:08Z UTC) — 🚀 PUBLISHED by `bun run release`, the FIRST from the org, provenance recorded
 
