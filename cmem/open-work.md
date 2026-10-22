@@ -294,8 +294,14 @@ binaryen history with third-party authors (rewrite only the owner's address), 37
 ✅ **H19 DONE the same day** (owner: "start"; "only public facing items"; "items in the public
 facing history should be cleaned in the history"): the public history rewritten — 1,761 commits
 and 5 tags, the 11,187 upstream commits untouched — verified, cited hashes remapped, local
-`user.email` the noreply address; force-pushed with the 1.15.0 release (owner: "update the
-project memory files, bump the version then push to github"). Record and the tag-by-tag hash
+`user.email` the noreply address. **NOT YET PUSHED — paused 2026-10-22 at the owner's word** ("I
+need to pause here for today"), in the middle of "update the project memory files, bump the
+version then push to github". **To resume:** (1) force-push the rewritten public refs with a lease
+on each old value — `main` (GitHub has `9cc85f0e7`), `release/1.5.3` (`d0ef9f8f1`),
+`release/1.6.1` and the 21 tags (old values in the gitignored `cmem/local/backups/h19-map.txt`);
+(2) CI green on `main`; (3) `CHANGELOG.md` § 1.15.0 on a release branch (a MINOR: SSANoMerge;
+also say the history was rewritten and every commit hash changed), gate, merge; (4) fresh clone
+gate, `bun run bump minor`, `bun run release`. Record and the tag-by-tag hash
 map: [publishing.md](publishing.md) § "The history purge". **Every commit hash quoted before
 2026-10-22 outside this repo (wasmtk's letters, the workspace) is now an OLD hash.**
 
