@@ -133,8 +133,8 @@ paragraphs above call unreleased — C1–C17, open-work 30, open-work 31 steps 
 `main` = the release plus cmem; nothing unreleased ([unreleased.md](unreleased.md)). 🚨 The
 release check found Local2Stack (31 step 4) computing wrong results on real compiler output;
 fixed before the push, never shipped. **Open:** 31 (optimizer), 32 (new: lowering for engines
-without memory64 / multi-memory), 29 (npm, reopened the same day: built and proved, not
-published), 13, 14, 15. **wasmtk on 1.13.0** ([handoffs.md](handoffs.md)
+without memory64 / multi-memory), 13, 14, 15 (29, npm, reopened the same day, CLOSED
+2026-10-22 with 1.13.3). **wasmtk on 1.13.0** ([handoffs.md](handoffs.md)
 § 39, received the same day, answering § 38): gate 64,506 / 0 / 16 unchanged, soundness guard 0,
 `go_asyncify_tests` 12 / 12; 43 golden WATs moved (merged `-Oz` libraries only), behaviour
 unchanged; nothing open either way. **The repo moved to `synapticforge/binaryang`** the same day
@@ -145,9 +145,11 @@ owner re-linked it to `synapticforge1/binaryang` (API, 23:36Z). **1.13.1 PUBLISH
 "update the project memory files, bump and publish"; a patch, JSR only; Rekor `3346116525`): the
 README's links to the new org — the first publish from the org, provenance recorded.
 ⚠️ **1.13.2 (2026-10-21) reached JSR WITHOUT provenance and never reached npm**: `deno publish`
-failed after the upload; cause pending the step's log ([publishing.md](publishing.md) § "1.13.2").
-Next: the cause, then 1.13.3 to both registries. Meanwhile the workflows' bash logic moved to
-`scripts/release/workflow.ts` (owner rule).
+failed after the upload ("expected value at line 1 column 1": a non-JSON response on the
+registry side; [publishing.md](publishing.md) § "1.13.2"). ✅ **1.13.3 (2026-10-22) is on BOTH
+registries with provenance** — JSR Rekor `3375011478`, npm by the workflow with SLSA provenance
+(§ "1.13.3"). On the way: the workflows' bash logic moved to `scripts/release/workflow.ts` (owner
+rule), and a `hang_check` test flake found by the fresh-clone check was fixed.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
@@ -298,35 +300,14 @@ fatigue.
 
 ## Repo work
 
-29. ◐ **npm as a SECOND registry, as `@synapticforge1/binaryang`** — ✅ **1.13.1 is ON npm**
-    (2026-10-21 UTC, the first version by hand, no provenance; the trusted publisher and
-    `NPM_PUBLISH` set by the owner). **Left to close the item:** a release's `npm` job
-    publishing by OIDC with provenance read back ([publishing.md](publishing.md) § "npm as a
-    SECOND registry": npm's 2-day window for a new trusted publisher). 1.13.2's never ran (its
-    JSR step failed first); so 1.13.3's. (Parked 2026-10-13; REOPENED
-    2026-10-20, owner: "I am setup on npm now. How do I publish this package there?", then
-    "Build and prove, no publish"). JSR stays the source. 🔧 First built as
-    `@synapticforge/binaryang`; then the owner: "my username on npm is synapticforgeun and my
-    organization name is synapticforge1" — an npm scope IS the org's name, so the first name was
-    not theirs to publish under; renamed before anything was published. The owner then renamed
-    the GitHub org to `synapticforge1` too, so both are spelled the same.
-    **BUILT and PROVED, nothing published** (branch `npm-package`): `bun run npm:build` (tsc into
-    `dist/` with `.ts` imports rewritten, the `bin` shebang, the files JSR ships, `dist/package.json`
-    generated from `jsr.json`); `bun run npm:prove` (the TARBALL installed into a scratch consumer:
-    every export imports and runs nothing on Node 22 / 24 / 26 and Bun, the installed CLI gives
-    the source's smoke hash, `npm exec binaryang`, the `.d.ts` for a consumer with no
-    `@types/node`, the browser bundle, the export list against JSR's own npm build); 7 build
-    mutants all caught; in CI's Gates job. **The npm job** in `publish.yml` runs after JSR's from
-    the same tag, OFF until the REPOSITORY variable `NPM_PUBLISH` is `true` (not an environment
-    variable: the job declares no `environment:`; an org variable shared with the repo would also
-    be read, but would reach every repo it is shared with). **The owner's steps, as npm's docs
-    settled them (checked 2026-10-20):** the trusted publisher lives on the PACKAGE's settings page
-    and the package must already exist, so (1) the first version by hand — `npm login` as
-    `synapticforgeun`, `npm publish --provenance=false` from `dist/` built and proved at `v1.13.1`;
-    (2) the trusted publisher (`npm trust github @synapticforge1/binaryang --file publish.yml
-    --repo synapticforge1/binaryang --allow-publish`, or the page); (3) `NPM_PUBLISH=true`; then
-    each release publishes to both. Record: [publishing.md](publishing.md) § "npm as a SECOND
-    registry" and § "1.13.1".
+(Item 29 closed 2026-10-22: binaryang is on npm as `@synapticforge1/binaryang`, JSR staying the
+source. Built and proved first (`bun run npm:build` / `npm:prove`, in CI); 1.13.1 published by
+hand to create the package, since npm's trusted publisher can only be added to one that exists;
+then **1.13.3 by the workflow**, trusted publishing, SLSA provenance read back. The name took two
+corrections: the npm scope is the npm org's name, `synapticforge1`, and the GitHub org was renamed
+to match. Every step, the owner's settings and what was measured on the way:
+[publishing.md](publishing.md) § "npm as a SECOND registry", § "1.13.1", § "1.13.3". Its number is
+kept free.)
 
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
