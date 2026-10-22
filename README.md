@@ -224,6 +224,35 @@ in each of these browsers, headless (WebKit is Safari's engine): every export lo
 and `wasmOpt` give byte-identical output to Deno, Node and Bun on 421 modules, which each browser's
 engine accepts. The browser recipe below runs there too.
 
+### Making a module run on Safari and Bun
+
+binaryang runs everywhere; a module you build may not. JavaScriptCore — the engine in Safari and in
+Bun — refuses some features V8 (Chrome, Node, Deno) accepts. Two passes rewrite a module so it
+runs there, with the same behaviour:
+
+| the module uses | JavaScriptCore says | run |
+| --------------- | ------------------- | --- |
+| a 64-bit memory or table (memory64) | "Memory64 is not enabled" | `--memory64-lowering` |
+| legacy exception handling (`try` … `delegate`) | "delegate target isn't a try block" | `--translate-to-exnref` |
+
+```sh
+npx binaryang wasm-opt in.wasm --memory64-lowering --translate-to-exnref -o out.wasm
+```
+
+```ts
+import { wasmOpt } from '@jrmarcum/binaryang/tools/wasm-opt';
+const out = await wasmOpt(bytes, { passes: ['memory64-lowering', 'translate-to-exnref'] });
+```
+
+**`--memory64-lowering` keeps the module's behaviour**, unlike Binaryen's pass of the same name: an
+address, index or length of 2^32 or more still traps out of bounds (Binaryen's wraps it, so a
+load reads the wrong bytes and a store overwrites them). A lowered memory holds at most 65,535
+pages (4 GiB less one page) and a lowered table 2^32 − 2 elements; a module that starts larger is
+refused with a message. An imported or exported 64-bit memory or table becomes a 32-bit one, so
+the host supplies or receives a 32-bit one. Every spec module with a 64-bit memory or table is
+checked lowered, against the original, on V8 and on JavaScriptCore (`bun run lowering`).
+Multi-memory needs no pass: JavaScriptCore runs it, up to 127 memories.
+
 ### Optimizing in the browser
 
 A page can shrink a WebAssembly module it does **not** control (third-party, user-supplied, a

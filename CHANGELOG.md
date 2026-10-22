@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **`Memory64Lowering`** (`wasm-opt --memory64-lowering`; `--table64-lowering` is an alias): 64-bit
+  memories and tables become 32-bit ones, so a module runs on engines without memory64 —
+  JavaScriptCore, in Safari and Bun. Unlike Binaryen's pass of the same name it keeps the module's
+  behaviour: an address, index or length of 2^32 or more still traps out of bounds, with the trap
+  the original raises, where Binaryen's wraps it (a load then reads the wrong bytes, a store
+  overwrites them, and `call_indirect` calls the wrong function). A lowered memory holds at most
+  65,535 pages and a lowered table 2^32 − 2 elements; a module that starts larger is refused. An
+  imported or exported 64-bit memory or table becomes a 32-bit one.
+
+### Documentation
+
+- **Making a module run on Safari and Bun** (README): which features JavaScriptCore refuses, and
+  the pass for each — `--memory64-lowering`, and `--translate-to-exnref` for legacy exception
+  handling (`delegate`), which already made such modules run there (every spec assertion holds).
+
 ## 1.13.3
 
 The same package as 1.13.2, released again so that it carries provenance on both registries.
