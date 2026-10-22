@@ -51,7 +51,9 @@ describe('T13.43 — release preflight', () => {
   // third version literal added to the bump fails here instead of at release.
   it('exempts exactly the files bun run bump writes', async () => {
     const bump = await fsx.readTextFile('scripts/release/bump_version.ts');
-    const names = [...bump.matchAll(/\bwriteFile\(\s*(\w+)/g)].map((m) => m[1]!);
+    // Its writes go through `writeAtomic` (temp file + rename) since 2026-10-22; a plain
+    // `writeFile` is still counted, so a write added the old way cannot hide from this list.
+    const names = [...bump.matchAll(/\b(?:writeAtomic|writeFile)\(\s*(\w+)/g)].map((m) => m[1]!);
     expect(names.length).toBeGreaterThan(0);
     const urls = version as unknown as Record<string, URL>;
     const root = new URL('../../../', import.meta.url).href;

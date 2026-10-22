@@ -35,6 +35,14 @@ not survive a clone is not a project rule. The lessons behind them are in
   — a number quoted here went stale for two weeks). The version line is what ARMS a release —
   `auto-tag` publishes whenever `v<version>` has no tag. See [publishing.md](publishing.md); the unreleased changes waiting for it are in
   [unreleased.md](unreleased.md).
+- **Docs and memory land in the SAME commit as the code they describe** (workspace floor,
+  `../cmem/working-rules.md` § Git, adopted here 2026-10-22, owner: "yes"): the cmem record,
+  `unreleased.md` and `CHANGELOG.md` § Unreleased lines for a change go in that change's commit,
+  not on a docs branch after it ("a doc pass scheduled after the release is a doc pass that does
+  not happen"). 🔧 Until then each open-work 31 step merged its code first and its record on a
+  second branch (step 16: `fa30d47cf`, then `efbdc0227`). A record of something that happened
+  AFTER the commit — a release's publish, CI's verdict, a measurement taken later — is its own
+  commit, as before.
 - **A re-baseline goes in its OWN commit**:
   `bun scripts/wabt-ts/verify-baseline.ts --write`, with the reason in the message.
 
