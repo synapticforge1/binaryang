@@ -1933,6 +1933,23 @@ had a letter numbered § 28, which `main` had used for another thread. **How to 
 merging an old branch, list every fix it makes and check whether `main` already makes it, not
 only the hunks git marks. Keep one check per fact. Renumber records the branch created.
 
+### A filter that matches nothing reads like "not yet" — check the key before waiting on it
+
+1.14.0, 2026-10-22: the CI waiter was given a SHORT commit sha. GitHub's `actions/runs?head_sha=`
+matches only a full sha, so every poll listed no runs, and a waiter that prints each run as it
+finishes printed nothing: indistinguishable from CI still running, until the owner asked "is it
+hung?". CI had been green for minutes. The same shape as `--filter "a|b"` above. **How to apply:**
+a script that waits on a filter rejects a key in the wrong form up front (the waiter now demands
+40 hex digits), and prints what it SEES each poll ("0 runs"), not only what finishes.
+
+### A script that does not parse its flags takes them as arguments
+
+The same release: `gate.ts --help` (to read its usage) took `--help` as its scratch PATH, ran the
+whole gate and wrote `--help/gate-logs/` into the repo. Nothing showed until `bun run release`
+refused the dirty tree. The release guard caught it; a plain commit would have committed it.
+**How to apply:** read a scratch script's header instead of probing it with `--help`; give every
+positional-argument script a guard that refuses a leading `-` and unknown flags.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:
