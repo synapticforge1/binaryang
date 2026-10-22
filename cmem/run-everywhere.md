@@ -1,4 +1,4 @@
-# Runs everywhere — open-work item 28 (2026-10-12 → closed 2026-10-15)
+# Runs everywhere — open-work items 28 (2026-10-12 → closed 2026-10-15) and 32 (closed 2026-10-22)
 
 **Closed 2026-10-15** (owner: "lets complete item 28 first"). The motto "runs on Deno, Node, Bun
 and modern browsers" is held by evidence now, in CI:
@@ -31,8 +31,8 @@ bits, a trap as `trap`; `measure.ts` runs each spec module ORIGINAL and LOWERED 
 | legacy EH `delegate` (5 of the 36) | **Solved already**: `check-translate-eh.ts` under Bun — legacy 50 / 70 (all of `try_delegate.wast` refused: "delegate target isn't a try block"), **after TranslateToExnref 70 / 70, and after it -Oz 70 / 70**. Needs documenting, no code. |
 | memory64 (most of the 24) | JavaScriptCore: "Memory64 is not enabled". Upstream `--memory64-lowering` matches every spec behaviour on BOTH engines — `memory_copy64` 4,353, `memory_trap64` 170, `memory_init64` 154, `address64` 238, `float_memory64` 84, `bulk64` 65, `endianness64` 68, `memory_grow64` 45, `memory64` 45, `align64` 48, `load64` 37, `memory_fill64` 25 … — **and is UNSOUND above 2^32**: it lowers an address with a bare `i32.wrap_i64`, so (probe) a load at 2^32 READS byte 0, a store there OVERWRITES byte 0, and `memory.grow` by 2^32 pages SUCCEEDS (2, not -1); only a static offset of 2^32 becomes `unreachable`. Built for programs that never pass 4 GiB. |
 | table64 | Upstream's lowering (`--table64-lowering`, an alias) is **incomplete**: invalid output for `table.get` / `table.set` (its own validator: "table.get index must match the table index type") — `table_get64`, `table_set64`, `table_fill64`, `table_grow64` and one `table_init64` module refused — and **unsound**: `call_indirect` at index 2^32 CALLS ENTRY 0 (probe). `table_size64` 36, `call_indirect64`, `table_copy64` / `table_init64` otherwise agree. |
-| multi-memory | **JavaScriptCore runs it natively** (`memory-multi.wast` 4 / 4 unlowered). Only a memory index of 127 and up fails (5 of the 36): real producers essentially never reach it. Lowest priority. |
-| which producers emit memory64 | NOT measured. Known to exist: clang's `wasm64` target (Emscripten `-sMEMORY64`), Rust's tier-3 `wasm64-unknown-unknown` — to be checked before claiming. |
+| multi-memory | **JavaScriptCore runs it natively** (`memory-multi.wast` 4 / 4 unlowered). Only a memory index of 127 and up fails (5 of the 36; 🔧 the limit is a COUNT, 100 memories — § "The last two questions" below): real producers essentially never reach it. Lowest priority. |
+| which producers emit memory64 | NOT measured. Known to exist: clang's `wasm64` target (Emscripten `-sMEMORY64`), Rust's tier-3 `wasm64-unknown-unknown` — to be checked before claiming. (Measured since: § "The last two questions" below.) |
 
 **Harness artifacts, not findings** (so they are not mistaken for one later): JavaScriptCore
 CANONICALIZES NaN payloads crossing into JavaScript (every "got" was `0x7fc00000` /
@@ -61,6 +61,31 @@ below 65,536 pages, or a refusal when it cannot be); imported / exported 64-bit 
 | 2 | Tables in the same pass, as upstream's flag does (`Table64Lowering` the alias): `call_indirect`'s high index becomes −1, so the ENGINE's call_indirect trap fires; `table.get` / `set` / `fill` / `copy` / `init` trap as a `table.get` at −1; a lowered table holds at most 2^32 − 2 (−1 never in bounds, a grow's −1 only a failure). 18 cases, 17 mutants (two survived first: a `table.copy` length, a grow failing below 2^32) | `9e15903e9` |
 | 3 | `bun run lowering <corpus>` (`scripts/check-lowering.ts` + `scripts/lowering/record.ts`): the spec's 64-bit modules lowered, replayed by `spec-behaviour`'s `outcomes()` on V8 and on Bun, the original on V8 the oracle; on JavaScriptCore a NaN compares as NaN and a failed instantiation by kind. 122 modules, 1,759 invocations, 0 diverging, 0 refused. The spec has no SIMD or atomics on a 64-bit memory, so the unit test does (20 cases) | `53ace7aa7` |
 | 4 | README "Making a module run on Safari and Bun"; CHANGELOG § Unreleased. The recipe run as written: `wasm-opt --memory64-lowering --translate-to-exnref` on a memory64 and a `delegate` module, both then run on Bun | this branch |
+
+### The last two questions, measured — and item 32 closed (2026-10-22)
+
+Owner: "I think we measure each and make the decisions based on the measurements."
+
+**(b) Which producers emit memory64** (the benchmark workload, `benches/browser-opt/src`):
+
+| producer (installed here) | emits | the module | JavaScriptCore, original | lowered |
+| --- | --- | --- | --- | --- |
+| Zig 0.16 `wasm64-freestanding`, Debug / ReleaseFast | a 64-bit memory AND table | 1 memory, 17 pages, no max, exported | refused | runs, checksum 1892226719 ✓ |
+| Rust nightly 1.101 `wasm64-unknown-unknown` (`-Zbuild-std=std,panic_abort`), debug / release | the same | 1 memory, 17–18 pages, no max, exported | refused | runs, checksum ✓ |
+| Go, TinyGo | no 64-bit wasm target (`js/wasm`, `wasip1/wasm`; `wasm`, `wasm-unknown`, `wasi*`) | | | |
+| clang / Emscripten `-sMEMORY64` | NOT INSTALLED — unmeasured | | | |
+
+Decided (owner, from these): the pass stands as built; the two RELEASE builds are committed test
+modules (`benches/browser-opt/modules64/`, `build.ts --wasm64`; `.gitignore` excepts them — the
+1.10.0 lesson recorded there), run by `memory64_real_compiler.test.ts` on both engines. Rust's
+build needed a SHORT target directory: under the long scratch path its build script could not be
+run on Windows ("The system cannot find the path specified", the 260-character limit).
+
+**(c) The multi-memory limit:** JavaScriptCore takes **100** memories and refuses 101 ("there can
+be at most 100"); V8 took 1,000. 🔧 This record said "a memory index of 127 and up" — the tests
+that met the limit used such indices; the limit is the COUNT. Every real compiler output measured
+(the six, and the four wasm64 builds) has exactly one memory. Decided: no multi-memory lowering;
+`tests/bun-known-differences.json`'s reason and the README say 100.
 
 **Trap kinds, measured:** original vs lowered on V8, the engine's messages are identical, 8 / 8
 (memory out of bounds; `call_indirect` at 2^32 as at a plain out-of-range index; a null entry; a

@@ -27,6 +27,8 @@ Thumbs.db
 !/tests/binaryen-ts/tools/fixtures/bundle/*.wasm
 # The 28.6 browser-optimization test modules (rustc, zig, tinygo; benches/browser-opt/build.ts).
 !/benches/browser-opt/modules/*.wasm
+# Their memory64 builds (open-work 32: `build.ts --wasm64`; rustc nightly and zig).
+!/benches/browser-opt/modules64/*.wasm
 
 # Local-only working notes (machine-local; cmem/ is the committed source of truth)
 CLAUDE.md
