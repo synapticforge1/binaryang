@@ -30,23 +30,23 @@ not survive a clone is not a project rule. The lessons behind them are in
   push waited out a CI run, ~10 minutes each.
 - **`jsr.json` stays at the released version** — the package manifest since B1 of the Bun
   migration (2026-10-12, [bun-migration.md](bun-migration.md)); `deno.json` before that, and
-  `deno.json` must no longer name the package (`version_sync.test.ts` enforces it). Publishing
-  names it, `deno publish --config jsr.json`, until `deno.json` is gone (read it there, and the latest release in
-  [publishing.md](publishing.md)'s current-state line — a number quoted here went stale for two
-  weeks). The version line is what ARMS a release — `auto-tag` publishes whenever `v<version>` has
-  no tag. See [publishing.md](publishing.md); the unreleased changes waiting for it are in
+  `deno.json` is gone since B7 (2026-10-13), so `deno publish` reads `jsr.json` by itself (read
+  the version there, and the latest release in [publishing.md](publishing.md)'s current-state line
+  — a number quoted here went stale for two weeks). The version line is what ARMS a release —
+  `auto-tag` publishes whenever `v<version>` has no tag. See [publishing.md](publishing.md); the unreleased changes waiting for it are in
   [unreleased.md](unreleased.md).
 - **A re-baseline goes in its OWN commit**:
-  `deno run --allow-read --allow-write scripts/wabt-ts/verify-baseline.ts --write`, with the reason
-  in the message.
+  `bun scripts/wabt-ts/verify-baseline.ts --write`, with the reason in the message.
 
 ## The gate — on the COMMITTED tree, reading every EXIT CODE
 
-🔧 **Since Bun migration B4 (2026-10-12) every project script is a `package.json` script: read
-each `deno task <name>` in this file, history included, as `bun run <name>`.** Only `check`,
-`test`, `fmt`, `lint`, `ci`, `publish:dry` and `comparison` are still `deno task`s (B3 / B5 move
-them). `bun run` starts the right runtime by itself: Bun for most, and for the steps whose oracle
-is the host WebAssembly engine, the **V8 referee**: Node 24 through fnm, named once in
+🔧 **Every project script is a `package.json` script, run as `bun run <name>`: read each `deno
+task <name>` in this file, history included, that way** (B4, 2026-10-12; the last ones moved in B3
+/ B5 / B7, 2026-10-13). There is no `ci` script: the gate is the list below, step by step. Deno
+still runs two of them, `publish:dry` (`deno publish --dry-run`) and `comparison` (the
+`comparison/` suite against upstream), and the publish itself; `cli-smoke.ts` also runs UNDER Deno
+in CI, as one of the runtimes the package supports. `bun run` starts the right runtime by
+itself: Bun for most, and for the steps whose oracle is the host WebAssembly engine, the **V8 referee**: Node 24 through fnm, named once in
 `scripts/v8.ts` (Node 22's V8 12.4 fails these gates; Bun's JavaScriptCore differs). Deno is kept
 for JSR only (owner, 2026-10-12) ([bun-migration.md](bun-migration.md) § "The engine oracle").
 
@@ -55,7 +55,7 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 `bun install --frozen-lockfile` · `bun run fmt:check` (dprint + its canary, since B3, 2026-10-13; it replaced `deno fmt --check`) · `bun run lint` (Biome, since B3, 2026-10-13; it replaced `deno lint`) · `bun run check` (THE type check: tests since B5, alone since B7; `bun check` since 2026-10-15, `tsc` before, kept as `bun run check:tsc` — [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § "Type checking: `bun check`") · `bun run test` (node:test on Node 24, the referee) · `bun run test:bun` (Bun, against `tests/bun-known-differences.json`)
 · `bun run naming` · `bun run portability` ·
 `bun run browser` (every export bundles for the browser, open-work 28, 2026-10-12) ·
-`bun run baseline` · `deno publish --dry-run --allow-dirty --config jsr.json` — and the `runtimes` job's
+`bun run baseline` · `bun run publish:dry` (`deno publish --dry-run --allow-dirty`) · `bun run npm:prove` (the npm package built, packed, installed and run) — and the `runtimes` job's
 `scripts/cli-smoke.ts`, run under each runtime it tests (locally:
 `deno run -A scripts/cli-smoke.ts
 "deno run -A"` and `bun scripts/cli-smoke.ts bun`, and for Node **`bun run lts`**: every current
@@ -140,8 +140,9 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   2026-09-11 until its rename 2026-09-18). The lesson stands for every step: read each exit code —
   `deno lint` was failing on `main` for two commits whose messages reported it green (`456423b54`,
   `cec3a3381`; fixed `fc91cf409`).
-- ⚠️ **`deno task test` alone is not the gate** — it runs `--no-check`. `deno task ci` is check +
-  test. Dropping `check` left `main` red by CI's standard for 65 unpushed commits (`80a45bffe`).
+- ⚠️ **`bun run test` alone is not the gate** — it type-checks nothing; `bun run check` is the type
+  check. (Under Deno, `deno task test` ran `--no-check` and `deno task ci` was check + test;
+  dropping `check` left `main` red by CI's standard for 65 unpushed commits, `80a45bffe`.)
 - **The spec corpus is per-session scratch.** A new session rebuilds it first:
   `deno task spec:prepare <testsuite-main> <outDir>` then `deno task spec <outDir>`, with `<outDir>`
   in the session scratchpad. Source, READ ONLY (a sibling repo):
@@ -219,14 +220,28 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   `sed -n`** whenever the content will be matched against or edited.
 - **Never build an exact-match string out of RENDERED output.** Copying indentation from
   `sed 's/^/  /'` into a match string failed about six edits in one session.
-- **Scripts run on Bun** (owner, 2026-10-12: "All of our scripts will now be run from bun
-  instead of deno"). Throwaway scripts are TypeScript files in the session scratchpad, written
-  with a file-writing tool and run as `bun script.ts`. They use `node:` builtins and web
-  standards, never `Bun.*` or `Deno.*`, so the same file also runs on Node (the Bun-and-Node
-  decision, [bun-migration.md](bun-migration.md)). The repo's own `scripts/` move to Bun as B4
-  converts each one. Until a script is converted it still uses `Deno.*` and runs through its
-  `deno task`. There is no working `python` on the development machine (details in the private
-  `cmem/local/environment.md`). `sed -i` is fine for one regex on one file.
+- **Scripts are TypeScript run by Bun** (owner, 2026-10-12: "All of our scripts will now be run
+  from bun instead of deno"; made workspace-wide 2026-10-22, letter H15, workspace
+  `cmem/working-rules.md` § "Tooling — hard rules" rule 1). The rule's terms, as the owner set
+  them on 2026-10-22:
+  - **A COMMITTED script that stays for repeated use** — anything that would otherwise be a
+    shell script: a fetch, build-helper, generator or CI-logic script — is TypeScript run by Bun,
+    TypeScript being this repo's language. Product code and tests are not scripts. **No committed
+    bash, PowerShell, `.bat` or other shell script** (none is tracked: `git ls-files` checked
+    2026-10-22). A workflow `run:` block only launches (§ Git above).
+  - **A one-time script deleted after use may stay a shell script** (a scratchpad probe), still
+    WRITTEN with `Write`. If it is needed again it becomes TypeScript before it is committed.
+  - **No heredocs, ever, for any content**: not `<<'EOF'`, not `@'…'@`, and not the inline-code
+    forms `bun -e "…"`, `node -e`, `deno eval`, `python -c`, nor `-F -`. Code and text go into a
+    file through `Write` / `Edit`. 🔧 Broken twice in one session on 2026-10-22: a `<<'X'` heredoc
+    (an empty scratch file) and `bun -e` edits of `pass.ts` / `unreleased.md` (each read back
+    correct; the form is banned because a corruption cannot be seen in the source that makes it).
+  - **This repo is stricter than the workspace on one point:** our scripts use `node:` builtins
+    and web standards, never `Bun.*` (the workspace allows it) and never `Deno.*`, so each file
+    also runs on Node — the Bun-and-Node decision, [bun-migration.md](bun-migration.md).
+  - Deno stays only for the JSR publish and the `comparison/` suite; it is not a scripting runtime
+    here. There is no working `python` on the development machine (details in the private
+    `cmem/local/environment.md`). `sed -i` is fine for one regex on one file.
 - **After any scripted edit, read back the lines it changed**, and treat "0 replacements" as a
   failure, not a no-op.
 - ⚠️ **`cmem/` is outside `deno fmt`'s `include`, and naming a file formats it anyway.** The gate's

@@ -1,8 +1,10 @@
 # The Bun migration — moving the toolchain off Deno, keeping JSR (open-work item 26)
 
-**State, 2026-10-12:** step B1 (`jsr.json` is the one package manifest) is on branch
-`bun-1-jsr-manifest`. B2–B7 are planned below; nothing in them has started. Re-derive every
-count before acting on it.
+**State: DONE — item 26 closed 2026-10-13 (UTC) with the 1.11.0 publish** (B1–B7 all merged;
+[open-work.md](open-work.md) item 26, [publishing.md](publishing.md) § "1.11.0"). Deno remains
+for the JSR publish only (`deno publish`, `publish:dry`) and the `comparison/` suite. The plan and
+findings below are the record as they were written; their "planned" and "not started" lines
+predate the work. (This line said "B1 on a branch, nothing started" until 2026-10-22, letter H15.)
 
 ## Why (owner, 2026-10-12)
 
