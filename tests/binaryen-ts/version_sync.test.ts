@@ -57,7 +57,7 @@ test('version: main.ts VERSION matches jsr.json', async () => {
     match?.[1],
     declared,
     `main.ts reports ${match?.[1]} but jsr.json says ${declared}. ` +
-      'Run `bun run bump`, which rewrites both, or set both by hand for a minor.',
+      'Run `bun run bump [patch|minor|major]`, which rewrites both.',
   );
 });
 

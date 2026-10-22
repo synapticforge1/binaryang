@@ -15,7 +15,8 @@ match the npm org: § "The move to `synapticforge`"; the JSR package name is unc
 
 **Current state (2026-09-29):** `@jrmarcum/binaryang@1.8.1` is latest (`rekorLogId=3007105518`,
 § "1.8.1" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
-unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand), `deno task release`
+unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand — since 2026-10-22
+`bun run bump minor`), `deno task release`
 (tag and branch in one push), CI publishes; a patch while `main` holds unreleased work goes from a
 branch cut from the last tag (§ "1.6.1"). ✅ **`RELEASE_PAT` — CLOSED as not needed (owner,
 2026-09-29):** the pattern always pushes the tag itself, the path that has published unaided 8 of 8;
@@ -635,8 +636,8 @@ for every published binaryang version.
 
 ```sh
 git add -A && git commit -F <file>  # commit ALL source changes FIRST -- see the guard below
-bun run bump                        # a PATCH: rewrites jsr.json AND main.ts (sub-version capped at 9)
-                                    # (a MINOR is typed by hand in the same two files)
+bun run bump [patch|minor|major]    # SemVer, patch by default: rewrites jsr.json AND main.ts
+                                    # (`--dry-run` / `-n` prints the next version, writes nothing)
 bun run release                     # guard, cold publish dry run + the type check (`bun check`), commit the bump, tag, push commit + tag atomically
 ```
 
@@ -660,12 +661,25 @@ narrowed it — see "The tag-push path works unaided" at the end of this file.
 
 ## Version rule — sub-version capped at 9
 
+🔧 **RETIRED 2026-10-22: the rule is Semantic Versioning 2.0.0** (owner, 2026-09-20, workspace
+letter H6): components unbounded, nothing carries; `bun run bump [patch|minor|major]`
+(`scripts/release/version.ts`, `tests/wabt-ts/scripts/version_bump.test.ts`, 7 mutants killed).
+The cap was already dead in practice — minors 10 to 14 were typed past it by hand — and it had
+become a trap: a patch bump of 1.14.9 would have produced 2.0.0. The bump now also asserts each
+version line matches exactly once, makes both new texts before writing either, and writes each
+through a temporary file and a rename (workspace tooling rule 4). The text below is the old rule,
+kept as written.
+
 `1.0.9 → 1.1.0`, `1.9.9 → 2.0.0`, major uncapped (`9.9.9 → 10.0.0`). Both projects adopted this
 independently; enforced by `deno task bump`, which rewrites **both** `deno.json` and `main.ts`
 (`version_sync.test.ts` fails the publish if they disagree) and preserves formatting by replacing
 only the version line rather than round-tripping the JSON.
 
 ### ⚠️ `bump` has no minor mode — a non-patch release is typed by hand
+
+🔧 **Retired 2026-10-22:** `bun run bump minor` / `major` (above). What follows — that a removed
+export is a break whether or not anything imported it, and that a break's reach is VERIFIED —
+still holds; choosing the level is still the owner's.
 
 binaryen-ts set 1.5.0 by hand from 1.4.3, because a sweep had removed four dead exports. **Removing
 an exported symbol is a breaking change regardless of whether anything imported it** — you cannot
