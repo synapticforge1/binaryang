@@ -1,9 +1,10 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-21 (UTC): the last release is `v1.13.1`; nothing user-visible is unreleased on
-`main`** (check it rather than trust this line: `git log --oneline v1.13.1..main -- src/ main.ts
-jsr.json`). `jsr.json` reads 1.13.1; the version line arms a release, so the next bump is the owner's
-decision, never a side effect of work.
+**As of 2026-10-22 (UTC): the last release is `v1.13.3`, on JSR and npm, both with provenance;
+nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
+--oneline v1.13.3..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.13.3; the
+version line arms a release, so the next bump is the owner's decision, never a side effect of
+work.
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR record
@@ -24,12 +25,14 @@ five more refusals, two where upstream wabt accepts; open-work 30 and 31 steps 1
 optimizer within 0.7% of upstream -Oz on real compiler output and below it at -O2; the passes
 `MergeLocals`, `PrecomputePropagate`, `MergeSimilarFunctions`; `Module.optimizeStack`; the
 CodeFolding crash shipped 1.11.0 – 1.12.1; the browser recipe) or **1.13.1** (the repository moved
-to `synapticforge1/binaryang`; docs only). The public summary of each is
+to `synapticforge1/binaryang`; docs only) or **1.13.2** (the README for both registries; on JSR
+without provenance, its publish failed after the upload) or **1.13.3** (1.13.2 again, with
+provenance on JSR and, the first workflow publish there, on npm). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 769b4d3c0:cmem/unreleased.md` (to 1.7.0), this file at `7aa54e95c` (1.7.1 → 1.7.2), at
 `fb5068e47` (1.8.0), at `99f2a5b16` (1.8.1), at `82113369e` (1.9.0), at `23b9f36fb` (1.10.0), at
 `fc021fe08` (1.11.0), at `604b33cf8` (1.12.0), at `e03d38f33` (1.12.1), at `2b74934bf`
-(1.13.0), and at `840b7d79a` (1.13.1).
+(1.13.0), at `840b7d79a` (1.13.1), at `37cf58485` (1.13.2), and at `a021ef19d` (1.13.3).
 
 ## How to use this file
 
@@ -44,23 +47,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.13.1
+## Since 1.13.3
 
-**1.13.2 went to JSR WITHOUT provenance and NOT to npm** (owner, 2026-10-21: "Yes, release
-1.13.2"; its publish step failed after the upload — [publishing.md](publishing.md) § "1.13.2").
-The entries below are IN JSR's 1.13.2 (the README); for npm they are still unreleased, and the
-next release, 1.13.3, carries them there, with provenance on both registries. **Releasing as
-1.13.3** (owner, 2026-10-21: "yes", after the cause was read from the step's log: `deno publish`
-failed with "expected value at line 1 column 1" after the upload — a non-JSON response from the
-registry side; publishing.md § "1.13.2").
-
-- **Repo only — the workflows' logic is TypeScript** (owner, 2026-10-21: "lets get that done"):
-  `scripts/release/workflow.ts` holds every decision and poll the workflows ran in bash
-  (`tag-matches`, `tag-check`, `release-cred`, `oidc-check`, `provenance jsr|npm`); each step is
-  one `bun` line; `workflow_steps.test.ts`. Not in the package.
-
-- **Docs — README, "From npm"**: the package is on npmjs.org as `@synapticforge1/binaryang` (1.13.1
-  published there by hand, 2026-10-21; [publishing.md](publishing.md) § "npm as a SECOND
-  registry"), with its install line, its import name, and `npx @synapticforge1/binaryang`. The
-  CHANGELOG should say the package is on npm from the release that carries this, and that THAT
-  release is the first npm publish from the workflow, with provenance.
+Nothing yet.
