@@ -270,6 +270,16 @@ lines. Still open from the workspace for binaryang: H5 (the provenance note), H6
 compatibility gate: `api-surface.ts`), H8 (I5–I8 measurements), H12 (reserve `./ts2wasm` in the
 exports plan, no code).
 
+**The workspace rules reviewed (2026-10-22, owner: "yes" to two of the findings):** (1) docs land
+in the same commit as their code — adopted, [working-rules.md](working-rules.md) § Git; (2) H6's
+SemVer half DONE: `bun run bump [patch|minor|major]`, no cap, each version line matched exactly
+once, both texts made before either write, each written through a temp file and a rename
+(tooling rule 4); `version_bump.test.ts`, 7 mutants killed; one real `bump minor` run (1.14.0 →
+1.15.0 in both files, no temp file left) and restored from a copy. Left with the owner: whether
+`scripts/spec-prepare.ts:74`'s default (a local drive path, no user name) may stay committed
+under the workspace's no-personal-information rule. Noted for the workspace session (not ours to
+edit): its § The gate still calls binaryang's naming check a shell script that always exits 0.
+
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
 operand that becomes a never-falling-through sequence, so StripEH ran a builder-made

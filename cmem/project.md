@@ -221,9 +221,11 @@ their link to the commits. **Rule: never write a bare phase number** — write `
 
 ## Versions
 
-**Sub-version capped at 9**: `1.0.9 → 1.1.0`, `1.9.9 → 2.0.0`, major uncapped. Both predecessors
-adopted it independently; enforced by `deno task bump`. ⚠️ **`bump` has no minor mode** — a
-non-patch release is typed by hand ([publishing.md](publishing.md)).
+**Semantic Versioning 2.0.0** since 2026-10-22 (the owner's workspace rule of 2026-09-20, letter
+H6): `bun run bump [patch|minor|major]`, components unbounded, nothing carries. Until then both
+predecessors' rule stood — each sub-version capped at 9 (`1.0.9 → 1.1.0`, `1.9.9 → 2.0.0`), the
+bump with no minor mode, every minor typed by hand, minors 10–14 past the cap
+([publishing.md](publishing.md) § "Version rule — sub-version capped at 9").
 
 | version   | what it carried                                                                                                                                                                                                                                                                                                      |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

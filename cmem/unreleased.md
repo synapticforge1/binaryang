@@ -41,8 +41,10 @@ module run on Safari and Bun"; the multi-memory limit corrected to 100). The pub
 
 Add an entry when a change on `main` is one a release note must carry — say which kind:
 
-- ⚠️ **BREAKING** — a removed or renamed export, a changed IR field, a changed default. Makes the
-  release a MINOR, typed by hand ([publishing.md](publishing.md) § "`bump` has no minor mode").
+- ⚠️ **BREAKING** — a removed or renamed export, a changed IR field, a changed default. Under the
+  workspace's SemVer rule a break is a MAJOR; the level is the OWNER's call (1.12.0 removed the
+  deprecated subpaths as a minor, the owner's choice). `bun run bump minor` / `major` set it
+  ([publishing.md](publishing.md) § "Version rule — sub-version capped at 9", now retired).
 - **Behaviour** — output bytes move, or an input is accepted / refused that was not.
 - **Silent fix** — was wrong without saying so; say what a user may have shipped.
 - **NEW** — an export, a pass, a CLI flag.
