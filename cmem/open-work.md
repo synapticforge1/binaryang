@@ -178,8 +178,16 @@ removed record went to a topic file, and the full text is one `git show` away:
     stores, a `grow` that succeeds); table64 too, and upstream's is incomplete (invalid output on
     `table.get` / `set`) and wraps `call_indirect`; multi-memory runs natively on JavaScriptCore
     (only 127+ memories fail); (b) the producers are not yet checked. **Decided (owner): SOUND —
-    the lowered module traps where the original does.** Next: build `LowerMemory64` /
-    `LowerTable64` on that gate. The scope as first written: The 36 known
+    the lowered module traps where the original does.** **BUILT 2026-10-22 (merged, NOT
+    pushed — owner: "wait until passes are built")**: step 1 `Memory64Lowering` (`7037c1762`),
+    step 2 tables in the same pass, `Table64Lowering` the alias (`9e15903e9`), step 3 the gate
+    step `bun run lowering` (`53ace7aa7`: 122 modules, 1,759 invocations, 0 diverging on V8 and
+    JavaScriptCore), step 4 the README's "Making a module run on Safari and Bun" and the
+    CHANGELOG (`af2b759b3`). Trap messages identical to the original's on V8. **Left, the
+    owner's to decide:** (b) which producers emit memory64 (unchecked); multi-memory past 127
+    memories (nothing real reaches it); then close the item
+    ([run-everywhere.md](run-everywhere.md) § "Open-work 32", "Built"). The scope as first
+    written: The 36 known
     Bun differences (`tests/bun-known-differences.json`) are all JavaScriptCore refusing a module
     V8 accepts — binaryang itself behaves the same on every runtime (`test:bun` fails exactly the
     list; the CLI smoke hash agrees on Deno / Bun / every Node LTS; the browser gate loads every
