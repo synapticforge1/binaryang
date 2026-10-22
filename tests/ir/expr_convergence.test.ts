@@ -6,7 +6,7 @@
 // This file was the RATCHET that got them there — every kind both unions
 // declared, pinned `identical` / `types` / `names` against the compiler, so
 // progress had to be recorded to land and regress could not land silently.
-// Measured when written (2026-09-15, `3a9462423`): 35 identical, 14 types, 23
+// Measured when written (2026-09-15, `d28699064`): 35 identical, 14 types, 23
 // names. Its last reading, the commit before the alias: 85 identical, 5 types
 // (the five constructs, over their node BASE), 0 names.
 //

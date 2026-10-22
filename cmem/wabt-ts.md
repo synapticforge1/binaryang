@@ -17,12 +17,12 @@ it ended, then gives:
   - `[open]`
 - **Already in the core** — pointers to where the rest lives now.
 - **History** — a summary, with commits.
-- **Full text** — the whole file, one command away: `git show 9758fc736:cmem/wabt-ts/<file>`.
+- **Full text** — the whole file, one command away: `git show 62c65a9db:cmem/wabt-ts/<file>`.
 
 **What was corrected, not just shortened:**
 
 - **Paths.** Every file path was rewritten to this tree and checked with `git ls-files` on
-  `c6bbf7d71`:
+  `08383677a`:
   - `src/<x>` → `src/wabt-ts/<x>`, and `tests/<x>` → `tests/wabt-ts/<x>`.
   - `src/bridge/binaryen-bridge.ts` → `src/bridge/bridge.ts`.
   - The release scripts → `scripts/release/`; the wabt-ts tooling → `scripts/wabt-ts/`.
@@ -47,141 +47,141 @@ Top to bottom it holds: the tranche ledger (T1–T13.50) with its numbering rule
 binaryen-ts upstream log UP-1…UP-7; dated tranche narratives (T1–T7); the 2026-06-09 silent-corruption
 audit summary; the wabt-ts Decisions Log; and wabt-ts Phases 1–8 (Phase 7 = bridge, Phase 8 = `wasm2ts`).
 It ended at the merge with every tranche closed except T13.50, recorded as post-merge work; T13.50
-closed in 1.5.2 (`50a959baa`). Nothing in the ledger is open today; what this summary found still open
+closed in 1.5.2 (`d6d22559c`). Nothing in the ledger is open today; what this summary found still open
 in the code is in [open-work.md](open-work.md).
 
 ### T-id index — every T-id cited outside the ledger (T1–T5 and T11 added for completeness)
 
 | id | what it was, and how it closed | commit(s) |
 | --- | --- | --- |
-| T1 | numeric literals: negative hex, optional hex-float exponent, NaN-payload `_` — +25 files (120→145/257) | `a612bba95` |
-| T2 | small grammar gaps + the four GC array bulk ops from scratch — +34 (→179) | `e1f7f4562` |
-| T3 | multi-memory: bare memidx, `resolveMemoryVar`, `memory.init` index swap — +35 (→214) | `95623ca2e` |
-| T4 | table64 / memory64 index types + table definition shapes — +16 (→230) | `7f84d430b` |
-| T5 | GC `(rec …)` / `(sub …)` — parse +7, encode +5 | `1c3f60ac3` |
-| T5.1 | `any.convert_extern` / `extern.convert_any` — parse +1, encode +1 | `717422d76` |
-| T5.2 | abbreviated heap-type immediate (`ref.cast i31ref`) — parse +3, encode +3 | `a37ee51d0` |
-| T5.3 | `br_on_cast` / `br_on_cast_fail`, never implemented — parse 257/257, encode +2 | `d5c5bd386` |
-| T6.1 | block params / multi-value block results — absorbed during T7 (batch 2) | `777d09977` |
-| T6.2 | elem segment typed-ref element types — absorbed during T4 | `7f84d430b` |
-| T6.3 | table inline-elem forms — absorbed during T4 | `7f84d430b` |
-| T6.4 | `(module definition …)` / `(module instance …)` — parse +5, encode +5 | `a37ee51d0` |
-| T6.5 | `(@annotation …)` skipped in the lexer — parse +1, encode +1 | `23201d267` |
-| T7.1 | parser robustness: never throw, never hang (`noProgress`, `runParse` backstop), readable token names | `a612bba95` |
-| T7.2 | packed-type wire bytes (i8/i16 = 0x78/0x77); `br_table` index and `try_table` catch name resolution | `d30b8599b` |
-| T7.3 | quoted ids = bare ids; raw non-ASCII → UTF-8; `(type $t)` supplies the signature; multi-value block types — +3 parse, +5 encode | `777d09977` |
-| T7.4 | typed-ref IR refactor: `ValueType = Type \| RefValueType` — encode +13 | `2ae54f811` |
-| T7.5 | multi-value `br` / `br_if` / `br_table` (values arrays; `br_table` index is the LAST operand) — encode +14 | `959e4e18c` |
-| T7.6 | `try_table` catch target depth resolved one frame too deep — encode +2 | `eb886644d` |
-| T7.7 | relaxed SIMD aliased onto low SIMD opcodes: `(prefix<<8)\|sub` packing too narrow — encode +7 | `254ef844b` |
-| T7.8 | type-uses resolved against an incomplete type index space — encode +6 | `d08e4d715` |
-| T7.9 | `return_call_indirect` tail-call types (2) — **not defined in tasks.md**; ledger commit `a34a78e4a`, closed as a side effect of T7.8 | `d08e4d715` |
-| T7.10 | "seven singles" — **not defined in tasks.md**; ledger commit `a34a78e4a`, re-scoped into T7.11–T7.14 | `d08e4d715` |
-| T7.11 | element segments against a non-nullable table — encode +2 (later narrowed by T11) | `46fdda15a` |
-| T7.12 | `br_on_null` / `br_on_non_null` carrying branch values — encode +2 | `85d45ff91` |
-| T7.13 | UTF-8 BOM stripped from names — encode +1 | `85d45ff91` |
-| T7.14 | explicit type-use overwritten by a structural signature match — encode +1 | `85d45ff91` |
-| T8.1 | block type-use + inline signature | `a3086e583` |
-| T8.2 | `select` with several result groups | `a3086e583` |
-| T8.3 | WAT writer emitted a multi-instruction const expr as one folded paren (found via T5.1) | `717422d76` |
-| T8.4 | tag declared with a type-use | `a3086e583` |
-| T8.5 | folded `if` condition spanning several instructions | `a3086e583` |
-| T9.1 | binary reader had no `pushStmt` — silent statement reordering; round-trip INVALID 60→27 | `103f26d0a` |
-| T9.2 | validator vs V8: seven bugs over 418 modules (ungated MVP rules, dead SIMD table keys…) — agreement 1702→2120/2120 | `9da012683` |
-| T9.3 | validator onto `ValueType`; real reference subtyping (canonical rec-group keys) | `d2bc97bda` |
-| T9.4 | the 10 valid modules T9.3's lattice rejected — each a second hidden bug; agreement back to 2120 | `c5fe0af81` |
-| T9.5 | invalid modules validated clean (arity-less `checkSignature`, 32-bit page limit, memarg offset); harness read `errors` not `result` | `e8072c8b9` |
-| T9.6 | module-level structural checks (SIMD align, lane indices, immutability, final supertypes, const exprs) | `7b3a96afd` |
-| T9.7 | declared subtyping checked structurally; `ref.eq`, `select`, defaultability, type scope | `a22383e3f` |
-| T9.8 | one-armed `if` arity; `try_table` catch-clause label types | `613e2205b` |
-| T9.9 | immediate-vs-immediate rules; local-init = frame-scoped rollback (not join intersection) | `44cd27880` |
-| T9.10 | last invalid modules V8 rejects (`call_ref` named type, function-table check, elem type) — ours: 0 remaining | `0c4548022` |
-| T9.11 | ten memarg handlers never checked `offset` (lint "unused var" was the finding) — 4 SIMD false accepts | `7dee7aba1` |
-| T10.1 | export ORDER lost across `wasm2wat` (inline exports) — `buildExportMap` feasibility test; WASI 1→50/270 | `67d043ba1` |
-| T10.2 | inline `(export …)` emitted on IMPORTS — our parser rejected our output; same fix | `67d043ba1` |
-| T10.3 | non-nullable table lost `Table.init` — `writeFoldedConstExpr`, fail-loud on the inexpressible | `d0dc93639` |
-| T10.4 | printer stripped the NaN quiet bit; `return_call_indirect` lost its table index → round-trip 2120/2120 | `9f4eb7765` |
-| T10.5 | filed against the reader; was linear `call` draining the whole stack — deferred body parsing; WASI 50→225 | `4c82749b6` |
-| T10.6 | linear `try_table` was a stub; `array.new_fixed` drained the stack | `24e637a5a` |
-| T10.7 | `tagTypeIndex` compared typed-ref params by `===`, so encode threw — hard failures 1→0 | `9f4eb7765` |
-| T10.8 | synthesized slot-filler written as a real `nop` — `NopExpr.placeholder`; WASI 270/270 | `a38ce8bc5` |
-| T11 | pipeline REPAIRED an invalid module (funcidx elemlist is `(ref func)`) in five layers | `50472d6c0` |
-| T12.1 | out-of-range int/float constants wrapped/overflowed silently — malformed 666→698/1229 | `ac28aca92` |
-| T12.2 | import after a definition accepted and RENUMBERED the module — →714 | `bbf05942b` |
-| T12.3 | non-power-of-two `align=` accepted and CHANGED (`align=3` → 2) — →828 | `13a9ed889` |
-| T12.4 | SIMD lane immediates / `v128.const` lane values wrapped (`-129` → 127) — →869 | `f1efacba8` |
-| T12.5 | names not checked as UTF-8 on either path — quoted →1045, binary 110→638/711 | `1760a05a2` |
-| T12.6 | missing lane immediate compiled as lane 0; `nan:canonical`/`arithmetic` accepted as literals — →1087 | `9e931cf07` |
-| T12.7 | annotation, closing label, inline signature read and discarded — →1183; closed T12.6's remainder | `4eea96063` |
-| T12.8 | binary reader resynchronised instead of reporting — binary 711/711, metric closed | `40df4d513` |
-| T12.9 | duplicate ids, `nan:0x0`, lane signs, token boundaries, 2nd `(start)`, forward type use — 1227/1229 parser, 1229 via `wat2wasm` | `013e9b7fd` |
-| T13.1 | out-of-scope branch target is a PARSER error (`checkLabelScopes`) — quoted 1229/1229 at the parser | `dad8dca75` |
-| T13.2 | the last 19 `assert_invalid`: 16 were the ENCODER repairing them (u32 wrap, `ensureTypeFor`, rec-group reuse) — 2683/2683 | `dad8dca75` |
-| T13.3 | `Limits.initial`/`max` → `bigint` (breaking by design) — V8-valid 2118→2119/2120 | `f548e66e3` |
-| T13.4 | custom page sizes end to end (`pageSizeLog2`, only 1 and 65536) — no metric covers it; modelled on wazmrt | `40554a56f` |
-| T13.5 | three reserved bytes read into nowhere (tag attribute ×2, table `0x40 0x00`) — found by grepping the shape | `9e844eb1b` |
-| T13.6 | review pass, clean; lexer⇄printer and natural-alignment audits made permanent tests | `6841d4480` |
-| T13.7 | a NAMED reference in every grammar position — 64 cases; 21 fail at v1.3.5 | test added in `390fab905` |
-| T13.8 | `instrInputCount` one too high for atomic store/rmw/cmpxchg — `wasm2wat` emitted invalid wasm | `390fab905` |
-| T13.9 | validator typed every atomic as `(v128,v128)→v128` (no `PREFIX_THREADS` branch) — 67 opcodes agree with V8 | `fbe60e836` |
-| T13.10 | 9 of 21 feature flags gated nothing — gates at point of use + `checkValueType`; `--enable-*` CLI flags | `5b31ade4b` |
-| T13.11 | `resolveNames` never walked `table.get`'s index sub-expression; T13.7's guard held operands fixed | `4e9610227` |
-| T13.12 | the two signed LEB encoders still wrapped out-of-range input | `4e9610227` |
-| T13.13 | T13.7's guard varied one axis; operand axis added (69 cases, clean) and 2 of its fixtures were invalid wasm | `4e9610227` |
-| T13.14 | 12 GC operand false accepts a sibling handler already checked (cast hierarchy, i31, is_null, as_non_null, packedness) | `4e9610227` |
-| T13.15 | SIMD lane memory ops ignored the memory index type — wrong in both directions on memory64 | `4e9610227` |
-| T13.16 | `data.drop`/`elem.drop` in the arity-1 group swallowed and DELETED the preceding value | `4e9610227` |
-| T13.17 | `rethrow` ignored its depth (must name a catch frame); V8 the only available oracle | `4e9610227` |
-| T13.18 | dead `getOpcodeNaturalAlign` removed; `instrInputCount` made total behind a source-enumeration gate; 3 axes clean | `4e9610227` |
-| T13.19 | ledger self-description (numbering procedure, status vocabulary); INTENT blocks on 3 membership sections | `4e9610227` |
-| T13.20 | `applyNames` walked 37 of 87 kinds — axis 1 made generic, axis 2 an explicit 55-kind table | `4e9610227` |
-| T13.21 | `constExprOperands` ⇄ `writeInstrHead` coupling (latent) — INTENT blocks + source gate | `4e9610227` |
-| T13.22 | bridge resolved `try_table` catches after pushing its own label — cancelled binaryen-ts 1.0.9's off-by-one; BLOCKED, then fixed atomically with the 1.5.0 pin (T13.47) | `23f312990` WIP, `8e6701519` |
-| T13.23 | binaryen-ts pin `^1.0.9` held only by the lockfile → EXACT; two upstream notes resolved (exposure nil) | `4e9610227` |
-| T13.24 | bridge pushed no label frame for `if` — `br` wrong both ways; `IF_FRAME` sentinel, branch to unlabeled `if` throws | `4e9610227` |
-| T13.25 | a NUL byte made the bridge file BINARY to grep, and a sweep reported clean — `source_hygiene` gate | `4e9610227` |
-| T13.26 | `readMemArg` used `1 << exp`: exponent 32 wrapped to align=1 and the round trip repaired it — `assert_invalid` 2671→2673 | `4e9610227` |
-| T13.27 | NO DEFECTS FOUND: six axes over the binary reader and `wasm-strip` | `4e9610227` |
-| T13.28 | hygiene gate extended to `cmem/` + `README.md` (a `\b` had become a backspace); `ModuleContext.getExprArity` found dead | `4e9610227` |
-| T13.29 | four binary tools threw `RangeError` on ~102 of 585 malformed inputs — converted at the reader boundary | `4e9610227` |
-| T13.30 | `/compat` `toBinary` threw the writer's raw string — now names its origin, documented | `4e9610227` |
-| T13.31 | every CLI shim dumped a Deno stack trace on a bad path — `cliRead`/`cliWrite` | `4e9610227` |
-| T13.32 | NO DEFECTS FOUND: lexer token reachability (182 members) — pinned by a gate anyway | `4e9610227` |
-| T13.33 | `readTypeSection` bound in the loop CONDITION silently truncated count/content mismatches | `4e9610227` |
-| T13.34 | subtyping depth > 63 and supertype cycles accepted — `checkSubtypingDepth` | `4e9610227` |
-| T13.35 | NO DEFECTS FOUND: size amplification, string scaling clean; diagnostic OFFSET accuracy INCONCLUSIVE (oracle wrong) | `4e9610227` |
-| T13.36 | NO DEFECTS FOUND: module-level state, text-side convergence, gate vacuity; corrected "hardening does not decay" | `4e9610227` |
-| T13.37 | spec `assert_malformed` expected texts used as oracle: magic-before-version ordering; two LEB faults named apart — 608→689/711 | `4e9610227` |
-| T13.38 | a misspelled instruction was blamed on a parenthesis / leaked `Reserved` — `unknown operator "…"`; parser wording 559→816/1229 | `4e9610227` |
-| T13.39 | session harnesses omitted `synthesizeTypes` — every absolute figure that session was wrong (agreement 2207/2207, `assert_invalid` 2694/2694) | `4e9610227` |
-| T13.40 | every section header padded to a 5-byte LEB (upstream canonicalises) — WASI corpus −3.2%; round-trip metric split by input source | `4e9610227` |
-| T13.41 | `wasm-strip` relocated every kept custom section to the end — `Custom.precedingSection`; `--sections` 0→265/265; ninth metric | `4e9610227` |
-| T13.42 | the documented per-file format check ignored `deno.json` (width 80) — two CI-failing files hidden | `4e9610227` |
-| T13.43 | `deno task publish` would release a bare version bump from a dirty tree — dirty-tree + remote-tag guards | `4e9610227` |
-| T13.44 | the guard's WIRING gated (called before any mutating git command, exits, stays side-effect free) | `4e9610227` |
-| T13.45 | wasmtk snapshot "provenance unknown" was one `git log` away — stamped (`fbafca9e`, 2026-05-25) and gated | `68084e476` |
-| T13.46 | corpus regenerated from wasmtk `4600ba9`: 272→421 (413 wasic + 8 other); `KNOWN_INVALID` emptied | `162904ba9` |
-| T13.47 | binaryen-ts 1.5.0 pin + T13.22 fix in one merge; the 12 bridge failures were two defects (coarsened sigs, undeclared func heap types) — bridge 28/28 | `8e6701519`, merge `5404946dd` |
-| T13.48 | `deno task bump --dry-run` performed a real bump (script read no args) — dry run real, unknown args exit 2 | `cf3b99465` |
-| T13.49 | pre-merge audit: de-coarsening incomplete (24 vs 5 sites), 5 colliding `src/` dirs, config cost 4 type errors | `002e520e2` |
-| T13.50 | finish the bridge de-coarsening (import/tag `(ref $T)` params; `(ref null $T)` global) — OPEN at merge; closed 1.5.2 | scoped `a3d71be50`, closed `50a959baa` |
-| T13.50b | **not defined in tasks.md.** Row 3 of T13.50 split out: `ref.null` with a user-defined heap type refused by the bridge — cited by `src/bridge/bridge.ts` and `tests/bridge/gc_decoarsening.test.ts`; fixed in the same commit | `50a959baa` |
-| T13.51 | **not defined in tasks.md.** The four `br_on_*` bridge cases — three defects, two outside the bridge (func_type blocktype refusal, inline typed-ref blocktype, undeclared blocktype func heap types); cited by `src/bridge/bridge.ts` | `7ff0408f4` |
+| T1 | numeric literals: negative hex, optional hex-float exponent, NaN-payload `_` — +25 files (120→145/257) | `6f4aea091` |
+| T2 | small grammar gaps + the four GC array bulk ops from scratch — +34 (→179) | `725a2ccb9` |
+| T3 | multi-memory: bare memidx, `resolveMemoryVar`, `memory.init` index swap — +35 (→214) | `3121b07c1` |
+| T4 | table64 / memory64 index types + table definition shapes — +16 (→230) | `ebc101630` |
+| T5 | GC `(rec …)` / `(sub …)` — parse +7, encode +5 | `7a8a03055` |
+| T5.1 | `any.convert_extern` / `extern.convert_any` — parse +1, encode +1 | `47d34c698` |
+| T5.2 | abbreviated heap-type immediate (`ref.cast i31ref`) — parse +3, encode +3 | `877ed238f` |
+| T5.3 | `br_on_cast` / `br_on_cast_fail`, never implemented — parse 257/257, encode +2 | `2455857f2` |
+| T6.1 | block params / multi-value block results — absorbed during T7 (batch 2) | `c1e03eca4` |
+| T6.2 | elem segment typed-ref element types — absorbed during T4 | `ebc101630` |
+| T6.3 | table inline-elem forms — absorbed during T4 | `ebc101630` |
+| T6.4 | `(module definition …)` / `(module instance …)` — parse +5, encode +5 | `877ed238f` |
+| T6.5 | `(@annotation …)` skipped in the lexer — parse +1, encode +1 | `26552c675` |
+| T7.1 | parser robustness: never throw, never hang (`noProgress`, `runParse` backstop), readable token names | `6f4aea091` |
+| T7.2 | packed-type wire bytes (i8/i16 = 0x78/0x77); `br_table` index and `try_table` catch name resolution | `4edabfb13` |
+| T7.3 | quoted ids = bare ids; raw non-ASCII → UTF-8; `(type $t)` supplies the signature; multi-value block types — +3 parse, +5 encode | `c1e03eca4` |
+| T7.4 | typed-ref IR refactor: `ValueType = Type \| RefValueType` — encode +13 | `9dda6c792` |
+| T7.5 | multi-value `br` / `br_if` / `br_table` (values arrays; `br_table` index is the LAST operand) — encode +14 | `a24a46fed` |
+| T7.6 | `try_table` catch target depth resolved one frame too deep — encode +2 | `d5130ef76` |
+| T7.7 | relaxed SIMD aliased onto low SIMD opcodes: `(prefix<<8)\|sub` packing too narrow — encode +7 | `d17eedc8f` |
+| T7.8 | type-uses resolved against an incomplete type index space — encode +6 | `59e9979c7` |
+| T7.9 | `return_call_indirect` tail-call types (2) — **not defined in tasks.md**; ledger commit `5bec9d38a`, closed as a side effect of T7.8 | `59e9979c7` |
+| T7.10 | "seven singles" — **not defined in tasks.md**; ledger commit `5bec9d38a`, re-scoped into T7.11–T7.14 | `59e9979c7` |
+| T7.11 | element segments against a non-nullable table — encode +2 (later narrowed by T11) | `9f6217c52` |
+| T7.12 | `br_on_null` / `br_on_non_null` carrying branch values — encode +2 | `5e139a2f8` |
+| T7.13 | UTF-8 BOM stripped from names — encode +1 | `5e139a2f8` |
+| T7.14 | explicit type-use overwritten by a structural signature match — encode +1 | `5e139a2f8` |
+| T8.1 | block type-use + inline signature | `de1fb431c` |
+| T8.2 | `select` with several result groups | `de1fb431c` |
+| T8.3 | WAT writer emitted a multi-instruction const expr as one folded paren (found via T5.1) | `47d34c698` |
+| T8.4 | tag declared with a type-use | `de1fb431c` |
+| T8.5 | folded `if` condition spanning several instructions | `de1fb431c` |
+| T9.1 | binary reader had no `pushStmt` — silent statement reordering; round-trip INVALID 60→27 | `9b0ce25c0` |
+| T9.2 | validator vs V8: seven bugs over 418 modules (ungated MVP rules, dead SIMD table keys…) — agreement 1702→2120/2120 | `b194456a8` |
+| T9.3 | validator onto `ValueType`; real reference subtyping (canonical rec-group keys) | `accabcb46` |
+| T9.4 | the 10 valid modules T9.3's lattice rejected — each a second hidden bug; agreement back to 2120 | `cbb6eea50` |
+| T9.5 | invalid modules validated clean (arity-less `checkSignature`, 32-bit page limit, memarg offset); harness read `errors` not `result` | `0f401211c` |
+| T9.6 | module-level structural checks (SIMD align, lane indices, immutability, final supertypes, const exprs) | `a029714da` |
+| T9.7 | declared subtyping checked structurally; `ref.eq`, `select`, defaultability, type scope | `8a0f24f34` |
+| T9.8 | one-armed `if` arity; `try_table` catch-clause label types | `de4afcdd0` |
+| T9.9 | immediate-vs-immediate rules; local-init = frame-scoped rollback (not join intersection) | `8227c8a51` |
+| T9.10 | last invalid modules V8 rejects (`call_ref` named type, function-table check, elem type) — ours: 0 remaining | `71047c89c` |
+| T9.11 | ten memarg handlers never checked `offset` (lint "unused var" was the finding) — 4 SIMD false accepts | `d6076e3e2` |
+| T10.1 | export ORDER lost across `wasm2wat` (inline exports) — `buildExportMap` feasibility test; WASI 1→50/270 | `26160ac5d` |
+| T10.2 | inline `(export …)` emitted on IMPORTS — our parser rejected our output; same fix | `26160ac5d` |
+| T10.3 | non-nullable table lost `Table.init` — `writeFoldedConstExpr`, fail-loud on the inexpressible | `1f12125ba` |
+| T10.4 | printer stripped the NaN quiet bit; `return_call_indirect` lost its table index → round-trip 2120/2120 | `bf261e93f` |
+| T10.5 | filed against the reader; was linear `call` draining the whole stack — deferred body parsing; WASI 50→225 | `881326c05` |
+| T10.6 | linear `try_table` was a stub; `array.new_fixed` drained the stack | `e13949227` |
+| T10.7 | `tagTypeIndex` compared typed-ref params by `===`, so encode threw — hard failures 1→0 | `bf261e93f` |
+| T10.8 | synthesized slot-filler written as a real `nop` — `NopExpr.placeholder`; WASI 270/270 | `38dbb69b4` |
+| T11 | pipeline REPAIRED an invalid module (funcidx elemlist is `(ref func)`) in five layers | `aed05471c` |
+| T12.1 | out-of-range int/float constants wrapped/overflowed silently — malformed 666→698/1229 | `e827394ac` |
+| T12.2 | import after a definition accepted and RENUMBERED the module — →714 | `2968cb9c2` |
+| T12.3 | non-power-of-two `align=` accepted and CHANGED (`align=3` → 2) — →828 | `65ff9f98a` |
+| T12.4 | SIMD lane immediates / `v128.const` lane values wrapped (`-129` → 127) — →869 | `68ec53ef6` |
+| T12.5 | names not checked as UTF-8 on either path — quoted →1045, binary 110→638/711 | `d3551bf63` |
+| T12.6 | missing lane immediate compiled as lane 0; `nan:canonical`/`arithmetic` accepted as literals — →1087 | `cbe7bb399` |
+| T12.7 | annotation, closing label, inline signature read and discarded — →1183; closed T12.6's remainder | `af4bf151b` |
+| T12.8 | binary reader resynchronised instead of reporting — binary 711/711, metric closed | `1bb7fa7fe` |
+| T12.9 | duplicate ids, `nan:0x0`, lane signs, token boundaries, 2nd `(start)`, forward type use — 1227/1229 parser, 1229 via `wat2wasm` | `47f48b0df` |
+| T13.1 | out-of-scope branch target is a PARSER error (`checkLabelScopes`) — quoted 1229/1229 at the parser | `070ca0f3b` |
+| T13.2 | the last 19 `assert_invalid`: 16 were the ENCODER repairing them (u32 wrap, `ensureTypeFor`, rec-group reuse) — 2683/2683 | `070ca0f3b` |
+| T13.3 | `Limits.initial`/`max` → `bigint` (breaking by design) — V8-valid 2118→2119/2120 | `1c1dfb75c` |
+| T13.4 | custom page sizes end to end (`pageSizeLog2`, only 1 and 65536) — no metric covers it; modelled on wazmrt | `7a3b32309` |
+| T13.5 | three reserved bytes read into nowhere (tag attribute ×2, table `0x40 0x00`) — found by grepping the shape | `df7743ecb` |
+| T13.6 | review pass, clean; lexer⇄printer and natural-alignment audits made permanent tests | `349886416` |
+| T13.7 | a NAMED reference in every grammar position — 64 cases; 21 fail at v1.3.5 | test added in `35e77efab` |
+| T13.8 | `instrInputCount` one too high for atomic store/rmw/cmpxchg — `wasm2wat` emitted invalid wasm | `35e77efab` |
+| T13.9 | validator typed every atomic as `(v128,v128)→v128` (no `PREFIX_THREADS` branch) — 67 opcodes agree with V8 | `9ed22ab53` |
+| T13.10 | 9 of 21 feature flags gated nothing — gates at point of use + `checkValueType`; `--enable-*` CLI flags | `6d5994d98` |
+| T13.11 | `resolveNames` never walked `table.get`'s index sub-expression; T13.7's guard held operands fixed | `aabdcde21` |
+| T13.12 | the two signed LEB encoders still wrapped out-of-range input | `aabdcde21` |
+| T13.13 | T13.7's guard varied one axis; operand axis added (69 cases, clean) and 2 of its fixtures were invalid wasm | `aabdcde21` |
+| T13.14 | 12 GC operand false accepts a sibling handler already checked (cast hierarchy, i31, is_null, as_non_null, packedness) | `aabdcde21` |
+| T13.15 | SIMD lane memory ops ignored the memory index type — wrong in both directions on memory64 | `aabdcde21` |
+| T13.16 | `data.drop`/`elem.drop` in the arity-1 group swallowed and DELETED the preceding value | `aabdcde21` |
+| T13.17 | `rethrow` ignored its depth (must name a catch frame); V8 the only available oracle | `aabdcde21` |
+| T13.18 | dead `getOpcodeNaturalAlign` removed; `instrInputCount` made total behind a source-enumeration gate; 3 axes clean | `aabdcde21` |
+| T13.19 | ledger self-description (numbering procedure, status vocabulary); INTENT blocks on 3 membership sections | `aabdcde21` |
+| T13.20 | `applyNames` walked 37 of 87 kinds — axis 1 made generic, axis 2 an explicit 55-kind table | `aabdcde21` |
+| T13.21 | `constExprOperands` ⇄ `writeInstrHead` coupling (latent) — INTENT blocks + source gate | `aabdcde21` |
+| T13.22 | bridge resolved `try_table` catches after pushing its own label — cancelled binaryen-ts 1.0.9's off-by-one; BLOCKED, then fixed atomically with the 1.5.0 pin (T13.47) | `43559fcb5` WIP, `08dc6a7b4` |
+| T13.23 | binaryen-ts pin `^1.0.9` held only by the lockfile → EXACT; two upstream notes resolved (exposure nil) | `aabdcde21` |
+| T13.24 | bridge pushed no label frame for `if` — `br` wrong both ways; `IF_FRAME` sentinel, branch to unlabeled `if` throws | `aabdcde21` |
+| T13.25 | a NUL byte made the bridge file BINARY to grep, and a sweep reported clean — `source_hygiene` gate | `aabdcde21` |
+| T13.26 | `readMemArg` used `1 << exp`: exponent 32 wrapped to align=1 and the round trip repaired it — `assert_invalid` 2671→2673 | `aabdcde21` |
+| T13.27 | NO DEFECTS FOUND: six axes over the binary reader and `wasm-strip` | `aabdcde21` |
+| T13.28 | hygiene gate extended to `cmem/` + `README.md` (a `\b` had become a backspace); `ModuleContext.getExprArity` found dead | `aabdcde21` |
+| T13.29 | four binary tools threw `RangeError` on ~102 of 585 malformed inputs — converted at the reader boundary | `aabdcde21` |
+| T13.30 | `/compat` `toBinary` threw the writer's raw string — now names its origin, documented | `aabdcde21` |
+| T13.31 | every CLI shim dumped a Deno stack trace on a bad path — `cliRead`/`cliWrite` | `aabdcde21` |
+| T13.32 | NO DEFECTS FOUND: lexer token reachability (182 members) — pinned by a gate anyway | `aabdcde21` |
+| T13.33 | `readTypeSection` bound in the loop CONDITION silently truncated count/content mismatches | `aabdcde21` |
+| T13.34 | subtyping depth > 63 and supertype cycles accepted — `checkSubtypingDepth` | `aabdcde21` |
+| T13.35 | NO DEFECTS FOUND: size amplification, string scaling clean; diagnostic OFFSET accuracy INCONCLUSIVE (oracle wrong) | `aabdcde21` |
+| T13.36 | NO DEFECTS FOUND: module-level state, text-side convergence, gate vacuity; corrected "hardening does not decay" | `aabdcde21` |
+| T13.37 | spec `assert_malformed` expected texts used as oracle: magic-before-version ordering; two LEB faults named apart — 608→689/711 | `aabdcde21` |
+| T13.38 | a misspelled instruction was blamed on a parenthesis / leaked `Reserved` — `unknown operator "…"`; parser wording 559→816/1229 | `aabdcde21` |
+| T13.39 | session harnesses omitted `synthesizeTypes` — every absolute figure that session was wrong (agreement 2207/2207, `assert_invalid` 2694/2694) | `aabdcde21` |
+| T13.40 | every section header padded to a 5-byte LEB (upstream canonicalises) — WASI corpus −3.2%; round-trip metric split by input source | `aabdcde21` |
+| T13.41 | `wasm-strip` relocated every kept custom section to the end — `Custom.precedingSection`; `--sections` 0→265/265; ninth metric | `aabdcde21` |
+| T13.42 | the documented per-file format check ignored `deno.json` (width 80) — two CI-failing files hidden | `aabdcde21` |
+| T13.43 | `deno task publish` would release a bare version bump from a dirty tree — dirty-tree + remote-tag guards | `aabdcde21` |
+| T13.44 | the guard's WIRING gated (called before any mutating git command, exits, stays side-effect free) | `aabdcde21` |
+| T13.45 | wasmtk snapshot "provenance unknown" was one `git log` away — stamped (`1ff92e71`, 2026-05-25) and gated | `d6cae5e5e` |
+| T13.46 | corpus regenerated from wasmtk `4600ba9`: 272→421 (413 wasic + 8 other); `KNOWN_INVALID` emptied | `5c89647cf` |
+| T13.47 | binaryen-ts 1.5.0 pin + T13.22 fix in one merge; the 12 bridge failures were two defects (coarsened sigs, undeclared func heap types) — bridge 28/28 | `08dc6a7b4`, merge `15cce7426` |
+| T13.48 | `deno task bump --dry-run` performed a real bump (script read no args) — dry run real, unknown args exit 2 | `b73de6d1b` |
+| T13.49 | pre-merge audit: de-coarsening incomplete (24 vs 5 sites), 5 colliding `src/` dirs, config cost 4 type errors | `856c26e96` |
+| T13.50 | finish the bridge de-coarsening (import/tag `(ref $T)` params; `(ref null $T)` global) — OPEN at merge; closed 1.5.2 | scoped `6f0fc7d0a`, closed `d6d22559c` |
+| T13.50b | **not defined in tasks.md.** Row 3 of T13.50 split out: `ref.null` with a user-defined heap type refused by the bridge — cited by `src/bridge/bridge.ts` and `tests/bridge/gc_decoarsening.test.ts`; fixed in the same commit | `d6d22559c` |
+| T13.51 | **not defined in tasks.md.** The four `br_on_*` bridge cases — three defects, two outside the bridge (func_type blocktype refusal, inline typed-ref blocktype, undeclared blocktype func heap types); cited by `src/bridge/bridge.ts` | `814596760` |
 
 Commits are verified by `git log` subject (or message, for T7.12–T7.14 and T13.7); the source file
-records only `d30b8599`, `5404946d`, `23f31299`. T13.11–T13.44 landed as ONE commit.
+records only `4edabfb1`, `15cce742`, `43559fcb`. T13.11–T13.44 landed as ONE commit.
 
 ### UP-n index — binaryen-ts findings filed from wabt-ts (this file defines them)
 
 | id | finding (measured severity) | fixed in binaryen-ts history |
 | --- | --- | --- |
-| UP-1 | `struct.get_u`/`array.get_u` collapsed onto `get` — valid wasm round-trips INVALID (wrong-output) | `dd88e034b`; shipped 1.5.0 (T13.47 flipped two tests that pinned it) |
-| UP-2 | `tuple.make`: enum entry, no factory, no encoder case (gap) | `b27176ae1` |
-| UP-3 | four GC array bulk ops: no factory, no encoder case (gap) | `f664ba579` |
-| UP-4 | `ref.as_non_null`: not even an `ExpressionKind` (gap) | `f664ba579` |
-| UP-5 | start function silently DROPPED on round-trip — the most severe, and silent (wrong-output) | `dd88e034b` |
-| UP-6 | `WasmImport.kind` had no `"tag"` (gap) | `f664ba579` |
-| UP-7 | typed-ref LOCAL read back as `anyref` (`readValTypeByte`) — restated twice (wrong-output) | `979a18e66` |
+| UP-1 | `struct.get_u`/`array.get_u` collapsed onto `get` — valid wasm round-trips INVALID (wrong-output) | `862d0bea9`; shipped 1.5.0 (T13.47 flipped two tests that pinned it) |
+| UP-2 | `tuple.make`: enum entry, no factory, no encoder case (gap) | `51fa7fc40` |
+| UP-3 | four GC array bulk ops: no factory, no encoder case (gap) | `2823a8eeb` |
+| UP-4 | `ref.as_non_null`: not even an `ExpressionKind` (gap) | `2823a8eeb` |
+| UP-5 | start function silently DROPPED on round-trip — the most severe, and silent (wrong-output) | `862d0bea9` |
+| UP-6 | `WasmImport.kind` had no `"tag"` (gap) | `2823a8eeb` |
+| UP-7 | typed-ref LOCAL read back as `anyref` (`readValTypeByte`) — restated twice (wrong-output) | `4a0f4c0f9` |
 
 Report: `scripts/wabt-ts/binaryen-ts-upstream-report.md`. Lessons: re-verify against the actual checkout
 before filing (three of seven entries changed); **re-verifying is not re-ranking** — we ranked the loud
@@ -225,7 +225,7 @@ Reference the code still relies on
 - [reference] Named bugs cited from code/tests: **Bug D** — empty-folded ops (`(local.set $x)`) pop the deficit
   from the enclosing stack (v1.1.6, `empty_folded.test.ts`); **Bug F** — that pop clamped to what the stack
   holds (v1.1.7); **Bug C** — decimal `f32.const` literals rounded twice (via f64), fixed by rounding the exact
-  rational once, `decimalToBits` (`5854cc27d`, `decimal_float_rounding.test.ts`; the last of three wasmtk
+  rational once, `decimalToBits` (`1f1eec50e`, `decimal_float_rounding.test.ts`; the last of three wasmtk
   spec-runner `const.wast` bugs after A, `br_if`, and B, hex-float); **Bug G** — `call_indirect (type $name)` typeVar never resolved → index 0 (v1.2.0,
   `bug_g_repro.test.ts`). Standing guard for the class: no name-var survives `resolveNames`
   (`tests/wabt-ts/ir/encode_correctness.test.ts`; `ref.null.refType` the one exception).
@@ -254,7 +254,7 @@ Corrections someone could re-derive wrongly
   divergences.md closed table.
 
 **Already in the core** — pointers only:
-- Three-engine panel, and legacy EH has V8 as its only oracle (T13.17) → cmem/testing.md § "A fixture believed valid must be said to an engine" (Wasmtime as the accept/reject authority, 2026-08-21 `68842242d`, is not stated as such in the core — kept here as a decision)
+- Three-engine panel, and legacy EH has V8 as its only oracle (T13.17) → cmem/testing.md § "A fixture believed valid must be said to an engine" (Wasmtime as the accept/reject authority, 2026-08-21 `97e96699e`, is not stated as such in the core — kept here as a decision)
 - A harness must call the real entry point (T13.39); print what a harness SKIPS (execution harness) → cmem/testing.md §§ "A harness must call the real entry point", "Print what a harness SKIPS"
 - Every test has an axis (T13.11/T13.13); four corpus-free tests (atomics blind spot, folded/linear differential of T13.8) → cmem/testing.md §§ "Every test has an AXIS…", "Four tests that need neither a corpus nor an oracle"
 - Every metric is blind to something (agreement counts false rejections only; `wat2wasm` does not validate) → cmem/testing.md § "Every metric is blind to something — record what"
@@ -287,15 +287,15 @@ Corrections someone could re-derive wrongly
   silent-corruption audit" below; regressions `tests/wabt-ts/audit/silent_corruption_fixes*.test.ts`.
 - 2026-08-20: parse gap scoped (120/257, 19 repro-confirmed causes, calibrated tranche projections T1–T6).
 - 2026-08-21: T1–T4, T7 blind spot (parse metric cannot see encode), typed-ref refactor, multi-value branches,
-  T5/T6/T8, T9.1–T9.10, T11; Wasmtime made authority (`68842242d`); WASI p1 goal measured (1/270 round-trip).
+  T5/T6/T8, T9.1–T9.10, T11; Wasmtime made authority (`97e96699e`); WASI p1 goal measured (1/270 round-trip).
 - 2026-08-24: T10 closed (2120/2120, WASI 270/270), execution metric, T9.11, post-campaign audit (wide
   arithmetic both ways, dead `Validator.refNullType`), `assert_malformed` metric and T12 (666 → 1229/1229,
-  711/711), T13.1–T13.10; UP-1…UP-7 filed and answered; 1.4.0 (`02713fa8e`).
-- 2026-08-25: post-1.4.0 enumeration and hardening passes T13.11–T13.44 (`4e9610227`), provenance and corpus
+  711/711), T13.1–T13.10; UP-1…UP-7 filed and answered; 1.4.0 (`3e1a2331d`).
+- 2026-08-25: post-1.4.0 enumeration and hardening passes T13.11–T13.44 (`aabdcde21`), provenance and corpus
   refresh T13.45/T13.46; 1.4.1.
-- 2026-08-26: 1.5.0 upgrade T13.47 (`5404946dd`), T13.48, pre-merge audit T13.49, T13.50 scoped; merge.
+- 2026-08-26: 1.5.0 upgrade T13.47 (`15cce7426`), T13.48, pre-merge audit T13.49, T13.50 scoped; merge.
 
-Full text: `git show 9758fc736:cmem/wabt-ts/tasks.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/tasks.md`
 
 ## `wabt-ts/design-decisions.md` (1,149 lines) — the load-bearing invariants of wabt-ts, each with its reason and regression test
 
@@ -593,7 +593,7 @@ The invariants from each round:
   binaryen-ts UP-7. 2026-08-25 (T13.11–T13.47): removed `getOpcodeNaturalAlign`. The `@jrmarcum/binaryen-ts@1.0.9`
   exact pin (T13.23) is gone, because the dependency is in-repo since the merge.
 
-Full text: `git show 9758fc736:cmem/wabt-ts/design-decisions.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/design-decisions.md`
 
 ## `wabt-ts/pre-merge-known-issues.md` (362 lines) — the wabt-ts side's pre-merge register, measured 2026-08-25
 
@@ -617,7 +617,7 @@ is G1, a few lessons, and the dated measurements.
 - [lesson] Merge `cmem/` by TOPIC, not by concatenation. The two sides were 14,023 and 2,296 lines, and
   a naive merge reads as the larger side's memory with notes appended.
 - [trigger] A1: the bridge's `ref.null` refusal for a user-defined heap type was a DIFFERENT defect from
-  de-coarsening ("do not assume it went away"). It closed as T13.50b in `50a959baa`, gated by
+  de-coarsening ("do not assume it went away"). It closed as T13.50b in `d6d22559c`, gated by
   `tests/bridge/gc_decoarsening.test.ts`; the refusal message no longer appears in `src/bridge/`.
 - [decision] A4, wasmtk's "373 vs 413" corpus count, is deliberately NOT reconciled: which sources count
   is wasmtk's call. Recorded in `tests/wabt-ts/wasmtk/PROVENANCE.md`.
@@ -628,21 +628,21 @@ is G1, a few lessons, and the dated measurements.
   - B2a `./compat/wabt` and `./compat/binaryen`.
   - B3 and a clean break with no shims.
   - C1/G2a `compilerOptions` and the `lib` union.
-  - C2/G2/P1 singleQuote (`2c41d3d1371`).
+  - C2/G2/P1 singleQuote (`eba0207cf39`).
   - C3 `minimumDependencyAge`.
   - A0/T13.22.
-- A1/T13.50 de-coarsening closed in 1.5.2 (`50a959baa`) → cmem/project.md § "Versions"; cmem/ir-convergence.md
+- A1/T13.50 de-coarsening closed in 1.5.2 (`d6d22559c`) → cmem/project.md § "Versions"; cmem/ir-convergence.md
 - A2 `wasm2ts` stub, still open → cmem/open-work.md § "Repo work". A3 offsets MEASURED 2026-08-31 → cmem/testing.md § "✅ A3 — diagnostic offsets are MEASURED (2026-08-31)"
 - D licensing → cmem/licensing.md § "The merged repo inherits BOTH upstreams' obligations"
 - A5 repack failure → `cmem/local/environment.md` (private and gitignored; machine-level, so correctly outside the committed cmem)
 - E2: the `CLAUDE.md` archive does not travel. The rule "project knowledge in `cmem/`, machine facts outside" is now the INDEX cleanup policy.
 
-**History, summarized:** written 2026-08-25 against wabt-ts `3afd6033` (v1.5.0) and binaryen-ts
+**History, summarized:** written 2026-08-25 against wabt-ts `673349a0` (v1.5.0) and binaryen-ts
 v1.5.0. G1 was verified in both directions that day. G3's three recommendations were adopted with
 one respelling (`src/wabt-ts/`) and one reversal (no shims). Its § F ("mark entries, never delete")
 is superseded by the cleanup policy: git holds the evidence.
 
-Full text: `git show 9758fc736:cmem/wabt-ts/pre-merge-known-issues.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/pre-merge-known-issues.md`
 
 ## `wabt-ts/runtime-tooling.md` (124 lines) — wabt-ts's runtime targets and TypeScript compiler rules
 
@@ -679,10 +679,10 @@ since been superseded by the core. The compiler idioms and `Result` convention a
 **History, summarized:** the Bun 1.3.14 smoke test was byte-identical to Deno (2026-08-24).
 `tsconfig`/`vitest` were deleted early in wabt-ts. [correction] Two statements are superseded. First,
 "only `src/tools` may use `Deno.*`": tools now use `node:*` via `src/cli/io.ts` (N3). Second, the
-`@jrmarcum/binaryen-ts@1.0.9` pin: the T13.22 cancellation was fixed pre-merge (`5404946d`, pin moved
+`@jrmarcum/binaryen-ts@1.0.9` pin: the T13.22 cancellation was fixed pre-merge (`15cce742`, pin moved
 to 1.5.0), and the dependency was removed by the merge.
 
-Full text: `git show 9758fc736:cmem/wabt-ts/runtime-tooling.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/runtime-tooling.md`
 
 ## `wabt-ts/best-practices.md` (2,638 lines) — wabt-ts's method rules, each paid for by an incident
 
@@ -720,7 +720,7 @@ is only what the core does not hold.
 
 ### Oracles — the engine panel
 
-- [reference] V8 fast, **Wasmtime the authority** (2026-08-21, `68842242d`), Wasmer disagrees usefully (its
+- [reference] V8 fast, **Wasmtime the authority** (2026-08-21, `97e96699e`), Wasmer disagrees usefully (its
   52/21 was the only data on a 73/73 check — it classified the 73 by proposal). Enable proposals by
   EXPLICIT list — `-W all-proposals=y` and `--enable-all` make engines refuse everything; one `-o` per
   module. `scripts/wabt-ts/engine-check.ts`.
@@ -912,7 +912,7 @@ a row usually sweeps it. It stays useful for the row's NEXT instance in new code
 **History, summarized:** §1–§5 from T7–T11; ranking T10 (2026-08-24); audits T12–T13.28; robustness
 T13.29–37; release guard T13.43–44; last T13.45–47 (binaryen-ts 1.5.0). Correction chain T13.36→37.
 
-Full text: `git show 9758fc736:cmem/wabt-ts/best-practices.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/best-practices.md`
 
 ## `wabt-ts/overview.md` (478 lines) — what wabt-ts was, and its conformance state and T13 story at 2026-08-25
 
@@ -934,7 +934,7 @@ What wabt-ts was: a TypeScript port of WebAssembly/wabt, built so wasmtk would n
 
 **History, summarized:** the campaign closed 2026-08-24 with seven metrics exhausted. T13 ran through T13.47 on 2026-08-25, and 1.4.1 shipped fifteen of its fixes. The wasmtk corpus grew from 272 to 421 files (T13.46), and `KNOWN_INVALID` emptied. In T13.25/T13.28, a NUL and then `\b` bytes made files binary to grep and silently shrank audit sweeps; that is now gated (`source_hygiene.test.ts`, below).
 
-Full text: `git show 9758fc736:cmem/wabt-ts/overview.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/overview.md`
 
 ## `wabt-ts/testing.md` (642 lines) — the wabt-ts gate, conformance metrics, hardening axes and test placement
 
@@ -1008,7 +1008,7 @@ Covered the gate and its CRLF `fmt` workaround, the byte baseline, the wasmtk co
 
 **History, summarized:** test counts went 146 → 381 → 393 (2026-08-25), and every one went stale. The hardening loop with wasmtk began at wasmtk Phase 1, 38/38 against wabt-ts 1.1.8 (2026-05-28).
 
-Full text: `git show 9758fc736:cmem/wabt-ts/testing.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/testing.md`
 
 ## `wabt-ts/phases.md` (209 lines) — wabt-ts phase plan, campaign snapshot, TS ↔ C++ map, per-phase gotchas
 
@@ -1041,7 +1041,7 @@ Phase status: wabt-ts Phases 1–6.2 were complete. wabt-ts Phase 7 (the bridge)
 
 **History, summarized:** the campaign (to 2026-08-24) took parse-clean from 107 to 257/257, `assert_invalid` from 2395/2737 to 2664/2683, and wasmtk round-trip from 1/270 to 270/270. Its load-bearing changes were T7.4, T9.1–T9.4, T11 and T10.x, and three items were misdiagnosed until re-measured (T10.5, T10.6, T10.8). Releases: 1.1.9–1.2.5 GC tiers, 1.2.9 legacy try, 1.3.0 statement order, 1.3.4/1.3.5 const bugs, 1.4.0 T13.1–T13.10, 1.4.1 fifteen T13 fixes. T13 recorded T13.1–T13.50 and 8 hardening passes (1/2/0/0/2/2/2/2).
 
-Full text: `git show 9758fc736:cmem/wabt-ts/phases.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/phases.md`
 
 ## `wabt-ts/bridge.md` (273 lines) — wabt-ts Phase 7: the wabt IR → binaryen-ts bridge
 
@@ -1082,10 +1082,10 @@ The wing's "`br_on_cast` deferred" is stale: it landed in T5.3 and is tested in 
 - An exact pin vs a caret plus lockfile; who a coupling blocks → cmem/project.md § "Live gaps carried from the predecessors"; acceptance 401/421 → 421/421 → cmem/ir-convergence.md § "Step 5 — delete the bridge, and carry its type derivation forward"
 
 **History, summarized**
-- **T13.22 / T13.23 / T13.47 (2026-08-25):** the pin was made exact; then the fix and the bump landed in one commit, `5404946d`; bridge tests went from 16/28 to 28/28. Versions 1.4.1/1.4.2 in that story are binaryen-ts's, not wabt-ts's.
+- **T13.22 / T13.23 / T13.47 (2026-08-25):** the pin was made exact; then the fix and the bump landed in one commit, `15cce742`; bridge tests went from 16/28 to 28/28. Versions 1.4.1/1.4.2 in that story are binaryen-ts's, not wabt-ts's.
 - **UP-1..UP-7:** binaryen-ts gaps. UP-5 (start funcidx discarded) failed silently; UP-1 (`struct.get_u`) failed loudly. Detail is in `wabt-ts/tasks.md` and `scripts/wabt-ts/binaryen-ts-upstream-report.md`.
 
-Full text: `git show 9758fc736:cmem/wabt-ts/bridge.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/bridge.md`
 
 ## `wabt-ts/publishing.md` (318 lines) — wabt-ts JSR releases 1.4.0 → 1.5.0 and its release flow
 
@@ -1101,9 +1101,9 @@ Covered the release flow, the version rule, the `auto-tag` `actorNotScopeMember`
 - Slow types and the Node path → cmem/publishing.md § "`publish:dry` is in CI but NOT in `deno task test`"; the dirty-tree guard (T13.43) → § "A dirty tree ships a release containing none of the work"
 - `Limits` / `pageSizeLog2` / feature-gating breaks → cmem/publishing.md § "⚠️ `bump` has no minor mode — a non-patch release is typed by hand"; hygiene → § "Repo hygiene and the memory routing rule"
 
-**History, summarized:** 1.4.0 (2026-08-25, rekor 2582221500) unblocked wasmtk's EH migration (`d30b8599`). 1.4.1 (rekor 2589519728) came from an owner-pushed tag. 1.5.0 (rekor 2603257282) changed only `src/bridge/`. On 2026-05-25 the repo left the fork network, and `git filter-repo` purged CLAUDE.md/TASKS.md from history.
+**History, summarized:** 1.4.0 (2026-08-25, rekor 2582221500) unblocked wasmtk's EH migration (`4edabfb1`). 1.4.1 (rekor 2589519728) came from an owner-pushed tag. 1.5.0 (rekor 2603257282) changed only `src/bridge/`. On 2026-05-25 the repo left the fork network, and `git filter-repo` purged CLAUDE.md/TASKS.md from history.
 
-Full text: `git show 9758fc736:cmem/wabt-ts/publishing.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/publishing.md`
 
 ## `wabt-ts/licensing.md` (51 lines) — wabt-ts's MIT-primary / Apache-2.0 arrangement
 
@@ -1111,7 +1111,7 @@ Covered the MIT declaration with an Apache-2.0 alternative, the licence files, t
 
 **Already in the core:** the whole file, including the header templates and the SPDX lesson → cmem/licensing.md § "Per-file headers", § "JSR rejects on two conditions, and both still apply". **History:** the file layout was adopted at v1.0.2 (2026-05-25).
 
-Full text: `git show 9758fc736:cmem/wabt-ts/licensing.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/licensing.md`
 
 ## `wabt-ts/INDEX.md` (215 lines) — the wabt-ts memory index, binding triggers, and the audit definition
 
@@ -1147,4 +1147,4 @@ Covered the cmem policy (superseded by cmem/INDEX.md), two notation rules, the "
 
 **Already in the core:** cmem as the single home; README is not memory → cmem/INDEX.md; cmem/publishing.md § "Repo hygiene and the memory routing rule". The regression gate → cmem/working-rules.md § "The gate — on the COMMITTED tree, reading every EXIT CODE". **History:** the files table described the pre-merge wing; the G1 baseline → cmem/project.md § "The merge — how it was prepared (2026-08-26)".
 
-Full text: `git show 9758fc736:cmem/wabt-ts/INDEX.md`
+Full text: `git show 62c65a9db:cmem/wabt-ts/INDEX.md`

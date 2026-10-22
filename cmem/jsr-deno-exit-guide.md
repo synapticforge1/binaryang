@@ -165,7 +165,7 @@ version is permanent.
 1. **`jsr.json` is the one manifest** (F1). Point everything that reads the version at it: the
    bump script, the release script, any entry check, the release-file list, and the
    tag/publish workflows. Add a test that fails if `deno.json` carries `name` or `version` again.
-   Done in binaryang (merge `ac37cb386`). A dry run must list the same files as before.
+   Done in binaryang (merge `8c00be4b1`). A dry run must list the same files as before.
 2. **Bun/Node project files next to Deno's:** `package.json` (dev dependencies only),
    `.npmrc` or `bunfig.toml` for `@jsr`, `tsconfig.json` copying `deno.json`'s
    `compilerOptions`, and a lockfile. **Done when** `tsc --noEmit` accepts what `deno check`

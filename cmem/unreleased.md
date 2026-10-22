@@ -31,11 +31,11 @@ provenance on JSR and, the first workflow publish there, on npm) or **1.14.0** (
 with table64 in the same pass, sound above 2^32 where upstream's wraps; the README's "Making a
 module run on Safari and Bun"; the multi-memory limit corrected to 100). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
-`git show 769b4d3c0:cmem/unreleased.md` (to 1.7.0), this file at `7aa54e95c` (1.7.1 → 1.7.2), at
-`fb5068e47` (1.8.0), at `99f2a5b16` (1.8.1), at `82113369e` (1.9.0), at `23b9f36fb` (1.10.0), at
-`fc021fe08` (1.11.0), at `604b33cf8` (1.12.0), at `e03d38f33` (1.12.1), at `2b74934bf`
-(1.13.0), at `840b7d79a` (1.13.1), at `37cf58485` (1.13.2), at `a021ef19d` (1.13.3), and at
-`e2d44d66c` (1.14.0).
+`git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
+`575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
+`fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
+(1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
+`7ebcee3ad` (1.14.0).
 
 ## How to use this file
 

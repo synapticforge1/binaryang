@@ -15,7 +15,7 @@ description. The register entry is N1 in [divergences.md](divergences.md).
   the export and import sections, not the `name` section, and survive the WAT route and `-Oz`
   exactly, including aliases and a late `(export …)` field (probed against upstream `wat2wasm`).
   Owner: an exported name must absolutely be preserved, "or we have name mangling" — pinned by
-  `wat_input.test.ts` (`91fa9caf9`), verified to fail when one export name is altered. N1 is the
+  `wat_input.test.ts` (`aeb94ab95`), verified to fail when one export name is altered. N1 is the
   INTERNAL identifiers: before it, `$internal_name` came back `$func1`.
 - How optimization treats internal vs exported names is a **future owner discussion**; not here.
 
@@ -140,9 +140,9 @@ What each component does, found by reading and confirmed by the probes:
 
 | step | what                                                                                                                                            | size   | acceptance                                                                            | status                                                   |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| P1   | wabt-ts IR: a home for PARAM and LOCAL names; the parser keeps them; the WAT writer writes them                                                 | medium | a text-only round trip (parse → WAT writer) keeps every param/local name              | ✅ `acc5e7e23`, merged `e127d1aad`                       |
-| P2   | wabt-ts binary writer: a name section, ALWAYS, all kinds incl. labels (and fields); `writeDebugNames` removed or made truthful; **re-baseline** | medium | bytes = upstream `--debug-names` for its ten kinds; labels extra and documented       | ✅ `ab9d48b1e` — 426/426 name sections equal upstream's  |
-| P3   | wabt-ts reader: fix the slice; read all twelve subsections; keep the section on a round trip                                                    | medium | **the owner's test: corpus WAT → `wat2wasm` → `wasm2wat` keeps every name**           | ✅ `b76dde783` — 63,930 / 63,930; fixed point 421/421    |
+| P1   | wabt-ts IR: a home for PARAM and LOCAL names; the parser keeps them; the WAT writer writes them                                                 | medium | a text-only round trip (parse → WAT writer) keeps every param/local name              | ✅ `c698caa25`, merged `63f9effb2`                       |
+| P2   | wabt-ts binary writer: a name section, ALWAYS, all kinds incl. labels (and fields); `writeDebugNames` removed or made truthful; **re-baseline** | medium | bytes = upstream `--debug-names` for its ten kinds; labels extra and documented       | ✅ `49e717aac` — 426/426 name sections equal upstream's  |
+| P3   | wabt-ts reader: fix the slice; read all twelve subsections; keep the section on a round trip                                                    | medium | **the owner's test: corpus WAT → `wat2wasm` → `wasm2wat` keeps every name**           | ✅ `4a88e547c` — 63,930 / 63,930; fixed point 421/421    |
 | P4   | binaryen-ts decoder: pre-scan; per-namespace name tables at the ~40 sites; locals; labels as block names; uniquify                              | large  | upstream-named bytes → IR names = the section's (C: 0 synthetic)                      | ✅ 8,298 / 8,298 — merged with P5                        |
 | P5   | binaryen-ts encoder: a name section; fidelity path always; after `PassRunner` only under `debugInfo`; kept in the lowering re-encode            | medium | decode → encode byte-identical on named input; `-O2 -g` vs upstream `wasm-opt -O2 -g` | ✅ 421/421; `-O2 -g` differs — register N4               |
 | P6   | `readWat` and `wasm-opt`: names flow end to end                                                                                                 | small  | `$foo` through every route                                                            | ✅ readWat, wasm-opt (WAT and wasm), compat — no printer |
@@ -192,10 +192,10 @@ keep passing, which is why P5's row names the file.)
   not extended), so comparing its output with wabt-ts needs wabt-ts's bytes without a name section.
   The three DECODE → ENCODE tests that used it went back to full `wat2wasm` bytes, which they now
   round-trip exactly. It retires with `parseWat` (S6), not with P5 as first planned.
-- Built in `138148881`. Found alongside: an imported memory was always named `mem0`, colliding with
+- Built in `8c2d0be3d`. Found alongside: an imported memory was always named `mem0`, colliding with
   the first defined one (fixed there — by index now); a `throw` / `catch` of an IMPORTED tag decoded
   with no operands, because `tagInfos` holds defined tags only and was indexed by tag index (fixed
-  `874caf068`). Both are closed rows in the register.
+  `d9b0e530a`). Both are closed rows in the register.
 
 ## Found while building P2 and P3 (2026-09-11)
 
@@ -248,10 +248,10 @@ and we follow wabt there. Scripts: `wt-oracle.ts`, `wt-legacy.ts` in the session
 **Follow-ups, cosmetic** — they change text, never bytes, and never lose a name:
 - ✅ `wasm2wat` printed REFERENCES by index (`call 0`, `br_if 1 (;@1;)`) where upstream prints
   `call $foo`. Branches: named since N8. Every other reference: named since 2026-09-29
-  (`4d6dec1d3`, register N10) — resolved through the same `shown` rule as its definition, never a
+  (`941e09a24`, register N10) — resolved through the same `shown` rule as its definition, never a
   name two entities share.
 - ✅ folded siblings shared a line (`…)))) (if`) — each starts its own line since 2026-09-29
-  (`bee199092`, register W18), as upstream and wasm-tools print them.
+  (`0068b723e`, register W18), as upstream and wasm-tools print them.
 
 ## ✅ Owner decisions (2026-09-11)
 
@@ -356,7 +356,7 @@ Three conclusions, each probed:
    `--minify-imports-and-exports` (also `--minify-imports`, `--minify-exports`) rewrites the interface
    strings to `a`, `b`, `c`… and emits the old→new map as JSON so the host can be updated. On the probe
    it took a stripped module from 139 to **106 bytes, −24%**, all of it one long export name. ✅ **We
-   have it since 1.7.0** (merge `26d4ca11e`), map for map with `wasm-opt` 132. ⚠️ Under the owner's rule ("an exported name must
+   have it since 1.7.0** (merge `d795cef7d`), map for map with `wasm-opt` 132. ⚠️ Under the owner's rule ("an exported name must
    absolutely be preserved, or we have name mangling") it can only ever be opt-in, which is exactly how
    upstream ships it.
 3. **We never write an INVENTED name into a binary, and upstream nearly does.** Fed a module with no
@@ -376,7 +376,7 @@ one); and renaming internals collects ZERO bytes (no name section at `-Oz` on an
 only `-g` writes one, where shortening defeats `-g`). So the whole prize is the interface — the
 strings the owner fenced off — which is why the passes are opt-in and always print the map. The
 full scoping as written (the three minifier columns: occupies bytes? / what references it / what
-proves it did not break): `git show 769b4d3c0:cmem/open-work.md`, the `MinifyImportsAndExports`
+proves it did not break): `git show 3bd64ece7:cmem/open-work.md`, the `MinifyImportsAndExports`
 item.
 
 ✅ **Is the minified name scheme optimal? — owner, 2026-09-29: yes, and the question is CLOSED.**

@@ -37,7 +37,7 @@ from a different codebase, that the legacy encoding is the blocker.
 > **BLOCKED ON US — read the reply section at the bottom before acting on this.** The claim below
 > that "nothing is needed on our side" is true of wabt-ts `main` and FALSE of v1.3.5, which is what
 > your `deno.lock` pins: there the binary writer fails every named catch form with `unresolved
-> name-var`. Fixed by `d30b8599` (2026-08-21), shipping in v1.4.0. The migration cannot land
+> name-var`. Fixed by `4edabfb1` (2026-08-21), shipping in v1.4.0. The migration cannot land
 > against a released wabt-ts until then.
 
 Already your top item; this just prices it. Four minimal modules, every runtime:
@@ -203,8 +203,8 @@ present tense about a released version. Re-derived against the v1.3.5 tag in a c
 
 Exactly their finding: **at the pinned version wabt-ts can emit only the form Wasmtime refuses.**
 
-**Fixed by `d30b8599` — "Fix packed-type wire bytes, br_table and try_table name resolution",
-2026-08-21.** Bisected against its parent `7f84d430` (same day, 17 minutes earlier), which throws on
+**Fixed by `4edabfb1` — "Fix packed-type wire bytes, br_table and try_table name resolution",
+2026-08-21.** Bisected against its parent `ebc10163` (same day, 17 minutes earlier), which throws on
 every named catch form. `resolveNames` was not resolving a `try_table` catch clause's tag or target,
 so the binary writer's fail-loud `writeVar` path fired.
 

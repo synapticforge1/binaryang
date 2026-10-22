@@ -2,9 +2,9 @@
 
 **Closed 2026-10-08 with the 1.9.0 release and its letter** ([handoffs.md](handoffs.md) § 26).
 Placed on the list by the owner 2026-09-30 from wasmtk's § 23 (H9: a subpath for them to
-generate their copies from, H10). Built 2026-10-06 in two commits — D2 and D3 (`3c76184d0`),
-then D1 (`db153a5cc`). This file is the summary the cleanup policy asks for ([INDEX.md](INDEX.md));
-the full record as it stood before the cut is `git show 9907fdc82:cmem/open-work.md` (item 22).
+generate their copies from, H10). Built 2026-10-06 in two commits — D2 and D3 (`b482b711d`),
+then D1 (`d2bcdf769`). This file is the summary the cleanup policy asks for ([INDEX.md](INDEX.md));
+the full record as it stood before the cut is `git show d0f3dbabd:cmem/open-work.md` (item 22).
 The workspace's design is `../cmem/divergences.md` § "The shared definitions".
 
 ## What shipped
@@ -48,7 +48,7 @@ consumer's gate can prove its copy matches.
   check resolves; text shorthands (wasmtk's I2 list) beyond the mnemonic and the memarg's
   `offset=` / `align=`.
 
-## What the proof found (all fixed in `db153a5cc`; release notes in `CHANGELOG.md` § 1.9.0)
+## What the proof found (all fixed in `d2bcdf769`; release notes in `CHANGELOG.md` § 1.9.0)
 
 - Five default-on features were gated NOWHERE in the validator (`simd`, `signExtension`,
   `satFloatToInt`, `bulkMemory`, `referenceTypes`): 254 of 345 gated instructions validated with

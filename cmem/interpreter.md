@@ -4,18 +4,18 @@
 OBJECTS — memory, globals, what a program builds at start — as part of optimization?"), built
 2026-10-07 → 2026-10-08 in stages E1–E4, each gated and merged on its own. This file is the summary
 the cleanup policy asks for ([INDEX.md](INDEX.md)); the full stage-by-stage record as it stood
-before the cut is one command away: `git show 0496ac247:cmem/open-work.md` (item 23, E1–E3e). The
+before the cut is one command away: `git show dd8107704:cmem/open-work.md` (item 23, E1–E3e). The
 E4 record is here in full.
 
 ## What landed, and where it lives
 
 | stage | what                                                                                       | commit      | lives in                                                                                     |
 | ----- | ------------------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------- |
-| E1    | the evaluator's numeric core: every scalar operator, exact, a trap a RESULT                | `ec500c2d4` | `src/interp/numeric.ts`; `numeric_differential.test.ts` (V8, 136 ops, coverage)  |
-| E2    | `Precompute`, on it; ONE fold rule (`foldedLiteral`) shared with OptimizeInstructions      | `7d94884f5` | `passes/precompute.ts`; `precompute.test.ts`                                                 |
-| E3a–d | the interpreter: numbers, control, calls; memory; tables, references, tail calls; EH; GC   | `809b1d42d` `2a0416b20` `44b3b3ea5` `731e4b060` `1d1d53cbd` | `interp/interpreter.ts` `memory.ts` `table.ts` `types.ts`; `interpreter.test.ts`; `scripts/check-interp.ts` |
-| E3e   | `v128`: every SIMD operator, relaxed SIMD deterministically, SIMD loads / stores; wide arithmetic | `ea25476cb` `6da1eae56` | `interp/simd.ts`; `simd_differential.test.ts`                                        |
-| E4    | `wasm-ctor-eval` and `wasm-interp`, CLI commands and `./tools/*` subpaths                   | `3f9aa6494` `9990e1e66` | `tools/wasm-ctor-eval.ts` `tools/wasm-interp.ts`; `wasm_ctor_eval.test.ts` `wasm_interp.test.ts` |
+| E1    | the evaluator's numeric core: every scalar operator, exact, a trap a RESULT                | `b86ff770e` | `src/interp/numeric.ts`; `numeric_differential.test.ts` (V8, 136 ops, coverage)  |
+| E2    | `Precompute`, on it; ONE fold rule (`foldedLiteral`) shared with OptimizeInstructions      | `97080c38b` | `passes/precompute.ts`; `precompute.test.ts`                                                 |
+| E3a–d | the interpreter: numbers, control, calls; memory; tables, references, tail calls; EH; GC   | `c45edd392` `5034c21de` `12f4a6479` `acfa7cb87` `f18bbe473` | `interp/interpreter.ts` `memory.ts` `table.ts` `types.ts`; `interpreter.test.ts`; `scripts/check-interp.ts` |
+| E3e   | `v128`: every SIMD operator, relaxed SIMD deterministically, SIMD loads / stores; wide arithmetic | `fdbfb888a` `7e455789d` | `interp/simd.ts`; `simd_differential.test.ts`                                        |
+| E4    | `wasm-ctor-eval` and `wasm-interp`, CLI commands and `./tools/*` subpaths                   | `c8ed3831f` `269e8e1d6` | `tools/wasm-ctor-eval.ts` `tools/wasm-interp.ts`; `wasm_ctor_eval.test.ts` `wasm_interp.test.ts` |
 
 **One semantics.** OptimizeInstructions, Precompute, the interpreter and `wasm-ctor-eval` all compute
 through `numeric.ts` / `simd.ts`; `foldedLiteral` is the one rule for WHETHER a pass may fold: never
@@ -76,7 +76,7 @@ wide-arithmetic 99 / 0 / 0. What still stops: atomics and shared memory, custom 
 - E4, in the OPTIMIZER: the spill before the passes made an invalid module of a binaryen-written
   body — a pop replaced by a `local.get` ahead of a tuple's pop that stayed; the `local.get` pushed
   its value on top of what the later `local.tee` was to take. Found on upstream's ctor-eval output;
-  the rule now: a pop that stays keeps every pop evaluated before it (`9990e1e66`,
+  the rule now: a pop that stays keeps every pop evaluated before it (`269e8e1d6`,
   [unreleased.md](unreleased.md)). Corpus bytes unmoved.
 
 ## Lessons (for [best-practices.md](best-practices.md) if they recur)
