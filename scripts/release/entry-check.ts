@@ -13,7 +13,7 @@
  * - IMPORTING the entry runs nothing: a library `import` of the root must not
  *   read the importer's argv or exit.
  *
- * 🔧 Why this exists (2026-09-28): from 2026-08-27 (`4651be129`) through 1.6.0
+ * 🔧 Why this exists (2026-09-28): from 2026-08-27 (`43fec92d0`) through 1.6.0
  * the root was `src/index.ts`, which has no dispatcher. The README's command
  * printed nothing and exited 0 on every published version, and nothing ran the
  * entry a user runs. Fixed in 1.6.1.

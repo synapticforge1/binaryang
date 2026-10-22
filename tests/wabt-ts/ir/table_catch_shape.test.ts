@@ -7,7 +7,7 @@
 // and the presence of `tag` are the same fact — and the binary writer read them
 // separately, so a `catch_all` carrying a tag emitted the `catch_all` byte
 // FOLLOWED by a stray tag index, sliding every later clause by one field.
-// `b1410d6e8` closed that by splitting the record into a union keyed by `kind`.
+// `a0c6ea5e1` closed that by splitting the record into a union keyed by `kind`.
 //
 // S6 step 5, stage (b), closed it the other way: there is no `kind` at all.
 // `tag` × `isRef` is exactly the four clauses, so nothing is left that could

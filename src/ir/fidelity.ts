@@ -85,7 +85,7 @@ export interface FidelityEntry {
 
   // ⚠️ `blockType` is deliberately NOT here any more (S6 step 5, stage (c2)).
   // It recorded a block's type AS DECLARED — not always the derived one
-  // (a94154e21), and spelled either inline or as an index. Both facts are on the
+  // (c0e134b30), and spelled either inline or as an index. Both facts are on the
   // node now: the declared results in `type`, the index the header named in
   // `typeIndex` (decision 7c put form on the node, since binaryen-ts's IR has no
   // `NodeId` to key this table with). The table held a copy of the node field

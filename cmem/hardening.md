@@ -167,23 +167,23 @@ valid input with a typed error passes it. The same mutants were asked the code q
 
 | # | defect | how it showed | commit |
 | --- | --- | --- | --- |
-| C1 | `wasmValidate`'s `result` was `Ok` with an error in `errors` (a block type naming a non-function type reported without failing); `wasm-validate` printed the error, "OK", exit 0 | V8 disagreed on a producer mutant | `91e4730c4` |
-| C2 | optimizer: values a polymorphic point DISCARDS stood as bare statements; `Inlining` wrapped the code after them in a block → invalid | producer mutant, `-O2` output invalid to both | `91e4730c4` |
-| C3 | optimizer: a consumer the reader gave a discarded value as an OPERAND (`(i64.add (i32.shl …) (… (unreachable)))`) looked live; `OptimizeInstructions` made it reachable and invalid | producer mutant | `91e4730c4` |
-| C4 | the phantom collapse ended a sequence with a node only TYPED unreachable (`select` over unreachable operands pushes when written) → a void function ended with a value. ON MAIN BEFORE | spec `unreached-valid` mutant | `505cf26b4` |
-| C5 | reader: heap type `0x7f` kept as an unchecked name; a multi-byte negative heap type decoded as `(-v) & 0x7f` (padded `func` misread, -112 read as `func`) | spec mutants, V8 "Unknown heap type" | `505cf26b4` |
-| C6 | reader: an unknown SIMD sub-opcode fell to the binary default and was accepted | spec mutant | `505cf26b4` |
-| C7 | `wasm-interp` defaulted v128 to `ref.null` → `invalid` stops on valid modules (relaxed SIMD, run whole) | interpreter `invalid` on spec originals | `505cf26b4` |
-| C8 | data / element segment flags read bit by bit, undefined bits ignored | spec mutants, V8 "illegal flag value" | `40ef4d615` |
-| C9 | `br_on_cast` flags past 3 accepted | spec mutant | `40ef4d615` |
-| C10 | `br_on_null` / `br_on_non_null` operand dropped unchecked (an i32 validated) | spec mutant | `40ef4d615` |
-| C11 | `br_on_cast(_fail)` operand dropped unchecked (not checked against its source type) | spec mutant | `40ef4d615` |
-| C12 | `ref.null` of a type index past the section accepted (code and const exprs) | spec mutants | `40ef4d615` |
-| C13 | `wasm-interp` defaulted a NON-NULLABLE reference to `ref.null` (results no valid run has; V8 refuses the call) | behaviour run, V8 TypeError | `40ef4d615` |
-| C14 | a SIMD / atomic sub-opcode ≥ 0x10000 aliased a real one (`(prefix << 16) \| op`); the validator THREW | a second spec sample crashed the harness | `0fbf90019` |
-| C15 | a count read from the input drove a READING loop past the end, every read failing silently: 10–14 s per validation for a one-byte change (local-group count 0x80 → ~2.8M groups in a 5-byte body), HOURS for 2^32-1; nine such loops (locals, params, results, fields, elem entries / exprs, `br_table` targets, `try_table` catches, `select` types, supertypes) | the all-corpus throw-check ran an hour without finishing; rerun with a progress file showed the slow inputs | `28f840503` |
-| C16 | a typed `select` (`0x1c`) with NO types read as the bare one: validated, and written back as `0x1b` | 8-oracle panel: only ours and upstream wabt accepted | `ba588040d` |
-| C17 | an IMPORTED global's / table's value type was never range-checked (`(mut (ref 0))` with no types) | 8-oracle panel: only ours and upstream wabt accepted | `ba588040d` |
+| C1 | `wasmValidate`'s `result` was `Ok` with an error in `errors` (a block type naming a non-function type reported without failing); `wasm-validate` printed the error, "OK", exit 0 | V8 disagreed on a producer mutant | `4657c32ed` |
+| C2 | optimizer: values a polymorphic point DISCARDS stood as bare statements; `Inlining` wrapped the code after them in a block → invalid | producer mutant, `-O2` output invalid to both | `4657c32ed` |
+| C3 | optimizer: a consumer the reader gave a discarded value as an OPERAND (`(i64.add (i32.shl …) (… (unreachable)))`) looked live; `OptimizeInstructions` made it reachable and invalid | producer mutant | `4657c32ed` |
+| C4 | the phantom collapse ended a sequence with a node only TYPED unreachable (`select` over unreachable operands pushes when written) → a void function ended with a value. ON MAIN BEFORE | spec `unreached-valid` mutant | `5a306c769` |
+| C5 | reader: heap type `0x7f` kept as an unchecked name; a multi-byte negative heap type decoded as `(-v) & 0x7f` (padded `func` misread, -112 read as `func`) | spec mutants, V8 "Unknown heap type" | `5a306c769` |
+| C6 | reader: an unknown SIMD sub-opcode fell to the binary default and was accepted | spec mutant | `5a306c769` |
+| C7 | `wasm-interp` defaulted v128 to `ref.null` → `invalid` stops on valid modules (relaxed SIMD, run whole) | interpreter `invalid` on spec originals | `5a306c769` |
+| C8 | data / element segment flags read bit by bit, undefined bits ignored | spec mutants, V8 "illegal flag value" | `6f56c26fb` |
+| C9 | `br_on_cast` flags past 3 accepted | spec mutant | `6f56c26fb` |
+| C10 | `br_on_null` / `br_on_non_null` operand dropped unchecked (an i32 validated) | spec mutant | `6f56c26fb` |
+| C11 | `br_on_cast(_fail)` operand dropped unchecked (not checked against its source type) | spec mutant | `6f56c26fb` |
+| C12 | `ref.null` of a type index past the section accepted (code and const exprs) | spec mutants | `6f56c26fb` |
+| C13 | `wasm-interp` defaulted a NON-NULLABLE reference to `ref.null` (results no valid run has; V8 refuses the call) | behaviour run, V8 TypeError | `6f56c26fb` |
+| C14 | a SIMD / atomic sub-opcode ≥ 0x10000 aliased a real one (`(prefix << 16) \| op`); the validator THREW | a second spec sample crashed the harness | `834e88b20` |
+| C15 | a count read from the input drove a READING loop past the end, every read failing silently: 10–14 s per validation for a one-byte change (local-group count 0x80 → ~2.8M groups in a 5-byte body), HOURS for 2^32-1; nine such loops (locals, params, results, fields, elem entries / exprs, `br_table` targets, `try_table` catches, `select` types, supertypes) | the all-corpus throw-check ran an hour without finishing; rerun with a progress file showed the slow inputs | `3a8c7277e` |
+| C16 | a typed `select` (`0x1c`) with NO types read as the bare one: validated, and written back as `0x1b` | 8-oracle panel: only ours and upstream wabt accepted | `ecd54abef` |
+| C17 | an IMPORTED global's / table's value type was never range-checked (`(mut (ref 0))` with no types) | 8-oracle panel: only ours and upstream wabt accepted | `ecd54abef` |
 
 C15 is a hardening-lens defect (unbounded work from tiny input), found by the code lens's own
 instrument; C16 and C17 make us stricter than upstream wabt on purpose — [divergences.md](divergences.md)
@@ -201,7 +201,7 @@ a reason other than a feature it lacks or an implementation limit, we refuse too
 `code13/oracles.ts`.
 
 **What was measured to bound the fixes:** wasmtk's 406 producer modules at `-O2` / `-Oz`: 812
-outputs byte-identical before and after (on `505cf26b4`). The originals list against V8 unchanged
+outputs byte-identical before and after (on `5a306c769`). The originals list against V8 unchanged
 by every fix (no module V8 accepts is refused). Producer corpus, all 406, 14,622 inputs (2,822
 valid): nothing found after C1–C3. Behaviour: producer corpus with mutants, 4,082 export calls and
 5,404 optimized runs agree with V8 (the one difference was V8's `RangeError` for stack exhaustion
@@ -225,13 +225,13 @@ stays refused — [divergences.md](divergences.md) V4. Likewise the element segm
 **Convergence — at 2026-10-09: NOT yet shown.** After C14 the four spec quarters, the proposals,
 the producer corpus and the behaviour run had nothing left but classified V8 gaps and V3 / V4; C15
 was found by the throw-check after that, and C16 / C17 by the panel. No full re-run had been made
-on `ba588040d`.
+on `ecd54abef`.
 
-**✅ Convergence SHOWN 2026-10-15 — pass 1 CLOSED.** The branch merged onto 1.12.1 (`9eb1b1de7`,
+**✅ Convergence SHOWN 2026-10-15 — pass 1 CLOSED.** The branch merged onto 1.12.1 (`4bc570e78`,
 full gate green on it; the merge decisions are in its message), and the re-run was made on THAT
 tree, so it also covers what the merge changed. The instruments are the 2026-10-09 scripts ported
 to `node:` builtins with their logic unchanged, run on Node 24 (the V8 referee); **positive
-control:** pointed at the branch's base `713c1c098`, valid-mutants re-found C1 on the producer
+control:** pointed at the branch's base `7f5d08904`, valid-mutants re-found C1 on the producer
 sample (`RESULT-DISAGREES-WITH-ERRORS`, V8 "block type index N is not a signature").
 
 | run | inputs | result |
