@@ -6,7 +6,7 @@
 //
 // The linear form pads a short stack with the operand placeholder, and both
 // dropped that padding by checking `kind !== 'nop'` — the placeholder WAS a nop
-// until S5 (`f27bfd5ca`) made it a `pop`. From then on the padding stayed, as a
+// until S5 (`66e3f0047`) made it a `pop`. From then on the padding stayed, as a
 // carried value. A `pop` is written as nothing, so the bytes never changed and
 // no byte gate could see it; the TREE was wrong, and a value-less `br_if` was
 // typed by its phantom value instead of `none`.

@@ -375,7 +375,7 @@ GC nodes — so it could not have constructed either defect from the duplicate-d
 **Grep the harness for the node kinds it emits before assuming it covers a new construct.**
 
 **`corpus_roundtrip.test.ts` holds one binary to byte identity instead of an engine verdict**
-(`ENGINE_UNSTABLE`, `57b16a115`, 2026-09-18): V8 in Deno 2.9.7 has no stable verdict on binaryen's
+(`ENGINE_UNSTABLE`, `420a948aa`, 2026-09-18): V8 in Deno 2.9.7 has no stable verdict on binaryen's
 `lit/control-flow-input.wast.wasm` (legacy + new EH mixed) — 39 of 40 `compile` / `validate` calls
 rejected it, and two of three probe runs crashed Deno (`!job->compile_imports_.empty()`). If a Deno
 upgrade fixes the engine the set can go; if another binary starts flaking, probe it the same way
@@ -414,7 +414,7 @@ type-checked by nothing.
 
 🛑 **And then a local gate dropped it again.** The S6 verification list was
 `test · baseline · operators · spec · bridge` — no `check`, and `test` runs `--no-check`. So
-`abddf1206` left two `scripts/` files uncompiled, and `main` stayed red by CI's standard for 65
+`290faadcd` left two `scripts/` files uncompiled, and `main` stayed red by CI's standard for 65
 unpushed commits. **Use `deno task ci` (check + test), never `deno task test` alone**, and see
 [best-practices.md](best-practices.md) "The local gate must BE CI's gate".
 
@@ -590,12 +590,12 @@ cannot assemble without `--enable-exceptions`.
 
 | after           | identical, outside custom sections | commit (re-baseline)      |
 | --------------- | ---------------------------------- | ------------------------- |
-| W6 — DataCount  | 400 / 421                          | `cb474baaa` (`5dbe951f1`) |
-| W5 — type order | **421 / 421**                      | `bd327efe7` (`232768359`) |
+| W6 — DataCount  | 400 / 421                          | `ac0994557` (`79f04adb4`) |
+| W5 — type order | **421 / 421**                      | `12d4afc5e` (`68709c2a5`) |
 
 ⚠️ **Since S7 (2026-09-19)** "outside custom sections" matters: by default our `wat2wasm` adds a
 `binaryang.text-form` section to sources written other than as the plain nested fold — linear, or
-any mix (75 of these 421 since the per-instruction record, `b366262ce`; 20 when it was per
+any mix (75 of these 421 since the per-instruction record, `1f8e8985f`; 20 when it was per
 function) — a DESIGN divergence, owner-decided; `--no-text-form` gives upstream's bytes exactly, so
 parity with that flag is 421 / 421 whole-file.
 
@@ -615,7 +615,7 @@ is named — and check the ignored count, every time.**
 
 - **`corpus_roundtrip` (91 upstream binaries) had been skipping since the MERGE.** It looked for the
   reading-room clone at `<repo>/upstream/test`, and the clone stayed BESIDE the merged repo, in
-  `wasmExamples/binaryen-ts/upstream/test`. It now checks both paths (`456423b54`).
+  `wasmExamples/binaryen-ts/upstream/test`. It now checks both paths (`8f5945b83`).
 - **Then it turned out not to guard what its doc claimed**: `summary()` counted 4 of the 9 index
   spaces, so deleting the entire EXPORT section from the encoder still passed it. It now counts
   every space and compares the whole record.
@@ -624,21 +624,21 @@ is named — and check the ignored count, every time.**
   `deno.lock` resolved `npm:binaryen@116`, whose old s-expression parser reads FOLDED only:
   `parseText` aborts the Emscripten process with `exit(1)`, which poisons the exit code for the NEXT
   live test too. binaryen 132 (the `wasm-opt` on PATH) reads both. Both live tests now run on
-  availability rather than an env flag: **1043 passed, 0 ignored** (`cec3a3381`).
+  availability rather than an env flag: **1043 passed, 0 ignored** (`b940e6c6b`).
 - ⚠️ **A probe that imports `npm:binaryen` from OUTSIDE this project resolves 132** and says linear
   is fine — the probe and the test were both right about different binaryens. Pin the version in the
   probe, or compare `npm:binaryen@116` and `@132` side by side, which is what settled it.
-- 🛑 **The follow-up pin commit did the opposite of its message.** `b8fafaa3f` said `npm:binaryen@*`
+- 🛑 **The follow-up pin commit did the opposite of its message.** `8d9ba0cb9` said `npm:binaryen@*`
   → 132.0.0; its diff deleted the 132 entries and left `@*` → 116.0.0, and the suite stayed green
   only because the same commit made the fixture folded, which 116 also reads. 🔑 **The hole was the
   BARE specifier** — `import('npm:binaryen')` names no version, so the lock may answer anything. The
   version now lives in the SOURCE, `const BINARYEN = 'npm:binaryen@132'`, one constant for the probe
-  and both live cases, where Deno enforces it (`dea8ff9cf`). See
+  and both live cases, where Deno enforces it (`9507d78b5`). See
   [best-practices.md](best-practices.md) § "A written result is a CLAIM".
 
 ## The spec-testsuite harness — the must-REJECT axis
 
-**Owner-assigned 2026-09-02, built `c1c24c9d3`**: `deno task spec:prepare` then `deno task spec`.
+**Owner-assigned 2026-09-02, built `cebbb1260`**: `deno task spec:prepare` then `deno task spec`.
 Moved here from `open-work.md` on 2026-09-14, where it had been recorded while it was the open item.
 
 The source is 257 `.wast` files in the sibling wasmtk checkout, at
@@ -676,7 +676,7 @@ Fail-loud holds up under a suite designed to attack it.
 227 of 257 files; the 30 skipped were GC-proposal files `wast2json` 1.0.41 cannot split (G2, closed
 below).
 
-### All six findings closed by ONE fix — `3445d978a`
+### All six findings closed by ONE fix — `427c18fbb`
 
 SP1–SP4 were one root cause. **`BlockType`'s value case was typed `Type`** — a flat numeric enum
 whose values are single wire bytes. A typed reference does not fit: `(ref ht)` encodes as `0x64`
@@ -746,7 +746,7 @@ true; the inferred half was false.**
 **A corpus built with the wrong flags measures the flags, not the code.** All three configurations
 are recorded in `scripts/spec-prepare.ts`.
 
-### ✅ G2 — all 257 files run (2026-09-11, `318915973`)
+### ✅ G2 — all 257 files run (2026-09-11, `ddfe1a475`)
 
 `spec-prepare` falls back to `wasm-tools json-from-wast` for the 30 files `wast2json` 1.0.41 cannot
 split, and the harness reads its command types: `module_definition` (a module's obligation — accept
@@ -811,7 +811,7 @@ module. Inverted: one pin removed → exit 1.
 - Its blind spots: an invocation of a NAMED module (another module's) is skipped; imports are inert
   stand-ins, so behaviour that depends on a real import is compared only as far as the stand-in
   goes (the same stand-ins on every side); a trap is compared by class, not message.
-- 🔧 **v128 — the blind spot nobody had listed (closed 2026-09-28, pre-bump item 6, `cd7071629`).**
+- 🔧 **v128 — the blind spot nobody had listed (closed 2026-09-28, pre-bump item 6, `e0edf13b0`).**
   The JS API cannot pass or receive a `v128`, so every SIMD invocation threw a TypeError on the
   original AND on every variant — and "agreed" without running: **24,151 of the 57,808**. A writer
   miscompile planted on purpose (`replace_lane` writing lane `^ 1`; `i8x16.shuffle` reversed) passed
@@ -901,7 +901,7 @@ the unit test read the slot both copies leave alike; it now reads the one they l
 (E3c). The runners are scratch scripts; each child gets a 90 s timeout, since a mutant may loop
 forever.
 
-### The comparison suite — `comparison/`, outside the gate (2026-09-28, `ee25accb2`)
+### The comparison suite — `comparison/`, outside the gate (2026-09-28, `37c55a3a0`)
 
 Everything that measures binaryang AGAINST upstream binaryen (`npm:binaryen`, the `wasm-opt`
 binary) lives in the committed `comparison/` directory ([its README](../comparison/README.md)):
@@ -1030,7 +1030,7 @@ re-prepare the spec corpus's GC files (and for any future proposal harness).
 ## The 1.5.5 passes — the code lens, summarized
 
 Seven passes on 2026-09-02; the plan and the lens definitions for 1.5.6 / 1.5.7 are in
-[open-work.md](open-work.md). Full per-pass register: `git show 1672c2a5a:cmem/quality-passes.md`.
+[open-work.md](open-work.md). Full per-pass register: `git show f2ee1a41f:cmem/quality-passes.md`.
 
 **The method that found things here** — greps found NOTHING (no live TODOs; all four "impossible"
 comments self-aware). What worked was **strengthening an existing metric**: the corpus asked whether
@@ -1042,13 +1042,13 @@ depended on it.
 
 | pass | commit                   | what it found                                                                                                                                                                                                                                             |
 | ---- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `e662bd099`              | memarg alignment is an EXPONENT, and its default was wrong the other way; `return` / `br` kept only their first value; `storeBytes` had drifted from `loadBytes`                                                                                          |
-| 2    | `3e808b99b`              | `parseElem` was a stub that emptied every function table (still valid, then every `call_indirect` trapped); anonymous functions all synthesized as `$f0`, so `(call 1)` became infinite recursion from valid input                                        |
-| 3    | `9588504bd`, `ff9a383d2` | two "size deltas" were a **silent miscompile** (a synthetic loop wrapper shadowing the function frame) and **silent data corruption** (a byte string UTF-8 encoded)                                                                                       |
-| 4    | `c0d79b56d`              | `memory.init` / `data.drop` and the data count section, done together because either alone is a wrong module; six `ExpressionKind` members had nothing behind them                                                                                        |
-| 5    | `d706fffa1`              | orphan type entries — the predicate is "does it write a blocktype", not "is it a block"                                                                                                                                                                   |
-| 6    | `a33c94655`              | C9, one IR gap behind four symptoms: `ElementSegment.mode` — unblocked passive and declarative segments, `table.init`, `elem.drop` and six `0xFC` ops                                                                                                     |
-| 7    | `a38febfc6`              | export ORDER, the last byte difference; five never-run probe classes, which found that our linear output could not be re-read (C10, first routed through the bridge `ab90d7beb`, superseded by W4's `e18d9f09a`; C10a absorbed into S6 by owner decision) |
+| 1    | `eb47a817a`              | memarg alignment is an EXPONENT, and its default was wrong the other way; `return` / `br` kept only their first value; `storeBytes` had drifted from `loadBytes`                                                                                          |
+| 2    | `7520be44d`              | `parseElem` was a stub that emptied every function table (still valid, then every `call_indirect` trapped); anonymous functions all synthesized as `$f0`, so `(call 1)` became infinite recursion from valid input                                        |
+| 3    | `9b98a2963`, `8ffbae8ee` | two "size deltas" were a **silent miscompile** (a synthetic loop wrapper shadowing the function frame) and **silent data corruption** (a byte string UTF-8 encoded)                                                                                       |
+| 4    | `cf2ebc565`              | `memory.init` / `data.drop` and the data count section, done together because either alone is a wrong module; six `ExpressionKind` members had nothing behind them                                                                                        |
+| 5    | `ea3c7cf17`              | orphan type entries — the predicate is "does it write a blocktype", not "is it a block"                                                                                                                                                                   |
+| 6    | `51f48fcf0`              | C9, one IR gap behind four symptoms: `ElementSegment.mode` — unblocked passive and declarative segments, `table.init`, `elem.drop` and six `0xFC` ops                                                                                                     |
+| 7    | `38607ae6c`              | export ORDER, the last byte difference; five never-run probe classes, which found that our linear output could not be re-read (C10, first routed through the bridge `5d95857b8`, superseded by W4's `8033ca3c0`; C10a absorbed into S6 by owner decision) |
 
 | measure             | before       | after pass 7  |
 | ------------------- | ------------ | ------------- |

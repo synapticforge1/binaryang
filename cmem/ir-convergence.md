@@ -6,7 +6,7 @@ convergence is "gradual and open-ended" — this is what convergence would actua
 
 > 🛑 **Owner decision, 2026-09-10 — the TEXT front end is wabt-ts.** The end state is WAT → wabt-ts
 > parser → wabt-ts binary writer → bytes → binaryen-ts decoder, and external WAT already takes that
-> route (`e18d9f09a`, `readWat` in `src/tools/read-wat.ts`, merged `1cb7300317`).
+> route (`8033ca3c0`, `readWat` in `src/tools/read-wat.ts`, merged `552b5fa058`).
 > binaryen-ts's own WAT parser is internal only and a retirement candidate once S6 unifies the tree,
 > so **"Stage 1" below — teaching it stack-sourced operands — is SUPERSEDED**: do not resume it.
 > Measured on the new route: every corpus module, written by our `wasm2wat` in linear or folded
@@ -64,10 +64,10 @@ that must stay put — which both sides had (`Pop` ≡ `placeholder`).
 | S2 name reconciliation | ✅ the three pairs that ARE pairs; six type-differences moved to S6                                                                                                                                            |
 | S3 the side table      | ✅ `fidelity.ts`, keyed by a spread-preserved id, driving both writers                                                                                                                                         |
 | S4 coarse grouping     | ✅ five kinds folded away                                                                                                                                                                                      |
-| S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`f1675d261`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
+| S5 one-sided kinds     | ✅ CLOSED 2026-09-12 (`765713b8f`) — 75 shared, 9 wabt-only, 1 binaryen-only (`region`), ratcheted by `ONE_SIDED_BUDGET`. **K3 MERGED 2026-09-14** (owner decision): `simd.shift` is a `binary` — see S5 below |
 | S6 unify the type      | ✅ DONE 2026-09-18: steps 1–5 — the bridge is deleted (M8e); `prepareForPasses` (names M8c, types M8d) makes a wabt-ts tree ready for the passes; the module ratchet is **0 / 0 / 0**; `deno task direct` / `direct-behaviour` hold it — see "Item 6 — the MODULE half" |
-| S7 text-form record    | ✅ DONE 2026-09-19: per function (`899263b7b`), then per INSTRUCTION — a mix stays the same mix (`b366262ce`); on by default (owner: fidelity first on the text path), stripped by the optimizer — see S7    |
-| One front end          | ✅ COMPLETE 2026-09-28 (owner, 2026-09-19: the reader and the encoder are shared too). Stages 0 `2ca4513f1`, 1 `f60e4e575` + `1ffdcb561`, 2 (last item R15, merge `196a40c0c`; then Q1–Q8, `a46dab48b`, and several tables, `62289da49`), 3a / 4a, 3b / 4b (the decoder and encoder deleted, released in **1.6.0**), 5 (`parseWat` deleted, `824a4b435`); `encoder/` relocated to `ir/` (`4074025fa`) — see "One front end" |
+| S7 text-form record    | ✅ DONE 2026-09-19: per function (`048ecd424`), then per INSTRUCTION — a mix stays the same mix (`1f8e8985f`); on by default (owner: fidelity first on the text path), stripped by the optimizer — see S7    |
+| One front end          | ✅ COMPLETE 2026-09-28 (owner, 2026-09-19: the reader and the encoder are shared too). Stages 0 `96dcb522b`, 1 `dab3fa7e4` + `e6ddba9a8`, 2 (last item R15, merge `f3008cbd6`; then Q1–Q8, `cde2a8f39`, and several tables, `c82656e9b`), 3a / 4a, 3b / 4b (the decoder and encoder deleted, released in **1.6.0**), 5 (`parseWat` deleted, `868faea1b`); `encoder/` relocated to `ir/` (`5f83028ae`) — see "One front end" |
 
 **Measured 2026-09-02, and the numbers are why this was scoped rather than debated** (kept here from
 `open-work.md`'s summary; the detail is under "The measurements this rests on"):
@@ -182,7 +182,7 @@ marks.
 
 ### ✅ Done: binaryen-ts accepts a stack-sourced operand (single claim)
 
-`ce1320bf4`. A consumer whose operand is absent claims the preceding sibling that produced a value,
+`f809efaf6`. A consumer whose operand is absent claims the preceding sibling that produced a value,
 and that producer is spliced out of the statement list. No spill needed for the single-consumer case
 — the producer is simply moved into the consumer, giving the tree the folded spelling would have
 produced.
@@ -519,7 +519,7 @@ gone"** — cut it to four:
 
 | family                           | verdict                                                                                                                                                                                                                                               |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `blockType` (5 kinds)            | ✅ declared ≠ derived (a94154e21), and two legal spellings that differ in the binary                                                                                                                                                                  |
+| `blockType` (5 kinds)            | ✅ declared ≠ derived (c0e134b30), and two legal spellings that differ in the binary                                                                                                                                                                  |
 | `select.resultType`              | ✅ `0x1b` vs `0x1c` is a written choice; the type itself is derivable from the operands                                                                                                                                                               |
 | `typeUse`/`sig` on call_indirect | ✅ `(type $t)` and an inline signature resolve to the same index                                                                                                                                                                                      |
 | `type`-as-declared on `Func`     | ✅ the interface's own doc already said fidelity depends on the spelling                                                                                                                                                                              |
@@ -1239,7 +1239,7 @@ Baseline 0, so every count is real.
 showed it:
 
 - ✅ **DECIDED 2026-09-14: A — binaryen-ts takes `sig`** (owner: fidelity is where the trouble has
-  been, and binaryen-ts is the cheaper side to change in source). Done in `b034cedb1`: binaryen-ts
+  been, and binaryen-ts is the cheaper side to change in source). Done in `d0d3a17bb`: binaryen-ts
   gains `FuncSignature` (same name and shape as wabt-ts's, over its own value types, until S6
   unifies them); `CallIndirectExpr.sig`; `makeCallIndirect` changed ARITY so the compiler named all
   22 sites; a `@ts-expect-error` pins that no flat `params` returns (inverted). Behaviour-neutral:
@@ -1547,7 +1547,7 @@ a hash only ever says "different".
 `AbstractHeapType.Ext`/`NoExt` were `'ext'`/`'noext'` — binaryen's internal C++ spellings, not WAT.
 Since `heapTypeToString` returns the value AS the keyword, the parser rejected `(ref null extern)`
 and the printer emitted `(ref null ext)`, which nothing accepts; `exn`/`noexn` were missing from the
-parser map entirely. Four of twelve broken in both directions, fixed in `62032c7c6` with a test
+parser map entirely. Four of twelve broken in both directions, fixed in `db6733a28` with a test
 verified to fail against the old spelling.
 
 ⚠️ **Upstream wabt could not arbitrate it**: 1.0.41 has no GC heap-type text support at all
@@ -1770,9 +1770,9 @@ Three defects, each a consequence of re-deriving the opcode:
 
 | defect                                                                                                      | caught by                                   | closed in                 |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------- |
-| i64 narrow stores ROTATED in the encoder and INVERSELY in the decoder; `i64.store8` wrote 2 bytes           | executing under V8, per half, independently | `b8b3150db` (before this) |
-| a store's opcode read off its OPERAND's type → "cannot encode store with value type: none"                  | 5 of the bridge's 24 failures               | `006326af7`               |
-| WAT names matched by pattern: `f32.load8_s`→`f32.load`, `f64.store8`→`f64.store`, `i32.load32_s`→`i32.load` | a probe; upstream wat2wasm rejects all five | `006326af7`               |
+| i64 narrow stores ROTATED in the encoder and INVERSELY in the decoder; `i64.store8` wrote 2 bytes           | executing under V8, per half, independently | `34289e449` (before this) |
+| a store's opcode read off its OPERAND's type → "cannot encode store with value type: none"                  | 5 of the bridge's 24 failures               | `8c03a6589`               |
+| WAT names matched by pattern: `f32.load8_s`→`f32.load`, `f64.store8`→`f64.store`, `i32.load32_s`→`i32.load` | a probe; upstream wat2wasm rejects all five | `8c03a6589`               |
 
 **Bridge 397 → 401.** Four of the five store failures round-trip; the fifth (`59_AsyncClosureCb`)
 was masking a second failure and now sits in the dominant fallthru class with the other 17 — which
@@ -1787,10 +1787,10 @@ eighth silent mode in [best-practices.md](best-practices.md).
 API-visible: `LoadExpr`/`StoreExpr` and both factory signatures via `./ir/binaryen-ts`, which now
 also exports the table (`loadShape`, `storeShape`, `withSigned`, …) for anyone who read `.bytes`.
 
-###### ✅ 6. Branch and return values are a LIST — option A, owner-decided (`2b5850a8a`)
+###### ✅ 6. Branch and return values are a LIST — option A, owner-decided (`fc103dcc8`)
 
 Owner, 2026-09-10: **"go with 6A … and fix any bugs first"** — so the bug queue the premise probes
-found was cleared and merged first (`31ec7cc86`), and 6A started from a clean `main`.
+found was cleared and merged first (`07e87fd55`), and 6A started from a clean `main`.
 
 `Break`, `Switch` and `Return` hold `values: Expression[]` in stack order, as wabt-ts's nodes do.
 `tuple.make` — built only to pack 2+ values into the one `value` slot, emitted as its operands — is
@@ -1834,11 +1834,11 @@ optimization starts), 7c (FORM in the fidelity side table). Five commits, each g
 
 | commit      | what                                                                                                                    |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `c0bab64ac` | 7 control-node literals → factories (`makeBlock` gains a declared type) — found Flatten dropping an `if`'s label        |
-| `7171b8b38` | **7a** `SelectExpr.resultType` — S1 closes with no side table; the bridge was dropping the declaration                  |
-| `73a1066fb` | the `br_table` trampoline's wrapper blocks were typed `unreachable`; DCE deleted cases — any -O level broke it          |
-| `02d77f533` | **7b(i)** `params?: BlockParams` on block/loop/if/try/try_table; decoder keeps them; `PassRunner` lowers by re-decoding |
-| `c309e57a0` | wabt-ts's folded `if` dropped its condition-slot inputs (found probing folded block params)                             |
+| `fd63d3515` | 7 control-node literals → factories (`makeBlock` gains a declared type) — found Flatten dropping an `if`'s label        |
+| `a7cb89da2` | **7a** `SelectExpr.resultType` — S1 closes with no side table; the bridge was dropping the declaration                  |
+| `ce7bffd06` | the `br_table` trampoline's wrapper blocks were typed `unreachable`; DCE deleted cases — any -O level broke it          |
+| `4cae28682` | **7b(i)** `params?: BlockParams` on block/loop/if/try/try_table; decoder keeps them; `PassRunner` lowers by re-decoding |
+| `94273c7f6` | wabt-ts's folded `if` dropped its condition-slot inputs (found probing folded block params)                             |
 
 🔑 **7a needed no side table.** A declared result type is semantics for references and its PRESENCE
 is the form, so one field on the node is both. The side table is for form that is not also meaning.
@@ -1886,7 +1886,7 @@ whatever was measured on 2026-09-10 was not the decode → encode path.
 
 | # | decision                                      | note                                                                                                   |
 | - | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 7 | `blockType` / `typeUse` / `select.resultType` | 7a ✅ `7171b8b38`; 7b(i) ✅ `02d77f533`; 7c ✅ — the written type index on the node, dropped by passes |
+| 7 | `blockType` / `typeUse` / `select.resultType` | 7a ✅ `a7cb89da2`; 7b(i) ✅ `4cae28682`; 7c ✅ — the written type index on the node, dropped by passes |
 
 🔑 **The block/label family's answer is a PORT, not a new design — `TypeUse` already solves its
 ambiguity.** An index-form `Var` on a branch target means three different things: the author wrote a
@@ -1908,13 +1908,13 @@ around so the mechanical passes could not settle them by accident.
 Recorded here 2026-09-14; until then this series lived only in machine-local memory and in the merge
 messages. In landing order:
 
-- **A branch to a NAMED label prints the name — N8, `61d991592`.** `wasm2wat` printed `block $outer`
+- **A branch to a NAMED label prints the name — N8, `5cfa6717c`.** `wasm2wat` printed `block $outer`
   and then `br 1 (;@1;)` below it: N2 reads label names and nothing used them. `wasm-tools print` is
   the oracle (upstream `wasm2wat` has no label names to print). ⚠️ Only where the name MEANS that
   block — a nearer label sharing the name keeps the depth, or the branch would be retargeted. **415
   of 421 TEXT hashes moved, 0 byte hashes**, checked column by column and re-baselined in its own
   commit.
-- **Labels keep their NAME; the binary writer resolves the depth — `3e1cc60b1`.** `resolveLabelVar`
+- **Labels keep their NAME; the binary writer resolves the depth — `9417fcfea`.** `resolveLabelVar`
   rewrote every label reference to a depth, and that rewrite is what CREATED the ambiguity: `br 1`
   and `br $b` both became an index. 🔑 **A label is the ONE reference that needs no rewriting** —
   its target is a position on the block stack the writer already walks, not an entry in a
@@ -1927,7 +1927,7 @@ messages. In landing order:
   - `writeBinaryIr` no longer needs a prior resolve pass for labels; the per-function scope reset
     became a LOUD balance check, since a silent reset would hide an imbalance that shifts every
     depth.
-- **The text→text residual closed before it could spread — `2abb7880c`.** It was live in the PUBLIC
+- **The text→text residual closed before it could spread — `cc15f9a72`.** It was live in the PUBLIC
   compat API: `parseWat(…).toText()` is text → IR → text with NO binary hop (`wabt-compat.ts`), and
   it rewrote `(block $b (br 0))` into `(br $b)`. Only the CALLER knows whether an index carries a
   spelling, so `WriteWatOptions.namedLabelTargets` (default OFF) carries that bit: `wasm2wat` sets
@@ -1937,7 +1937,7 @@ messages. In landing order:
   tree still wants NAMES in the tree (binaryen-ts's form — a depth silently retargets when a pass
   inserts a block) with the as-written form beside it; this removed the wabt-ts half of the
   obstacle.
-- **A `try_table` catch clause carries its kind ONCE — `b1410d6e8`.** Scoping `CatchClause.tag`
+- **A `try_table` catch clause carries its kind ONCE — `a0c6ea5e1`.** Scoping `CatchClause.tag`
   found more than a naming difference: `TableCatch` held `kind: CatchKind` AND `tag?: Var`, whose
   PRESENCE says the same thing, and the binary writer read them separately (`catchKindByte(c.kind)`,
   then `if (c.tag !== undefined)`) — so `CatchAll` plus a tag would emit the catch_all byte AND a
@@ -1946,10 +1946,10 @@ messages. In landing order:
   `c.tag!` assertions in the bridge went (the switch now narrows). 🔑 **For an unrepresentability
   change the inversion is COMPILE-TIME**: the load-bearing assertions are `@ts-expect-error`,
   checked by `deno task check` — widening the union back makes four of them stop erroring and the
-  gate fails. Verified by doing it. ↪ **Superseded 2026-09-16** (step 5 stage (b), `e9f6721e4`):
+  gate fails. Verified by doing it. ↪ **Superseded 2026-09-16** (step 5 stage (b), `d09e6ca70`):
   the kind is now held ZERO times — `{ tag?, target, isRef }` — which closes the same hole with
   nothing left to disagree.
-- **Every single-label reference is `target`, in BOTH IRs — `d85635eb1`** (`targets` /
+- **Every single-label reference is `target`, in BOTH IRs — `c1af6a635`** (`targets` /
   `defaultTarget` for the table, which already agreed). Measured: converting binaryen-ts's `name` /
   `label` / `dest` = 24 sites, the reverse = 45. wabt-ts's `rethrow.depth` → `target` too (9 sites):
   `depth` described only ONE of a `Var`'s two forms, and since the writer resolves label names, what
@@ -1957,7 +1957,7 @@ messages. In landing order:
   went per compile error; the scripted pass still over-corrected `block.name` → `block.target` twice
   and the COMPILER caught both. ⬚ Deliberately left: `delegate` vs `delegateTarget` (not worse, and
   not a branch target), and the try's OWN label (`label` vs `name`) — a definition, not a reference.
-- **The catch tag is a `Var`, spelled once — `949bee3b8`.** binaryen-ts held `TryCatch.tag?: Var`
+- **The catch tag is a `Var`, spelled once — `737e9c76f`.** binaryen-ts held `TryCatch.tag?: Var`
   (legacy) beside `CatchClause.tag: string | null` (try_table) — one concept, two shapes, with the
   encoder wrapping the second in `varFromToken()` to resolve what the first passed straight through.
   Both are `tag?: Var` now. 🔑 NOT the redundancy class `TableCatch` closed: `CatchClause` is two
@@ -2014,7 +2014,7 @@ select's result type, which validity needs for reference types) and where the FO
 valtype vs type index; which of two identical type indices). A candidate split: semantics on the
 node, form in the fidelity side table — which is what "the table SHADOWS them" was reaching for.
 
-###### ✅ 5. Region bodies — neither form: a `RegionExpr` in every region slot (`365e9277c`)
+###### ✅ 5. Region bodies — neither form: a `RegionExpr` in every region slot (`7c2ad5fd3`)
 
 🔧 **The Group 2 table's reason for this row was OVERSTATED.** It says "fidelity binds" because a
 multi-instruction body must sit in a synthetic `Block`. Probed against upstream `wat2wasm`: a block
@@ -2070,15 +2070,15 @@ leave the wrapper mechanism alive.
 
 | found                                                                                                     | how                                         | disposition                          |
 | --------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------ |
-| an emitted unnamed block/if/try shadowed the FUNCTION frame (`''` meant both) — V8-valid, wrong value     | probed while designing; C6 had one instance | fixed first, `2f519bde7`             |
+| an emitted unnamed block/if/try shadowed the FUNCTION frame (`''` meant both) — V8-valid, wrong value     | probed while designing; C6 had one instance | fixed first, `81e833e8c`             |
 | the decoder invented a `nop` for an EMPTY body (`03 40 0b` → `03 40 01 0b`)                               | probe vs upstream                           | fixed by the region                  |
 | the decoder dropped an explicit EMPTY `else` from a valid binary                                          | hand-assembled binary                       | fixed by the region                  |
 | 5 passes' private switches handled `Block` and defaulted past `Region` — every body silently unoptimized  | the switch sweep                            | Region added to each                 |
 | 5 places put a body where a STATEMENT goes (StripEH, remove-unused-names, asyncify ×2, inlining, flatten) | grep for body/arm fields used as values     | `asStatement`                        |
 | inlining's size thresholds counted nodes — regions would have moved them                                  | reading the counter                         | `countsTowardSize`, exact            |
 | ~a dozen VACUOUS guarded assertions in tests; structural casts that accept a region                       | the conversion                              | `region_helpers.ts`                  |
-| LocalCSE CSEs bare `local.get` and constants; upstream's `isRelevant` excludes both (LocalCSE.cpp:356)    | classifying the `-Oz` byte diff             | ✅ fixed `5b0cf25c6` (divergence C1) |
-| the WAT path emits an `else` for `(else)` with no instructions; upstream wat2wasm omits it                | the empty-region probe                      | ✅ fixed `ce77680de` (divergence W1) |
+| LocalCSE CSEs bare `local.get` and constants; upstream's `isRelevant` excludes both (LocalCSE.cpp:356)    | classifying the `-Oz` byte diff             | ✅ fixed `576e5c0d0` (divergence C1) |
+| the WAT path emits an `else` for `(else)` with no instructions; upstream wat2wasm omits it                | the empty-region probe                      | ✅ fixed `3f8be36e4` (divergence W1) |
 
 **Measured against `main`, 421 corpus modules:** parse→encode **421/421 byte-identical**; `-O1` 2
 differ (−2 each); `-Oz` 28 differ, net **+128 bytes**, all V8-valid, every one classified — an
@@ -2086,7 +2086,7 @@ all-nop body now encodes as nothing instead of `nop`, and LocalCSE reaching sing
 bodies (the OPEN divergence above; it was already live on multi-statement bodies). Bridge held at
 401/421; baseline IDENTICAL; spec 100% on four axes.
 
-✅ **The LocalCSE half is gone** (`5b0cf25c6`): once CSE follows upstream's relevance rule, `-Oz` is
+✅ **The LocalCSE half is gone** (`576e5c0d0`): once CSE follows upstream's relevance rule, `-Oz` is
 **−37,262 bytes** (−3.9%) against the pre-fix tree — 339 modules smaller, 0 larger, 421/421 valid.
 The +128 was never regions' cost; it was a pass defect that regions exposed. The all-nop half is
 divergence R2 (DESIGN): `wasm-opt --vacuum` leaves one `nop` where we leave nothing.
@@ -2509,13 +2509,13 @@ a no-op baseline read 0).
 
 | question                         | trial (convert wabt-ts / binaryen-ts) | taken                                              |
 | -------------------------------- | ------------------------------------- | -------------------------------------------------- |
-| try_table clause SHAPE (`e9f6721e4`) | 14 (**6 src** + 8 pins) / 12 (9 src + 3) | binaryen-ts's `{ tag?, target, isRef }`, `CatchKind` deleted |
-| the pair's NAMES (`11e632b8e`)   | 17 (13 src) / **13** (10 src)         | wabt-ts's `Catch` / `TableCatch`                   |
+| try_table clause SHAPE (`d09e6ca70`) | 14 (**6 src** + 8 pins) / 12 (9 src + 3) | binaryen-ts's `{ tag?, target, isRef }`, `CatchKind` deleted |
+| the pair's NAMES (`2a5eb0aec`)   | 17 (13 src) / **13** (10 src)         | wabt-ts's `Catch` / `TableCatch`                   |
 
 **Shape.** wabt-ts's `TableCatch` was a KIND UNION (`kind: CatchKind`, `tag` required on the tagged
 arm, `tag?: undefined` on the other). 🔑 **Both forms were closed; binaryen-ts's without
 redundancy** — tag present/absent × `isRef` is exactly the four clauses, so no `kind` is left to
-disagree with the tag, which is the defect `b1410d6e8` split the union to prevent. It is also how the
+disagree with the tag, which is the defect `a0c6ea5e1` split the union to prevent. It is also how the
 legacy clause holds the same four on BOTH sides, and wabt-ts's own text writer already printed legacy
 catches from those two bits. The total leaned the other way only through the 8 `@ts-expect-error`
 pins the union needed and this shape does not; source cost and meaning agreed, so no owner call.
@@ -2567,7 +2567,7 @@ encode on both halves: params from a constant, from a 2-result call, a 1-param b
 types, a multi-result block, a param block in unreachable code. wabt-ts: 9/9 identical.
 binaryen-ts: 8/9 —
 
-🛑 **Defect, binaryen-ts encoder (`1d8a72be3`)**: a header WITH parameters naming the second of two
+🛑 **Defect, binaryen-ts encoder (`7dcf2f22a`)**: a header WITH parameters naming the second of two
 identical types re-encoded naming the first (`02 01` → `02 00`). `writeCarrierType` took its
 parameter branch FIRST and derived the index by signature; the decoder had recorded
 `typeIndex: 1` and nothing read it. T1's defect on the one header shape 7c's tests missed. The
@@ -2576,7 +2576,7 @@ FOLDED `(block (type $b) (local.get 0))`, which supplies no entry value: invalid
 "failed" by filling the missing one. **A fixture that is not itself valid proves nothing** —
 rewritten linear, each `WebAssembly.validate`d first.
 
-**(c1) — a carrier owns its entry values (`38a47be36`).** wabt-ts gains `params?: BlockParams`.
+**(c1) — a carrier owns its entry values (`4fa09bf89`).** wabt-ts gains `params?: BlockParams`.
 The reader and all eight parser branches pop the values at the header (`if`: beneath the
 condition); `ExprVisitor` dispatches them first, so the binary writer, validator and linear text
 writer needed nothing; the folded writer prints them as preceding siblings (inside `(if …)` before
@@ -2586,7 +2586,7 @@ resolveNames' resolved values, invisible because **the binary writer resolves LA
 a `call $seven` / `global.get $g` value makes the writer refuse, and those tests now kill all five
 resolveNames arms, each by its own carrier.
 
-🛑 **c1 residue, found by a sweep after c1 was gated green (`0f2e32bd5`)**: `applyNames`' generic
+🛑 **c1 residue, found by a sweep after c1 was gated green (`6a7c14004`)**: `applyNames`' generic
 axis-1 walk recurses into an `Expr`, an `Expr[]`, or `{ body }` clauses — and `params` is an OBJECT
 holding an `Expr[]`, so a `global.get 0` among entry values kept its index. Public API, no internal
 caller (T13.20), so the whole gate could not see it; its table now has an entry-value row per
@@ -2594,7 +2594,7 @@ carrier (5/5 failed before). 🔑 **After moving children into a new container s
 walker that enumerates fields generically** — the four test walkers that list fields by name would
 also skip `params`, but none of their fixtures has parameters.
 
-**(c2) — a carrier holds its signature (`f4e04989f`).** `type: BlockResult` (`'none'` | the value
+**(c2) — a carrier holds its signature (`56b83198e`).** `type: BlockResult` (`'none'` | the value
 type | a list of two or more — one spelling per arity) and `typeIndex?` replace `blockType`;
 `FidelityEntry.blockType` is gone. The header a node writes is derived in ONE place, `blockTypeOf`
 (written index → inline → UNASSIGNED, which writers refuse), so the shared validator, both writers,
@@ -2627,7 +2627,7 @@ any tree state its own serialization round trip erases.**
 
 The last of the block family, in two parts.
 
-**(d1) a block's list is `children` (`ddc45cbb1`).** Trial: converting wabt-ts 17 (8 src), binaryen-ts
+**(d1) a block's list is `children` (`ba939ba14`).** Trial: converting wabt-ts 17 (8 src), binaryen-ts
 50 (41 src); meaning agrees — `children` is a region's list, `body` the SLOT holding one. 🛑 The sweep
 found the class stage A2 named: resolveNames rebuilt `block` and `loop` in ONE arm returning
 `{ ...e, body }`, which for a block type-checks (the spread adds a stray key) and leaves `children`
@@ -2635,7 +2635,7 @@ unresolved — split before renaming; the mutant restoring it fails 34 tests. Su
 skipping a block's children, because no test nested an unlabelled construct in a block — added.
 `block` → `types`.
 
-**(d2) every region slot holds a `RegionExpr` (`e9c029ffb`).** Decision 5 (owner) already decided the
+**(d2) every region slot holds a `RegionExpr` (`6dca91f64`).** Decision 5 (owner) already decided the
 form; `region` joins wabt-ts's `Expr`, and `loop`/`try`/`try_table` bodies, each catch body and both
 `if` arms are regions. **`Func.body` stays a list** — it is a slot in binaryen-ts, but `Func` against
 `WasmFunction` is the module half ([open-work.md](open-work.md) item 6).
@@ -2663,7 +2663,7 @@ element types — the node-base and alias stages.
 
 ###### ✅ Item 4 — value types, `call_indirect`, and `ref.null` (2026-09-16). Ratchet 66/6/2 → **68 / 5 / 1**
 
-**(b) A `ValueType` is a value type (`eec6912fd`).** wabt-ts's `ValueType` was `Type | RefValueType`,
+**(b) A `ValueType` is a value type (`87500214a`).** wabt-ts's `ValueType` was `Type | RefValueType`,
 and `Type` also holds packed `I8`/`I16`, `Void`, `Func`/`Struct`/`Array` and the validator's `Any` —
 the last thing keeping `select` at `types`. `ValType`/`isValType` moved beside `Type` in wabt-ts's
 `core/types.ts` (binaryen-ts re-exports); wabt-ts `ValueType = ValType | RefValueType`, and
@@ -2682,7 +2682,7 @@ read/parse storage types. Spec re-run before commit: no valid module newly rejec
 them.** A third leniency surfaced and was recorded, not fixed: a bare `ref` before a type keyword
 (`(local ref i32)`) parses, and both upstreams reject it — divergence **W7**, open.
 
-**(a) `call_indirect`'s type is `typeVar?: Var` in both IRs (`34901c5fc`).** 🗓️ **OWNER CALL,
+**(a) `call_indirect`'s type is `typeVar?: Var` in both IRs (`937a49b2b`).** 🗓️ **OWNER CALL,
 2026-09-16: A.** wabt-ts held `typeVar: Var` (required, `varIndex(0)` default) + a node `typeUse`;
 binaryen-ts `typeIndex?: number` (7c's field, which (c2) also gave the carriers). Trials: converting
 binaryen-ts ~8 source sites (5 + dropping wabt-ts's duplicate `typeUse`, 3), wabt-ts 14. For A: cost,
@@ -3009,7 +3009,7 @@ get nodes with no `type` to dispatch on.
 C10a's diagnosis was wrong and this whole step rests on a mistake — which is exactly what the gate
 was built to be able to say.
 
-✅ **MET 2026-09-15 (`ed38c084f`), and C10a's diagnosis holds — but the cure was not unification.**
+✅ **MET 2026-09-15 (`ce3623175`), and C10a's diagnosis holds — but the cure was not unification.**
 All 20 remaining failures had ONE cause, measured before fixing: wabt-ts leaves
 `CallIndirectExpr.sig` empty when the call names a type (`typeUse: 'resolved'`), because the
 signature lives at the type and its own validator looks it up at the use site. The bridge read
@@ -3049,8 +3049,8 @@ fully green, because not one corpus module has a `(start …)` section. That cas
 ##### The bridge and the WAT routes into binaryen-ts — history, summarized
 
 Consolidated 2026-09-14 from `bridge.md` and `text-routes.md` under the cleanup policy
-([INDEX.md](INDEX.md)); full text of each: `git show 1672c2a5a:cmem/bridge.md` and
-`git show 1672c2a5a:cmem/text-routes.md`. The bridge's binding rules — reserved upstream names in
+([INDEX.md](INDEX.md)); full text of each: `git show f2ee1a41f:cmem/bridge.md` and
+`git show f2ee1a41f:cmem/text-routes.md`. The bridge's binding rules — reserved upstream names in
 paths, import aliases that must not shadow a package — moved to [project.md](project.md).
 
 **Until this step lands, two things matter when touching the bridge** (`src/bridge/bridge.ts`, tests
@@ -3068,15 +3068,15 @@ the exact `jsr:@jrmarcum/binaryen-ts@1.5.0` pin gone, 15 cross-tree imports now 
 **T13.22**, two errors cancelling across the repository boundary, was closed BEFORE the merge,
 because merging first would have made it permanently invisible — `buildCatchClause` now runs before
 the label push, gated by a numeric probe in `try_table_catch_scope.test.ts`. **T13.50 / A1**, the
-incomplete de-coarsening, closed in 1.5.2 (`50a959baa`) with six shapes in
+incomplete de-coarsening, closed in 1.5.2 (`d6d22559c`) with six shapes in
 `gc_decoarsening.test.ts`; its two lessons were **two defects stacked** (removing one refusal only
 MOVED the error message, which is what showed the second) and **a tag case green for the wrong
 reason** (a conjunction precondition, now in [best-practices.md](best-practices.md)). It moved to
-`src/bridge/` in 1.5.3 (`e76e2b7ca`). Nothing ever shipped against it, and this step deletes it.
+`src/bridge/` in 1.5.3 (`b8ee5d219`). Nothing ever shipped against it, and this step deletes it.
 
 **The WAT routes, 2026-08-31 → 2026-09-10.** Asking whether "nothing ships against the bridge" could
 be closed turned up a user-facing defect: **`wasm-opt` could not read the linear WAT our own
-`wasm2wat` writes**, and died with an uncaught exception. Closed by routing (W4, `e18d9f09a`):
+`wasm2wat` writes**, and died with an uncaught exception. Closed by routing (W4, `8033ca3c0`):
 external WAT goes wabt-ts → bytes → the decoder, 421/421, and failures print `wasm-opt: <message>`,
 exit 1. Measured on 150 files beforehand, the two WAT → binaryen routes covered different ground and
 agreed byte-for-byte on 0 of the 70 both could read — the argument for one front door, not a second.
@@ -3085,8 +3085,8 @@ On the way, binaryen-ts's own `parseWat` was climbed from reading **1/421 → 42
 output, each fix revealing the next (1 → 2 → 101 → 302 → … → 421): numeric branch depths and
 operands (307 modules), stack-sourced operands (44), numeric `call_indirect` types (39), an `if`
 that pushed no label scope — whose silent half sent branches to the WRONG block (24), reconstructed
-tag names (11), `try` (10), and a tail of four unrelated causes (`df24686ec`, `3ec5b29d6`). With the
-ladder finished, 1.5.4 flipped `wasm2wat`'s default to folded (`357007307`). Pins: inline exports
+tag names (11), `try` (10), and a tail of four unrelated causes (`d3ebcd2e8`, `2591d7e42`). With the
+ladder finished, 1.5.4 flipped `wasm2wat`'s default to folded (`1dd43827d`). Pins: inline exports
 and imports `tests/binaryen-ts/parser/inline_export.test.ts`; numeric references
 `tests/binaryen-ts/encoder/numeric_refs.test.ts`; the loop result
 `tests/wabt-ts/reader/loop_result.test.ts`. What it taught, kept here because it is not recorded
@@ -3119,7 +3119,7 @@ elsewhere:
 **CI's steps first** — `deno fmt --check` · `deno lint` · `deno task ci` (check + test) ·
 `scripts/check-naming.sh` · `scripts/check-portability.sh` · `baseline` · `publish:dry` — then
 `operators` · `spec` · `bridge`. The bridge gate must never regress below **421** (397 → 401 by
-decision 4, → 421 on 2026-09-15 by the `call_indirect` signature fix, `ed38c084f`).
+decision 4, → 421 on 2026-09-15 by the `call_indirect` signature fix, `ce3623175`).
 
 🛑 This list used to start at `deno task test`, which runs `--no-check`. S6 step 4 left two
 `scripts/` files uncompiled and nothing here could see it; CI would have on the first push.
@@ -3606,7 +3606,7 @@ always" reaches TYPES (referenced by index in both IRs, `name: ''` in both since
 M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
 
 **✅ M7c3b — both IRs take the practice (2026-09-18): b0, b1a, b1b (with b2) landed; M7c CLOSED.**
-   **✅ b1a — the name section is its own fact (2026-09-18, `5e4a1cbdd` + `9a9c17ade`).** Found
+   **✅ b1a — the name section is its own fact (2026-09-18, `92a98bbc8` + `639ee11ce`).** Found
    designing b1: binaryen-ts's `explicitNames` held TWO facts — its presence meant "write a section",
    its content "which names are real". binaryen-ts now has wabt-ts's `hasNameSection: boolean`
    (decoder: had one; `build()`: false; `PassRunner` clears it after an optimizing run without
@@ -3617,7 +3617,7 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
    case survived until a test named a label. Ratchet **19 / 2 / 19**. ⚠️ `addType`'s made-up type
    names are unrecorded, so they would be written if someone sets `hasNameSection` on a built module.
 1. **✅ b1b — wabt-ts names every entity; every writer writes only real names (2026-09-18,
-   `c5ad07eac`). b2 folded in.** `ExplicitNames` moved into wabt-ts's IR — one record, both IRs —
+   `740c65169`). b2 folded in.** `ExplicitNames` moved into wabt-ts's IR — one record, both IRs —
    and wabt-ts's `Module` carries it (`explicitNames?`; absent = nothing made up). The binary reader,
    after applying the name section, records what it holds as REAL and makes up the rest
    (`nameEveryEntity`: functions, tables, memories, globals, tags, segments, types, fields), with the
@@ -3640,7 +3640,7 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
    modules carry no record, so every name in them is real. Locals are made up by neither reader;
    labels were, at b1b, by binaryen-ts's decoder only (this line first said "neither" — wrong;
    corrected at M7c3c, which made wabt-ts's reader match).
-   **✅ M7c3c — wabt-ts's reader makes up labels too (2026-09-18, `328a6763e`).** Owner agreed:
+   **✅ M7c3c — wabt-ts's reader makes up labels too (2026-09-18, `d5438e30b`).** Owner agreed:
    before M8, binary-reader half only; the TEXT half stays in M8 with text-path names. Every unnamed
    block / loop / if / try / try_table gets `MADE_UP.label` (`$l<func>_<n>`, binaryen-ts's decoder's
    spelling, now shared); the section's labels are recorded real. The WAT writer reads all 28 label
@@ -3654,7 +3654,7 @@ M7c3b. **🗓️ Owner, 2026-09-18: "yes names should cover types and fields."**
    `main`'s code. The corpus has no unnamed type with a named field — which is how it hid, and why
    every hash stayed put: wabt-ts 0 of 2,888, objdump 0 of 602, decode → encode 0 of 1,023,
    optimizer + `wat2wasm` 0 of 2,526. 6 mutants killed.
-0. **✅ b0 — binaryen-ts's types and fields take the practice (2026-09-18, `66ccfe236`).** Every
+0. **✅ b0 — binaryen-ts's types and fields take the practice (2026-09-18, `80cee0140`).** Every
    `TypeDef` and field carries a name — the section's, or `$typeN` / `$fieldN`, clear of every
    section name — and `explicitNames.types` is a set of the real type names, `.fields` a map from a
    type's NAME to its real field names (as `labels` is by function). They had held the names
@@ -3689,7 +3689,7 @@ and upstream binaryen both hold bytes, so the direction is not a judgement call:
 converts. (Bytes' own limit: a binary's exponent past 1023 is `2 ** e` = `Infinity`; T13.26 already
 made the wabt-ts reader use `2 **`. Measure it in the stage, not here.)
 
-**✅ M8a1 — `align` is BYTES in binaryen-ts too (2026-09-18, `47d69438f` + `bae82ae75`).** The
+**✅ M8a1 — `align` is BYTES in binaryen-ts too (2026-09-18, `edab56762` + `dd5c02f2f`).** The
 decoder gives `2 ** exponent` and refuses an exponent past 8, as upstream binaryen does; the encoder
 writes log2 and refuses a non-power-of-two or anything past 256 (an exponent of 64+ would also have
 hit the memory-index flag, bit 6); Asyncify's `STACK_ALIGN_LOG2 = 2` is `STACK_ALIGN = 4`; the WAT
@@ -3704,7 +3704,7 @@ pinned. Against `main`: decode → encode 0 of 1,023, optimizer + `wat2wasm` 0 o
 exhaust memory in binaryen-ts's decoder (2^32 declared locals, materialized) — M6c's defect in the
 OTHER decoder, on `main`; fixed next, on its own.
 
-**✅ binaryen-ts's decoder refuses 2^32 locals instead of dying (2026-09-18, `e8002cb3b`).** M6c's
+**✅ binaryen-ts's decoder refuses 2^32 locals instead of dying (2026-09-18, `d771ed53f`).** M6c's
 fix, in the other decoder: the groups are read first, the SUM checked against the spec's 2^32-1 and
 the shared `MAX_MATERIALIZED_LOCALS` (now exported from wabt-ts's reader, not copied), then slots
 made. `parseWasm` — a published entry point — had killed its caller's process on five bytes. All
@@ -3713,7 +3713,7 @@ refused). New `tests/binaryen-ts/binary/local_limits.test.ts` fails, then OOMs, 
 u32-sum check is an EQUIVALENT mutant while the limit (10^6) is far below 2^32 — the spec's rule,
 kept as wabt-ts keeps it.
 
-**✅ M8a2 — a call's `isReturn` is `true` or absent (2026-09-18, `d70988ad0`).** binaryen-ts wrote
+**✅ M8a2 — a call's `isReturn` is `true` or absent (2026-09-18, `f9dca57b8`).** binaryen-ts wrote
 `false` on every plain call, wabt-ts nothing — two spellings on 24,737 corpus nodes, read alike
 everywhere. Trials: a required `boolean` 12 errors, and blind to wabt-ts's `{ kind: 'call', … } as
 CallExpr` literals (a cast does not flag a missing required field); `isReturn?: true` 5 errors,
@@ -3723,7 +3723,7 @@ Against `main` every hash unchanged (decode → encode, optimizer + `wat2wasm`, 
 bridge's `isReturn` difference 24,737 → 0. `tests/ir/is_return.test.ts`: `false` is a compile error
 (`@ts-expect-error`, inverted by reverting the type), and the factories omit the key.
 
-**✅ M8a3 — a `call_indirect` that names its type carries its signature (2026-09-18, `eda639acf`).
+**✅ M8a3 — a `call_indirect` that names its type carries its signature (2026-09-18, `aa5a06b20`).
 M8a CLOSED.** The text parser kept the INLINE signature in the required `sig` — empty `() -> ()` for
 `(call_indirect (type $t) …)` on 222 corpus nodes; wabt-ts's readers use `typeVar` and never noticed.
 `synthesizeTypes` now sets `sig` to the named func type's (a fresh object — the fidelity table keeps
@@ -3734,7 +3734,7 @@ its own table, which for a non-GC module is today a derived list; that resolves 
 bridge's `sig` differences 381 → 0. **What the bridge now changes in a body, beyond derived types,
 names and labels: only the `typeVar` drop.**
 
-**✅ M8b1 — the start function is `start?: Var` in both (2026-09-18, `0e2ac6dc1` + `76d478672`).**
+**✅ M8b1 — the start function is `start?: Var` in both (2026-09-18, `53a6f990c` + `1cadd8300`).**
 binaryen-ts's `start: string | null` (a name OR a numeric token in one string) took wabt-ts's form:
 a name as passes read it (`requireName`), or an index as written; absent = missing (M2). ⚠️ **Two
 sites the compiler could not see**: RemoveUnusedModuleElements and Inlining tested
@@ -3743,7 +3743,7 @@ and a test's `assertEquals(mod.start, null)` (generic) failed only when run. �
 Inlining's "start is used globally" seed SURVIVED — nothing had a single-caller start function, which
 inlining would remove; pinned. Ratchet **18 / 1 / 18**.
 
-**✅ M8b2 — packed field types are the binary's codes (2026-09-18, `093b3f21b` + `b93735920`).**
+**✅ M8b2 — packed field types are the binary's codes (2026-09-18, `6b6d6781d` + `be503b112`).**
 binaryen-ts's `PackedType` was the strings `'i8'` / `'i16'`; now `Type.I8` / `Type.I16`, wabt-ts's (V1
 precedent), as `Packed.I8` / `Packed.I16` where `Type` means the expression type. The last value-type
 pair spelled two ways: the field, struct and array entries are one type — ratchet **18 / 1 / 15**.
@@ -3753,7 +3753,7 @@ encoder mutants hit lines one off (an added import shifted them), changed nothin
 caught only because each mutant prints its diffstat; re-run, killed. Against `main`: decode → encode,
 optimizer + `wat2wasm`, and all 5,924 spec decodes (the GC ones carry packed fields) unchanged.
 
-**✅ M8b3 — a module record's `loc` is optional, read through `locOf` (2026-09-18, `e97e7bd33`).**
+**✅ M8b3 — a module record's `loc` is optional, read through `locOf` (2026-09-18, `e53c5cd03`).**
 The node base's answer (item 5 (1)) for the records: type entry, function, global, table, memory,
 tag, both segments, custom. Trials: wabt-ts `loc?` 69 errors (63 reads → `locOf`, converted on the
 compiler-named lines only and read back); binaryen-ts required `loc` 100+, and a made-up location on
@@ -3762,7 +3762,7 @@ every API- or pass-built record. With `loc` optional a leaf record IS its partne
 `customSections` (required in wabt-ts, optional in binaryen-ts — M8b5). wabt-ts outputs 0 of 2,888
 and objdump 0 of 602 changed. The module's own `loc` waits for M8b5.
 
-**✅ M8b4 — the function record is one type (2026-09-18, `b80ce1042` + `ed6a54128`).** `typeVar` —
+**✅ M8b4 — the function record is one type (2026-09-18, `5fdd53a27` + `f3b3fc522`).** `typeVar` —
 which of several IDENTICAL types a function uses (T1) — is optional in both, as `call_indirect`'s is.
 binaryen-ts's decoder now KEEPS the written index and the encoder writes it while it still names a
 function type with the function's signature (else derives — absent, or stale after a pass changed
@@ -3778,7 +3778,7 @@ a test pinned the refusal. Ratchet **4 / 0 / 1** — only the module's as-writte
 `customSections`' optionality remain (M8b5).
 
 **✅ M8b5 — the module carries the as-written metadata; `Module` and `WasmModule` are ONE TYPE
-(2026-09-18, `7f43b4156`).** Trials: binaryen-ts carries `loc` / `filename` / `sectionMeta` /
+(2026-09-18, `031092897`).** Trials: binaryen-ts carries `loc` / `filename` / `sectionMeta` /
 `fidelity` REQUIRED with `makeModule`'s empty defaults — 8 errors; optional in both — 44 (a guard on
 every `m.fidelity` read). Taken: required — the design `fidelity.ts` already recorded ("dropped
 wholesale by binaryen-ts's passes"), so not an owner question. `noAsWrittenMetadata()` gives the
@@ -3790,7 +3790,7 @@ table, and clearing with no pass, both killed (the second `sed` hit two `if (opt
 blunter mutant than meant; recorded rather than claimed). Hashes unchanged.
 
 **✅ M8b6 — `WasmModule = Module`: binaryen-ts's module declarations are ALIASES (2026-09-18,
-`addd7586b`). M8b CLOSED.** `WasmModule`, `WasmFunction`, `WasmGlobal`, `WasmTable`, `WasmMemory`,
+`7302621e5`). M8b CLOSED.** `WasmModule`, `WasmFunction`, `WasmGlobal`, `WasmTable`, `WasmMemory`,
 `WasmTag`, `ElementSegment`, `DataSegment`, `WasmExport`, `CustomSection`, `Local`, `WasmImport`,
 `FieldType`, `TypeDef`, `TypeDefBase` and the struct / array / func shapes now name wabt-ts's
 declarations. A script moved every binaryen-ts interface doc and EVERY field doc verbatim into the
@@ -3812,7 +3812,7 @@ resolve), then rewrite exactly those reference kinds to names. Its acceptance, i
 tree and the named tree agree.
 
 **✅ M8c — `nameReferences`: the references the bridge named, named on the module (2026-09-18,
-`381221432` + `400135262`).** `src/ir/name-references.ts`, not yet called by any route. It
+`0c597b614` + `e1ca2e263`).** `src/ir/name-references.ts`, not yet called by any route. It
 wires in at M8e, on the optimizer route only.
 - **Naming:** a module with no `explicitNames` (text) is named first with `nameEveryEntity`, after
   `resolveNames` + `synthesizeTypes`, with every function listed for its locals (what the encoder
@@ -3851,7 +3851,7 @@ wires in at M8e, on the optimizer route only.
 - **For M8e:** the bridge's `$L<n>` labels reached the encoder as REAL names (no record), while the
   pass's made-up labels are not real and are never written. Optimizer output with names kept may
   change there; measure it.
-- **Gate** on `400135262`: every step exit 0, 1283 tests.
+- **Gate** on `e1ca2e263`: every step exit 0, 1283 tests.
 
 **✅ M8d — `deriveTypes`: every node's type, derived over the whole module (2026-09-18, branch
 `m8d-derive-types`).** `src/ir/derive-types.ts`, not yet called by any route. It
@@ -3905,24 +3905,24 @@ wires in at M8e, after `nameReferences`.
   0 of 1,023 / 0 of 5,924 changed).
 - **Two wabt-ts PARSER defects it exposed, each fixed on its own branch first** (bytes unchanged;
   wabt-ts outputs 0 of 2,888):
-  - **the phantom branch value** (`e819a92c3`): since S5 (`f27bfd5ca`, 2026-09-04) the linear-form
+  - **the phantom branch value** (`b256cbf6c`): since S5 (`66e3f0047`, 2026-09-04) the linear-form
     padding placeholder is a `pop`, and `br_if` / `br_on_null` still dropped only `nop`. So every
     value-less linear `br_if` carried one (1,433 corpus `pop`s), and the bridge typed each such
     `br_if` by it;
-  - **linear indirect-call arity** (`9b786de22`): T10.5 gave `call` its signature's arity;
+  - **linear indirect-call arity** (`0514b8738`): T10.5 gave `call` its signature's arity;
     `call_indirect` / `return_call_indirect` / `call_ref` still drained the stack (2 of 222 corpus
     nodes).
 - **Left as found, for later:**
   - `br_table`'s filter has the same stale `'nop'` check but never meets a placeholder;
   - the parser does not know a branch target's arity, so a `br_if` value that really comes from
-    outside the region drops out, as it did before S5 — ✅ fixed by post-M8 fix 5 (`89b6a1805`);
+    outside the region drops out, as it did before S5 — ✅ fixed by post-M8 fix 5 (`36df05dd0`);
   - wabt-ts's BINARY reader does not treat a `br_if` as producing a value (the pass follows wasm's
-    rule regardless) — ✅ fixed by post-M8 fix 4 (`a82dadf90`);
+    rule regardless) — ✅ fixed by post-M8 fix 4 (`151140baf`);
   - `makeMemorySize` / `makeMemoryGrow` type `i32` even for memory64;
   - the decoder's `table.get` default and the factory's multi-value `call_indirect`.
-- **Gate** on `8aca27cbd`: every step exit 0, 1288 tests.
+- **Gate** on `76a38a30c`: every step exit 0, 1288 tests.
 
-**✅ M8e — the bridge goes (2026-09-18, `84a128f82`). ITEM 6 IS DONE, and with it S6 step 5.**
+**✅ M8e — the bridge goes (2026-09-18, `2ce4e5fa4`). ITEM 6 IS DONE, and with it S6 step 5.**
 - **`prepareForPasses(m)`** (`src/ir/prepare.ts`) is the bridge's replacement:
   `nameReferences` then `deriveTypes`, in place, on the one module type. It is not public (the
   bridge was not either), and stays internal (**owner, 2026-09-18**). No PRODUCT route used the
@@ -3961,15 +3961,15 @@ wires in at M8e, after `nameReferences`.
     `direct-behaviour` (39 DIVERGE, as with the bridge);
   - skipping `deriveTypes` fails all three;
   - dropping the start function fails only the test (✅ both gates too since post-M8 fix 7,
-    `517bf7c89`). No corpus module has a `(start …)`, as the
+    `227519400`). No corpus module has a `(start …)`, as the
     behaviour gate's doc says; the fixture's start module is the witness.
-- **Gate** on `84a128f82`: every step exit 0, 1254 tests (1288, minus the 16 bridge files, plus one).
+- **Gate** on `2ce4e5fa4`: every step exit 0, 1254 tests (1288, minus the 16 bridge files, plus one).
 
 **Post-M8 fixes (owner, 2026-09-18): "fix the defects that were found and the mutants noted."**
 Each item is its own branch, measured, tested, mutated and gated. Fixes 9 and 10 — divergence W9's
 two reader defects, found by fix 4 — joined the list on 2026-09-19 (owner: "add the fixes to the
 defects to the task list"); their scope is in open-work.md.
-1. ✅ **`table.get` is typed by its table's element type** (`ddd5f6163` + `4f2841e66`).
+1. ✅ **`table.get` is typed by its table's element type** (`731d55fa4` + `07bc56bc8`).
    - The defect: the decoder never passed the element type to `makeTableGet`, whose default was
      `funcref`, and binaryen-ts's own WAT parser wrote `funcref` outright.
    - The fix: both now record each table's element type and read it. An unknown or out-of-range
@@ -3978,8 +3978,8 @@ defects to the task list"); their scope is in open-work.md.
      M8d's decoder comparison lost its 235 + 99 disagreements.
    - Mutants: 6 / 6 killed. The first test called `readWat` as "the WAT reader", but it is the
      decoder route, so the parser's 3 mutants survived until the parser was called directly.
-   - Gate on `4f2841e66`: exit 0, 1255 tests.
-2. ✅ **A multi-value `call_indirect` is typed by every result** (`4b2488540`).
+   - Gate on `07bc56bc8`: exit 0, 1255 tests.
+2. ✅ **A multi-value `call_indirect` is typed by every result** (`0a582ea3b`).
    - The defect: `makeCallIndirect` typed it `sig.results[0] ?? None`, where `makeCall` /
      `makeCallRef` give the tuple. `deriveTypes` had corrected it on its own; it now calls the
      factory, so the rule is in one place.
@@ -3988,8 +3988,8 @@ defects to the task list"); their scope is in open-work.md.
    - The test also optimizes a multi-value indirect call at -O3 and runs it. Its first module was
      INVALID (`wat2wasm` does not validate) and read as an optimizer defect until checked: a test
      module is now asserted valid before it is judged.
-   - Mutants 2 / 2 killed. Gate on `4b2488540`: exit 0, 1256 tests.
-3. ✅ **Size and grow are typed by the address type** (`565e7b2c2`).
+   - Mutants 2 / 2 killed. Gate on `0a582ea3b`: exit 0, 1256 tests.
+3. ✅ **Size and grow are typed by the address type** (`fa1b2724b`).
    - The defect: `memory.size` / `memory.grow` and `table.size` / `table.grow` were `i32` whatever
      the memory or table (the factories hard-coded it); memory64 / table64 give `i64`.
    - The fix:
@@ -4002,12 +4002,12 @@ defects to the task list"); their scope is in open-work.md.
    - Measured: bytes unchanged (0 / 1,023, 0 / 2,526). 4 spec binaries that name a memory the module
      lacks are now REFUSED where they were read and re-encoded; V8 rejects all 4 for that reason.
      Spec still 100% on four axes.
-   - Mutants 11 / 11 killed. Gate on `565e7b2c2`: exit 0, 1257 tests.
+   - Mutants 11 / 11 killed. Gate on `fa1b2724b`: exit 0, 1257 tests.
    - ⚠️ Seen in passing, not changed here: the decoder reads `memory.size` / `memory.grow`'s memory
      index as ONE BYTE, where multi-memory writes a LEB (the same value below 128). Added to the
-     list as fix 8 (owner, 2026-09-18) — ✅ fixed `dbe986344`, and it was twelve sites, not two.
-4. ✅ **A `br_if` carrying one value is an operand in wabt-ts's binary reader** (`a82dadf90`,
-   re-baseline `abd8b7e5d`, tests `b2547af78`; 2026-09-19).
+     list as fix 8 (owner, 2026-09-18) — ✅ fixed `0dc2a2cde`, and it was twelve sites, not two.
+4. ✅ **A `br_if` carrying one value is an operand in wabt-ts's binary reader** (`151140baf`,
+   re-baseline `b1375c620`, tests `8dd34b3ca`; 2026-09-19).
    - The defect: the reader committed every `br_if` as a statement, so `(i32.add (br_if 0 v c) x)`
      read back as two siblings and folded `wasm2wat` printed `(br_if 0 v c) (i32.add x)`.
    - The fix: a `br_if` whose target carries exactly ONE value goes on the operand stack, as a `call`
@@ -4022,16 +4022,16 @@ defects to the task list"); their scope is in open-work.md.
    - The 2 left are separate reader defects, recorded in open-work for the owner, not fixed here:
      `br_table` never takes its carried values (`br_if.0` func 23), and the function label's frame is
      typed void, so a branch to it carries nothing (`unwind.0` func 4; `br` alike).
-   - The gate's first run on `abd8b7e5d` was RED: two M8d `deriveTypes` tests took their sibling-shape
+   - The gate's first run on `b1375c620` was RED: two M8d `deriveTypes` tests took their sibling-shape
      tree from this very defect. The shape still arises from the WAT parser on linear text (fix 5), so
      they read linear text now, expectations unchanged, plus a step pinning the reader's new shape.
    - Mutants 5 / 5 killed (reader: always a statement, `> 0`, always an operand; `deriveTypes`:
      `consumes` → `claimed`, `br_if` typed by the factory rule). Always-an-operand first SURVIVED —
      the void fixture was followed by a statement — until a void `br_if` between two operands and
      their `i32.add` was added.
-   - Gate on `b2547af78`: exit 0, 1258 tests; baseline re-baselined (folded column of
+   - Gate on `8dd34b3ca`: exit 0, 1258 tests; baseline re-baselined (folded column of
      `1_fib-rs-opt` / `1_fib-zig-opt` only).
-5. ✅ **The WAT parser knows a branch target's arity** (`89b6a1805`, 2026-09-19).
+5. ✅ **The WAT parser knows a branch target's arity** (`36df05dd0`, 2026-09-19).
    - The defect: no label context. In linear text `br` / `return` drained the whole stack (earlier
      instructions' values, and a void `call`, since every call was pushed as a value); `br_if` /
      `br_on_*` popped a fixed two and filtered the padding, so a value-less `br_if` took a stray
@@ -4059,8 +4059,8 @@ defects to the task list"); their scope is in open-work.md.
    - Mutants 21 / 21 killed, each by its own step of `branch_arity.test.ts` (24 steps). Three
      SURVIVED first — padding matters only in the FOLDED form (linear `popN` pads already), and
      `br_on_non_null` had no test — and two first died in TYPE-CHECKING, not the test; all rewritten.
-   - Gate on `89b6a1805`: exit 0, 1259 tests; baseline IDENTICAL.
-6. ✅ **A folded `br_table` keeps every operand below its index** (`653fd3839`, 2026-09-19).
+   - Gate on `36df05dd0`: exit 0, 1259 tests; baseline IDENTICAL.
+6. ✅ **A folded `br_table` keeps every operand below its index** (`52e2aab03`, 2026-09-19).
    - The item as listed: the WAT parser's `br_table` filtered its carried values by `'nop'` (the
      placeholder before S5) and "never meets a placeholder" — true, and still true after fix 5
      (linear `br_table` pops its index alone; the folded form never pads).
@@ -4073,10 +4073,10 @@ defects to the task list"); their scope is in open-work.md.
    - Measured: 0 of 2,286 WAT files change bytes or tree; 0 of 5,794 round trips differ — no corpus
      has the shape, so only the probe could see it.
    - Test `br_table_operands.test.ts` pins upstream's body bytes; the restore-the-filter mutant fails
-     its byte and tree steps. Gate on `653fd3839`: exit 0, 1260 tests.
+     its byte and tree steps. Gate on `52e2aab03`: exit 0, 1260 tests.
    - Lesson: "stale, never reached" was a claim about the PLACEHOLDER; the filter's real inputs were
      never enumerated. Ask what a dead-looking guard actually meets before choosing its fate.
-7. ✅ **The direct gates reach a start section** (`517bf7c89`, docs `3f6c4d645`; 2026-09-19).
+7. ✅ **The direct gates reach a start section** (`227519400`, docs `cb5285bd3`; 2026-09-19).
    - The gap: M8e's dropped-start mutant left `direct` and `direct-behaviour` green — no corpus
      module has a `(start …)` — and only `prepare.test.ts` caught it, through its fixture.
    - The fix: both gates read `scripts/direct-inputs.ts` — the 421 corpus modules plus the fixture's
@@ -4091,8 +4091,8 @@ defects to the task list"); their scope is in open-work.md.
      an empty one both exit 1.
    - Also corrected: `working-rules.md`'s gate checklist still named the deleted `bridge` tasks. It
      names the direct ones with their counts, and gains "a gate is evidence about what it reaches".
-   - Gate on `3f6c4d645`: exit 0, 1260 tests.
-8. ✅ **A memory index is a LEB in every binaryen-ts instruction, read and written** (`dbe986344`,
+   - Gate on `cb5285bd3`: exit 0, 1260 tests.
+8. ✅ **A memory index is a LEB in every binaryen-ts instruction, read and written** (`0dc2a2cde`,
    2026-09-19).
    - The item: the decoder reads `memory.size` / `memory.grow`'s index as ONE BYTE — "read it as a
      LEB, as every other memory index is".
@@ -4108,10 +4108,10 @@ defects to the task list"); their scope is in open-work.md.
      a memory index >= 128.
    - Test `memory_index_leb.test.ts`: every memory-index instruction at 150 (199), byte-identical and
      the same answers on V8; `memory.size` at 127 / 128 / 255 / 256. Mutants 12 / 12 killed, one per
-     site; 127 passes under every mutant, as it should. Gate on `dbe986344`: exit 0, 1261 tests.
+     site; 127 passes under every mutant, as it should. Gate on `0dc2a2cde`: exit 0, 1261 tests.
    - Lesson (again, "a row's premise is not evidence"): the item's "as every other memory index is"
      was never checked; checking it found five more sites and the whole write side.
-9. ✅ **A `br_table` holds the values it carries, in both front ends** (`cf1b50bd8`, 2026-09-19;
+9. ✅ **A `br_table` holds the values it carries, in both front ends** (`a88f3af11`, 2026-09-19;
    divergence W9 (a)).
    - The defect: the binary reader gave `br_table` its index alone and left the carried values as
      preceding statements, so folded `wasm2wat` printed them as siblings where upstream nests them.
@@ -4132,8 +4132,8 @@ defects to the task list"); their scope is in open-work.md.
      (padding again acts only in the FOLDED form — fix 5's lesson, met a second time); a fourth,
      reading the FIRST target's arity instead of the default's, survives and is EQUIVALENT: every
      target of a valid `br_table` carries the same values.
-   - Gate on `cf1b50bd8`: exit 0, 1262 tests; baseline IDENTICAL.
-10. ✅ **A branch to the function label carries the function's results** (`a7915f1e1`, 2026-09-19;
+   - Gate on `a88f3af11`: exit 0, 1262 tests; baseline IDENTICAL.
+10. ✅ **A branch to the function label carries the function's results** (`1fe5e33d1`, 2026-09-19;
     divergence W9 (b)).
     - The defect: the binary reader's root frame for a function body has a void block type, and
       `brTargetResultCount` read the arity from it — so a `br` / `br_if` / `br_table` / `br_on_null`
@@ -4149,7 +4149,7 @@ defects to the task list"); their scope is in open-work.md.
     - `deriveTypes`' stack rule is still needed, and its notes say why: a `br_if` carrying TWO or
       more values stays a statement in both front ends (as upstream folds it), so what consumes those
       values finds `pop`s.
-    - Gate on `a7915f1e1`: exit 0, 1263 tests; baseline IDENTICAL.
+    - Gate on `1fe5e33d1`: exit 0, 1263 tests; baseline IDENTICAL.
 
 **The post-M8 list is COMPLETE (2026-09-19): 10 of 10.** Across it, bytes moved only where they
 were wrong — fix 6 (a dropped `nop`) and fix 8 (memory indices from 128) — and the rest changed
@@ -4158,7 +4158,7 @@ by the owner on 2026-09-19: keep our folding where a statement splits operands (
 upstream's nesting in unreachable code (W10b, to fix) — "the more accurate the folded nature the
 better our setup treats it".
 
-**W10b — a transfer is the next instruction's operand** (`cd37142a6`, 2026-09-19; owner-decided).
+**W10b — a transfer is the next instruction's operand** (`a1f0d2cf1`, 2026-09-19; owner-decided).
 - Upstream's rule, read in the vendored `ir-util.cc` (`GetExprArity`): `br`, `br_table`, `return`,
   `unreachable`, `throw_ref` leave ONE value for folding, a return call its results, `throw` /
   `rethrow` none; `PushExpr` then lets the next instruction take it.
@@ -4178,11 +4178,11 @@ better our setup treats it".
   2,286 WAT files and 0 of 5,794 round trips move a byte; 113 linear texts parse differently; the
   optimizer's text route: nothing newly refused or accepted.
 - Tests `transfer_nesting.test.ts` + a `br.6` regression; mutants 8 / 8 killed (two needed their
-  patterns re-cut after `deno fmt`). Gate on `cd37142a6`: exit 0, 1264 tests.
+  patterns re-cut after `deno fmt`). Gate on `a1f0d2cf1`: exit 0, 1264 tests.
 - **W11 found** (divergences.md): the writer's `foldSpec` has no case for ~30 kinds, which print
   linear, and pull their whole region with them.
 
-**W11 — folded `wasm2wat` folds every instruction** (`f2baf2ada`, 2026-09-19; owner: "go back to the
+**W11 — folded `wasm2wat` folds every instruction** (`0ec356fa5`, 2026-09-19; owner: "go back to the
 rule" — best-practices.md § "Every linear instruction has a folded form").
 - The defect: `foldSpec` declined ~30 kinds and `try_table`; a decline sent its whole top-level
   expression, blocks included, to the linear writer.
@@ -4199,7 +4199,7 @@ rule" — best-practices.md § "Every linear instruction has a folded form").
   condition that are pops).
 - Test `fold_every_kind.test.ts`; `multi_memory.test.ts` had assumed `memory.init` prints linear.
   Mutants 7 / 7 killed; flipping `writeFoldedExpr`'s pop return to false is EQUIVALENT (the `if`
-  condition, its one caller, ignores it) — deleting the line fails. Gate on `f2baf2ada`: exit 0,
+  condition, its one caller, ignores it) — deleting the line fails. Gate on `0ec356fa5`: exit 0,
   1265 tests.
 
 **Stages**, each ending green, the same order as before (value conventions before structure):
@@ -4219,12 +4219,12 @@ rule" — best-practices.md § "Every linear instruction has a folded form").
    agreement BEFORE deletion; then the bridge, its 16 test files and both scripts are deleted, their
    front-end-to-optimizer checks kept as direct gates.
 
-### ✅ S7 — the text-form record (DONE 2026-09-19: per function `899263b7b`, per instruction `b366262ce`)
+### ✅ S7 — the text-form record (DONE 2026-09-19: per function `048ecd424`, per instruction `1f8e8985f`)
 
 Owner (2026-09-19): fidelity first on the text path, ON by default, stripped by the optimizer — and
 then "a mixed form if a mixed form is in the wat … It should never change the state unless it goes
 into optimization" (the decision at the top). The first cut recorded forms per FUNCTION and wrote a
-mixed one back folded (`git show 145ac840a:cmem/ir-convergence.md`, § "S7"); it records them per
+mixed one back folded (`git show dc78a458a:cmem/ir-convergence.md`, § "S7"); it records them per
 INSTRUCTION since. The design, as built (`src/ir/text-form.ts`):
 - **Folding is syntax**: `(op f1 … fk)` IS `f1 … fk op`, so the bytes fix the instruction SEQUENCE
   and only its grouping is free. Walked in binary order (`formNodes`), each instruction gets a FORM
@@ -4278,9 +4278,9 @@ on main too); no optimized output carries it. Cost: `wat2wasm` +26–35% (the re
 (owner, 2026-09-19: "ignore the slower part for now. we already addressed that issue with the ir,
 reader and writer that we are in the process of merging") — the read-back exists only because two
 front ends can differ, so One front end removes its reason; deleting it is an action of stage 2, not
-a trade to weigh (open-work.md). Baseline (`cbb2cca20`): 75 of 421
+a trade to weigh (open-work.md). Baseline (`0b4cacc08`): 75 of 421
 moved — bytes by the section only; the `--fold` column equals main's FORCED fold on all 421 (naming
-a form forces it now); `--linear` unchanged. Gate on `b366262ce` exit 0 at every step, 1273 tests;
+a form forces it now); `--linear` unchanged. Gate on `1f8e8985f` exit 0 at every step, 1273 tests;
 the re-baseline commit reads IDENTICAL.
 
 **Tests** `tests/wabt-ts/tools/text_form.test.ts` (30 steps) — the mix, siblings and partial folds,
@@ -4292,7 +4292,7 @@ one test's premise was false outright (its fixture recorded nothing). Three cros
 assemble without the record; `nameless_reference` too (binaryen-ts's `parseWat` keeps no text
 form).
 
-**Found on the way** — a reader defect, fixed on the branch (`ab1a211ee`): `getFuncSig` /
+**Found on the way** — a reader defect, fixed on the branch (`59c13f918`): `getFuncSig` /
 `getTagSig` indexed `m.imports` across ALL kinds, so after a global import a call to an imported
 function read back with no operands. And one recorded, not fixed (open-work.md): the reader pops
 operand NODES, not values, so a multi-value operand takes its neighbour —
@@ -4304,7 +4304,7 @@ Bytes are right in both; the tree is not.
 The question: can the wabt-ts reader + `prepareForPasses` (route **B**) replace binaryen-ts's decoder
 (route **A**) as the optimizer's entry, and one writer replace two? Measured over every binary in
 the five corpora — the `.wasm` files plus `wat2wasm` of every WAT, 7,569 inputs, 4,115 of them
-V8-valid and read by both — main at `7632be94d`. ⚠️ Every figure in this block is that FIRST
+V8-valid and read by both — main at `948af5f96`. ⚠️ Every figure in this block is that FIRST
 snapshot; stages 0, 1 and 2's first piece have moved them, and each stage entry under the plan
 carries its own numbers. Scripts: session scratch (`one/front.ts`,
 `one/opt.ts`); an inventory of each reader's and writer's own behaviour was read from the code.
@@ -4374,13 +4374,13 @@ findings beside the question: **route A already emits INVALID output for valid s
 
 **The plan — ✅ confirmed by the owner ("proceed", 2026-09-19)**; each stage gated like every stage
 before it:
-0. ✅ **Fix the saturating-truncation miscompile now** — DONE 2026-09-19 (`2ca4513f1`): eight
+0. ✅ **Fix the saturating-truncation miscompile now** — DONE 2026-09-19 (`96dcb522b`): eight
    `UnaryOp.TruncSat*` opcodes, the decoder maps each to its own; corpus 4 of 4 modules rewritten
    → 0; `tests/binaryen-ts/binary/trunc_sat.test.ts`.
 1. **Settle the tree**: one node shape for SIMD loads, the scalar saturating truncations in the
    opcode set, `defaultInit`, the unreachable-code types — so both readers build the same kinds.
    🚧 IN PROGRESS:
-   - ✅ **SIMD loads** (`f60e4e575`; owner: "we want both reader to build the simd.load form"):
+   - ✅ **SIMD loads** (`dab3fa7e4`; owner: "we want both reader to build the simd.load form"):
      `SIMD_LOAD_OPCODES` / `isSimdLoadOpcode` in `ir.ts` is the one rule — the extending, splat
      and zero loads are `simd.load`, `v128.load` a `load` — asked by the WAT parser and the binary
      reader, equal to binaryen-ts's `SIMDLoadOp` (pinned, `tests/ir/simd_load_kind.test.ts`). It
@@ -4388,7 +4388,7 @@ before it:
      never moved (baseline IDENTICAL); the tree did — route comparison 90 functions → 0, identical
      bodies 48,540 → 48,648.
    - ✅ saturating truncations — stage 0.
-   - ✅ **`defaultInit` and the unreachable `br_if`** (`1ffdcb561`; owner: option A on both, after
+   - ✅ **`defaultInit` and the unreachable `br_if`** (`e6ddba9a8`; owner: option A on both, after
      the measurement below). `struct.new`'s `defaultInit` is `true` or ABSENT, `false`
      unrepresentable (the `isReturn` precedent, M8a2) — NOT upstream's "are the operands empty?",
      which cannot tell `struct.new $empty` from `struct.new_default $empty` on a zero-field struct.
@@ -4416,7 +4416,7 @@ before it:
 2. **Move A's preparation into `prepareForPasses`** (pops, spills, block-param lowering as a tree
    pass), and explain B's three -O3 invalid outputs. Gate: optimizer output equal to route A's or
    each difference explained, plus a behaviour check on every differing module. 🚧 IN PROGRESS:
-   - ✅ **one stack entry per VALUE, in both front ends** (`58fd43576`, re-baseline `36ecaddb3`):
+   - ✅ **one stack entry per VALUE, in both front ends** (`33c26b16c`, re-baseline `ac54b39a5`):
      the reader AND the parser held one entry per NODE, so a consumer popping N values from a
      multi-result producer took its NEIGHBOURS (the defect recorded 2026-09-19). Both push
      `pop` placeholders for a producer's earlier values now (`pushValues` / `pushProduced`); a held
@@ -4434,7 +4434,7 @@ before it:
      Forms still reproduce because those functions are recorded; one whose source form EQUALLED the
      prediction there would be absent and render differently. Worth closing with a gate that pins
      "the fold writer's grouping IS the prediction" over the corpus.
-   - ✅ **a region is ENTERED with its values, typed and in place (R13, R14)** (`0e2a2bd2b`,
+   - ✅ **a region is ENTERED with its values, typed and in place (R13, R14)** (`6c76b75ed`,
      2026-09-20): the reader now seeds one typed `pop` per value the FORMAT pushes at a region's
      entry — a carrier's parameters, a `catch` handler's payload — as the decoder always has.
      `Frame.seed` records them, `flush` KEEPS a typed leftover pop (an untyped one is still
@@ -4448,14 +4448,14 @@ before it:
      ran with it on the stack, which made the arm's type the parameter's where the decoder had the
      `nop`'s — a region's type is its LAST child's on both sides. Found by a fixture written to
      discriminate, after the rest already worked.
-     🔑 **What it also revealed**: R12 (done in `58fd43576`) left its multi-value placeholders
+     🔑 **What it also revealed**: R12 (done in `33c26b16c`) left its multi-value placeholders
      UNTYPED, so `flush` still drops an unconsumed one and the decoder's leading `pop` beneath a
      multi-result producer has no counterpart — **the single largest residual category, 315
      functions** (`[A "pop" | B "call"]`), plus 18 `local.set`, 5 `drop`, 4 `block`, 4
      `call_indirect`, 1 `br`, 1 `if` of the same shape. Typing those placeholders from the
      producer's result types is the same mechanism as this item and closes them; it was NOT in
      R13/R14's scope, so it is recorded here rather than folded in silently.
-   - ✅ **a placeholder carries its value's TYPE, and its position (R12 completed)** (`190ba909e`,
+   - ✅ **a placeholder carries its value's TYPE, and its position (R12 completed)** (`070b7e7d9`,
      2026-09-20): R12 gave the reader one entry per VALUE but left the placeholders untyped, and
      `flush` drops an untyped `pop`, so a multi-result producer whose earlier value nothing consumed
      came back as the producer alone. Typed now from the producer's own result types (call,
@@ -4587,7 +4587,7 @@ before it:
      writers; 10 mutants, each caught.
      Found and NOT fixed (register): Q9 — a tag does not keep which identical type it named, and
      our `wat2wasm` points one at the wrong rec-group member; W12 — the parser refuses
-     `(import … (tag (type $t)))`. ✅ Both FIXED 2026-09-28 (`d5d059a45`): `Tag.typeVar`, the
+     `(import … (tag (type $t)))`. ✅ Both FIXED 2026-09-28 (`0a1561b9d`): `Tag.typeVar`, the
      IR field this register said was missing, now carried end to end — divergences.md Q9, W12.
      Writer parity after it: 14,595 / 14,595. `writeWat` re-assembly residuals at O0: 5 → 2
      (binary.55's DataCount; try_table.1's empty `else`, E2).
@@ -4595,7 +4595,7 @@ before it:
      published `./encoder`, unpublished in that release. Deleting it found four defects its
      fail-loud checks had covered — [divergences.md](divergences.md), closed table.
 5. Retire binaryen-ts's internal `parseWat` (already planned). ✅ **DONE 2026-09-28** (merge
-   `824a4b435`): deleted with its tokenizer and s-expression reader; `readWat` is the only text
+   `868faea1b`): deleted with its tokenizer and s-expression reader; `readWat` is the only text
    route. What the parser refused or normalized each got a home — the text route's refusals, the
    validator (R18), a test that the case now WORKS (stack forms, block parameters, explicit memory
    indices, `ref.null` holes), and a `ModuleBuilder` test for the one built-tree case it alone
@@ -4667,14 +4667,14 @@ Refinements, ✅ CONFIRMED by the owner with the diagram (2026-09-19):
 
 ✅ **Decided (owner, 2026-09-19), done in 1.6.0:** the published `parseWasm` / `encodeWasm`
 (`./binary`, `./encoder`) did NOT stay as wrappers — both were unpublished at the bump (option (a);
-the options and the facts behind the choice: `git show 769b4d3c0:cmem/open-work.md`, "Decided
+the options and the facts behind the choice: `git show 3bd64ece7:cmem/open-work.md`, "Decided
 (owner, 2026-09-19): option (a)").
 3. **One IR is one node kind per instruction**: no reader may choose between `simd.load` and
    `load`, and the opcode set holds the scalar saturating truncations — plan stage 1.
 
 #### Inventory — what each reader and writer does that the other does not (2026-09-19)
 
-Read from the code at `7632be94d` (file:line as of then; they rot — re-find by name). ✓ marks a claim
+Read from the code at `948af5f96` (file:line as of then; they rot — re-find by name). ✓ marks a claim
 the measurement above confirmed; the rest was read, not re-verified. Class: **(a)** byte work to
 share, **(b)** optimizer preparation (after the reader / inside the encoder), **(c)** fidelity.
 RA = wabt-ts `reader/binary-reader.ts`; RB = binaryen-ts `binary/wasm-parser.ts` (+ `names.ts`,
@@ -4703,8 +4703,8 @@ RA = wabt-ts `reader/binary-reader.ts`; RB = binaryen-ts `binary/wasm-parser.ts`
 | R15 | `lowerBlockParams`: spills params to locals, rewrites branches to loops, a `br_table` trampoline for mixed targets; suppresses the written `typeIndex` — reached by `PassRunner` through an encode + DECODE round trip (`passes/lower-block-params.ts`). ✅ A tree pass since 2026-09-28 | RB                             | (b)   |
 | R16 | the text-form section: RA applies it to its own tree; RB re-reads the bytes with RA to predict — RB already depends on RA                                                                                                                                                  | both                           | (c)   |
 | R17 | relaxed SIMD: RA reads it, RB refuses ✓ (8 valid spec modules); RA may decode ANY unknown 0xFD sub-opcode as a binary op without error (unsure); RA refuses compact imports explicitly                                                                                     | RA                             | (a)   |
-| R18 | scalar SATURATING truncation (0xFC 0x00–0x07): RB decoded it as the TRAPPING opcodes — a miscompile ✓ (4 of 4 corpus modules); RA keeps it. ✅ FIXED `2ca4513f1` (stage 0)                                                                                                 | both now                       | (a)   |
-| R19 | SIMD loads: RB builds `simd.load`, RA `load` for the extending loads ✓ (90 functions) — a node-kind split in the one tree type. ✅ FIXED `f60e4e575` (stage 1): one rule, `SIMD_LOAD_OPCODES`                                                                              | both now                       | (a)   |
+| R18 | scalar SATURATING truncation (0xFC 0x00–0x07): RB decoded it as the TRAPPING opcodes — a miscompile ✓ (4 of 4 corpus modules); RA keeps it. ✅ FIXED `96dcb522b` (stage 0)                                                                                                 | both now                       | (a)   |
+| R19 | SIMD loads: RB builds `simd.load`, RA `load` for the extending loads ✓ (90 functions) — a node-kind split in the one tree type. ✅ FIXED `dab3fa7e4` (stage 1): one rule, `SIMD_LOAD_OPCODES`                                                                              | both now                       | (a)   |
 
 **Writers**
 
@@ -4751,9 +4751,9 @@ belong to neither phase; they are shared, like the tree.
 
 Moved here when [open-work.md](open-work.md) was cut back to open items. The blow-by-blow (every
 stage-2 item, the M-series and post-M8 tables, the pre-bump items): `git show
-769b4d3c0:cmem/open-work.md`, § "Handoff before the pre-bump items".
+3bd64ece7:cmem/open-work.md`, § "Handoff before the pre-bump items".
 
-### R15 — why the block-param lowering is POSITIONAL (merge `196a40c0c`)
+### R15 — why the block-param lowering is POSITIONAL (merge `f3008cbd6`)
 
 🔑 The first attempt (`wip/r15-tree-pass`, never merged; its commit message keeps the traps) rewrote
 each entry `pop` into a read of its local and failed 6 of 8: a `pop` is only "already on the stack"
@@ -4772,14 +4772,14 @@ fixture caught the pair.
 
 ### Flatten — decided KEPT, then completed (2026-09-28)
 
-- **Decision** (pre-bump item 5, `6107691db`): finish it rather than refuse it at the entry point —
+- **Decision** (pre-bump item 5, `24f1167e9`): finish it rather than refuse it at the entry point —
   but never silently invalid. Scoped 2026-09-20 at **132 INVALID outputs of 2,925** (~4.5%) and ~12%
   throwing, reachable by `wasm-opt --flatten` and `add('Flatten')` though in no `-O` list. The 131
   after re-measuring were ONE defect: a result-typed body that never falls through was flattened as
   a void statement.
-- **Value-carrying branches** (`4421bf62a`, merged `51be28b2e`): upstream's shape — the value into
+- **Value-carrying branches** (`e22d9f86b`, merged `06e3d750d`): upstream's shape — the value into
   the target's result temp, the branch without it; to the frame, a `return`.
-- **Complete** (`de5374681`, merged `7689ea5b7`; owner: "perform the flatten"): an N-value result
+- **Complete** (`897d4ac94`, merged `6d4b5ebf3`; owner: "perform the flatten"): an N-value result
   lives in N temps (`values` beside `value` in `Flat` — no tuple kind added; V1 and S6 6A stand);
   each frame MODELS its operand stack, so stack-form code and every `pop` flatten (operands first,
   then the pops take the top); legacy `try`; a value `br_table` to the frame. Over 2,919 modules:
@@ -4787,7 +4787,7 @@ fixture caught the pair.
   too.** In the gate as spec-behaviour's `--flatten` variant, its refusals pinned by (module,
   variant) in `REFUSED_BUDGET`.
 
-### `wasm-opt --converge` — the design reasoning (built 2026-09-28, merge `25717c474`)
+### `wasm-opt --converge` — the design reasoning (built 2026-09-28, merge `86c913eff`)
 
 The owner's proposal (2026-09-19, parked, then built): repeat the pipeline until the size delta
 over the next TWO rounds averages under 0.1%. Upstream's `--converge` repeats to a fixed point,
@@ -4819,57 +4819,57 @@ beneath it carry the code. Merges after this list are in `git log`.
 
 | merge       | date       | increment                                                                                |
 | ----------- | ---------- | ---------------------------------------------------------------------------------------- |
-| `219c9736b` | 2026-09-09 | S6 step 2 complete -- bucket A reconciled, all seven families                            |
-| `73d1e6120` | 2026-09-09 | S6 step 3 -- the shared node base carries loc? and type?                                 |
-| `56dcdd711` | 2026-09-09 | S6 step 4 measured -- field-level divergence and the Var decision                        |
-| `f7ad11f42` | 2026-09-09 | S6 step 4 groundwork -- one canonical Var accessor                                       |
-| `abd08c834` | 2026-09-09 | S6 step 4 -- four of the five (b) families hold a Var                                    |
-| `14119f9ea` | 2026-09-09 | S6 step 4 COMPLETE -- every (b) family holds its as-written form                         |
-| `1e0c220e3` | 2026-09-09 | the remaining entity references hold their as-written form                               |
-| `51cc013cd` | 2026-09-09 | the 28 structural kinds reduce to 16 real decisions                                      |
-| `3c54ce732` | 2026-09-09 | S6 Group 2 -- three of the seven structural decisions implemented                        |
-| `41b9ca385` | 2026-09-10 | two binaryen-ts defects found while scoping Group 2 decision 4, plus the Group 2 lessons |
-| `813fce2a4` | 2026-09-10 | S6 Group 2 decision 4 -- load/store hold their opcode; `check` green again               |
-| `7f3ec1d6e` | 2026-09-10 | S6 Group 2 decision 5 -- region bodies are a RegionExpr                                  |
-| `bc44d98d3` | 2026-09-10 | record decisions 6/7 premise checks                                                      |
-| `31ec7cc86` | 2026-09-10 | clear the pre-6/7 bug queue before decisions 6A and 7b(i)                                |
-| `15c6ef763` | 2026-09-10 | S6 Group 2 decision 6A -- branch and return values are a list                            |
-| `527759f58` | 2026-09-10 | S6 decision 7a and 7b(i), and three defects found on the way                             |
-| `1cb730031` | 2026-09-10 | external WAT goes through wabt-ts to bytes -- W4 resolved by routing                     |
-| `2e3de0734` | 2026-09-10 | register N1 -- names are lost at three hops                                              |
-| `91fa9caf9` | 2026-09-10 | pin the module interface -- export and import names never mangled                        |
-| `76fd5f82c` | 2026-09-10 | N1 decision -- names kept by default in the fidelity phase                               |
-| `66871576e` | 2026-09-10 | wabt-ts always keeps names                                                               |
-| `2c2647066` | 2026-09-10 | future discussion -- internal vs exported names under optimization                       |
-| `d588817dd` | 2026-09-11 | scope N1 -- internal names                                                               |
-| `40d171ce2` | 2026-09-11 | N1 owner decisions                                                                       |
-| `e127d1aad` | 2026-09-11 | N1 step P1 -- param and local names have a home                                          |
-| `fd4e1f4b4` | 2026-09-11 | an absent align= is the natural alignment in the tree                                    |
-| `7520ed7d3` | 2026-09-11 | N1 P2-P3 -- wabt-ts keeps names; WAT -> wat2wasm -> wasm2wat gives the WAT back          |
-| `25a63a8cb` | 2026-09-11 | open-work -- N1 wabt-ts half merged, C2 queued                                           |
-| `006fa2a08` | 2026-09-11 | wasm-tools confirms N1 labels and fields; G2 closeable; A1 registered                    |
-| `eb0b3dcea` | 2026-09-11 | N1 P4-P6 -- binaryen-ts reads and writes names; N1 built in both halves                  |
-| `3db3106dc` | 2026-09-11 | W6 -- DataCount only when needed or when read; wabt-ts equals upstream on 400/421        |
-| `964d80c46` | 2026-09-11 | W5 -- implicit types in upstream's order; wabt-ts equals upstream wat2wasm on 421/421    |
-| `13f0e806e` | 2026-09-11 | C2 -- custom sections survive the text, with their position                              |
-| `5debccc22` | 2026-09-11 | C3 touches S7 -- the linear-form marker's free strip                                     |
-| `4c162c584` | 2026-09-11 | C3 -- binaryen-ts keeps the custom sections a binary carried                             |
-| `5d3ebb9ef` | 2026-09-11 | N6 -- the name section's local subsection keeps the shape it was read with               |
-| `feea95f09` | 2026-09-11 | A1 -- an array field's NAME survives the text                                            |
-| `318915973` | 2026-09-11 | G2 -- the spec harness runs all 257 files, GC included                                   |
-| `7a87af4b9` | 2026-09-11 | 7c -- the written type index, on the node (S6 decision 7 complete)                       |
-| `be762009e` | 2026-09-11 | S6 Group 3 -- 3 of 5 ties settled, and the other 2 re-classified                         |
-| `edbdb8c10` | 2026-09-11 | Group 3 -- call_indirect's CALLEE, and the last two ties settled as findings             |
-| `61d991592` | 2026-09-11 | a branch to a NAMED label prints the name (N8)                                           |
-| `470eae6e2` | 2026-09-11 | correct what moved the corpus for N8, and name the TypeUse port                          |
-| `3e1cc60b1` | 2026-09-11 | labels keep their NAME; the binary writer resolves the depth                             |
-| `2abb7880c` | 2026-09-11 | close N8's text→text residual before it could spread                                     |
-| `b1410d6e8` | 2026-09-11 | a try_table catch clause carries its kind ONCE                                           |
-| `d85635eb1` | 2026-09-11 | every single-label reference is `target`, in both IRs                                    |
-| `949bee3b8` | 2026-09-11 | a catch tag is a `Var`, spelled once in binaryen-ts                                      |
-| `456423b54` | 2026-09-12 | the corpus round trip runs again, and guards every index space                           |
-| `cec3a3381` | 2026-09-12 | the live binaryen interop test runs — 0 ignored in the suite                             |
-| `0e66da1e3` | 2026-09-12 | pin npm:binaryen to 132, and clean the lock my probes dirtied                            |
-| `f1675d261` | 2026-09-12 | S5 one-sided kinds are 11 and now ratchet -- plus two corrections to my own commits      |
-| `f36a22e43` | 2026-09-12 | open-work -- S5 closed, its acceptance criterion re-probed and holding                   |
-| `c6bbf7d71` | 2026-09-12 | pre-merge N1 (test-file naming) was already moot -- 230 .test.ts, 0 _test.ts             |
+| `aa703b239` | 2026-09-09 | S6 step 2 complete -- bucket A reconciled, all seven families                            |
+| `8ab5206b4` | 2026-09-09 | S6 step 3 -- the shared node base carries loc? and type?                                 |
+| `9b0413d31` | 2026-09-09 | S6 step 4 measured -- field-level divergence and the Var decision                        |
+| `f58a954dc` | 2026-09-09 | S6 step 4 groundwork -- one canonical Var accessor                                       |
+| `de515aac4` | 2026-09-09 | S6 step 4 -- four of the five (b) families hold a Var                                    |
+| `af1cd5774` | 2026-09-09 | S6 step 4 COMPLETE -- every (b) family holds its as-written form                         |
+| `68f70442d` | 2026-09-09 | the remaining entity references hold their as-written form                               |
+| `7428d790f` | 2026-09-09 | the 28 structural kinds reduce to 16 real decisions                                      |
+| `7fd143a6b` | 2026-09-09 | S6 Group 2 -- three of the seven structural decisions implemented                        |
+| `03164c00d` | 2026-09-10 | two binaryen-ts defects found while scoping Group 2 decision 4, plus the Group 2 lessons |
+| `62a2cca3c` | 2026-09-10 | S6 Group 2 decision 4 -- load/store hold their opcode; `check` green again               |
+| `b5c7d4b7a` | 2026-09-10 | S6 Group 2 decision 5 -- region bodies are a RegionExpr                                  |
+| `51d1e80a2` | 2026-09-10 | record decisions 6/7 premise checks                                                      |
+| `07e87fd55` | 2026-09-10 | clear the pre-6/7 bug queue before decisions 6A and 7b(i)                                |
+| `5db12a9cf` | 2026-09-10 | S6 Group 2 decision 6A -- branch and return values are a list                            |
+| `95fdd161e` | 2026-09-10 | S6 decision 7a and 7b(i), and three defects found on the way                             |
+| `552b5fa05` | 2026-09-10 | external WAT goes through wabt-ts to bytes -- W4 resolved by routing                     |
+| `0fe5435af` | 2026-09-10 | register N1 -- names are lost at three hops                                              |
+| `aeb94ab95` | 2026-09-10 | pin the module interface -- export and import names never mangled                        |
+| `f18559fbe` | 2026-09-10 | N1 decision -- names kept by default in the fidelity phase                               |
+| `9c09aa485` | 2026-09-10 | wabt-ts always keeps names                                                               |
+| `cd6b742e0` | 2026-09-10 | future discussion -- internal vs exported names under optimization                       |
+| `287b9e65a` | 2026-09-11 | scope N1 -- internal names                                                               |
+| `1a10e4041` | 2026-09-11 | N1 owner decisions                                                                       |
+| `63f9effb2` | 2026-09-11 | N1 step P1 -- param and local names have a home                                          |
+| `381573e90` | 2026-09-11 | an absent align= is the natural alignment in the tree                                    |
+| `b9ee4fb75` | 2026-09-11 | N1 P2-P3 -- wabt-ts keeps names; WAT -> wat2wasm -> wasm2wat gives the WAT back          |
+| `23514c8a8` | 2026-09-11 | open-work -- N1 wabt-ts half merged, C2 queued                                           |
+| `7a8f70b1c` | 2026-09-11 | wasm-tools confirms N1 labels and fields; G2 closeable; A1 registered                    |
+| `6dc071475` | 2026-09-11 | N1 P4-P6 -- binaryen-ts reads and writes names; N1 built in both halves                  |
+| `600c662bc` | 2026-09-11 | W6 -- DataCount only when needed or when read; wabt-ts equals upstream on 400/421        |
+| `058d48a35` | 2026-09-11 | W5 -- implicit types in upstream's order; wabt-ts equals upstream wat2wasm on 421/421    |
+| `6af84b2f8` | 2026-09-11 | C2 -- custom sections survive the text, with their position                              |
+| `97309edb7` | 2026-09-11 | C3 touches S7 -- the linear-form marker's free strip                                     |
+| `4a50b96eb` | 2026-09-11 | C3 -- binaryen-ts keeps the custom sections a binary carried                             |
+| `a9531df9b` | 2026-09-11 | N6 -- the name section's local subsection keeps the shape it was read with               |
+| `847a86dfa` | 2026-09-11 | A1 -- an array field's NAME survives the text                                            |
+| `ddfe1a475` | 2026-09-11 | G2 -- the spec harness runs all 257 files, GC included                                   |
+| `eb58a2bb5` | 2026-09-11 | 7c -- the written type index, on the node (S6 decision 7 complete)                       |
+| `6dce6389b` | 2026-09-11 | S6 Group 3 -- 3 of 5 ties settled, and the other 2 re-classified                         |
+| `b05291899` | 2026-09-11 | Group 3 -- call_indirect's CALLEE, and the last two ties settled as findings             |
+| `5cfa6717c` | 2026-09-11 | a branch to a NAMED label prints the name (N8)                                           |
+| `2e2dc7889` | 2026-09-11 | correct what moved the corpus for N8, and name the TypeUse port                          |
+| `9417fcfea` | 2026-09-11 | labels keep their NAME; the binary writer resolves the depth                             |
+| `cc15f9a72` | 2026-09-11 | close N8's text→text residual before it could spread                                     |
+| `a0c6ea5e1` | 2026-09-11 | a try_table catch clause carries its kind ONCE                                           |
+| `c1af6a635` | 2026-09-11 | every single-label reference is `target`, in both IRs                                    |
+| `737e9c76f` | 2026-09-11 | a catch tag is a `Var`, spelled once in binaryen-ts                                      |
+| `8f5945b83` | 2026-09-12 | the corpus round trip runs again, and guards every index space                           |
+| `b940e6c6b` | 2026-09-12 | the live binaryen interop test runs — 0 ignored in the suite                             |
+| `184c09965` | 2026-09-12 | pin npm:binaryen to 132, and clean the lock my probes dirtied                            |
+| `765713b8f` | 2026-09-12 | S5 one-sided kinds are 11 and now ratchet -- plus two corrections to my own commits      |
+| `4d3111c2e` | 2026-09-12 | open-work -- S5 closed, its acceptance criterion re-probed and holding                   |
+| `08383677a` | 2026-09-12 | pre-merge N1 (test-file naming) was already moot -- 230 .test.ts, 0 _test.ts             |

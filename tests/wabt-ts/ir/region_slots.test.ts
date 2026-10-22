@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 //
 // S6 step 5, stage (d2): every region slot holds a `RegionExpr` — S6 Group 2
-// decision 5 (owner), which binaryen-ts has held since `365e9277c`: the body of
+// decision 5 (owner), which binaryen-ts has held since `7c2ad5fd3`: the body of
 // a `loop`, `try`, `try_table`, each catch, and each `if` arm.
 //
 // 🔧 wabt-ts held `Expr[]`, and one state had no spelling: `ifFalse: []` was both

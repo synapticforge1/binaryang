@@ -3,7 +3,7 @@
 Consolidated 2026-09-14 from four files under the cleanup policy ([INDEX.md](INDEX.md)): the
 internal overview, the delivery status, the retirement ladder, and the pre-merge register. Decisions
 and binding rules are kept in full; completed work is summarized. The full text of each, as it
-stood: `git show 1672c2a5a:cmem/<file>` for `overview.md`, `phases.md`, `transition.md` and
+stood: `git show f2ee1a41f:cmem/<file>` for `overview.md`, `phases.md`, `transition.md` and
 `pre-merge-register.md`.
 
 The `README.md` is the user-facing document, published to JSR as the package's front page; it
@@ -181,7 +181,7 @@ on the default path. `wast2json` and `wasm-tools` are TEST tooling only ([testin
 the END PRODUCT does not use them — and later the same day: **the CLI and the published code must
 not reference them at all.** So the one exception, the opt-in hybrid bridge (`./interop`'s
 `BinaryenInterop`, `optimize(flags, hybridMode)`, `wasm-opt --hybrid`), LEFT the product for the
-committed, isolated [`comparison/`](../comparison/README.md) suite (`ee25accb2`; owner chose
+committed, isolated [`comparison/`](../comparison/README.md) suite (`37c55a3a0`; owner chose
 committed over gitignored). It was BREAKING and shipped in **1.7.0** (2026-09-29). `-S` is native
 now. The statement, as it may be made publicly (it is in the README):
 
@@ -230,18 +230,18 @@ bump with no minor mode, every minor typed by hand, minors 10–14 past the cap
 | version   | what it carried                                                                                                                                                                                                                                                                                                      |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1.5.1** | the merge itself, plus the signpost releases of both predecessors — published 2026-08-27 with provenance (`rekorLogId=2618802426`)                                                                                                                                                                                   |
-| **1.5.2** | merge `6ee0eef1d`, tag → `740fbb119`: bridge de-coarsening (`50a959baa`), the `-Oz` `try_table` miscompile (`d5485a740`), the `compat/binaryen` pass API, a user-facing README (`9083abdab`). Shipped ahead of the ladder because wasmtk was blocked on the miscompile                                               |
-| **1.5.3** | merge `1e1479f3f`, tag → `384f37ecc`: release trigger (`74bee7522`), all four `br_on_*` forms (`7ff0408f4`), one `scripts/release/` (`b955443a6`), the convergence indicator (`71d7772a0`), the bridge at `src/bridge/` (`e76e2b7ca`), the last ten symbols documented (`6d118b33e`), `.gitattributes` (`ec3a07de0`) |
+| **1.5.2** | merge `9489cfaec`, tag → `b9205faab`: bridge de-coarsening (`d6d22559c`), the `-Oz` `try_table` miscompile (`bfed70edb`), the `compat/binaryen` pass API, a user-facing README (`e6df098f1`). Shipped ahead of the ladder because wasmtk was blocked on the miscompile                                               |
+| **1.5.3** | merge `755846dba`, tag → `1d11741d1`: release trigger (`37e911d6a`), all four `br_on_*` forms (`814596760`), one `scripts/release/` (`dbb52414c`), the convergence indicator (`a62e721d5`), the bridge at `src/bridge/` (`b8ee5d219`), the last ten symbols documented (`69cdf7925`), `.gitattributes` (`d56f08154`) |
 | **1.5.4** | `wasm2wat` emits FOLDED output by default (`--linear` opts out), and the export-kind rejection found by A3 — published 2026-09-02 (`rekorLogId=2692137018`)                                                                                                                                                          |
-| **1.6.0** | ⚠️ a MINOR: `./binary` and `./encoder` removed — ONE FRONT END (one reader, one IR, one writer), the post-M8 and Q1–Q8 fixes, S7's text-form record — tag `v1.6.0` → `64d22e06f`, published 2026-09-28 (`rekorLogId=2987187551`) |
+| **1.6.0** | ⚠️ a MINOR: `./binary` and `./encoder` removed — ONE FRONT END (one reader, one IR, one writer), the post-M8 and Q1–Q8 fixes, S7's text-form record — tag `v1.6.0` → `5a85daeda`, published 2026-09-28 (`rekorLogId=2987187551`) |
 | **1.6.1** | a patch from `release/1.6.1` (cut from `v1.6.0`): the CLI runs from JSR (`.` → `main.ts`) — published 2026-09-28 |
-| **1.7.0** | ⚠️ a MINOR: `./interop` and hybrid mode removed (the `comparison/` suite); wasmtk's items 1–5 incl. custom descriptors; `--converge`; the three minify passes; Flatten complete — tag `v1.7.0` → `f644c9a2b`, published 2026-09-29 (`rekorLogId=2991848417`) |
-| **1.7.1** | a patch: every memory / table limit is a u64 on the wire, and 1-byte pages cap a 32-bit memory at 2^32-1 pages (wasmtk, 2026-09-29) — tag `v1.7.1` → `ced5ca508`, published 2026-09-29 (`rekorLogId=3001574645`) |
-| **1.7.2** | a patch: `wasm2wat` text as upstream / wasm-tools print it — references by name (N10), folded layout and label comments (W18), one-line declaration constants, empty offset / item (M2a) — and `array.new_default` requires a defaultable element; no bytes moved — tag `v1.7.2` → `30929db92`, published 2026-09-29 (`rekorLogId=3002349065`) |
+| **1.7.0** | ⚠️ a MINOR: `./interop` and hybrid mode removed (the `comparison/` suite); wasmtk's items 1–5 incl. custom descriptors; `--converge`; the three minify passes; Flatten complete — tag `v1.7.0` → `098a4c472`, published 2026-09-29 (`rekorLogId=2991848417`) |
+| **1.7.1** | a patch: every memory / table limit is a u64 on the wire, and 1-byte pages cap a 32-bit memory at 2^32-1 pages (wasmtk, 2026-09-29) — tag `v1.7.1` → `fd61a9b53`, published 2026-09-29 (`rekorLogId=3001574645`) |
+| **1.7.2** | a patch: `wasm2wat` text as upstream / wasm-tools print it — references by name (N10), folded layout and label comments (W18), one-line declaration constants, empty offset / item (M2a) — and `array.new_default` requires a defaultable element; no bytes moved — tag `v1.7.2` → `7f410842e`, published 2026-09-29 (`rekorLogId=3002349065`) |
 
 Both predecessors ended at a terminal **1.5.1**. Every release's public summary is in
 `CHANGELOG.md`; how each went out, in [publishing.md](publishing.md). The 1.5.2 scope's full text:
-`git show cff3284b8:cmem/scope-1.5.2.md`.
+`git show 65afb827c:cmem/scope-1.5.2.md`.
 
 Two lessons from the 1.5.2 scope that live only here:
 
@@ -312,7 +312,7 @@ reporting exactly one JSR dependent.
   because a bug was fixed**: wasmtk's `tests/wast_tests.ts` calls `Deno.exit(0)` from pre-test
   output, so whether it counts as a test file varies between runs.
 
-Full ladder, runbooks and verification tables: `git show 1672c2a5a:cmem/transition.md`.
+Full ladder, runbooks and verification tables: `git show f2ee1a41f:cmem/transition.md`.
 
 ## The merge — how it was prepared (2026-08-26)
 
@@ -320,15 +320,15 @@ Full ladder, runbooks and verification tables: `git show 1672c2a5a:cmem/transiti
 one (the kickoff brief: _"two views of the same merge is how things get missed twice"_). It found
 four conflicts — two of them a document contradicting itself — one agreed pre-merge action missing
 from the plan, and seven findings in neither register. Its decisions are above; its measurements
-were re-derived against `binaryen-ts@db71b066223` and `wabt-ts@fa9483aa3`. Full text:
-`git show 1672c2a5a:cmem/pre-merge-register.md`.
+were re-derived against `binaryen-ts@1163f77e9a7` and `wabt-ts@5d488e4bc`. Full text:
+`git show f2ee1a41f:cmem/pre-merge-register.md`.
 
 | item | outcome                                                                                                                                                                                   |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1   | `fmt.singleQuote` requote in binaryen-ts, its own commit BEFORE the move — `2c41d3d1371`, 104 files, 4,302 / 4,302, pure. Agreed by both sides, omitted from the plan                     |
+| P1   | `fmt.singleQuote` requote in binaryen-ts, its own commit BEFORE the move — `eba0207cf39`, 104 files, 4,302 / 4,302, pure. Agreed by both sides, omitted from the plan                     |
 | N1   | two test-file conventions (`_test.ts` 38 / `.test.ts` 130) — moot: the merge unified them (230 `.test.ts`, 0 `_test.ts`)                                                                  |
 | N3   | "unify the CLI" was not mechanical: six extractions plus a `Deno` → `node:` port (53 `Deno.*` on 43 lines), preserving `wasm-validate`'s `--enable-*` surface (T13.10)                    |
-| N4   | binaryen-ts `--version` printed `1.3.4` for two minor releases — fixed at source, `73ab06cb627`: `bump` rewrites `main.ts` and fails loudly; a sync test catches hand-set versions        |
+| N4   | binaryen-ts `--version` printed `1.3.4` for two minor releases — fixed at source, `b8b18073916`: `bump` rewrites `main.ts` and fails loudly; a sync test catches hand-set versions        |
 | G1   | the emitted-byte baseline, captured while "before" still existed — [testing.md](testing.md)                                                                                               |
 | A0   | T13.22, the compensating pair across the repository boundary — closed BEFORE the merge, which would otherwise have made it permanently invisible ([ir-convergence.md](ir-convergence.md)) |
 
@@ -352,7 +352,7 @@ were re-derived against `binaryen-ts@db71b066223` and `wabt-ts@fa9483aa3`. Full 
 
 ⚠️ The register's own § 8 said entries are marked, never deleted, because "it was already like that"
 is unfalsifiable once the boundary is gone. That evidence now lives in git, which is why summarizing
-it here loses nothing: the commits above, and the file at `1672c2a5a`, are the proof.
+it here loses nothing: the commits above, and the file at `f2ee1a41f`, are the proof.
 
 ## Live gaps carried from the predecessors
 
@@ -363,7 +363,7 @@ it here loses nothing: the commits above, and the file at `1672c2a5a`, are the p
 | **Phase 10 kernel selection**                         | binaryen-ts                    | PARKED (owner, 2026-09-29) until optimizer speed is on the table; profile the corpus first — single-op dispatch regresses ([open-work.md](open-work.md) § "Not tasks")                                                                                 |
 | **Diagnostic wording**                                | wabt-ts                        | at close: reader 689/711, validator 2446/2683, parser 816/1229 — none at ceiling; much of the parser's remainder is where OUR message is better    |
 
-Closed since the merge: custom-section preservation (C3, `4c162c584`) and diagnostic offset accuracy
+Closed since the merge: custom-section preservation (C3, `4a50b96eb`) and diagnostic offset accuracy
 (A3, measured 2026-08-31 — [testing.md](testing.md)).
 
 Two lessons the phase records paid for:

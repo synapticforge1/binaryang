@@ -18,13 +18,13 @@ it ended, then gives:
   - `[open]`
 - **Already in the core** — pointers to where the rest lives now.
 - **History** — a summary, with commits.
-- **Full text** — the whole file, one command away: `git show 9758fc736:cmem/binaryen-ts/<file>`.
+- **Full text** — the whole file, one command away: `git show 62c65a9db:cmem/binaryen-ts/<file>`.
 
 **`⟶ S6` marks a wing rule the S6 convergence superseded**, and names what replaced it
 ([ir-convergence.md](ir-convergence.md), [divergences.md](divergences.md)). Do not carry those rules
 forward.
 
-**Paths were rewritten to this tree** and checked on `c6bbf7d71`:
+**Paths were rewritten to this tree** and checked on `08383677a`:
 
 - `src/{ir,binary,encoder,parser,passes,api,interop,tools,wasm}/…` → `src/binaryen-ts/…`
 - `tests/{binary,passes,…}/*_test.ts` → `tests/binaryen-ts/…/*.test.ts`
@@ -128,14 +128,14 @@ listed defect fixed and one live gap, TranslateEH.
   `deno task translate-eh <testsuite>/legacy <out>`: the spec's legacy files, **70 / 70 behavioural assertions** in
   V8 as legacy, translated, and translated then `-Oz`; inverted twice (pass disabled; no `*_ref` → 61 / 70).
   Wasmtime 48.0.2 compiles all 6 translated spec modules, plain and `-Oz`, and refuses the 5 legacy ones with a `try`.
-- [lesson] **Building the fixtures found two silent miscompiles elsewhere**, both fixed first (`dd3c138ec`,
-  `2e02963bc`): wabt-ts's binary writer leaked a `delegate`'s label (every later named branch one frame too deep),
+- [lesson] **Building the fixtures found two silent miscompiles elsewhere**, both fixed first (`c25fec9c4`,
+  `606b68dc1`): wabt-ts's binary writer leaked a `delegate`'s label (every later named branch one frame too deep),
   and binaryen-ts's decoder dropped a multi-result `if` / `loop` / `try` / `try_table`'s extra values (decode → encode
   wrote `unreachable`). Neither was reachable from the corpus. And **four fixture failures were the fixture's own
   WAT** (stack order in folded form, an untaken `br_if` leaving its value) — which is why each fixture is checked
   against legacy V8 BEFORE the pass is blamed.
 - [lesson] **Inverting the gate found a third defect**: `-Oz` on UNtranslated legacy EH broke 30 of the 70 spec
-  assertions. Attributed by running each `-Oz` pass alone — DCE only — and fixed (`959954015`, divergence U1): a
+  assertions. Attributed by running each `-Oz` pass alone — DCE only — and fixed (`cc9467e81`, divergence U1): a
   construct TYPED unreachable is not stack-polymorphic after its `end`. The gate's "disabled pass" inversion now
   fails only on the surviving `try`s, not on behaviour.
 - [baseline] Measured 2026-08-24: `wasmtime compile` (47.0.3) rejects legacy EH outright — "legacy_exceptions
@@ -171,21 +171,21 @@ listed defect fixed and one live gap, TranslateEH.
 - TranslateEH, closed 2026-09-14 → project.md § "Live gaps carried from the predecessors"; divergences.md H1
 
 **Superseded by S6 (rules not to carry forward)**
-- ⟶ S6 5 (`365e9277c`): the region-body class — decoder `oneOrBlock` (unstamped) vs `sealFrame` (stamped), and
+- ⟶ S6 5 (`7c2ad5fd3`): the region-body class — decoder `oneOrBlock` (unstamped) vs `sealFrame` (stamped), and
   `encodeRegionBody` unpacking anonymous blocks at the four sites. Every region slot now holds a `RegionExpr`;
   `sealFrame` returns one, `oneOrBlock` is gone, `encodeRegionBody` just emits children, and a `Region` in an operand
   slot throws. The 25-case matrix survives as `tests/binaryen-ts/binary/region_body.test.ts`. Divergences R1/R2.
-- ⟶ S6 7b(i) (`02d77f533`): block parameters are no longer spilled at decode. They stay on the node; `PassRunner.run`
+- ⟶ S6 7b(i) (`4cae28682`): block parameters are no longer spilled at decode. They stay on the node; `PassRunner.run`
   calls `lowerBlockParams`, which re-encoded and re-decoded with `{ lowerBlockParams: true }` — the entry spill,
   `rewriteLoopBranch` and the `br_table` trampoline lived there. Divergence B1. ⟶ Since R15 (2026-09-28) it is a
   TREE pass (`passes/lower-block-params.ts`, positional: locals written before the construct, read back at each
   region's start); the re-decode was invalid for `fac.0` / `if.0`. The decoder's `{ lowerBlockParams }` option
   still exists but no pass path uses it.
-- ⟶ S6 6A (`2b5850a8a`): multi-value branch values no longer travel as `tuple.make` — `Break`/`Switch`/`Return` hold
+- ⟶ S6 6A (`fc103dcc8`): multi-value branch values no longer travel as `tuple.make` — `Break`/`Switch`/`Return` hold
   `values: Expression[]`; `TupleMake` is deleted (divergence V1: do not port it back).
 - ⟶ S6 4: the `(bytes, signed, resultType)` → opcode inversion — `LoadExpr`/`StoreExpr` hold `opcode`, one table in
-  `src/ir/memory-access.ts`. (The inversion had an inverse rotation bug the opcode sweep missed, `b8b3150db`.)
-- ⟶ S6 3 + `949bee3b8`: `Try`'s parallel `catchTags`/`catchBodies` and its length guard → catch records, `tag?: Var`.
+  `src/ir/memory-access.ts`. (The inversion had an inverse rotation bug the opcode sweep missed, `34289e449`.)
+- ⟶ S6 3 + `737e9c76f`: `Try`'s parallel `catchTags`/`catchBodies` and its length guard → catch records, `tag?: Var`.
 - ⟶ S6 2: memarg offset `number` → `bigint`; memory64 offsets survive. Multi-memory (Tier B "throws") now decodes
   with a memory index on the node (`tests/binaryen-ts/binary/multi_memory.test.ts`).
 
@@ -204,7 +204,7 @@ listed defect fixed and one live gap, TranslateEH.
 
 The UP-n / WT-n index is in § `binaryen-ts/phases.md` below.
 
-Full text: `git show 9758fc736:cmem/binaryen-ts/correctness.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/correctness.md`
 
 ## `binaryen-ts/passes.md` (333 lines) — the optimization pass set and pass-authoring invariants
 
@@ -231,7 +231,7 @@ its wasmtk integration left to wasmtk.
   producers hit (verified reachable): without it, a label named only by `try…delegate` is stripped, giving
   `unresolved branch label`. `TryTable` catch targets pinned in `eh.test.ts`; `Rethrow.target` names a
   try label, unstrippable today — [trigger] correct-by-accident the day try labels become strippable.
-  ⟶ S6 `d85635eb1`: field names were `name`/`label`/`catches[].dest`; every single-label reference is now `target`.
+  ⟶ S6 `c1af6a635`: field names were `name`/`label`/`catches[].dest`; every single-label reference is now `target`.
 - [reference] **Reachability roots** (exports, element segments, `module.start`) — see correctness above; the
   failure is silent (the module instantiates and does less).
 - [reference] **EH-aware CFG** (`cfg.ts`, v1.3.4): a try pushes its handlers on `handlerStack` during its body;
@@ -255,7 +255,7 @@ its wasmtk integration left to wasmtk.
 - [open] Asyncify gaps (verified in `asyncify.ts`): wasm64 and multi-memory throw "not yet supported"; EH/tuples/
   value branches rejected via Flatten. Wiring into wasmtk's `--lang=go` is wasmtk's work.
 - [correction] Asyncify gap "(4) list options miss binary-parsed modules because the reader drops the name section"
-  is superseded by N1 P4 (`138148881`, `src/binaryen-ts/binary/names.ts`); `asyncify.ts` ~541–545 still states the
+  is superseded by N1 P4 (`8c2d0be3d`, `src/binaryen-ts/binary/names.ts`); `asyncify.ts` ~541–545 still states the
   old limitation, and its multi-memory guard (~263) says loads carry no memory index — both stale; neither re-probed.
 
 **Already in the core**
@@ -266,11 +266,11 @@ its wasmtk integration left to wasmtk.
 **History, summarized**
 - binaryen-ts Phase 4.1 CFG liveness + CoalesceLocals; Phases 5 / 5.1 / 5.2 Inlining, split and return-call
   inlining; Phase 6 native `wasm-opt` CLI (`src/tools/wasm-opt.ts`); `-O0` skips passes.
-- Asyncify: Stage 1 `2902fca` ABI + options; 2 `3b35d97` analysis; 3a `2e30ea4` Flatten (surfaced `mapChildrenShallow`);
-  3b `62a4573` flow; 4 `c446a3d` locals; 5 `62f0fb0` registered. Import mode 2026-07-08; liveness-minimized saving
+- Asyncify: Stage 1 `673890b` ABI + options; 2 `bc9a498` analysis; 3a `44fe16a` Flatten (surfaced `mapChildrenShallow`);
+  3b `54cdf38` flow; 4 `d162e5e` locals; 5 `952d151` registered. Import mode 2026-07-08; liveness-minimized saving
   2026-07-09 (v1.4.2); audit-hardening 2026-07-08 (suite 397 → 401). Tests in `tests/binaryen-ts/passes/asyncify*.test.ts`.
 
-Full text: `git show 9758fc736:cmem/binaryen-ts/passes.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/passes.md`
 
 ## `binaryen-ts/architecture.md` (187 lines) — per-subsystem design
 
@@ -326,7 +326,7 @@ representation details and all the runtime rules are superseded.
 **History, summarized:** binaryen-ts Phase 7 GC, Phase 8 EH, Phase 9 SIMD, Phase 12.1 compat constants, Phase 13
 tail calls (`return_call*` = `Call`/`CallIndirect` with `isReturn`); multi-value 2026-08-24.
 
-Full text: `git show 9758fc736:cmem/binaryen-ts/architecture.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/architecture.md`
 
 ## `binaryen-ts/INDEX.md` (100 lines) — file table, memory triggers, regression ladder
 
@@ -341,7 +341,7 @@ ladder. Superseded by `cmem/INDEX.md` and working-rules.md.
 **Already in the core:** the ladder → cmem/testing.md § "Running" / § "The behavioural harnesses" / § "CI gate"; exit
 codes → cmem/best-practices.md § "An exit code is not evidence".
 **History:** its `scripts/verify_roundtrip.ts` rung is now `tests/binaryen-ts/binary/corpus_roundtrip.test.ts`.
-Full text: `git show 9758fc736:cmem/binaryen-ts/INDEX.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/INDEX.md`
 
 ## `binaryen-ts/best-practices.md` (294 lines) — method rules for a parser/optimizer/encoder
 
@@ -380,7 +380,7 @@ here for them.
 pairs…" / § "One authoritative enumeration…"; 2c quoted → § "Make the defect UNREPRESENTABLE"; fuzz reach → § "A green
 suite…"; exports map → cmem/project.md § "The merge — how it was prepared"; who is blocked → project.md § "Live
 gaps…"; version push, type cache → cmem/publishing.md § "RULE — never bump…" / § "Recovery recipes".
-Full text: `git show 9758fc736:cmem/binaryen-ts/best-practices.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/best-practices.md`
 
 ## `binaryen-ts/bridge.md` (312 lines) — the binaryen-ts ↔ wabt-ts ↔ wasmtk contract
 
@@ -397,10 +397,10 @@ T13.22 catch-scope coupling. All of it closed at the merge. The bridge became `s
 **Already in the core:** naming rule, `scripts/check-naming.ts` → cmem/project.md § "Upstream names are reserved";
 paths, front door → cmem/ir-convergence.md § "The bridge and the WAT routes into binaryen-ts"; T13.22 → project.md
 § "The merge — how it was prepared".
-**History:** landed as "implement Phase 7: wabt-ts → binaryen-ts IR bridge" (`60ea8aec0`). The UP series added
+**History:** landed as "implement Phase 7: wabt-ts → binaryen-ts IR bridge" (`e5ff34368`). The UP series added
 `makeRefAsNonNull`, 4 array-bulk factories, `addTagImport`, `setStart`; UP-7 introduced `ValueType = ValType | RefType`;
-A1 closed in 1.5.2 (`50a959baa`); T13.22 closed at `5404946dd`, gated by `tests/bridge/try_table_catch_scope.test.ts`.
-Full text: `git show 9758fc736:cmem/binaryen-ts/bridge.md`
+A1 closed in 1.5.2 (`d6d22559c`); T13.22 closed at `15cce7426`, gated by `tests/bridge/try_table_catch_scope.test.ts`.
+Full text: `git show 62c65a9db:cmem/binaryen-ts/bridge.md`
 
 ## `binaryen-ts/testing.md` (186 lines) — how binaryen-ts was tested
 
@@ -430,8 +430,8 @@ Full text: `git show 9758fc736:cmem/binaryen-ts/bridge.md`
 panic → § "A crashed run is not a green run"; fuzz reach (re-verified 0 `makeLoad`/`makeBreak`), `equiv_check` →
 § "The behavioural harnesses"; test type-check → § "CI gate".
 **History:** corpus "80 exact, 0 drift, 90 of 90" on 2026-08-24 (the core's 91 is current; the test skipped until
-`456423b54`); "513 tests, 1 ignored" → 1043 / 0 (`cec3a3381`).
-Full text: `git show 9758fc736:cmem/binaryen-ts/testing.md`
+`8f5945b83`); "513 tests, 1 ignored" → 1043 / 0 (`b940e6c6b`).
+Full text: `git show 62c65a9db:cmem/binaryen-ts/testing.md`
 
 ## `binaryen-ts/publishing.md` (193 lines) — JSR release flow for `@jrmarcum/binaryen-ts`
 
@@ -448,8 +448,8 @@ The package is archived and frozen (cmem/project.md § "The retirement"). What t
 clobbered tags, JSR link, action pins, submodule remnant → cmem/publishing.md § "The release process" / § "Recovery
 recipes"; the 1.3.5–1.4.3 provenance gap → § "Measured history, 2026-08-26".
 **History:** 1.3.6–1.3.9 were identical-code probes ruling out local publish, Deno version, command, JSR-wide, repo link
-(JSR support contacted 2026-07-08); v1.5.0 set by hand, `39a76d526`, `rekorLogId=2590420167`.
-Full text: `git show 9758fc736:cmem/binaryen-ts/publishing.md`
+(JSR support contacted 2026-07-08); v1.5.0 set by hand, `e52d68f07`, `rekorLogId=2590420167`.
+Full text: `git show 62c65a9db:cmem/binaryen-ts/publishing.md`
 
 ## `binaryen-ts/phases.md` (177 lines) — delivery status: phases, WT series, UP tiers
 
@@ -472,8 +472,8 @@ Full text: `git show 9758fc736:cmem/binaryen-ts/publishing.md`
 | WT-2f / WT-2g | round 3: inlining wrapper, CoalesceLocals call_indirect order, WAT export kind / round 4: catch handler in a spurious block | ✅ |
 | WT-2h / 2i / 2j | rounds 5–6: catch-param Pop; tuple-call Pops; three LocalCSE invalidation bugs | ✅ |
 | WT-2k | decoder reordered a stack-held value past a write of its state (2026-07-09); `decoder_reorder.test.ts` | ✅ v1.4.2 |
-| UP-1 · UP-5 | packed `get_u` sub-opcode (wrong bytes; packedness now from the field's `StorageType`, `packedGetSubop`) · start section parsed and silently dropped — the worst of the seven; closed with reachability roots | ✅ Tier 1 `dd88e034b` |
-| UP-3 · UP-4 · UP-6 | array bulk ops (`copy` = dest THEN src) · `ref.as_non_null` (0xd4; `RefAsOp` later dropped, S6 1) · tag imports | ✅ Tier 2 `f664ba579` |
+| UP-1 · UP-5 | packed `get_u` sub-opcode (wrong bytes; packedness now from the field's `StorageType`, `packedGetSubop`) · start section parsed and silently dropped — the worst of the seven; closed with reachability roots | ✅ Tier 1 `862d0bea9` |
+| UP-3 · UP-4 · UP-6 | array bulk ops (`copy` = dest THEN src) · `ref.as_non_null` (0xd4; `RefAsOp` later dropped, S6 1) · tag imports | ✅ Tier 2 `2823a8eeb` |
 | UP-7 · UP-2 | typed-ref locals collapsed to `anyref` (wrong bytes; V8 rejects the bare round trip) · `tuple.make` enum only — really the multi-value blocktype project (branches, block inputs); `tuple.make` later deleted, S6 6A | ✅ Tier 3 · Tiers 5–8 |
 
 Rest of the sequence: Tier 4 corpus closure; Sweeps 1–3 (`if`-arm aliasing, 4 dead exports, duplicate dispatchers);
@@ -484,11 +484,11 @@ Tier 9 (multi-value writer, catch scope, RemoveUnusedNames); Sweep 4 (7 fail-lou
   with it, was implemented 2026-09-14 — § "TranslateEH" above.)
 - [lesson] **To hold a release, leave `deno.json` at a version whose tag already exists** — auto-tag no-ops, so no push
   can publish.
-**Already in the core:** "cannot ship alone" and custom sections (C3 `4c162c584`) → cmem/project.md § "Live gaps…";
+**Already in the core:** "cannot ship alone" and custom sections (C3 `4a50b96eb`) → cmem/project.md § "Live gaps…";
 phase numbering → § "'Phase N' is ambiguous here, permanently".
-**History:** Asyncify landed in 5 stages, 2026-07-05→07 (`2902fca5f`…`62f0fb0ef`), matching `wasm-opt --asyncify`
+**History:** Asyncify landed in 5 stages, 2026-07-05→07 (`673890bd5`…`952d15177`), matching `wasm-opt --asyncify`
 v130. The 2026-07-07 sweep made 20 fixes, 6 of them miscompiles (v1.3.6).
-Full text: `git show 9758fc736:cmem/binaryen-ts/phases.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/phases.md`
 
 ## `binaryen-ts/overview.md` (95 lines) — what binaryen-ts was, pre-merge
 
@@ -499,7 +499,7 @@ projects, not three"). Its version (v1.3.9) and layout are pre-merge.
   objects. Binaryen IR has an `unreachable` type the spec lacks.
 - [correction] **"The pass runner auto-fixes non-nullable locals after each pass" was false of the code** —
   `requiresNonNullableLocalFixups` was `false` in every pass and nothing read it — **and is TRUE since 2026-09-14**
-  (`135a81f99`). Probing found it reachable through Flatten (an `if` typed `(ref $T)` left a read no set covered;
+  (`ce1972630`). Probing found it reachable through Flatten (an `if` typed `(ref $T)` left a read no set covered;
   V8 refused the module), not through Inlining. `non-nullable-locals.ts` ports upstream's
   `handleNonDefaultableLocals`; `PassRunner.run` calls it after each pass declaring the flag, now `true` on twelve.
 - [reference] **Upstream references**, present in the clone at `wasmExamples/binaryen-ts/upstream/`:
@@ -507,23 +507,23 @@ projects, not three"). Its version (v1.3.9) and layout are pre-merge.
   `…/src/binaryen-c.h` (constructor-API shape), `…/src/js/binaryen.js-post.js` (`/compat`, interop).
 - [decision] **Out of scope:** WAT printer, `wasm-as`, validation → wabt-ts; `wasm2js`, interpreter → the runtimes;
   `wasm-merge` → wasmtk; `wasm-ctor-eval`, `wasm-reduce`, Relooper, `wasm2c` → out.
-Full text: `git show 9758fc736:cmem/binaryen-ts/overview.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/overview.md`
 
 ## `binaryen-ts/handoffs.md` (163 lines) — two letters to wabt-ts, 2026-08-25
 
 (1) "Multi-value blocks fixed; `dest` changed meaning" (pre-release); (2) "v1.5.0 live; T13.22 actionable". Both were
-answered, and T13.22 closed at `5404946dd`.
+answered, and T13.22 closed at `15cce7426`.
 **Kept:** nothing beyond the bridge.md items.
 **Already in the core:** the no-writes-into-siblings convention → cmem/handoffs.md.
 **History:** letter 2 retracted "1.5.0 cannot ship alone" and the `$__exn_tag` claim, since wasic emits legacy `try`
 and `delegate` is the operative case.
-Full text: `git show 9758fc736:cmem/binaryen-ts/handoffs.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/handoffs.md`
 
 ## `binaryen-ts/licensing.md` (40 lines) — JSR licence rules
 
 **Already in the core, entirely** → cmem/licensing.md: single SPDX, full-text `LICENSE`, bonus files, Phase 11's 352
 JSDoc errors, `makeConst` in JSDoc. The core's layout (wabt-ts's copyright pair, `NOTICE.md`) supersedes this one.
-Full text: `git show 9758fc736:cmem/binaryen-ts/licensing.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/licensing.md`
 
 ## `binaryen-ts/binaryang.md` (155 lines) — the merge plan, 2026-08-25
 
@@ -537,7 +537,7 @@ All of it landed, and the core records it.
 promotion → § "Layout and the promotion rule"; 56 collisions → § "The convergence indicator"; the cmem 10:1 trap →
 cmem/best-practices.md § "Why this file is a selection…".
 **History:** planning retracted "drop the `-ts`"; wabt-ts had 8 subpaths, not 5; 4 `src/` dirs collided, not 5.
-Full text: `git show 9758fc736:cmem/binaryen-ts/binaryang.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/binaryang.md`
 
 ## `binaryen-ts/binaryang-kickoff.md` (138 lines) — the brief handed to the merge team
 
@@ -545,4 +545,4 @@ Steps 0–6 and the gates were executed. Step 0 (safe.directory) → `cmem/local
 step-2 gate said 906 tests and 908 were measured. The step list omitted the agreed requote → cmem/project.md § "The
 merge — how it was prepared" (P1).
 **Kept:** nothing; it restates binaryang.md.
-Full text: `git show 9758fc736:cmem/binaryen-ts/binaryang-kickoff.md`
+Full text: `git show 62c65a9db:cmem/binaryen-ts/binaryang-kickoff.md`

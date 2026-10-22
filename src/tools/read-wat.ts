@@ -27,7 +27,7 @@
  * time binaryen-ts sees the module it is BYTES, which the reader reconstructs by
  * simulating the operand stack exactly.
  *
- * 🔧 Supersedes `parseWatAnyForm` (C10, `ab90d7beb`), which tried the folded
+ * 🔧 Supersedes `parseWatAnyForm` (C10, `5d95857b8`), which tried the folded
  * parser first and fell back to wabt-ts + the BRIDGE. The bridge mistranslates
  * 20 of the 421 corpus modules (C10a) and is deleted in S6 step 5; bytes need
  * no translation. Nothing called it any more.

@@ -19,6 +19,12 @@ not survive a clone is not a project rule. The lessons behind them are in
   file CONTENT through a shell heredoc" in [best-practices.md](best-practices.md), which lists all
   four ways a tool here corrupts literal text). ⚠️ `-F -` does not read stdin here.
 - **End every message with the attribution line** the session supplies (`Co-Authored-By: …`).
+- **Commits are authored with the owner's GitHub noreply address**, set as this clone's LOCAL
+  `user.email` (2026-10-22, letter H19; the history was purged of the personal address that
+  day — [publishing.md](publishing.md) § "The history purge"). A fresh clone needs it set again
+  before its first commit: `git config --local user.email` must print the noreply address.
+- **Never push from a clone made before 2026-10-22** (wasmtk's `upstream/binaryang`, old scratch
+  clones): it carries the pre-purge history and would publish it again. Re-clone.
 - **Prefer a new commit over `--amend`.**
 - **Nothing is pushed** unless the owner says so.
 - **A push that is not a release does not wait for GitHub CI** (owner, 2026-10-13: "If we are not
@@ -144,13 +150,13 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
 - ⚠️ **Read every step's EXIT CODE.** The naming check is now an exit code too: its TypeScript port
   (2026-09-29) prints each offender AND exits 1. Its shell predecessor always exited 0 and made the
   output the verdict, and a rule that once read it the wrong way round ("prints a filename on
-  SUCCESS, read `$?`") hid a real violation (`tests/binaryen-ts/wabt_reference.ts`, from `138148881`
+  SUCCESS, read `$?`") hid a real violation (`tests/binaryen-ts/wabt_reference.ts`, from `8c2d0be3d`
   2026-09-11 until its rename 2026-09-18). The lesson stands for every step: read each exit code —
-  `deno lint` was failing on `main` for two commits whose messages reported it green (`456423b54`,
-  `cec3a3381`; fixed `fc91cf409`).
+  `deno lint` was failing on `main` for two commits whose messages reported it green (`8f5945b83`,
+  `b940e6c6b`; fixed `4f1fe0950`).
 - ⚠️ **`bun run test` alone is not the gate** — it type-checks nothing; `bun run check` is the type
   check. (Under Deno, `deno task test` ran `--no-check` and `deno task ci` was check + test;
-  dropping `check` left `main` red by CI's standard for 65 unpushed commits, `80a45bffe`.)
+  dropping `check` left `main` red by CI's standard for 65 unpushed commits, `d550f94a8`.)
 - **The spec corpus is per-session scratch.** A new session rebuilds it first:
   `deno task spec:prepare <testsuite-main> <outDir>` then `deno task spec <outDir>`, with `<outDir>`
   in the session scratchpad. Source, READ ONLY (a sibling repo):
@@ -181,7 +187,7 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
 - **A recorded count is a claim.** Re-derive it, then make it RATCHET (`PHANTOM_BUDGET`,
   `ONE_SIDED_BUDGET` in `deno task operators`) so it cannot silently go stale.
 - **A commit message is a claim.** Check a commit's effect with `git show <sha> -- <path>`, not its
-  prose. `b8fafaa3f` said "pin npm:binaryen to 132" and its diff left `@*` at 116.0.0.
+  prose. `8d9ba0cb9` said "pin npm:binaryen to 132" and its diff left `@*` at 116.0.0.
 - **Decide by the worst condition.** For a representation choice, find the worst case on the
   fidelity side and on the optimization side and let the binding one control; when neither binds,
   say so and let cost decide. See [ir-convergence.md](ir-convergence.md) § "The grouping decision".
@@ -208,7 +214,7 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   (`<repo>`, `<scratchpad>`); the real path goes in the gitignored `cmem/local/`, or nowhere.
   Scan before committing: `git grep -I -n -i -E '[A-Za-z]:[\\/]+(Programs|Users|scoop|tools)[\\/]|/[a-z]/(Programs|Users)/'`
   must find nothing. 🔧 `scripts/spec-prepare.ts` held an absolute default corpus path from
-  `c1c24c9d3` until 2026-10-22; it is public in history — the purge is letter H19's.
+  `cebbb1260` until 2026-10-22; it is public in history — the purge is letter H19's.
 - **Owner calls stay owner calls.** Where a record says 🗓️ OWNER or "future discussion", gather the
   evidence and stop.
 

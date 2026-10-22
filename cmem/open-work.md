@@ -80,7 +80,7 @@ PUSHED; the version stays 1.10.0):**
 - **wasmtk's § 33 (2026-10-13):** on 1.12.0 their nested-goroutine program trapped on the rewind;
   `Asyncify`'s save set missed a paused call's operand temps. FIXED on main (unreleased, a Silent
   fix); the reply, handoffs § 34, SENT by the owner.
-- **CI fully GREEN on GitHub (2026-10-13, `5e485c497`), the Browsers job included:** chromium,
+- **CI fully GREEN on GitHub (2026-10-13, `0e7c5398f`), the Browsers job included:** chromium,
   Chrome, Edge, Brave, Opera, Firefox, WebKit (Vivaldi removed by the owner).
 - 🚀 **1.12.1 PUBLISHED** 2026-10-14T03:40:26Z (UTC), provenance (Rekor `3248420107`): the § 33
   Asyncify fix (a patch; the owner's "commit and bump and push"). wasmtk can bump its pin to it and
@@ -95,7 +95,7 @@ PUSHED; the version stays 1.10.0):**
 **State, 2026-10-15 (supersedes the paragraphs above where they differ; merged to `main`, NOT
 PUSHED; the version stays 1.12.1):**
 - **`code-lens-13` is MERGED** (owner: "sort out the code-lens-13 branch and wrap that up"):
-  C1–C17 on top of 1.12.1, merge `9eb1b1de7`, full gate green on it. The ⚠️ conflict noted under
+  C1–C17 on top of 1.12.1, merge `4bc570e78`, full gate green on it. The ⚠️ conflict noted under
   2026-10-12 is resolved: seven files, the decisions in the merge message (the `declare` form in
   `derive-types.ts`; both opcode checks kept in the reader, the branch's duplicate C6 check dropped;
   the three new tests on `node:test`). The branch is deleted.
@@ -112,7 +112,7 @@ PUSHED; the version stays 1.12.1):**
   the release.
 - **wasmtk on 1.12.1** ([handoffs.md](handoffs.md) § 36, received 2026-10-15): `go_asyncify_tests`
   12 / 12, gate 64,506 / 0 / 16, nothing else moved. The Asyncify thread (§§ 28–34) is CLOSED.
-- **The type check is `bun check`** (owner: "yes make the change"; merge `8b52828d5`): Bun
+- **The type check is `bun check`** (owner: "yes make the change"; merge `f5eb19750`): Bun
   1.4.3's built-in checker on the same four projects, gate green; `tsc` 7.0.2 kept as
   `bun run check:tsc`, not in CI ([jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § "Type
   checking: `bun check`"). Repo-only: nothing for a release note.
@@ -124,7 +124,7 @@ PUSHED; the version stays 1.12.1):**
   optimizer steps and a shipped-crash fix, each gated and merged on its own
   ([optimizer.md](optimizer.md) § "Open-work 30: the gaps on real compiler output").
 - **3 open items:** 13, 14, 15. Then **item 31 opened** (the optimizer list, no threshold).
-- ⚠️ The merge `8b52828d5` took its message by `-m`, not `-F` (working-rules.md, Git). The text
+- ⚠️ The merge `f5eb19750` took its message by `-m`, not `-F` (working-rules.md, Git). The text
   is plain and intact; left as is, unpushed, for the owner to judge.
 
 **State, 2026-10-20 (supersedes the paragraphs above where they differ):** **`binaryang@1.13.0`
@@ -140,7 +140,7 @@ the same day, CLOSED 2026-10-22 with 1.13.3; 32, lowering for engines without me
 unchanged; nothing open either way. **The repo moved to `synapticforge/binaryang`** the same day
 ([publishing.md](publishing.md) § "The move to `synapticforge`"), and **the org was then renamed
 `synapticforge1`** to match the npm org: the repo is `synapticforge1/binaryang`. The first push
-from the org ran CI and auto-tag GREEN (`a97255ef4`). JSR followed neither move nor rename; the
+from the org ran CI and auto-tag GREEN (`c812e4e3c`). JSR followed neither move nor rename; the
 owner re-linked it to `synapticforge1/binaryang` (API, 23:36Z). **1.13.1 PUBLISHED** (owner:
 "update the project memory files, bump and publish"; a patch, JSR only; Rekor `3346116525`): the
 README's links to the new org — the first publish from the org, provenance recorded.
@@ -174,7 +174,7 @@ removed record went to a topic file, and the full text is one `git show` away:
 | `spec-behaviour`, `ENGINE_UNSTABLE`, the proposal suites                 | [testing.md](testing.md)                                                                             |
 | releases 1.6.0 / 1.6.1 / 1.7.0, the release pattern, `RELEASE_PAT`       | [publishing.md](publishing.md), [project.md](project.md) § "Versions"                                |
 | wasmtk's letter of 2026-09-28 (items 1–5, 5a)                            | [handoffs.md](handoffs.md) § 14–15, `CHANGELOG.md` § 1.7.0                                           |
-| everything else: M-series and post-M8 tables, the pre-bump items         | `git show 769b4d3c0:cmem/open-work.md`                                                               |
+| everything else: M-series and post-M8 tables, the pre-bump items         | `git show 3bd64ece7:cmem/open-work.md`                                                               |
 
 ## Defects and gaps — the owner's first
 
@@ -207,7 +207,7 @@ Items 18–20, from wasmtk's § 20, were fixed for 1.8.1 the day they arrived: L
 lowered out-of-bounds access traps as out of bounds), L4 (the placeholder; case 2 at an engine
 ceiling) and C7 (`getFunctionInfo` shaped as binaryen.js) — [divergences.md](divergences.md).
 
-Closed 2026-09-29: `array.new_default` defaultability (`d6b487c2d`), empty offsets / items (M2a),
+Closed 2026-09-29: `array.new_default` defaultability (`1108a5a1f`), empty offsets / items (M2a),
 the name section's position (N9, by decision), references by name (N10), folded layout and its label
 comments (W18), the diagnostic defects DG1–DG4 found by measuring the old item 16
 ([testing.md](testing.md) § "Diagnostic usefulness"), and the two that measurement left, numbered 16
@@ -227,7 +227,7 @@ CI shell scripts are TypeScript (the old item 17).
     real-compiler six AND the corpus measured. Start: six modules -Oz 145,859 (+4.9% over upstream
     133's 139,020), corpus -Oz 822,964 (+1.60% over 809,986). Progress: optimizer.md § "Open-work
     31". **State 2026-10-20, after step 15 — RELEASED in 1.13.0:** six 140,032 (+0.69% over
-    upstream's 139,068; 140,028 before the Local2Stack fix, `42965f49b`), corpus 811,099
+    upstream's 139,068; 140,028 before the Local2Stack fix, `eb0fff576`), corpus 811,099
     (+0.14%); -O2 2.1% BELOW upstream. Step 9: the control diff (step 8's "next")
     found upstream's WRITER dropping code after terminators that our DCE never visited (blocks in
     operands) or never judged dead (constructs that never reach their `end`); fixed in DCE. Step
@@ -287,10 +287,17 @@ resolved from the script's own location (run with no source: 257 / 257 prepared,
 a test comment's `file:///D:/…` became `<repo>`; four cmem lines naming this machine's drives
 reworded; the workspace scan finds nothing; commit messages carry no path. **Not done — letter
 H19, the history purge, waits on the owner:** the old path is in public history from
-`c1c24c9d3`, and every commit's author address is the owner's personal one (no local
+`cebbb1260`, and every commit's author address is the owner's personal one (no local
 `user.email`; the noreply address is needed). H19's hazards for this repo: upstream wabt /
 binaryen history with third-party authors (rewrite only the owner's address), 375 branches and
 21 tags, released provenance pinned to old hashes, wasmtk's `upstream/binaryang` clone.
+✅ **H19 DONE the same day** (owner: "start"; "only public facing items"; "items in the public
+facing history should be cleaned in the history"): the public history rewritten — 1,761 commits
+and 5 tags, the 11,187 upstream commits untouched — verified, cited hashes remapped, local
+`user.email` the noreply address; force-pushed with the 1.15.0 release (owner: "update the
+project memory files, bump the version then push to github"). Record and the tag-by-tag hash
+map: [publishing.md](publishing.md) § "The history purge". **Every commit hash quoted before
+2026-10-22 outside this repo (wasmtk's letters, the workspace) is now an OLD hash.**
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
@@ -435,7 +442,7 @@ sent and answered (their reply reached us 2026-09-29) — closed in [handoffs.md
     dprint must be byte-identical over the formatted files (dprint reproduces `deno fmt`), or
     one deliberate reformat commit.
 - **A local directory path in git history — leave it** (owner, 2026-09-14). The copies in
-  `b472b4aa4` and `df3659840` name no account, token or secret, and are not worth a force push. Do
+  `4da931fb7` and `29652f51e` name no account, token or secret, and are not worth a force push. Do
   not re-open.
 - **JSR and GitHub descriptions on the predecessors — won't do** (owner, 2026-09-02); they are
   frozen.

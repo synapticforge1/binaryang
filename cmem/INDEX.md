@@ -33,7 +33,7 @@ it went stale, and three commit messages on `main` stated results their own diff
 
 Decision 6 settled that `cmem/` merges **by topic**, not by concatenation. Each predecessor brought
 a project-specific WING directory as well: `cmem/binaryen-ts/` (14 files, 3,586 lines, as it stood at
-`73ab06cb627`) and `cmem/wabt-ts/` (12 files, 13,219 lines, as it stood at `fa9483aa3`).
+`b8b18073916`) and `cmem/wabt-ts/` (12 files, 13,219 lines, as it stood at `5d488e4bc`).
 
 |                       |                                                                              |
 | --------------------- | ---------------------------------------------------------------------------- |
@@ -45,7 +45,7 @@ a project-specific WING directory as well: `cmem/binaryen-ts/` (14 files, 3,586 
 🔧 **The wings were summarized on 2026-09-14** (owner: "the wing docs get both corrected and
 summarized"). Until then they were kept unedited as the origin record — the evidence of what each
 side knew before the trees became one. That evidence is intact in git: every wing file is one
-`git show 9758fc736:cmem/<wing>/<file>` away, and each summary section names its command.
+`git show 62c65a9db:cmem/<wing>/<file>` away, and each summary section names its command.
 
 **Consolidated 2026-09-14** (branch `cmem-consolidation`): machine-local memory moved in,
 `open-work.md` cut to open items with its closed history moved to topic files, stale status lines
@@ -81,15 +81,15 @@ Applied so far, each with its full text at the commit named:
 
 | retired or summarized                                                | now in                                                                                                                               | full text                                   |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `scope-1.5.2.md`                                                     | [project.md](project.md) § "Versions"                                                                                                | `git show cff3284b8:cmem/scope-1.5.2.md`    |
-| `overview.md`, `phases.md`, `transition.md`, `pre-merge-register.md` | [project.md](project.md)                                                                                                             | `git show 1672c2a5a:cmem/<file>`            |
-| `bridge.md`, `text-routes.md`                                        | [ir-convergence.md](ir-convergence.md) § "The bridge and the WAT routes into binaryen-ts"; binding rules in [project.md](project.md) | `git show 1672c2a5a:cmem/<file>`            |
-| `quality-passes.md`                                                  | the plan in [open-work.md](open-work.md); the passes in [testing.md](testing.md)                                                     | `git show 1672c2a5a:cmem/quality-passes.md` |
-| `handoffs.md` letters (file kept, as a log)                          | [handoffs.md](handoffs.md)                                                                                                           | `git show 1672c2a5a:cmem/handoffs.md`       |
-| `divergences.md` N1 and parity prose, the X1 record                  | [names.md](names.md), [testing.md](testing.md), a summary in place                                                                   | `git show 1672c2a5a:cmem/divergences.md`    |
-| the wabt-ts wing, `cmem/wabt-ts/` (12 files)                         | [wabt-ts.md](wabt-ts.md)                                                                                                             | `git show 9758fc736:cmem/wabt-ts/<file>`     |
-| the binaryen-ts wing, `cmem/binaryen-ts/` (14 files)                 | [binaryen-ts.md](binaryen-ts.md)                                                                                                     | `git show 9758fc736:cmem/binaryen-ts/<file>` |
-| `open-work.md` again (1,020 lines → open items), `unreleased.md` (all shipped), 2026-09-29 | [open-work.md](open-work.md)'s own table of where each record went                                          | `git show 769b4d3c0:cmem/<file>`             |
+| `scope-1.5.2.md`                                                     | [project.md](project.md) § "Versions"                                                                                                | `git show 65afb827c:cmem/scope-1.5.2.md`    |
+| `overview.md`, `phases.md`, `transition.md`, `pre-merge-register.md` | [project.md](project.md)                                                                                                             | `git show f2ee1a41f:cmem/<file>`            |
+| `bridge.md`, `text-routes.md`                                        | [ir-convergence.md](ir-convergence.md) § "The bridge and the WAT routes into binaryen-ts"; binding rules in [project.md](project.md) | `git show f2ee1a41f:cmem/<file>`            |
+| `quality-passes.md`                                                  | the plan in [open-work.md](open-work.md); the passes in [testing.md](testing.md)                                                     | `git show f2ee1a41f:cmem/quality-passes.md` |
+| `handoffs.md` letters (file kept, as a log)                          | [handoffs.md](handoffs.md)                                                                                                           | `git show f2ee1a41f:cmem/handoffs.md`       |
+| `divergences.md` N1 and parity prose, the X1 record                  | [names.md](names.md), [testing.md](testing.md), a summary in place                                                                   | `git show f2ee1a41f:cmem/divergences.md`    |
+| the wabt-ts wing, `cmem/wabt-ts/` (12 files)                         | [wabt-ts.md](wabt-ts.md)                                                                                                             | `git show 62c65a9db:cmem/wabt-ts/<file>`     |
+| the binaryen-ts wing, `cmem/binaryen-ts/` (14 files)                 | [binaryen-ts.md](binaryen-ts.md)                                                                                                     | `git show 62c65a9db:cmem/binaryen-ts/<file>` |
+| `open-work.md` again (1,020 lines → open items), `unreleased.md` (all shipped), 2026-09-29 | [open-work.md](open-work.md)'s own table of where each record went                                          | `git show 3bd64ece7:cmem/<file>`             |
 
 ---
 
