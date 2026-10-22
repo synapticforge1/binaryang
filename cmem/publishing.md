@@ -5,9 +5,10 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-21 UTC): `@jrmarcum/binaryang@1.13.2`, WITHOUT provenance** — its publish step
-failed (§ "1.13.2"); the last version with provenance is 1.13.1, Rekor `3346116525`. On npm:
-`@synapticforge1/binaryang@1.13.1` (by hand). Every release is recorded below, newest first.
+**Latest (2026-10-22 UTC): 1.13.3 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@1.13.3` (Rekor `3375011478`) and npm `@synapticforge1/binaryang@1.13.3`
+(published by GitHub Actions, SLSA provenance) — § "1.13.3". Every release is recorded below,
+newest first.
 **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (moved to `synapticforge`, the org then renamed to
 match the npm org: § "The move to `synapticforge`"; the JSR package name is unchanged).
@@ -29,6 +30,10 @@ The sections below are in the order they were found, so a later one can narrow a
 last section, "The tag-push path works unaided", narrows the manual-step warnings above it.
 
 ## 🆕 npm as a SECOND registry — a PARKED contingency (owner, 2026-10-13; open-work 29)
+
+✅✅ **DONE 2026-10-22 (UTC): 1.13.3 was published to npm BY THE WORKFLOW** — the trusted
+publisher (`_npmUser`: GitHub Actions), SLSA provenance, read back by `workflow.ts provenance npm`
+(§ "1.13.3"). Each release now goes to both registries from one tag. Open-work 29 is CLOSED.
 
 ✅ **ON npm since 2026-10-21 (UTC): `@synapticforge1/binaryang@1.13.1`**, the first version
 published BY HAND by the owner (`npm publish --provenance=false` from `dist/` built and proved at
@@ -929,6 +934,31 @@ redirects last only until someone claims it. **JSR did not follow the rename eit
 API before 1.13.1 was tagged). In the repo:
 `origin`, the README, `publish.ts`'s printed URL and the npm manifest's repository / homepage / bugs
 name `synapticforge1`.
+
+## 1.13.3 — a PATCH from `main` (2026-10-22 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "yes" to 1.13.3 (after "should we just rerun 1.13.2?" — no: the JSR job would fail
+on the existing version, and npm's job waits for it). The same package as 1.13.2, released again
+for provenance; carries no code change.
+
+1. The workflows' bash logic moved to `scripts/release/workflow.ts` first (owner rule; merge
+   after a 28 / 28 gate), then `CHANGELOG.md` § 1.13.3 on `release/1.13.3`, gated, merged; `main`
+   pushed unbumped at `59c72a481`: CI and auto-tag GREEN.
+2. 🔧 **The fresh-clone check caught a flake first:** `test:bun` failed `hang_check.test.ts` "waits
+   for its interval" — 99.75 ms for a 100 ms interval: the interpreter arms by `Date.now()` (whole
+   ms), the test measured `performance.now()`. Since 1.11.0, hit once. The bound is now 99, with
+   the reason in the test (`2179d2c85`, gated 28 / 28, merged at `fdeca6399`, CI GREEN; the clone
+   check 17 / 17). publish.yml runs `test:bun` before `deno publish`: the flake could have stopped
+   the release halfway.
+3. No tag, neither registry had 1.13.3, JSR linked to `synapticforge1/binaryang`; `bun run bump`,
+   `version_sync` green; `bun run release`: `bump to v1.13.3` (`a021ef19d`), `main` + `v1.13.3`.
+4. publish.yml GREEN, both jobs: **JSR** 1.13.3 created 2026-10-22T04:01:47Z, **Rekor log id
+   `3375011478`**; **npm** `@synapticforge1/binaryang@1.13.3` at 04:04:40Z, `latest`, published by
+   **GitHub Actions** (the trusted publisher), attestation `https://slsa.dev/provenance/v1` — the
+   first npm publish by the workflow, and `workflow.ts`'s first run in CI (both read-backs passed).
+   CI and auto-tag GREEN; GitHub Release `v1.13.3`. As a user: `deno run … jsr:@jrmarcum/
+   binaryang@1.13.3 --version` and `npx @synapticforge1/binaryang@1.13.3 --version` (no install)
+   both print `binaryang 1.13.3`.
 
 ## 1.13.2 — a PATCH from `main` (2026-10-21 UTC) — ⚠️ ON JSR WITHOUT PROVENANCE, NOT on npm
 
