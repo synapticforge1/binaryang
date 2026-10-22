@@ -64,3 +64,7 @@ contains ([handoffs.md](handoffs.md)).
   grow widen; element offsets narrow; a lowered table holds at most 2^32 − 2. The spec's table64
   files: 1,257 invocations, all on V8, all but refusal wording on JavaScriptCore; trap MESSAGES
   identical to the original's on V8 (8 / 8).
+- **Docs — README "Making a module run on Safari and Bun"** (open-work 32, step 4): what
+  JavaScriptCore refuses and the pass for each (`--memory64-lowering`; `--translate-to-exnref` for
+  legacy EH's `delegate`, which already ran there: 70 / 70 spec assertions). CHANGELOG § Unreleased
+  carries both entries. Repo only, not in the package: the gate step `bun run lowering`.
