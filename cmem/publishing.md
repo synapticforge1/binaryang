@@ -946,8 +946,14 @@ provenance; it carries the README for both registries (no code change).
    **`rekorLogId: null`**, still null 3 minutes later. Everything after the step was skipped: the
    GitHub Release, the provenance check, and the whole `npm` job (`needs: publish`), so **npm has
    no 1.13.2** and the trusted publisher is still untried. CI and auto-tag were green.
-4. **Cause: not yet known.** The step's log needs a GitHub login (the public API gives the step's
-   conclusion, not its output); the owner is fetching it. Same workflow, org and JSR link as
+4. **Cause, from the step's log** (the owner pasted it: the public API gives a step's conclusion,
+   not its output): every check passed (the 19 exports, the slow-types check), then
+   `Publishing @jrmarcum/binaryang@1.13.2 ...`, then `error: Failed to publish … Caused by:
+   expected value at line 1 column 1` — a JSON parser handed an empty or non-JSON body (an HTML
+   error page, a blank 5xx). After the upload that leaves JSR's task poll and the provenance round
+   trip (Fulcio's certificate, Rekor's entry, the attestation sent to JSR); the null `rekorLogId`
+   says the attestation never completed. WHICH server answered so the log does not say: an
+   inference, not a measurement. Before the log: Same workflow, org and JSR link as
    1.13.1 an hour earlier, which got provenance (Rekor `3346116525`) — so a signing-side failure
    (Sigstore / Rekor) is the leading guess, not a finding. The annotations at the top of the run
    page are NOT it: they are the Bun test leg's 36 known JavaScriptCore differences (e.g. the
