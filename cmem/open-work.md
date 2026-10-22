@@ -132,9 +132,9 @@ is PUBLISHED** (Rekor `3344028471`; [publishing.md](publishing.md) § 1.13.0): e
 paragraphs above call unreleased — C1–C17, open-work 30, open-work 31 steps 1–15 — shipped in it.
 `main` = the release plus cmem; nothing unreleased ([unreleased.md](unreleased.md)). 🚨 The
 release check found Local2Stack (31 step 4) computing wrong results on real compiler output;
-fixed before the push, never shipped. **Open:** 31 (optimizer), 32 (new: lowering for engines
-without memory64 / multi-memory), 13, 14, 15 (29, npm, reopened the same day, CLOSED
-2026-10-22 with 1.13.3). **wasmtk on 1.13.0** ([handoffs.md](handoffs.md)
+fixed before the push, never shipped. **Open:** 31 (optimizer), 13, 14, 15 (29, npm, reopened
+the same day, CLOSED 2026-10-22 with 1.13.3; 32, lowering for engines without memory64, CLOSED
+2026-10-22, built and merged, NOT pushed). **wasmtk on 1.13.0** ([handoffs.md](handoffs.md)
 § 39, received the same day, answering § 38): gate 64,506 / 0 / 16 unchanged, soundness guard 0,
 `go_asyncify_tests` 12 / 12; 43 golden WATs moved (merged `-Oz` libraries only), behaviour
 unchanged; nothing open either way. **The repo moved to `synapticforge/binaryang`** the same day
@@ -169,40 +169,19 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-32. ◐ **Lowering for engines that lack memory64 / table64 / multi-memory — "runs everywhere" for
-    our OUTPUT** (opened 2026-10-20, owner: "yes open that item after the release"; FIRST, owner
-    2026-10-22: "we should work on item 32 first"). **MEASURED 2026-10-22**
-    ([run-everywhere.md](run-everywhere.md) § "Open-work 32"): (a) `delegate` is solved by
-    TranslateToExnref (70 / 70 on JavaScriptCore, -Oz too); memory64 needs lowering, and
-    upstream's matches every spec behaviour but WRAPS addresses above 2^32 (wrong reads, corrupting
-    stores, a `grow` that succeeds); table64 too, and upstream's is incomplete (invalid output on
-    `table.get` / `set`) and wraps `call_indirect`; multi-memory runs natively on JavaScriptCore
-    (only 127+ memories fail); (b) the producers are not yet checked. **Decided (owner): SOUND —
-    the lowered module traps where the original does.** **BUILT 2026-10-22 (merged, NOT
-    pushed — owner: "wait until passes are built")**: step 1 `Memory64Lowering` (`7037c1762`),
-    step 2 tables in the same pass, `Table64Lowering` the alias (`9e15903e9`), step 3 the gate
-    step `bun run lowering` (`53ace7aa7`: 122 modules, 1,759 invocations, 0 diverging on V8 and
-    JavaScriptCore), step 4 the README's "Making a module run on Safari and Bun" and the
-    CHANGELOG (`af2b759b3`). Trap messages identical to the original's on V8. **Left, the
-    owner's to decide:** (b) which producers emit memory64 (unchecked); multi-memory past 127
-    memories (nothing real reaches it); then close the item
-    ([run-everywhere.md](run-everywhere.md) § "Open-work 32", "Built"). The scope as first
-    written: The 36 known
-    Bun differences (`tests/bun-known-differences.json`) are all JavaScriptCore refusing a module
-    V8 accepts — binaryang itself behaves the same on every runtime (`test:bun` fails exactly the
-    list; the CLI smoke hash agrees on Deno / Bun / every Node LTS; the browser gate loads every
-    export in WebKit). What is missing is a way to MAKE such a module run there: 24 are memory64 /
-    table64 (JavaScriptCore: "Memory64 is not enabled"), 5 a memory index of 127 and up, 5 a
-    legacy `delegate` form, 2 the same refusal in other words. Upstream has `--memory64-lowering`,
-    `--table64-lowering` and `--multi-memory-lowering`; we have none (`LowerCustomPageSizes` is
-    the one lowering built, item 12). **First, measure, nothing built:** (a) does JavaScriptCore
-    take TranslateToExnref's output for the 5 `delegate` cases (if so, that is the answer for
-    those, and only needs saying); (b) which lowering a real producer needs (memory64 from Rust /
-    Zig / Emscripten `-sMEMORY64`; multi-memory past 127 is rare); (c) upstream's passes as the
-    reference, and the gate: the lowered module behaves as the original on V8, and instantiates
-    on JavaScriptCore. Not the 2 message-only cases, which need nothing.
+No defects open. (Item 32 closed 2026-10-22: our OUTPUT runs on JavaScriptCore too — Safari and
+Bun, the engine behind 34 of the 36 known Bun differences. Owner: "we should work on item 32
+first", then "Trap, as the original", then "we measure each and make the decisions based on the
+measurements". Built: `Memory64Lowering` (`--memory64-lowering`, `--table64-lowering` its alias),
+sound where upstream's wraps above 2^32; the gate step `bun run lowering` (122 spec modules, 0
+diverging on either engine); real compiler output — Rust nightly and Zig wasm64 builds, lowered,
+run their workload to the right checksum on JavaScriptCore (`memory64_real_compiler.test.ts`).
+Measured, nothing built: legacy-EH `delegate` was already solved by TranslateToExnref (70 / 70);
+JavaScriptCore's multi-memory limit is 100 memories and every compiler measured emits one, so no
+multi-memory lowering; Emscripten / clang, not installed here, unmeasured. Every step and number:
+[run-everywhere.md](run-everywhere.md) § "Open-work 32". Its number is kept free.)
 
-No defects open. (Item 27 closed 2026-10-12: the interpreter's constant-expression evaluator never
+No defects open before it. (Item 27 closed 2026-10-12: the interpreter's constant-expression evaluator never
 checked that an expression left a value, so `(offset nop)` on an unvalidated module escaped as a
 bare `TypeError`; now `Stop(invalid)` — [hardening.md](hardening.md) § "2026-10-12 — open-work 27".
 Its number is kept free.)

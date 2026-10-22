@@ -2,27 +2,27 @@
   {
     "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
     "test": "every memory-index instruction, at index 150 (and 199)",
-    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (more than 100 memories: \"there can be at most 100\", measured 2026-10-22); V8 accepts them"
   },
   {
     "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
     "test": "memory.size at index 127, where one byte stops being the LEB",
-    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (more than 100 memories: \"there can be at most 100\", measured 2026-10-22); V8 accepts them"
   },
   {
     "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
     "test": "memory.size at index 128, where one byte stops being the LEB",
-    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (more than 100 memories: \"there can be at most 100\", measured 2026-10-22); V8 accepts them"
   },
   {
     "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
     "test": "memory.size at index 255, where one byte stops being the LEB",
-    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (more than 100 memories: \"there can be at most 100\", measured 2026-10-22); V8 accepts them"
   },
   {
     "file": "tests/binaryen-ts/binary/memory_index_leb.test.ts",
     "test": "memory.size at index 256, where one byte stops being the LEB",
-    "reason": "multi-memory: JavaScriptCore refuses these valid modules (memory index 127 and up); V8 accepts them"
+    "reason": "multi-memory: JavaScriptCore refuses these valid modules (more than 100 memories: \"there can be at most 100\", measured 2026-10-22); V8 accepts them"
   },
   {
     "file": "tests/binaryen-ts/interp/interpreter.test.ts",
