@@ -83,16 +83,11 @@ jobs:
         with:
           node-version: '24'
 
+      # The checks and the read-back poll in this file are scripts/release/workflow.ts, not bash
+      # (owner rule, 2026-10-21: a condition or a loop goes in a .ts file; the shell only launches).
       - name: Verify jsr.json version matches tag
         if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION="$(bun -e 'console.log(JSON.parse(require("node:fs").readFileSync("jsr.json", "utf8")).version)')"
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match jsr.json version ($PKG_VERSION)"
-            exit 1
-          fi
-          echo "Versions match: $TAG_VERSION"
+        run: bun scripts/release/workflow.ts tag-matches "$GITHUB_REF_NAME"
 
       - name: Type-check
         run: bun run check
@@ -110,12 +105,7 @@ jobs:
       # it DOES fail it names the cause immediately (org/enterprise Actions OIDC policy),
       # which is otherwise invisible.
       - name: Check OIDC availability (prerequisite, not proof)
-        run: |
-          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
-            echo "OIDC token endpoint reachable — provenance can be attempted."
-          else
-            echo "::warning::OIDC token NOT available (URL present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}, TOKEN present: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}). deno publish will skip provenance silently. Check org/enterprise Settings → Actions → General → OIDC policy."
-          fi
+        run: bun scripts/release/workflow.ts oidc-check
 
       # No `--allow-slow-types`. binaryen-ts needed it for `interop/binaryen-js.ts`'s
       # runtime-configurable `await import(path)`; measured 2026-08-26, the merged tree
@@ -145,31 +135,9 @@ jobs:
       # wasmtk, which added it after ten releases of silent absence.
       - name: Verify provenance was recorded on JSR
         if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          PKG=$(bun -e 'console.log(JSON.parse(require("node:fs").readFileSync("jsr.json", "utf8")).name)')
-          SCOPE=${PKG%/*}; SCOPE=${SCOPE#@}
-          NAME=${PKG#*/}
-          VERSION=${GITHUB_REF_NAME#v}
-          URL="https://api.jsr.io/scopes/${SCOPE}/packages/${NAME}/versions/${VERSION}"
-          echo "Checking $URL"
-          # JSR ingests attestation asynchronously AND caches this endpoint. A plain
-          # re-read can keep returning the pre-attestation record for minutes, so the
-          # poll MUST cache-bust or it reports a false negative on a release that did
-          # get provenance. Measured 2026-08-27: wabt-ts@1.5.1 read as null repeatedly
-          # while the cache-busted read showed rekorLogId 2618866200.
-          for i in $(seq 1 12); do
-            BODY=$(curl -sf -H "Accept: application/json" -H "Cache-Control: no-cache" "${URL}?cb=${GITHUB_RUN_ID}-${i}" || true)
-            REKOR=$(printf '%s' "$BODY" | bun -e 'const t = await Bun.stdin.text(); try { console.log(JSON.parse(t).rekorLogId ?? "") } catch { console.log("") }' || true)
-            if [ -n "$REKOR" ]; then
-              echo "Provenance recorded — Rekor log ID: $REKOR"
-              echo "- provenance recorded, Rekor log ID $REKOR" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            echo "  attempt $i: not recorded yet, retrying in 15s"
-            sleep 15
-          done
-          echo "::error::${PKG}@${VERSION} published WITHOUT provenance (no Sigstore/Rekor entry). The publish itself SUCCEEDED — this version exists and is immutable. Do NOT 'fix' this by editing permissions or the publish YAML: binaryen-ts's workflow is byte-identical between an unattested (v1.4.3) and an attested (v1.5.0) release, so the YAML is not the variable. Check the OIDC step above, then org/enterprise Settings → Actions → General → OIDC policy, then that the JSR↔GitHub repo link is intact. See cmem/publishing.md."
-          exit 1
+        # JSR ingests attestation asynchronously AND caches this endpoint, so the poll
+        # cache-busts each read (the measurement is in workflow.ts).
+        run: bun scripts/release/workflow.ts provenance jsr "${GITHUB_REF_NAME#v}"
 
   # npm, the SECOND registry (open-work 29; owner, 2026-10-20: `@synapticforge1/binaryang`, JSR
   # staying the source). After JSR's job, from the same tag. OFF until the repository variable
@@ -212,13 +180,7 @@ jobs:
           npm --version
 
       - name: Verify jsr.json version matches tag
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION="$(bun -e 'console.log(JSON.parse(require("node:fs").readFileSync("jsr.json", "utf8")).version)')"
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match jsr.json version ($PKG_VERSION)"
-            exit 1
-          fi
+        run: bun scripts/release/workflow.ts tag-matches "$GITHUB_REF_NAME"
 
       # Builds dist/ and proves the tarball (installed and run) before anything is published.
       - name: Build and prove the npm package
@@ -229,18 +191,4 @@ jobs:
         run: npm publish
 
       - name: Verify provenance was recorded on npm
-        run: |
-          VERSION=${GITHUB_REF_NAME#v}
-          URL="https://registry.npmjs.org/@synapticforge1%2Fbinaryang/${VERSION}"
-          for i in $(seq 1 12); do
-            P=$(curl -sf -H "Cache-Control: no-cache" "${URL}?cb=${GITHUB_RUN_ID}-${i}" | bun -e 'const t = await Bun.stdin.text(); try { console.log(JSON.parse(t).dist?.attestations?.provenance?.predicateType ?? "") } catch { console.log("") }' || true)
-            if [ -n "$P" ]; then
-              echo "npm provenance recorded: $P"
-              echo "- npm: @synapticforge1/binaryang@${VERSION}, provenance $P" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            echo "  attempt $i: not visible yet, retrying in 15s"
-            sleep 15
-          done
-          echo "::error::@synapticforge1/binaryang@${VERSION} has no provenance attestation on npm. The version exists and is immutable."
-          exit 1
+        run: bun scripts/release/workflow.ts provenance npm "${GITHUB_REF_NAME#v}"
