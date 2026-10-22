@@ -5,7 +5,7 @@ predecessors derived independently, down to "Write down the thing you only said 
 section marked 🆕 after that was paid for in binaryang itself, since the merge. The rules that did
 not converge are summarized in [wabt-ts.md](wabt-ts.md) § `wabt-ts/best-practices.md` and
 [binaryen-ts.md](binaryen-ts.md) § `binaryen-ts/best-practices.md`; the full pre-merge enumerations
-(2,894 and 294 lines at the merge) are one `git show 9758fc736:cmem/<wing>/best-practices.md` away. The day-to-day checklist these rules produce is
+(2,894 and 294 lines at the merge) are one `git show 62c65a9db:cmem/<wing>/best-practices.md` away. The day-to-day checklist these rules produce is
 [working-rules.md](working-rules.md).
 
 ## Why this file is a selection and not a rewrite
@@ -319,8 +319,8 @@ callers", a scan that finds "no opcode", a gate that finds "no divergence" — s
 [testing.md](testing.md) § "Invert every gate before trusting it", the same idea for a gate.)
 🔁 **Three more the same day, each found only because a mutant SURVIVED:** a duplicate-name guard
 test that read the module WITHOUT its names, so nothing was named with or without the guard
-(`e98886a61`); a "declarations stay on one line" test whose one-leaf fixture fits one line whatever
-the writer does (`60fefd723`); and a gate step whose `sh.exe` had no `grep` on its PATH, which can
+(`7539689e5`); a "declarations stay on one line" test whose one-leaf fixture fits one line whatever
+the writer does (`33ec4a28a`); and a gate step whose `sh.exe` had no `grep` on its PATH, which can
 report "no violation" with its tools missing. The fix each time is the same: first assert the
 positive case, then the absence.
 
@@ -457,8 +457,8 @@ finally looking at the artifact:
 
 | the claim                                                       | the artifact                                                                               |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `b8fafaa3f` "pin npm:binaryen to **132** … exactly one mapping" | its diff DELETED the 132 entries; `@*` stayed **116.0.0** (fixed `dea8ff9cf`)              |
-| `456423b54` / `cec3a3381` "Gate: fmt, **lint**, ci …"           | `deno lint` failed on the committed tree, twice, from those commits (fixed `fc91cf409`)    |
+| `8d9ba0cb9` "pin npm:binaryen to **132** … exactly one mapping" | its diff DELETED the 132 entries; `@*` stayed **116.0.0** (fixed `9507d78b5`)              |
+| `8f5945b83` / `b940e6c6b` "Gate: fmt, **lint**, ci …"           | `deno lint` failed on the committed tree, twice, from those commits (fixed `4f1fe0950`)    |
 | "**27** one-sided kinds outstanding", cited for 8 days          | re-derived: **11**, and none of them a rename (S5, [ir-convergence.md](ir-convergence.md)) |
 
 **Why each survived.** Nothing downstream reads a commit message. The suite was green — but green
@@ -1032,7 +1032,7 @@ explanation will reasonably re-add it, and the reservation will outlive a second
 
 **Rule: run every step CI runs, read from the workflow file, not from memory of it.**
 
-S6 step 4 (`abddf1206`) left two scripts that no longer type-checked. The local gate —
+S6 step 4 (`290faadcd`) left two scripts that no longer type-checked. The local gate —
 `test · baseline · operators · spec · bridge` — does not run `deno task check`; `ci.yml` does, and
 so does `publish.yml`. Nothing had been pushed since, so for 65 commits `main` was red by CI's
 standard and green by ours, and **the first push would have failed, and so would the next publish.**
@@ -1050,7 +1050,7 @@ worktree — not by assuming.
   then `operators · spec · bridge`.
 - **An unpushed branch is not a tested branch.** The longer `main` runs ahead of `origin`, the more
   a CI-only step is worth running locally.
-- **Run it on the tree you COMMIT, after the last edit.** Decision 5 (`365e9277c`) merged with
+- **Run it on the tree you COMMIT, after the last edit.** Decision 5 (`7c2ad5fd3`) merged with
   `deno lint` red — the region helpers replaced the last `as BlockExpr` cast in `passes.test.ts`
   after the gate had run, and the import stayed. Found a day later by the next gate. If an edit
   follows the gate, the gate has not run.
@@ -1108,7 +1108,7 @@ The instance: I wrote that the binaryen-ts WAT parser "reads folded form only", 
 corrected it. Upstream wat2wasm reads all four folded spellings: an input folded before
 `(block (param …) …)`, a body consuming it with a partial fold, `if` inputs in the condition slot,
 and a loop back-edge. Probing those spellings then found a real defect — wabt-ts's folded `if` kept
-only the LAST instruction of its condition slot and silently dropped the input (`c309e57a0`).
+only the LAST instruction of its condition slot and silently dropped the input (`94273c7f6`).
 
 ### How to apply
 
@@ -1116,7 +1116,7 @@ only the LAST instruction of its condition slot and silently dropped the input (
   operands than it consumes, taking the rest from the stack.
 - A claim about what text can express is checked against upstream `wat2wasm` before it is written
   down — it is the authority on the text format, and a probe costs a minute.
-- **A WRITER applies it too** (W11, 2026-09-19, `f2baf2ada`): folded `wasm2wat` declined ~30
+- **A WRITER applies it too** (W11, 2026-09-19, `0ec356fa5`): folded `wasm2wat` declined ~30
   instruction kinds and wrote them — and the whole expression around each — linearly, 3,174 lines
   over the corpora. Every plain kind now nests its operands (`ExprVisitor.visitShallow` gives them in
   evaluation order), `try_table` folds, a `pop` writes nothing, and only operands with SCATTERED
@@ -1247,7 +1247,7 @@ not reach, read the CONSUMERS' rule and test it directly.
 ## 🆕 Lessons from the post-M8 run (2026-09-18 → 2026-09-19)
 
 Fourteen items — post-M8 fixes 1–10, W10b, W11, the scheduled cleanup — each measured, mutated and
-gated (`git show 769b4d3c0:cmem/open-work.md`, § "Done 2026-09-18 → 2026-09-19"). What they taught, in order of
+gated (`git show 3bd64ece7:cmem/open-work.md`, § "Done 2026-09-18 → 2026-09-19"). What they taught, in order of
 how much they cost when ignored:
 
 ### A task's own description is a claim — check it before scoping
@@ -1327,7 +1327,7 @@ make it the same computation on the same input, not an equivalent one on another
 
 The agreement script (instruction sequence, slot counts, canonical forms — parser vs reader vs
 decoder, per function, over the corpus) cost minutes and found two reader defects nobody was looking
-for: imports indexed across kinds (fixed, `ab1a211ee`) and multi-value operands attached by node
+for: imports indexed across kinds (fixed, `59c13f918`) and multi-value operands attached by node
 count (recorded). Three front ends that each pass their own byte gates can still build different
 trees; only comparing them says so.
 
@@ -1347,7 +1347,7 @@ The wasmtk team's runner had one `catch` around "assemble the module", so a fail
 parse, encode, engine validation — counted as `assert_malformed` passing. Two assertions had been
 green for years on an encoder error, which is not what "this text cannot be decoded" means. Splitting
 the stages turned them into skips and found two real leniency bugs here (limits unchecked, legacy
-`try` clauses unchecked), both fixed in `d59816990`.
+`try` clauses unchecked), both fixed in `530569512`.
 
 🔑 It is the same shape as the `bin-roundtrip=OK` probe on this side, which reported success for
 modules it never round-tripped, and as `direct` reading 421/421 while the bridge dropped every

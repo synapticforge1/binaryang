@@ -600,14 +600,14 @@ call site at all. It stages, commits, tags and pushes; the tag push is what publ
 ## 1.6.1 — a patch from a branch (2026-09-28) — 🚀 PUBLISHED
 
 ✅ **Released 2026-09-28** — owner: "Tag from the branch". On `release/1.6.1` (cut from `v1.6.0`):
-`deno task bump` → 1.6.1, committed (`dade0c785`); the preflight guards run by hand
+`deno task bump` → 1.6.1, committed (`b880e0708`); the preflight guards run by hand
 (`scratchpad/preflight161.ts`: clean tree, tag absent on origin, cold `deno task check`,
 `checkEntry` — all ok); `git tag v1.6.1`; `git push origin release/1.6.1 v1.6.1` — the TAG and the
 branch only, `main` NOT pushed. "Publish to JSR" run 36497043241: success; JSR `1.6.1_meta.json`
 serves `.` → `./main.ts`. Verified from JSR: `deno run -A --min-dep-age 0
 jsr:@jrmarcum/binaryang@1.6.1 --version` prints `binaryang 1.6.1`, `--help` the usage, and a
 command runs (exit 1 on a missing file). Without `--min-dep-age 0` Deno refuses for 24 hours —
-the wall recorded below. `release/1.6.1` (bumped) is merged into `main` (`c0dd3d251`): `main`
+the wall recorded below. `release/1.6.1` (bumped) is merged into `main` (`078c71c1f`): `main`
 reads **1.6.1**, so auto-tag no-ops when `main` is pushed. The next release was to be 1.6.2; the
 owner made it **1.7.0** (a minor — `./interop` removed), released 2026-09-29.
 
@@ -646,7 +646,7 @@ bun run release                     # guard, cold publish dry run + the type che
 exempts exactly those. 🔧 **Until 2026-09-14 this flow refused at its own guard.** Both halves named
 `deno.json` alone, while the bump also rewrites `main.ts`, so the guard returned `[" M main.ts"]`
 and exited 1. It failed safe. 1.5.4 went out only because its bump was committed by hand first
-(`395f536fc`), which made the script skip its own commit. `release_guard.test.ts` now checks the
+(`6f49db43e`), which made the script skip its own commit. `release_guard.test.ts` now checks the
 list against `bump_version.ts`'s write sites, and `publish_preflight_wiring.test.ts` checks that the
 `git add` stages the list. Verified by a real `deno task bump` with the actual `git status` fed to
 the guard (no blockers), then restored.
@@ -769,7 +769,7 @@ goes in `README.md`; if it is curated internal project memory, it goes in `cmem/
 binaryang has **no submodules** — the predecessor remotes point at local sibling paths. Both wings
 carried a submodule-remnant recovery recipe (`git rm --cached` leaves behind a `.git` file and the
 `.git/modules/<name>/` storage, worth hundreds of MB). It no longer applies here; the full texts
-(`git show 9758fc736:cmem/<wing>/publishing.md`) keep it for the history.
+(`git show 62c65a9db:cmem/<wing>/publishing.md`) keep it for the history.
 
 ## ✅ The tag-push path works unaided — 1.5.4, 2026-09-02
 
@@ -792,12 +792,12 @@ any release that falls through to dispatch. The record, by path: `push: tags` ha
 ## ✅ 1.8.1 — a patch by `deno task bump`, released 2026-09-29
 
 **Published from the tag push, unaided.** JSR: `binaryang@1.8.1`, `rekorLogId=3007105518`, not
-yanked, `latestVersion` 1.8.1; tag `v1.8.1` at `531d82f1b`; CI, Auto-tag and Publish green. Owner,
+yanked, `latestVersion` 1.8.1; tag `v1.8.1` at `80a64bced`; CI, Auto-tag and Publish green. Owner,
 2026-09-29: "I want to fix all three now and then release to 1.8.1" — wasmtk's § 20: L3 (a lowered
 out-of-bounds access traps as out of bounds), L4 (the placeholder export), C7 (`getFunctionInfo`
 shaped as binaryen.js). ⚠️ **A PATCH by the owner's decision although C7 changes a return shape,
 which the rule counts as BREAKING** — told before the choice; the CHANGELOG states the shape change
-first. The pattern, unchanged: fixes merged UNBUMPED (`99f2a5b16`) after a green gate, `main`
+first. The pattern, unchanged: fixes merged UNBUMPED (`a547a9533`) after a green gate, `main`
 pushed and CI green, JSR checked (1.8.1 absent), `deno task bump` (a patch), `deno task release`.
 
 Verified from JSR itself, through wasmtk's call shapes (`compat/wabt` → `compat/binaryen`
@@ -809,7 +809,7 @@ function and `=== i32` for an i32 one.
 ## ✅ 1.8.0 — a hand-typed MINOR, released 2026-09-29
 
 **Published from the tag push, unaided.** JSR: `binaryang@1.8.0`, `rekorLogId=3006244345`, not
-yanked, `latestVersion` 1.8.0; tag `v1.8.0` at `0b2edf7cd`; CI, Auto-tag and Publish green. Owner,
+yanked, `latestVersion` 1.8.0; tag `v1.8.0` at `fffd9f9cc`; CI, Auto-tag and Publish green. Owner,
 2026-09-29: "lets go ahead and bump and release". A MINOR by the rule in unreleased.md — changed
 DEFAULTS: the `wat2wasm` CLI validates, `stopOnFirstError` defaults to true, diagnostic text moves,
 lowered memories export as `#pagesize=` — typed by hand, as 1.6.0 and 1.7.0 were. It carries the day's
@@ -817,7 +817,7 @@ work: DG1–DG6, Q10–Q13, `LowerCustomPageSizes` (L1, L2, P1), `proposals/` in
 `CHANGELOG.md` § 1.8.0. The pattern, unchanged:
 
 1. every change merged after a green gate on its committed tree; release notes merged UNBUMPED
-   (`fb5068e47`); `main` pushed (18 commits) — CI green on all four runtime legs, Node 22.18
+   (`575edc0fb`); `main` pushed (18 commits) — CI green on all four runtime legs, Node 22.18
    included (the first CI run of `scripts/cli-smoke.ts`, which this machine cannot run on 22.18),
    Auto-tag a no-op;
 2. JSR checked first (cache-busted): 1.8.0 absent, latest 1.7.2; 1.8.0 typed in `deno.json` and
@@ -834,7 +834,7 @@ Verified from JSR itself (a scratch directory, `--minimum-dependency-age=0`): `-
 ## ✅ 1.7.2 — a patch by `deno task bump`, released 2026-09-29
 
 **Published from the tag push, unaided.** JSR: `binaryang@1.7.2`, `rekorLogId=3002349065`, not
-yanked, `latestVersion` 1.7.2; tag `v1.7.2` at `30929db92`; CI, Auto-tag and Publish green. Owner,
+yanked, `latestVersion` 1.7.2; tag `v1.7.2` at `7f410842e`; CI, Auto-tag and Publish green. Owner,
 2026-09-29: "merge the fixes once they are tested and passing, then update the project memory
 files, bump and push"; "1.7.2 is correct" — a patch, as 1.5.4's default-text change was: nothing
 removed or renamed, one optional writer option added, and `wasm2wat`'s TEXT changes for nearly every
@@ -842,7 +842,7 @@ module (the CHANGELOG says so first). It carries `array.new_default`'s defaultab
 and W18 — `CHANGELOG.md` § 1.7.2. The pattern, unchanged:
 
 1. five fix branches merged, each after a green gate on its committed tree; release notes and
-   memory merged UNBUMPED (`7aa54e95c`); `main` pushed — CI green, Auto-tag a no-op;
+   memory merged UNBUMPED (`706dac230`); `main` pushed — CI green, Auto-tag a no-op;
 2. `deno task bump` → 1.7.2 in `deno.json` and `main.ts`;
 3. `deno task release` — cold type check and entry check passed; bump committed, tagged, branch and
    tag pushed together.
@@ -856,12 +856,12 @@ porting the repo's own `.sh` gate steps is open-work.md's item 20.
 ## ✅ 1.7.1 — a patch by `deno task bump`, released 2026-09-29
 
 **Published from the tag push, unaided.** JSR: `binaryang@1.7.1`, `rekorLogId=3001574645`, not
-yanked, `latestVersion` 1.7.1; tag `v1.7.1` at `ced5ca508`; CI, Auto-tag and Publish green. Owner,
+yanked, `latestVersion` 1.7.1; tag `v1.7.1` at `fd61a9b53`; CI, Auto-tag and Publish green. Owner,
 2026-09-29: "lets release 1.7.1". It carries the u64-limits fix (wasmtk's letter of 2026-09-29,
-item 1; merge `33f313134`). The pattern, unchanged:
+item 1; merge `a7c48aa6d`). The pattern, unchanged:
 
-1. fix merged (`33f313134`), full gate green on the committed tree; release notes merged UNBUMPED
-   (`b8d222d9a`); `main` pushed — CI green, Auto-tag a no-op (`v1.7.0` existed);
+1. fix merged (`a7c48aa6d`), full gate green on the committed tree; release notes merged UNBUMPED
+   (`59215d55f`); `main` pushed — CI green, Auto-tag a no-op (`v1.7.0` existed);
 2. `deno task bump` → 1.7.1 in `deno.json` and `main.ts` (a patch, so the task, not a hand edit);
 3. `deno task release` — cold type check and entry check passed; it committed the bump, tagged,
    and pushed branch and tag together.
@@ -873,12 +873,12 @@ Verified from JSR itself (a scratch directory, `--min-dep-age 0` past the 24-hou
 ## ✅ 1.7.0 — a hand-typed MINOR, released 2026-09-29 (UTC)
 
 **Published from the tag push, unaided.** JSR: `binaryang@1.7.0`, `rekorLogId=2991848417`, 667
-symbols, not yanked, `latestVersion` 1.7.0; tag `v1.7.0` at `f644c9a2b`; Publish green; GitHub
+symbols, not yanked, `latestVersion` 1.7.0; tag `v1.7.0` at `098a4c472`; Publish green; GitHub
 Release created. Owner, 2026-09-28: "lets release 1.7.0 if there is no further open items" — the
 list held 2 stale markers (closed) and 21 backlog items, none a blocker; the owner chose to release.
 The flow, as for 1.6.0:
 
-1. release notes merged UNBUMPED (`c80d1b07d`), gate green on the committed tree (every step
+1. release notes merged UNBUMPED (`741b69ae4`), gate green on the committed tree (every step
    exit 0), `main` pushed — CI green, Auto-tag a no-op (`v1.6.1` existed);
 2. 1.7.0 typed BY HAND in `deno.json` and `main.ts` (`version_sync` checked first);
 3. `deno task release` — cold type check and entry check passed; it committed the bump, tagged,
@@ -891,13 +891,13 @@ The flow, as for 1.6.0:
 
 **Published from the tag push, unaided — the eighth `push: tags` success.** JSR:
 `binaryang@1.6.0`, `rekorLogId=2987187551`, 647 symbols, not yanked; tag `v1.6.0` at
-`64d22e06f`; CI, Auto-tag and Publish green. What it took, in the documented order:
+`5a85daeda`; CI, Auto-tag and Publish green. What it took, in the documented order:
 
-1. merge unbumped (`e8f59702f`), gate green on the committed tree, push `main` — CI green, the
+1. merge unbumped (`3bf01f174`), gate green on the committed tree, push `main` — CI green, the
    `v1.5.4` tag already existing so auto-tag did nothing;
 2. version typed BY HAND in `deno.json` and `main.ts` (owner: 1.6.0 — `deno task bump` makes
    patches only; the release unpublished `./binary` and `./encoder`, BREAKING);
-3. `deno task release` — its new cold type check (fresh `DENO_DIR`, `83e10a7ea`) ran first and
+3. `deno task release` — its new cold type check (fresh `DENO_DIR`, `1b2f2361e`) ran first and
    passed; it committed the bump, tagged, and pushed branch and tag together.
 
 ⚠️ **A version is immutable.** Once a release is out, "publish it" can only mean a NEW version.
@@ -925,7 +925,7 @@ first, archived). Checked through the APIs:
 - **In the repo:** `origin` set to `https://github.com/synapticforge/binaryang.git`; the README's
   CI badge and links, and the Actions URL `scripts/release/publish.ts` prints, name the org.
   `cmem/` keeps the old URL where a dated record says it.
-- **Not proven yet** (✅ both proven since: CI / auto-tag on `a97255ef4`, the publish with
+- **Not proven yet** (✅ both proven since: CI / auto-tag on `c812e4e3c`, the publish with
   provenance by 1.13.1): a publish from the org with provenance (the next release), and the org's
   Actions settings — workflow permissions must allow auto-tag's `contents: write` / `actions:
   write` and publish's `id-token: write`, and OIDC must not be restricted (the next push's CI and
@@ -933,7 +933,7 @@ first, archived). Checked through the APIs:
 - **Other repos** name the old URL in a `git clone` hint or a README (wasmtk
   `scripts/upstream-link.ts`, `cmem/workflow.md`; binaryen-ts / wabt-ts READMEs): the redirect
   covers them; a handoff note if they should change.
-- **The first push from the org** (`a97255ef4`): CI and auto-tag GREEN — the org's workflow
+- **The first push from the org** (`c812e4e3c`): CI and auto-tag GREEN — the org's workflow
   permissions allow CI's and auto-tag's needs. The publish side (OIDC, provenance) is still the
   next release's to show.
 
@@ -949,6 +949,71 @@ API before 1.13.1 was tagged). In the repo:
 `origin`, the README, `publish.ts`'s printed URL and the npm manifest's repository / homepage / bugs
 name `synapticforge1`.
 
+## 🔒 The history purge (workspace letter H19, 2026-10-22) — EVERY public hash changed
+
+Owner: "start" (H19: purge personal information from git history), then "only public facing items
+are what we are cleaning" and "items in the public facing history should be cleaned in the
+history". What was public: GitHub's three branches (`main`, `release/1.5.3`, `release/1.6.1`),
+local `main` (ten commits not yet pushed) and the 21 tags — 12,948 commits. Purged from them:
+the owner's personal address as author / committer (1,783 / 1,782 commits) and tagger (3 of the
+5 annotated tags), now the GitHub noreply address; and 54 versions of five files holding an
+absolute path on the owner's machine (`cmem/open-work.md` 33, `CLAUDE.md` 12 — tracked once,
+gitignored now — `cmem/testing.md` 4, `scripts/spec-prepare.ts` 3, `cmem/working-rules.md` 2),
+the path prefix now `<workspace>`. No commit or tag message held one; no file held the address.
+
+**How:** not `filter-branch` (which recreates every commit it walks and drops signatures): a
+scratch Bun script (`h19/rewrite.ts`, plumbing only) rewrote a commit ONLY when its tree, a parent
+or its own author / committer address changed. **The 11,187 upstream wabt / binaryen commits by
+other authors are byte-identical, hashes kept**; 1,761 commits, 1,021 trees and the 5 annotated
+tags were rewritten; one signature dropped (the one signed commit of the owner's). The tagged trees
+differ from the originals only in `scripts/spec-prepare.ts` (owner, asked: "Clean them too" —
+letter H19's rule 4 keeps tagged trees identical for Go's checksum database, which binaryang does
+not have, and `scripts/` was never in a published package). The 372 local-only branches were left
+as they were.
+
+**Verified before the push:** a re-scan of the public refs finds the address on 0 commits / 0 tags
+and 0 path-bearing files; every rewritten commit has the original's message bytes, author and
+committer NAMES and DATES and parent structure, its tree differing only in the five files;
+`git fsck --connectivity-only` clean; `main`'s tree identical. The 772 commit hashes cited in 36
+tracked files were rewritten through the map (only tokens naming exactly one rewritten commit;
+444 distinct, all resolving in the new history), except `tests/wabt-ts/wasmtk/PROVENANCE.md`,
+which cites other repos' commits. Then `user.email` was set locally to the noreply address.
+Machine-local: the pre-purge bundle, its ref list and the full old → new map are in
+`cmem/local/backups/`.
+
+**Published releases name the OLD hashes forever** (JSR / npm provenance, Rekor): the map, tag by
+tag (commit hashes):
+
+| tag | before | after |
+| --- | --- | --- |
+| `v1.5.1` | `a19166ebd` | `b10a5044c` |
+| `v1.5.2` | `740fbb119` | `b9205faab` |
+| `v1.5.3` | `384f37ecc` | `1d11741d1` |
+| `v1.5.4` | `395f536fc` | `6f49db43e` |
+| `v1.6.0` | `64d22e06f` | `5a85daeda` |
+| `v1.6.1` | `dade0c785` | `b880e0708` |
+| `v1.7.0` | `f644c9a2b` | `098a4c472` |
+| `v1.7.1` | `ced5ca508` | `fd61a9b53` |
+| `v1.7.2` | `30929db92` | `7f410842e` |
+| `v1.8.0` | `0b2edf7cd` | `fffd9f9cc` |
+| `v1.8.1` | `531d82f1b` | `80a64bced` |
+| `v1.9.0` | `82113369e` | `b536bc2be` |
+| `v1.10.0` | `23b9f36fb` | `48586b485` |
+| `v1.11.0` | `fc021fe08` | `fd5e96acf` |
+| `v1.12.0` | `604b33cf8` | `a86765385` |
+| `v1.12.1` | `e03d38f33` | `a8c264620` |
+| `v1.13.0` | `2b74934bf` | `65b16f99e` |
+| `v1.13.1` | `840b7d79a` | `710592f53` |
+| `v1.13.2` | `37cf58485` | `ee59fad76` |
+| `v1.13.3` | `a021ef19d` | `225f76a8a` |
+| `v1.14.0` | `e2d44d66c` | `7ebcee3ad` |
+
+Branches: `release/1.5.3` `d0ef9f8f1` → `896477cc0`, `release/1.6.1` = `v1.6.1`; GitHub's `main`
+before the push `9cc85f0e7` → `5b137f878`. **Not in our control:** GitHub serves old commits by
+hash until its own garbage collection (a full purge is a GitHub Support request — the owner's);
+any OLD clone (wasmtk's `upstream/binaryang`, scratch clones) carries the old history and must be
+re-cloned, never pushed from. The frozen wabt-ts and binaryen-ts repos keep their own old hashes.
+
 ## 1.14.0 — a MINOR from `main` (2026-10-22 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
 The owner's go: "lets update the project memory files, then bump and push"; the version chosen
@@ -956,14 +1021,14 @@ as a minor ("1.14.0": a new pass, `Memory64Lowering`, and its two flags; nothing
 carries open-work 32 (CHANGELOG § 1.14.0).
 
 1. `CHANGELOG.md` § 1.14.0 and the open-work state on `release/1.14.0`, gated 17 / 17 (the full
-   29 / 29 had run on the commit before), merged; `main` pushed unbumped at `b0dc8fe77`: CI and
+   29 / 29 had run on the commit before), merged; `main` pushed unbumped at `dd5f9ced4`: CI and
    auto-tag GREEN. 🔧 Scratch `ci-wait.ts` was given a SHORT sha and listed nothing until asked:
    the API's `head_sha` filter matches only a full sha. It now refuses anything but 40 hex digits.
-2. The CI half of the gate from a FRESH CLONE from GitHub of `b0dc8fe77`: 17 / 17 exit 0.
+2. The CI half of the gate from a FRESH CLONE from GitHub of `dd5f9ced4`: 17 / 17 exit 0.
 3. No tag, neither registry had 1.14.0; 1.14.0 typed BY HAND in `jsr.json` and `main.ts`,
    `version_sync` green. The release guard refused once: an untracked `--help/` of gate logs (a
    `gate.ts --help` run had taken `--help` as its scratch path), removed. `bun run release`:
-   `bump to v1.14.0` (`e2d44d66c`), `main` + `v1.14.0` in one push.
+   `bump to v1.14.0` (`7ebcee3ad`), `main` + `v1.14.0` in one push.
 4. publish.yml GREEN with CI and auto-tag: **JSR** 1.14.0 created 2026-10-22T07:03:39Z, not
    yanked, **Rekor log id `3379566195`**; **npm** `@synapticforge1/binaryang@1.14.0` at 07:05:40Z,
    `latest`, published by **GitHub Actions** (the trusted publisher), attestation
@@ -981,15 +1046,15 @@ for provenance; carries no code change.
 
 1. The workflows' bash logic moved to `scripts/release/workflow.ts` first (owner rule; merge
    after a 28 / 28 gate), then `CHANGELOG.md` § 1.13.3 on `release/1.13.3`, gated, merged; `main`
-   pushed unbumped at `59c72a481`: CI and auto-tag GREEN.
+   pushed unbumped at `d933bfbc8`: CI and auto-tag GREEN.
 2. 🔧 **The fresh-clone check caught a flake first:** `test:bun` failed `hang_check.test.ts` "waits
    for its interval" — 99.75 ms for a 100 ms interval: the interpreter arms by `Date.now()` (whole
    ms), the test measured `performance.now()`. Since 1.11.0, hit once. The bound is now 99, with
-   the reason in the test (`2179d2c85`, gated 28 / 28, merged at `fdeca6399`, CI GREEN; the clone
+   the reason in the test (`43048e0d4`, gated 28 / 28, merged at `22d6d2fc6`, CI GREEN; the clone
    check 17 / 17). publish.yml runs `test:bun` before `deno publish`: the flake could have stopped
    the release halfway.
 3. No tag, neither registry had 1.13.3, JSR linked to `synapticforge1/binaryang`; `bun run bump`,
-   `version_sync` green; `bun run release`: `bump to v1.13.3` (`a021ef19d`), `main` + `v1.13.3`.
+   `version_sync` green; `bun run release`: `bump to v1.13.3` (`225f76a8a`), `main` + `v1.13.3`.
 4. publish.yml GREEN, both jobs: **JSR** 1.13.3 created 2026-10-22T04:01:47Z, **Rekor log id
    `3375011478`**; **npm** `@synapticforge1/binaryang@1.13.3` at 04:04:40Z, `latest`, published by
    **GitHub Actions** (the trusted publisher), attestation `https://slsa.dev/provenance/v1` — the
@@ -1005,9 +1070,9 @@ readme", then "Yes, release 1.13.2". Meant as the first npm publish by the workf
 provenance; it carries the README for both registries (no code change).
 
 1. `CHANGELOG.md` § 1.13.2 on `release/1.13.2`, gated (28 / 28), merged; `main` pushed unbumped at
-   `3a815bc95`: CI and auto-tag GREEN; a fresh clone from `synapticforge1/binaryang`: 17 / 17.
+   `5d18ddb8d`: CI and auto-tag GREEN; a fresh clone from `synapticforge1/binaryang`: 17 / 17.
 2. No tag, 1.13.2 on neither registry, JSR linked to `synapticforge1/binaryang`; `bun run bump`,
-   `version_sync` green; `bun run release` committed `bump to v1.13.2` (`37cf58485`) and pushed
+   `version_sync` green; `bun run release` committed `bump to v1.13.2` (`ee59fad76`) and pushed
    `main` + `v1.13.2`.
 3. **publish.yml FAILED at "Publish to JSR (with provenance)"** — `deno publish` exited non-zero
    AFTER the upload: JSR has 1.13.2 (created 2026-10-21T01:11:33Z, `latest`, not yanked) with
@@ -1038,10 +1103,10 @@ npm job off). It carries the README's links to the new org; no code change.
 1. The JSR link re-made by the owner and checked through the API FIRST (`synapticforge1/binaryang`,
    23:36:03Z) — after the move and again after the rename, JSR kept the old name.
 2. `CHANGELOG.md` § 1.13.1 and the rename fixes on a branch, gated (28 / 28, the npm step among
-   them), merged; `main` pushed unbumped at `cafe1f921`: CI and auto-tag GREEN.
+   them), merged; `main` pushed unbumped at `fcf2a1575`: CI and auto-tag GREEN.
 3. A FRESH CLONE from `github.com/synapticforge1/binaryang` of that commit: the CI steps, 17 / 17.
 4. JSR 1.13.1 404, no remote tag; `bun run bump` (`jsr.json` + `main.ts`), `version_sync` green;
-   `bun run release` committed `bump to v1.13.1` (`840b7d79a`) and pushed `main` + `v1.13.1`.
+   `bun run release` committed `bump to v1.13.1` (`710592f53`) and pushed `main` + `v1.13.1`.
 5. publish.yml GREEN (the `npm` job skipped: `NPM_PUBLISH` unset), with CI and auto-tag; JSR 1.13.1
    created 2026-10-21T00:08:58Z, not yanked, **Rekor log id `3346116525`**, `latestVersion` 1.13.1;
    GitHub Release `v1.13.1`; `deno run … jsr:@jrmarcum/binaryang@1.13.1 --version` prints it.
@@ -1067,13 +1132,13 @@ nothing. It carries the code lens C1–C17 and open-work 30 / 31 steps 1–15 (C
 0. 🚨 **The release check found WRONG output first.** Re-running `benches/browser-opt/measure.ts`
    for the CHANGELOG's figures: rust-debug and zig-releasefast at -O3 / -Os / -Oz computed wrong
    results in all three browsers, from open-work 31 step 4 (Local2Stack). Nothing had been pushed.
-   Fixed, gated and merged (`42965f49b`), with a test that runs the six modules' workload; the
+   Fixed, gated and merged (`eb0fff576`), with a test that runs the six modules' workload; the
    benchmark re-run on the fix: every variant agrees in Chrome 155, Firefox 155, Safari 26.6
    ([optimizer.md](optimizer.md) § "Open-work 31"). **A release that re-measures is a release
    that re-checks**: the figures were the reason to run it, and the run was the only test of
    those modules' behaviour.
 1. `CHANGELOG.md` § 1.13.0 on `release/1.13.0`, gated (27 / 27), merged; `main` pushed unbumped at
-   `6eabf94a9`: CI and auto-tag GREEN (scratch `ci-wait.ts`, the public Actions API; `gh` is not
+   `63c82eac5`: CI and auto-tag GREEN (scratch `ci-wait.ts`, the public Actions API; `gh` is not
    installed here).
 2. The CI half of the gate from a FRESH CLONE of that commit (on an NTFS disk): 16 / 16 exit 0 — install,
    fmt, lint, `bun run test`, `bun run test:bun` (the 36 listed), check, naming, portability,
@@ -1082,7 +1147,7 @@ nothing. It carries the code lens C1–C17 and open-work 30 / 31 steps 1–15 (C
    `version_sync` green. `.claude/` (the editor's session settings, untracked) went into
    `.git/info/exclude` so the guard's clean-tree check passes: local only, nothing committed.
    `bun run release` (cold publish dry run, check, entry check) committed `bump to v1.13.0`
-   (`2b74934bf`) and pushed `main` + `v1.13.0` together.
+   (`65b16f99e`) and pushed `main` + `v1.13.0` together.
 4. publish.yml GREEN, with CI and auto-tag; JSR 1.13.0 created 2026-10-20T21:37:03Z, not yanked,
    **Rekor log id `3344028471`**, `latestVersion` 1.13.0; GitHub Release `v1.13.0` exists.
    Verified as a user: `deno run -A --min-dep-age 0 jsr:@jrmarcum/binaryang@1.13.0 --version`
@@ -1094,11 +1159,11 @@ The owner's go: "update the project memory files, commit and bump and push". It 
 Asyncify fix (a paused call's operands restored on the rewind), the only user-facing change.
 
 1. `CHANGELOG.md` § 1.12.1 on `release/1.12.1`, gated, merged; `main` pushed unbumped at
-   `79ec372c9`: CI (the Browsers job included) and auto-tag GREEN.
+   `0f42f3dd7`: CI (the Browsers job included) and auto-tag GREEN.
 2. The suite from a FRESH CLONE of that commit: install, tsc, `bun run test` (5,910; 1 skip),
    `bun run test:bun` (the 36 listed), `bun run publish:dry`: all exit 0.
 3. JSR 1.12.1 404, no remote tag; `bun run bump` (a patch, `jsr.json` + `main.ts`), `bun run
-   release` committed `bump to v1.12.1` (`e03d38f33`) and pushed `main` + `v1.12.1` together.
+   release` committed `bump to v1.12.1` (`a8c264620`) and pushed `main` + `v1.12.1` together.
 4. publish.yml GREEN, with CI and auto-tag; JSR 1.12.1 created 2026-10-14T03:40:26Z, not yanked,
    **Rekor log id `3248420107`**, `latestVersion` 1.12.1.
 
@@ -1109,12 +1174,12 @@ release". It removes the subpaths and type names 1.11.0 deprecated (open-work 25
 minor). Every step checked through the APIs:
 
 1. `CHANGELOG.md` § 1.12.0 (and handoffs § 32 SENT) on `release/1.12.0`, gated, merged; `main`
-   pushed unbumped at `615802de1`: CI and auto-tag GREEN.
+   pushed unbumped at `d82d59dac`: CI and auto-tag GREEN.
 2. The suite from a FRESH CLONE of that commit: install, tsc, `bun run test` (5,907; 1 skip, the
    external corpus), `bun run test:bun` (the 36 listed), `bun run publish:dry`: all exit 0.
 3. 1.12.0 typed by hand in `jsr.json` and `main.ts`; `version_sync` green; JSR 404, no remote tag;
    `bun run release` (cold publish dry run, tsc, entry check) committed `bump to v1.12.0`
-   (`604b33cf8`) and pushed `main` + `v1.12.0` together.
+   (`a86765385`) and pushed `main` + `v1.12.0` together.
 4. publish.yml GREEN, with CI and auto-tag; JSR 1.12.0 created 2026-10-13T01:39:42Z, not yanked,
    **Rekor log id `3247710678`**, `latestVersion` 1.12.0.
 
@@ -1123,12 +1188,12 @@ minor). Every step checked through the APIs:
 The owner's go ("lets update the project memory files and then ship 1.11.0"). Every step checked
 through the GitHub and JSR APIs:
 
-1. `main` pushed unbumped at `0842a28fc` (101 commits) — ⚠️ **CI RED, the Gates job's Bun leg.**
+1. `main` pushed unbumped at `f9787a52b` (101 commits) — ⚠️ **CI RED, the Gates job's Bun leg.**
    The log needs admin rights, so it was found by timing: `bun test` fails a test slower than 5 s
    by default (`node --test` has none), and `fold_prediction`'s corpus test takes ~4 s here.
    Bun's Linux build was NOT the cause (Bun 1.4.3 for Linux in WSL, with Deno 2.9.7, gave exactly
    the 36 listed differences). Fixed by `--timeout=600000` in `scripts/test.ts` (a 3 s mutant
-   reproduced the CI failure exactly), pushed `5286fb7ec`: CI GREEN, which confirmed the diagnosis.
+   reproduced the CI failure exactly), pushed `b343909ae`: CI GREEN, which confirmed the diagnosis.
 2. The suite from a FRESH CLONE of the commit (the 1.10.0 rule): install, tsc, `bun run test`
    (5,906; 1 skip: the corpus test, whose external corpus a clone lacks), `bun run test:bun` (the
    36 listed), `bun run publish:dry`: all exit 0.
@@ -1138,7 +1203,7 @@ through the GitHub and JSR APIs:
 4. 1.11.0 typed BY HAND in `jsr.json` and `main.ts` (a minor; `bun run bump` only patches);
    `version_sync` green; JSR `1.11.0` 404, no remote tag. `bun run release`: the cold `deno publish
    --dry-run` in an empty `DENO_DIR`, `bun run check`, the entry check, then `bump to v1.11.0`
-   (`fc021fe08`), tag, and ONE push of `main` + `v1.11.0`.
+   (`fd5e96acf`), tag, and ONE push of `main` + `v1.11.0`.
 5. The tag push fired publish.yml (Bun, the dev dependencies, Node 24, `bun run check`, both test
    legs, then the bare `deno publish`): **GREEN end to end**, with CI and auto-tag green on the same
    commit. JSR: 1.11.0 created 2026-10-13T01:12:58Z, not yanked, **Rekor log id `3247643457`**;
@@ -1153,15 +1218,15 @@ release, provenance included.
 The owner's go ("lets do the 1.10.0 release"), after item 24 (`wasm-bundle`) merged on a green
 gate. Every step verified through the GitHub API:
 
-1. `main` pushed unbumped at `b74576585` — ⚠️ **CI RED on the Test step.** The job log needs admin
+1. `main` pushed unbumped at `8bd38cc59` — ⚠️ **CI RED on the Test step.** The job log needs admin
    rights through the API, so it was found by reasoning instead: the three `wasm-bundle` fixture
    binaries were never committed, because `.gitignore`'s repo-wide `*.wasm` kept them out. Every
    local run (and the full local gate) passed on files only this disk had. Fixed by an anchored
    exception (`!/tests/binaryen-ts/tools/fixtures/bundle/*.wasm`) plus the binaries, proven by the
-   full suite from a FRESH CLONE (exit 0), merged and pushed: `eead54ea8`, CI green.
+   full suite from a FRESH CLONE (exit 0), merged and pushed: `947537f1c`, CI green.
 2. The version typed BY HAND — 1.10.0, a MINOR for `./tools/wasm-bundle` — in `deno.json` and
    `main.ts` with the CHANGELOG heading, on `release/1.10.0`; `version_sync.test.ts` run; JSR
-   checked first (`packageVersionNotFound`, latest 1.9.0); merged `--no-ff`, pushed `23b9f36fb`.
+   checked first (`packageVersionNotFound`, latest 1.9.0); merged `--no-ff`, pushed `48586b485`.
 3. Auto-tag tagged `v1.10.0` and dispatched `publish.yml`, which FAILED as documented (0-for-5).
 4. `git fetch origin --tags`, the tag confirmed on the bump commit, deleted and re-pushed by hand:
    the push-triggered run GREEN end to end, provenance verified. JSR: 1.10.0 created
@@ -1176,11 +1241,11 @@ gate on the working tree cannot see a file the ignore rules kept out of the comm
 The owner's go ("perform items 1 through 3"), after items 23 and 2 closed. Every step verified
 through the GitHub API (`gh` is not installed; a Deno poll on `actions/runs?head_sha=`):
 
-1. `main` pushed unbumped at `9907fdc82` (115 commits past `v1.8.1`); CI green on Deno, Node 22 /
+1. `main` pushed unbumped at `d0f3dbabd` (115 commits past `v1.8.1`); CI green on Deno, Node 22 /
    24 and Bun; auto-tag a no-op (`v1.8.1` existed).
 2. The version typed BY HAND in `deno.json` and `main.ts` — 1.9.0, a MINOR for the new exports
    (`./definitions`, `./tools/wasm-ctor-eval`, `./tools/wasm-interp`) — its own commit on a
-   branch, merged `--no-ff`, pushed (`82113369e`); `version_sync.test.ts` run first.
+   branch, merged `--no-ff`, pushed (`b536bc2be`); `version_sync.test.ts` run first.
 3. ⚠️ **Auto-tag tagged `v1.9.0` with `GITHUB_TOKEN` and DISPATCHED `publish.yml`** (no
    `RELEASE_PAT`): check and test green, then "Publish to JSR (with provenance)" FAILED — the
    `actorNotScopeMember` path, now 0-for-4 (the 2026-09-29 "this flow never dispatches" was

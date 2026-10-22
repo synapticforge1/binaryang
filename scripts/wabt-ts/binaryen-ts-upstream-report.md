@@ -1,7 +1,7 @@
 # Ready-to-send report for the binaryen-ts team — seven findings from wabt-ts
 
 Written 2026-08-24 from the wabt-ts side, at the end of its conformance campaign. Every finding was
-**re-verified against the actual checkout** (`b78e5b476`, v1.3.5, clean on `main`) on the day of
+**re-verified against the actual checkout** (`66bfa7fd6`, v1.3.5, clean on `main`) on the day of
 writing, and every severity was **measured, not inherited** — three entries in our own log turned
 out to be stale and were corrected before this was written.
 
@@ -15,7 +15,7 @@ We did not modify the binaryen-ts checkout. Paste from the horizontal rule down.
 > bytes an engine rejects** — UP-5 (silent), UP-1, and UP-7. UP-5 is now first.
 >
 > Note also that our checkout was already behind theirs — we verified at v1.3.5, they are at
-> **v1.4.3** (`00e7e953858`). They diffed `v1.3.5..HEAD` and all seven hold unchanged. The stamp is
+> **v1.4.3** (`7145e8fd53d`). They diffed `v1.3.5..HEAD` and all seven hold unchanged. The stamp is
 > what made that checkable in one step.
 
 ---
@@ -353,7 +353,7 @@ against us, each re-derived here before being accepted:
 
 | | |
 | --- | --- |
-| **Provenance** | Our checkout is v1.3.5; theirs is **v1.4.3** (`00e7e953858`). They diffed `v1.3.5..HEAD` — asyncify/flatten plus a decoder fix, nothing touching these areas — and all seven hold. Also: our `^1.0.9` pin resolves to 1.4.3 today, so the pin is not what made our log stale. |
+| **Provenance** | Our checkout is v1.3.5; theirs is **v1.4.3** (`7145e8fd53d`). They diffed `v1.3.5..HEAD` — asyncify/flatten plus a decoder fix, nothing touching these areas — and all seven hold. Also: our `^1.0.9` pin resolves to 1.4.3 today, so the pin is not what made our log stale. |
 | **Correction 1** | UP-1 is a **round-trip corruption**, not merely "unencodable" — the decoder handles `0x04`/`0x0d` but collapses them onto `signed=false`. Reproduced here: `0x04` in, `0x02` out, engine rejects. |
 | **Correction 2** | **UP-5 is the most severe finding and it is silent.** Reproduced here: start section present → absent, global 42 → 0, valid both ways, no diagnostic. Our headline framing was wrong and is rewritten. |
 | **Correction 3** | UP-7's ask is larger than five signatures — backing fields, the parser shim and `gcFuncTypeIndex` sit behind it. Reframed: doing it properly removes an existing loud failure. |
@@ -366,7 +366,7 @@ sub-opcode from packedness will silently turn today's invalid `0x02`-on-packed o
 it; rejecting it in the decoder keeps the property.
 
 **On stamping.** Our checkout was stale and you caught it in one step, because the report carried
-`b78e5b476` / v1.3.5. In the same week we sent a report to the wasmtk team with a claim derived from
+`66bfa7fd6` / v1.3.5. In the same week we sent a report to the wasmtk team with a claim derived from
 an UN-stamped vendored corpus, and had to retract it — seven modules described as currently broken
 that had been fixed. Same failure mode, opposite outcome, and the only difference was whether the
 snapshot said what it was.
@@ -376,14 +376,14 @@ snapshot said what it was.
 ## Fix status (2026-08-24) — reported by binaryen-ts, NOT yet recheckable here
 
 Their Tier 1 and Tier 2 work is **local and unpushed**: `origin/main` is at
-`00e7e9538` / v1.4.3, and neither `dd88e034bd0` nor `f664ba579a0` exists on any
+`7145e8fd5` / v1.4.3, and neither `862d0bea951` nor `2823a8eeb09` exists on any
 ref. So the entries below are their report, not our verification — recheck is
 queued.
 
 | tier | commit | scope | tests |
 | --- | --- | --- | --- |
-| 1 | `dd88e034bd0` | **UP-1**, **UP-5**, + 2 fold-ins | 405 → 424 |
-| 2 | `f664ba579a0` | **UP-6**, **UP-4**, **UP-3** | 430 → 438 |
+| 1 | `862d0bea951` | **UP-1**, **UP-5**, + 2 fold-ins | 405 → 424 |
+| 2 | `2823a8eeb09` | **UP-6**, **UP-4**, **UP-3** | 430 → 438 |
 | 3 | — | **UP-7**, **UP-2** | pending |
 
 Verified here at v1.4.3 in the meantime: UP-1 and UP-5 still reproduce exactly

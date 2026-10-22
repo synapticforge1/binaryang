@@ -376,7 +376,7 @@ Owner: "move on to 26 and 28"; decided: `@std/assert` / `@std/expect` KEPT via J
   `describe` is one case), so it cannot count. The default reporter, parsed for LEAVES (a test or
   step with no children): **346 files, 5,901 leaf tests**. Every later run was diffed against it,
   file by file.
-- **Step 1, mechanical (merged `578835cfb`):** 291 files `@std/testing/bdd` → `node:test` (all
+- **Step 1, mechanical (merged `af782c616`):** 291 files `@std/testing/bdd` → `node:test` (all
   imported exactly `{ describe, it }`; 4 of them in `tests/wabt-ts/wasmtk/`, ours, 848 leaves);
   588 `Deno.test` → `test`; one options form and three `{ ignore }` → `{ skip }`. `@std/*` reach
   Node and Bun as `package.json` aliases to `npm:@jsr/std__assert@1.0.19` / `std__expect@1.0.19`

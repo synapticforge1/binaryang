@@ -615,7 +615,7 @@ class BodyWriter implements ExprVisitorDelegate {
    * 🔧 It read the fidelity table's `blockType`, falling back to the node's. The
    * declared results and the index the header named are both on the node now
    * (S6 step 5, stage (c2)), so there is no second place to consult: the
-   * declaration may differ from what the contents derive (a94154e21), and it
+   * declaration may differ from what the contents derive (c0e134b30), and it
    * has two spellings, an inline type and an index — the node holds both facts.
    */
   private declaredBlockType(e: Parameters<typeof blockTypeOf>[0]): BlockType {

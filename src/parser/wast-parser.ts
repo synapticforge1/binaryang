@@ -4857,7 +4857,7 @@ export class WastParser {
         // multi-value target takes several. The padding placeholder drops out.
         //
         // 🔧 This filtered `'nop'`: the padding WAS a nop until S5
-        // (`f27bfd5ca`) made the placeholder a `pop`, and from then on every
+        // (`66e3f0047`) made the placeholder a `pop`, and from then on every
         // value-less `br_if` in linear text carried a phantom value. Its bytes
         // were right (a `pop` is written as nothing), so no gate saw it; the
         // bridge typed each such `br_if` by that value instead of `none`.
