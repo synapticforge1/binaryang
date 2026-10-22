@@ -152,12 +152,13 @@ registries with provenance** — JSR Rekor `3375011478`, npm by the workflow wit
 rule), and a `hang_check` test flake found by the fresh-clone check was fixed.
 
 **State, 2026-10-22 (supersedes the paragraphs above where they differ):** item 32 is CLOSED and
-goes out as **1.14.0** (owner: "lets update the project memory files, then bump and push"; a minor,
+**PUBLISHED as 1.14.0** on JSR (Rekor `3379566195`) and npm (SLSA provenance) (owner: "lets update the project memory files, then bump and push"; a minor,
 the owner's choice: a new pass and two flags, nothing removed). It carries `Memory64Lowering` and
 the README's "Making a module run on Safari and Bun" (CHANGELOG § 1.14.0); the release record is
 [publishing.md](publishing.md) § "1.14.0". Repo only: the `lowering` gate step and the committed
-wasm64 builds of Rust, Zig and Emscripten (the last with its JS glue). **Open:** 31 (optimizer),
-13, 14, 15.
+wasm64 builds of Rust, Zig and Emscripten (the last with its JS glue). `main` = the release plus
+cmem. Drafted for the owner to send: [handoffs.md](handoffs.md) § 40, 1.14.0 to wasmtk.
+**Open:** 31 (optimizer), 13, 14, 15.
 
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
