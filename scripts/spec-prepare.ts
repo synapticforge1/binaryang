@@ -54,6 +54,7 @@
 import { mkdir, readdir, rm } from 'node:fs/promises';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const FEATURES = [
   '--enable-exceptions',
@@ -70,8 +71,13 @@ const FEATURES = [
   '--enable-custom-page-sizes',
 ];
 
-const DEFAULT_SRC =
-  '<workspace>/wasmtk/tests/module/wasm_wast/testsuite-main';
+// The sibling wasmtk checkout's vendored testsuite, found from this repo's own location (wasmtk
+// and binaryang are siblings, cmem/working-rules.md § Sibling repositories). 🔧 Until 2026-10-22
+// this was an absolute path on the owner's machine: personal drive paths are never public
+// (owner, 2026-10-22).
+const DEFAULT_SRC = fileURLToPath(
+  new URL('../../wasmtk/tests/module/wasm_wast/testsuite-main', import.meta.url),
+);
 
 // `||` not `??`: an EMPTY argument is a caller saying "use the default", and
 // `??` passes it straight through to `readDir`, which fails with the unhelpful
