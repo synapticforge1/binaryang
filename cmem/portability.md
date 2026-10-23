@@ -108,11 +108,50 @@ wazero); relaxed SIMD is via its planned lowering.
 | GC · tail calls (engine-specific: wasmer / wazero) | 18.2 | 119 · 112 | 120 · 121 |
 | memory64 · multi-memory · relaxed SIMD · wide-arithmetic | preview only | 133 · 120 · 114 · — | 134 · 125 · 146 · 155 |
 
-**The open decision — the owner's: the oldest Safari supported.** The portable tier as measured
-needs **Safari / iOS 18.4** (March 2025), set by standard exceptions. A floor of **16.4** (March 2023,
-the first with SIMD) drops standard exceptions, typed function references and extended-const out of
-the tier — and legacy-to-standard lowering (`TranslateToExnref`) would then point the wrong way: a
-16.4 floor needs standard → legacy. Choosing it takes iOS / Safari version usage data.
+The portable tier as measured needs **Safari / iOS 18.4** (March 2025), set by standard exceptions;
+a floor of 16.4 would have dropped standard exceptions, typed function references and
+extended-const (and made `TranslateToExnref` point the wrong way). **Decided by decision 8 below.**
+
+### 🔒 Decision 8 — the version floor: supported browsers on supported operating systems (2026-10-23)
+
+Owner, asked which versions are out of support: "We need to throw out browser versions for os
+versions that have reached end of life and are no longer supported also." So a browser version
+counts only if its VENDOR supports it on an OS its vendor still supports. Support status, looked up
+2026-10-23 (sources conflict in places; re-check before quoting):
+
+- **Safari** follows iOS. Supported: **iOS 27** (current), **iOS 26** (security releases, e.g.
+  26.7), **iOS 18** for devices that cannot upgrade (iPhone XS / XS Max / XR; 18.7.10, 2026-08).
+  OUT: iOS 15 / 16 (best-effort legacy patches only), iOS 12 and older.
+- **Chrome / Edge**: only the CURRENT stable is supported (each version loses support when the next
+  ships; Chrome 156 current on 2026-10-23). OUT: versions stranded on retired operating systems —
+  150 (macOS 12 Monterey), 138 (Big Sur), 128 (Catalina), 109 (Windows 7 / 8 / 8.1).
+- **Firefox**: current (158) and **ESR 153**. OUT: ESR 140 (ended 2026-09-29), and **ESR 115**,
+  which exists only for Windows 7 / 8 / 8.1 and macOS 10.12–10.14 — retired operating systems.
+
+**Result — the floor is Safari 18.4+ (every supported iOS line runs ≥ 18.7), current Chrome and
+Edge, Firefox current + ESR 153, and the portable tier STANDS AS MEASURED.** The excluded versions
+are exactly the ones that would have shrunk it (Chrome 109 / 128 and ESR 115 lack standard
+exceptions; 109 and ESR 115 also typed function references).
+
+## Pass 3 — the failure paths of the typed opcodes (2026-10-23)
+
+210 generated modules (scratch `ops/gen3.ts`), each stating its expectation: **192 must trap** —
+integer divide / remainder by zero, `div_s` of INT_MIN by −1, every non-saturating `trunc` of NaN
+and of an out-of-range float, every memory, SIMD-memory and atomic access at the first address past
+a one-page memory, every atomic wider than a byte at an unaligned address, `memory.init` out of
+bounds, `memory.init` after `data.drop`, a zero-length `memory.fill` one byte PAST the end — and
+**18 must give an exact value**: `rem_s` of INT_MIN by −1 is 0, the `trunc_sat` forms clamp (NaN →
+0, too big → the maximum), and zero-length `memory.fill` / `memory.copy` EXACTLY at the end is valid.
+
+**Result: all 11 defining engines and the four stable browsers (Chrome 156, Edge 155, Firefox 158,
+ESR 153) match the spec on all 210** — 190 traps, 20 values each. Two expectations were mine and
+wrong at first (I had the zero-length-at-the-end cases as traps; every engine said, correctly, they
+are valid), corrected by the spec, not by the majority. The interpreters refuse the 114 atomic cases
+(no shared memory — pass 1's finding).
+
+🔧 **Harness lesson:** killing a headless browser's launcher leaves Edge's helpers running (18, then
+20 processes were left, holding the profile); the probe now stops every process whose command line
+names its own throwaway profile, then removes it.
 
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
