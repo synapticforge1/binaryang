@@ -55,6 +55,33 @@ runtime suites and attempt to create a consolidated opcode set that all can deco
      published compatibility data (MDN browser-compat-data / caniuse) against the usage review. No
      Mac or device cloud is needed for that.
 
+### Stable browsers, measured as their users run them (2026-10-23)
+
+The owner installed Firefox and Firefox ESR (scoop). **Four stock browsers**: Chrome 156.0, Edge
+155.0, Firefox 158.0.1, Firefox ESR 153.5.1 — each identified by the user agent its page reported,
+not by the path launched. **Harness: no automation.** A local server serves a probe page and the
+modules; the browser opens it headless (`-headless` / `--headless=new`, a throwaway profile), runs
+every module and POSTs its results back (scratch `ops/browser-probe.ts`). Proved on Firefox 158
+first: its pass-2 results discriminate (66 values, 5 expected traps, 5 refusals), not a blanket
+"ok". (Playwright drives its OWN patched Firefox, 155 — older than the stable 158.)
+
+- **Pass 2: identical to Playwright's builds** — every expected value and trap, no value differs
+  from any engine, and they refuse only what every browser refuses (custom descriptors, custom
+  page sizes). **Even ESR 153 runs GC, tail calls, standard exceptions, typed function references,
+  memory64 and multi-memory** — so the stable browsers do NOT narrow the portable tier; wasmer and
+  wazero remain what keeps GC and tail calls out.
+- **Pass 1** — two differences, both explained:
+  - 🔑 **Chrome 156 and Edge 155 TRAP on `memory.atomic.wait32` / `wait64`: "Atomics.wait cannot be
+    called in this context".** A browser forbids a BLOCKING wait on the page's main thread; it is
+    allowed in a Worker. A platform rule, not missing support — and Playwright's Chromium did not
+    enforce it, which is what a stock-browser harness is for. Firefox 158 / ESR 153 let this probe's
+    wait through (its value does not match, so it returns at once). **Rule for the profile:**
+    atomic waits are portable only off the main thread in browsers.
+  - **Firefox ESR 153 refuses wide-arithmetic** ("unrecognized opcode"), which Firefox 158 runs —
+    ESR's year of lag, as expected; wide-arithmetic is already outside the portable tier pending its
+    lowering.
+- All other values match the engines (relaxed SIMD aside, which varies by design).
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
