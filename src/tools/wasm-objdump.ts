@@ -1,3 +1,8 @@
+// Based on WebAssembly/wabt (https://github.com/WebAssembly/wabt)
+// Original source: src/tools/wasm-objdump.cc
+// Copyright 2016 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 

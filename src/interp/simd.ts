@@ -1,3 +1,8 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/interpreter/interpreter.h
+// Copyright 2025 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 /**
  * @module interp/simd
  *

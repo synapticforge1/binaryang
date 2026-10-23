@@ -19,7 +19,7 @@ derived source file, as their license requires.
 binaryang is in part a derivative work of [WebAssembly/wabt](https://github.com/WebAssembly/wabt).
 
 ```text
-Copyright 2016 WebAssembly Community Group participants
+Copyright 2016-2020 WebAssembly Community Group participants
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,9 +34,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-Each source file ported from wabt carries an attribution comment —
-`// Ported from WebAssembly/wabt` — naming the originating wabt source file and its copyright
-notice.
+Each source file derived from wabt carries an attribution comment naming the originating wabt
+source files and their copyright years: `// Ported from WebAssembly/wabt` where the file is a
+port, `// Based on WebAssembly/wabt` where it has the name and role of a wabt component (the
+command-line tools).
 
 ## Attribution — WebAssembly/binaryen
 
@@ -44,7 +45,7 @@ binaryang is in part a derivative work of
 [WebAssembly/binaryen](https://github.com/WebAssembly/binaryen).
 
 ```text
-Copyright 2015-2024 WebAssembly Community Group participants
+Copyright 2015-2025 WebAssembly Community Group participants
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -62,7 +63,8 @@ limitations under the License.
 Each source file derived from Binaryen carries an attribution comment naming the originating
 Binaryen source files and their copyright years: `// Ported from WebAssembly/binaryen` where the
 file is a port, `// Based on WebAssembly/binaryen` where it was written against a named upstream
-source.
+source, shares a Binaryen component's name and role, or carries code from binaryen-ts (an earlier
+port of Binaryen) with no single upstream counterpart.
 
 ## Original Contributions
 

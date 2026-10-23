@@ -57,6 +57,7 @@ contains ([handoffs.md](handoffs.md)).
 
 - **Licensing — Binaryen attribution** (2026-10-23, [licensing.md](licensing.md) § "CORRECTED"):
   `NOTICE.md` attributes both upstreams; 30 files carry a `Ported from` / `Based on
-  WebAssembly/binaryen` header. Comments and the NOTICE only — no code, no output change. The
+  WebAssembly/binaryen` header — then, by the owner's "full attribution", 29 more (Binaryen by
+  lineage or same-named component, and wabt's command-line tools): 86 of 119 `src/` files. Comments and the NOTICE only — no code, no output change. The
   published packages change (the NOTICE, and the headers in the shipped sources), so the next
   release note says it. `CHANGELOG.md` § Unreleased.
