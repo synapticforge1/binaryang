@@ -197,7 +197,9 @@ removed record went to a topic file, and the full text is one `git show` away:
     JavaScriptCore only (owner, 2026-10-23; Ladybird excluded). Stable browsers measured
     2026-10-23 (Chrome 156, Edge 155, Firefox 158, ESR 153, stock, no automation): they do not
     narrow the portable tier; Chrome / Edge forbid a blocking `memory.atomic.wait` on the main
-    thread. **Next:** Safari's floor from published data, pass 3 (trap paths), the two lowerings,
+    thread. Safari from MDN browser-compat-data: memory64, multi-memory and relaxed SIMD are
+    preview-only there, and the portable tier needs Safari / iOS 18.4. **Next:** the owner's
+    Safari floor (usage data), pass 3 (trap paths), the two lowerings,
     the portable target, D4, then **target-aware optimization** (owner, 2026-10-23: browsers'
     WebAssembly 2.0 support "should be taken into account with our optimization efforts" — passes
     may introduce what the target profile permits; portability.md decision 5). Found on the way,
