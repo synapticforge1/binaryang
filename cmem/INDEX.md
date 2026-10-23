@@ -29,6 +29,20 @@ it went stale, and three commit messages on `main` stated results their own diff
 3. **[unreleased.md](unreleased.md)** — what is on `main` and must go in the next release note.
 4. The topic file the open item points at.
 
+## Triggers
+
+Binding here as in every repo of the workspace (`../../cmem/INDEX.md` § Triggers, where they are
+defined in full; this is binaryang's reading of them):
+
+1. **"update the project memory"** — revise the matching topic file and its line in the tables
+   below, absolute dates, update rather than duplicate; then AUDIT: grep the old values across
+   `cmem/`, `README.md` and `CHANGELOG.md`, and measure when two files disagree.
+2. **"look for code issues"** — audit tested AND untested paths for workarounds, dead code, bugs and
+   silent fall-throughs; report `file:line` and severity; fix the safe ones in their own commits;
+   judge by OUTPUT, not exit codes ([hardening.md](hardening.md) § the code lens).
+3. **"coordinate"** — with a sibling, by letter only ([handoffs.md](handoffs.md)): read its record,
+   verify by running its tools, record in our own memory; never write its tree.
+
 ## Structure: one flat core, and a summary per predecessor
 
 Decision 6 settled that `cmem/` merges **by topic**, not by concatenation. Each predecessor brought
@@ -42,17 +56,9 @@ a project-specific WING directory as well: `cmem/binaryen-ts/` (14 files, 3,586 
 | `cmem/binaryen-ts.md` | the binaryen-ts wing, corrected and summarized (2026-09-14)                  |
 | `cmem/local/`         | private, gitignored — machine facts only (above)                             |
 
-🔧 **The wings were summarized on 2026-09-14** (owner: "the wing docs get both corrected and
-summarized"). Until then they were kept unedited as the origin record — the evidence of what each
-side knew before the trees became one. That evidence is intact in git: every wing file is one
-`git show 62c65a9db:cmem/<wing>/<file>` away, and each summary section names its command.
-
-**Consolidated 2026-09-14** (branch `cmem-consolidation`): machine-local memory moved in,
-`open-work.md` cut to open items with its closed history moved to topic files, stale status lines
-corrected in place. **Nothing was dropped**, and that was checked rather than asserted: every commit
-hash, backticked identifier, measured ratio and quantity in the old core and in memory was
-snapshotted first and verified present afterwards, with each deliberate exception listed and
-reasoned — and the check was inverted (a mutated copy fails it, naming exactly what was removed).
+The history of the memory itself — the wings summarized, the 2026-09-14 consolidation, and a table
+of every retired or summarized file with where it went and its `git show` — is in
+[project.md](project.md) § "Memory: what was retired, and where it went".
 
 ## Cleanup policy — summarize completed work, keep what ongoing work needs (owner, 2026-09-14)
 
@@ -77,57 +83,43 @@ from cmem stays recoverable through commits, merge messages and `git log -S`.
   has overtaken are marked as corrections, and anything found still open is verified in the code and
   moved to [open-work.md](open-work.md).
 
-Applied so far, each with its full text at the commit named:
-
-| retired or summarized                                                | now in                                                                                                                               | full text                                   |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `scope-1.5.2.md`                                                     | [project.md](project.md) § "Versions"                                                                                                | `git show 65afb827c:cmem/scope-1.5.2.md`    |
-| `overview.md`, `phases.md`, `transition.md`, `pre-merge-register.md` | [project.md](project.md)                                                                                                             | `git show f2ee1a41f:cmem/<file>`            |
-| `bridge.md`, `text-routes.md`                                        | [ir-convergence.md](ir-convergence.md) § "The bridge and the WAT routes into binaryen-ts"; binding rules in [project.md](project.md) | `git show f2ee1a41f:cmem/<file>`            |
-| `quality-passes.md`                                                  | the plan in [open-work.md](open-work.md); the passes in [testing.md](testing.md)                                                     | `git show f2ee1a41f:cmem/quality-passes.md` |
-| `handoffs.md` letters (file kept, as a log)                          | [handoffs.md](handoffs.md)                                                                                                           | `git show f2ee1a41f:cmem/handoffs.md`       |
-| `divergences.md` N1 and parity prose, the X1 record                  | [names.md](names.md), [testing.md](testing.md), a summary in place                                                                   | `git show f2ee1a41f:cmem/divergences.md`    |
-| the wabt-ts wing, `cmem/wabt-ts/` (12 files)                         | [wabt-ts.md](wabt-ts.md)                                                                                                             | `git show 62c65a9db:cmem/wabt-ts/<file>`     |
-| the binaryen-ts wing, `cmem/binaryen-ts/` (14 files)                 | [binaryen-ts.md](binaryen-ts.md)                                                                                                     | `git show 62c65a9db:cmem/binaryen-ts/<file>` |
-| `open-work.md` again (1,020 lines → open items), `unreleased.md` (all shipped), 2026-09-29 | [open-work.md](open-work.md)'s own table of where each record went                                          | `git show 3bd64ece7:cmem/<file>`             |
-
 ---
 
 ## The shared core
 
 ### Live — read these to act
 
-| file                                   | what it holds                                                                                                                                                                                                                                  |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [open-work.md](open-work.md)           | **What is outstanding**, and nothing else — one numbered list: defects and gaps, optimizer and IR, conformance, the quality-pass lens plan, repo work, the wasmtk thread, and what is NOT a task by decision. Each item points at its record. |
-| [working-rules.md](working-rules.md)   | **The owner's standing rules for every increment**: branch → `merge --no-ff`, messages by file, nothing pushed, the version stays; CI's gate on the committed tree by exit code; rebuilding the spec corpus; installed oracles; sibling repos. |
-| [unreleased.md](unreleased.md)         | **Everything on `main` since the last release that a release note must say** (its first line names the release and the date) — how to classify an entry (BREAKING / behaviour / silent fix / NEW).                                                               |
-| [ir-convergence.md](ir-convergence.md) | **The IR convergence, S1–S7**: one tree, two verb sets. Status at the top, the worst-condition method, every stage's measurements and decisions (including the K3 scoping), and a merge log generated from git.                                |
-| [portability.md](portability.md) | **One opcode profile every widely used engine runs** (open-work 34, from 2026-10-23): the owner's four decisions (defining engines by browser and runtime prevalence; the wide-arithmetic and relaxed-SIMD lowerings; binaryang the source, D4; wasmrt / wazmrt adopt it later), the three-tier shape, pass 1's measurements across 10 executors, pass 2's scope. |
-| [../docs/ir-map.html](../docs/ir-map.html) | **The IR's layout as a page, for this repo and its siblings** (2026-10-23, at `f42ae3484`): the route reader → IR → fidelity or passes → encoder, the `Module` → `Func` → `Expr` records, the 25 `src/ir` files by layer with their importers, the 85 expression kinds. A snapshot, not generated: update it when `src/ir`'s layout changes. Shipped in neither package. |
-| [divergences.md](divergences.md)       | **Every divergence from upstream wabt and binaryen — and, V1–V4, from engines (refuse what will not run everywhere) — classified** — FEATURE, DESIGN, ORACLE GAP, DEFECT. Read BEFORE refactoring, optimizing, or porting an upstream pass: a faithful port can silently undo a DESIGN row.                      |
-| `local/environment.md` 🔒              | **This machine and disk — PRIVATE, gitignored, absent in a clone**: `safe.directory` on the exFAT working disk, the repack failure that grows `.git`, CRLF checkouts, the `python` Store stub that hangs, Deno quirks.                                           |
+| file | what it holds |
+| --- | --- |
+| [open-work.md](open-work.md) | **What is outstanding**, and nothing else: one numbered list, each item pointing at its record; the one current state line |
+| [working-rules.md](working-rules.md) | **The owner's standing rules**: git flow, messages by file, nothing pushed, the gate on the committed tree, tools, records |
+| [unreleased.md](unreleased.md) | **What a release note must say** for everything on `main` since the last release, and how to classify an entry |
+| [divergences.md](divergences.md) | **Every divergence from upstream and from engines, classified** — read BEFORE refactoring, optimizing or porting a pass |
+| [portability.md](portability.md) | **One profile every widely used engine runs** (open-work 34): the owner's decisions, the engine and version floor, passes 1–3 |
+| [ir-convergence.md](ir-convergence.md) | **The IR convergence, S1–S7 and One front end**: one tree, two verb sets; status at the top; the merge log |
+| [../docs/ir-map.html](../docs/ir-map.html) | **The IR's layout as a page**, for this repo and its siblings (a snapshot at `f42ae3484`; update it when `src/ir` changes) |
+| `local/environment.md` 🔒 | **This machine — PRIVATE, gitignored, absent in a clone**: the exFAT disk, git and Bun quirks, oracles, scratch scripts |
 
 ### Topics — how things work and why
 
-| file                                   | what it holds                                                                                                                                                                                                                                                                                                                                                      |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [best-practices.md](best-practices.md) | **The rules paid for** — first the convergent rules both predecessors derived independently (each with both origin stories), then every rule binaryang paid for since: the eight silent breaks of a field change, make the defect unrepresentable, the local gate must be CI's, results attributed to the property in view, a written result is a claim, and more. |
-| [testing.md](testing.md)               | **How binaryang is tested**: the gates and what each can see, the corpora, the convergent philosophy (three states, every metric's blind spot), independent oracles, the spec-testsuite harness and its must-reject axis, A3's diagnostic offsets, diagnostic usefulness (what the CLI prints).                                                                                                                 |
-| [publishing.md](publishing.md)         | **Provenance and the release process** (and, from 2026-10-13, the PARKED contingency plan for npm as a second registry, open-work 29): never bump in the change that merges, provenance fails silently, the `actorNotScopeMember` root cause and `RELEASE_PAT`, never publish locally, recovery recipes, the settled release pattern (1.6.0 → 1.7.2; `RELEASE_PAT` not needed).                                                                                                                             |
-| [definitions.md](definitions.md)       | **The shared definitions, `./definitions`** (open-work item 22, H9, closed with 1.9.0): what shipped (D1 / D2 / D3, the hashes, the gate step), the decisions, what D1's proof found. |
-| [optimizer.md](optimizer.md)           | **The size gap to upstream `wasm-opt -Oz`** (open-work item 2, closed 2026-10-08 at 1.86%, from 109.5 KB / 13%): every step with its commit and corpus numbers, the instruments and their controls (a bare upstream re-encode is worth 4.4 KB on its own), the decisions, what the last 15 KB is by section; real compiler output in three browsers (28.6); **open-work item 30** (closed 2026-10-15: six real-compiler modules -Oz 10.4% → 4.9% over upstream, four steps, a shipped crash fixed, what is left ranked); **open-work item 31** (open, no threshold: each step's row and the re-rank after it; the current figures are in open-work.md item 31); the lessons. |
-| [hardening.md](hardening.md)           | **The hardening round** (open-work item 13, in progress): the contract every pass checks, the instruments (`bun run hostile`), pass 1 (six ways malformed input escaped untyped — all fixed), pass 2 (the weakest nesting ceiling, ~384 → ~930, warm and cold), the HANG CHECK with its 2 s interval set from measured run times, open-work 27 (closed 2026-10-12: a constant expression with no value is `Stop(invalid)`), the CODE LENS pass 1 (C1–C17: valid-mutant, behaviour and throw-check instruments; the 8-oracle panel and the owner's "refuse what will not run on all platforms"; CLOSED 2026-10-15, the converging re-run on the merged tree), what is left for the owner. |
-| [one-tree.md](one-tree.md)             | **One `src/` tree, one IR subpath** (open-work item 21, closed 2026-10-09, unreleased): the four phases with their merges — files by concept, one declaration per name (88 → 0), logic twice, `./ir` with the three old subpaths deprecated — the `Type` / `ExprType` decision and its proof, what the gate found, the tests that hold it. Follow-up: item 25. |
-| [run-everywhere.md](run-everywhere.md) | **"Runs everywhere"** (open-work item 28, 2026-10-12 → closed 2026-10-15): what holds each claim in CI (browser bundles, the library run in seven browsers, the source on every Node LTS, `wasmOpt` on bytes), 28.7's browser recipe (`examples/browser-optimize/`) and how `bun run browsers` holds it, the checks removed as duplicates, and the item's whole record verbatim (parts 1–5, 28.3, 28.6, the decisions). |
-| [bundle.md](bundle.md)                 | **`wasm-bundle`** (open-work item 24, built 2026-10-08, released in 1.10.0 2026-10-09): one memory relocated EXACTLY through the Linking format (`wasm-ld --emit-relocs`) and our `(@reloc data)` annotation — the image rule, what moves, how entries are verified and stale ones refused, the policies, the decisions (no allocator unification, tables per module), the fixtures measured, the gaps, what the letter tells wasmtk. |
-| [interpreter.md](interpreter.md)       | **The interpreter, the evaluator, `wasm-ctor-eval` and `wasm-interp`** (open-work item 23, closed 2026-10-08): what landed per stage with its commit, one semantics for folding and running, the `interp` gate numbers at the close, the relaxed-SIMD choices, the ctor-eval measurement (−58.8 KB on top of -Oz; evaluate after optimising, optimise again) and its calibration against upstream, the defects found, the lessons. |
-| [names.md](names.md)                   | **N1 — internal names**: 63,930 in the corpus, the owner's rules, per-kind and per-hop measurements, the six steps as built, `wasm-tools` as the label oracle.                                                                                                                                                                                                     |
-| [project.md](project.md)               | **What binaryang is and what was decided**: scope, the settled and pre-merge decisions (export map, clean break, runtime floors), layout and the promotion rule, the binding rules (reserved names, import aliases, layered portability), the convergence indicator, versions 1.5.1–1.7.0, and summaries of the retirement and the merge.                          |
-| [licensing.md](licensing.md)           | MIT-primary with Apache-2.0 alternative; why binaryang inherits BOTH upstreams' §4 obligations; the two JSR rejection conditions.                                                                                                                                                                                                                                  |
-| [bun-migration.md](bun-migration.md)   | **Deno → Bun for the toolchain, JSR kept** (open-work item 26, from 2026-10-12): why (Deno development ends ~2027-10), what is already portable, the measured Deno surface, the findings (`jsr.json` needs `--config` while `deno.json` exists; `bunx jsr publish` runs Deno and `--no-check`), steps B1–B7 (B1, B2, B4 done 2026-10-12; B3 2026-10-13: Biome, the tsc lint flags, the lint canary, no `biome-ignore` left; dprint replaces `deno fmt` byte for byte, with its canary; B5 2026-10-13: the suite on node:test, Node 24 the verdict, Bun against a known-differences list; B6 prepared (proof: the next release); B7: no deno.json), the Bun-or-Node decision (both; Bun main), **the engine oracle** (Bun is JavaScriptCore; the V8 referee is Node 24 through fnm, `scripts/v8.ts`; Deno is for JSR only), risks. |
-| [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) | **For the OTHER `@jrmarcum` JSR packages** (wasmtk, universal-wasm-loader, s3d-reportcompiler; 2026-10-12): the findings that carry over (F1–F10, F10 = Bun runs WebAssembly on JavaScriptCore, not V8), the two questions to ask of a package, the seven steps, the Bun-and-Node decision, § 5b npm as a second registry for every package (2026-10-13), § 5a what binaryang built to copy (Bun scripts and their traps, the engine referee table, every-Node-LTS testing via the release schedule and fnm, every export loading in a browser; type checking with `bun check`, 2026-10-15, and `bun lint` shelved until a release ships it), notes on each package, pitfalls. Written for them to read; binaryang's own record is bun-migration.md. |
-| [handoffs.md](handoffs.md)             | **Correspondence with the sibling repos** — the live convention (never write into a sibling; draft here), a log of every letter with its outcome, and the lessons found only there. New drafts go at its end.                                                                                                                                                      |
+| file | what it holds |
+| --- | --- |
+| [best-practices.md](best-practices.md) | **The rules paid for**: the convergent rules (both origin stories), the workspace's ★ rules and checklist (stamped copies), then binaryang's own |
+| [testing.md](testing.md) | **How binaryang is tested**: the gates and what each can see, the corpora, the oracles, the spec-testsuite harness |
+| [publishing.md](publishing.md) | **Releases and provenance**: the settled release pattern (read first), the history purge, one section per release, newest first |
+| [definitions.md](definitions.md) | **`./definitions` (D1–D3)**: what shipped, the decisions, the proof — and every D1 opcode attested by the specification |
+| [optimizer.md](optimizer.md) | **The optimizer against upstream `wasm-opt`** (items 2, 30, 31): every step with its commit and numbers, the instruments, the lessons |
+| [hardening.md](hardening.md) | **The hardening round** (item 13): the contract, the instruments, passes 1–2, the hang check, the code lens pass 1 |
+| [interpreter.md](interpreter.md) | **The interpreter, evaluator, `wasm-ctor-eval`, `wasm-interp`** (item 23): per stage, the gate, the measurements |
+| [run-everywhere.md](run-everywhere.md) | **"Runs everywhere"** (item 28): what holds each claim in CI, the browser recipe, the record |
+| [bundle.md](bundle.md) | **`wasm-bundle`** (item 24): one memory relocated exactly through the Linking format; the rules, decisions, gaps |
+| [names.md](names.md) | **N1 — internal names**: the owner's rules, the measurements, the steps as built |
+| [one-tree.md](one-tree.md) | **One `src/` tree, one IR subpath** (item 21): the phases, the `Type` / `ExprType` decision, what the gate found |
+| [bun-migration.md](bun-migration.md) | **Deno → Bun, JSR kept** (item 26): steps B1–B7, the Bun-and-Node decision, the engine oracle (the V8 referee) |
+| [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) | **For the OTHER `@jrmarcum` JSR packages**: the findings that carry over, the steps, what binaryang built to copy |
+| [project.md](project.md) | **What binaryang is and what was decided**: scope, decisions, runtime floors, binding rules, reserved subpaths, versions |
+| [licensing.md](licensing.md) | **MIT-primary, Apache-2.0 alternative**: both upstreams' §4 obligations, the attribution rules and which files carry them |
+| [handoffs.md](handoffs.md) | **Correspondence with the siblings**: the convention, every letter with its outcome, the workspace letters' outcomes |
 
 ### The predecessors — look up an ID, an invariant or a test here
 

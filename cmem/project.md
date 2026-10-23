@@ -412,3 +412,36 @@ Two lessons the phase records paid for:
 | how binaryang is tested                       | [testing.md](testing.md)                                                      |
 | the rules paid for, and the working checklist | [best-practices.md](best-practices.md) · [working-rules.md](working-rules.md) |
 | licensing                                     | [licensing.md](licensing.md)                                                  |
+
+## Memory: what was retired, and where it went
+
+Moved here from [INDEX.md](INDEX.md) on 2026-10-23 (workspace letter H6: the INDEX holds policy,
+triggers, one line per file and the reading order; the history of the memory itself lives here).
+The policy that produced every row is INDEX § "Cleanup policy".
+
+🔧 **The wings were summarized on 2026-09-14** (owner: "the wing docs get both corrected and
+summarized"). Until then they were kept unedited as the origin record — the evidence of what each
+side knew before the trees became one. That evidence is intact in git: every wing file is one
+`git show 62c65a9db:cmem/<wing>/<file>` away, and each summary section names its command.
+
+**Consolidated 2026-09-14** (branch `cmem-consolidation`): machine-local memory moved in,
+`open-work.md` cut to open items with its closed history moved to topic files, stale status lines
+corrected in place. **Nothing was dropped**, and that was checked rather than asserted: every commit
+hash, backticked identifier, measured ratio and quantity in the old core and in memory was
+snapshotted first and verified present afterwards, with each deliberate exception listed and
+reasoned — and the check was inverted (a mutated copy fails it, naming exactly what was removed).
+
+| retired or summarized | now in | full text |
+| --- | --- | --- |
+| `scope-1.5.2.md` | [project.md](project.md) § "Versions" | `git show 65afb827c:cmem/scope-1.5.2.md` |
+| `overview.md`, `phases.md`, `transition.md`, `pre-merge-register.md` | [project.md](project.md) | `git show f2ee1a41f:cmem/<file>` |
+| `bridge.md`, `text-routes.md` | [ir-convergence.md](ir-convergence.md) § "The bridge and the WAT routes into binaryen-ts"; binding rules here | `git show f2ee1a41f:cmem/<file>` |
+| `quality-passes.md` | the plan in [open-work.md](open-work.md); the passes in [testing.md](testing.md) | `git show f2ee1a41f:cmem/quality-passes.md` |
+| `handoffs.md` letters (file kept, as a log) | [handoffs.md](handoffs.md) | `git show f2ee1a41f:cmem/handoffs.md` |
+| `divergences.md` N1 and parity prose, the X1 record | [names.md](names.md), [testing.md](testing.md), a summary in place | `git show f2ee1a41f:cmem/divergences.md` |
+| the wabt-ts wing, `cmem/wabt-ts/` (12 files) | [wabt-ts.md](wabt-ts.md) | `git show 62c65a9db:cmem/wabt-ts/<file>` |
+| the binaryen-ts wing, `cmem/binaryen-ts/` (14 files) | [binaryen-ts.md](binaryen-ts.md) | `git show 62c65a9db:cmem/binaryen-ts/<file>` |
+| `open-work.md` again (1,020 lines → open items), `unreleased.md` (all shipped), 2026-09-29 | [open-work.md](open-work.md)'s own table of where each record went | `git show 3bd64ece7:cmem/<file>` |
+| `ir-convergence.md` § "Scope" — the Stage 1–3 plan (drift B4, 2026-10-23) | a summary in place, its four lessons kept | `git show b51af1c64:cmem/ir-convergence.md` |
+| `publishing.md` — the dispatch sections "3 of 3", "The fix: RELEASE_PAT", "ROOT CAUSE" (drift B3, 2026-10-23) | publishing.md § "The auto-tag dispatch path does not publish" | `git show b51af1c64:cmem/publishing.md` |
+| `open-work.md` — six stacked "State" paragraphs, 2026-10-09 → 10-22 (H6, 2026-10-23) | a summary in place | `git show 4e1c27969:cmem/open-work.md` |
