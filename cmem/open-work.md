@@ -198,8 +198,10 @@ removed record went to a topic file, and the full text is one `git show` away:
     2026-10-23 (Chrome 156, Edge 155, Firefox 158, ESR 153, stock, no automation): they do not
     narrow the portable tier; Chrome / Edge forbid a blocking `memory.atomic.wait` on the main
     thread. Safari from MDN browser-compat-data: memory64, multi-memory and relaxed SIMD are
-    preview-only there, and the portable tier needs Safari / iOS 18.4. **Next:** the owner's
-    Safari floor (usage data), pass 3 (trap paths), the two lowerings,
+    preview-only there. Floor DECIDED (owner, decision 8): supported browsers on supported operating
+    systems — Safari 18.4+, current Chrome / Edge, Firefox current + ESR 153; the tier stands. Pass 3
+    DONE: every engine and stable browser matches the spec on 210 failure paths. **Next:** the two
+    lowerings,
     the portable target, D4, then **target-aware optimization** (owner, 2026-10-23: browsers'
     WebAssembly 2.0 support "should be taken into account with our optimization efforts" — passes
     may introduce what the target profile permits; portability.md decision 5). Found on the way,
