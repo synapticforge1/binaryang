@@ -9,6 +9,11 @@
   using them runs on V8 (Chrome, Edge, Node, Deno), WasmEdge, wasmer, wazero and Firefox ESR, which
   refuse the proposal. Exact for every input; one small helper function per instruction used. Runs
   only when asked for — no default pipeline includes it — and no other output changes.
+- **`RelaxedSimdLowering`** (`wasm-opt --relaxed-simd-lowering`): the 20 relaxed-SIMD instructions
+  become plain SIMD-128 computing the WebAssembly specification's deterministic profile, so a module
+  using them runs on wasmer and wazero, which refuse them, and gives the same result on every
+  engine, where the relaxed instructions differ by hardware. One small helper function for the dot
+  products, if used. Runs only when asked for; no other output changes.
 
 ### Documentation
 

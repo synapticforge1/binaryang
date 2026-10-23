@@ -267,6 +267,32 @@ helper function per instruction used:
 npx binaryang wasm-opt in.wasm --wide-arithmetic-lowering -o out.wasm
 ```
 
+### Making a module run without relaxed SIMD
+
+The relaxed-SIMD instructions (`f32x4.relaxed_madd`, `i8x16.relaxed_swizzle`, the relaxed dot
+products, …) let each engine pick the fastest answer its hardware gives, so **the same module
+returns different results on different engines**. On 68 edge cases (NaN, -0, out-of-range floats,
+swizzle indices of 16 or more, …), engines matched the specification's deterministic answer on
+anywhere from 32 to 67 of them, depending on the engine. wasmer and
+wazero refuse the instructions outright, and Safari ships them only in Technology Preview.
+`--relaxed-simd-lowering` rewrites each one to plain SIMD-128 that computes the WebAssembly
+specification's **deterministic profile**: the one answer the specification fixes for every
+relaxed instruction, the same on every engine:
+
+| relaxed | becomes |
+| --- | --- |
+| `relaxed_swizzle`, `relaxed_trunc_*`, `relaxed_min` / `max`, `relaxed_q15mulr_s` | the regular instruction |
+| `relaxed_laneselect` | `v128.bitselect` |
+| `relaxed_madd` / `relaxed_nmadd` | multiply, then add (unfused: two roundings) |
+| `relaxed_dot_i8x16_i7x16_s` / `_add_s` | both operands signed, 16-bit sums wrapping |
+
+```sh
+npx binaryang wasm-opt in.wasm --relaxed-simd-lowering -o out.wasm
+```
+
+The hardware's fused multiply-add and single-instruction dot products are given up for
+plain SIMD-128 instructions that every engine runs.
+
 ### Optimizing in the browser
 
 A page can shrink a WebAssembly module it does **not** control (third-party, user-supplied, a

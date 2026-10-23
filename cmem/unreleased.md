@@ -60,6 +60,12 @@ contains ([handoffs.md](handoffs.md)).
   instruction used. Opt-in; no default pipeline includes it; no other output moves. The gate's
   floor: MINOR ("pass WideArithmeticLowering added"). [portability.md](portability.md) § "The
   wide-arithmetic lowering".
+- **NEW pass — `RelaxedSimdLowering`** (`--relaxed-simd-lowering`; open-work 34, owner decision 2,
+  and the spec's deterministic profile as the semantics, owner 2026-10-23): the 20 relaxed-SIMD
+  instructions → plain SIMD-128 with the profile's result; one helper for the dot products. Opt-in;
+  no default pipeline includes it; no other output moves. The gate's floor: MINOR. README §
+  "Making a module run without relaxed SIMD". [portability.md](portability.md) § "The relaxed-SIMD
+  lowering".
 - **README correction**: multi-memory runs on Bun's JavaScriptCore but ships in Safari only as
   Technology Preview (MDN browser-compat-data 8.1.7).
 
