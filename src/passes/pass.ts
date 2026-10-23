@@ -1,3 +1,8 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/pass.h
+// Copyright 2015 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 /**
  * @module passes/pass
  *

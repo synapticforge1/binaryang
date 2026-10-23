@@ -26,6 +26,38 @@ MIT header. Per-file headers travel with the file, so relocating `src/…` to `s
 preserved them automatically — but it is worth having checked rather than assumed, because a header
 lost in a move is invisible.
 
+🔧 **CORRECTED 2026-10-23 — the Binaryen half was NOT satisfied, while this file said both were.**
+Found by the owner's question "at what point is this project standalone … and potential licensing
+issues?": `NOTICE.md` attributed only wabt (and still said "wabt-ts", and pointed at an `upstream/`
+directory binaryang does not have), and no file derived from Binaryen carried an attribution header —
+though `src/passes/asyncify.ts` calls itself "a faithful port of upstream Binaryen's `Asyncify.cpp`".
+binaryen-ts never carried per-file headers (its licensing record covered only JSR's rules), and the
+merge inherited that. The verification above counted the wabt headers and never asked about the
+other upstream. Fixed (owner: "I agree with 1"):
+
+- **`NOTICE.md`** names binaryang, attributes BOTH upstreams with their Apache notices, describes the
+  two header forms, and drops the `upstream/` claim; the original-work holder matches `LICENSE`.
+- **30 files carry a Binaryen header**, classified by what each file says of itself, with the
+  copyright year READ from each cited upstream file (Binaryen `version_132-38-g67ac1ab072cd`, the
+  frozen binaryen-ts's `upstream/` clone): **4 `Ported from`** — the file says it is a port
+  (`asyncify`, `inlining`, `local-cse`, `flatten`); **26 `Based on`** — the file names the upstream
+  source it was written against ("Reference: `X.cpp`", "Mirrors `X`"): 20 passes and `pass.ts`,
+  `ir/expressions`, `ir/module`, `ir/types`, `ir/gc-types`, `tools/wasm-ctor-eval`,
+  `compat/binaryen-compat` (the binaryen.js API shape and type ids). Binaryen ships no NOTICE file,
+  so §4 here is its licence plus each file's own copyright line.
+- **Undecided — the owner's call:** files that came from binaryen-ts's history but name no upstream
+  source. Several share a name and role with a Binaryen component — `simplify-locals`,
+  `memory-packing`, `dead-argument-elimination`, `remove-unused-types`, `minify-imports-and-exports`,
+  `local-graph`, `effects`, `memory64-lowering`, the interpreter (`src/interp/*`) — and others have no
+  upstream counterpart that is known (`converge`, `spill-stack-values`, `non-nullable-locals`,
+  `lower-custom-page-sizes`, `derive-types`, `phantoms`, `prepare`, `memory-access`, the tools
+  `read-wat`, `wasm-bundle`, `wasm-interp`, `witgen`); `lower-block-params` says it is original.
+  Attributing a file that is not derived costs nothing; failing to attribute one that is, is the
+  violation — so the conservative choice is to attribute every same-named component.
+
+🔑 **A count verifies the thing it counts.** "27 files carry the wabt header" was true and was
+recorded as "both obligations satisfied"; the second upstream had no count at all.
+
 ## File layout
 
 | file             | purpose                                                                                                                                                                                                                                                                     |
