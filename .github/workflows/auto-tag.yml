@@ -19,6 +19,12 @@
 # call uses the same token with `actions: write` permission to dispatch the
 # publish workflow on the freshly pushed tag.
 #
+# ⚠️ The dispatched publish FAILS, by cause, not by chance: JSR authorises the OIDC token's
+# actor, and a dispatched run's actor is `github-actions[bot]`, which is not a member of the
+# `@jrmarcum` scope (`actorNotScopeMember`). So this workflow is a backstop, not the release path:
+# every release is `bun run release`, which pushes the tag as a user. Record and recovery:
+# cmem/publishing.md § "The auto-tag dispatch path".
+#
 # Required permissions:
 #   - contents: write   → push the tag
 #   - actions:  write   → workflow_dispatch trigger for publish.yml
@@ -52,12 +58,13 @@ jobs:
           #
           # With GITHUB_TOKEN the push is subject to GitHub's recursion guard: the
           # tag lands but no workflow fires, which is why the dispatch step below
-          # exists. That dispatch path has FAILED every time it has been used
-          # (0 of 3, across binaryen-ts, wabt-ts and binaryang), while a tag pushed
-          # by a user has succeeded every time (5 of 5).
+          # exists — and the dispatched run is rejected by JSR (its actor is the bot;
+          # see the header). A tag pushed by a user publishes.
           #
           # With RELEASE_PAT set, the tag push is attributed to that identity, fires
-          # publish.yml through `on: push: tags`, and the dispatch is skipped.
+          # publish.yml through `on: push: tags`, and the dispatch is skipped. The
+          # secret is NOT set, by decision (owner, 2026-09-29): the release path
+          # never needs it.
           token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
 
       # Bun reads jsr.json (Bun migration B6, 2026-10-13): nothing here needs Deno, which is kept
@@ -102,10 +109,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ steps.check.outputs.version }}"
-          echo "::warning::RELEASE_PAT is not set, so the tag was pushed by GITHUB_TOKEN and cannot trigger publish.yml. Falling back to workflow_dispatch, which has failed 0-for-3 in this scope. If the publish run fails, re-push the tag by hand: git push origin :refs/tags/$TAG && git push origin $TAG"
+          echo "::warning::RELEASE_PAT is not set, so the tag was pushed by GITHUB_TOKEN and cannot trigger publish.yml. Falling back to workflow_dispatch, which JSR rejects: the dispatched run's actor is github-actions[bot], not a scope member (actorNotScopeMember). Release with bun run release instead, or re-push this tag by hand: git push origin :refs/tags/$TAG && git push origin $TAG"
           gh workflow run publish.yml --ref "$TAG"
           echo "Dispatched publish.yml on ref $TAG (fallback path)"
 
       - name: Release triggered by tag push (RELEASE_PAT set)
         if: steps.check.outputs.exists == 'false' && steps.cred.outputs.pat == 'yes'
-        run: echo "Tag pushed with RELEASE_PAT — publish.yml fires via push:tags, the path with a 5-of-5 record."
+        run: echo "Tag pushed with RELEASE_PAT — publish.yml fires via push:tags, the path every release takes."

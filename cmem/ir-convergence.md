@@ -157,143 +157,40 @@ inventing one.
 mirrors the binary format, and `placeholder` is a deliberate, documented marker meaning "this value
 is already on the stack". The convergence question there is different — see below.
 
-## Scope
+## Scope — Stages 1–3, as first planned (summarized 2026-10-23, drift B4)
 
-### Stage 1 — binaryen-ts WAT parser accepts stack-sourced operands
+The first plan, written 2026-08-31 and finished or overtaken by 2026-09-28. Full text, with the
+tables and measurements: `git show b51af1c64:cmem/ir-convergence.md` (§ "Scope" through § "Stage 3").
 
-The narrow, high-value piece. It closes ladder item #2 in [open-work.md](open-work.md) (44 modules)
-and is the prerequisite for `wasm-opt` reading the WAT `wasm2wat` writes.
+- **Stage 1 — binaryen-ts's WAT parser accepts stack-sourced operands.** Built (`f809efaf6`, one
+  claim per instruction, refused rather than reversed past that) until the owner's 2026-09-10
+  decision made wabt-ts the text front end; **SUPERSEDED**, and the parser itself was deleted in One
+  front end stage 5 (`868faea1b`). With it went the one gap it left (stack-form binary ops and
+  stores needing an arity table), which no corpus module ever exercised.
+- **Stage 2 — wabt-ts stops needing the marker.** Decided: **keep `placeholder`, teach the writer
+  to spell it** (`(local.set 0)`, no operand) rather than spill on read, which would have changed
+  what `wasm2wat` emits and cost wabt-ts the fidelity its IR rests on. The ladder it gated finished
+  2026-09-01: binaryen-ts read our folded output on 421 / 421 corpus modules.
+- **Stage 3 — one tree, two verb sets.** Reframed 2026-09-02 from "pick one shape" to fidelity and
+  optimization as two PHASES over one tree, the fidelity data beside it; delivered as S1–S7 and One
+  front end — § "Where it stands" at the top.
 
-Two syntactic cases, and they fail in different places, so they are separate work:
+Kept because a later reader could re-derive them wrongly:
 
-| form            | current failure                   | where                                                                             |
-| --------------- | --------------------------------- | --------------------------------------------------------------------------------- |
-| `(local.set 0)` | `missing operand for "local.set"` | inside the instruction parser, which reached the instruction and found no operand |
-| `local.set 0`   | `unexpected atom in expression`   | the expression parser, which never accepts a bare token at all                    |
-
-The first is one code path with a diagnostic that already names the exact condition — someone knew
-this case existed. The second is a second parsing mode, since every construct needs it.
-
-**Do the first alone if the writer can be made to always parenthesise.** That is a real option: our
-folded writer knows precisely where a value is stack-sourced, because that is what `placeholder`
-marks.
-
-## Stage 1 — status at pause, 2026-08-31
-
-### ✅ Done: binaryen-ts accepts a stack-sourced operand (single claim)
-
-`f809efaf6`. A consumer whose operand is absent claims the preceding sibling that produced a value,
-and that producer is spliced out of the statement list. No spill needed for the single-consumer case
-— the producer is simply moved into the consumer, giving the tree the folded spelling would have
-produced.
-
-Works: `(i32.const 9) (drop)`, `(local.set 0)`, `(i32.eqz)`, and the same inside a block.
-
-⚠️ **Bounded to ONE claim per instruction, and gated on the instruction having no WRITTEN operand.**
-Handlers request operands left to right while the stack yields them top first, so a two-operand
-claim assigns them backwards. Measured before the limit:
-
-```
-(i32.const 10) (i32.const 3) (i32.sub)    ->  -7   want 7
-(i32.const 20) (i32.const 4) (i32.div_s)  ->   0   want 5
-stack-form i32.store                       wrote nothing
-```
-
-A second claim is **refused rather than reversed**, because wrong bytes that still validate is the
-failure mode worth avoiding.
-
-**To lift the bound**, the parser needs an instruction's ARITY at the point of the first claim. It
-does not have one — a handler discovers its arity by how many times it asks. wabt-ts has
-`instrInputCount` for exactly this; porting or mirroring that table is the concrete next step, and
-it is a table, not an algorithm.
-
-🔧 **Corrected 2026-09-01 — the count was never the whole rule.** One claim is NOT "the subset where
-order cannot be wrong". With N slots, W of them written and C claimed, the stack fills the LEADING C
-slots, but a claim serves whichever slot happens to ask — a TRAILING one whenever W > 0. The two
-agree only when W is zero. Measured: `(i32.const 16) (i32.store (i32.const 42))` stored 16 at
-address 42 and read back 0, on ONE claim; wabt-ts reads the same text as 42 at 16. Claiming is now
-gated on `_served === 0` as well, and a slot that cannot be claimed becomes a `Pop` — which encodes
-to nothing, so the producer stays where it stands and stack order is preserved.
-
-**`call` never had the problem, and the reason generalises.** It does not ask for missing operands
-at all: it emits the written ones and lets the preceding statements supply the rest, which is simply
-stack semantics. The arity problem belongs to handlers that discover arity BY ASKING — binary ops,
-compares, stores. So the table is needed for a smaller set than this document implied.
-
-### ✅ Done: the wabt-ts half, and the whole ladder behind it
-
-Both halves landed, and the ladder they gated finished on 2026-09-01: **binaryen-ts reads our folded
-output on 421 of 421 corpus modules**, with folded output still assembling to bytes identical to
-linear on all 421 and the emitted-byte baseline `IDENTICAL`.
-
-The writer spells a fully stack-sourced node as its head alone, and a PARTLY stack-sourced one by
-omitting the placeholders — they always occupy a prefix, because the reader fills from the top of
-the stack down and the deepest slots run out first. A scattered mix would be inexpressible
-positionally and still declines, though our binary reader does not produce one.
-
-⚠️ **The arity table was never needed for the corpus.** Step 3 below anticipated it; no corpus
-module required a multi-claim instruction, because the only mixed-operand nodes present were
-`call`s, which do not claim at all. The table remains the right fix for stack-form binary ops and
-stores, which is a real gap but not one this corpus exercises.
-
-### One test was CHANGED, not fixed
-
-`WAT: a missing operand is a WatParseError naming the instruction` asserted that stack form THROWS —
-it encoded the limitation as a contract. Replaced with the new behaviour plus two guards: the
-diagnostic must still fire when there is genuinely nothing to claim, and a two-operand stack form
-must be refused rather than reversed.
-
-**Worth noticing as a shape:** a test can pin a limitation so that removing the limitation reads as
-a regression. Nothing distinguished this one from a test pinning a requirement.
-
-### Stage 2 — wabt-ts stops needing the marker
-
-`placeholder` is not wrong; it is honest. But it is the reason 44 modules cannot be folded, and it
-is the shape that has no folded spelling.
-
-Two routes, and they are not equivalent:
-
-- **Spill on read** — mirror binaryen-ts: when the binary reader finds an empty stack, allocate a
-  temporary. ⚠️ This would change what `wasm2wat` EMITS, and the emitted-byte baseline pins that. It
-  also makes wabt-ts's IR stop mirroring the binary format, which is the property its round-trip
-  fidelity rests on. **Not obviously desirable.**
-- **Keep the marker, teach the writer to spell it** — emit `(local.set 0)` (parenthesised, no
-  operand) rather than a bare instruction wherever a placeholder sits. The IR keeps its fidelity;
-  only the text changes; and it pairs with Stage 1's first case exactly.
-
-**The second is preferred**, and it is the one that makes the two sides meet in the middle rather
-than one adopting the other's shape.
-
-### Stage 3 — one tree, two verb sets
-
-🔧 **Reframed 2026-09-02, against the project's stated goals.** This section used to say: _"the two
-IRs differ in one remaining structural way — wabt-ts's tree is partial and mirrors the binary;
-binaryen-ts's is total. That is the real merge question."_
-
-That framed it as **pick one shape**, which the goals show is the wrong question:
-
-> Round-trip fidelity through the wabt-ts part, and optimization through the binaryen-ts part.
-> Whether the WAT is hand-written or came from optimized wasm, the end result should be fidelity of
-> the WAT being converted to and from wasm.
-
-Fidelity and optimization are not two shapes competing for one tree. They are two **phases**, and
-they are never both meaningful for the same module — once a pass runs, there is no original left to
-be faithful to. So the design is:
-
-**ONE tree. Two sets of operations over it. Fidelity metadata BESIDE the tree, not inside the
-nodes.**
-
-- wabt-ts's operations read and write the side table
-- binaryen-ts's passes never touch it, and **drop** it — an optimized module has no original to be
-  faithful to
-- the tree type is shared, and passes pay nothing
-
-⚠️ **"A tree cannot be faithful" is false, and this document used to imply it.** Wasm has no `dup`:
-every value has exactly one consumer, so a program already _is_ a tree — plus a marker for the case
-where the producer must stay put rather than move into its consumer. Both IRs already have that
-marker, under two names: binaryen-ts's `Pop` (_"a pseudo-instruction; not emitted in the binary
-format"_) and wabt-ts's `placeholder` (_"the value is already on the stack"_). The hard part was
-already done.
+- 🔧 **One claim is not "the subset where order cannot be wrong."** With N slots, W written and C
+  claimed, the stack fills the LEADING C slots while a claim serves whichever slot asks — a
+  TRAILING one whenever W > 0. `(i32.const 16) (i32.store (i32.const 42))` stored 16 at address 42
+  on ONE claim. Order is only safe when nothing is written.
+- **`call` never had the arity problem**: it emits its written operands and lets the preceding
+  statements supply the rest — stack semantics. The problem belongs to handlers that discover their
+  arity by asking.
+- **A test can pin a limitation so that removing it reads as a regression.** `a missing operand is
+  a WatParseError` asserted that stack form THROWS; nothing told it apart from a test pinning a
+  requirement. It was changed, not fixed — with guards that the diagnostic still fires when there is
+  nothing to claim, and that a two-operand stack form is refused.
+- **Wasm has no `dup`**: every value has one consumer, so a program already IS a tree, plus a marker
+  for a producer that must stay put — binaryen-ts's `Pop` and wabt-ts's `placeholder` were that
+  marker under two names.
 
 ## The measurements this rests on
 

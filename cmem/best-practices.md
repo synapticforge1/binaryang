@@ -446,6 +446,24 @@ Four rules they add to the two above:
 - **Assert the mechanism, not the outcome.** A validity check passes a silently dropped opcode; an
   opcode count does not.
 
+### The checklist — "where is this construct USED, not where is it NAMED?"
+
+> **Copied from `../../cmem/best-practices.md` § 5.5 on 2026-10-23** (workspace letter H5, drift
+> W5: canonical THERE, copied into each repo under this stamp; a change is made there and
+> re-copied, never edited here). Nine questions:
+>
+> 1. Which set did the number come from — declared, asserted, or consumed?
+> 2. Is it BLOCKED BY the thing, or does it merely CONTAIN it?
+> 3. Has the binding constraint moved to us?
+> 4. The reported shape, or the actual precondition?
+> 5. Green because it works, or because it was never exercised?
+> 6. Does my measurement see a known positive?
+> 7. Am I proving DEAD from an input that could not show it alive?
+> 8. Does my probe reimplement something the codebase exports?
+> 9. Is the distribution suspicious — all one bucket, a round zero, a total equal to the input count?
+>
+> "Not detectable by being careful — by being enumerable."
+
 ## 🆕 A written result is a CLAIM — compare it to the artifact (2026-09-12)
 
 **Rule: a commit message, a gate report and a recorded count are claims, not evidence. Check the
