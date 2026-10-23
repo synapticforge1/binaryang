@@ -185,6 +185,18 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
+34. ◐ **One opcode profile every widely used engine runs** (owner, 2026-10-23: "attempt to create a
+    consolidated opcode set that all can decode and run. lets test and scope", then the four
+    decisions in [portability.md](portability.md): the defining engines are the most widely used
+    by browser and runtime prevalence; build the wide-arithmetic and relaxed-SIMD lowerings;
+    binaryang is the source; wasmrt / wazmrt adopt it afterwards). Pass 1 (497 typed opcodes) and
+    pass 2 (76 templates: every untyped D1 entry plus the encoding-level features; 13 executors
+    incl. Chromium, Firefox, WebKit, Deno) DONE 2026-10-23: no engine computes a different value;
+    the tiers are in portability.md. **Next:** the owner's engine-list review (wasmer and wazero
+    alone keep GC and tail calls out of the portable tier), pass 3 (trap paths), the two lowerings,
+    the portable target, D4. Found on the way, its own item when worked: binaryang's interpreter
+    refuses every shared memory.
+
 33. ⬚ **FL1 — upstream's feature-flag spelling is refused** (found 2026-10-23 measuring workspace
     letter H8 / I6): `--enable-saturating-float-to-int` / `--disable-…` (upstream wabt 1.0.41 and
     wasm-tools) is an unknown flag here; ours is `sat-float-to-int`. **Waits on the owner**, because
