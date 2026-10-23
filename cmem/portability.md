@@ -29,6 +29,12 @@ runtime suites and attempt to create a consolidated opcode set that all can deco
    multi-value, bulk memory, reference types; every 3.0 feature off), and `wasm-opt` validates input
    against every feature but its passes take no TARGET.
 
+6. **wasmer and wazero DEFINE portability** (owner, 2026-10-23: "wasmer and wazero need to count
+   to portability and our runs everywhere efforts"). So the profile is set by all 11 engines, and
+   GC, tail calls, `br_on_non_null` and multi-memory stay **engine-specific** until both support
+   them (neither GC nor tail calls has a practical lowering). They join the "runs everywhere"
+   evidence ([run-everywhere.md](run-everywhere.md)) beside the browsers and JS runtimes.
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
@@ -158,8 +164,6 @@ part of that review.
 - **The defining engine list and its review basis** (owner decision 1): which engines, at which
   versions (the stable release in use, not a trunk build — Playwright's browsers are recent builds),
   and the prevalence data the list is reviewed against.
-- **Whether wasmer and wazero define "portable"** — the one choice that moves GC and tail calls
-  between tiers (above).
 - **Pass 3, the trap paths of the typed opcodes** (divide by zero, out of bounds, invalid
   conversion): pass 2 covered traps only for the untyped ones.
 - **The two lowerings** (owner decision 2), the portable target and D4.

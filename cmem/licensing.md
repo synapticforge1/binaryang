@@ -45,15 +45,34 @@ other upstream. Fixed (owner: "I agree with 1"):
   `ir/expressions`, `ir/module`, `ir/types`, `ir/gc-types`, `tools/wasm-ctor-eval`,
   `compat/binaryen-compat` (the binaryen.js API shape and type ids). Binaryen ships no NOTICE file,
   so §4 here is its licence plus each file's own copyright line.
-- **Undecided — the owner's call:** files that came from binaryen-ts's history but name no upstream
-  source. Several share a name and role with a Binaryen component — `simplify-locals`,
-  `memory-packing`, `dead-argument-elimination`, `remove-unused-types`, `minify-imports-and-exports`,
-  `local-graph`, `effects`, `memory64-lowering`, the interpreter (`src/interp/*`) — and others have no
-  upstream counterpart that is known (`converge`, `spill-stack-values`, `non-nullable-locals`,
-  `lower-custom-page-sizes`, `derive-types`, `phantoms`, `prepare`, `memory-access`, the tools
-  `read-wat`, `wasm-bundle`, `wasm-interp`, `witgen`); `lower-block-params` says it is original.
-  Attributing a file that is not derived costs nothing; failing to attribute one that is, is the
-  violation — so the conservative choice is to attribute every same-named component.
+- **🔒 Owner, 2026-10-23: "we need full attribution until we have a rewrite opportunity."** A
+  second round attributed every file with a claim to upstream lineage, by three rules, strictest
+  first, with the evidence measured rather than assumed — lineage by CONTENT (each file's
+  distinctive lines, at least 30 characters, matched against every file of the frozen binaryen-ts
+  and wabt-ts trees; git's rename trail was unreliable through the merge and the one-tree move):
+  1. **Content carried from binaryen-ts** (≥ 10 % of distinctive lines; binaryen-ts was a port of
+     Binaryen) → `Based on WebAssembly/binaryen`, "none single — carried from the binaryen-ts port"
+     where no upstream file corresponds: `api/index`, `ir/binaryen-ts`, `ir/walk`, `passes/index`,
+     `wasm-runtime`, `wasm/demo_bytes`, `wasm/index`. (wabt-ts content alone adds no header: wabt-ts
+     kept its own header discipline, so its unheaded files were its own work.)
+  2. **Same name and role as an upstream component** → `Based on` it, even where written fresh in
+     binaryang: Binaryen `effects`, `wasm-opt`, `dead-argument-elimination`, `local-graph`,
+     `memory-packing`, `memory64-lowering`, `minify-imports-and-exports`, `remove-unused-types`,
+     `simplify-locals`, `branch-hints`, and the whole interpreter `src/interp/*` (with Binaryen's
+     `src/interpreter/`); wabt's command-line tools `wasm-interp`, `wasm-objdump`, `wasm-strip`,
+     `wasm-validate`, `wasm2wat`, `wat2wasm` (`src/tools/*.cc`) — those had only the MIT header.
+  3. **Neither** → original work, MIT header only — 33 files: `cli/*`, `compat/wabt-compat`,
+     `core/{custom-placement,index,linking}`, `definitions/*` (D1–D3, now spec-attested),
+     `index`, `ir/{derive-types,fidelity,index,made-up-names,memory-access,name-references,
+     phantoms,prepare,synthesize-types,text-form,wabt-ts,write-wasm}`, `passes/{converge,
+     lower-block-params,lower-custom-page-sizes,non-nullable-locals,spill-stack-values}`,
+     `reader/name-section`, `tools/{read-wat,wasm-bundle,wasm2ts,witgen}`. Several were created inside
+     the binaryen-ts SUBTREE after the merge — binaryang's own work, not inherited code.
+
+  **Result: 86 of 119 `src/` files carry an upstream header** (wabt 2016–2020, Binaryen 2015–2025,
+  each year read from the cited upstream file); `NOTICE.md`'s ranges were widened to match. A
+  rewrite that removes a file's derivation removes its header in the same commit — the rewrite
+  opportunity the owner names, deferred until the basis is shown sound.
 
 **The opcode data is the specification's, not wabt's** (2026-10-23, item 2): all 582 D1 opcodes
 are attested, opcode and name, by the WebAssembly spec and its proposal documents —

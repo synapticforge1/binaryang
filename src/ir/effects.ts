@@ -1,3 +1,8 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/ir/effects.h, src/ir/effects.cpp
+// Copyright 2017, 2024 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 

@@ -1,3 +1,8 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/passes/MinifyImportsAndExports.cpp
+// Copyright 2018 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 /**
  * @module passes/minify-imports-and-exports
  *
