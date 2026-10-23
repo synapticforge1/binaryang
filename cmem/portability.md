@@ -72,19 +72,64 @@ custom-descriptors, `memory.discard`, shared-everything-threads, and `-W stack-s
 build refuse every module) · Binaryen 133 667 (56 of its own: stringref, FP16 SIMD, …) · binaryang
 582 (= wasmrt = wazmrt) · wabt 543 (no GC, no custom descriptors).
 
-## Pass 2 — the untyped opcodes and the encoding-level features (in progress)
+## Pass 2 — the untyped opcodes and the encoding-level features (2026-10-23)
 
-The 85 entries D1 leaves untyped (control, calls, tail calls, locals / globals, tables, reference
-types, typed function references, exceptions both legacy and exnref, GC, custom descriptors) plus
-`elem.drop`, and the features that are encodings rather than opcodes (memory64, multi-memory,
-custom page sizes, extended-const, multi-value). Per the owner's engine decision, pass 2 adds REAL
-browser engines — Playwright Chromium (V8 as Chrome / Edge ship it) and WebKit (Safari's engine;
-Bun's JavaScriptCore is not the build Safari ships) — and Deno beside Node and Bun.
+76 hand-written templates covering all 84 entries D1 leaves untyped plus `elem.drop`, and the
+features that are encodings rather than opcodes (memory64 / table64, multi-memory, custom page
+sizes, extended-const, multi-value). Each returns an `i64` and states its EXPECTED outcome — a value
+or a trap (`unreachable`, a null `ref.as_non_null`, a dropped segment, an uncaught `throw`, a failed
+`ref.cast`). Every template validated by `wasm-tools`, and each checked to really contain the opcodes
+it covers (printed back and searched). Legacy-EH templates assembled by upstream `wat2wasm` (G4:
+wasm-tools cannot parse that syntax).
+
+**13 executors.** Per owner decision 1, REAL browser engines join: Playwright **Chromium 153**,
+**Firefox 155**, **WebKit 26.6** (Safari's engine — Bun's JavaScriptCore is not the build Safari
+ships), and **Deno 2.9.8** beside Node 24 and Bun 1.4.4. 🔑 **Measurement rule:** JS engines and
+browsers run at their DEFAULTS (what their users get); standalone runtimes at their MAXIMUM switches
+(an embedder chooses them) — wasmtime every `-W` proposal it has, wazero every experimental feature
+(threads, tail call, extended-const, exception handling, typed function references), WasmEdge
+`--enable-all`, wasmer its base set plus only the module's own feature flag (it refuses some flag
+COMBINATIONS outright, "no backend supports", even for a module needing none of them).
+
+**Results: every engine that ran a template produced exactly the expected value or trap; no value
+differs between engines.** (One expectation of mine was wrong — written in decimal where results are
+hex; all 13 agreed on it.) binaryang's interpreter stops cleanly on custom descriptors
+("unsupported"), as every engine refuses them anyway.
+
+### The profile across the 11 defining engines (interpreters excluded)
+
+| feature | refused by | tier |
+| --- | --- | --- |
+| core control / calls / locals / globals, multi-value, sign-ext, sat-conversions, bulk memory, reference types, tables, SIMD-128, extended-const | — | **portable** |
+| threads / atomics (pass 1) | — | **portable** |
+| exceptions, STANDARD (`try_table`, `throw`, `throw_ref`) | — | **portable** |
+| typed function references (`call_ref`, `ref.as_non_null`, `br_on_null`) | — | **portable** |
+| … `br_on_non_null` | wasmer ("only numeric types are supported") | engine-specific |
+| tail calls | wasmer ("no backend supports") | engine-specific |
+| GC (26 templates) | wasmer ("GC is not implemented yet"), wazero (both modes) | engine-specific |
+| exceptions, LEGACY (`try` / `catch` / `catch_all` / `rethrow` / `delegate`) | wasmtime, WasmEdge, wazero | **via lowering** — `TranslateToExnref` to the standard form, which is portable |
+| memory64 / table64 | wasmer, wazero | **via lowering** — `Memory64Lowering` |
+| custom page sizes | wasmer, WasmEdge, wazero, V8 ×4, SpiderMonkey, JavaScriptCore ×2 | **via lowering** — `LowerCustomPageSizes` |
+| wide-arithmetic (pass 1) | V8 ×4, WasmEdge, wasmer, wazero | **via lowering** — TO BUILD (owner decision 2) |
+| relaxed SIMD (pass 1) | wasmer, wazero; results vary elsewhere by design | **via lowering** — TO BUILD (owner decision 2) |
+| multi-memory | wazero | engine-specific (binaryang has no multi-memory lowering) |
+| custom descriptors | every engine at its defaults (V8 behind `--experimental-wasm-custom-descriptors`) | engine-specific |
+
+🔑 **What the list review turns on:** wasmer and wazero are the only engines keeping GC and tail
+calls out of the portable tier, and wazero alone multi-memory; neither GC nor tail calls has a
+practical lowering. So whether GC-language output (Kotlin, Dart, OCaml, …) is portable is exactly
+the question of whether wasmer and wazero are prevalent enough to define "portable" (owner
+decision 1). The browser builds measured are Playwright's (recent); the STABLE versions in use are
+part of that review.
 
 ## Open
 
 - **The defining engine list and its review basis** (owner decision 1): which engines, at which
   versions (the stable release in use, not a trunk build — Playwright's browsers are recent builds),
   and the prevalence data the list is reviewed against.
-- **The two lowerings** (owner decision 2), the portable target and D4 — after pass 2 fixes the
-  tiers.
+- **Whether wasmer and wazero define "portable"** — the one choice that moves GC and tail calls
+  between tiers (above).
+- **Pass 3, the trap paths of the typed opcodes** (divide by zero, out of bounds, invalid
+  conversion): pass 2 covered traps only for the untyped ones.
+- **The two lowerings** (owner decision 2), the portable target and D4.
+- binaryang's interpreter: shared memories (pass 1) and custom descriptors are unsupported.
