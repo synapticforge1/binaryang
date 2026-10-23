@@ -185,6 +185,12 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
+33. ⬚ **FL1 — upstream's feature-flag spelling is refused** (found 2026-10-23 measuring workspace
+    letter H8 / I6): `--enable-saturating-float-to-int` / `--disable-…` (upstream wabt 1.0.41 and
+    wasm-tools) is an unknown flag here; ours is `sat-float-to-int`. **Waits on the owner**, because
+    `./definitions` (D2) publishes the spelling: accept upstream's (ours as an alias is additive) and
+    decide whether D2's `cli` changes. [divergences.md](divergences.md) FL1.
+
 No defects open. (Item 32 closed 2026-10-22: our OUTPUT runs on JavaScriptCore too — Safari and
 Bun, the engine behind 34 of the 36 known Bun differences. Owner: "we should work on item 32
 first", then "Trap, as the original", then "we measure each and make the decisions based on the
