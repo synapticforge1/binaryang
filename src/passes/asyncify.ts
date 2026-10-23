@@ -1,3 +1,8 @@
+// Ported from WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/passes/Asyncify.cpp
+// Copyright 2019 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 /**
  * @module passes/asyncify
  *
