@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Licensing
+
+- **Binaryen is now attributed, as its licence requires.** binaryang ports parts of both wabt and
+  Binaryen, but `NOTICE.md` named only wabt, and no file derived from Binaryen said so. `NOTICE.md`
+  now carries both projects' notices, and each derived file names the Binaryen sources it came
+  from or was written against, with their copyright years. No code changed.
+
 ## 1.15.0
 
 A minor release: **one new optimizer pass, `SSANoMerge`**, which makes `-O3`, `-Os` and `-Oz`

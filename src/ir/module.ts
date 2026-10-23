@@ -1,3 +1,8 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/wasm.h, src/binaryen-c.h
+// Copyright 2015, 2016 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 /**
  * @module ir/module
  *

@@ -1,3 +1,8 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/passes/Precompute.cpp
+// Copyright 2016 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 /**
  * @module passes/constant-propagation
  *

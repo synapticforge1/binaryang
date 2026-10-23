@@ -1,3 +1,8 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/js/binaryen.js-post.js
+// Copyright WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 /**
  * @module compat/binaryen-compat
  *
