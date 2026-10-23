@@ -2354,6 +2354,7 @@
   "PickLoadSigns",
   "Precompute",
   "PrecomputePropagate",
+  "RelaxedSimdLowering",
   "RemoveUnusedBrs",
   "RemoveUnusedModuleElements",
   "RemoveUnusedNames",
