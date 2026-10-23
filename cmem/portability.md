@@ -179,6 +179,47 @@ prove before acting":
 **So wide-arithmetic moves to "portable via lowering", built.** Relaxed SIMD is the other lowering
 (decision 2).
 
+### The relaxed-SIMD lowering — built and proven (2026-10-23)
+
+`src/passes/relaxed-simd-lowering.ts`, `wasm-opt --relaxed-simd-lowering`. **Semantics: the spec's
+DETERMINISTIC PROFILE** (owner, 2026-10-23, "yes, I agree"): `exec/numerics.rst` — "in the
+deterministic profile, every parameter is prescribed to be 0", so `relaxed(R)[A0, …] = A0`. Read per
+operator from the spec checkout (`4441525`), prose AND SpecTec (`3.0-numerics.relaxed.spectec`,
+`3.2-numerics.vector.spectec` lines 401–405): swizzle, trunc, min / max, q15mulr → the regular
+instruction; laneselect → `bitselect`; madd / nmadd → `add(mul(±a, b), c)`, UNFUSED (the note: "the
+unfused behaviour is used"); dot → `ivdot`, both operands signed, the i16 pair sums WRAPPING; dot-add
+→ that dot, `extadd_pairwise_s`, `add c`. The dot uses its operands twice, so it is one helper.
+
+- 🔑 **wasmtime's `-W relaxed-simd-deterministic` is NOT the spec's profile** — measured on 34 edge
+  cases × 2 lanes: it FUSES madd / nmadd (8 lanes: `-2^-104` where unfused gives 0; `-inf` where
+  unfused gives NaN) and does NOT wrap the dot-add's i16 intermediate (lane 0 `8000fe01`, spec
+  `7ffffe01`); the other 15 instructions match. So the agreed oracle could not referee those five;
+  **the spec is the oracle**, through an independent TypeScript reading of it (generator in scratch,
+  ported into the committed test). WasmEdge also skips the wrap; binaryang's interpreter fuses madd
+  (R = 1 — allowed, not the profile); 🔧 **upstream wabt `wasm-interp` 1.0.41 gets dot-add wrong** on
+  all 4 cases, in NONE of the spec's allowed result sets (e.g. `ffd2b6bf005f2fce`, spec
+  `0000009100000428`) — an upstream defect, reported here only.
+- **Why it matters, measured**: the ORIGINALS on the same 68 modules match the profile on 32
+  (Firefox) to 67 (WasmEdge) — V8 37, JavaScriptCore 41, wasmtime native 42 (swizzle ≥ 16, trunc
+  NaN / overflow, mixed laneselect masks, min / max of ±0 and NaN, q15mulr saturation, the dot's
+  signedness all differ by engine) — and wasmer and wazero refuse all 68.
+- **Exact, every engine**: the 68 modules, lowered through the CLI, all validate as plain Wasm 2.0
+  (`wasm-tools validate --features=wasm2`) and match the spec on **all 17 executors — 1,156 / 1,156**
+  (wasmtime, wasmer, WasmEdge, wabt, binaryang, Node, Deno, Bun, wazero ×2, Playwright Chromium /
+  Firefox / WebKit, stock Chrome 156, Edge 155, Firefox 158, ESR 153). NaN lanes compare as any NaN
+  (the bits are not fixed off the deterministic profile).
+- **The test can fail**: `tests/binaryen-ts/passes/relaxed_simd_lowering.test.ts` (spec reference,
+  lowered run on the host engine, the original validated as REFUSED and the lowered as accepted with
+  relaxed SIMD off, binaryang's interpreter as a witness on the non-madd instructions) — **23 mutants**
+  (each opcode mapping swapped, laneselect operands reordered, nmadd's negation dropped, madd's
+  nesting changed, the dot unsigned / its masks / its high half wrong, dot-add's pairwise unsigned,
+  skipped, or subtracting c) — **all killed** on the V8 referee.
+- **Pass 1's 20 relaxed modules**, lowered: the 17 executors agree with each other and with
+  wasmtime-deterministic's result on the originals (pass 1's inputs reach neither the fused nor the
+  wrapped edge).
+
+**So relaxed SIMD moves to "portable via lowering", built.**
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
@@ -291,8 +332,8 @@ hex; all 13 agreed on it.) binaryang's interpreter stops cleanly on custom descr
 | exceptions, LEGACY (`try` / `catch` / `catch_all` / `rethrow` / `delegate`) | wasmtime, WasmEdge, wazero | **via lowering** — `TranslateToExnref` to the standard form, which is portable |
 | memory64 / table64 | wasmer, wazero | **via lowering** — `Memory64Lowering` |
 | custom page sizes | wasmer, WasmEdge, wazero, V8 ×4, SpiderMonkey, JavaScriptCore ×2 | **via lowering** — `LowerCustomPageSizes` |
-| wide-arithmetic (pass 1) | V8 ×4, WasmEdge, wasmer, wazero | **via lowering** — TO BUILD (owner decision 2) |
-| relaxed SIMD (pass 1) | wasmer, wazero; results vary elsewhere by design | **via lowering** — TO BUILD (owner decision 2) |
+| wide-arithmetic (pass 1) | V8 ×4, WasmEdge, wasmer, wazero | **via lowering** — `WideArithmeticLowering` (built 2026-10-23) |
+| relaxed SIMD (pass 1) | wasmer, wazero; results vary elsewhere by design | **via lowering** — `RelaxedSimdLowering`, the spec's deterministic profile (built 2026-10-23) |
 | multi-memory | wazero | engine-specific (binaryang has no multi-memory lowering) |
 | custom descriptors | every engine at its defaults (V8 behind `--experimental-wasm-custom-descriptors`) | engine-specific |
 

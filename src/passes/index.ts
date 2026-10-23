@@ -68,6 +68,7 @@ import './translate-eh.ts';
 import './lower-custom-page-sizes.ts';
 import './memory64-lowering.ts';
 import './wide-arithmetic-lowering.ts';
+import './relaxed-simd-lowering.ts';
 import './remove-unused-types.ts';
 import './dead-argument-elimination.ts';
 import './flatten.ts';
