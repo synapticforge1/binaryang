@@ -5,30 +5,33 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-22 UTC): 1.14.0 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@1.14.0` (Rekor `3379566195`) and npm `@synapticforge1/binaryang@1.14.0`
-(published by GitHub Actions, SLSA provenance) — § "1.14.0". Every release is recorded below,
-newest first.
-**The repo is
-`synapticforge1/binaryang` since 2026-10-20** (moved to `synapticforge`, the org then renamed to
-match the npm org: § "The move to `synapticforge`"; the JSR package name is unchanged).
+**Latest (2026-10-23 UTC): 1.15.0 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@1.15.0` (Rekor `3423023791`) and npm `@synapticforge1/binaryang@1.15.0`
+(published by GitHub Actions, SLSA provenance) — § "1.15.0". **The repo is
+`synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
+is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
+hash changed (§ "The history purge").
 
-**Current state (2026-09-29):** `@jrmarcum/binaryang@1.8.1` is latest (`rekorLogId=3007105518`,
-§ "1.8.1" below); `main` = the release plus cmem only. **The release pattern is SETTLED** — merge
-unbumped, gate, set the version (a patch by `deno task bump`, a minor by hand — since 2026-10-22
-`bun run bump minor`), `deno task release`
-(tag and branch in one push), CI publishes; a patch while `main` holds unreleased work goes from a
-branch cut from the last tag (§ "1.6.1"). ✅ **`RELEASE_PAT` — CLOSED as not needed (owner,
-2026-09-29):** the pattern always pushes the tag itself, the path that has published unaided 8 of 8;
-the PAT only fixes the `auto-tag` → dispatch path, which the pattern never takes. That path is
-reached only by pushing a bumped `main` without its tag, and fails loudly (`actorNotScopeMember`);
-§ "Recovery when this happens" applies. The sections below that call the PAT open predate this.
+**The release pattern — SETTLED; read this before any section below** (re-stated 2026-10-23, drift
+B3):
 
-✅ **The B6 / B7 workflow is PROVEN** (2026-10-13): 1.11.0, its first release, published GREEN with
-provenance (Rekor `3247643457`); § "1.11.0" below.
+1. `CHANGELOG.md` § X.Y.Z on a `release/X.Y.Z` branch, gated on the committed tree, merged
+   `--no-ff`; `main` pushed UNBUMPED; CI and auto-tag green.
+2. The CI half of the gate from a FRESH CLONE from GitHub of that commit.
+3. No tag and neither registry has X.Y.Z; `bun run bump [patch|minor|major]` (the level is the
+   owner's call); `version_sync` green.
+4. `bun run release` — its guards, then `bump to vX.Y.Z`, `main` + tag in ONE push as a user;
+   `publish.yml` publishes to JSR, then npm.
+5. Read both registries back (Rekor id on JSR, the attestation on npm), run the package as a user
+   from each, record it here as § X.Y.Z, newest first.
 
-The sections below are in the order they were found, so a later one can narrow an earlier one — the
-last section, "The tag-push path works unaided", narrows the manual-step warnings above it.
+A patch while `main` holds unreleased work goes from a branch cut from the last tag (§ "1.6.1").
+The pattern never dispatches, so `RELEASE_PAT` is closed as not needed (owner, 2026-09-29) — § "The
+auto-tag dispatch path does not publish".
+
+The sections below this one are in the order they were found (the provenance half, then the
+release-process half from § "The release process"), followed by every release, newest first. A
+later section can narrow an earlier one; where they differ, the pattern above is current.
 
 ## 🆕 npm as a SECOND registry — a PARKED contingency (owner, 2026-10-13; open-work 29)
 
@@ -259,17 +262,38 @@ Read from the JSR API across the scope. This is the useful part, because it show
 Two things follow that neither project had established:
 
 🆕 **Provenance works on this account and scope right now.** Two packages were attested on
-2026-08-25 and 2026-08-26. Whatever broke wasmtk is not a global JSR or GitHub change — which is the
-leading hypothesis in `wasmtk/cmem/design-decisions.md` ("remaining suspects: JSR-side or
-GitHub-side changes in the 2026-07-03 → 07-09 window"). That window is refuted by these dates, and
-it is worth telling them, because it is an open investigation that has already ruled out the Deno
-version.
+2026-08-25 and 2026-08-26.
+
+🔧 **CORRECTED 2026-10-23 (drift B7) — the next claim was WRONG, and was never sent.** It read:
+_"Whatever broke wasmtk is not a global JSR or GitHub change … That window is refuted by these
+dates"_ — but the dates were 2026-08-25/26, AFTER the window, so they could not refute it. Measured
+2026-10-23, every version of the five `@jrmarcum` packages, 2026-06-01 → 09-01, from JSR's version
+API (one-time scratch script, `rekorLogId` per version):
+
+| span (UTC)              | published in the scope                                         | provenance          |
+| ----------------------- | -------------------------------------------------------------- | ------------------- |
+| 06-02 → 06-07           | wabt-ts 1.3.1–1.3.2, binaryen-ts 1.3.3, wasmtk 1.6.2–1.6.4     | all attested        |
+| **06-10 00:02 → 06-11** | **binaryen-ts 1.3.5, wabt-ts 1.3.3, wasmtk 1.6.5**             | **none — all three** |
+| 06-15 → **07-03 03:52** | wasmtk 1.7.0–1.11.2, loader 1.0.7–1.0.8, wabt-ts 1.3.4–1.3.5   | all attested        |
+| **07-08 00:36 → 07-30** | **binaryen-ts 1.3.6–1.4.3 (7), wasmtk 1.11.3–2.0.0 (10)**      | **none — 17 of 17** |
+| 07-31 → 08-24           | nothing published                                              | —                   |
+| 08-25 → 08-31           | wabt-ts, binaryen-ts, binaryang 1.5.1–1.5.3, wasmtk 2.0.1–2.0.2 | all attested        |
+
+So the scope-wide record SUPPORTS wasmtk's window: **both outages hit every package that published
+in them, and nothing in either repo explains the start or the end** — the start falls between
+07-03 03:52 and 07-08 00:36, the end somewhere between 07-30 22:26 and 08-25 00:06 (nothing
+published in between). Binaryen-ts's "month-long tail" below was not a second cause either: it is
+the same outage, seen through a package that kept publishing into it. What is NOT shown: which
+side (JSR, GitHub OIDC, Sigstore) — only that it was outside the repos. 🔑 A task's premise is not
+evidence: workspace letter H5 asked us to SEND this note ("your measurements refute"); measuring
+before sending reversed it ([handoffs.md](handoffs.md) § 41, the corrected letter).
 
 🆕 **Both siblings lost provenance on the same day — 2026-06-10.** wabt-ts at 1.3.3 and binaryen-ts
-at 1.3.5. wabt-ts recovered on its next release; binaryen-ts stayed dark for a month. A shared
-single-day failure across two independent repos reads as transient infrastructure, not configuration
-— and binaryen-ts's month-long tail then looks like nobody re-checked, rather than like a second
-cause.
+at 1.3.5 (and wasmtk 1.6.5 the next day — table above). wabt-ts recovered on its next release;
+binaryen-ts stayed dark for a month. A shared single-day failure across independent repos reads as
+transient infrastructure, not configuration. (🔧 2026-10-23: binaryen-ts's "month" was two
+outages, not one tail — it published nothing between 06-10 and 07-08, and its July versions fell
+inside the second outage, as wasmtk's did.)
 
 ## `--allow-slow-types` was removed
 
@@ -428,66 +452,60 @@ next person hunting a problem that is not there.
 being recorded. `updatedAt == createdAt` means either not-yet-attested or never-attested, and only a
 cache-busted read distinguishes them.
 
-## 🚨 The auto-tag dispatch path does NOT publish — 3 of 3
+## The auto-tag dispatch path does not publish — its cause, and the recovery
 
-_Superseded by the ROOT CAUSE section below, which explains every row. Kept because the
-correlation-that-became-a-resting-place is itself the lesson ([best-practices.md](best-practices.md)
-§ "When two paths to the same action disagree")._
+Summarized 2026-10-23 (drift B3) from three sections written as they were found — "3 of 3", "The
+fix: `RELEASE_PAT`" and "ROOT CAUSE" (2026-08-26 / 27); full text: `git show
+b51af1c64:cmem/publishing.md`, lines 431–573.
 
-Measured across three releases of three packages:
-
-| trigger                                            | outcome                                                                                                                  |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `workflow_dispatch` (auto-tag's `gh workflow run`) | **failed at `deno publish`** — binaryen-ts, wabt-ts, binaryang 1.5.2, **and 1.5.3** — 4 of 4. **Cause found, see below** |
-| `push: tags` (tag pushed by a user)                | **succeeded** — 5 of 5 across all three packages                                                                         |
-
-⚠️ **This is no longer a correlation with one plausible confound.** The first two failures were the
-same day inside a four-minute window, which a transient registry-side fault would explain. The third
-is a different package, hours later, on a workflow that had since gained an OIDC diagnostic — and
-that diagnostic emitted **no warning**, so the token was present. Nothing published on any of the
-three; each died at `deno publish` with only `exit code 1`, and the Actions logs endpoint is 403
-unauthenticated so the reason is still unrecovered.
-
-**Practical consequence: the documented release flow does not work.** _Merge to main → auto-tag →
-dispatch → publish_ fails at the last step, every time so far. The reliable sequence is:
+**The cause:** JSR authorises the OIDC token's ACTOR. `auto-tag` pushes its tag with
+`GITHUB_TOKEN`, which GitHub's recursion guard stops from firing `publish.yml`, so it DISPATCHES
+`publish.yml` instead — and a dispatched run's actor is `github-actions[bot]`, not a member of the
+`@jrmarcum` scope:
 
 ```
-merge (unbumped) -> push -> verify -> bump -> push        # auto-tag creates the tag; publish FAILS
-git push origin :refs/tags/vX.Y.Z && git push origin vX.Y.Z   # re-push it; publish SUCCEEDS
+error: Failed to publish @jrmarcum/binaryang@1.5.3
+Caused by:
+    The actor that this request was authenticated for is not authorized as a
+    scope member for this scope. (actorNotScopeMember)
 ```
 
-The tag `auto-tag` creates is correct — only the dispatch fails — so deleting and re-pushing that
-same tag is enough, and costs one red run in the history.
+One field of the runs API explained every observation: every dispatched run (`workflow_dispatch`,
+actor the bot) failed — binaryen-ts, wabt-ts, binaryang 1.5.2 and 1.5.3, then 1.9.0 and 1.10.0, when
+a bumped `main` was pushed without its tag — and every tag pushed by a person (`push`, actor
+`jrmarcum`) succeeded. Provenance was never the variable: the publish was rejected at
+authorisation.
 
-**The real fix is to remove the dispatch.** `auto-tag` only calls `gh workflow run` because a tag
-pushed by `GITHUB_TOKEN` cannot trigger a workflow (GitHub's recursion guard). Pushing that tag with
-a PAT or deploy key would fire `publish.yml` through `push: tags` — the path with a 5-of-5 record —
-and delete the failing step entirely.
+**The decision:** the release path never dispatches. `bun run release` pushes `main` and the tag
+together, as a user, so `auto-tag` finds the tag already there and does nothing. Every release has
+been published by a tag a user pushed — unaided since 1.5.4 (§ "The tag-push path works unaided"),
+and for 1.9.0 and 1.10.0 by re-pushing the tag after the dispatch failed. **`RELEASE_PAT` is NOT set — closed as not needed (owner, 2026-09-29)**;
+`auto-tag.yml` still reads it, so setting one later would route its tag push through `push: tags`.
+If ever set, it must belong to a JSR scope member, or the tag would push and the publish fail the
+same way. A reusable workflow (`workflow_call`) was rejected because it changes the OIDC claim
+shape JSR attests, testable only by burning a version.
 
-### The fix: `RELEASE_PAT`
+**Recovery, when a bumped `main` reaches GitHub without its tag** (auto-tag then tags it and the
+dispatch fails): nothing was published, so nothing is burnt. Re-push the same tag from a
+workstation, where the pusher is a real user:
 
-`auto-tag` now checks out with `token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}`. The
-token checkout stores is the one `git push` later uses, and that is what decides whether the tag
-push triggers `publish.yml`.
+```sh
+git push origin :refs/tags/vX.Y.Z
+git tag -a vX.Y.Z -m "vX.Y.Z" HEAD
+git push origin vX.Y.Z          # actor = a scope member -> push:tags -> publishes
+```
 
-- **With `RELEASE_PAT` set** — the tag push is attributed to that identity, fires `publish.yml`
-  through `on: push: tags`, and the dispatch step is skipped entirely. That is the path with a
-  **5-of-5** record.
-- **Without it** — the dispatch fallback runs, emits a `::warning::` naming the cause, and prints
-  the two-command manual recovery. Nothing changes for the worse; the repo still behaves as it did.
+Executed for 1.5.3: same commit, same YAML, only the actor different — `event=push`,
+`conclusion=success`, provenance recorded (`rekorLogId=2620472173`).
 
-🔓 **Setup, one time, owner action:** create a fine-grained PAT with **Contents: read and write** on
-this repository, and add it as the repository secret `RELEASE_PAT`. Nothing else needs changing.
+Kept as lessons:
 
-⚠️ **Implementation note worth keeping:** the `secrets` context is not dependably available in a
-step-level `if:`, so the presence of the PAT is turned into a plain step output (`yes`/`no`) and the
-conditions gate on that. Writing `if: secrets.RELEASE_PAT != ''` looks correct and can silently
-evaluate the wrong way. The secret's value is never echoed — only its name appears, in messages.
-
-**Why a PAT and not a reusable workflow.** Converting `publish.yml` to `workflow_call` and invoking
-it from `auto-tag` would avoid the PAT, but it changes the OIDC claim shape that JSR attests against
-— and provenance can only be tested by publishing, burning a version number per attempt. The PAT
-routes the release through the exact trigger that already works, so it risks nothing.
+- **A correlation can become a resting place.** "Dispatch fails, tag push works" was treated as an
+  unexplained pattern across four failures before one field named the mechanism
+  ([best-practices.md](best-practices.md) § "When two paths to the same action disagree").
+- **`secrets` is not dependably readable in a step-level `if:`.** `auto-tag.yml` turns the PAT's
+  presence into a step output (`yes` / `no`, never the value) and gates on that;
+  `if: secrets.RELEASE_PAT != ''` looks right and can evaluate the wrong way.
 
 ## The verification step was tested against both sides
 
@@ -501,75 +519,6 @@ Not assumed to work. Its logic was run against four real published versions befo
 | `wasmtk@2.0.0`      | FAIL — no provenance    |
 
 A check that has only ever been seen to pass is a claim, not a gate.
-
----
-
-## 🚨 ROOT CAUSE of the `workflow_dispatch` publish failures — found 2026-08-27
-
-It was never flakiness, and it was never the YAML. The 1.5.3 attempt returned a real error instead
-of a bare `exit code 1`:
-
-```
-error: Failed to publish @jrmarcum/binaryang@1.5.3
-Caused by:
-    The actor that this request was authenticated for is not authorized as a
-    scope member for this scope. (actorNotScopeMember)
-```
-
-**JSR authorises the OIDC token's ACTOR, and on a dispatched run the actor is
-`github-actions[bot]`** — which is not a member of the `@jrmarcum` scope. Confirmed directly against
-the runs API:
-
-| workflow                | event               | actor                     | result     |
-| ----------------------- | ------------------- | ------------------------- | ---------- |
-| Publish to JSR (v1.5.3) | `workflow_dispatch` | **`github-actions[bot]`** | ❌ failure |
-| every other run         | `push`              | `jrmarcum`                | ✅ success |
-
-That single column explains **5 of 5 versus 0 of 4** completely. A tag pushed by a person carries
-actor `jrmarcum`, who is a scope member; a workflow dispatched by `auto-tag` using `GITHUB_TOKEN`
-carries the bot, who is not.
-
-### What this retires
-
-The register said _"treat this as a correlation, not a cause — one dispatch run per repo, in a
-four-minute window, with no OIDC diagnostic in place."_ That caution was correct at the time and is
-now **spent**: there is a mechanism, it is checkable in one API field, and it predicts every
-observation.
-
-It also retires the idea that provenance was ever the variable. Provenance never got a chance to
-fail — the publish was rejected at authorisation.
-
-### Why `RELEASE_PAT` is the fix, and not a stylistic preference
-
-`auto-tag` checks out with `token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}`. With the PAT
-present, the tag is pushed **as its owner**, so `publish.yml` fires on `push: tags` with actor
-`jrmarcum` — a scope member. Without it, the tag is pushed by `GITHUB_TOKEN`, GitHub's recursion
-guard suppresses the tag event, `auto-tag` falls back to dispatching, and the dispatch runs as the
-bot and is rejected.
-
-⚠️ **The 1.5.3 failure is proof the secret is not set.** The fallback is doing exactly what it was
-designed to do — warn and try anyway — and the attempt cannot succeed.
-
-**The PAT must belong to a JSR scope member.** A fine-grained PAT with Contents: read/write, owned
-by `jrmarcum`. A PAT from a non-member account would push the tag successfully and fail publish the
-same way.
-
-### Recovery when this happens
-
-Nothing is published, so nothing is burnt — a JSR version is only immutable once it exists. Delete
-the remote tag and re-push it from a workstation, where the pusher is a real user:
-
-```sh
-git push origin :refs/tags/vX.Y.Z
-git tag -a vX.Y.Z -m "vX.Y.Z" HEAD
-git push origin vX.Y.Z          # actor = jrmarcum -> push:tags -> publishes
-```
-
-✅ **The recovery was executed for 1.5.3 and worked, which confirms the mechanism rather than merely
-the fix.** The re-pushed tag produced `event=push`, `actor=jrmarcum`, `conclusion=success`, and
-`1.5.3` landed on JSR with provenance (`rekorLogId=2620472173`, `createdAt`→`updatedAt` four seconds
-apart). Same commit, same workflow, same YAML as the run that failed minutes earlier — only the
-actor differed.
 
 ---
 
@@ -656,7 +605,7 @@ The tag push fires `publish.yml`, which verifies the tag matches `jsr.json`, run
 spawns a subprocess and loses OIDC — and finally creates a GitHub Release.
 
 ⚠️ **A DISPATCHED release needs a manual step**, because `RELEASE_PAT` is not set (and will not
-be — closed as not needed, 2026-09-29: this flow never dispatches). See the root-cause section above. 🔧 This first said "a release currently needs a manual step"; 1.5.4
+be — closed as not needed, 2026-09-29: this flow never dispatches). See § "The auto-tag dispatch path does not publish" above. 🔧 This first said "a release currently needs a manual step"; 1.5.4
 narrowed it — see "The tag-push path works unaided" at the end of this file.
 
 ## Version rule — sub-version capped at 9
