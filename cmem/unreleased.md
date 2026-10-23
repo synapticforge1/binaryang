@@ -66,6 +66,13 @@ contains ([handoffs.md](handoffs.md)).
   no default pipeline includes it; no other output moves. The gate's floor: MINOR. README §
   "Making a module run without relaxed SIMD". [portability.md](portability.md) § "The relaxed-SIMD
   lowering".
+- **NEW — `wasm-opt --target portable`** (`target` option; `TargetError` / `TargetFinding` exported
+  from `./tools/wasm-opt`) and **D4** in `./definitions` (`PROFILE_DEFINITIONS`,
+  `profileDefinition`, the `Profile*` types, `profiles.json`): open-work 34. Opt-in; without a
+  target no output moves. `data.ts`'s generated header now says `bun run definitions`. The gate's
+  floor: MINOR (exports added). [portability.md](portability.md) § "The portable target".
+- **README corrections**: wide arithmetic does NOT run on Safari's engine (measured: WebKit 26.6
+  refuses it); `./definitions` listed among the imports.
 - **README correction**: multi-memory runs on Bun's JavaScriptCore but ships in Safari only as
   Technology Preview (MDN browser-compat-data 8.1.7).
 

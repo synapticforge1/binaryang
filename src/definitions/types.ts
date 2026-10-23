@@ -89,3 +89,43 @@ export interface FeatureDefinitions extends DefinitionHeader {
 export interface VerdictDefinitions extends DefinitionHeader {
   entries: VerdictDefinition[];
 }
+
+/** A tier of a portability profile (D4). */
+export type ProfileTier = 'portable' | 'lowered' | 'excluded';
+
+/** One engine that defines a profile (D4). */
+export interface ProfileEngine {
+  name: string;
+  kind: string;
+  /** The build measured. */
+  build: string;
+}
+
+/** A feature's or an instruction's place in a profile (D4). */
+export interface ProfileTierEntry {
+  tier: ProfileTier;
+  /** The pass that lowers it, for tier `lowered`. */
+  pass?: string;
+  /** The defining engines measured refusing it. */
+  refusedBy: string[];
+  /** How many probe modules exercised it. */
+  probes: number;
+  note?: string;
+}
+
+/** One portability profile (D4). */
+export interface ProfileDefinition {
+  /** As `wasm-opt --target <name>` takes it. */
+  name: string;
+  /** When the engines were measured. */
+  measured: string;
+  engines: ProfileEngine[];
+  /** One per D2 feature. */
+  features: (ProfileTierEntry & { feature: string })[];
+  /** Instructions whose tier differs from their feature's, by D1 name. */
+  opcodes: (ProfileTierEntry & { name: string })[];
+}
+
+export interface ProfileDefinitions extends DefinitionHeader {
+  entries: ProfileDefinition[];
+}

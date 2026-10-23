@@ -1,0 +1,221 @@
+{
+  "definition": "D4",
+  "title": "Portability profiles: what the widely used WebAssembly engines run, measured",
+  "dataVersion": "1.0.0",
+  "sha256": "2d51a88e98d3ecc3cb5029a9f1157878abc72fa1364ff8b3c017221cc370c3a1",
+  "rules": {
+    "name": "The profile's name, as `wasm-opt --target <name>` takes it.",
+    "measured": "The date the engines were measured (UTC). The tiers are a claim with that date: an engine that catches up moves a feature only when it is measured again.",
+    "engines": "The DEFINING engines (owner decision 1 of binaryang's open-work 34: the most widely used, by browser and runtime use), each with the build measured. Standalone runtimes are measured at their maximum switches (an embedder chooses them); JavaScript engines and browsers at their defaults (what their users get). Interpreters are reported, not defining.",
+    "features": "One entry per D2 feature. tier: portable (every defining engine ran it) · lowered (some refused it; `pass` rewrites it into portable instructions, the same behaviour) · excluded (some refused it and nothing lowers it). A module NEEDS a feature when it is invalid with that feature off and every other on.",
+    "opcodes": "Instructions whose tier differs from their D2 feature's: a portable feature can hold an instruction an engine refuses. Named by D1 `name`.",
+    "refusedBy": "The defining engines measured refusing at least one probe module of the feature or instruction. Empty: none refused.",
+    "probes": "How many probe modules exercised it; 0: no binary form binaryang reads or writes, so nothing to measure (see `note`)."
+  },
+  "entries": [
+    {
+      "name": "portable",
+      "measured": "2026-10-23",
+      "engines": [
+        { "name": "wasmtime", "kind": "runtime", "build": "50.0.0" },
+        { "name": "wasmer", "kind": "runtime", "build": "7.5.0" },
+        { "name": "wasmedge", "kind": "runtime", "build": "0.18.1" },
+        { "name": "wazero", "kind": "runtime", "build": "1.12.0, compiler and interpreter" },
+        { "name": "node", "kind": "JavaScript (V8)", "build": "24.21.0" },
+        { "name": "deno", "kind": "JavaScript (V8)", "build": "2.9.8" },
+        { "name": "bun", "kind": "JavaScript (JavaScriptCore)", "build": "1.4.4" },
+        { "name": "chromium", "kind": "browser engine (V8)", "build": "Playwright Chromium 153" },
+        {
+          "name": "firefox",
+          "kind": "browser engine (SpiderMonkey)",
+          "build": "Playwright Firefox 155"
+        },
+        {
+          "name": "webkit",
+          "kind": "browser engine (JavaScriptCore, Safari's)",
+          "build": "Playwright WebKit 26.6"
+        },
+        { "name": "chrome", "kind": "browser", "build": "Chrome 156, stock" },
+        { "name": "edge", "kind": "browser", "build": "Edge 155, stock" },
+        { "name": "firefox-release", "kind": "browser", "build": "Firefox 158, stock" },
+        { "name": "firefox-esr", "kind": "browser", "build": "Firefox ESR 153, stock" }
+      ],
+      "features": [
+        {
+          "feature": "exceptions",
+          "tier": "portable",
+          "refusedBy": [],
+          "probes": 7,
+          "note": "The standard form (try_table, throw, throw_ref). The legacy instructions are in `opcodes`."
+        },
+        { "feature": "mutableGlobals", "tier": "portable", "refusedBy": [], "probes": 1 },
+        { "feature": "satFloatToInt", "tier": "portable", "refusedBy": [], "probes": 24 },
+        { "feature": "signExtension", "tier": "portable", "refusedBy": [], "probes": 5 },
+        { "feature": "simd", "tier": "portable", "refusedBy": [], "probes": 258 },
+        {
+          "feature": "threads",
+          "tier": "portable",
+          "refusedBy": [],
+          "probes": 181,
+          "note": "Chrome and Edge refuse a BLOCKING memory.atomic.wait on a page's main thread: a browser policy, not the engine."
+        },
+        {
+          "feature": "functionReferences",
+          "tier": "portable",
+          "refusedBy": [],
+          "probes": 5,
+          "note": "br_on_non_null excepted: see `opcodes`."
+        },
+        { "feature": "multiValue", "tier": "portable", "refusedBy": [], "probes": 1 },
+        { "feature": "tailCall", "tier": "excluded", "refusedBy": ["wasmer"], "probes": 3 },
+        { "feature": "bulkMemory", "tier": "portable", "refusedBy": [], "probes": 14 },
+        { "feature": "referenceTypes", "tier": "portable", "refusedBy": [], "probes": 8 },
+        {
+          "feature": "annotations",
+          "tier": "portable",
+          "refusedBy": [],
+          "probes": 0,
+          "note": "Text format only: a binary module never needs it."
+        },
+        {
+          "feature": "codeMetadata",
+          "tier": "portable",
+          "refusedBy": [],
+          "probes": 1,
+          "note": "A custom section (branch hints)."
+        },
+        { "feature": "gc", "tier": "excluded", "refusedBy": ["wasmer", "wazero"], "probes": 26 },
+        {
+          "feature": "memory64",
+          "tier": "lowered",
+          "pass": "Memory64Lowering",
+          "refusedBy": ["bun", "wasmer", "wazero"],
+          "probes": 2,
+          "note": "Tables too (table64). Safari ships it only in Technology Preview (MDN browser-compat-data 8.1.7)."
+        },
+        {
+          "feature": "multiMemory",
+          "tier": "excluded",
+          "refusedBy": ["wazero"],
+          "probes": 1,
+          "note": "Safari ships it only in Technology Preview (MDN browser-compat-data 8.1.7)."
+        },
+        { "feature": "extendedConst", "tier": "portable", "refusedBy": [], "probes": 1 },
+        {
+          "feature": "relaxedSimd",
+          "tier": "lowered",
+          "pass": "RelaxedSimdLowering",
+          "refusedBy": ["wasmer", "wazero"],
+          "probes": 40,
+          "note": "Lowered to the specification's deterministic profile, the same result on every engine; where engines run the original, results differ by hardware. Safari ships it only in Technology Preview (MDN browser-compat-data 8.1.7)."
+        },
+        {
+          "feature": "customPageSizes",
+          "tier": "lowered",
+          "pass": "LowerCustomPageSizes",
+          "refusedBy": [
+            "bun",
+            "chrome",
+            "chromium",
+            "deno",
+            "edge",
+            "firefox",
+            "firefox-esr",
+            "firefox-release",
+            "node",
+            "wasmedge",
+            "wasmer",
+            "wazero",
+            "webkit"
+          ],
+          "probes": 1
+        },
+        {
+          "feature": "compactImports",
+          "tier": "excluded",
+          "refusedBy": [],
+          "probes": 0,
+          "note": "binaryang cannot read it (the flag is declared, not implemented); V8 needs --experimental-wasm-compact-imports."
+        },
+        {
+          "feature": "wideArithmetic",
+          "tier": "lowered",
+          "pass": "WideArithmeticLowering",
+          "refusedBy": [
+            "chrome",
+            "chromium",
+            "deno",
+            "edge",
+            "firefox-esr",
+            "node",
+            "wasmedge",
+            "wasmer",
+            "wazero",
+            "webkit"
+          ],
+          "probes": 8
+        },
+        {
+          "feature": "customDescriptors",
+          "tier": "excluded",
+          "refusedBy": [
+            "bun",
+            "chrome",
+            "chromium",
+            "deno",
+            "edge",
+            "firefox",
+            "firefox-esr",
+            "firefox-release",
+            "node",
+            "wasmedge",
+            "wasmer",
+            "wasmtime",
+            "wazero",
+            "webkit"
+          ],
+          "probes": 4
+        }
+      ],
+      "opcodes": [
+        { "name": "br_on_non_null", "tier": "excluded", "refusedBy": ["wasmer"], "probes": 1 },
+        {
+          "name": "try",
+          "tier": "lowered",
+          "pass": "TranslateToExnref",
+          "refusedBy": ["wasmedge", "wasmtime", "wazero"],
+          "probes": 4,
+          "note": "Legacy exception handling, with catch, catch_all, rethrow and delegate: lowered to the standard form."
+        },
+        {
+          "name": "catch",
+          "tier": "lowered",
+          "pass": "TranslateToExnref",
+          "refusedBy": ["wasmedge", "wasmtime", "wazero"],
+          "probes": 3
+        },
+        {
+          "name": "catch_all",
+          "tier": "lowered",
+          "pass": "TranslateToExnref",
+          "refusedBy": ["wasmedge", "wasmtime", "wazero"],
+          "probes": 1
+        },
+        {
+          "name": "rethrow",
+          "tier": "lowered",
+          "pass": "TranslateToExnref",
+          "refusedBy": ["wasmedge", "wasmtime", "wazero"],
+          "probes": 1
+        },
+        {
+          "name": "delegate",
+          "tier": "lowered",
+          "pass": "TranslateToExnref",
+          "refusedBy": ["wasmedge", "wasmtime", "wazero"],
+          "probes": 1
+        }
+      ]
+    }
+  ]
+}
