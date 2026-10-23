@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>binaryang IR Map</title>
+<!--
+  A snapshot of src/ir, not generated: every number on this page carries the commit it was read at.
+  Re-derive before quoting one (cmem/INDEX.md), and update the page when src/ir's layout changes.
+  The fonts are optional; offline it falls back to system faces.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a drafting sheet. One column of plates, each plate one view of the IR:
+   route → record tree → file layers → expression kinds → who uses it. */
+:root {
+  --paper: #f3f5f7;
+  --plate: #ffffff;
+  --ink: #17202b;
+  --ink-2: #4a5666;
+  --rule: #d5dbe3;
+  --shared: #2f5d8a;       /* shared tree, reader, encoder */
+  --shared-bg: #e6eef6;
+  --fid: #a1531c;          /* fidelity verb set */
+  --fid-bg: #f8ebe0;
+  --opt: #1f7a5c;          /* optimization verb set */
+  --opt-bg: #e2f2ea;
+  --ext: #6b6f80;          /* outside src/ir */
+  --ext-bg: #eceef3;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10151c; --plate: #171e27; --ink: #e4e9ef; --ink-2: #9ba8b8; --rule: #2c3643;
+    --shared: #82b2e0; --shared-bg: #1b2a3a; --fid: #e7a06a; --fid-bg: #33241a;
+    --opt: #6cc9a3; --opt-bg: #17302a; --ext: #a3a8b8; --ext-bg: #232a35;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10151c; --plate: #171e27; --ink: #e4e9ef; --ink-2: #9ba8b8; --rule: #2c3643;
+  --shared: #82b2e0; --shared-bg: #1b2a3a; --fid: #e7a06a; --fid-bg: #33241a;
+  --opt: #6cc9a3; --opt-bg: #17302a; --ext: #a3a8b8; --ext-bg: #232a35;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+a { color: inherit; text-decoration-color: var(--rule); text-underline-offset: 2px; }
+a:hover { text-decoration-color: currentColor; }
+body {
+  margin: 0;
+  background: var(--paper); color: var(--ink); font-family: var(--f-body);
+  font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.sheet { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h1 { font-size: 2.3rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
+h2 { font-size: 1.35rem; font-weight: 600; }
+h3 { font-size: 1rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--f-mono); font-size: 0.84em; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.muted { color: var(--ink-2); }
+.num { font-variant-numeric: tabular-nums; }
+
+header.title { display: grid; gap: 10px; padding-bottom: 18px; border-bottom: 2px solid var(--ink); }
+.stamp { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--f-mono); font-size: 0.78rem; color: var(--ink-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.85rem; }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 14px; border-radius: 3px; border: 2px solid; }
+.sw.shared { background: var(--shared-bg); border-color: var(--shared); }
+.sw.fid { background: var(--fid-bg); border-color: var(--fid); }
+.sw.opt { background: var(--opt-bg); border-color: var(--opt); }
+.sw.ext { background: var(--ext-bg); border-color: var(--ext); border-style: dashed; }
+
+section.plate { background: var(--plate); border: 1px solid var(--rule); border-radius: 6px; padding: 22px; display: grid; gap: 16px; min-width: 0; }
+.plate-head { display: grid; gap: 4px; }
+
+/* Route diagram */
+.route { display: grid; gap: 10px; }
+.stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.box { border: 2px solid; border-radius: 5px; padding: 10px 12px; display: grid; gap: 4px; min-width: 0; }
+.box .mono { overflow-wrap: anywhere; }
+.box.shared { border-color: var(--shared); background: var(--shared-bg); }
+.box.fid { border-color: var(--fid); background: var(--fid-bg); }
+.box.opt { border-color: var(--opt); background: var(--opt-bg); }
+.box.ext { border-color: var(--ext); background: var(--ext-bg); border-style: dashed; }
+.box b { font-family: var(--f-display); font-weight: 600; font-size: 0.98rem; }
+.box small { color: var(--ink-2); font-size: 0.8rem; line-height: 1.4; }
+.arrow { text-align: center; font-family: var(--f-mono); color: var(--ink-2); font-size: 0.8rem; }
+.lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.lane { display: grid; gap: 8px; align-content: start; padding: 12px; border-radius: 6px; border: 1px dashed var(--rule); min-width: 0; }
+.lane-title { font-family: var(--f-display); font-weight: 600; font-size: 0.95rem; }
+.lane.fid .lane-title { color: var(--fid); }
+.lane.opt .lane-title { color: var(--opt); }
+
+/* Record tree */
+.tree { font-family: var(--f-mono); font-size: 0.82rem; line-height: 1.7; overflow-x: auto; padding: 14px 16px; background: var(--paper); border-radius: 5px; border: 1px solid var(--rule); white-space: pre; }
+.tree .t { color: var(--shared); font-weight: 500; }
+.tree .f { color: var(--fid); }
+.tree .o { color: var(--opt); }
+.tree .c { color: var(--ink-2); }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.note { border-left: 3px solid var(--rule); padding: 2px 0 2px 12px; font-size: 0.88rem; display: grid; gap: 2px; }
+.note.shared { border-color: var(--shared); }
+.note.fid { border-color: var(--fid); }
+.note.opt { border-color: var(--opt); }
+
+/* File layers */
+.layers { display: grid; gap: 14px; }
+.layer { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: start; }
+.layer-label { display: grid; gap: 2px; padding-top: 4px; }
+.layer-label .eyebrow { color: var(--ink); font-weight: 500; }
+.files { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; min-width: 0; }
+.file { border: 1px solid var(--rule); border-top: 3px solid; border-radius: 4px; padding: 8px 10px; display: grid; gap: 3px; background: var(--plate); min-width: 0; }
+.file.shared { border-top-color: var(--shared); }
+.file.fid { border-top-color: var(--fid); }
+.file.opt { border-top-color: var(--opt); }
+.file.barrel { border-top-color: var(--ext); border-style: dashed; border-top-style: solid; }
+.file-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.file-head .mono { font-weight: 500; font-size: 0.82rem; overflow-wrap: anywhere; }
+.loc { font-family: var(--f-mono); font-size: 0.72rem; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.file p { font-size: 0.82rem; color: var(--ink-2); line-height: 1.4; }
+.users { font-family: var(--f-mono); font-size: 0.7rem; color: var(--ink-2); }
+.users span { color: var(--ink); }
+
+/* Kinds */
+.kinds { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.fam { border: 1px solid var(--rule); border-radius: 5px; padding: 10px 12px; display: grid; gap: 6px; align-content: start; }
+.fam-head { display: flex; justify-content: space-between; align-items: baseline; }
+.fam-head .loc { font-size: 0.78rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-family: var(--f-mono); font-size: 0.72rem; padding: 1px 6px; border-radius: 3px; background: var(--shared-bg); color: var(--ink); }
+.chip.only { background: var(--opt-bg); outline: 1px solid var(--opt); }
+
+/* Consumers bar */
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: 90px 1fr 34px; gap: 10px; align-items: center; font-size: 0.85rem; }
+.bar .track { height: 12px; background: var(--paper); border-radius: 2px; overflow: hidden; border: 1px solid var(--rule); }
+.bar .fill { height: 100%; background: var(--shared); }
+.bar .fill.opt { background: var(--opt); }
+.bar .n { font-family: var(--f-mono); font-size: 0.8rem; text-align: right; font-variant-numeric: tabular-nums; }
+
+table.status { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+.table-wrap { overflow-x: auto; }
+table.status th, table.status td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+table.status th { font-family: var(--f-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); font-weight: 500; }
+.ok { color: var(--opt); font-weight: 600; }
+
+footer { font-size: 0.8rem; color: var(--ink-2); display: grid; gap: 4px; }
+
+@media (max-width: 720px) {
+  .lanes { grid-template-columns: 1fr; }
+  .layer { grid-template-columns: 1fr; gap: 6px; }
+  h1 { font-size: 1.8rem; }
+  section.plate { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="sheet">
+
+<header class="title">
+  <div class="eyebrow">binaryang · src/ir · as of 2026-10-23</div>
+  <h1>binaryang IR Map</h1>
+  <p>One tree, two verb sets. The reader and the encoder are shared; the fidelity operations and the optimizer passes are separate sets of functions over the same <code>Module</code>. Fidelity data lives beside the tree, keyed by node id, and the optimizer drops it.</p>
+  <div class="stamp num">
+    <span>main @ f42ae3484</span>
+    <span>25 files · 15,139 lines in src/ir</span>
+    <span>85 expression kinds</span>
+    <span>package subpath: @jrmarcum/binaryang/ir</span>
+  </div>
+  <div class="legend">
+    <span class="key"><span class="sw shared"></span>shared tree / reader / encoder</span>
+    <span class="key"><span class="sw fid"></span>fidelity verb set (text path)</span>
+    <span class="key"><span class="sw opt"></span>optimization verb set (passes)</span>
+    <span class="key"><span class="sw ext"></span>outside src/ir</span>
+  </div>
+</header>
+
+<section class="plate">
+  <div class="plate-head">
+    <div class="eyebrow">Plate 1 · data flow</div>
+    <h2>The route through the IR</h2>
+    <p class="muted">wat/wasm → reader → IR → one of two verb sets → IR → encoder → wat/wasm. Both lanes end at the same encoder.</p>
+  </div>
+  <div class="route">
+    <div class="stage">
+      <div class="box ext"><b>WAT text</b><span class="mono">parser/wast-parser.ts</span><small><code>parseWatModule</code>, <code>parseWastScript</code>. Records each instruction's written form (folded / linear) when the text path asks for it.</small></div>
+      <div class="box ext"><b>wasm bytes</b><span class="mono">reader/binary-reader.ts</span><small><code>readBinaryIr</code>, plus <code>name-section.ts</code>. Reads the <code>binaryang.text-form</code> custom section back.</small></div>
+    </div>
+    <div class="arrow">↓ build</div>
+    <div class="stage">
+      <div class="box shared"><b>Module</b><span class="mono">ir/ir.ts</span><small>The one tree. Every <code>Func.body</code> is a <code>RegionExpr</code>; nodes may carry a <code>nodeId</code> that keys <code>Module.fidelity</code>.</small></div>
+    </div>
+    <div class="arrow">↓ one of</div>
+    <div class="lanes">
+      <div class="lane fid">
+        <div class="lane-title">Fidelity: wat2wasm / wasm2wat</div>
+        <div class="box fid"><b>names</b><span class="mono">resolve-names · apply-names · generate-names · made-up-names</span><small><code>$x</code> ↔ index, debug names applied, names invented and later forgotten.</small></div>
+        <div class="box fid"><b>as-written record</b><span class="mono">fidelity.ts · text-form.ts</span><small><code>FidelityTable</code> (type uses, inline signatures) and the per-instruction folded/linear form, kept so the text comes back as written.</small></div>
+      </div>
+      <div class="lane opt">
+        <div class="lane-title">Optimization: wasm-opt</div>
+        <div class="box opt"><b>prepare</b><span class="mono">prepare.ts → name-references · derive-types</span><small><code>prepareForPasses</code>: references named, every node's <code>type</code> derived. <code>readForPasses</code> wraps reader + prepare.</small></div>
+        <div class="box opt"><b>passes</b><span class="mono">src/passes/* (37 files) · walk · effects · phantoms</span><small>Rewrite the tree in place. The fidelity table and text-form record are stripped; the output is the folded tree.</small></div>
+      </div>
+    </div>
+    <div class="arrow">↓ encode</div>
+    <div class="stage">
+      <div class="box shared"><b>encoder</b><span class="mono">ir/write-wasm.ts · synthesize-types.ts</span><small><code>writeWasm</code> / <code>writeWat</code>: interns any missing type entries, resolves names, then calls the shared writers.</small></div>
+      <div class="box ext"><b>writers</b><span class="mono">writer/binary-writer.ts · writer/wat-writer.ts</span><small><code>writeBinaryIr</code>, <code>writeWatModule</code>. Read the fidelity table when present, derive the value when not.</small></div>
+    </div>
+  </div>
+</section>
+
+<section class="plate">
+  <div class="plate-head">
+    <div class="eyebrow">Plate 2 · the records</div>
+    <h2>Module → Func → Expr</h2>
+    <p class="muted">Field names as declared in <code>ir/ir.ts</code>. Comments mark what belongs to one verb set.</p>
+  </div>
+<div class="tree"><span class="t">Module</span>
+├─ name, filename, loc
+├─ types            <span class="t">TypeEntry</span>[]      <span class="c">func | struct | array, with recGroupSize → recGroups()</span>
+├─ imports          <span class="t">Import</span>[]         <span class="c">{ kind, module, field, func|table|memory|global|tag }</span>
+├─ functions        <span class="t">Func</span>[]
+│   ├─ name, loc, <span class="f">nodeId</span>
+│   ├─ <span class="f">typeVar?</span>  <span class="t">Var</span>        <span class="c">{ kind:'index', value } | { kind:'name', name }</span>
+│   ├─ <span class="f">typeUse?</span>  'resolved' | 'inline' | Var
+│   ├─ sig      <span class="t">FuncSignature</span>
+│   ├─ locals   <span class="t">Local</span>[]     <span class="c">{ type: ValueType, name? }</span>
+│   ├─ body     <span class="t">RegionExpr</span>  <span class="c">{ kind:'region', children: Expr[] }</span>
+│   │    └─ <span class="t">Expr</span>  <span class="c">— discriminated union on `kind`, 85 members (Plate 4)</span>
+│   │         ├─ structured: block / loop / if / try / try_table
+│   │         │     label, type: BlockResult, <span class="f">typeIndex?</span>, params?, children | ifTrue/ifFalse: RegionExpr
+│   │         ├─ operands:  left / right / value / ptr …  <span class="c">(each an Expr; `pop` marks a stack-sourced one)</span>
+│   │         └─ type?: <span class="t">ExprType</span>  <span class="o">← filled by deriveTypes for the passes</span>
+│   └─ bodyFrameLabel?
+├─ tables, memories, globals, tags      <span class="c">Global.init / Table.init: RegionExpr (constant expression)</span>
+├─ elements         <span class="t">ElemSegment</span>[]    <span class="c">offset?: RegionExpr, elemExprs: RegionExpr[]</span>
+├─ dataSegments     <span class="t">DataSegment</span>[]
+├─ exports          <span class="t">Export</span>[]         <span class="c">{ name, kind, var: Var }</span>
+├─ start?           Var
+├─ customSections   <span class="t">Custom</span>[]         <span class="f">← binaryang.text-form (v2) travels here</span>
+├─ sectionMeta      <span class="f">SectionMeta[]</span>    <span class="c">{ section, offset, size, count } as read</span>
+├─ fidelity         <span class="f">FidelityTable</span>    <span class="c">NodeId → as-written entry; dropped by the optimizer</span>
+├─ hasNameSection, explicitNames?
+└─ <span class="o">optimizeStack?</span></div>
+  <div class="notes">
+    <div class="note shared"><b>Why <code>nodeId</code>, not object identity</b><span class="muted">The text-path passes rebuild nodes by spread (about 100 sites). A spread copies the id, so the side table survives; a newly constructed node gets no id and falls back to derived values.</span></div>
+    <div class="note fid"><b>Two names for one type</b><span class="muted"><code>Type</code> is core's value-type enum. A node's <code>type</code> field is <code>ExprType</code>. <code>Expression</code>, <code>WasmModule</code>, <code>WasmFunction</code> are the same records under binaryen-ts's names.</span></div>
+    <div class="note opt"><b>Regions everywhere</b><span class="muted">Function bodies, if-arms, global and table initialisers, and element offsets are all <code>RegionExpr</code>, so one walker covers code and constant expressions.</span></div>
+  </div>
+</section>
+
+<section class="plate">
+  <div class="plate-head">
+    <div class="eyebrow">Plate 3 · src/ir by layer</div>
+    <h2>The 25 files</h2>
+    <p class="muted">Each layer imports only from the layers above it, apart from the two doors at the bottom, which reach out to the reader, validator and writers. Lines are current <code>wc -l</code>. “Used by” counts files outside <code>src/ir</code> that import the module directly.</p>
+  </div>
+  <div class="layers">
+
+    <div class="layer">
+      <div class="layer-label"><span class="eyebrow">1 · records</span><span class="muted" style="font-size:.8rem">the tree's shape</span></div>
+      <div class="files">
+        <div class="file shared"><div class="file-head"><span class="mono">ir.ts</span><span class="loc">2,640</span></div><p>Var, HeapTypeRef, BlockType, Const, the 85 <code>*Expr</code> interfaces, Func, Global, Table, Memory, Tag, segments, Import/Export, TypeEntry, Module.</p></div>
+        <div class="file fid"><div class="file-head"><span class="mono">fidelity.ts</span><span class="loc">181</span></div><p><code>NodeId</code>, <code>FidelityTable</code>: as-written metadata beside the tree.</p><div class="users">used by <span>parser, passes, tools, writer</span></div></div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label"><span class="eyebrow">2 · vocabulary</span><span class="muted" style="font-size:.8rem">types and tables</span></div>
+      <div class="files">
+        <div class="file shared"><div class="file-head"><span class="mono">types.ts</span><span class="loc">199</span></div><p><code>None</code>, <code>Unreachable</code>, TupleType, isConcrete / isRef / byteSize.</p></div>
+        <div class="file shared"><div class="file-head"><span class="mono">gc-types.ts</span><span class="loc">383</span></div><p>Heap and ref types, packed types, TypeDef views, <code>anyref</code>…<code>nullref</code>.</p><div class="users">used by <span>passes ×8, compat</span></div></div>
+        <div class="file shared"><div class="file-head"><span class="mono">memory-access.ts</span><span class="loc">157</span></div><p><code>MEMORY_ACCESS_TABLE</code>: load/store shape by opcode or name.</p><div class="users">used by <span>interp, passes</span></div></div>
+        <div class="file fid"><div class="file-head"><span class="mono">ir-util.ts</span><span class="loc">473</span></div><p><code>ModuleContext</code>, label stack, <code>labelVar</code>, kind names.</p><div class="users">used by <span>validator, writer</span></div></div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label"><span class="eyebrow">3 · build &amp; walk</span><span class="muted" style="font-size:.8rem">two traversals</span></div>
+      <div class="files">
+        <div class="file shared"><div class="file-head"><span class="mono">expressions.ts</span><span class="loc">2,638</span></div><p><code>ExpressionKind</code>, op tables (UnaryOp, BinaryOp, SIMD…), every <code>make*</code> factory, <code>typeOf</code>, <code>asRegion</code>.</p></div>
+        <div class="file shared"><div class="file-head"><span class="mono">module.ts</span><span class="loc">969</span></div><p><code>ModuleBuilder</code>, <code>Wasm*</code> aliases, <code>limitsOf</code>, element helpers.</p></div>
+        <div class="file opt"><div class="file-head"><span class="mono">walk.ts</span><span class="loc">1,035</span></div><p><code>mapExpression</code>, <code>walkExpression</code>, <code>mapWithSequences</code>, <code>branchTargets</code>. Built on expressions.ts.</p><div class="users">used by <span>passes ×31, tools</span></div></div>
+        <div class="file fid"><div class="file-head"><span class="mono">expr-visitor.ts</span><span class="loc">912</span></div><p><code>ExprVisitor</code> with a delegate. Depends only on ir.ts.</p><div class="users">used by <span>parser, reader ×2, validator, writer ×2, tools</span></div></div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label"><span class="eyebrow">4a · fidelity verbs</span><span class="muted" style="font-size:.8rem">names and written form</span></div>
+      <div class="files">
+        <div class="file fid"><div class="file-head"><span class="mono">resolve-names.ts</span><span class="loc">1,328</span></div><p><code>$name</code> → index across every reference.</p><div class="users">used by <span>compat, tools</span></div></div>
+        <div class="file fid"><div class="file-head"><span class="mono">apply-names.ts</span><span class="loc">491</span></div><p>index → name from a <code>ModuleNames</code> map.</p><div class="users">used by <span>reader</span></div></div>
+        <div class="file fid"><div class="file-head"><span class="mono">generate-names.ts</span><span class="loc">281</span></div><p>wasm2wat's <code>--generate-names</code>.</p><div class="users">used by <span>compat, tools</span></div></div>
+        <div class="file fid"><div class="file-head"><span class="mono">made-up-names.ts</span><span class="loc">338</span></div><p>Names invented for writing, told apart from real ones and forgotten after.</p><div class="users">used by <span>reader, tools ×2, writer ×2</span></div></div>
+        <div class="file fid"><div class="file-head"><span class="mono">text-form.ts</span><span class="loc">398</span></div><p>Per-instruction folded/linear record; encodes to the <code>binaryang.text-form</code> section, v2.</p><div class="users">used by <span>parser, reader, tools, writer ×2</span></div></div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label"><span class="eyebrow">4b · optimizer verbs</span><span class="muted" style="font-size:.8rem">preparation and analysis</span></div>
+      <div class="files">
+        <div class="file opt"><div class="file-head"><span class="mono">name-references.ts</span><span class="loc">245</span></div><p>Names every referenced entity before the passes run.</p><div class="users">used by <span>prepare.ts only</span></div></div>
+        <div class="file opt"><div class="file-head"><span class="mono">derive-types.ts</span><span class="loc">825</span></div><p>Fills each node's <code>type</code>; pop sources, discarded values.</p><div class="users">used by <span>passes ×3</span></div></div>
+        <div class="file opt"><div class="file-head"><span class="mono">effects.ts</span><span class="loc">380</span></div><p>Side-effect summaries: <code>deepEffects</code>, <code>invalidates</code>.</p><div class="users">used by <span>passes ×5</span></div></div>
+        <div class="file opt"><div class="file-head"><span class="mono">phantoms.ts</span><span class="loc">128</span></div><p>Operand order and stack-sourced (<code>pop</code>) consumers.</p><div class="users">used by <span>passes ×3</span></div></div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label"><span class="eyebrow">5 · doors</span><span class="muted" style="font-size:.8rem">in from bytes, out to bytes</span></div>
+      <div class="files">
+        <div class="file opt"><div class="file-head"><span class="mono">prepare.ts</span><span class="loc">134</span></div><p><code>prepareForPasses</code>, <code>readForPasses</code>, <code>readValidForPasses</code>. Imports the reader and validator.</p><div class="users">used by <span>tools ×5, compat</span></div></div>
+        <div class="file shared"><div class="file-head"><span class="mono">synthesize-types.ts</span><span class="loc">351</span></div><p>Type interner: adds the type entries a tree needs before encoding.</p><div class="users">used by <span>passes ×2, parser, tools, compat</span></div></div>
+        <div class="file shared"><div class="file-head"><span class="mono">write-wasm.ts</span><span class="loc">523</span></div><p><code>writeWasm</code>, <code>writeWat</code>. Imports both writers.</p><div class="users">used by <span>tools ×3, api, compat, passes</span></div></div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label"><span class="eyebrow">barrels</span><span class="muted" style="font-size:.8rem">export surface</span></div>
+      <div class="files">
+        <div class="file barrel"><div class="file-head"><span class="mono">index.ts</span><span class="loc">58</span></div><p>The <code>./ir</code> subpath: both barrels plus <code>core/</code>; pins <code>Type</code> to core's enum.</p></div>
+        <div class="file barrel"><div class="file-head"><span class="mono">wabt-ts.ts</span><span class="loc">26</span></div><p>ir, ir-util, expr-visitor, naming.</p></div>
+        <div class="file barrel"><div class="file-head"><span class="mono">binaryen-ts.ts</span><span class="loc">46</span></div><p>expressions, gc-types, module, types, memory-access.</p></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="plate">
+  <div class="plate-head">
+    <div class="eyebrow">Plate 4 · the Expr union</div>
+    <h2>85 expression kinds, by family</h2>
+    <p class="muted">The <code>kind</code> strings as written in <code>ir.ts</code>. Numeric opcodes are folded into a few coarse kinds: <code>unary</code> and <code>binary</code> carry an <code>opcode</code>. <code>region</code> (outlined) was the one binaryen-only kind at convergence.</p>
+  </div>
+  <div class="kinds">
+    <div class="fam"><div class="fam-head"><h3>Structure &amp; control</h3><span class="loc">13</span></div><div class="chips"><span class="chip">nop</span><span class="chip">pop</span><span class="chip only">region</span><span class="chip">unreachable</span><span class="chip">return</span><span class="chip">drop</span><span class="chip">select</span><span class="chip">block</span><span class="chip">loop</span><span class="chip">if</span><span class="chip">br</span><span class="chip">br_table</span><span class="chip">br_on</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Constants &amp; variables</h3><span class="loc">6</span></div><div class="chips"><span class="chip">const</span><span class="chip">local.get</span><span class="chip">local.set</span><span class="chip">local.tee</span><span class="chip">global.get</span><span class="chip">global.set</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Numeric (coarse)</h3><span class="loc">4</span></div><div class="chips"><span class="chip">unary</span><span class="chip">binary</span><span class="chip">simd.ternary</span><span class="chip">quaternary</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Memory</h3><span class="loc">8</span></div><div class="chips"><span class="chip">load</span><span class="chip">store</span><span class="chip">memory.size</span><span class="chip">memory.grow</span><span class="chip">memory.copy</span><span class="chip">memory.fill</span><span class="chip">memory.init</span><span class="chip">data.drop</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Calls</h3><span class="loc">3</span></div><div class="chips"><span class="chip">call</span><span class="chip">call_indirect</span><span class="chip">call_ref</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>References &amp; i31</h3><span class="loc">8</span></div><div class="chips"><span class="chip">ref.null</span><span class="chip">ref.is_null</span><span class="chip">ref.func</span><span class="chip">ref.as</span><span class="chip">ref.eq</span><span class="chip">ref.i31</span><span class="chip">any.convert_extern</span><span class="chip">i31.get</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>GC structs &amp; arrays</h3><span class="loc">14</span></div><div class="chips"><span class="chip">struct.new</span><span class="chip">struct.get</span><span class="chip">struct.set</span><span class="chip">array.new</span><span class="chip">array.new_fixed</span><span class="chip">array.new_data</span><span class="chip">array.new_elem</span><span class="chip">array.get</span><span class="chip">array.set</span><span class="chip">array.fill</span><span class="chip">array.copy</span><span class="chip">array.init_data</span><span class="chip">array.init_elem</span><span class="chip">array.len</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Casts</h3><span class="loc">3</span></div><div class="chips"><span class="chip">ref.test</span><span class="chip">ref.cast</span><span class="chip">ref.get_desc</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Tables</h3><span class="loc">8</span></div><div class="chips"><span class="chip">table.get</span><span class="chip">table.set</span><span class="chip">table.grow</span><span class="chip">table.size</span><span class="chip">table.fill</span><span class="chip">table.copy</span><span class="chip">table.init</span><span class="chip">elem.drop</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Exceptions</h3><span class="loc">5</span></div><div class="chips"><span class="chip">throw</span><span class="chip">throw_ref</span><span class="chip">rethrow</span><span class="chip">try</span><span class="chip">try_table</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>SIMD (non-arithmetic)</h3><span class="loc">5</span></div><div class="chips"><span class="chip">simd.extract</span><span class="chip">simd.replace</span><span class="chip">simd.shuffle</span><span class="chip">simd.load</span><span class="chip">simd.load_store_lane</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Atomics</h3><span class="loc">7</span></div><div class="chips"><span class="chip">atomic.load</span><span class="chip">atomic.store</span><span class="chip">atomic.rmw</span><span class="chip">atomic.cmpxchg</span><span class="chip">atomic.wait</span><span class="chip">atomic.notify</span><span class="chip">atomic.fence</span></div></div>
+    <div class="fam"><div class="fam-head"><h3>Metadata</h3><span class="loc">1</span></div><div class="chips"><span class="chip">code_metadata</span></div></div>
+  </div>
+</section>
+
+<section class="plate">
+  <div class="plate-head">
+    <div class="eyebrow">Plate 5 · consumers and status</div>
+    <h2>Who imports the IR, and where convergence stands</h2>
+  </div>
+  <div class="bars">
+    <div class="bar"><span class="mono">passes</span><div class="track"><div class="fill opt" style="width:100%"></div></div><span class="n">36</span></div>
+    <div class="bar"><span class="mono">tools</span><div class="track"><div class="fill" style="width:30.6%"></div></div><span class="n">11</span></div>
+    <div class="bar"><span class="mono">interp</span><div class="track"><div class="fill" style="width:16.7%"></div></div><span class="n">6</span></div>
+    <div class="bar"><span class="mono">reader</span><div class="track"><div class="fill" style="width:8.3%"></div></div><span class="n">3</span></div>
+    <div class="bar"><span class="mono">validator</span><div class="track"><div class="fill" style="width:8.3%"></div></div><span class="n">3</span></div>
+    <div class="bar"><span class="mono">writer</span><div class="track"><div class="fill" style="width:5.6%"></div></div><span class="n">2</span></div>
+    <div class="bar"><span class="mono">compat</span><div class="track"><div class="fill" style="width:5.6%"></div></div><span class="n">2</span></div>
+    <div class="bar"><span class="mono">parser</span><div class="track"><div class="fill" style="width:2.8%"></div></div><span class="n">1</span></div>
+    <div class="bar"><span class="mono">api</span><div class="track"><div class="fill" style="width:2.8%"></div></div><span class="n">1</span></div>
+  </div>
+  <p class="muted" style="font-size:.82rem">Files under each <code>src/</code> folder that import anything from <code>src/ir</code>, counted 2026-10-23.</p>
+  <div class="table-wrap">
+    <table class="status">
+      <thead><tr><th>Step</th><th>State</th><th>What it left in the tree</th></tr></thead>
+      <tbody>
+        <tr><td>S1 gate · S2 names · S4 grouping</td><td class="ok">done</td><td>Shared kind spellings; five kinds folded into coarse ones</td></tr>
+        <tr><td>S3 side table</td><td class="ok">done</td><td><code>fidelity.ts</code>, keyed by <code>nodeId</code></td></tr>
+        <tr><td>S5 one-sided kinds</td><td class="ok">closed 2026-09-12</td><td>75 shared, 9 wabt-only, 1 binaryen-only (<code>region</code>) at that date</td></tr>
+        <tr><td>S6 one type, bridge deleted</td><td class="ok">done 2026-09-18</td><td><code>prepareForPasses</code> readies a text-path tree for the passes</td></tr>
+        <tr><td>S7 text-form record</td><td class="ok">done 2026-09-19</td><td><code>text-form.ts</code>, per instruction</td></tr>
+        <tr><td>One front end</td><td class="ok">done 2026-09-28</td><td>One reader, one encoder; the encoder moved into <code>ir/</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="font-size:.85rem">From <a href="../cmem/ir-convergence.md"><code>cmem/ir-convergence.md</code></a> § “Where it stands”. The one follow-up recorded there (2026-09-29) is deleting S7's read-back. The S5 counts are as dated and were not re-measured for this map.</p>
+</section>
+
+<footer>
+  <span>Built from the source on main @ f42ae3484, 2026-10-23: exports, imports and line counts of <a href="../src/ir/"><code>src/ir/*.ts</code></a>, record fields from <a href="../src/ir/ir.ts"><code>ir.ts</code></a>, and the <code>kind</code> strings in the Expr union.</span>
+  <span>A snapshot, not generated: re-derive a number before quoting it, and update this page when the layout of <code>src/ir</code> changes.</span>
+</footer>
+
+</div>
+</body>
+</html>
