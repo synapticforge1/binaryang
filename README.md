@@ -288,6 +288,21 @@ buried.
 
 ## Migrating
 
+### ⚠️ Breaking Changes
+
+Every release that removed or renamed something you could import. From the release after 1.15.0
+on, a break is a **major** version, and the release tooling refuses a lower one (Semantic
+Versioning, checked against a committed snapshot of the API); the three below came out as minors,
+before that rule.
+
+| Version | What changed                                                                                                                                  | How to migrate                                                                                                                         |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.12.0  | `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` removed (deprecated in 1.11.0); type names `Type` in `./api`, `Features` / `WasmModule` in `./compat/wabt` removed | import from `./ir`, which exports the same names from the same declarations; use `ExprType`, `WabtFeatures`, `WabtWasmModule` |
+| 1.7.0   | `./interop` removed, with `Module.optimize(flags, hybridMode)`'s `hybridMode` and `wasm-opt --hybrid`                                         | run upstream `wasm-opt` directly to compare; the `compat/*` APIs are unchanged                                                         |
+| 1.6.0   | `./binary` and `./encoder` removed; the Binaryen IR took wabt-ts's record shapes                                                              | read with `readBinary` from `./compat/binaryen`, write with `module.emitBinary()` or `toBinary()` from `./api`; CHANGELOG § 1.6.0 lists the renames |
+
+### From the predecessors
+
 From either predecessor, this is a package rename plus two subpaths.
 
 | was                                                     | now                                   |

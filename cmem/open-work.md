@@ -54,8 +54,9 @@ removed record went to a topic file, and the full text is one `git show` away:
     thread. Safari from MDN browser-compat-data: memory64, multi-memory and relaxed SIMD are
     preview-only there. Floor DECIDED (owner, decision 8): supported browsers on supported operating
     systems — Safari 18.4+, current Chrome / Edge, Firefox current + ESR 153; the tier stands. Pass 3
-    DONE: every engine and stable browser matches the spec on 210 failure paths. **Next:** the two
-    lowerings,
+    DONE: every engine and stable browser matches the spec on 210 failure paths. **The final
+    deliverable** (owner, 2026-10-23): an **`opcode-guide.md`** for the other projects to follow as
+    a reference, once conformance is done. **Next:** the two lowerings,
     the portable target, D4, then **target-aware optimization** (owner, 2026-10-23: browsers'
     WebAssembly 2.0 support "should be taken into account with our optimization efforts" — passes
     may introduce what the target profile permits; portability.md decision 5). Found on the way,

@@ -202,6 +202,20 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     expect(r).not.toContain('deno task test');
   });
 
+  // Workspace letter H6, rule 2: the compatibility gate is repeated on the tagged commit, before
+  // anything is published, and it needs the release tags to find the previous one.
+  it('runs the compatibility gate on the tag BEFORE publishing, with the tags fetched', () => {
+    const r = runs(PUBLISH_YML);
+    const gate = r.indexOf('bun scripts/release/api-surface.ts --release-check');
+    expect(
+      gate >= 0 && gate < r.indexOf('deno publish'),
+      'the release check runs before the publish',
+    ).toBe(true);
+    expect(PUBLISH_YML).toMatch(
+      /uses: actions\/checkout@v\d+\n\s+with:\n(?:\s+#[^\n]*\n)*\s+fetch-depth: 0/,
+    );
+  });
+
   it('auto-tag needs no Deno', () => {
     expect(code(AUTO_TAG_YML).filter((l) => /\bdeno\b/i.test(l))).toEqual([]);
   });

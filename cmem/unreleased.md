@@ -55,6 +55,11 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.15.0
 
+- **README — a Breaking Changes table** (2026-10-23, workspace letter H6, rule 4): the three past
+  breaks (1.6.0, 1.7.0, 1.12.0) with their migrations. The README ships in both packages. Repo
+  only, not shipped: the compatibility gate itself (`api-surface.json`, the bump's floor, the tag
+  check, the previous-release tests) — [publishing.md](publishing.md) § "The compatibility gate".
+
 - **Licensing — Binaryen attribution** (2026-10-23, [licensing.md](licensing.md) § "CORRECTED"):
   `NOTICE.md` attributes both upstreams; 30 files carry a `Ported from` / `Based on
   WebAssembly/binaryen` header — then, by the owner's "full attribution", 29 more (Binaryen by

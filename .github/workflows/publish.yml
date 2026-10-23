@@ -61,6 +61,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # The release tags: the compatibility gate compares this tag with the previous one.
+          fetch-depth: 0
 
       # Deno ONLY for `deno publish` (owner, 2026-10-12: Deno for JSR). Everything else is the CI
       # gate's tooling (Bun migration B6 / B7, 2026-10-13):
@@ -88,6 +91,12 @@ jobs:
       - name: Verify jsr.json version matches tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: bun scripts/release/workflow.ts tag-matches "$GITHUB_REF_NAME"
+
+      # The compatibility gate, repeated on the tagged commit (workspace letter H6, rule 2): the
+      # version's jump from the PREVIOUS release tag must cover what the surface diff demands.
+      - name: Compatibility gate (the version jump covers the surface change)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: bun scripts/release/api-surface.ts --release-check
 
       - name: Type-check
         run: bun run check
