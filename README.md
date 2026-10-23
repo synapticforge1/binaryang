@@ -139,7 +139,7 @@ deno run -A jsr:@jrmarcum/binaryang <command> [options]             # Deno, no i
 | `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>`                                                                                                                                                                                                                                                                                                       |
 | `wasm-objdump <in.wasm>`  | dump sections                                                                                                                                                                                                                                                                                                                                                                |
 | `wasm-strip <in.wasm>`    | remove custom sections · `-o <file>`, `-s <section>`                                                                                                                                                                                                                                                                                                                         |
-| `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S`                                                                                                                                                                                                                                                                                                                                   |
+| `wasm-opt <in>`           | optimise · `-O0`–`-O4`, `-Os`, `-Oz`, `-S` · `--target portable` (below)                                                                                                                                                                                                                                                                                                     |
 | `wasm-ctor-eval <in>`     | run constructors at build time and write their memory and globals into the module · `--ctors=a,b`, `--kept-exports=a,b`, `--ignore-external-input`, `-o <file>`, `-S`                                                                                                                                                                                                        |
 | `wasm-interp <in>`        | run exported functions on the interpreter and print each result · `--run-all-exports`, `--run-export=NAME`, `--argument=V`, `--dummy-import-func`                                                                                                                                                                                                                            |
 | `wasm-bundle <in>...`     | bundle modules into one with ONE memory, each image relocated exactly through its `linking` / `reloc.*` sections (`wasm-ld --emit-relocs`, or `(@reloc data)` marks in WAT) · `-o <file>`, `--on-conflict=prefix\|alias\|exclude`, `--alias a.wasm=m`, `--unmarked=guess`, `--start=NAME`, `-S` · writes `<out>.wit` (the interface, from core signatures) unless `--no-wit` |
@@ -189,6 +189,7 @@ Each import below is the JSR name; from npm, each starts with `@synapticforge1/b
 | `@jrmarcum/binaryang/tools/wasm-bundle`              | `wasm-bundle` as a library (`bundle(inputs, options)`, `wasmBundle(paths, options)`)                                                                                   |
 | `@jrmarcum/binaryang/compat/binaryen`                | the upstream `npm:binaryen` API shape                                                                                                                                  |
 | `@jrmarcum/binaryang/compat/wabt`                    | the upstream `wabt.js` API shape                                                                                                                                       |
+| `@jrmarcum/binaryang/definitions`                    | shared data for other projects: the instructions (D1), features (D2), trap vocabulary (D3) and portability profiles (D4), with the JSON beside them                     |
 
 **No external dependencies.** binaryang's reader, validator, writers, text tools and optimizer are
 entirely its own TypeScript; it has no external dependencies beyond the standard Node and Deno
@@ -224,6 +225,47 @@ in each of these browsers, headless (WebKit is Safari's engine): every export lo
 and `wasmOpt` give byte-identical output to Deno, Node and Bun on 421 modules, which each browser's
 engine accepts. The browser recipe below runs there too.
 
+### Making a module run on every widely used engine
+
+`--target portable` makes the output run, with the same behaviour, on the engines most people run
+WebAssembly on: wasmtime, wasmer, WasmEdge and wazero; Node, Deno and Bun; Chrome, Edge, Firefox
+(release and ESR) and Safari's engine. What some of them refuse is rewritten into what all of them
+run (the passes below), before any optimization. What nothing can rewrite is refused, every such
+feature named with the engines that refuse it:
+
+```sh
+npx binaryang wasm-opt in.wasm --target portable -Oz -o out.wasm
+```
+
+```text
+wasm-opt: --target portable: the module uses features no pass makes portable (engines measured 2026-10-23):
+  tailCall — refused by wasmer
+  gc — refused by wasmer, wazero
+```
+
+| the module uses | `--target portable` |
+| --- | --- |
+| Wasm 2.0, threads, standard exception handling, typed function references, extended-const | keeps it |
+| memory64, custom page sizes, wide arithmetic, relaxed SIMD, legacy exception handling | lowers it |
+| GC, tail calls, multi-memory, custom descriptors, `br_on_non_null` | refuses the module |
+
+```ts
+import { TargetError, wasmOpt } from '@jrmarcum/binaryang/tools/wasm-opt';
+try {
+  const out = await wasmOpt(bytes, { target: 'portable', optimizeLevel: 2, shrinkLevel: 2 });
+} catch (e) {
+  if (e instanceof TargetError) for (const f of e.findings) console.log(f.name, f.refusedBy);
+}
+```
+
+The profile is data, measured: `@jrmarcum/binaryang/definitions` exports it as D4
+(`PROFILE_DEFINITIONS`, and `profiles.json` for other languages), each feature with its tier, the
+engines measured refusing it, and the builds measured. An engine that catches up moves a feature
+when it is measured again. Safari's engine was measured as Playwright's WebKit build, which is newer
+than any shipped Safari; for Safari itself, the profile follows MDN's compatibility data (memory64,
+multi-memory and relaxed SIMD are Technology Preview only there, and the profile lowers or refuses
+each).
+
 ### Making a module run on Safari and Bun
 
 binaryang runs everywhere; a module you build may not. JavaScriptCore — the engine in Safari and in
@@ -258,8 +300,8 @@ Safari should use one memory — which is all any compiler measured emits.
 ### Making a module run without wide arithmetic
 
 The wide-arithmetic instructions (`i64.add128`, `i64.sub128`, `i64.mul_wide_s`, `i64.mul_wide_u`)
-run on Safari, Bun, Firefox and wasmtime, but V8 (Chrome, Edge, Node, Deno), WasmEdge, wasmer,
-wazero and Firefox ESR refuse them. `--wide-arithmetic-lowering` rewrites each to plain `i64`
+run on Bun, Firefox and wasmtime, but V8 (Chrome, Edge, Node, Deno), Safari's engine, WasmEdge,
+wasmer, wazero and Firefox ESR refuse them. `--wide-arithmetic-lowering` rewrites each to plain `i64`
 arithmetic — exact for every input, a 128-bit result as the proposal defines it — through one small
 helper function per instruction used:
 

@@ -59,11 +59,21 @@ removed record went to a topic file, and the full text is one `git show` away:
     a reference, once conformance is done. The wide-arithmetic and relaxed-SIMD lowerings BUILT
     and proven 2026-10-23 (portability.md; relaxed SIMD as the spec's deterministic profile, which
     wasmtime's `relaxed-simd-deterministic` is not — it fuses madd and skips the dot-add wrap).
-    **Next:** the portable target, D4, then **target-aware optimization** (owner, 2026-10-23: browsers'
-    WebAssembly 2.0 support "should be taken into account with our optimization efforts" — passes
-    may introduce what the target profile permits; portability.md decision 5). Found on the way,
-    its own item when worked: binaryang's interpreter
-    refuses every shared memory.
+    **The portable target and D4 BUILT** 2026-10-23 (`wasm-opt --target portable`,
+    `profiles.json` in `./definitions`; portability.md § "The portable target"). **Next:**
+    **target-aware optimization** (owner, 2026-10-23: browsers' WebAssembly 2.0 support "should be
+    taken into account with our optimization efforts" — passes may introduce what the target
+    profile permits; portability.md decision 5), then the durable checks (a committed probe that
+    re-measures D4; D1's spec check as a gate — definitions.md), then `opcode-guide.md`. Found on
+    the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
+    item 35.
+
+35. ⬚ **The validator does not enforce `multiValue`** (found 2026-10-23 building the portable
+    target): a function or block with several results, or a block with parameters, validates with
+    `multiValue` OFF. Upstream wabt ("multiple result values are not supported without multi-value
+    enabled") and wasm-tools ("… the multi-value feature is not enabled") refuse it. D2 says the
+    flag is `implemented`. No effect on `--target portable` (multi-value is portable); it matters to
+    a caller validating against Wasm 1.0 (`--disable-multi-value`).
 
 33. ⬚ **FL1 — upstream's feature-flag spelling is refused** (found 2026-10-23 measuring workspace
     letter H8 / I6): `--enable-saturating-float-to-int` / `--disable-…` (upstream wabt 1.0.41 and

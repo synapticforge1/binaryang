@@ -90,3 +90,17 @@ defines is missing from D1.** The opcode set rests on the specification, not on 
 SOURCE going forward means a committed check (a Bun script and a pinned snapshot of the extracted
 facts, with their source commits) that the gate runs, so D1 cannot drift from the spec unseen;
 it fits beside D4 (open-work 34), which needs the same source documents for its features.
+
+## D4 — the portability profiles (2026-10-23)
+
+`src/definitions/profiles.json`, exported as `PROFILE_DEFINITIONS` and `profileDefinition(name)`
+(owner decision 3 of open-work 34: "binaryang is the source"). One profile, `portable`: the 14
+defining engines with the builds measured; one entry per D2 feature with its tier (portable ·
+lowered, naming the pass · excluded), the engines measured refusing it and how many probe modules
+exercised it; and the instructions whose tier differs from their feature's (`br_on_non_null`
+excluded; the legacy exception instructions lowered by `TranslateToExnref`). Every number DERIVED
+from the probe results (scratch `pt-derive.ts` over runs 1–3, 5, 6), not written by hand;
+`tests/definitions/definitions.test.ts` checks it against D1, D2 and the registered passes. Adding
+it changed `data.ts`'s header to `bun run definitions` — the first intentional definitions change
+since the Bun migration (B4). `wasm-opt --target <name>` reads it ([portability.md](portability.md)
+§ "The portable target").

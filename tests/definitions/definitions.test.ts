@@ -11,9 +11,12 @@ import {
   FEATURE_DEFINITIONS,
   featuresForSuite,
   OPCODE_DEFINITIONS,
+  PROFILE_DEFINITIONS,
+  profileDefinition,
   VERDICT_DEFINITIONS,
   verdictClass,
 } from '../../src/definitions/mod.ts';
+import { listPasses } from '../../src/passes/index.ts';
 import { allFeatures, defaultFeatures } from '../../src/core/feature.ts';
 import { FeatureFlags } from '../../src/cli/feature-flags.ts';
 import { contentHash } from '../../scripts/definitions.ts';
@@ -28,6 +31,7 @@ describe('the generated module is its sources', () => {
       ['opcodes.json', OPCODE_DEFINITIONS],
       ['features.json', FEATURE_DEFINITIONS],
       ['verdicts.json', VERDICT_DEFINITIONS],
+      ['profiles.json', PROFILE_DEFINITIONS],
     ] as const
   ) {
     it(`${file}: the same content, and the stated sha256 is the content's`, async () => {
@@ -72,6 +76,53 @@ describe('D2 says what the code does', () => {
       multiMemory: false,
     });
   });
+});
+
+describe('D4 is consistent with D1, D2 and the passes', () => {
+  const portable = profileDefinition('portable')!;
+
+  it("the 'portable' profile exists; an unknown name is undefined", () => {
+    expect(portable.name).toBe('portable');
+    expect(profileDefinition('nowhere')).toBeUndefined();
+  });
+
+  for (const p of PROFILE_DEFINITIONS.entries) {
+    const engines = new Set(p.engines.map((e) => e.name));
+    const tiers = [
+      ...p.features.map((f) => ({ ...f, id: f.feature })),
+      ...p.opcodes.map((o) => ({ ...o, id: o.name })),
+    ];
+
+    it(`${p.name}: one feature entry per D2 feature, in its order`, () => {
+      expect(p.features.map((f) => f.feature)).toEqual(
+        FEATURE_DEFINITIONS.entries.map((e) => e.name),
+      );
+    });
+
+    it(`${p.name}: every instruction is a D1 name`, () => {
+      const names = new Set(OPCODE_DEFINITIONS.entries.map((e) => e.name));
+      for (const o of p.opcodes) expect(`${o.name}: ${names.has(o.name)}`).toBe(`${o.name}: true`);
+    });
+
+    it(`${p.name}: a lowered entry names a registered pass; no other entry names one`, () => {
+      const passes = new Set(listPasses());
+      for (const t of tiers) {
+        expect(`${t.id}: ${t.tier === 'lowered' ? passes.has(t.pass ?? '') : t.pass === undefined}`)
+          .toBe(`${t.id}: true`);
+      }
+    });
+
+    it(`${p.name}: refusedBy names defining engines; portable means none refused`, () => {
+      for (const t of tiers) {
+        for (const e of t.refusedBy) {
+          expect(`${t.id}: ${e} ${engines.has(e)}`).toBe(`${t.id}: ${e} true`);
+        }
+        if (t.tier === 'portable') expect(`${t.id}: ${t.refusedBy.length}`).toBe(`${t.id}: 0`);
+        // Not portable, and probed: some engine was measured refusing it.
+        else if (t.probes > 0) expect(`${t.id}: ${t.refusedBy.length > 0}`).toBe(`${t.id}: true`);
+      }
+    });
+  }
 });
 
 describe('D3: the testsuite prefix rule', () => {

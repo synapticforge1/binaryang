@@ -14,8 +14,22 @@
   using them runs on wasmer and wazero, which refuse them, and gives the same result on every
   engine, where the relaxed instructions differ by hardware. One small helper function for the dot
   products, if used. Runs only when asked for; no other output changes.
+- **`wasm-opt --target portable`** (library: `target: 'portable'`): the output runs, with the same
+  behaviour, on wasmtime, wasmer, WasmEdge, wazero, Node, Deno, Bun, Chrome, Edge, Firefox (release
+  and ESR) and Safari's engine. What some of them refuse is lowered first (memory64, custom page
+  sizes, wide arithmetic, relaxed SIMD, legacy exception handling); a module using what nothing
+  lowers (GC, tail calls, multi-memory, custom descriptors, `br_on_non_null`) is refused with a
+  `TargetError` naming each such feature and the engines that refuse it. Without `--target`,
+  nothing changes.
+- **`./definitions` adds D4, the portability profile**: `PROFILE_DEFINITIONS`,
+  `profileDefinition(name)` and `profiles.json` — each feature's tier, the engines measured refusing
+  it, and the builds measured.
 
 ### Documentation
+
+- **Wide arithmetic and Safari** (README): the README said the wide-arithmetic instructions run on
+  Safari; Safari's engine refuses them (Bun's JavaScriptCore runs them).
+- **The README lists `./definitions`** among the package's imports.
 
 - **Multi-memory and Safari** (README): the README said JavaScriptCore runs multi-memory modules;
   Bun's does, but Safari ships multi-memory only in Technology Preview, so a module for Safari
