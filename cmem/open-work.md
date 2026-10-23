@@ -193,8 +193,11 @@ removed record went to a topic file, and the full text is one `git show` away:
     pass 2 (76 templates: every untyped D1 entry plus the encoding-level features; 13 executors
     incl. Chromium, Firefox, WebKit, Deno) DONE 2026-10-23: no engine computes a different value;
     the tiers are in portability.md. wasmer and wazero DEFINE portability (owner, 2026-10-23), so
-    GC, tail calls and multi-memory stay engine-specific. **Next:** the stable browser versions
-    in use, pass 3 (trap paths), the two lowerings,
+    GC, tail calls and multi-memory stay engine-specific. Browsers: V8, SpiderMonkey,
+    JavaScriptCore only (owner, 2026-10-23; Ladybird excluded). **Next:** the stable-browser
+    columns (Chrome 156 and Edge 155 here; Firefox stable + ESR once the owner installs them, its
+    stock-Firefox harness proved first; Safari's floor from published data), pass 3 (trap paths),
+    the two lowerings,
     the portable target, D4, then **target-aware optimization** (owner, 2026-10-23: browsers'
     WebAssembly 2.0 support "should be taken into account with our optimization efforts" — passes
     may introduce what the target profile permits; portability.md decision 5). Found on the way,
