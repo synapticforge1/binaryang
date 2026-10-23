@@ -2,7 +2,19 @@
 
 ## Unreleased
 
+### New
+
+- **`WideArithmeticLowering`** (`wasm-opt --wide-arithmetic-lowering`): `i64.add128`,
+  `i64.sub128`, `i64.mul_wide_s` and `i64.mul_wide_u` become plain `i64` arithmetic, so a module
+  using them runs on V8 (Chrome, Edge, Node, Deno), WasmEdge, wasmer, wazero and Firefox ESR, which
+  refuse the proposal. Exact for every input; one small helper function per instruction used. Runs
+  only when asked for — no default pipeline includes it — and no other output changes.
+
 ### Documentation
+
+- **Multi-memory and Safari** (README): the README said JavaScriptCore runs multi-memory modules;
+  Bun's does, but Safari ships multi-memory only in Technology Preview, so a module for Safari
+  should use one memory.
 
 - **The README's Migrating section opens with a Breaking Changes table**: every release that removed
   or renamed something you could import (1.6.0, 1.7.0, 1.12.0), and how to migrate. From the next

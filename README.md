@@ -251,8 +251,21 @@ pages (4 GiB less one page) and a lowered table 2^32 − 2 elements; a module th
 refused with a message. An imported or exported 64-bit memory or table becomes a 32-bit one, so
 the host supplies or receives a 32-bit one. Every spec module with a 64-bit memory or table is
 checked lowered, against the original, on V8 and on JavaScriptCore (`bun run lowering`).
-Multi-memory needs no pass: JavaScriptCore runs it, up to 100 memories (V8 has no such limit), and
-no compiler measured emits more than one.
+Multi-memory has no pass: Bun's JavaScriptCore runs it (up to 100 memories; V8 has no such limit),
+but Safari ships it only in Technology Preview (MDN browser-compat-data, 2026-10), so a module for
+Safari should use one memory — which is all any compiler measured emits.
+
+### Making a module run without wide arithmetic
+
+The wide-arithmetic instructions (`i64.add128`, `i64.sub128`, `i64.mul_wide_s`, `i64.mul_wide_u`)
+run on Safari, Bun, Firefox and wasmtime, but V8 (Chrome, Edge, Node, Deno), WasmEdge, wasmer,
+wazero and Firefox ESR refuse them. `--wide-arithmetic-lowering` rewrites each to plain `i64`
+arithmetic — exact for every input, a 128-bit result as the proposal defines it — through one small
+helper function per instruction used:
+
+```sh
+npx binaryang wasm-opt in.wasm --wide-arithmetic-lowering -o out.wasm
+```
 
 ### Optimizing in the browser
 

@@ -55,6 +55,14 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.15.0
 
+- **NEW pass — `WideArithmeticLowering`** (`--wide-arithmetic-lowering`; open-work 34, owner
+  decision 2): the four wide-arithmetic instructions → `i64` arithmetic through one helper per
+  instruction used. Opt-in; no default pipeline includes it; no other output moves. The gate's
+  floor: MINOR ("pass WideArithmeticLowering added"). [portability.md](portability.md) § "The
+  wide-arithmetic lowering".
+- **README correction**: multi-memory runs on Bun's JavaScriptCore but ships in Safari only as
+  Technology Preview (MDN browser-compat-data 8.1.7).
+
 - **README — a Breaking Changes table** (2026-10-23, workspace letter H6, rule 4): the three past
   breaks (1.6.0, 1.7.0, 1.12.0) with their migrations. The README ships in both packages. Repo
   only, not shipped: the compatibility gate itself (`api-surface.json`, the bump's floor, the tag

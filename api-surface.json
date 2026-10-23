@@ -2363,6 +2363,7 @@
   "StripEH",
   "Table64Lowering",
   "TranslateToExnref",
-  "Vacuum"
+  "Vacuum",
+  "WideArithmeticLowering"
  ]
 }
