@@ -371,6 +371,25 @@ it here loses nothing: the commits above, and the file at `f2ee1a41f`, are the p
 Closed since the merge: custom-section preservation (C3, `4a50b96eb`) and diagnostic offset accuracy
 (A3, measured 2026-08-31 — [testing.md](testing.md)).
 
+## Reserved subpaths — in the export plan, not in `jsr.json`
+
+| subpath         | reserved for                                                               | decided                                    |
+| --------------- | -------------------------------------------------------------------------- | ------------------------------------------ |
+| **`./ts2wasm`** | wasmtk's `wasic` (TS → WAT / wasm), beside `./wasm2ts`, when it is mature | 🔒 owner, 2026-09-20 (workspace I11, H12) |
+
+Recorded 2026-10-23 (workspace letter H12). **A reservation, not a scope:** no code, no stub, no
+entry in `jsr.json`'s `exports`, and no design — 🔒 the owner opens the `ts2wasm` / `wasm2ts` scope
+once binaryang and wasmtk are both more stable; until then neither repo drafts it. What the
+reservation does mean:
+
+- **The name is taken.** No other export may use `./ts2wasm`, and nothing else is to be named for
+  `wasic`'s role (not `./wasic`, not `./compile`).
+- **Adding it is a MINOR release** (a new export), under the compatibility gate like any surface.
+- **Its arrival retires `wasic` in wasmtk**: wasmtk is designing its modularization so each
+  module's seam is the one a future `ts2wasm` import would cross. The maturity bar for the move is
+  proposed on workspace divergence I11 and is the owner's to confirm.
+- Its sibling `./wasm2ts` exists today as a stub that throws (§ "Live gaps" above, open-work 15).
+
 Two lessons the phase records paid for:
 
 - **A snapshot column headed "now" silently becomes false.** wabt-ts's conformance table carried a
