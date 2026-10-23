@@ -1024,6 +1024,34 @@ but GitHub creates no tag events when more than three tags are pushed at once (A
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
 each would have failed on JSR's existing version, but push such tags with that in mind.
 
+## 1.15.0 — a MINOR from `main` (2026-10-23 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "continue with H19" (the plan's steps 1–4), then "yes" to the minor bump. It
+carries `SSANoMerge` (open-work 31, step 16) and says the history was rewritten (CHANGELOG
+§ 1.15.0); the first release on the rewritten history.
+
+1. H19 step 1: the 24 public refs force-pushed (§ "The history purge", "Pushed"). `CHANGELOG.md`
+   § 1.15.0 on `release/1.15.0` (`ef44c7490`), gated 17 / 17, merged (`b424dd127`), pushed
+   unbumped. CI GREEN on `586666b38` (🔧 **1 h 1 m 39 s**: the Browsers job, which has no
+   `timeout-minutes`, so a hang there would run GitHub's 6-hour default) and on `b424dd127`
+   (4 m 41 s). The nine error annotations on a green CI run are `test:bun`'s KNOWN JavaScriptCore
+   differences: the same nine on the last green run before it — not a failure.
+2. A FRESH CLONE from GitHub of `b424dd127`: 17 / 17 exit 0.
+3. No tag, neither registry had 1.15.0; `bun run bump minor` (`jsr.json`, `main.ts`), `version_sync`
+   3 / 3; `bun run release`: every guard passed, `bump to v1.15.0` (`ae9e87162`), `main` +
+   `v1.15.0` in one push.
+4. publish.yml, CI and auto-tag GREEN on `ae9e87162`: **JSR** 1.15.0 created
+   2026-10-23T18:57:53Z, not yanked, **Rekor log id `3423023791`**; **npm**
+   `@synapticforge1/binaryang@1.15.0` at 19:01:00Z, `latest`, published by **GitHub Actions** (the
+   trusted publisher), attestation `https://slsa.dev/provenance/v1`; GitHub Release `v1.15.0`. As a
+   user: `deno run -A --min-dep-age 0 jsr:@jrmarcum/binaryang@1.15.0 --version` and `npx -y
+   @synapticforge1/binaryang@1.15.0 --version` both print `binaryang 1.15.0`.
+
+🔧 **Waiting on CI without `gh`:** the unauthenticated Actions API (60 requests an hour) was
+exhausted for most of an hour, so `ci-wait.ts` printed only 403s while CI ran. The Actions PAGES
+(`/actions/workflows/ci.yml`, `/actions/runs/<id>`) are not rate-limited and show each run's
+state, jobs and annotations — read them when the API is refused.
+
 ## 1.14.0 — a MINOR from `main` (2026-10-22 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
 The owner's go: "lets update the project memory files, then bump and push"; the version chosen

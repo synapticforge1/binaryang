@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-22 (UTC): the last release is `v1.14.0`, on JSR and npm, both with provenance;
+**As of 2026-10-23 (UTC): the last release is `v1.15.0`, on JSR and npm, both with provenance;
 nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
---oneline v1.14.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.14.0; the
+--oneline v1.15.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.15.0; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
@@ -29,13 +29,14 @@ to `synapticforge1/binaryang`; docs only) or **1.13.2** (the README for both reg
 without provenance, its publish failed after the upload) or **1.13.3** (1.13.2 again, with
 provenance on JSR and, the first workflow publish there, on npm) or **1.14.0** (`Memory64Lowering`
 with table64 in the same pass, sound above 2^32 where upstream's wraps; the README's "Making a
-module run on Safari and Bun"; the multi-memory limit corrected to 100). The public summary of each is
+module run on Safari and Bun"; the multi-memory limit corrected to 100) or **1.15.0** (`SSANoMerge`
+first at -O3 / -Os / -Oz; the note that the history was rewritten, letter H19). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
 `fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
 (1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
-`7ebcee3ad` (1.14.0).
+`7ebcee3ad` (1.14.0), and at `ae9e87162` (1.15.0).
 
 ## How to use this file
 
@@ -52,13 +53,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.14.0
+## Since 1.15.0
 
-- **NEW pass — `SSANoMerge`** (open-work 31, step 16; upstream's `ssa-nomerge`), in the default
-  pipeline first at -O3 / -Os / -Oz. **Behaviour:** optimizer output moves at those levels
-  (smaller: the six -Oz −175, corpus −28); run speed unchanged (V8, JavaScriptCore); -Oz takes
-  longer (zig-debug 1.7 → 2.9 s).
-- **Repository — the history rewrite (letter H19)**, pushed 2026-10-23: every commit hash changed,
-  the 21 tags re-pointed, the packages unchanged; the release provenance up to 1.14.0 names the old
-  hashes. Not a package change, but the release note must say it (owner, H19's resume plan).
-  `CHANGELOG.md` § 1.15.0 "Repository".
+Nothing yet.
