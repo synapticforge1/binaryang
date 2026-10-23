@@ -35,6 +35,26 @@ runtime suites and attempt to create a consolidated opcode set that all can deco
    them (neither GC nor tail calls has a practical lowering). They join the "runs everywhere"
    evidence ([run-everywhere.md](run-everywhere.md)) beside the browsers and JS runtimes.
 
+7. **Browsers: the cross-platform, commonly used engines only** (owner, 2026-10-23: "The only
+   outlier is ladybird browser that is still in development and only available on mac and linux.
+   I think we should stick to cross platform common browser engines only.") — **V8**,
+   **SpiderMonkey**, **JavaScriptCore**. Ladybird (its own engine, in development, macOS / Linux
+   only) is excluded until it ships widely. JavaScriptCore stays: Safari is Apple-only, but the
+   engine is cross-platform (Playwright WebKit on Windows, WebKitGTK, Bun) and carries all of iOS.
+   **How each is measured** (owner: "javascript core is covered by bun isn't it? … I can install
+   Firefox"):
+   - **V8** — Chrome stable (156 on this machine) and Edge stable (155): installed, ready.
+   - **SpiderMonkey** — Firefox stable AND Firefox ESR (the Extended Support Release: frozen for
+     about a year, security fixes only; enterprises, schools, Debian and Tor Browser run it — the
+     real floor for Firefox users), both to be installed by the owner. ⚠️ Playwright drives its OWN
+     patched Firefox: the harness for a stock install (WebDriver BiDi, or a probe page that records
+     its results) is to be proved before its numbers are trusted.
+   - **JavaScriptCore** — Bun stands for CURRENT JavaScriptCore (it and Playwright's WebKit
+     accepted and refused exactly the same in passes 1 and 2), but Bun pins a WebKit newer than any
+     shipped Safari; the floor of Safari versions IN USE (older iOS stays for years) comes from
+     published compatibility data (MDN browser-compat-data / caniuse) against the usage review. No
+     Mac or device cloud is needed for that.
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
