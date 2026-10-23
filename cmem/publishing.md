@@ -1014,6 +1014,16 @@ hash until its own garbage collection (a full purge is a GitHub Support request 
 any OLD clone (wasmtk's `upstream/binaryang`, scratch clones) carries the old history and must be
 re-cloned, never pushed from. The frozen wabt-ts and binaryen-ts repos keep their own old hashes.
 
+**Pushed 2026-10-23** (owner: "continue with H19"). Checked first, by a one-time script: each of
+the 24 refs on GitHub held the map's OLD value (`main` GitHub's `9cc85f0e7`) and each local ref the
+NEW one (`main` a descendant of `5b137f878`); the address on 0 commits / 0 tags of the public refs,
+the commits since the purge clean. One `git push` with a `--force-with-lease=<ref>:<old>` per ref:
+24 forced updates, `main` `9cc85f0e7` → `586666b38`; read back, every ref on GitHub equals the
+local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fires on a `v*` tag push,
+but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
+CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
+each would have failed on JSR's existing version, but push such tags with that in mind.
+
 ## 1.14.0 — a MINOR from `main` (2026-10-22 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
 The owner's go: "lets update the project memory files, then bump and push"; the version chosen
