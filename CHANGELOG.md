@@ -6,8 +6,9 @@
 
 - **Binaryen is now attributed, as its licence requires.** binaryang ports parts of both wabt and
   Binaryen, but `NOTICE.md` named only wabt, and no file derived from Binaryen said so. `NOTICE.md`
-  now carries both projects' notices, and each derived file names the Binaryen sources it came
-  from or was written against, with their copyright years. No code changed.
+  now carries both projects' notices, and each derived file names the upstream sources it came
+  from or was written against, with their copyright years — including the command-line tools
+  modelled on wabt's. No code changed.
 
 ## 1.15.0
 

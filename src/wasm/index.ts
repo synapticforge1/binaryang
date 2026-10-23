@@ -1,3 +1,8 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: none single — carried from the binaryen-ts port of Binaryen
+// Copyright WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
 /**
  * @module wasm/index
  *
