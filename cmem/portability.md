@@ -220,6 +220,42 @@ unfused behaviour is used"); dot → `ivdot`, both operands signed, the i16 pair
 
 **So relaxed SIMD moves to "portable via lowering", built.**
 
+### The portable target and D4 — built and proven (2026-10-23)
+
+`wasm-opt --target portable` (library `target: 'portable'`, `src/tools/target.ts`), reading D4
+(`src/definitions/profiles.json`, [definitions.md](definitions.md) § D4). The agreed shape: refuse
+what the profile excludes, naming the engines; lower what it lowers, before optimization; check the
+OUTPUT against the profile again, so no pass can leave it.
+
+- **The validator is the judge of feature use** — measured, not assumed: validating every probe
+  module against the portable feature set agreed with "every defining engine ran it" on 782 / 787;
+  the 5 others were exactly the opcode-level cases (`br_on_non_null`; legacy `try` / `catch_all` /
+  `rethrow` / `delegate`), found in the IR instead. "Needs X ⇔ invalid with X off and every other
+  feature on" names each module's feature exactly, up to dependencies (GC also needs typed function
+  references).
+- **D4's numbers are derived**, from the probe results; two features without a probe were probed
+  first (run 5, all 17 executors run both): an EXPORTED mutable global (`mutableGlobals`) and a
+  branch-hint section (`codeMetadata`). Run 6 put the wide-arithmetic and relaxed-SIMD ORIGINALS on
+  the three executors run 1 lacked. Left unmeasured, by nature: `annotations` (text only),
+  `compactImports` (binaryang cannot read it).
+- 🔧 **Found by run 6: Safari's engine refuses wide arithmetic** — Playwright WebKit 26.6, "wasm wide
+  arithmetic is not enabled" (Bun's JavaScriptCore runs it); the README said it ran on Safari.
+  Corrected. **And Bun refuses memory64** — the tier table above said wasmer and wazero only.
+- **Order of lowerings**: memory64 then custom page sizes — both orders behave the same on a module
+  using both (wasmtime's original result, valid Wasm 2.0), and this one is smaller (640 bytes vs
+  789).
+- **The corpus**: all 809 probe modules (runs 1–3, 5, 6) through the target — **35 refused, exactly
+  the excluded ones** (26 GC, 3 tail calls, 1 multi-memory, 4 custom descriptors, 1
+  `br_on_non_null`), **774 accepted, all also under -O2** (no output check tripped). The 774 outputs
+  on the 15 defining executors: **772 give the outcome every engine agreed on for the original**
+  (11,610 results); the 2 others are `memory.atomic.wait32 / 64`, where browsers' main-thread
+  policy splits the originals identically. (Interpreters reported: wabt prints its traps in a
+  form the runner reads as errors; binaryang's has its shared-memory gap.)
+- **The tests can fail**: `tests/binaryen-ts/tools/target.test.ts` (17) — 13 mutants of the target
+  and its `wasm-opt` wiring, all killed (one survived first: a legacy `try` with no handler, now a
+  case). `tests/definitions/definitions.test.ts` checks D4 against D1, D2 and the passes.
+- 🔧 **Found on the way: the validator does not enforce `multiValue`** — open-work 35.
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
@@ -330,7 +366,7 @@ hex; all 13 agreed on it.) binaryang's interpreter stops cleanly on custom descr
 | tail calls | wasmer ("no backend supports") | engine-specific |
 | GC (26 templates) | wasmer ("GC is not implemented yet"), wazero (both modes) | engine-specific |
 | exceptions, LEGACY (`try` / `catch` / `catch_all` / `rethrow` / `delegate`) | wasmtime, WasmEdge, wazero | **via lowering** — `TranslateToExnref` to the standard form, which is portable |
-| memory64 / table64 | wasmer, wazero | **via lowering** — `Memory64Lowering` |
+| memory64 / table64 | wasmer, wazero, Bun (JavaScriptCore; Playwright's newer WebKit runs it) — Bun corrected 2026-10-23 from the results | **via lowering** — `Memory64Lowering` |
 | custom page sizes | wasmer, WasmEdge, wazero, V8 ×4, SpiderMonkey, JavaScriptCore ×2 | **via lowering** — `LowerCustomPageSizes` |
 | wide-arithmetic (pass 1) | V8 ×4, WasmEdge, wasmer, wazero | **via lowering** — `WideArithmeticLowering` (built 2026-10-23) |
 | relaxed SIMD (pass 1) | wasmer, wazero; results vary elsewhere by design | **via lowering** — `RelaxedSimdLowering`, the spec's deterministic profile (built 2026-10-23) |

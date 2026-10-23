@@ -50,6 +50,7 @@ import {
 } from '../passes/index.ts';
 import type { PassOptions } from '../passes/pass.ts';
 import { ModuleBuilder } from '../ir/module.ts';
+import { applyTarget, checkTarget } from './target.ts';
 import { cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
 
 // ---------------------------------------------------------------------------
@@ -109,6 +110,13 @@ export interface WasmOptOptions {
    * point. Default `false`. See {@link optimizeToConvergence}.
    */
   converge: boolean;
+  /**
+   * A portability profile from D4 (`'portable'`) the output must fit: `--target <name>`. The input
+   * is refused when it uses anything the profile excludes, naming the engines measured refusing
+   * it; what the profile lowers is lowered before any optimization; the output is checked against
+   * the profile again. Default: none. See `tools/target`.
+   */
+  target?: string;
   /**
    * Receives the old → new map when a minify pass ran (`--minify-imports`,
    * `--minify-imports-and-exports`, `…-and-modules`) — the names the HOST
@@ -221,6 +229,9 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     console.error('  --<pass-name>        Run a specific pass by name');
     console.error('  --pass-arg key=val   Per-pass argument (passname@key=val)');
     console.error('  --partial-inlining-ifs N  Enable split inlining (Pattern A/B); -pii N');
+    console.error(
+      '  --target portable    Make the output run on every widely used engine, or refuse',
+    );
     console.error('  --print-all-passes   List all registered passes and exit');
     cliExit(1);
   }
@@ -319,6 +330,8 @@ function _nativeOptimize(
   const module = readForPasses(input, filename);
   // A WAT input was validated as text above.
   if (opts.validate && !isWat) validateInput(input, filename);
+  // A target refuses or lowers BEFORE the optimizer sees the module.
+  if (opts.target !== undefined) applyTarget(input, module, opts.target);
 
   const passOpts: PassOptions = {
     optimizeLevel: opts.optimizeLevel,
@@ -350,6 +363,8 @@ function _nativeOptimize(
   }
   const map = takeMinifyMap(module);
   if (map !== undefined) opts.onMinifyMap?.(map);
+  // Read back: the check judges the bytes written, not the IR they came from.
+  if (opts.target !== undefined) checkTarget(bytes, readForPasses(bytes), opts.target);
   return bytes;
 }
 
@@ -382,6 +397,7 @@ const RECOGNIZED_LONG_FLAGS = new Set([
   '--pass-arg',
   '--partial-inlining-ifs',
   '--print-all-passes',
+  '--target',
   '--help',
 ]);
 
@@ -460,6 +476,12 @@ export function parseArgs(args: string[]): ParsedArgs {
       if (Number.isFinite(n) && n >= 0) result.options.partialInliningIfs = n;
     } else if (a === '--print-all-passes') {
       result.printAllPasses = true;
+    } else if (a === '--target') {
+      const v = args[++i];
+      if (v === undefined || v.startsWith('-')) {
+        throw new Error('--target requires a profile name (portable)');
+      }
+      result.options.target = v;
     } else if (a !== undefined && a.startsWith('--') && !RECOGNIZED_LONG_FLAGS.has(a)) {
       // Treat unknown --flags as pass names (e.g. --vacuum, --dce)
       passes.push(a.slice(2));
@@ -479,6 +501,9 @@ export function parseArgs(args: string[]): ParsedArgs {
 
 export { defaultPassOptions, listPasses, PassRunner, shrinkPassOptions };
 export type { PassOptions };
+// What `target` refuses with, for a caller to catch and read.
+export { TargetError } from './target.ts';
+export type { TargetFinding } from './target.ts';
 
 // Allow `ignore unused` for ModuleBuilder re-export (used in JSDoc examples)
 export { ModuleBuilder };

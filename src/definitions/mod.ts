@@ -19,20 +19,40 @@
  * ```
  */
 
-import { FEATURE_DEFINITIONS, OPCODE_DEFINITIONS, VERDICT_DEFINITIONS } from './data.ts';
-import type { FeatureDefinition, OpcodeDefinition, VerdictDefinition } from './types.ts';
+import {
+  FEATURE_DEFINITIONS,
+  OPCODE_DEFINITIONS,
+  PROFILE_DEFINITIONS,
+  VERDICT_DEFINITIONS,
+} from './data.ts';
+import type {
+  FeatureDefinition,
+  OpcodeDefinition,
+  ProfileDefinition,
+  VerdictDefinition,
+} from './types.ts';
 
-export { FEATURE_DEFINITIONS, OPCODE_DEFINITIONS, VERDICT_DEFINITIONS };
+export { FEATURE_DEFINITIONS, OPCODE_DEFINITIONS, PROFILE_DEFINITIONS, VERDICT_DEFINITIONS };
 export type {
   DefinitionHeader,
   FeatureDefinition,
   FeatureDefinitions,
   OpcodeDefinition,
   OpcodeDefinitions,
+  ProfileDefinition,
+  ProfileDefinitions,
+  ProfileEngine,
+  ProfileTier,
+  ProfileTierEntry,
   StackSignature,
   VerdictDefinition,
   VerdictDefinitions,
 } from './types.ts';
+
+/** The D4 profile named `name` (`'portable'`), or `undefined`. */
+export function profileDefinition(name: string): ProfileDefinition | undefined {
+  return PROFILE_DEFINITIONS.entries.find((p) => p.name === name);
+}
 
 /**
  * An instruction's KEY as binaryang's IR holds it: the byte for a core opcode,
