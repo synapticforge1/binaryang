@@ -56,3 +56,37 @@ consumer's gate can prove its copy matches.
   named `on…` — three Proxy delegates answer every `on…` name).
 - `i64.add128` / `i64.sub128` left their FIRST operand unchecked.
 - `delegate`, `catch_all` and `try_table` had no name in diagnostics.
+
+## D1 against the specification — every opcode attested (2026-10-23)
+
+The owner asked whether binaryang's opcode set is "based on wabt" and agreed to re-derive it from
+the specification (item 2 of the standalone question; item 1 was the Binaryen attribution,
+[licensing.md](licensing.md)). D1's table came to binaryang through wabt-ts's port of wabt; its
+CONTENT — bytes, mnemonics — is facts of the specification. Measured, one-time scratch scripts,
+read-only sparse clones of the sources:
+
+| source (all fetched 2026-10-23) | opcodes it defines | in D1 with the same opcode AND name |
+| --- | --- | --- |
+| WebAssembly/spec `4441525` — `document/core/appendix/index-instructions.py`, names through `document/core/util/macros.def` | 499 | **499** |
+| WebAssembly/threads `cc535ad` — `proposals/threads/Overview.md` (binary grammar) | 67 | **67** |
+| WebAssembly/wide-arithmetic `024d4ce` — `proposals/wide-arithmetic/Overview.md` | 4 | **4** |
+| WebAssembly/custom-descriptors `412f62d` — `proposals/custom-descriptors/Overview.md` | 7 | **7** |
+| WebAssembly/spec — `proposals/exception-handling/legacy/Exceptions.md` (table) | 6 (`throw` also in the spec) | **6** |
+
+**499 + 83 = 582: no D1 opcode lacks a specification source, and no opcode the specification
+defines is missing from D1.** The opcode set rests on the specification, not on wabt.
+
+- **Two names differ only from the instruction INDEX**, which labels `0xfd 0x103` / `0x104`
+  `i32x4.relaxed_trunc_f64x2_s` / `_u` (abstract syntax); the TEXT format — the spec's own testsuite
+  (`test/core/relaxed-simd`, and the vendored copy in wasmtk) and the SpecTec `specification/` —
+  writes D1's `…_s_zero` / `…_u_zero`. An inconsistency inside the spec's documents, not in D1.
+- **D1's `ref.test null` / `ref.cast null`** (`0xfb 0x15` / `0x17`) carry their form in the name, by
+  D1's own rule; the index names both forms alike. Treated as equal.
+- **Licences of what was read:** the spec's `document/` is under the W3C Software and Document
+  License, its `proposals/` under CC0; opcode numbers and mnemonics are facts. Nothing was copied
+  into the repo; a durable check would carry the extracted facts with their source and licence.
+
+**Not yet done — the durable form:** this was a one-time proof. Making the specification the
+SOURCE going forward means a committed check (a Bun script and a pinned snapshot of the extracted
+facts, with their source commits) that the gate runs, so D1 cannot drift from the spec unseen;
+it fits beside D4 (open-work 34), which needs the same source documents for its features.
