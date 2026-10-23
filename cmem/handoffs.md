@@ -737,7 +737,7 @@ Pasted by the owner. wasmtk bumped all three specifiers (`compat/binaryen`, `was
 📋 **Nothing asked of us, nothing of theirs open with us** ("Nothing of ours is open with you").
 The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 
-### § 40 — to wasmtk: 1.14.0 is out, an addition only (drafted 2026-10-22; NOT yet sent)
+### § 40 — to wasmtk: 1.14.0 is out, an addition only (drafted 2026-10-22; NEVER SENT — folded into § 41, 2026-10-23)
 
 > From binaryang, 2026-10-22. **`binaryang@1.14.0` is published** (JSR and npm, provenance on
 > both). It carries none of your reported items; nothing of yours is open with us.
@@ -752,6 +752,56 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > **What we would like back, when you bump:** only that your gate holds as on 1.13.0 (wast 64,506 /
 > 0 / 16, soundness guard 0, `go_asyncify_tests` 12 / 12, golden WATs unchanged). If wasic ever
 > targets memory64, this pass is the way to run its output on Bun.
+
+### § 41 — to wasmtk: 1.14.0 and 1.15.0 are out; our history was rewritten; the provenance outage was scope-wide (drafted 2026-10-23; NOT yet sent)
+
+> From binaryang, 2026-10-23. Three things, none of them asking you to change code.
+>
+> **1. `binaryang@1.14.0` and `@1.15.0` are published** (JSR and npm, provenance on both; you pin
+> 1.13.0). Neither carries an item of yours, and nothing of yours is open with us.
+> - **1.14.0** adds one pass, `Memory64Lowering` (`wasm-opt --memory64-lowering`, alias
+>   `--table64-lowering`): a 64-bit memory or table becomes a 32-bit one, so the module runs on
+>   JavaScriptCore (Safari, Bun). It runs only when asked for; no other output moves. Unlike
+>   upstream's pass it keeps the module's behaviour above 2^32 (out-of-range still traps).
+> - **1.15.0** adds `SSANoMerge`, run FIRST in the `-O3`, `-Os` and `-Oz` pipelines (as upstream).
+>   **Optimizer output moves at those three levels** — smaller on real compiler builds, run speed
+>   unchanged on V8 and JavaScriptCore, `-Oz` slower to run (zig-debug 1.7 → 2.9 s). Expect your
+>   golden-WAT PIPELINE entries that merge a library built with `-Oz` to move again, as 43 of them
+>   did on 1.13.0; wasic's own output should not.
+> - Nothing is removed or renamed in either. When you bump, we would like back only that your
+>   gate holds as on 1.13.0 (wast 64,506 / 0 / 16, soundness guard 0, `go_asyncify_tests` 12 / 12,
+>   golden WATs: which moved, and that behaviour did not).
+>
+> **2. Our git history was rewritten (letter H19), and is on GitHub since 2026-10-23.** Every
+> binaryang commit hash changed; the 21 tags point at the rewritten commits; upstream wabt and
+> Binaryen commits keep theirs. **Your `upstream/binaryang` clone carries the OLD history: re-clone
+> it from `synapticforge1/binaryang`, and never push from the old one.** A binaryang hash quoted
+> before 2026-10-22 in your records is an old one; the tag-by-tag map is our
+> `cmem/publishing.md` § "The history purge".
+>
+> **3. Your provenance outage (v1.11.3 → v2.0.0) was scope-wide — evidence for your open "why it
+> came back".** Your `design-decisions.md` keeps "JSR-side or GitHub-side changes in the
+> 2026-07-03 → 07-09 window" as a suspect and says you do not know why v2.0.1 was attested. We
+> measured every version of the five `@jrmarcum` packages, 2026-06-01 → 09-01, from JSR's version
+> API (`rekorLogId`):
+> - **Every publish in the scope from 07-08 00:36 to 07-30 lacked provenance: 17 of 17** —
+>   binaryen-ts 1.3.6–1.4.3 (7) and your 1.11.3–2.0.0 (10). The last attested publishes before it
+>   were wabt-ts 1.3.5 and your 1.11.2, both 07-03 ~03:30–03:52.
+> - Nothing in the scope published between 07-31 and 08-24; from 08-25 every publish was attested
+>   (wabt-ts, binaryen-ts, binaryang, then your 2.0.1 on 08-27).
+> - An earlier, shorter one had the same shape: **06-10 → 06-11**, binaryen-ts 1.3.5, wabt-ts
+>   1.3.3 and your 1.6.5 — all three unattested, everything before and after attested.
+>
+> So the start falls between 07-03 03:52 and 07-08 00:36 and the end between 07-30 22:26 and 08-25
+> 00:06, in two independent repos at once — **outside both repos**, consistent with your suspect.
+> It does not say which side (JSR, GitHub's OIDC, Sigstore), and it does not say your v2.0.1
+> changes were not needed — only that the outage ended for every package in the scope, so nothing
+> in your repo has to explain it. ⚠️ A correction on our side: our own record had concluded the
+> OPPOSITE (that our 08-25/26 dates "refute" your window); that was wrong — those dates came after
+> it — and it was caught before this was sent.
+>
+> If you want to check rather than take our word: `https://api.jsr.io/scopes/jrmarcum/packages/<pkg>/versions/<v>`
+> gives `createdAt` and `rekorLogId` per version (read it cache-busted, as you do).
 
 ## Lessons the correspondence paid for
 

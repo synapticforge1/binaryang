@@ -69,7 +69,12 @@ gives 19 and 24 commits respectively. Both "preserve history"; only one keeps it
     record: on `import.meta.main`, 1.3.14 (Zig) and 1.4.0 (Rust) behave identically. An exception
     with its reason attached is a decision; the same exception without one is a bug in the policy.
   - JSON import attributes were verified on Node 24, Bun and Deno but not on 22.18; nothing in the
-    tree depends on them.
+    tree depends on them (re-checked 2026-10-23: no JSON import in `src/` or `main.ts`). **The floor
+    itself is exercised on every push** (drift B6, closed 2026-10-23): CI's runtimes job runs
+    `scripts/cli-smoke.ts` on **Node 22.18** and **Bun 1.4.0** beside Node 22 / 24 / 26 and Deno —
+    green on the 1.15.0 release commit `ae9e87162`. Each job only PRINTS its output hash to the run
+    summary; nothing in CI compares them across jobs (locally, `bun run lts` does, for the LTS lines). If a JSON
+    import is ever added, that job is what will say whether 22.18 takes it.
 - **Adopt wabt-ts's `compilerOptions`** (measured at exactly 4 errors in binaryen-ts's `src/`), with
   `lib` as the one real merge — `dom` + `deno.window`, unioned. binaryen-ts's test workspace member
   that turns `noUncheckedIndexedAccess` off is preserved and scoped to its tests

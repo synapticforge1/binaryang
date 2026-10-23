@@ -39,7 +39,7 @@ deno task collisions   # convergence indicator (reported, never gated)
 
 ⚠️ **A count in prose goes stale silently.** The wabt-ts wing carried three successive test counts,
 one of which went stale the same day it was written. Treat the number above as the date it carries;
-`deno task test | tail -1` is the only current answer.
+`bun run test`'s own summary is the only current answer (`deno task test | tail -1` until B5).
 
 **`publish:dry` belongs in the gate whenever a change ADDS or MOVES an exported symbol.** It is the
 only step running JSR's slow-types check — moving one constant into another file made it public API
@@ -64,9 +64,10 @@ silently rewrote a file long before you read the diff. See [best-practices.md](b
 `tests/binaryen-ts/` · `tests/wabt-ts/` · `tests/ir/` · `tests/definitions/` (2026-10-13; `tests/bridge/`
 went with the bridge), each mirroring its `src/` counterpart.
 
-⚠️ **`deno task test` enumerates those directories by name.** A new top-level test directory will
-not run until it is added there — `tests/bridge/` needed exactly that when the bridge moved, and the
-whole bridge suite would have gone quiet without it.
+⚠️ **`bun run test` enumerates those directories by name** (`TEST_DIRS` in `scripts/test.ts`; the
+`deno task test` task did the same until B5). A new top-level test directory will not run until it
+is added there — `tests/bridge/` needed exactly that when the bridge moved, and the whole bridge
+suite would have gone quiet without it.
 
 **Finding IR nodes in a test: `tests/expr_walk.ts`** (2026-10-13). `allOf(root, kind)` /
 `firstOf(root, kind)` walk the tree by STRUCTURE (not the IR's own visitor, so a test does not lean
@@ -79,14 +80,15 @@ local walker returning `any`; five such copies were folded into it ([bun-migrati
 
 In `src/` an unchecked index that turns out to be `undefined` becomes wrong bytes in a `.wasm` —
 this project's worst failure mode. In a test it becomes a failed assertion, which is the test
-working. `tests/binaryen-ts/deno.json` is a workspace member existing only to turn it back off.
+working. `tests/binaryen-ts/tsconfig.json` exists only to turn it back off (a `deno.json`
+workspace member until B7).
 
-⚠️ **Omitting the key does not reset it.** A workspace member inherits the root's `compilerOptions`
+⚠️ **Omitting the key does not reset it.** The child config inherits the root's `compilerOptions`
 and merges its own over them, so an omitted override looks like it works right up until you check
 the error count and find it unchanged. It must be written out as `false`.
 
-The asymmetry is not repo-wide: `tests/wabt-ts/` and `tests/bridge/` are not members and run under
-the strict flag, as does `scripts/release/`. Only the tree that would have needed ~420 `!` edits
+The asymmetry is not repo-wide: `tests/wabt-ts/`, `tests/ir/` and `tests/definitions/` run under
+the strict flag (`tests/tsconfig.json`), as does `scripts/release/`. Only the tree that would have needed ~420 `!` edits
 opted out.
 
 ## Proving a refactor changed nothing: `deno task baseline`
@@ -398,13 +400,16 @@ is exactly what the original defect was: **the logic was absent, not wrong.**
 
 ## CI gate
 
-`.github/workflows/ci.yml` runs `deno fmt --check`, `deno lint`, `deno task check`,
-`deno task test`, the two binding-rule scripts, `deno task baseline`, `deno publish --dry-run`, and
-the convergence indicator (reported, ungated). Plus a CLI matrix on Deno, Node 22.18, Node 24 and
-Bun 1.4.
+The step list is in [working-rules.md](working-rules.md) § "The gate", read from
+`.github/workflows/ci.yml` — not repeated here, because a copy here is what went stale (drift
+B1, 2026-09-20: this section listed `deno task test` while the rules required `deno task ci`).
+Three jobs: **Gates** (format, lint, `bun run check`, `bun run test` and `test:bun`, the binding
+rules, browser bundles, baseline, `publish:dry`, the npm proof), **Browsers** (the library in
+every browser), and a CLI matrix on Deno, Node 22.18 (the floor), Node 22, 24 and 26, and Bun 1.4.0
+(the floor).
 
-**Test files ARE type-checked**, and that was once a real gap: `deno task test` runs `--no-check`
-and `check` once covered only `src/`, so test files were type-checked by no task at all. Closing it
+**Test files ARE type-checked** (`bun run check` covers `tests/` with its own two tsconfigs), and
+that was once a real gap: `deno task test` ran `--no-check` and `check` once covered only `src/`, so test files were type-checked by no task at all. Closing it
 surfaced seven latent type errors, one a genuinely wrong fixture that passed anyway because it
 asserted a throw that fires regardless of its arguments. **When adding a task that validates
 something, check what it actually walks.**
@@ -415,7 +420,8 @@ type-checked by nothing.
 🛑 **And then a local gate dropped it again.** The S6 verification list was
 `test · baseline · operators · spec · bridge` — no `check`, and `test` runs `--no-check`. So
 `290faadcd` left two `scripts/` files uncompiled, and `main` stayed red by CI's standard for 65
-unpushed commits. **Use `deno task ci` (check + test), never `deno task test` alone**, and see
+unpushed commits. **Run the whole gate — today `bun run check` AND `bun run test` at least, never
+the tests alone** (`deno task ci` was the Deno-era form), and see
 [best-practices.md](best-practices.md) "The local gate must BE CI's gate".
 
 ## ⚠️ Every test-file path in the wing full texts is DEAD
