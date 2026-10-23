@@ -17,6 +17,37 @@ runtime suites and attempt to create a consolidated opcode set that all can deco
 4. **wasmrt and wazmrt are excluded for now** ("we can adjust those once we know what we need here
    from the others"): they implement the profile afterwards, they do not shape it.
 
+5. **Optimization takes the browsers' WebAssembly 2.0 support into account** (owner, 2026-10-23:
+   "all modern browsers now support wasm preview 2. this should be taken into account with our
+   optimization efforts" — clarified with a caniuse-style list as WebAssembly **2.0**, the spec
+   version, not WASI Preview 2). → **Target-aware optimization**: given a target profile, passes
+   may INTRODUCE features the input does not use (bulk-memory `memory.copy` / `memory.fill` for
+   byte loops, sign-extension for shift pairs, multi-value returns for memory spills, …) — smaller
+   and usually faster, the owner's two optimizer targets. The profile both LIMITS what the optimizer
+   emits and PERMITS what every defining engine runs. Today binaryang's `defaultFeatures()` is
+   exactly WebAssembly 2.0 (mutable globals, saturating conversions, sign extension, SIMD,
+   multi-value, bulk memory, reference types; every 3.0 feature off), and `wasm-opt` validates input
+   against every feature but its passes take no TARGET.
+
+### The browser engine map (from the owner's list, corrected 2026-10-23)
+
+- **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
+  Internet, UC, QQ, Baidu, Android Browser, KaiOS, Chrome for Android; WebKit / **JavaScriptCore** —
+  Safari, and EVERY browser on iOS (WebKit's rule, so Chrome on iPhone has Safari's support);
+  **SpiderMonkey** — Firefox (the list's "JavaScriptCore (SpiderMonkey)" is a mix-up). The probe
+  already runs all three.
+- **"Wasm 2.0" in such lists is often 3.0 or neither**: 2.0 is SIMD, bulk memory, multi-value,
+  reference types, sign extension, saturating conversions, mutable-global import / export;
+  exception handling, GC, extended-const, tail calls, memory64 and typed function references are
+  **3.0**; threads is its own proposal, in neither. A browser "supporting Wasm 2.0" may still lack
+  GC or exnref — so the profile is decided per FEATURE, against the STABLE version in use, and
+  Safari's stable version decides 3.0 features for all of iOS.
+- **Components (WASI Preview 2) are NOT run by any browser** — measured 2026-10-23 with a minimal
+  component (`wasm-tools`, header `0d 00 01 00`): Chromium 153, Firefox 155, WebKit 26.6, Node 24,
+  Deno 2.9.8 and Bun 1.4.4 all refuse it at the version field, and none exposes a component API;
+  wasmtime 50 runs it. Browser delivery of a component goes through a translation (`jco`-style),
+  and optimization applies to the core modules inside — a separate scope if ever wanted.
+
 ## The shape agreed (proposal, refined by the measurements)
 
 - **Three tiers**, per FEATURE with the opcode list as evidence (memory64, multi-memory, custom
@@ -132,4 +163,6 @@ part of that review.
 - **Pass 3, the trap paths of the typed opcodes** (divide by zero, out of bounds, invalid
   conversion): pass 2 covered traps only for the untyped ones.
 - **The two lowerings** (owner decision 2), the portable target and D4.
+- **Target-aware optimization** (owner decision 5): passes that use a feature the target profile
+  permits and the input lacks — after D4 gives the profile, each measured for size AND run speed.
 - binaryang's interpreter: shared memories (pass 1) and custom descriptors are unsupported.

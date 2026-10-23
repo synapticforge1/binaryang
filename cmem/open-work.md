@@ -194,7 +194,10 @@ removed record went to a topic file, and the full text is one `git show` away:
     incl. Chromium, Firefox, WebKit, Deno) DONE 2026-10-23: no engine computes a different value;
     the tiers are in portability.md. **Next:** the owner's engine-list review (wasmer and wazero
     alone keep GC and tail calls out of the portable tier), pass 3 (trap paths), the two lowerings,
-    the portable target, D4. Found on the way, its own item when worked: binaryang's interpreter
+    the portable target, D4, then **target-aware optimization** (owner, 2026-10-23: browsers'
+    WebAssembly 2.0 support "should be taken into account with our optimization efforts" — passes
+    may introduce what the target profile permits; portability.md decision 5). Found on the way,
+    its own item when worked: binaryang's interpreter
     refuses every shared memory.
 
 33. ⬚ **FL1 — upstream's feature-flag spelling is refused** (found 2026-10-23 measuring workspace
