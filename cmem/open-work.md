@@ -56,8 +56,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     systems — Safari 18.4+, current Chrome / Edge, Firefox current + ESR 153; the tier stands. Pass 3
     DONE: every engine and stable browser matches the spec on 210 failure paths. **The final
     deliverable** (owner, 2026-10-23): an **`opcode-guide.md`** for the other projects to follow as
-    a reference, once conformance is done. **Next:** the two lowerings,
-    the portable target, D4, then **target-aware optimization** (owner, 2026-10-23: browsers'
+    a reference, once conformance is done. The wide-arithmetic lowering BUILT and proven
+    2026-10-23 (portability.md). **Next:** the relaxed-SIMD lowering, the portable target, D4, then **target-aware optimization** (owner, 2026-10-23: browsers'
     WebAssembly 2.0 support "should be taken into account with our optimization efforts" — passes
     may introduce what the target profile permits; portability.md decision 5). Found on the way,
     its own item when worked: binaryang's interpreter

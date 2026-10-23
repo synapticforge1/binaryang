@@ -153,6 +153,32 @@ are valid), corrected by the spec, not by the majority. The interpreters refuse 
 20 processes were left, holding the profile); the probe now stops every process whose command line
 names its own throwaway profile, then removes it.
 
+### The wide-arithmetic lowering — built and proven (2026-10-23)
+
+`src/passes/wide-arithmetic-lowering.ts`, `wasm-opt --wide-arithmetic-lowering` (owner decision 2).
+Each of `i64.add128`, `i64.sub128`, `i64.mul_wide_s`, `i64.mul_wide_u` becomes a `call` to a helper
+added once per instruction USED, returning two `i64`s (multi-value, portable): carry / borrow by an
+unsigned compare; `mul_wide_u` from the four 32×32 partial products; `mul_wide_s` as `_u` with the
+two's-complement correction per negative operand. Proven, owner: "no guesses please. test and
+prove before acting":
+
+- **Exact**: the lowered module, run on V8 (which cannot compile the original) and on
+  JavaScriptCore, equals BigInt 128-bit arithmetic over 12 edge values per operand (every pair, and
+  add / sub over 12 × 12 × 4 × 3); binaryang's interpreter, running the ORIGINAL, agrees
+  (`tests/binaryen-ts/passes/wide_arithmetic_lowering.test.ts`).
+- **The test can fail**: three mutants — the carry compared the wrong way, the sign correction
+  removed, the borrow dropped — each killed.
+- **Portable, measured**: pass 1's four wide-arithmetic modules, lowered through the CLI, give
+  wasmtime's ORIGINAL result on all 17 executors — the eight that refused the proposal included
+  (V8 ×4, WasmEdge, wasmer, wazero ×2, Firefox ESR 153).
+- 🔧 **Found on the way, a guess disproven**: the first helpers declared too few locals — the IR's
+  `Func.locals` lists every slot, PARAMS FIRST (its declaration says so; asyncify's helpers do it).
+  Shown by printing the module (`add128` declared 0 locals of 1, `mul_wide` 1 of 3) before the fix,
+  after a first guess (that a region keeps only its last value) was printed out and found false.
+
+**So wide-arithmetic moves to "portable via lowering", built.** Relaxed SIMD is the other lowering
+(decision 2).
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
