@@ -112,6 +112,11 @@ jobs:
       - name: Emitted-byte baseline
         run: bun run baseline
 
+      # The compatibility gate's snapshot (workspace letter H6, rule 5): api-surface.json must be
+      # this tree's surface; an intended change re-baselines in its own commit, with the reason.
+      - name: Surface snapshot matches the tree
+        run: bun run surface:check
+
       - name: Verify publish manifest (dry run, no provenance)
         # jsr.json is the package manifest, and with no deno.json (B7) Deno finds it by itself;
         # the same 122 files as with `--config jsr.json` before (cmem/bun-migration.md § "B7").

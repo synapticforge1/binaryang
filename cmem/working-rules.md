@@ -69,7 +69,9 @@ CI's steps first, read from `.github/workflows/ci.yml` rather than from memory o
 `bun install --frozen-lockfile` · `bun run fmt:check` (dprint + its canary, since B3, 2026-10-13; it replaced `deno fmt --check`) · `bun run lint` (Biome, since B3, 2026-10-13; it replaced `deno lint`) · `bun run check` (THE type check: tests since B5, alone since B7; `bun check` since 2026-10-15, `tsc` before, kept as `bun run check:tsc` — [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md) § "Type checking: `bun check`") · `bun run test` (node:test on Node 24, the referee) · `bun run test:bun` (Bun, against `tests/bun-known-differences.json`)
 · `bun run naming` · `bun run portability` ·
 `bun run browser` (every export bundles for the browser, open-work 28, 2026-10-12) ·
-`bun run baseline` · `bun run publish:dry` (`deno publish --dry-run --allow-dirty`) · `bun run npm:prove` (the npm package built, packed, installed and run) — and the `runtimes` job's
+`bun run baseline` · `bun run surface:check` (the compatibility gate's snapshot, since
+2026-10-23, workspace letter H6; [publishing.md](publishing.md) § "The compatibility gate") ·
+`bun run publish:dry` (`deno publish --dry-run --allow-dirty`) · `bun run npm:prove` (the npm package built, packed, installed and run) — and the `runtimes` job's
 `scripts/cli-smoke.ts`, run under each runtime it tests (locally:
 `deno run -A scripts/cli-smoke.ts
 "deno run -A"` and `bun scripts/cli-smoke.ts bun`, and for Node **`bun run lts`**: every current

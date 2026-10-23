@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Documentation
+
+- **The README's Migrating section opens with a Breaking Changes table**: every release that removed
+  or renamed something you could import (1.6.0, 1.7.0, 1.12.0), and how to migrate. From the next
+  release on, a break is released as a major version, and the release tooling checks it.
+
 ### Licensing
 
 - **Binaryen is now attributed, as its licence requires.** binaryang ports parts of both wabt and
