@@ -82,6 +82,38 @@ first: its pass-2 results discriminate (66 values, 5 expected traps, 5 refusals)
     lowering.
 - All other values match the engines (relaxed SIMD aside, which varies by design).
 
+### Safari's floor, from published data — and what it removes (2026-10-23)
+
+Source: **MDN browser-compat-data 8.1.7** (npm `@mdn/browser-compat-data`, CC0, data timestamp
+2026-10-22; its `webassembly.*` features; the first version supporting each BY DEFAULT — no flag,
+no prefix, not partial). Cross-checked against our own stable-browser measurements where both
+exist: BCD has wide-arithmetic in Firefox 155 and absent from Chrome — exactly what ESR 153
+(refuses), Firefox 158 (runs) and Chrome 156 (refuses) did.
+
+🔑 **Safari ships three features our JavaScriptCore columns ran ONLY as "preview" (Safari
+Technology Preview), and not at all on iOS: memory64, multi-memory, relaxed SIMD** (and
+wide-arithmetic). Bun and Playwright's WebKit 26.6 are newer than any shipped Safari — owner
+decision 7's caveat, now measured. Consequences: **memory64 is portable only via
+`Memory64Lowering`** (already its tier); **multi-memory stays engine-specific** (it was, for
+wazero); relaxed SIMD is via its planned lowering.
+
+| feature | Safari / iOS | Chrome | Firefox |
+| --- | --- | --- | --- |
+| multi-value · sign-ext · sat-conversions · bulk memory · reference types | 13.1 – 15.1 | ≤ 96 | ≤ 79 |
+| threads / atomics | 15.2 | 74 | 79 |
+| SIMD-128 | 16.4 | 91 | 89 |
+| extended-const | 17.4 | 114 | 112 |
+| typed function references | 18 | 119 | 120 |
+| exceptions, standard (exnref, BCD `exceptionsFinal`) | 18.4 | 137 | 131 |
+| GC · tail calls (engine-specific: wasmer / wazero) | 18.2 | 119 · 112 | 120 · 121 |
+| memory64 · multi-memory · relaxed SIMD · wide-arithmetic | preview only | 133 · 120 · 114 · — | 134 · 125 · 146 · 155 |
+
+**The open decision — the owner's: the oldest Safari supported.** The portable tier as measured
+needs **Safari / iOS 18.4** (March 2025), set by standard exceptions. A floor of **16.4** (March 2023,
+the first with SIMD) drops standard exceptions, typed function references and extended-const out of
+the tier — and legacy-to-standard lowering (`TranslateToExnref`) would then point the wrong way: a
+16.4 floor needs standard → legacy. Choosing it takes iOS / Safari version usage data.
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
