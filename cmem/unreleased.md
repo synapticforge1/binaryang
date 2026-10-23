@@ -58,3 +58,7 @@ contains ([handoffs.md](handoffs.md)).
   pipeline first at -O3 / -Os / -Oz. **Behaviour:** optimizer output moves at those levels
   (smaller: the six -Oz −175, corpus −28); run speed unchanged (V8, JavaScriptCore); -Oz takes
   longer (zig-debug 1.7 → 2.9 s).
+- **Repository — the history rewrite (letter H19)**, pushed 2026-10-23: every commit hash changed,
+  the 21 tags re-pointed, the packages unchanged; the release provenance up to 1.14.0 names the old
+  hashes. Not a package change, but the release note must say it (owner, H19's resume plan).
+  `CHANGELOG.md` § 1.15.0 "Repository".

@@ -294,9 +294,11 @@ binaryen history with third-party authors (rewrite only the owner's address), 37
 ✅ **H19 DONE the same day** (owner: "start"; "only public facing items"; "items in the public
 facing history should be cleaned in the history"): the public history rewritten — 1,761 commits
 and 5 tags, the 11,187 upstream commits untouched — verified, cited hashes remapped, local
-`user.email` the noreply address. **NOT YET PUSHED — paused 2026-10-22 at the owner's word** ("I
-need to pause here for today"), in the middle of "update the project memory files, bump the
-version then push to github". **To resume:** (1) force-push the rewritten public refs with a lease
+`user.email` the noreply address. **Paused 2026-10-22 at the owner's word** ("I need to pause
+here for today"), in the middle of "update the project memory files, bump the version then push
+to github"; **resumed 2026-10-23** (owner: "continue with H19"): step (1) ✅ pushed, 24 / 24 refs,
+no publish triggered ([publishing.md](publishing.md) § "The history purge", "Pushed"); step (3)'s
+`CHANGELOG.md` § 1.15.0 on `release/1.15.0`. **The plan:** (1) force-push the rewritten public refs with a lease
 on each old value — `main` (GitHub has `9cc85f0e7`), `release/1.5.3` (`d0ef9f8f1`),
 `release/1.6.1` and the 21 tags (old values in the gitignored `cmem/local/backups/h19-map.txt`);
 (2) CI green on `main`; (3) `CHANGELOG.md` § 1.15.0 on a release branch (a MINOR: SSANoMerge;

@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.15.0
+
+A minor release: **one new optimizer pass, `SSANoMerge`**, which makes `-O3`, `-Os` and `-Oz`
+output smaller on real compiler builds at the same run speed. Nothing is removed or renamed, and
+output at the other levels does not change.
 
 ### New
 
@@ -8,6 +12,16 @@
   another becomes one local per value, where no read can see two of them. It runs first in the
   `-O3`, `-Os` and `-Oz` pipelines, as in Binaryen, and lets later passes merge code that differed
   only in which local it read: smaller output on real compiler builds, the same run speed.
+
+### Repository
+
+- **The git history was rewritten, and every commit hash of this repository changed.** It removed
+  personal information from commit metadata and from a few files. The tags `v1.5.1` to `v1.14.0`
+  now point at the rewritten commits; the packages published under them are unchanged. The
+  provenance of those releases (JSR's transparency-log entries, npm's attestations) names the old
+  hashes; the old → new commit of every tag is in `cmem/publishing.md` § "The history purge".
+  Upstream wabt and Binaryen commits keep their hashes. A clone made before 2026-10-23 carries the
+  old history: clone again, and do not push from it.
 
 ## 1.14.0
 
