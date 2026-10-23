@@ -160,6 +160,13 @@ wasm64 builds of Rust, Zig and Emscripten (the last with its JS glue). `main` = 
 cmem. Drafted for the owner to send: [handoffs.md](handoffs.md) § 40, 1.14.0 to wasmtk.
 **Open:** 31 (optimizer), 13, 14, 15.
 
+**State, 2026-10-23 (supersedes the paragraphs above where they differ):** letter H19 is COMPLETE
+— the rewritten history is on GitHub — and **`binaryang@1.15.0` is PUBLISHED** on JSR (Rekor
+`3423023791`) and npm (SLSA provenance), carrying `SSANoMerge` (open-work 31, step 16) and the
+history note (CHANGELOG § 1.15.0; release record [publishing.md](publishing.md) § "1.15.0"). Also
+on `main`: `docs/ir-map.html`, a map of the IR's layout for this repo and its siblings, shipped in
+neither package. **Open:** 31 (resume at simplify-locals-nostructure), 13, 14, 15.
+
 **Owner's order (2026-09-28):** defects and gaps first, then optimizer and IR, then re-evaluate.
 
 **Cut back to open items on 2026-09-29** (the second time; the first was 2026-09-14). The file had
@@ -296,16 +303,15 @@ facing history should be cleaned in the history"): the public history rewritten 
 and 5 tags, the 11,187 upstream commits untouched — verified, cited hashes remapped, local
 `user.email` the noreply address. **Paused 2026-10-22 at the owner's word** ("I need to pause
 here for today"), in the middle of "update the project memory files, bump the version then push
-to github"; **resumed 2026-10-23** (owner: "continue with H19"): step (1) ✅ pushed, 24 / 24 refs,
-no publish triggered ([publishing.md](publishing.md) § "The history purge", "Pushed"); step (3)'s
-`CHANGELOG.md` § 1.15.0 on `release/1.15.0`. **The plan:** (1) force-push the rewritten public refs with a lease
-on each old value — `main` (GitHub has `9cc85f0e7`), `release/1.5.3` (`d0ef9f8f1`),
-`release/1.6.1` and the 21 tags (old values in the gitignored `cmem/local/backups/h19-map.txt`);
-(2) CI green on `main`; (3) `CHANGELOG.md` § 1.15.0 on a release branch (a MINOR: SSANoMerge;
-also say the history was rewritten and every commit hash changed), gate, merge; (4) fresh clone
-gate, `bun run bump minor`, `bun run release`. Record and the tag-by-tag hash
-map: [publishing.md](publishing.md) § "The history purge". **Every commit hash quoted before
-2026-10-22 outside this repo (wasmtk's letters, the workspace) is now an OLD hash.**
+to github"; ✅ **COMPLETED 2026-10-23** (owner: "continue with H19", then "yes" to the bump):
+the 24 public refs force-pushed with a lease each, no publish triggered ([publishing.md](publishing.md)
+§ "The history purge", "Pushed"); CI green; `CHANGELOG.md` § 1.15.0 gated and merged; a fresh
+clone 17 / 17; **1.15.0 released** on JSR and npm with provenance ([publishing.md](publishing.md)
+§ "1.15.0"). The tag-by-tag hash map: [publishing.md](publishing.md) § "The history purge".
+**Every commit hash quoted before 2026-10-22 outside this repo (wasmtk's letters, the workspace) is
+now an OLD hash.** Left with the owner, not ours to do: telling wasmtk to re-clone
+`upstream/binaryang` (a letter, drafted on request), and a GitHub Support request if the old
+commits must stop being served by hash.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an
