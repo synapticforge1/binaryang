@@ -174,9 +174,14 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   REASON. A mutant caught by a different check is a bad mutant; rewrite it.
 - **For a change that makes a state UNREPRESENTABLE, the inversion is compile-time**
   (`@ts-expect-error`, checked by `deno task check`).
-- **Blast radius of a rename or regrouping: trial it.** Make the change, count `deno check` errors,
-  revert, do the other direction. Never grep. And for a new KIND the compiler flags only exhaustive
-  switches — read every `default` it does not flag.
+- **Blast radius of a rename or regrouping: trial it.** Make the change, count `bun run check`
+  errors (`deno check` before B7), revert, do the other direction. Never grep for the COST. And for
+  a new KIND the compiler flags only exhaustive switches — read every `default` it does not flag.
+- **Grep for tells and sweeps; trial the compiler for cost** (drift B5, 2026-10-23). The two rules
+  do not conflict: [best-practices.md](best-practices.md)'s "grep for these tells" rules FIND
+  places (a pattern known to be wrong, every site a sweep must visit), while the rule above
+  MEASURES how much a change breaks, which a grep for the name cannot see (§ "Measure blast radius
+  by TRIALLING the change").
 - **Every upstream difference gets a classified row** in [divergences.md](divergences.md) before the
   work that found it is called done. Read the rows before porting an upstream pass, "matching
   upstream", or claiming byte-identity.

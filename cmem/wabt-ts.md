@@ -1097,7 +1097,7 @@ Covered the release flow, the version rule, the `auto-tag` `actorNotScopeMember`
 - [lesson] **A documented command can go wrong without changing, when the question moves under it.** A `grep -c` of "unreleased" rows silently became a count of released contents once the section was retitled. Ask git (`git diff --stat <last tag>..HEAD -- src/`), not prose.
 
 **Already in the core**
-- Never `deno publish` locally; the tag-driven flow; the version rule → cmem/publishing.md § "The release process (§2.2, merged 2026-08-31)"; `auto-tag` dispatch and recovery → § "🚨 ROOT CAUSE of the `workflow_dispatch` publish failures — found 2026-08-27"
+- Never `deno publish` locally; the tag-driven flow; the version rule → cmem/publishing.md § "The release process (§2.2, merged 2026-08-31)"; `auto-tag` dispatch and recovery → § "The auto-tag dispatch path does not publish — its cause, and the recovery"
 - Slow types and the Node path → cmem/publishing.md § "`publish:dry` is in CI but NOT in `deno task test`"; the dirty-tree guard (T13.43) → § "A dirty tree ships a release containing none of the work"
 - `Limits` / `pageSizeLog2` / feature-gating breaks → cmem/publishing.md § "⚠️ `bump` has no minor mode — a non-patch release is typed by hand"; hygiene → § "Repo hygiene and the memory routing rule"
 
