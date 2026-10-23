@@ -820,6 +820,14 @@ closes its own rows; nothing is written there from here.
   [best-practices.md](best-practices.md) under a dated stamp.
 - **H12 ✅ 2026-10-23** (`d494438e3`). `./ts2wasm` reserved in [project.md](project.md) § "Reserved
   subpaths" — no code, no stub, no `jsr.json` entry, no scope.
+- **H6 ◐ 2026-10-23 — memory and rules done; the compatibility gate in progress.** SemVer bump
+  (done 2026-10-22, `bun run bump [patch|minor|major]`). The 28 ★ rules copied into
+  [best-practices.md](best-practices.md) § "The workspace's convergent rules (★)" under a dated
+  stamp. Memory layout per `../../cmem/memory-conventions.md`: INDEX 24.3 → 13.4 KB (one line per
+  file; the triggers added; the memory's own history moved to [project.md](project.md) § "Memory:
+  what was retired"), the six stacked "State" paragraphs in [open-work.md](open-work.md) folded into
+  one summary with its `git show`. The gate — surface snapshot, the floor in the bump, a CI check
+  on the tag, the previous release's tests with an accepted-changes list, the consumer step — next.
 - **H8 ✅ binaryang's part, 2026-10-23** (this repo's tools: binaryang `main` at 1.15.0, wasm-tools
   1.262.0, wabt 1.0.41; the runtimes NOT re-run):
   - **I5 — CLOSED for binaryang: 582 opcodes, the same 582 as both runtimes.** wazmrt's sweep
