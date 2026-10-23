@@ -820,7 +820,13 @@ closes its own rows; nothing is written there from here.
   [best-practices.md](best-practices.md) under a dated stamp.
 - **H12 ✅ 2026-10-23** (`d494438e3`). `./ts2wasm` reserved in [project.md](project.md) § "Reserved
   subpaths" — no code, no stub, no `jsr.json` entry, no scope.
-- **H6 ◐ 2026-10-23 — memory and rules done; the compatibility gate in progress.** SemVer bump
+- **H6 ✅ 2026-10-23 — the compatibility gate built** ([publishing.md](publishing.md) § "The
+  compatibility gate"): `api-surface.json` + `scripts/release/api-surface.ts` (rule 1), the floor in
+  the bump and on the tag in `publish.yml` (rule 2), the previous release's tests with
+  `tests/accepted-changes.json` and the consumer step in the release pattern (rule 3), the README's
+  Breaking Changes table (rule 4), `surface:check` in CI (rule 5); each inverted before trusted.
+  Earlier the same day:
+- **H6 ◐ 2026-10-23 — memory and rules done.** SemVer bump
   (done 2026-10-22, `bun run bump [patch|minor|major]`). The 28 ★ rules copied into
   [best-practices.md](best-practices.md) § "The workspace's convergent rules (★)" under a dated
   stamp. Memory layout per `../../cmem/memory-conventions.md`: INDEX 24.3 → 13.4 KB (one line per

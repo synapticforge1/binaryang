@@ -18,12 +18,39 @@ B3):
 1. `CHANGELOG.md` § X.Y.Z on a `release/X.Y.Z` branch, gated on the committed tree, merged
    `--no-ff`; `main` pushed UNBUMPED; CI and auto-tag green.
 2. The CI half of the gate from a FRESH CLONE from GitHub of that commit.
-3. No tag and neither registry has X.Y.Z; `bun run bump [patch|minor|major]` (the level is the
-   owner's call); `version_sync` green.
-4. `bun run release` — its guards, then `bump to vX.Y.Z`, `main` + tag in ONE push as a user;
-   `publish.yml` publishes to JSR, then npm.
-5. Read both registries back (Rekor id on JSR, the attestation on npm), run the package as a user
+3. **The consumer check** (workspace letter H6, rule 3): wasmtk's suite against the UNPUBLISHED
+   build — wasmtk's own `upstream/binaryang` setup does it from their side, so this step is a
+   letter asking for it, and a red consumer suite on a patch or minor blocks the release. Skipped
+   only when nothing a consumer imports or produces changed, and that said in the record.
+4. No tag and neither registry has X.Y.Z; `bun run bump [patch|minor|major]` — the level is the
+   owner's call, but **never below the compatibility FLOOR**: the bump refuses unless the committed
+   `api-surface.json` is this tree's surface, prints the floor the surface diff since the last tag
+   demands (removed / changed → major, added → minor), refuses a lower level, and for a patch or
+   minor runs the previous release's tests against this tree (`scripts/release/api-surface.ts`,
+   `previous-tests.ts`, `tests/accepted-changes.json`). `version_sync` green.
+5. `bun run release` — its guards, then `bump to vX.Y.Z`, `main` + tag in ONE push as a user;
+   `publish.yml` repeats the floor check on the tag (`api-surface.ts --release-check`) and
+   publishes to JSR, then npm.
+6. Read both registries back (Rekor id on JSR, the attestation on npm), run the package as a user
    from each, record it here as § X.Y.Z, newest first.
+
+**The compatibility gate** (workspace letter H6, built 2026-10-23; `../../cmem/layout-and-packaging.md`
+§ "The compatibility gate"):
+
+- **Rule 1, the snapshot** — `api-surface.json` at the repo root: per export subpath every symbol
+  and member `deno doc` reports, with kind and a 12-hex fingerprint of its normalised declaration
+  (docs, locations, resolution paths dropped; a re-export fingerprinted by what it points AT, not
+  by line — an attribution header added above a type once read as 17 "changed" symbols); per CLI
+  tool its flags; the pass names. Shipped in neither package. `bun run surface` writes it,
+  `surface:check` compares, `surface:floor` reports the floor since the last tag.
+- **Rule 5, re-baseline in its own commit** — CI's Gates job runs `surface:check` on every push.
+- **Inverted before trusted** — an added export → minor, a changed signature → major, a removed
+  `export` → major (that one first read as patch: `deno doc` keeps documenting a non-exported type an
+  exported signature uses, as `private`, which is now excluded); the bump refused a patch against a
+  minor floor and a stale snapshot, and passed a minor. The previous-tests check counts testcases and
+  fails on zero (its first run printed "? tests").
+- **Rule 4, deprecate before removing**, and the README's `### ⚠️ Breaking Changes` table — written
+  when the deprecation lands, with the migration.
 
 A patch while `main` holds unreleased work goes from a branch cut from the last tag (§ "1.6.1").
 The pattern never dispatches, so `RELEASE_PAT` is closed as not needed (owner, 2026-09-29) — § "The
