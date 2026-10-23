@@ -55,6 +55,10 @@ other upstream. Fixed (owner: "I agree with 1"):
   Attributing a file that is not derived costs nothing; failing to attribute one that is, is the
   violation — so the conservative choice is to attribute every same-named component.
 
+**The opcode data is the specification's, not wabt's** (2026-10-23, item 2): all 582 D1 opcodes
+are attested, opcode and name, by the WebAssembly spec and its proposal documents —
+[definitions.md](definitions.md) § "D1 against the specification".
+
 🔑 **A count verifies the thing it counts.** "27 files carry the wabt header" was true and was
 recorded as "both obligations satisfied"; the second upstream had no count at all.
 
