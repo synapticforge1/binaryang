@@ -803,6 +803,50 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > If you want to check rather than take our word: `https://api.jsr.io/scopes/jrmarcum/packages/<pkg>/versions/<v>`
 > gives `createdAt` and `rekorLogId` per version (read it cache-busted, as you do).
 
+## Workspace letters — outcomes (the workspace session reads these here)
+
+Letters addressed to binaryang in `../../cmem/handoffs.md`, acted on in this repo. The workspace
+closes its own rows; nothing is written there from here.
+
+- **H5 ✅ 2026-10-23** (`8bc2efa1a`). Drift B1–B7 and W5. B1 / B2 [testing.md](testing.md)
+  brought to today's tree; B3 [publishing.md](publishing.md)'s header re-states the settled release
+  pattern and the three superseded dispatch sections are one summary (and `auto-tag.yml`'s comments
+  stop quoting 0-of-3 / 5-of-5); B4 [ir-convergence.md](ir-convergence.md)'s finished Stage 1–3
+  plan summarized; B5 one reconciling rule in [working-rules.md](working-rules.md); B6 the 22.18
+  floor is exercised by CI on every push ([project.md](project.md)). **B7 REVERSED, not sent as
+  asked:** measured first, the scope-wide JSR record SUPPORTS wasmtk's 07-03 → 07-08 window (17 of
+  17 publishes in the scope unattested 07-08 → 07-30); our "refutes" rested on later dates. The
+  corrected letter is § 41 above, for the owner to send. W5: the nine-item checklist copied into
+  [best-practices.md](best-practices.md) under a dated stamp.
+- **H12 ✅ 2026-10-23** (`d494438e3`). `./ts2wasm` reserved in [project.md](project.md) § "Reserved
+  subpaths" — no code, no stub, no `jsr.json` entry, no scope.
+- **H8 ✅ binaryang's part, 2026-10-23** (this repo's tools: binaryang `main` at 1.15.0, wasm-tools
+  1.262.0, wabt 1.0.41; the runtimes NOT re-run):
+  - **I5 — CLOSED for binaryang: 582 opcodes, the same 582 as both runtimes.** wazmrt's sweep
+    (`wazmrt/cmem/probes/opcode-sweep.ts`, ported to Bun for one run: its 1,276 candidates and
+    padded module, each tool's unknown-opcode message calibrated first) — wasm-tools knows 626,
+    binaryang 582; all 44 differences are opcodes ONLY wasm-tools knows, exactly the runtimes' 44
+    (stack-switching `0xe0`–`0xe6`, memory-control `0xfc 0x12`, shared-everything-threads
+    `0xfe 0x4f`–`0x72`). binaryang accepts nothing wasm-tools refuses. On 2026-09-21 wazmrt
+    measured binaryang at 639 (64 unassigned `0xFD` accepted, `0xfb 20`–`26` missing): both gone
+    (the reserved-SIMD reader fix, 1.11.0).
+  - **I6 — measured; one DEFECT found.** D2's 22 CLI spellings vs wasm-tools' 28 core proposal
+    names: 18 equal; 2 spelled differently (`mutable-globals` — wabt's own; `sat-float-to-int` —
+    **upstream wabt AND wasm-tools say `saturating-float-to-int`, and we refuse their spelling**:
+    [divergences.md](divergences.md) FL1, open, the fix is the owner's call because D2 carries the
+    spelling); `annotations`, `code-metadata` ours only (wabt has both); 8 wasm-tools only
+    (shared-everything-threads, floats, memory-control, legacy-exceptions, gc-types,
+    stack-switching, call-indirect-overlong, bulk-memory-opt).
+  - **I7** — nothing for binaryang to measure: the open question is the owner's rule (I7 / I15
+    pins), and binaryang's side was re-measured by the workspace 2026-10-22.
+  - **I8 — binaryang = wasm-tools 1.262, byte for byte.** `(@custom "name" …)` with and without
+    identifiers: both write ONE name section, the hand-written one; upstream wabt drops the
+    annotation and writes its generated names. ⚠️ **This differs from wazmrt's 2026-09-21 record**
+    (wasm-tools 1.259 wrote BOTH sections, with identifiers, and both runtimes matched it). Cause
+    unmeasured — a wasm-tools change between 1.259 and 1.262 is one candidate; if it is, the
+    runtimes now differ from wasm-tools where binaryang does not. For the workspace to re-check
+    with the runtimes; not ours to run.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
