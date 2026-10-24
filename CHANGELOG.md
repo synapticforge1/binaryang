@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### ⚠️ Removed — breaking
+
+- **`--enable-sat-float-to-int` / `--disable-sat-float-to-int`**, deprecated in 1.17.0, are gone:
+  spell them as upstream wabt and wasm-tools do, `--enable-saturating-float-to-int` /
+  `--disable-saturating-float-to-int`. The old spelling is now an unknown option.
+  `./definitions`: `FeatureDefinition.cliAliases` is removed, and D2's data version is 2.0.0.
+
 ### New
 
 - **The interpreter runs shared memory and atomics** (`wasm-interp`, `wasm-ctor-eval`). A module

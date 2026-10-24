@@ -10179,15 +10179,13 @@ export const OPCODE_DEFINITIONS: OpcodeDefinitions = {
 export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   'definition': 'D2',
   'title': 'WebAssembly feature / proposal list',
-  'dataVersion': '1.1.0',
-  'sha256': '4acd05141edeeeeab80f98204a0731c944ca1a87a3e13b485fa9fbefb211eea0',
+  'dataVersion': '2.0.0',
+  'sha256': '19c8136690f59799df0be2e9f1e0d86362474a79ebf310b2020f6be38ec23373',
   'rules': {
     'name':
       "The canonical name: the key of binaryang's `Features` (`allFeatures()`, `defaultFeatures()`).",
     'cli':
       "The spelling binaryang's CLIs accept, as `--enable-<cli>` / `--disable-<cli>` — upstream wabt's and wasm-tools'.",
-    'cliAliases':
-      'Absent: none. Present: older spellings still ACCEPTED, DEPRECATED (a warning names `cli`); removing one is a major.',
     'defaultOn': "On in `defaultFeatures()` (wabt's tool defaults; not the same as 'in Wasm 3.0').",
     'implemented': 'false: the flag exists and changes nothing (see `note`).',
     'testsuiteDirs':
@@ -10220,9 +10218,6 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
     {
       'name': 'satFloatToInt',
       'cli': 'saturating-float-to-int',
-      'cliAliases': [
-        'sat-float-to-int',
-      ],
       'defaultOn': true,
       'implemented': true,
       'testsuiteDirs': [],

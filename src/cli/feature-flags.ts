@@ -11,10 +11,11 @@
  * without them a gated validator would reject any GC, threads, tail-call or EH
  * module from the command line with no way to opt in.
  *
- * The spellings are D2's (`./definitions`, `features.json`): `cli`, and any
- * `cliAliases`, still accepted but deprecated. They were derived from the
- * `Features` key (`satFloatToInt` → `sat-float-to-int`), which is not upstream's
- * `saturating-float-to-int` (open-work 33 / FL1, renamed 2026-10-24).
+ * The spellings are D2's `cli` (`./definitions`, `features.json`). They were
+ * derived from the `Features` key (`satFloatToInt` → `sat-float-to-int`), which
+ * is not upstream's `saturating-float-to-int` (open-work 33 / FL1: renamed in
+ * 1.17.0 with the old spelling deprecated; the old spelling removed in 2.0.0,
+ * open-work 39).
  *
  * @module
  */
@@ -26,26 +27,14 @@ import { FEATURE_DEFINITIONS } from '../definitions/mod.ts';
 /** A feature set being built from flags, starting at upstream's defaults. */
 export class FeatureFlags {
   readonly features: Features = defaultFeatures();
-  private readonly byFlagName = new Map<string, keyof Features>();
-  /** Deprecated spelling -> the one to use. */
-  private readonly deprecated = new Map<string, string>();
-
-  constructor() {
-    for (const f of FEATURE_DEFINITIONS.entries) {
-      const key = f.name as keyof Features;
-      this.byFlagName.set(f.cli, key);
-      for (const alias of f.cliAliases ?? []) {
-        this.byFlagName.set(alias, key);
-        this.deprecated.set(alias, f.cli);
-      }
-    }
-  }
+  private readonly byFlagName = new Map<string, keyof Features>(
+    FEATURE_DEFINITIONS.entries.map((f) => [f.cli, f.name as keyof Features]),
+  );
 
   /**
    * Applies `arg` when it is a feature flag. `true` when it was one (applied),
    * `'unknown'` for an `--enable-` / `--disable-` of no known feature, `false`
-   * when it is not a feature flag at all. A deprecated spelling is applied, with
-   * a warning on stderr naming the one to use.
+   * when it is not a feature flag at all.
    */
   apply(arg: string): boolean | 'unknown' {
     if (arg === '--enable-all') {
@@ -56,10 +45,6 @@ export class FeatureFlags {
     if (m === null) return false;
     const key = this.byFlagName.get(m[2]!);
     if (key === undefined) return 'unknown';
-    const instead = this.deprecated.get(m[2]!);
-    if (instead !== undefined) {
-      console.error(`warning: ${arg} is deprecated; use --${m[1]}-${instead}`);
-    }
     this.features[key] = m[1] === 'enable';
     return true;
   }
