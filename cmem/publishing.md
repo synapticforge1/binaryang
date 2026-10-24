@@ -5,9 +5,10 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-24 UTC): 2.0.0 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@2.0.0` (Rekor `3436248876`) and npm `@synapticforge1/binaryang@2.0.0`
-(published by GitHub Actions, SLSA provenance) — § "2.0.0", the first MAJOR. **The repo is
+**Latest (2026-10-24 UTC): 2.1.0 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@2.1.0` (Rekor `3436968278`) and npm `@synapticforge1/binaryang@2.1.0`
+(published by GitHub Actions, SLSA provenance) — § "2.1.0", the first release through a
+previous-release test listed as an accepted change. **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
 hash changed (§ "The history purge").
@@ -1005,6 +1006,33 @@ local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fir
 but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
 each would have failed on JSR's existing version, but push such tags with that in mind.
+
+## 2.1.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "release 2.1.0". It carries the default-features fix (every module with a
+function table was INVALID to `wasm-validate` / `wat2wasm` with no flags, since 1.5.3 at least;
+open-work 41), `return_call_ref` under function references and D2's `requires` / `presets` (40),
+two validator feature checks (41), tail calls portable under `--target portable` and D4
+re-measured (34), and the opcode guide (CHANGELOG § 2.1.0).
+
+1. `CHANGELOG.md` § 2.1.0 on `release/2.1.0` (`4c642a09b`), gated 17 / 17, merged (`5b0d7c161`),
+   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `5b0d7c161`: 17 / 17 (counted from its
+   17 step logs, not from "0 failed").
+2. No tag, neither registry had 2.1.0. `bun run bump minor` STOPPED, as designed: the floor
+   MINOR (D2's six additions), but **v2.0.0's tests on this tree: 6,231, 4 failed** — all in
+   `target.test.ts`, all the intended tail-call change (three expected a tail call refused, one
+   the old measurement date). Listed in `tests/accepted-changes.json` with version and reason, in
+   their own commit (`0dc0df5c2`, merged `3d8d7f244`) — the list's first entries. Re-run: 6,231,
+   4 failed, 4 accepted; `surface:check` matches; `version_sync` 3 / 3; `bun run release`:
+   `bump to v2.1.0` (`b7fdb9de5`), `main` + `v2.1.0` in one push.
+3. CI, auto-tag and publish.yml GREEN on the bump: **JSR** 2.1.0 created 2026-10-24T06:50:01Z,
+   not yanked, **Rekor log id `3436968278`**; **npm** at 06:51:39Z, `latest`, SLSA provenance;
+   GitHub Release `v2.1.0`. As a user: JSR `--version` prints `binaryang 2.1.0`; npm's
+   `wasm-validate` with no flags passes `benches/browser-opt/modules/rust-release.wasm`, which
+   2.0.0 called INVALID — the fix, as published.
+
+🔧 The accepted-changes merge was first made with an inline `-m` (no attribution line); undone
+locally before any push and remade with `-F`.
 
 ## 2.0.0 — the first MAJOR, from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
