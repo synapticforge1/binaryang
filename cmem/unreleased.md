@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-24 (UTC): the last release is `v1.16.1`, on JSR and npm, both with provenance;
+**As of 2026-10-24 (UTC): the last release is `v1.17.0`, on JSR and npm, both with provenance;
 nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
---oneline v1.16.1..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.16.1; the
+--oneline v1.17.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.17.0; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
@@ -33,14 +33,17 @@ module run on Safari and Bun"; the multi-memory limit corrected to 100) or **1.1
 first at -O3 / -Os / -Oz; the note that the history was rewritten, letter H19) or **1.16.0**
 (`wasm-opt --target portable` and D4; `WideArithmeticLowering`, `RelaxedSimdLowering`; the README's
 Breaking Changes table and Safari corrections; Binaryen attribution; the compatibility gate's
-first release) or **1.16.1** (no package change: the release tooling checked on a real bump). The
+first release) or **1.16.1** (no package change: the release tooling checked on a real bump) or
+**1.17.0** (every command's `--help`; `--memcpy-to-bulk-memory`; `saturating-float-to-int`, the old
+spelling deprecated, D2 1.1.0; multi-value off enforced; the relaxed-SIMD cost in the README). The
 public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
 `fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
 (1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
-`7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), and at `02a866672` (1.16.0).
+`7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), at `02a866672` (1.16.0), and at `f8473c620`
+(1.17.0).
 
 ## How to use this file
 
@@ -57,22 +60,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.16.1
+## Since 1.17.0
 
-- **Silent fix — `multiValue: false` / `--disable-multi-value` now refuses** what upstream wabt
-  refuses (open-work 35): several results in a function type, parameters on a block type, and (in a
-  binary only) a block type encoded as a type index. Before, the flag changed nothing; a caller
-  validating against Wasm 1.0 was told multi-value modules were valid. Default unchanged (on).
-- **README** — the relaxed-SIMD lowering's measured run cost (portability.md).
-- **NEW — `<command> --help` and `<command> --version`** for all ten commands (open-work 36):
-  `src/cli/help.ts` renders each tool's usage, description, examples and options in wabt's layout;
-  the feature flags come from D2. `tests/wabt-ts/cli/help.test.ts` RUNS every example a help
-  prints. The surface gate: MINOR (flags now named in the usage text).
-- **NEW — `wasm-opt --memcpy-to-bulk-memory`** (`memcpyToBulkMemory` option; also under `--target`
-  with -O; open-work 37): TinyGo's wasi-libc copy loops → `memory.copy`, exact-code match only.
-  Behaviour moves ONLY when asked for or under a target with -O; no default pipeline includes it.
-- **CHANGED, DEPRECATION — the saturating float-to-int flag** (open-work 33 / FL1): upstream's
-  `saturating-float-to-int` is the spelling; `sat-float-to-int` still accepted, with a warning —
-  removing it later is a MAJOR (README § "Deprecated, still accepted"). **D2 data changed**:
-  `cli`, a new `cliAliases` field, `dataVersion` 1.1.0, a new `sha256` — consumers generating
-  from D2 (workspace letter H10) see it; the release note must say so.
+Nothing yet.
