@@ -81,7 +81,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     (one survived first: a check refusing EVERY block — two plain-block cases added). On by
     default: nothing changes unless it is switched off.
 
-33. ◐ **FL1 — upstream's feature-flag spelling is refused** (found 2026-10-23 measuring workspace
+33. ✅ **FL1 — upstream's feature-flag spelling is refused** — DONE 2026-10-24 (divergences.md FL1:
+    `saturating-float-to-int` canonical, `sat-float-to-int` a deprecated alias, D2 1.1.0). (found 2026-10-23 measuring workspace
     letter H8 / I6): `--enable-saturating-float-to-int` / `--disable-…` (upstream wabt 1.0.41 and
     wasm-tools) is an unknown flag here; ours is `sat-float-to-int`. Measured 2026-10-24: the ONLY
     spelling of ours wabt lacks (`custom-descriptors` aside, which wabt has not); Binaryen 133 says

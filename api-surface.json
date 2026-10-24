@@ -2160,6 +2160,7 @@
    "FEATURE_DEFINITIONS": "variable#a1f2b46b4f70",
    "FeatureDefinition": "interface#d54e370c645e",
    "FeatureDefinition.cli": "property#a5a50965aaef",
+   "FeatureDefinition.cliAliases": "property#e1caf814e122",
    "FeatureDefinition.defaultOn": "property#42e41f9fefcf",
    "FeatureDefinition.implemented": "property#fe877f97c514",
    "FeatureDefinition.name": "property#90b258461267",
@@ -2292,6 +2293,7 @@
     "--disable-mutable-globals",
     "--disable-reference-types",
     "--disable-sat-float-to-int",
+    "--disable-saturating-float-to-int",
     "--disable-sign-extension",
     "--disable-simd",
     "--enable-all",
@@ -2317,7 +2319,7 @@
     "--version",
     "-o"
    ],
-   "usage": "baf3eaafd1d2"
+   "usage": "1f8ed0caf0de"
   },
   "wasm2wat": {
    "flags": [
@@ -2340,6 +2342,7 @@
     "--disable-mutable-globals",
     "--disable-reference-types",
     "--disable-sat-float-to-int",
+    "--disable-saturating-float-to-int",
     "--disable-sign-extension",
     "--disable-simd",
     "--enable-all",
@@ -2361,7 +2364,7 @@
     "--help",
     "--version"
    ],
-   "usage": "06a73aa75ebd"
+   "usage": "9200b5f1f968"
   },
   "wasm-objdump": {
    "flags": [

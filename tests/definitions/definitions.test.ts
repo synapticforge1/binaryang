@@ -62,6 +62,27 @@ describe('D2 says what the code does', () => {
     }
   });
 
+  it("saturating-float-to-int is upstream's spelling; sat-float-to-int a deprecated alias (FL1)", () => {
+    expect(entries.find((e) => e.name === 'satFloatToInt')!.cli).toBe('saturating-float-to-int');
+    for (const e of entries) {
+      for (const alias of e.cliAliases ?? []) {
+        const flags = new FeatureFlags();
+        const warned: string[] = [];
+        const was = console.error;
+        console.error = (m: string) => warned.push(m);
+        try {
+          expect(flags.apply(`--disable-${alias}`)).toBe(true);
+        } finally {
+          console.error = was;
+        }
+        expect((flags.features as unknown as Record<string, boolean>)[e.name]).toBe(false);
+        expect(warned).toEqual([
+          `warning: --disable-${alias} is deprecated; use --disable-${e.cli}`,
+        ]);
+      }
+    }
+  });
+
   it('only compactImports is declared but not implemented', () => {
     expect(entries.filter((e) => !e.implemented).map((e) => e.name)).toEqual(['compactImports']);
   });

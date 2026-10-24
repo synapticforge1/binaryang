@@ -36,6 +36,10 @@ function featureOptions(): [string, string][] {
       f.defaultOn ? 'on' : 'off'
     } by default)`;
     out.push([flag, f.implemented ? what : `${what}; declared, changes nothing`]);
+    // An older spelling is still ACCEPTED, so it is listed: deprecated, naming the one to use.
+    for (const alias of f.cliAliases ?? []) {
+      out.push([flag.replace(f.cli, alias), `Deprecated spelling of ${flag}`]);
+    }
   }
   return out;
 }
