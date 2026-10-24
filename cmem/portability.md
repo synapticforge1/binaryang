@@ -256,6 +256,28 @@ OUTPUT against the profile again, so no pass can leave it.
   case). `tests/definitions/definitions.test.ts` checks D4 against D1, D2 and the passes.
 - 🔧 **Found on the way: the validator does not enforce `multiValue`** — open-work 35.
 
+### Decision 5 scoped — what real compiler output leaves to introduce (2026-10-24)
+
+Measured before building (owner: "proceed with 34"), with scratch `to-introduce.ts` and
+`to-scope.ts` (`featuresNeeded` and an IR pattern count, positive control: a module with each
+pattern once, every one counted).
+
+- **The optimizer introduces nothing today**: 1,230 modules (the wasmtk corpus and the 809
+  probes) × -O1 / -O2 / -O3 / -Os / -Oz = 6,150 outputs, none needing a feature its input did not —
+  because no pass consults features at all. Now **enforced**: `bun run optimize-corpus` (a gate
+  step) fails an output that needs a feature its input does not (2,105 outputs; a mutant Vacuum
+  adding a second memory failed all 2,105, then restored). The step takes ~79 s (was ~45 s).
+- **What would be introduced does not occur**: on 11 real compiler modules — the six (rustc
+  nightly, Zig 0.16, TinyGo 0.43, debug and optimized), the four memory64 builds (Rust, Zig,
+  Emscripten ×2) and the Rust bundle fixture — **0 sign-extension shift pairs** (`(x << 24) >> 24`
+  and kin), **0 trapping float truncations**: Rust, Zig and Emscripten already emit sign-extension
+  and bulk memory (`memory.copy` / `memory.fill`) themselves. The patterns decision 5 named are
+  gone at the source.
+- **The one gap: TinyGo 0.43 has no bulk memory** — it ships `$memcpy` (both builds) and
+  `$memmove` (opt1) as loops. Replacing them with `memory.copy` is the only candidate measured; it
+  needs the owner (recognition by name or by shape, and `memory.copy` traps BEFORE writing where a
+  loop writes part of the range first — a behaviour change on the out-of-bounds path).
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
