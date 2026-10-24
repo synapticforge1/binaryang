@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.17.0
+
+A minor release: **every command answers `--help`**, `wasm-opt` can **replace TinyGo's libc copy
+loops with one `memory.copy`**, the saturating float-to-int feature flag takes **upstream's
+spelling** (the old one still works, deprecated), and **switching multi-value off now works**.
+Nothing is removed; without the new flags, output does not change.
 
 ### New
 
