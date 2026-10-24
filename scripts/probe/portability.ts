@@ -100,13 +100,26 @@ const engineOf = new Map(measured.map((x) => [x.id, x.engine]));
 const show = (
   r: Result,
 ) => (r.s === 'ok' ? r.v! : r.s === 'trap' ? 'trap' : `${r.s}: ${(r.m ?? '').slice(0, 80)}`);
+/**
+ * A browser forbids a BLOCKING wait on a page's main thread, so `memory.atomic.wait*` traps there
+ * by policy, not by the engine (Chrome / Edge / Chromium: "Atomics.wait cannot be called in this
+ * context"; WebKit names it, wrongly, "Out of bounds memory access" — Bun, the same engine, waits).
+ * Reported, and left out of every comparison.
+ */
+const policy = (m: ProbeModule, x: Executor, r: Result, where: string): boolean => {
+  if (!x.browser || r.s !== 'trap' || !m.covers.some((c) => c.startsWith('memory.atomic.wait'))) {
+    return false;
+  }
+  reported.push(`${where}${m.file} on ${x.id}: trap, a browser's main thread may not wait`);
+  return true;
+};
 const agreed = new Map<string, string>(); // file -> the outcome every defining engine that ran it gave
 for (const m of index) {
   const per = results[m.file]!;
   if (m.expect !== undefined) {
     for (const x of measured) {
       const r = per[x.id]!;
-      if (r.s === 'refused') continue;
+      if (r.s === 'refused' || (m.expect !== 'trap' && policy(m, x, r, ''))) continue;
       const ok = m.expect === 'trap' ? r.s === 'trap' : r.s === 'ok' && r.v === m.expect;
       if (!ok) {
         (x.defining ? wrong : reported).push(
@@ -120,7 +133,7 @@ for (const m of index) {
   const outcomes = new Map<string, string[]>();
   for (const x of defining) {
     const r = per[x.id]!;
-    if (r.s !== 'ok' && r.s !== 'trap') continue;
+    if ((r.s !== 'ok' && r.s !== 'trap') || policy(m, x, r, '')) continue;
     const o = show(r);
     outcomes.set(o, [...(outcomes.get(o) ?? []), x.id]);
   }
@@ -207,6 +220,7 @@ for (const m of lowered) {
   const ref = m.feature === 'relaxedSimd' ? undefined : agreed.get(m.file);
   const got = new Map<string, string[]>();
   for (const x of defining) {
+    if (m.expect !== 'trap' && policy(m, x, per[x.id]!, 'lowered ')) continue;
     const o = show(per[x.id]!);
     got.set(o, [...(got.get(o) ?? []), x.id]);
   }

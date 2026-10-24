@@ -13,7 +13,8 @@
  *
  * Stock browsers (Chrome, Edge, Firefox release and ESR) are found through the gitignored
  * `cmem/local/probe-browsers.json` (owner, 2026-10-24: their paths are machine facts):
- * `{ "chrome": { "exe": "<path>", "kind": "chromium" }, "firefox-esr": { "exe": "…", "kind": "firefox" } }`.
+ * `{ "chrome": { "exe": "<path>", "kind": "chromium", "label": "Chrome" }, "firefox-esr": { … } }`
+ * (`label` names the build as D4 does, `Chrome 156, stock`; the key, when absent).
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -39,6 +40,8 @@ export interface Executor {
   engine: string;
   /** Defining (D4's engines) or reported (interpreters). */
   defining: boolean;
+  /** A browser: a page's main thread may not block, so `memory.atomic.wait` traps there by policy. */
+  browser?: true;
   /** The build, asked of the installed program; `null`: not installed, not measured. */
   build(): Promise<string | null>;
   run(dir: string, files: readonly string[]): Promise<Map<string, Result>>;
@@ -75,15 +78,29 @@ const TRAP =
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
 const NOT_RUN = /validat|compil|not (enabled|supported)|unsupported|unknown opcode|parse/i;
 
-/** A command-line runtime: one process per module, eight at a time; the value read from its output. */
+type Command = [string, string[], string?];
+
+/**
+ * A command-line runtime: one process per module, eight at a time; the value read from its output.
+ * `attempts` gives the command lines to try in order: a later one runs only when the module was
+ * REFUSED by the one before, so a switch that is itself refused cannot pass for the module's.
+ */
 function cli(
   id: string,
   engine: string,
   defining: boolean,
   build: () => string | null,
-  argv: (file: string) => [string, string[], string?],
+  attempts: (file: string) => Command[],
   value: RegExp,
 ): Executor {
+  const once = async ([cmd, args, cwd]: Command): Promise<Result> => {
+    const { code, text } = await exec(cmd, args, cwd);
+    const m = text.match(value);
+    const msg = text.replace(ANSI, '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (code === 0 && m) return { s: 'ok', v: BigInt.asUintN(64, BigInt(m[1]!)).toString(16) };
+    if (TRAP.test(text) && !NOT_RUN.test(text)) return { s: 'trap', m: msg };
+    return { s: code === 0 ? 'error' : 'refused', m: msg };
+  };
   return {
     id,
     engine,
@@ -95,14 +112,12 @@ function cli(
       await Promise.all(Array.from({ length: 8 }, async () => {
         while (next < files.length) {
           const file = files[next++]!;
-          const [cmd, args, cwd] = argv(`${dir}/wasm/${file}`);
-          const { code, text } = await exec(cmd, args, cwd);
-          const m = text.match(value);
-          const msg = text.replace(ANSI, '').replace(/\s+/g, ' ').trim().slice(0, 300);
-          if (code === 0 && m) {
-            out.set(file, { s: 'ok', v: BigInt.asUintN(64, BigInt(m[1]!)).toString(16) });
-          } else if (TRAP.test(text) && !NOT_RUN.test(text)) out.set(file, { s: 'trap', m: msg });
-          else out.set(file, { s: code === 0 ? 'error' : 'refused', m: msg });
+          let r: Result = { s: 'error', m: 'no command' };
+          for (const c of attempts(`${dir}/wasm/${file}`)) {
+            r = await once(c);
+            if (r.s !== 'refused') break;
+          }
+          out.set(file, r);
         }
       }));
       return out;
@@ -128,7 +143,11 @@ const WT =
   'gc=y,function-references=y,exceptions=y,memory64=y,multi-memory=y,tail-call=y,relaxed-simd=y,' +
   'wide-arithmetic=y,custom-page-sizes=y,threads=y,shared-memory=y,extended-const=y';
 // wasmer refuses some flag COMBINATIONS outright ("no backend supports"), even for a module that
-// needs none of them, so it gets its base set plus only the flag the module's feature needs.
+// needs none of them. So it runs with its base set first, and only a module that set refuses is
+// tried again with the flag of the module's feature. ⚠️ Passing the flag first made `tail-call`
+// look refused: wasmer 7.5.0 refuses `--enable-tail-call` itself (even a plain `call` module) and
+// runs every tail call without it — D4 1.0.0 / 1.1.0 excluded tail calls on that artifact
+// (found 2026-10-24).
 const WASMER = [
   '--enable-simd',
   '--enable-threads',
@@ -194,11 +213,16 @@ function playwright(kind: 'chromium' | 'firefox' | 'webkit'): Executor {
     id: kind,
     engine: kind,
     defining: true,
+    browser: true,
     async build() {
       if (ver !== undefined) return ver;
       try {
         const b = await launcher.launch();
-        ver = `Playwright ${kind[0]!.toUpperCase()}${kind.slice(1)} ${b.version().split('.')[0]}`;
+        // D4's form: the major for Chromium and Firefox, WebKit's own two-part version.
+        const v = kind === 'webkit' ? b.version() : b.version().split('.')[0];
+        ver = `Playwright ${
+          { chromium: 'Chromium', firefox: 'Firefox', webkit: 'WebKit' }[kind]
+        } ${v}`;
         await b.close();
       } catch {
         ver = null;
@@ -230,7 +254,7 @@ function playwright(kind: 'chromium' | 'firefox' | 'webkit'): Executor {
  * A STOCK browser as its users run it, no automation: a local server serves a page and the
  * modules; the browser (headless) runs each and POSTs the results back.
  */
-function stock(name: string, exe: string, kind: 'chromium' | 'firefox'): Executor {
+function stock(name: string, exe: string, kind: 'chromium' | 'firefox', label: string): Executor {
   const PAGE = `<!doctype html><meta charset="utf-8"><title>probe</title><script type="module">
 const index = await (await fetch('/index.json')).json();
 const out = { ua: navigator.userAgent, results: {} };
@@ -336,12 +360,14 @@ await fetch('/result', { method: 'POST', body: JSON.stringify(out) });
     id: name,
     engine: name,
     defining: true,
+    browser: true,
     // The build is the user agent's, so it is known after a run; before one, only whether it exists.
     build: async () => (existsSync(exe) ? (ua ?? 'installed') : null),
     async run(dir, files) {
       const r = await visit(dir);
-      const v = r.ua.match(/(?:Chrome|Firefox|Edg)\/(\d+)/g);
-      ua = v ? v.join(' ') : r.ua;
+      // D4's form: `<label> <major>, stock`, the major from the browser's own token (Edge's is Edg/).
+      const major = r.ua.match(/Edg\/(\d+)/)?.[1] ?? r.ua.match(/(?:Firefox|Chrome)\/(\d+)/)?.[1];
+      ua = major ? `${label} ${major}, stock` : r.ua;
       return new Map(files.map((f) => [f, r.results[f] ?? { s: 'error', m: 'no result' }]));
     },
   };
@@ -353,9 +379,11 @@ function stockBrowsers(): Executor[] {
   if (!existsSync(path)) return [];
   const conf = JSON.parse(readFileSync(path, 'utf8')) as Record<
     string,
-    { exe: string; kind: 'chromium' | 'firefox' }
+    { exe: string; kind: 'chromium' | 'firefox'; label?: string }
   >;
-  return Object.entries(conf).map(([name, { exe, kind }]) => stock(name, exe, kind));
+  return Object.entries(conf).map(([name, { exe, kind, label }]) =>
+    stock(name, exe, kind, label ?? name)
+  );
 }
 
 /** Every executor, in the order they run. `featureOf` gives wasmer its per-module flag. */
@@ -379,7 +407,7 @@ export function executors(featureOf: (file: string) => string): Executor[] {
       'wasmtime',
       true,
       () => version('wasmtime', ['--version']),
-      (f) => ['wasmtime', ['run', '-W', WT, '--invoke', 't', f]],
+      (f) => [['wasmtime', ['run', '-W', WT, '--invoke', 't', f]]],
       /^(-?\d+)\s*$/m,
     ),
     cli(
@@ -389,7 +417,8 @@ export function executors(featureOf: (file: string) => string): Executor[] {
       () => version('wasmer', ['--version']),
       (f) => {
         const flag = WASMER_FEATURE[featureOf(basename(f))];
-        return ['wasmer', ['run', ...WASMER, ...(flag ? [flag] : []), '-i', 't', f]];
+        const base: Command = ['wasmer', ['run', ...WASMER, '-i', 't', f]];
+        return flag ? [base, ['wasmer', ['run', ...WASMER, flag, '-i', 't', f]]] : [base];
       },
       /^(-?\d+)\s*$/m,
     ),
@@ -398,7 +427,7 @@ export function executors(featureOf: (file: string) => string): Executor[] {
       'wasmedge',
       true,
       () => version('wasmedge', ['--version'], /version (\d+\.\d+\.\d+)/),
-      (f) => ['wasmedge', ['--enable-all', '--reactor', f, 't']],
+      (f) => [['wasmedge', ['--enable-all', '--reactor', f, 't']]],
       /^(-?\d+)\s*$/m,
     ),
     ...(['compiler', 'interpreter'] as const).map((mode): Executor => ({
@@ -433,7 +462,7 @@ export function executors(featureOf: (file: string) => string): Executor[] {
       'wasm-interp',
       false,
       () => version('wasm-interp', ['--version'], /(\d+\.\d+\.\d+)/),
-      (f) => ['wasm-interp', ['--enable-all', '--run-all-exports', f]],
+      (f) => [['wasm-interp', ['--enable-all', '--run-all-exports', f]]],
       /t\(\) => i64:(-?\d+)/,
     ),
     cli(
@@ -442,7 +471,7 @@ export function executors(featureOf: (file: string) => string): Executor[] {
       false,
       () =>
         (JSON.parse(readFileSync(join(REPO, 'jsr.json'), 'utf8')) as { version: string }).version,
-      (f) => ['bun', ['main.ts', 'wasm-interp', f, '--run-all-exports'], REPO],
+      (f) => [['bun', ['main.ts', 'wasm-interp', f, '--run-all-exports'], REPO]],
       /t\(\) => i64:(-?\d+)/,
     ),
   ];
