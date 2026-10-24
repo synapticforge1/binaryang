@@ -95,7 +95,7 @@ from cmem stays recoverable through commits, merge messages and `git log -S`.
 | [working-rules.md](working-rules.md) | **The owner's standing rules**: git flow, messages by file, nothing pushed, the gate on the committed tree, tools, records |
 | [unreleased.md](unreleased.md) | **What a release note must say** for everything on `main` since the last release, and how to classify an entry |
 | [divergences.md](divergences.md) | **Every divergence from upstream and from engines, classified** — read BEFORE refactoring, optimizing or porting a pass |
-| [portability.md](portability.md) | **One profile every widely used engine runs** (open-work 34): the owner's decisions, the engine and version floor, passes 1–3 |
+| [portability.md](portability.md) | **One profile every widely used engine runs** (open-work 34, closed): the owner's decisions, the engine and version floor, passes 1–3, the lowerings, the target and D4, the committed probe (`bun run probe`; tail calls portable) |
 | [ir-convergence.md](ir-convergence.md) | **The IR convergence, S1–S7 and One front end**: one tree, two verb sets; status at the top; the merge log |
 | [../docs/ir-map.html](../docs/ir-map.html) | **The IR's layout as a page**, for this repo and its siblings (a snapshot at `f42ae3484`; update it when `src/ir` changes) |
 | `local/environment.md` 🔒 | **This machine — PRIVATE, gitignored, absent in a clone**: the exFAT disk, git and Bun quirks, oracles, scratch scripts |
@@ -107,7 +107,7 @@ from cmem stays recoverable through commits, merge messages and `git log -S`.
 | [best-practices.md](best-practices.md) | **The rules paid for**: the convergent rules (both origin stories), the workspace's ★ rules and checklist (stamped copies), then binaryang's own |
 | [testing.md](testing.md) | **How binaryang is tested**: the gates and what each can see, the corpora, the oracles, the spec-testsuite harness |
 | [publishing.md](publishing.md) | **Releases and provenance**: the settled release pattern (read first), the history purge, one section per release, newest first |
-| [definitions.md](definitions.md) | **`./definitions` (D1–D3)**: what shipped, the decisions, the proof — and every D1 opcode attested by the specification |
+| [definitions.md](definitions.md) | **`./definitions` (D1–D4)**: what shipped, the decisions, the proof; every D1 opcode attested by the specification, checked in CI (`spec_opcodes.test.ts`); D2's `requires` (recorded only) and `presets`; `return_call_ref` (items 40–41) |
 | [optimizer.md](optimizer.md) | **The optimizer against upstream `wasm-opt`** (items 2, 30, 31): every step with its commit and numbers, the instruments, the lessons |
 | [hardening.md](hardening.md) | **The hardening round** (item 13): the contract, the instruments, passes 1–2, the hang check, the code lens pass 1 |
 | [interpreter.md](interpreter.md) | **The interpreter, evaluator, `wasm-ctor-eval`, `wasm-interp`** (item 23): per stage, the gate, the measurements |
