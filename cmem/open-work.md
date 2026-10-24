@@ -50,6 +50,22 @@ removed record went to a topic file, and the full text is one `git show` away:
     calls portable since 2026-10-24 (owner). **What remains is a letter**: the D2 letter to the
     runtimes (item 40), which can point them at the guide.
 
+41. ✅ **wasmrt's gate rows, and a Wasm 1.0 element segment refused by default** — DONE 2026-10-24,
+    to ship in the next release. wasmrt's item 4 also listed binaryang's validator rows its sweep
+    found accepted (multi-value, reference-types, the table-initializer form) and two fuzz
+    accept-invalid cases. Re-measured on `main`: multi-value already fixed (item 35); the other two
+    still open, and FIXED — `funcref` / `externref` as value types need referenceTypes (a funcref
+    table and its segment excepted, as in Wasm 1.0), and a table initializer needs
+    functionReferences. Fixing them exposed a far larger one: **a funcidx element segment (every
+    module with a function table) was INVALID under the default features** — its implied
+    `(ref func)` gated as a typed reference, its entries as the `ref.func` instruction. All six real
+    Rust / Zig / TinyGo builds failed `wasm-validate` with no flags, in every release checked,
+    1.5.3 → 2.0.0; wasm-tools accepts them as Wasm 2.0. Fixed with one rule the writer and validator
+    share (`src/ir/elem-form.ts`, internal). Tests `reference_types_gate.test.ts` (17; four mutants
+    killed). The residue: divergences.md EF1. **Not reproduced: the two fuzz cases** — wasmrt's
+    inputs are not in its record ("func 0 failed to validate"; "invalid value type" at `0x3b`);
+    ask for the bytes in the letter.
+
 40. ✅ **`return_call_ref`'s gate and D2's dependency / preset rules** — DONE 2026-10-24, to ship
     in the next release (unreleased.md). wasmrt's item 4 ("binaryang — D1's `return_call_ref`
     feature and D2's missing dependency rules"), relayed by the owner; both runtimes follow D1 / D2

@@ -118,6 +118,7 @@ import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { SharedValidator } from './shared-validator.ts';
 import type { ValidateOptions } from './shared-validator.ts';
 import { BrOnOp, locOf } from '../ir/ir.ts';
+import { isFuncIdxElemSegment } from '../ir/elem-form.ts';
 import { countImports } from '../ir/ir.ts';
 import type { Features } from '../core/feature.ts';
 import { Type } from '../core/types.ts';
@@ -354,6 +355,8 @@ class ModuleValidator implements ExprVisitorDelegate {
    * catches. A binary's module holds depths, and passes through unchanged.
    */
   private labels: string[] = [];
+  /** Visiting a funcidx element segment's entries: indices, not instructions to gate. */
+  private funcIdxEntries = false;
 
   constructor(module: Module, errors: ErrorList, options?: ValidateOptions) {
     this.module = module;
@@ -454,7 +457,10 @@ class ModuleValidator implements ExprVisitorDelegate {
     this.checkDescriptorClauses(scopeEnd, canon);
     for (const g of m.globals) checkVt(g.type, 'global', locOf(g));
     for (const t of m.tables) checkVt(t.elemType, 'table', locOf(t));
-    for (const el of m.elements) checkVt(el.elemType, 'elem segment', locOf(el));
+    // The funcidx form's type is IMPLIED, not written: Wasm 1.0's form, which needs no proposal.
+    for (const el of m.elements) {
+      if (!isFuncIdxElemSegment(el)) checkVt(el.elemType, 'elem segment', locOf(el));
+    }
     for (const f of m.functions) {
       for (const p of f.sig.params) checkVt(p, 'param', locOf(f));
       for (const r of f.sig.results) checkVt(r, 'result', locOf(f));
@@ -535,6 +541,16 @@ class ModuleValidator implements ExprVisitorDelegate {
         this.sv.onTable(locOf(table), table.elemType, table.limits, table.init !== undefined),
       );
       if (table.init !== undefined) {
+        // A table's initializer expression is the function-references proposal's (the spec's 3.0
+        // change history, "Typeful References"). 🔧 It was accepted with the feature off, where
+        // wasm-tools refuses it (wasmrt's sweep; open-work 41, 2026-10-24).
+        this.acc(
+          this.sv.requireFeature(
+            'functionReferences',
+            'table initializer expression',
+            locOf(table),
+          ),
+        );
         this.acc(this.sv.beginInitExpr(locOf(table), table.elemType));
         this.visitConstExpr(table.init.children, locOf(table));
         this.acc(this.sv.endInitExpr());
@@ -584,11 +600,18 @@ class ModuleValidator implements ExprVisitorDelegate {
         this.visitConstExpr(elem.offset?.children ?? [], locOf(elem));
         this.acc(this.sv.endInitExpr());
       }
+      // 🔧 A funcidx segment's entries are function INDICES, which Wasm 1.0 had; the IR holds them
+      // as `ref.func` only to type them. Gating them as the reference-types instruction — and the
+      // implied `(ref func)` as a typed reference — refused every module with a function table
+      // under the default features: real Rust, Zig and TinyGo builds, since 1.8.1 at least
+      // (open-work 41, 2026-10-24).
+      this.funcIdxEntries = isFuncIdxElemSegment(elem);
       for (const elemExpr of elem.elemExprs) {
         this.acc(this.sv.beginInitExpr(locOf(elem), elem.elemType));
         this.visitConstExpr(elemExpr.children, locOf(elem));
         this.acc(this.sv.endInitExpr());
       }
+      this.funcIdxEntries = false;
     }
 
     // Data count
@@ -1082,6 +1105,7 @@ class ModuleValidator implements ExprVisitorDelegate {
    * twice.
    */
   everyExpr(e: Expr): void {
+    if (this.funcIdxEntries) return;
     const key = instructionKey(e);
     if (key === undefined) return;
     const d = opcodeDefinition(key);
