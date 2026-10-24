@@ -65,8 +65,10 @@ removed record went to a topic file, and the full text is one `git show` away:
     feature (now a gate check in `optimize-corpus`), and real compiler output (Rust, Zig,
     Emscripten, TinyGo; 11 modules) has nothing to introduce — 0 shift pairs, 0 trapping
     truncations; the one candidate, TinyGo's `memcpy` / `memmove` → `memory.copy`, is item 37.
-    The relaxed-SIMD lowering's run cost MEASURED 2026-10-24 (portability.md). **Next:** the durable checks (a committed probe that re-measures D4; D1's spec check as
-    a gate — definitions.md), then `opcode-guide.md`. Found on
+    The relaxed-SIMD lowering's run cost MEASURED 2026-10-24 (portability.md). **D1's spec check is a gate** 2026-10-24 (`spec_opcodes.test.ts` over a
+    committed snapshot, `bun run spec-opcodes refresh` when the spec moves; definitions.md § "D1
+    against the specification"). **Next:** a committed probe that re-measures D4 (local only),
+    then `opcode-guide.md`. Found on
     the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
     item 35.
 
