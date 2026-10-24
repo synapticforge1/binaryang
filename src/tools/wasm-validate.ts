@@ -41,11 +41,13 @@ import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
 import { validateModule } from '../validator/validator.ts';
 import type { ValidateOptions } from '../validator/shared-validator.ts';
 import { checkBranchHints } from '../validator/branch-hints.ts';
-import { countImports } from '../ir/ir.ts';
+import { countImports, locOf } from '../ir/ir.ts';
+import type { Location } from '../core/error.ts';
 import { ExternalKind } from '../core/binary.ts';
 import type { Features } from '../core/feature.ts';
 import { combineResults, Result } from '../core/result.ts';
 import {
+  addError,
   formatErrors,
   hasErrors,
   isStackExhausted,
@@ -123,13 +125,46 @@ function validate(binary: Uint8Array, opts: WasmValidateOptions): WasmValidateRe
 
   const valOpts: ValidateOptions = {};
   if (opts.features !== undefined) valOpts.features = opts.features;
-  const valResult = validateModule(module, errors, valOpts);
+  const valResult = combineResults(
+    validateModule(module, errors, valOpts),
+    opts.features?.multiValue === false ? refuseIndexedBlockTypes(module, errors) : Result.Ok,
+  );
   // Code metadata the reader keeps raw: a branch hint must point at a branch.
   const before = errors.length;
   checkBranchHints(binary, countImports(module, ExternalKind.Func), errors);
   const hintResult = errors.length > before ? Result.Error : Result.Ok;
 
   return { errors, result: combineResults(valResult, hintResult) };
+}
+
+const CARRIERS: ReadonlySet<string> = new Set(['block', 'loop', 'if', 'try', 'try_table']);
+
+/**
+ * Without multi-value, a block type must be empty or one value type: the BINARY form of a type
+ * index is refused, whatever the type — upstream wabt's binary reader ("expected valid block
+ * signature type"), and wasm-tools likewise (open-work 35, measured 2026-10-24). It is the binary
+ * path's rule only: upstream `wat2wasm` accepts `(block (type $t))` naming a one-result type, so it
+ * lives here and not in the shared validator.
+ */
+function refuseIndexedBlockTypes(module: object, errors: ErrorList): Result {
+  let result: Result = Result.Ok;
+  const seen = new Set<object>();
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== 'object' || seen.has(node)) return;
+    seen.add(node);
+    const rec = node as Record<string, unknown>;
+    if (
+      typeof rec['kind'] === 'string' && CARRIERS.has(rec['kind']) && rec['typeIndex'] !== undefined
+    ) {
+      addError(errors, locOf(rec as { loc?: Location }), 'expected valid block signature type');
+      result = Result.Error;
+    }
+    for (const value of Object.values(rec)) {
+      if (value !== null && typeof value === 'object') visit(value);
+    }
+  };
+  visit(module);
+  return result;
 }
 
 // ---------------------------------------------------------------------------

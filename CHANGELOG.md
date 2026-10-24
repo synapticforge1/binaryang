@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- **Multi-value can be switched off, as upstream allows** (`--disable-multi-value`, or
+  `multiValue: false`). It was accepted and changed nothing: a function with several results, or a
+  block with parameters, validated with multi-value off. Now `wat2wasm` and `wasm-validate` refuse
+  what upstream wabt refuses, in its words: a function type with several results ("multiple result
+  values are not supported without multi-value enabled."), a block, loop or if with parameters
+  ("block params not currently supported."), and — in a binary, as wabt and wasm-tools — a block
+  type written as a type index ("expected valid block signature type"). Multi-value is on by
+  default, so nothing changes unless it is switched off.
+
 ## 1.16.1
 
 A patch release with **no change to the package**: the library, the command line and the
