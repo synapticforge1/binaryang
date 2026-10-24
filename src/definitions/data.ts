@@ -13,8 +13,8 @@ import type {
 export const OPCODE_DEFINITIONS: OpcodeDefinitions = {
   'definition': 'D1',
   'title': 'WebAssembly instructions: encoding, immediates, stack signature, gating feature',
-  'dataVersion': '1.0.0',
-  'sha256': '04f9a72445e3224dc53d98aa3088975d076d912b0fc20727773228a5608c8956',
+  'dataVersion': '1.0.1',
+  'sha256': '7552497df510ee2117d87e54f71081390e6ad80f27d6f0a6bcd4f705dcfb3cdc',
   'rules': {
     'name':
       "The text mnemonic, as binaryang prints it. Two opcodes may share one (select, 0x1b / 0x1c); a name may carry its form ('ref.test null'). Structural markers (else, end, catch, catch_all, delegate) are entries too.",
@@ -290,7 +290,7 @@ export const OPCODE_DEFINITIONS: OpcodeDefinitions = {
         'typeidx',
       ],
       'signature': null,
-      'feature': 'tailCall',
+      'feature': 'functionReferences',
       'class': 'control',
     },
     {
@@ -10179,8 +10179,8 @@ export const OPCODE_DEFINITIONS: OpcodeDefinitions = {
 export const FEATURE_DEFINITIONS: FeatureDefinitions = {
   'definition': 'D2',
   'title': 'WebAssembly feature / proposal list',
-  'dataVersion': '2.0.0',
-  'sha256': '19c8136690f59799df0be2e9f1e0d86362474a79ebf310b2020f6be38ec23373',
+  'dataVersion': '2.1.0',
+  'sha256': '81bc142b27ec9de4a9cd87644c4bbc405ad6cc4d1aa1ce0cef7712e1184a5ad9',
   'rules': {
     'name':
       "The canonical name: the key of binaryang's `Features` (`allFeatures()`, `defaultFeatures()`).",
@@ -10188,6 +10188,10 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       "The spelling binaryang's CLIs accept, as `--enable-<cli>` / `--disable-<cli>` — upstream wabt's and wasm-tools'.",
     'defaultOn': "On in `defaultFeatures()` (wabt's tool defaults; not the same as 'in Wasm 3.0').",
     'implemented': 'false: the flag exists and changes nothing (see `note`).',
+    'requires':
+      "The features its proposal states it builds on — function-references 'is based on the reference types proposal'; GC: reference types and typed function references, 'Both proposals are prerequisites'; custom descriptors is 'for WasmGC structs' (its title); relaxed SIMD's every instruction takes `v128`, which only SIMD defines. RECORDED, NOT ENFORCED (owner, 2026-10-24): nothing turns a feature on or off with another and no feature set is refused; each instruction is gated by its own D1 `feature`. So with functionReferences off and gc on, `call_ref` is refused and a GC struct is accepted — as wasmtime 50 and wasm-tools 1.262 do.",
+    'presets':
+      "Named feature sets: exactly these on, every other off. wasm1, wasm2, wasm3 are the specification's releases (its change history, document/core/appendix/changes.rst; mutableGlobals predates it, so it is in 1.0); all is every feature. wasm2 is `defaultOn`.",
     'testsuiteDirs':
       'Directories of the spec testsuite (relative to its root) whose suites need this feature. Empty: its tests are in the core suite, which runs with every feature on except as `onlyIn` / `offIn` say.',
     'onlyIn':
@@ -10196,12 +10200,83 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'Directories whose suite must run with this feature OFF — a snapshot written before the feature, which it relaxes.',
     'since': 'The date the entry entered this list.',
   },
+  'presets': [
+    {
+      'name': 'wasm1',
+      'features': [
+        'mutableGlobals',
+      ],
+    },
+    {
+      'name': 'wasm2',
+      'features': [
+        'mutableGlobals',
+        'satFloatToInt',
+        'signExtension',
+        'simd',
+        'multiValue',
+        'bulkMemory',
+        'referenceTypes',
+      ],
+    },
+    {
+      'name': 'wasm3',
+      'features': [
+        'exceptions',
+        'mutableGlobals',
+        'satFloatToInt',
+        'signExtension',
+        'simd',
+        'functionReferences',
+        'multiValue',
+        'tailCall',
+        'bulkMemory',
+        'referenceTypes',
+        'annotations',
+        'gc',
+        'memory64',
+        'multiMemory',
+        'extendedConst',
+        'relaxedSimd',
+      ],
+      'note':
+        "Release 3.0's exception handling is the exnref form; D2's `exceptions` also gates the legacy instructions, which no release contains.",
+    },
+    {
+      'name': 'all',
+      'features': [
+        'exceptions',
+        'mutableGlobals',
+        'satFloatToInt',
+        'signExtension',
+        'simd',
+        'threads',
+        'functionReferences',
+        'multiValue',
+        'tailCall',
+        'bulkMemory',
+        'referenceTypes',
+        'annotations',
+        'codeMetadata',
+        'gc',
+        'memory64',
+        'multiMemory',
+        'extendedConst',
+        'relaxedSimd',
+        'customPageSizes',
+        'compactImports',
+        'wideArithmetic',
+        'customDescriptors',
+      ],
+    },
+  ],
   'entries': [
     {
       'name': 'exceptions',
       'cli': 'exceptions',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [
         'legacy/',
       ],
@@ -10212,6 +10287,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'mutable-globals',
       'defaultOn': true,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10220,6 +10296,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'saturating-float-to-int',
       'defaultOn': true,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10228,6 +10305,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'sign-extension',
       'defaultOn': true,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10236,6 +10314,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'simd',
       'defaultOn': true,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10244,6 +10323,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'threads',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [
         'proposals/threads/',
       ],
@@ -10254,6 +10334,9 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'function-references',
       'defaultOn': false,
       'implemented': true,
+      'requires': [
+        'referenceTypes',
+      ],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10262,6 +10345,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'multi-value',
       'defaultOn': true,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10270,6 +10354,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'tail-call',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10278,6 +10363,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'bulk-memory',
       'defaultOn': true,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10286,6 +10372,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'reference-types',
       'defaultOn': true,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10294,6 +10381,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'annotations',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10302,6 +10390,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'code-metadata',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10310,6 +10399,10 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'gc',
       'defaultOn': false,
       'implemented': true,
+      'requires': [
+        'referenceTypes',
+        'functionReferences',
+      ],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10318,6 +10411,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'memory64',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10326,6 +10420,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'multi-memory',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'offIn': [
         'proposals/threads/',
@@ -10339,6 +10434,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'extended-const',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10347,6 +10443,9 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'relaxed-simd',
       'defaultOn': false,
       'implemented': true,
+      'requires': [
+        'simd',
+      ],
       'testsuiteDirs': [],
       'since': '2026-10-06',
     },
@@ -10355,6 +10454,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'custom-page-sizes',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [
         'proposals/custom-page-sizes/',
       ],
@@ -10365,6 +10465,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'compact-imports',
       'defaultOn': false,
       'implemented': false,
+      'requires': [],
       'testsuiteDirs': [],
       'note':
         'Declared, not implemented: setting it changes nothing, and a module using import kind 0x7f is refused.',
@@ -10375,6 +10476,7 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'wide-arithmetic',
       'defaultOn': false,
       'implemented': true,
+      'requires': [],
       'testsuiteDirs': [
         'proposals/wide-arithmetic/',
       ],
@@ -10385,6 +10487,9 @@ export const FEATURE_DEFINITIONS: FeatureDefinitions = {
       'cli': 'custom-descriptors',
       'defaultOn': false,
       'implemented': true,
+      'requires': [
+        'gc',
+      ],
       'testsuiteDirs': [
         'proposals/custom-descriptors/',
       ],
@@ -10523,8 +10628,8 @@ export const VERDICT_DEFINITIONS: VerdictDefinitions = {
 export const PROFILE_DEFINITIONS: ProfileDefinitions = {
   'definition': 'D4',
   'title': 'Portability profiles: what the widely used WebAssembly engines run, measured',
-  'dataVersion': '1.0.0',
-  'sha256': '2d51a88e98d3ecc3cb5029a9f1157878abc72fa1364ff8b3c017221cc370c3a1',
+  'dataVersion': '1.1.0',
+  'sha256': '09ad6f37af16a62ea018b91e2f9ce6aec384505558e4bf2d664412cb2e8f1468',
   'rules': {
     'name': "The profile's name, as `wasm-opt --target <name>` takes it.",
     'measured':
@@ -10661,8 +10766,8 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
           'feature': 'functionReferences',
           'tier': 'portable',
           'refusedBy': [],
-          'probes': 5,
-          'note': 'br_on_non_null excepted: see `opcodes`.',
+          'probes': 6,
+          'note': 'br_on_non_null and return_call_ref excepted: see `opcodes`.',
         },
         {
           'feature': 'multiValue',
@@ -10676,7 +10781,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
           'refusedBy': [
             'wasmer',
           ],
-          'probes': 3,
+          'probes': 2,
         },
         {
           'feature': 'bulkMemory',
@@ -10749,7 +10854,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
             'wasmer',
             'wazero',
           ],
-          'probes': 40,
+          'probes': 20,
           'note':
             "Lowered to the specification's deterministic profile, the same result on every engine; where engines run the original, results differ by hardware. Safari ships it only in Technology Preview (MDN browser-compat-data 8.1.7).",
         },
@@ -10798,7 +10903,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
             'wazero',
             'webkit',
           ],
-          'probes': 8,
+          'probes': 4,
         },
         {
           'feature': 'customDescriptors',
@@ -10830,6 +10935,16 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
             'wasmer',
           ],
           'probes': 1,
+        },
+        {
+          'name': 'return_call_ref',
+          'tier': 'excluded',
+          'refusedBy': [
+            'wasmer',
+          ],
+          'probes': 1,
+          'note':
+            "A tail call, and wasmer runs none; D1 gates it under functionReferences, the proposal that defines it (since D4 1.1.0, 2026-10-24; tailCall's before).",
         },
         {
           'name': 'try',

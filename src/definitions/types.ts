@@ -62,6 +62,8 @@ export interface FeatureDefinition {
   defaultOn: boolean;
   /** `false`: the flag exists and changes nothing (see `note`). */
   implemented: boolean;
+  /** The features its proposal states it builds on: recorded, not enforced (see D2's `rules`). */
+  requires: string[];
   /** Spec-testsuite directories, relative to its root, whose suites need it. */
   testsuiteDirs: string[];
   /** On ONLY in these directories: it changes core semantics. */
@@ -82,7 +84,17 @@ export interface VerdictDefinition {
   message: string;
 }
 
+/** A named feature set (D2): exactly `features` on, every other off. */
+export interface FeaturePreset {
+  /** `wasm1`, `wasm2`, `wasm3` (the specification's releases) or `all`. */
+  name: string;
+  /** D2 names, in D2's order. */
+  features: string[];
+  note?: string;
+}
+
 export interface FeatureDefinitions extends DefinitionHeader {
+  presets: FeaturePreset[];
   entries: FeatureDefinition[];
 }
 

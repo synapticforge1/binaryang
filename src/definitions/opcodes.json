@@ -1,8 +1,8 @@
 {
   "definition": "D1",
   "title": "WebAssembly instructions: encoding, immediates, stack signature, gating feature",
-  "dataVersion": "1.0.0",
-  "sha256": "04f9a72445e3224dc53d98aa3088975d076d912b0fc20727773228a5608c8956",
+  "dataVersion": "1.0.1",
+  "sha256": "7552497df510ee2117d87e54f71081390e6ad80f27d6f0a6bcd4f705dcfb3cdc",
   "rules": {
     "name": "The text mnemonic, as binaryang prints it. Two opcodes may share one (select, 0x1b / 0x1c); a name may carry its form ('ref.test null'). Structural markers (else, end, catch, catch_all, delegate) are entries too.",
     "encoding": "The opcode bytes, hex: the prefix byte and the sub-opcode as an unsigned LEB128 (fd 80 02 is relaxed SIMD 0x100).",
@@ -271,7 +271,7 @@
         "typeidx"
       ],
       "signature": null,
-      "feature": "tailCall",
+      "feature": "functionReferences",
       "class": "control"
     },
     {
