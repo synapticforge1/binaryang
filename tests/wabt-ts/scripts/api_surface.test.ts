@@ -5,7 +5,7 @@
  */
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import { floorOf, type Surface, usageText } from '../../../scripts/release/api-surface.ts';
+import { flagsIn, floorOf, type Surface, usageText } from '../../../scripts/release/api-surface.ts';
 
 const base = (): Surface => ({
   library: {
@@ -75,6 +75,11 @@ describe('floorOf: what a surface difference demands', () => {
     expect(usageText('binaryang 1.16.0 — a tool chain\n  wasm-opt  optimise', '1.16.0')).not.toBe(
       before,
     );
+  });
+
+  it("a template's stem is not a flag: --enable-<feature> names no flag --enable-", () => {
+    expect(flagsIn('usage: t [--enable-<feature>|--disable-<feature>] -o <f> --enable-gc'))
+      .toEqual(['--enable-gc', '-o']);
   });
 
   it('the floor is the HIGHEST reason: an addition does not hide a removal', () => {

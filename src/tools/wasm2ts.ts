@@ -26,6 +26,7 @@
 import type { ErrorList } from '../core/error.ts';
 import type { Result } from '../core/result.ts';
 import { cliExit, cliProcess } from '../cli/io.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------
 // Public API (stub)
@@ -66,7 +67,20 @@ export function wasm2ts(_binary: Uint8Array, _opts: Wasm2TsOptions = {}): Wasm2T
  * and exits non-zero, so the command is discoverable and honest rather than
  * absent from the dispatcher.
  */
+// The parameter keeps its published name, `_args`: the surface fingerprints it (2026-10-24).
 export function main(_args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(_args)) {
+    console.log(helpText(HELP));
+    return Promise.resolve();
+  }
   console.error('wasm2ts: not yet implemented (Phase 8 — deferred pending wasmtk QA/QC)');
   cliExit(1);
 }
+
+const HELP: ToolHelp = {
+  usage: 'wasm2ts <input.wasm>',
+  description:
+    'NOT YET IMPLEMENTED: it exits with an error. It is to write a WebAssembly binary as\nTypeScript, once wasmtk has what it would be built against.',
+  examples: [['(not yet implemented)', 'wasm2ts test.wasm']],
+  options: [],
+};

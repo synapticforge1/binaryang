@@ -117,6 +117,12 @@ async function main(): Promise<void> {
     cliExit(1);
   }
 
+  // `<command> --version`, as upstream's tools answer it; `<command> --help` each tool answers itself.
+  if (rest.includes('--version')) {
+    console.log(`binaryang ${VERSION}`);
+    return;
+  }
+
   await handler(rest);
 }
 
@@ -171,6 +177,8 @@ COMMANDS:
 OPTIONS:
   --help, -h            Show this help
   --version, -v         Show version
+  <command> --help      Every option of one command, with examples
+  <command> --version   Show version
 
 EXPORTS (JSR):
   @jrmarcum/binaryang/ir                The IR, its module builder and result types

@@ -56,6 +56,7 @@ import {
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliExit, cliProcess, cliRead } from '../cli/io.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 
 // ---------------------------------------------------------------------------
@@ -177,7 +178,26 @@ function refuseIndexedBlockTypes(module: object, errors: ErrorList): Result {
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
+const HELP: ToolHelp = {
+  usage: 'wasm-validate [options] <input.wasm> [...]',
+  description:
+    'Read WebAssembly binaries and check them against the specification, with the features\nupstream wabt enables by default unless the options say otherwise.',
+  examples: [
+    ['validate test.wasm', 'wasm-validate test.wasm'],
+    [
+      'validate a module that uses GC and tail calls',
+      'wasm-validate --enable-gc --enable-tail-call test.wasm',
+    ],
+  ],
+  options: [],
+  features: true,
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   args = args.slice();
   const inputs: string[] = [];
 

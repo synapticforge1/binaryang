@@ -66,6 +66,7 @@ import {
   WasmException,
 } from '../interp/interpreter.ts';
 import { cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------
 // Options and report
@@ -574,7 +575,32 @@ function usage(): void {
 }
 
 /** The CLI: parses `args` and runs {@link wasmCtorEval}. */
+const HELP: ToolHelp = {
+  usage: 'wasm-ctor-eval [options] <input.wasm|.wat>',
+  description:
+    "Run a module's constructors at build time and write the memory and globals they leave\ninto the module, so it starts with that state already in place.",
+  examples: [
+    [
+      'evaluate the constructor _initialize and write out.wasm',
+      'wasm-ctor-eval in.wasm --ctors=_initialize -o out.wasm',
+    ],
+  ],
+  options: [
+    ['-o <file>', 'Output file (default: output.wasm; - for stdout)'],
+    ['--ctors=a,b', 'Exported functions to evaluate, in order'],
+    ['--kept-exports=a,b', 'Keep these exports once fully evaluated'],
+    ['--ignore-external-input', 'Assume no arguments or environment; zero parameters'],
+    ['--fuel=N', 'Instructions one constructor may run (default 20000000)'],
+    ['-q, --quiet', 'No progress lines'],
+    ['-S', 'Emit WAT text'],
+  ],
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   let input: string | undefined;
   const options: Partial<WasmCtorEvalOptions> = {};
   for (let i = 0; i < args.length; i++) {
