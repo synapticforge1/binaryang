@@ -58,6 +58,8 @@ export interface FeatureDefinition {
   name: string;
   /** The spelling of `--enable-<cli>` / `--disable-<cli>`. */
   cli: string;
+  /** Older spellings still accepted, deprecated. */
+  cliAliases?: string[];
   /** On in `defaultFeatures()`. */
   defaultOn: boolean;
   /** `false`: the flag exists and changes nothing (see `note`). */

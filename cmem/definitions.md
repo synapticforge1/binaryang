@@ -14,7 +14,9 @@ package at `src/definitions/*.json`, each with `dataVersion` and a `sha256` of i
 content (keys sorted, the hash field empty), so a generated copy's header can quote both and a
 consumer's gate can prove its copy matches.
 
-- **D2, `features.json`** (22 entries): `name` = the `Features` key, `cli`, `defaultOn`,
+- **D2, `features.json`** (22 entries): `name` = the `Features` key, `cli` (and, since data version
+  1.1.0 — 2026-10-24, open-work 33 — `cliAliases`: older spellings still accepted, deprecated;
+  `satFloatToInt`'s `cli` became upstream's `saturating-float-to-int`), `defaultOn`,
   `implemented`, `testsuiteDirs`, `onlyIn` / `offIn` for a feature that changes core semantics
   (custom-descriptors relaxes `br_on_cast` everywhere), `note`, `since`. `FEATURE_DEFINITIONS`,
   `featuresForSuite(dir)`. binaryang is its first consumer: `scripts/proposals.ts`, the core spec
