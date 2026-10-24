@@ -74,8 +74,9 @@ removed record went to a topic file, and the full text is one `git show` away:
     first listed it excluded for wasmer; the probe then showed wasmer runs every tail call, so tail
     calls became portable — portability.md § "The committed probe"). (2) D2 2.1.0: `requires` (owner, after asking what wasmtime does:
     "recorded only option") and `presets`. Measurements and sources: definitions.md § "D2's
-    dependency and preset rules", divergences.md RC1. **The runtimes' answer goes in the D2 letter**
-    (owner: "draft the letter after item 34"), sent when the release ships, since they pin.
+    dependency and preset rules", divergences.md RC1. **The runtimes' answer is DRAFTED**: [handoffs.md](handoffs.md) § 42
+    (owner: "draft the letter after item 34"), not sent — best sent when the release ships, since
+    they pin. It also asks wasmrt for item 41's two fuzz inputs.
 
 39. ✅ **DONE on `main` 2026-10-24** (owner: "2.0.0 is accepted"), to ship as 2.0.0: the alias
     gone from D2 (data version 2.0.0), and the alias MECHANISM with it — `cliAliases`, its rule,
@@ -123,16 +124,18 @@ removed record went to a topic file, and the full text is one `git show` away:
     (one survived first: a check refusing EVERY block — two plain-block cases added). On by
     default: nothing changes unless it is switched off.
 
-33. ✅ **FL1 — upstream's feature-flag spelling is refused** — DONE 2026-10-24 (divergences.md FL1:
-    `saturating-float-to-int` canonical, `sat-float-to-int` a deprecated alias, D2 1.1.0). (found 2026-10-23 measuring workspace
-    letter H8 / I6): `--enable-saturating-float-to-int` / `--disable-…` (upstream wabt 1.0.41 and
-    wasm-tools) is an unknown flag here; ours is `sat-float-to-int`. Measured 2026-10-24: the ONLY
-    spelling of ours wabt lacks (`custom-descriptors` aside, which wabt has not); Binaryen 133 says
-    `nontrapping-float-to-int`, its own vocabulary. **DECIDED** (owner, 2026-10-24: "lets rename
-    binaryang's to conform with upstream saturating-float-to-int"): `saturating-float-to-int`
-    canonical; `sat-float-to-int` kept as a DEPRECATED alias (rule 4 — removing a flag is a major);
-    D2's `cli` changes with a `cliAliases` field, data version 1.1.0. To build.
-    [divergences.md](divergences.md) FL1.
+33. ✅ **FL1 — upstream's feature-flag spelling is refused** — DONE, in two steps. **Today the old
+    spelling is GONE**: `--enable-/--disable-sat-float-to-int` is an unknown option, D2 has no
+    `cliAliases` field, and `saturating-float-to-int` is the only spelling (D2 2.0.0, binaryang
+    2.0.0, item 39). The steps: (1) 1.17.0 renamed it (owner, 2026-10-24: "lets rename binaryang's
+    to conform with upstream saturating-float-to-int"), keeping `sat-float-to-int` as a deprecated
+    alias in a new `cliAliases` field, D2 1.1.0; (2) 2.0.0 removed the alias and the field (owner:
+    "we will remove the deprecated spelling on the next release"; a break, so a major). Found
+    2026-10-23 measuring workspace letter H8 / I6: upstream's spelling (wabt 1.0.41, wasm-tools) was
+    an unknown flag here, the only spelling of ours wabt lacked; Binaryen 133 says
+    `nontrapping-float-to-int`, its own vocabulary. [divergences.md](divergences.md) FL1. 🔧 This
+    entry said "kept as a deprecated alias … To build" until 2026-10-24: written at step 1 and not
+    brought up to date at step 2 (found by the owner).
 
 36. ✅ **The CLI tools answer `--help`** (owner, 2026-10-24: "add the help to the cli tools and the
     needed information to go with it"). DONE 2026-10-24: all ten commands, in upstream wabt's layout
