@@ -23,6 +23,7 @@ import {
   WasmException,
 } from '../../../src/interp/interpreter.ts';
 import { ValType } from '../../../src/ir/types.ts';
+import { allFeatures } from '../../../src/core/feature.ts';
 
 const i32 = (value: number): Value => ({ type: ValType.I32, value });
 
@@ -215,11 +216,14 @@ describe('the two ways to stop, never a result', () => {
   });
 
   it('an instruction not run yet', () => {
-    // Atomics (E3e ran the last of `v128`; the SIMD lane this used now runs).
-    const wat =
-      `(module (memory 1) (func (export "f") (result i32) (i32.atomic.load (i32.const 0))))`;
+    // Custom descriptors. (E3e ran the last of `v128`, the SIMD lane this used first; open-work 38
+    // the atomics, its `i32.atomic.load` next.)
+    const wat = `(module
+      (rec (type $t (descriptor $dt) (struct (field i64))) (type $dt (describes $t) (struct (field i64))))
+      (func (export "f") (result i64) struct.new_default $dt struct.new_default_desc $t struct.get $t 0))`;
+    const bytes = wat2wasm(wat, { textForm: false, features: allFeatures() }).binary;
     try {
-      interp(wat).invoke('f', []);
+      new Interpreter(readForPasses(bytes)).invoke('f', []);
       throw new Error('ran?');
     } catch (e) {
       expect(e).toBeInstanceOf(Stop);

@@ -80,7 +80,16 @@ removed record went to a topic file, and the full text is one `git show` away:
     2.0.0 with its migration; CHANGELOG and the release note say it; consumers generating from D2
     (workspace letter H10) are told. To make when the next release is prepared.
 
-38. ⬚ **binaryang's interpreter refuses every shared memory** (found 2026-10-23, open-work 34 pass 1;
+38. ✅ **FIXED 2026-10-24** (owner: "go ahead and perform the fix so that we have no surprise issues
+    later"): a shared memory and all 67 atomics run, single-threaded — an atomic access is its plain
+    access (the shape from D1's name), misaligned traps "unaligned atomic", then out of bounds, then
+    `wait` on an unshared memory "atomic wait on non-shared memory" (wasmtime's order and words,
+    measured; the proposal's Overview for the rules). `wait`: not-equal → 1, equal with a timeout →
+    2, equal with none → a `hang` Stop (no thread can wake it); `notify` → 0; `fence` a no-op.
+    Proven: 179 / 179 threads probes match the engines (2 where they disagree: the interpreter gives
+    wasmtime's 1); the threads spec suite 0 → 267 / 267 (the harness gained `spectest.shared_memory`);
+    `tests/binaryen-ts/interp/atomics.test.ts` (20, every expectation wasmtime's); 7 mutants killed.
+    Was: **binaryang's interpreter refuses every shared memory** (found 2026-10-23, open-work 34 pass 1;
     numbered 2026-10-24 at the owner's word). `src/interp/interpreter.ts:877`: instantiating a
     module with ANY shared memory stops with "unsupported: a shared memory" — even when the export
     run never touches an atomic. So `wasm-interp` and `wasm-ctor-eval` cannot take a threaded build
