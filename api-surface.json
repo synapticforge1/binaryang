@@ -2225,9 +2225,7 @@
     "--alias",
     "--argument",
     "--ctors",
-    "--disable-",
     "--dummy-import-func",
-    "--enable-",
     "--enable-all",
     "--hang-check",
     "--help",
@@ -2251,75 +2249,145 @@
     "-s",
     "-v"
    ],
-   "usage": "7d2abbdc9b7c"
+   "usage": "9ca121e701f6"
   },
   "wasm-opt": {
    "flags": [
+    "--closed-world",
     "--converge",
+    "--dce",
+    "--debug-info",
+    "--emit-text",
+    "--help",
+    "--memory64-lowering",
+    "--no-validate",
+    "--output",
     "--partial-inlining-ifs",
     "--pass-arg",
     "--print-all-passes",
     "--target",
+    "--vacuum",
+    "--validate",
+    "--version",
     "-O0",
+    "-O2",
     "-O4",
     "-Os",
     "-Oz",
     "-S",
     "-c",
+    "-g",
     "-o",
     "-pii"
    ],
-   "usage": "dc21f3824aca"
+   "usage": "abfcecb74f11"
   },
   "wat2wasm": {
    "flags": [
-    "--disable-",
-    "--enable-",
+    "--disable-bulk-memory",
+    "--disable-multi-value",
+    "--disable-mutable-globals",
+    "--disable-reference-types",
+    "--disable-sat-float-to-int",
+    "--disable-sign-extension",
+    "--disable-simd",
     "--enable-all",
+    "--enable-annotations",
+    "--enable-code-metadata",
+    "--enable-compact-imports",
+    "--enable-custom-descriptors",
+    "--enable-custom-page-sizes",
+    "--enable-exceptions",
+    "--enable-extended-const",
+    "--enable-function-references",
+    "--enable-gc",
+    "--enable-memory64",
+    "--enable-multi-memory",
+    "--enable-relaxed-simd",
+    "--enable-tail-call",
+    "--enable-threads",
+    "--enable-wide-arithmetic",
     "--help",
     "--no-check",
     "--no-text-form",
+    "--output",
+    "--version",
     "-o"
    ],
-   "usage": "a7d9c2a2bfef"
+   "usage": "baf3eaafd1d2"
   },
   "wasm2wat": {
    "flags": [
     "--fold",
     "--generate-names",
+    "--help",
     "--linear",
+    "--output",
+    "--version",
     "-f",
     "-l",
     "-o"
    ],
-   "usage": "16832e1f70d7"
+   "usage": "1d20b263f935"
   },
   "wasm-validate": {
    "flags": [
-    "--disable-",
-    "--enable-",
+    "--disable-bulk-memory",
+    "--disable-multi-value",
+    "--disable-mutable-globals",
+    "--disable-reference-types",
+    "--disable-sat-float-to-int",
+    "--disable-sign-extension",
+    "--disable-simd",
     "--enable-all",
-    "--help"
+    "--enable-annotations",
+    "--enable-code-metadata",
+    "--enable-compact-imports",
+    "--enable-custom-descriptors",
+    "--enable-custom-page-sizes",
+    "--enable-exceptions",
+    "--enable-extended-const",
+    "--enable-function-references",
+    "--enable-gc",
+    "--enable-memory64",
+    "--enable-multi-memory",
+    "--enable-relaxed-simd",
+    "--enable-tail-call",
+    "--enable-threads",
+    "--enable-wide-arithmetic",
+    "--help",
+    "--version"
    ],
-   "usage": "6a0e6e4307c2"
+   "usage": "06a73aa75ebd"
   },
   "wasm-objdump": {
    "flags": [
+    "--details",
+    "--headers",
+    "--help",
+    "--version",
     "-d",
     "-h"
    ],
-   "usage": "ec23c8339c47"
+   "usage": "f5d15331da26"
   },
   "wasm-strip": {
    "flags": [
+    "--help",
+    "--output",
+    "--section",
+    "--version",
     "-o",
     "-s"
    ],
-   "usage": "c9f9fcb29a05"
+   "usage": "0419f39116f9"
   },
   "wasm2ts": {
-   "flags": [],
-   "usage": "5d88f321cfda"
+   "flags": [
+    "--help",
+    "--version"
+   ],
+   "usage": "a0b6d6c847cc"
   },
   "wasm-ctor-eval": {
    "flags": [
@@ -2329,11 +2397,12 @@
     "--ignore-external-input",
     "--kept-exports",
     "--quiet",
+    "--version",
     "-S",
     "-o",
     "-q"
    ],
-   "usage": "535eeddca356"
+   "usage": "94a7518eb9a2"
   },
   "wasm-interp": {
    "flags": [
@@ -2344,24 +2413,28 @@
     "--help",
     "--no-hang-check",
     "--run-all-exports",
-    "--run-export"
+    "--run-export",
+    "--version"
    ],
-   "usage": "4f887157e67c"
+   "usage": "e73046bf710b"
   },
   "wasm-bundle": {
    "flags": [
     "--alias",
+    "--emit-relocs",
     "--help",
     "--no-wit",
     "--on-conflict",
     "--quiet",
     "--start",
     "--unmarked",
+    "--version",
+    "--wit",
     "-S",
     "-o",
     "-q"
    ],
-   "usage": "68ee76a945e4"
+   "usage": "193891990915"
   }
  },
  "passes": [
