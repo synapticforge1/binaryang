@@ -51,6 +51,7 @@ import {
 import type { PassOptions } from '../passes/pass.ts';
 import { ModuleBuilder } from '../ir/module.ts';
 import { applyTarget, checkTarget } from './target.ts';
+import { memcpyToBulkMemory } from './memcpy-to-bulk-memory.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
 
@@ -118,6 +119,13 @@ export interface WasmOptOptions {
    * the profile again. Default: none. See `tools/target`.
    */
   target?: string;
+  /**
+   * Rewrite a libc `memcpy` / `memmove` whose code is EXACTLY a known one (TinyGo's wasi-libc) to
+   * one `memory.copy`, introducing bulk memory: `--memcpy-to-bulk-memory`. Also done under a
+   * `target` with an optimization level, which permits bulk memory. Default `false`. See
+   * `tools/memcpy-to-bulk-memory`.
+   */
+  memcpyToBulkMemory?: boolean;
   /**
    * Receives the old → new map when a minify pass ran (`--minify-imports`,
    * `--minify-imports-and-exports`, `…-and-modules`) — the names the HOST
@@ -225,6 +233,10 @@ const HELP: ToolHelp = {
     ['--no-validate', 'Do not validate the input or the output (--validate: do, the default)'],
     ['--closed-world', 'Let passes assume every caller of an internal function is visible'],
     ['--target <name>', 'Make the output fit a portability profile (portable), or refuse it'],
+    [
+      '--memcpy-to-bulk-memory',
+      "A libc memcpy / memmove that is exactly TinyGo's becomes memory.copy (also under --target with -O)",
+    ],
     ['--pass-arg key=val', 'A per-pass argument (passname@key=val)'],
     [
       '-pii, --partial-inlining-ifs N',
@@ -367,6 +379,11 @@ function _nativeOptimize(
   const module = readForPasses(input, filename);
   // A WAT input was validated as text above.
   if (opts.validate && !isWat) validateInput(input, filename);
+  // On the input's own bytes, before anything changes the tree: the match is exact code.
+  const optimizing = opts.optimizeLevel > 0 || opts.shrinkLevel > 0;
+  if (opts.memcpyToBulkMemory === true || (opts.target !== undefined && optimizing)) {
+    memcpyToBulkMemory(input, module);
+  }
   // A target refuses or lowers BEFORE the optimizer sees the module.
   if (opts.target !== undefined) applyTarget(input, module, opts.target);
 
@@ -435,6 +452,7 @@ const RECOGNIZED_LONG_FLAGS = new Set([
   '--partial-inlining-ifs',
   '--print-all-passes',
   '--target',
+  '--memcpy-to-bulk-memory',
   '--help',
 ]);
 
@@ -513,6 +531,8 @@ export function parseArgs(args: string[]): ParsedArgs {
       if (Number.isFinite(n) && n >= 0) result.options.partialInliningIfs = n;
     } else if (a === '--print-all-passes') {
       result.printAllPasses = true;
+    } else if (a === '--memcpy-to-bulk-memory') {
+      result.options.memcpyToBulkMemory = true;
     } else if (a === '--target') {
       const v = args[++i];
       if (v === undefined || v.startsWith('-')) {

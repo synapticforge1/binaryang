@@ -354,6 +354,20 @@ A real program spends a share of its time on these instructions, so its slowdown
 scaled by these factors. Lower only for an engine that cannot run relaxed SIMD, or where every
 engine must give the same result.
 
+### TinyGo's memcpy, as one instruction
+
+TinyGo builds without bulk memory, so its modules carry wasi-libc's `memcpy` and `memmove` as
+loops. `--memcpy-to-bulk-memory` replaces each with one `memory.copy` — about 1.1–1.5 KB, 9–11% of
+a TinyGo module measured — and so does `--target portable` with an optimization level. Only a
+function whose code is byte for byte a known wasi-libc one is replaced; anything else is left
+alone. For every call with a defined result the bytes and return value are the same. Two calls
+are not: a `memcpy` of OVERLAPPING ranges (undefined in C; `memory.copy` copies them correctly)
+and a copy out of bounds (both trap, but the loop writes the bytes before the bad address first).
+
+```sh
+npx binaryang wasm-opt tinygo.wasm --memcpy-to-bulk-memory -Oz -o out.wasm
+```
+
 ### Optimizing in the browser
 
 A page can shrink a WebAssembly module it does **not** control (third-party, user-supplied, a
