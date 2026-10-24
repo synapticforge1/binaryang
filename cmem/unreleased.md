@@ -82,5 +82,5 @@ validator's type gating changes.
   more than one byte with reference types off.
 - **NEW — D2 `typeRules` and `encodingRules`** (data version **2.2.0**; types `FeatureTypeRule`,
   `FeatureEncodingRule`, `FeatureNeeds`): which features each value type and each encoding gate
-  needs, as data, proved against the validator by `tests/definitions/d2_rules.test.ts`. Also
-  `FidelityEntry.tableIndexOverlong` (`./ir`).
+  needs, as data, proved against the validator by `tests/definitions/d2_rules.test.ts`. (The
+  reader's new `FidelityEntry.tableIndexOverlong` is internal: `FidelityEntry` is not exported.)
