@@ -60,11 +60,13 @@ removed record went to a topic file, and the full text is one `git show` away:
     and proven 2026-10-23 (portability.md; relaxed SIMD as the spec's deterministic profile, which
     wasmtime's `relaxed-simd-deterministic` is not — it fuses madd and skips the dot-add wrap).
     **The portable target and D4 BUILT** 2026-10-23 (`wasm-opt --target portable`,
-    `profiles.json` in `./definitions`; portability.md § "The portable target"). **Next:**
-    **target-aware optimization** (owner, 2026-10-23: browsers' WebAssembly 2.0 support "should be
-    taken into account with our optimization efforts" — passes may introduce what the target
-    profile permits; portability.md decision 5), then the durable checks (a committed probe that
-    re-measures D4; D1's spec check as a gate — definitions.md), then `opcode-guide.md`. Found on
+    `profiles.json` in `./definitions`; portability.md § "The portable target"). **Decision 5
+    SCOPED 2026-10-24** (portability.md § "Decision 5 scoped"): the optimizer introduces no
+    feature (now a gate check in `optimize-corpus`), and real compiler output (Rust, Zig,
+    Emscripten, TinyGo; 11 modules) has nothing to introduce — 0 shift pairs, 0 trapping
+    truncations; the one candidate, TinyGo's `memcpy` / `memmove` → `memory.copy`, **waits on the
+    owner**. **Next:** the durable checks (a committed probe that re-measures D4; D1's spec check as
+    a gate — definitions.md), then `opcode-guide.md`. Found on
     the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
     item 35.
 

@@ -18,7 +18,9 @@
  * Both were found by accident, while measuring something else.
  *
  * So this fails when any level throws or emits a module `WebAssembly.validate`
- * rejects. It does not judge behaviour; the owner's decisions that moved -O
+ * rejects — or (open-work 34, 2026-10-24) emits one that NEEDS a feature its input
+ * does not (`featuresNeeded`, the validator's rule): no pass consults features,
+ * so none may introduce one. It does not judge behaviour; the owner's decisions that moved -O
  * output were each checked under wasmtime at the time (cmem/unreleased.md).
  *
  * ## Usage
@@ -35,6 +37,7 @@ import { writeWasm } from '../src/ir/write-wasm.ts';
 import { PassRunner } from '../src/passes/index.ts';
 import { formatErrors, hasErrors } from '../src/core/error.ts';
 import { wat2wasm } from '../src/tools/wat2wasm.ts';
+import { featuresNeeded } from '../src/tools/target.ts';
 
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
@@ -56,18 +59,27 @@ const files = readdirSync(CORPUS, { withFileTypes: true })
 
 const failures: string[] = [];
 const bytes = new Map<string, number>();
+let featureChecks = 0;
 for (const name of files) {
   const r = wat2wasm(await readFile(new URL(name, CORPUS), 'utf8'));
   if (hasErrors(r.errors)) {
     failures.push(`${name}: does not assemble: ${formatErrors(r.errors).trim().split('\n')[0]}`);
     continue;
   }
+  const before = new Set(featuresNeeded(r.binary));
   for (const [tag, opts] of LEVELS) {
     try {
       const mod = readForPasses(r.binary);
       new PassRunner(mod, opts).addDefaultOptimizationPasses().run();
       const out = writeWasm(mod);
       bytes.set(tag, (bytes.get(tag) ?? 0) + out.length);
+      // The optimizer must never introduce a feature its input does not need (open-work 34: a
+      // target's profile is the input's, unless a target says otherwise).
+      const introduced = featuresNeeded(out).filter((f) => !before.has(f));
+      featureChecks++;
+      if (introduced.length > 0) {
+        failures.push(`${name} ${tag}: introduced ${introduced.join(', ')}`);
+      }
       if (!WebAssembly.validate(out as BufferSource)) {
         let why = 'invalid';
         try {
@@ -92,4 +104,11 @@ if (failures.length > 0) {
   for (const f of failures) console.log(`    ${f}`);
   process.exit(1);
 }
-console.log('\n  every level of every module encodes and validates');
+// A step that checked nothing passes nothing.
+if (featureChecks === 0) {
+  console.log('\n  no output was checked for introduced features');
+  process.exit(1);
+}
+console.log(
+  `\n  every level of every module encodes and validates, and none of ${featureChecks} outputs needs a feature its input does not`,
+);
