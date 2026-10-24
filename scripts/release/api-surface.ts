@@ -179,6 +179,17 @@ export function usageText(raw: string, version: string): string {
   return raw.replace(/\r\n/g, '\n').trim().replaceAll(version, '<version>');
 }
 
+/**
+ * The flags a usage text names. A token ending in `-` is a TEMPLATE's stem, not a flag: the old
+ * usage text's `--enable-<feature>` read as a flag `--enable-`, so the help that lists every real
+ * `--enable-gc` … read as that "flag" removed — a false major (2026-10-24, open-work 36).
+ */
+export function flagsIn(text: string): string[] {
+  return [...new Set(text.match(/(?<![\w-])--?[a-zA-Z][a-zA-Z0-9-]*/g) ?? [])]
+    .filter((f) => !f.endsWith('-'))
+    .sort();
+}
+
 export async function surfaceOf(root: string): Promise<Surface> {
   const exportsMap = JSON.parse(readFileSync(join(root, 'jsr.json'), 'utf8')).exports as Record<
     string,
@@ -242,8 +253,7 @@ export async function surfaceOf(root: string): Promise<Surface> {
       encoding: 'utf8',
     });
     const text = usageText(`${r.stdout}${r.stderr}`, version);
-    const flags = [...new Set(text.match(/(?<![\w-])--?[a-zA-Z][a-zA-Z0-9-]*/g) ?? [])].sort();
-    cli[tool || 'binaryang'] = { flags, usage: fingerprint(text) };
+    cli[tool || 'binaryang'] = { flags: flagsIn(text), usage: fingerprint(text) };
   }
   const passesUrl = pathToFileURL(join(root, 'src', 'passes', 'index.ts')).href;
   const passes = ((await import(passesUrl)) as { listPasses: () => string[] }).listPasses().slice()
