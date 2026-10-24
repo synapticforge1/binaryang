@@ -5,10 +5,9 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-24 UTC): 2.1.0 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@2.1.0` (Rekor `3436968278`) and npm `@synapticforge1/binaryang@2.1.0`
-(published by GitHub Actions, SLSA provenance) — § "2.1.0", the first release through a
-previous-release test listed as an accepted change. **The repo is
+**Latest (2026-10-24 UTC): 2.2.0 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@2.2.0` (Rekor `3438521434`) and npm `@synapticforge1/binaryang@2.2.0`
+(published by GitHub Actions, SLSA provenance) — § "2.2.0". **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
 hash changed (§ "The history purge").
@@ -1006,6 +1005,28 @@ local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fir
 but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
 each would have failed on JSR's existing version, but push such tags with that in mind.
+
+## 2.2.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "update the project memory files, bump and push". It carries open-work 42: the
+reference-type rule as wasm-tools has it (owner: "wasm-tools' rule"), four validator gaps the
+runtimes found (an out-of-range type in `ref.test` / `ref.cast` / `br_on_cast`, `stringref`,
+mutable-global import / export with the feature off, the overlong `call_indirect` table index),
+and D2 2.2.0's `typeRules` / `encodingRules` (CHANGELOG § 2.2.0); the opcode guide on 2.2.0.
+
+1. `CHANGELOG.md` § 2.2.0 on `release/2.2.0` (`c0b2082bb`), gated 17 / 17, merged (`830bb86d3`),
+   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `830bb86d3`: 17 / 17 (17 step logs).
+2. No tag, neither registry had 2.2.0. `bun run bump minor` stopped as designed: floor MINOR (D2's
+   new types), **v2.1.0's tests: 6,268, 1 failed** — "gates a concrete (ref $T) on
+   functionReferences", the old type rule. Listed in `tests/accepted-changes.json` (`b0863492c`,
+   merged `0efb01520`), replacing 2.1.0's four entries, which the check reported STALE: only the
+   release just before is run. Re-run: 6,268, 1 failed, 1 accepted; `surface:check` matches;
+   `version_sync` 3 / 3; `bun run release`: `bump to v2.2.0` (`6e1923397`), `main` + `v2.2.0`.
+3. CI, auto-tag and publish.yml GREEN on the bump: **JSR** 2.2.0 created 2026-10-24T08:27:20Z, not
+   yanked, **Rekor log id `3438521434`**; **npm** at 08:29:35Z, `latest`, SLSA provenance; GitHub
+   Release `v2.2.0`. As a user: JSR `--version` prints `binaryang 2.2.0`; npm's `wasm-validate
+   --disable-mutable-globals` on a module exporting a mutable global — 2.1.0: OK; 2.2.0: "mutable
+   globals cannot be exported", INVALID — the fix, as published.
 
 ## 2.1.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
