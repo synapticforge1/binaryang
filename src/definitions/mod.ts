@@ -37,6 +37,7 @@ export type {
   DefinitionHeader,
   FeatureDefinition,
   FeatureDefinitions,
+  FeaturePreset,
   OpcodeDefinition,
   OpcodeDefinitions,
   ProfileDefinition,

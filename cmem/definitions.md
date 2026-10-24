@@ -116,3 +116,52 @@ from the probe results (scratch `pt-derive.ts` over runs 1–3, 5, 6), not writt
 it changed `data.ts`'s header to `bun run definitions` — the first intentional definitions change
 since the Bun migration (B4). `wasm-opt --target <name>` reads it ([portability.md](portability.md)
 § "The portable target").
+
+⚠️ **"Derived, not written by hand" still let two numbers in wrong**: runs 1 and 6 held the same 24
+wide-arithmetic and relaxed-SIMD modules (run 6 re-ran them for the stock browsers), and the
+derivation counted both, so `probes` said 40 and 8 where 20 and 4 exist. Found by the committed
+probe's first run (open-work 34 a); fixed in D4 1.1.0. A derivation over SEVERAL result sets must
+count distinct modules, not results.
+
+## D2's dependency and preset rules; `return_call_ref` (2026-10-24, open-work 40)
+
+Asked by wasmrt (item 4) because contract v33 makes D1's `feature` column and D2's rules the
+MEANING of both runtimes' `--features`. All measured the same day, sources read in scratch clones
+(spec `4441525`, function-references `74d2ec8`, tail-call `a6003d0`).
+
+**`return_call_ref` (0x15) needs `functionReferences` only.** The function-references proposal
+defines it (Overview, instructions and opcode table); the tail-call proposal does not mention it,
+and the spec's 3.0 change log lists it under neither. With each feature switched off alone:
+
+| needs | tools |
+| --- | --- |
+| functionReferences only | wasm-tools 1.262, wasmtime 50, wabt 1.0.41 (`wasm-validate`) |
+| tail-call AND gc | Binaryen 133 (no separate function-references: "made part of GC") |
+| tail-call AND functionReferences | binaryang before the fix — `tail call not allowed`, from wabt-ts (1.8.1 the same) |
+
+Fixed: D1 1.0.1, `Validator.onCallRefExpr`, D4 1.1.0 (excluded instruction, wasmer), the target's
+IR scan. divergences.md RC1.
+
+**D2 `requires` — RECORDED, NOT ENFORCED** (owner, 2026-10-24, after asking what wasmtime does).
+Only what a proposal states: functionReferences → referenceTypes ("based on the reference types
+proposal"); gc → referenceTypes, functionReferences ("Both proposals are prerequisites"); relaxedSimd
+→ simd (every instruction takes `v128`); customDescriptors → gc (its title). Not recorded, because
+not stated: reference types only "add instructions missing from" bulk memory; nothing makes
+exceptions depend on reference types in words. What the tools do with gc ON and functionReferences
+OFF:
+
+| | GC struct | `call_ref` |
+| --- | --- | --- |
+| wasm-tools 1.262, wasmtime 50, binaryang | accept | refuse |
+| Binaryen 133 | accept | accept (gc implies it) |
+| wazmrt 2.0.0 (wasmrt's measurement) | accept | accept |
+
+wasmtime refuses no feature SET for these (gc on with reference-types and function-references off
+still runs a GC module); it refuses one configuration: relaxed-simd on, simd off ("cannot disable
+the simd proposal but enable the relaxed simd proposal"). Not adopted: recorded only means no set
+is refused.
+
+**D2 `presets`**: `wasm1` (mutableGlobals — not in the change log, so 1.0), `wasm2` (+ the six 2.0
+sections — exactly `defaultOn`), `wasm3` (+ the nine 3.0 features; its exception handling is the
+exnref form, while D2's `exceptions` also gates the legacy instructions), `all`. No `mvp` alias
+(2.0.0 removed the alias mechanism).

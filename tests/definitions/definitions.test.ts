@@ -74,6 +74,77 @@ describe('D2 says what the code does', () => {
     expect(entries.filter((e) => !e.implemented).map((e) => e.name)).toEqual(['compactImports']);
   });
 
+  it('requires: D2 names, never itself, no cycle; the four the proposals state (open-work 40)', () => {
+    const names = new Set(entries.map((e) => e.name));
+    for (const e of entries) {
+      for (const r of e.requires) {
+        expect(`${e.name} requires ${r}: ${names.has(r) && r !== e.name}`).toBe(
+          `${e.name} requires ${r}: true`,
+        );
+      }
+    }
+    const req = new Map(entries.map((e) => [e.name, e.requires]));
+    /** Whether `to` is reachable from `from` through `requires`. */
+    const reaches = (from: string, to: string): boolean => {
+      const seen = new Set<string>();
+      const todo = [...(req.get(from) ?? [])];
+      while (todo.length > 0) {
+        const r = todo.pop()!;
+        if (r === to) return true;
+        if (!seen.has(r)) {
+          seen.add(r);
+          todo.push(...(req.get(r) ?? []));
+        }
+      }
+      return false;
+    };
+    for (const e of entries) {
+      expect(`${e.name}: ${reaches(e.name, e.name)}`).toBe(`${e.name}: false`);
+    }
+    expect(
+      Object.fromEntries(
+        entries.filter((e) => e.requires.length > 0).map((e) => [e.name, e.requires]),
+      ),
+    ).toEqual({
+      functionReferences: ['referenceTypes'],
+      gc: ['referenceTypes', 'functionReferences'],
+      relaxedSimd: ['simd'],
+      customDescriptors: ['gc'],
+    });
+  });
+
+  it('presets: wasm1 ⊂ wasm2 ⊂ wasm3 ⊂ all, in D2 order; wasm2 is defaultOn; all is every feature', () => {
+    const order = entries.map((e) => e.name);
+    const preset = (n: string) => FEATURE_DEFINITIONS.presets.find((p) => p.name === n)!.features;
+    expect(FEATURE_DEFINITIONS.presets.map((p) => p.name)).toEqual([
+      'wasm1',
+      'wasm2',
+      'wasm3',
+      'all',
+    ]);
+    for (const p of FEATURE_DEFINITIONS.presets) {
+      expect(p.features).toEqual(order.filter((n) => p.features.includes(n)));
+    }
+    const chain = ['wasm1', 'wasm2', 'wasm3', 'all'].map(preset);
+    for (let i = 1; i < chain.length; i++) {
+      for (const f of chain[i - 1]!) expect(chain[i]).toContain(f);
+    }
+    expect(preset('wasm2')).toEqual(entries.filter((e) => e.defaultOn).map((e) => e.name));
+    expect(preset('all')).toEqual(order);
+    // Release 3.0's sections (the spec's changes.rst), beyond 2.0.
+    expect(preset('wasm3').filter((f) => !preset('wasm2').includes(f))).toEqual([
+      'exceptions',
+      'functionReferences',
+      'tailCall',
+      'annotations',
+      'gc',
+      'memory64',
+      'multiMemory',
+      'extendedConst',
+      'relaxedSimd',
+    ]);
+  });
+
   it('suite feature sets: the core turns custom-descriptors off, threads multi-memory', () => {
     const all = allFeatures() as unknown as Record<string, boolean>;
     expect(featuresForSuite('')).toEqual({ ...all, customDescriptors: false });
