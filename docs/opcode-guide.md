@@ -5,10 +5,10 @@ widely used engine. Written for the projects that produce, run or load modules (
 `wasic`, wasmrt, wazmrt, rsxtk, the universal loaders); binaryang is the source of the data and the
 tool that applies it.
 
-**Status (2026-10-24).** This describes **binaryang 2.1.0**: D1 data 1.0.1, D2 2.1.0, D4 1.1.0, the
+**Status (2026-10-24).** This describes **binaryang 2.2.0**: D1 data 1.0.1, D2 2.2.0, D4 1.1.0, the
 engines measured 2026-10-24. 2.0.0 carried D1 1.0.0, D2 2.0.0 and D4 1.0.0, which still excluded
-tail calls (see [What changed in 2.1.0](#what-changed-in-210)). Pin the version you read; the data
-says its own version in `dataVersion`.
+tail calls (see [What changed](#what-changed)). Pin the version you read; the data says its own
+version in `dataVersion`.
 
 ## The rule
 
@@ -99,6 +99,17 @@ lowering: a module that needs them is engine-specific, and the target says which
   turns another on or off and no feature set is refused. So with `gc` on and
   `function-references` off, `call_ref` is refused and a GC struct is accepted — as wasmtime and
   wasm-tools do.
+- **Gate each TYPE by D2 `typeRules`** (D2 2.2.0; wasm-tools' rule, owner 2026-10-24). Every
+  reference type needs `reference-types`; `(ref null? $t)` needs `function-references` OR `gc` (so
+  with `gc` on and `function-references` off, a function returning `(ref $s)` is valid);
+  `(ref func)` / `(ref extern)` need `function-references`; the exn types `exceptions`; any / eq /
+  i31 / struct / array / none / nofunc / noextern `gc`, nullable or not; `stringref` nothing
+  enables. `needs` is a list of groups, every group needing at least one of its features.
+- **Gate each ENCODING by D2 `encodingRules`**: importing or exporting a mutable global
+  (`mutable-globals`), a `call_indirect` table index longer than the single byte `0x00`
+  (`reference-types`), more than one table or memory, a table initializer, multi-value, a shared
+  or 64-bit memory, a custom page size, struct / array definitions, tags. binaryang's tests prove
+  each rule against its validator in both directions.
 - **D2 `presets`** name the specification's releases: `wasm1`, `wasm2` (binaryang's default set),
   `wasm3`, and `all`. Each lists exactly the features on.
 
@@ -145,12 +156,12 @@ trap when unaligned; bulk operations that straddle the end trap — and **a zero
   runs their `--target portable` outputs too, and compares everything with D4. Exit 0 means D4
   holds. Run it when an engine releases.
 
-## What changed in 2.1.0
+## What changed
 
-| | binaryang 2.0.0 | binaryang 2.1.0 |
+| | binaryang 2.0.0 | binaryang 2.1.0 / 2.2.0 |
 | --- | --- | --- |
-| D1 `return_call_ref` | feature `tailCall` | feature `functionReferences` (D1 1.0.1) |
-| D2 | names only | + `requires` (recorded only) and `presets` (D2 2.1.0) |
+| D1 `return_call_ref` | feature `tailCall` | feature `functionReferences` (D1 1.0.1, 2.1.0) |
+| D2 | names only | + `requires` (recorded only) and `presets` (D2 2.1.0); + `typeRules` and `encodingRules` (D2 2.2.0) |
 | D4 tail calls | excluded, "refused by wasmer" | **portable**: wasmer runs them; the old measurement passed it `--enable-tail-call`, a switch wasmer refuses itself |
 | D4 `probes` | relaxedSimd 40, wideArithmetic 8 | 20 and 4 (a re-run was counted twice) |
 | D4 `measured` | 2026-10-23 | 2026-10-24 (every engine re-run; Edge 156) |
