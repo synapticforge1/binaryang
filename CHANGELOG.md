@@ -1,13 +1,18 @@
 # Changelog
 
-## Unreleased
+## 1.16.0
+
+A minor release: **`wasm-opt --target portable`** makes a module run, with the same behaviour, on
+every widely used WebAssembly engine, or says exactly which features stop it and which engines
+refuse them; **two new lowering passes** it uses; and the **portability profile** behind it as data
+in `./definitions`. Nothing is removed or renamed, and without the new flags no output changes.
 
 ### New
 
 - **`WideArithmeticLowering`** (`wasm-opt --wide-arithmetic-lowering`): `i64.add128`,
   `i64.sub128`, `i64.mul_wide_s` and `i64.mul_wide_u` become plain `i64` arithmetic, so a module
-  using them runs on V8 (Chrome, Edge, Node, Deno), WasmEdge, wasmer, wazero and Firefox ESR, which
-  refuse the proposal. Exact for every input; one small helper function per instruction used. Runs
+  using them runs on V8 (Chrome, Edge, Node, Deno), Safari's engine, WasmEdge, wasmer, wazero and
+  Firefox ESR, which refuse the proposal. Exact for every input; one small helper function per instruction used. Runs
   only when asked for — no default pipeline includes it — and no other output changes.
 - **`RelaxedSimdLowering`** (`wasm-opt --relaxed-simd-lowering`): the 20 relaxed-SIMD instructions
   become plain SIMD-128 computing the WebAssembly specification's deterministic profile, so a module
