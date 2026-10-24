@@ -1,29 +1,11 @@
 {
-  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate.",
+  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at 0dc0df5c2).",
   "entries": [
     {
-      "file": "tests/binaryen-ts/tools/target.test.ts",
-      "name": "GC: wasmer and wazero",
-      "since": "2.1.0",
-      "reason": "The refusal names the date the profile was measured; D4 was re-measured on 2026-10-24 (was 2026-10-23), so the message says 'measured 2026-10-24'. The refusal itself is unchanged."
-    },
-    {
-      "file": "tests/binaryen-ts/tools/target.test.ts",
-      "name": "tail calls, multi-memory, br_on_non_null",
-      "since": "2.1.0",
-      "reason": "Tail calls are portable (owner, 2026-10-24: 'Make them portable'): wasmer runs every tail call; D4 excluded them on a measurement artifact (the probe passed wasmer its own refused --enable-tail-call switch). --target portable now keeps a tail call instead of refusing it."
-    },
-    {
-      "file": "tests/binaryen-ts/tools/target.test.ts",
-      "name": "every excluded feature at once, not only the first",
-      "since": "2.1.0",
-      "reason": "Its module combined a tail call with GC and expected both refused; tail calls are portable since 2.1.0 (above), so only GC is refused. The 2.1.0 test combines GC and multi-memory."
-    },
-    {
-      "file": "tests/binaryen-ts/tools/target.test.ts",
-      "name": "checkTarget refuses a module outside the profile",
-      "since": "2.1.0",
-      "reason": "Its module was a tail call, which is inside the profile since 2.1.0 (tail calls portable, above). The 2.1.0 test uses a GC module."
+      "file": "tests/wabt-ts/validator/feature_gates.test.ts",
+      "name": "gates a concrete (ref $T) on functionReferences",
+      "since": "2.2.0",
+      "reason": "D2's type rule is wasm-tools' (owner, 2026-10-24: \"wasm-tools' rule\"; open-work 42): a concrete (ref $t) needs function references OR gc, so with gc still on, switching function references off no longer refuses it. The 2.2.0 test checks both: valid with only function references off, refused with both off."
     }
   ]
 }
