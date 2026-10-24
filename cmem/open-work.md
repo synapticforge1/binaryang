@@ -70,12 +70,16 @@ removed record went to a topic file, and the full text is one `git show` away:
     the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
     item 35.
 
-35. ⬚ **The validator does not enforce `multiValue`** (found 2026-10-23 building the portable
-    target): a function or block with several results, or a block with parameters, validates with
-    `multiValue` OFF. Upstream wabt ("multiple result values are not supported without multi-value
-    enabled") and wasm-tools ("… the multi-value feature is not enabled") refuse it. D2 says the
-    flag is `implemented`. No effect on `--target portable` (multi-value is portable); it matters to
-    a caller validating against Wasm 1.0 (`--disable-multi-value`).
+35. ✅ **The validator enforces `multiValue`** (found 2026-10-23; FIXED 2026-10-24, owner: "on 35
+    lets fix that first to conform with upstream"). Upstream measured first on 10 shapes, both
+    paths (wabt 1.0.41 `wat2wasm` / `wasm-validate --disable-multi-value`, wasm-tools agreeing):
+    the shared validator refuses a function type with several results and a block / loop / if /
+    try / try_table with parameters, in wabt's words; `wasm-validate` alone refuses a block type
+    ENCODED as a type index ("expected valid block signature type" — wabt's binary reader; its
+    `wat2wasm` accepts `(block (type $t))` naming a one-result type, so the text path does too).
+    `tests/wabt-ts/validator/multi_value_gate.test.ts` (12 shapes × off / on); 5 mutants killed
+    (one survived first: a check refusing EVERY block — two plain-block cases added). On by
+    default: nothing changes unless it is switched off.
 
 33. ⬚ **FL1 — upstream's feature-flag spelling is refused** (found 2026-10-23 measuring workspace
     letter H8 / I6): `--enable-saturating-float-to-int` / `--disable-…` (upstream wabt 1.0.41 and
