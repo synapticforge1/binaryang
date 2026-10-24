@@ -516,7 +516,7 @@ export class SharedValidator {
   }
 
   onFuncType(
-    _loc: Location,
+    loc: Location,
     params: ValueType[],
     results: ValueType[],
     typeIndex: Index,
@@ -526,7 +526,25 @@ export class SharedValidator {
     this.funcTypesMap.set(this.numTypes, { params, results, typeIndex });
     this.heapTypesMap.set(this.numTypes, { kind: 'func', supers, canon });
     this.numTypes++;
+    // Upstream wabt's `SharedValidator::OnFuncType`, word for word (open-work 35): every function
+    // type — defined, imported, or the one a multi-result block's text synthesizes — is checked.
+    if (results.length > 1 && !this.features.multiValue) {
+      return this.printError(
+        loc,
+        'multiple result values are not supported without multi-value enabled.',
+      );
+    }
     return Result.Ok;
+  }
+
+  /**
+   * A block type with PARAMETERS needs multi-value — upstream wabt's `CheckBlockSignature`,
+   * word for word (open-work 35). Its results need no check here: a type with several results is
+   * refused where it is declared ({@link onFuncType}).
+   */
+  private checkBlockParams(op: string, params: ValueType[], loc: Location): Result {
+    if (params.length === 0 || this.features.multiValue) return Result.Ok;
+    return this.printError(loc, `${op} params not currently supported.`);
   }
 
   onStructType(
@@ -884,13 +902,19 @@ export class SharedValidator {
   onBlock(loc: Location, blockType: BlockType): Result {
     this.currentLoc = loc;
     const { params, results } = this.resolveBlockType(blockType, loc);
-    return this.tc.onBlock(params, results);
+    return combineResults(
+      this.checkBlockParams('block', params, loc),
+      this.tc.onBlock(params, results),
+    );
   }
 
   onLoop(loc: Location, blockType: BlockType): Result {
     this.currentLoc = loc;
     const { params, results } = this.resolveBlockType(blockType, loc);
-    return this.tc.onLoop(params, results);
+    return combineResults(
+      this.checkBlockParams('loop', params, loc),
+      this.tc.onLoop(params, results),
+    );
   }
 
   /**
@@ -921,7 +945,7 @@ export class SharedValidator {
   onIf(loc: Location, blockType: BlockType): Result {
     this.currentLoc = loc;
     const { params, results } = this.resolveBlockType(blockType, loc);
-    return this.tc.onIf(params, results);
+    return combineResults(this.checkBlockParams('if', params, loc), this.tc.onIf(params, results));
   }
 
   onElse(_loc: Location): Result {
@@ -2282,7 +2306,10 @@ export class SharedValidator {
   onTry(loc: Location, blockType: BlockType): Result {
     this.currentLoc = loc;
     const { params, results } = this.resolveBlockType(blockType, loc);
-    return this.tc.onTry(params, results);
+    return combineResults(
+      this.checkBlockParams('try', params, loc),
+      this.tc.onTry(params, results),
+    );
   }
 
   onCatch(loc: Location, tagIdx: number, isCatchAll: boolean): Result {
@@ -2301,7 +2328,10 @@ export class SharedValidator {
   beginTryTable(loc: Location, blockType: BlockType): Result {
     this.currentLoc = loc;
     const { params, results } = this.resolveBlockType(blockType, loc);
-    return this.tc.onBlock(params, results);
+    return combineResults(
+      this.checkBlockParams('try_table', params, loc),
+      this.tc.onBlock(params, results),
+    );
   }
 
   // The try_table label is closed via onEnd (the validator's endTryTableExpr
