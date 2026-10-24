@@ -169,6 +169,16 @@ function cliTools(root: string): string[] {
 }
 
 /** The surface of the tree at `root` (the repository, or a release tag's extracted tree). */
+/**
+ * A tool's usage text as the surface records it: line endings normalised, and the tree's OWN version
+ * replaced by `<version>`. The root usage names the version ("binaryang 1.16.0 — …"), so without
+ * this every bump read as "usage text changed" and failed `surface:check` on the bump commit —
+ * found by 1.16.0, the gate's first release (2026-10-24).
+ */
+export function usageText(raw: string, version: string): string {
+  return raw.replace(/\r\n/g, '\n').trim().replaceAll(version, '<version>');
+}
+
 export async function surfaceOf(root: string): Promise<Surface> {
   const exportsMap = JSON.parse(readFileSync(join(root, 'jsr.json'), 'utf8')).exports as Record<
     string,
@@ -224,12 +234,14 @@ export async function surfaceOf(root: string): Promise<Surface> {
     );
   }
   const cli: Surface['cli'] = {};
+  const version = (JSON.parse(readFileSync(join(root, 'jsr.json'), 'utf8')) as { version: string })
+    .version;
   for (const tool of ['', ...cliTools(root)]) {
     const r = spawnSync('bun', ['main.ts', ...(tool ? [tool] : []), '--help'], {
       cwd: root,
       encoding: 'utf8',
     });
-    const text = `${r.stdout}${r.stderr}`.replace(/\r\n/g, '\n').trim();
+    const text = usageText(`${r.stdout}${r.stderr}`, version);
     const flags = [...new Set(text.match(/(?<![\w-])--?[a-zA-Z][a-zA-Z0-9-]*/g) ?? [])].sort();
     cli[tool || 'binaryang'] = { flags, usage: fingerprint(text) };
   }
