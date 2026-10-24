@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-24 (UTC): the last release is `v2.1.0`, on JSR and npm, both with provenance;
+**As of 2026-10-24 (UTC): the last release is `v2.2.0`, on JSR and npm, both with provenance;
 nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
---oneline v2.1.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.1.0; the
+--oneline v2.2.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.0; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
@@ -39,14 +39,16 @@ spelling deprecated, D2 1.1.0; multi-value off enforced; the relaxed-SIMD cost i
 **2.0.0** (BREAKING: `sat-float-to-int` removed with `cliAliases`, D2 2.0.0; the interpreter runs
 shared memory and atomics) or **2.1.0** (every module with a function table valid under the
 default features; `return_call_ref` under function references, D1 1.0.1; two validator feature
-checks; D2 `requires` and `presets`, 2.1.0; tail calls portable, D4 1.1.0). The public summary of each is
+checks; D2 `requires` and `presets`, 2.1.0; tail calls portable, D4 1.1.0) or **2.2.0** (the
+reference-type rule as wasm-tools has it; four validator gaps; D2 `typeRules` / `encodingRules`,
+2.2.0). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
 `fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
 (1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
 `7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), at `02a866672` (1.16.0), at `f8473c620`
-(1.17.0), at `4cf6624af` (2.0.0), and at `b7fdb9de5` (2.1.0).
+(1.17.0), at `4cf6624af` (2.0.0), at `b7fdb9de5` (2.1.0), and at `6e1923397` (2.2.0).
 
 ## How to use this file
 
@@ -63,24 +65,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 2.1.0
+## Since 2.2.0
 
-The next release is at least a MINOR (2.2.0): D2 gains `typeRules` and `encodingRules`, and the
-validator's type gating changes.
-
-- **Behaviour — which features a reference TYPE needs is wasm-tools' rule** (open-work 42; owner,
-  2026-10-24). Every reference type needs reference types; `(ref null? $t)` needs function
-  references OR GC (was function references alone: with GC on and function references off, a
-  function returning `(ref $s)` was refused); `(ref any)` and the other GC heap types need GC (the
-  non-null ones were gated by function references); `(ref func)` / `(ref extern)` need function
-  references; the exn types exceptions. Typed references and GC types with reference types off are
-  now refused.
-- **Silent fix — four validator gaps, each accepted what wasm-tools refuses** (open-work 42, from
-  wasmrt and wazmrt): `ref.test` / `ref.cast` / `br_on_cast` naming a type index past the type
-  section; a `stringref` (no feature enables it); importing or exporting a mutable global with
-  `--disable-mutable-globals` (the switch did nothing); a `call_indirect` table index written in
-  more than one byte with reference types off.
-- **NEW — D2 `typeRules` and `encodingRules`** (data version **2.2.0**; types `FeatureTypeRule`,
-  `FeatureEncodingRule`, `FeatureNeeds`): which features each value type and each encoding gate
-  needs, as data, proved against the validator by `tests/definitions/d2_rules.test.ts`. (The
-  reader's new `FidelityEntry.tableIndexOverlong` is internal: `FidelityEntry` is not exported.)
+Nothing yet.
