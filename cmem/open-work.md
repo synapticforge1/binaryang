@@ -205,9 +205,9 @@ the 24 public refs force-pushed with a lease each, no publish triggered ([publis
 clone 17 / 17; **1.15.0 released** on JSR and npm with provenance ([publishing.md](publishing.md)
 § "1.15.0"). The tag-by-tag hash map: [publishing.md](publishing.md) § "The history purge".
 **Every commit hash quoted before 2026-10-22 outside this repo (wasmtk's letters, the workspace) is
-now an OLD hash.** Left with the owner, not ours to do: telling wasmtk to re-clone
-`upstream/binaryang` (a letter, drafted on request), and a GitHub Support request if the old
-commits must stop being served by hash.
+now an OLD hash.** ✅ wasmtk told to re-clone `upstream/binaryang` (owner, 2026-10-23, with
+letter § 41, sent the same day). Left with the owner: a GitHub Support request if the old commits
+must stop being served by hash.
 
 (Item 1 closed 2026-09-30: the walkers visit a `br_if` / `br_table`'s values before its condition.
 It was a DEFECT, not only an order: `mapWithSequences` keeps, evaluated, what it mapped before an

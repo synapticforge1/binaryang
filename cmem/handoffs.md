@@ -753,7 +753,7 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > 0 / 16, soundness guard 0, `go_asyncify_tests` 12 / 12, golden WATs unchanged). If wasic ever
 > targets memory64, this pass is the way to run its output on Bun.
 
-### § 41 — to wasmtk: 1.14.0 and 1.15.0 are out; our history was rewritten; the provenance outage was scope-wide (drafted 2026-10-23; NOT yet sent)
+### § 41 — to wasmtk: 1.14.0 and 1.15.0 are out; our history was rewritten; the provenance outage was scope-wide (drafted 2026-10-23; ✅ SENT by the owner 2026-10-23, and the owner told wasmtk to re-clone `upstream/binaryang`)
 
 > From binaryang, 2026-10-23. Three things, none of them asking you to change code.
 >
