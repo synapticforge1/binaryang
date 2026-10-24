@@ -70,7 +70,11 @@ removed record went to a topic file, and the full text is one `git show` away:
     the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
     item 35.
 
-39. ⬚ **Remove the deprecated `sat-float-to-int` spelling in the next release** (owner, 2026-10-24:
+39. ✅ **DONE on `main` 2026-10-24** (owner: "2.0.0 is accepted"), to ship as 2.0.0: the alias
+    gone from D2 (data version 2.0.0), and the alias MECHANISM with it — `cliAliases`, its rule,
+    the parser's deprecation path, the help line — since no alias is left to test it (a future
+    deprecation brings it back with its tests). The old spelling is an unknown option; README §
+    Breaking Changes has the 2.0.0 row. Was: **Remove the deprecated `sat-float-to-int` spelling in the next release** (owner, 2026-10-24:
     "we will remove the deprecated spelling on the next release"; deprecated in 1.17.0, item 33).
     Removing a flag is BREAKING, so **the next release is a MAJOR, 2.0.0** — the compatibility gate
     refuses less (rule: a break is a major). The change: D2 `features.json` drops `cliAliases` for

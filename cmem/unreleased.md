@@ -66,6 +66,9 @@ contains ([handoffs.md](handoffs.md)).
   `wasm-interp` and `wasm-ctor-eval` take threaded builds. Behaviour: what was a Stop now runs.
   Repo only: the interp gate step's harness gained `spectest.shared_memory`.
 
-**PLANNED — ⚠️ BREAKING, so the next release is 2.0.0** (owner, 2026-10-24:
-"we will remove the deprecated spelling on the next release"): `--enable-/--disable-sat-float-to-int`
-removed, and D2's `cliAliases` with it (data version 2.0.0) — open-work 39.
+- **⚠️ BREAKING — `--enable-/--disable-sat-float-to-int` REMOVED** (open-work 39; owner,
+  2026-10-24: "we will remove the deprecated spelling on the next release", then "2.0.0 is
+  accepted"): an unknown option now. `./definitions`: `FeatureDefinition.cliAliases` removed with
+  the mechanism (no alias left to test it), D2 data version 2.0.0, a new `sha256`. **The next
+  release is 2.0.0.** README § Breaking Changes has the row and migration; consumers generating
+  from D2 (workspace letter H10) must be told.
