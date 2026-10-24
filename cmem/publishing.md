@@ -49,6 +49,12 @@ B3):
   exported signature uses, as `private`, which is now excluded); the bump refused a patch against a
   minor floor and a stale snapshot, and passed a minor. The previous-tests check counts testcases and
   fails on zero (its first run printed "? tests").
+- 🔧 **Its first release (1.16.0) found a defect:** the root CLI's usage text names the version
+  ("binaryang 1.16.0 — …"), so the bump commit itself read as "usage text changed" and CI's
+  `surface:check` went red on `02a866672` — every bump would have. The publish was NOT stopped
+  (publish.yml runs only `--release-check`, which passed). Fixed 2026-10-24: `usageText` replaces
+  the tree's OWN version (its `jsr.json`) by `<version>` before fingerprinting; re-baselined once
+  in its own commit.
 - **Rule 4, deprecate before removing**, and the README's `### ⚠️ Breaking Changes` table — written
   when the deprecation lands, with the migration.
 
