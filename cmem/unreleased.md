@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-24 (UTC): the last release is `v1.17.0`, on JSR and npm, both with provenance;
+**As of 2026-10-24 (UTC): the last release is `v2.0.0`, on JSR and npm, both with provenance;
 nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
---oneline v1.17.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.17.0; the
+--oneline v2.0.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.0.0; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
@@ -35,15 +35,16 @@ first at -O3 / -Os / -Oz; the note that the history was rewritten, letter H19) o
 Breaking Changes table and Safari corrections; Binaryen attribution; the compatibility gate's
 first release) or **1.16.1** (no package change: the release tooling checked on a real bump) or
 **1.17.0** (every command's `--help`; `--memcpy-to-bulk-memory`; `saturating-float-to-int`, the old
-spelling deprecated, D2 1.1.0; multi-value off enforced; the relaxed-SIMD cost in the README). The
-public summary of each is
+spelling deprecated, D2 1.1.0; multi-value off enforced; the relaxed-SIMD cost in the README) or
+**2.0.0** (BREAKING: `sat-float-to-int` removed with `cliAliases`, D2 2.0.0; the interpreter runs
+shared memory and atomics). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
 `fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
 (1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
-`7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), at `02a866672` (1.16.0), and at `f8473c620`
-(1.17.0).
+`7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), at `02a866672` (1.16.0), at `f8473c620`
+(1.17.0), and at `4cf6624af` (2.0.0).
 
 ## How to use this file
 
@@ -60,15 +61,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.17.0
+## Since 2.0.0
 
-- **NEW — the interpreter runs shared memory and every atomic** (open-work 38), single-threaded;
-  `wasm-interp` and `wasm-ctor-eval` take threaded builds. Behaviour: what was a Stop now runs.
-  Repo only: the interp gate step's harness gained `spectest.shared_memory`.
-
-- **⚠️ BREAKING — `--enable-/--disable-sat-float-to-int` REMOVED** (open-work 39; owner,
-  2026-10-24: "we will remove the deprecated spelling on the next release", then "2.0.0 is
-  accepted"): an unknown option now. `./definitions`: `FeatureDefinition.cliAliases` removed with
-  the mechanism (no alias left to test it), D2 data version 2.0.0, a new `sha256`. **The next
-  release is 2.0.0.** README § Breaking Changes has the row and migration; consumers generating
-  from D2 (workspace letter H10) must be told.
+Nothing yet.
