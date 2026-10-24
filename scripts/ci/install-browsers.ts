@@ -93,9 +93,19 @@ for (const b of APT) {
     `deb [arch=amd64 signed-by=${b.keyring}] ${b.source}\n`,
   );
 }
-step('apt-get update', 'sudo', ['apt-get', 'update', '-q']);
+// A slow mirror is dropped after 30 s and retried, not waited on (owner, 2026-10-24).
+const APT_NET = [
+  '-o',
+  'Acquire::Retries=3',
+  '-o',
+  'Acquire::http::Timeout=30',
+  '-o',
+  'Acquire::https::Timeout=30',
+];
+step('apt-get update', 'sudo', ['apt-get', ...APT_NET, 'update', '-q']);
 step(`apt-get install ${APT.map((b) => b.pkg).join(' ')}`, 'sudo', [
   'apt-get',
+  ...APT_NET,
   'install',
   '-y',
   '-q',
