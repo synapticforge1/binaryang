@@ -1,5 +1,40 @@
 # Changelog
 
+## 2.2.0
+
+A minor release that settles **which features a reference type needs**, as wasm-tools has it,
+and closes **four validator gaps** where binaryang accepted what wasm-tools refuses (reported by
+the wasmrt and wazmrt runtimes, which take their `--features` meaning from `./definitions`).
+`./definitions` now states those rules as data. Nothing is removed or renamed.
+
+### Changed
+
+- **Which features a reference type needs follows wasm-tools.** Every reference type needs
+  reference types. A typed reference to a type index, `(ref $t)` or `(ref null $t)`, needs
+  function references **or** GC — before, function references alone, so with GC on and function
+  references off a function returning `(ref $s)` was refused. `(ref any)` and the other GC heap
+  types (`eq`, `i31`, `struct`, `array`, `none`, `nofunc`, `noextern`) need GC — the non-null ones
+  were gated by function references. `(ref func)` / `(ref extern)` need function references; the
+  exception types need exception handling. With reference types switched off, typed references
+  and GC types are now refused.
+
+### Fixes
+
+- **Four checks the validator lacked**, each refused by wasm-tools: `ref.test`, `ref.cast` and
+  `br_on_cast` naming a type index past the type section; a `stringref` type (no feature enables
+  that proposal); importing or exporting a mutable global with `--disable-mutable-globals`, which
+  changed nothing; and a `call_indirect` table index written in more than one byte with reference
+  types switched off (WebAssembly 1.0 writes the single byte `0x00`).
+
+### New
+
+- **`./definitions`: the type and encoding rules as data** (D2 data version 2.2.0).
+  `FeatureDefinitions.typeRules` (`FeatureTypeRule`) says which features each value type needs,
+  and `encodingRules` (`FeatureEncodingRule`) which features each encoding or module structure
+  needs — a mutable global's import or export, more than one table or memory, a shared or 64-bit
+  memory, a table initializer, and so on. `needs` (`FeatureNeeds`) lists groups, every group
+  needing at least one of its features. binaryang's tests prove every rule against the validator.
+
 ## 2.1.0
 
 A minor release. Above all a fix: **`wasm-validate` and `wat2wasm` refused every module with a
