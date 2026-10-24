@@ -1,8 +1,8 @@
 {
   "definition": "D4",
   "title": "Portability profiles: what the widely used WebAssembly engines run, measured",
-  "dataVersion": "1.0.0",
-  "sha256": "2d51a88e98d3ecc3cb5029a9f1157878abc72fa1364ff8b3c017221cc370c3a1",
+  "dataVersion": "1.1.0",
+  "sha256": "09ad6f37af16a62ea018b91e2f9ce6aec384505558e4bf2d664412cb2e8f1468",
   "rules": {
     "name": "The profile's name, as `wasm-opt --target <name>` takes it.",
     "measured": "The date the engines were measured (UTC). The tiers are a claim with that date: an engine that catches up moves a feature only when it is measured again.",
@@ -63,11 +63,11 @@
           "feature": "functionReferences",
           "tier": "portable",
           "refusedBy": [],
-          "probes": 5,
-          "note": "br_on_non_null excepted: see `opcodes`."
+          "probes": 6,
+          "note": "br_on_non_null and return_call_ref excepted: see `opcodes`."
         },
         { "feature": "multiValue", "tier": "portable", "refusedBy": [], "probes": 1 },
-        { "feature": "tailCall", "tier": "excluded", "refusedBy": ["wasmer"], "probes": 3 },
+        { "feature": "tailCall", "tier": "excluded", "refusedBy": ["wasmer"], "probes": 2 },
         { "feature": "bulkMemory", "tier": "portable", "refusedBy": [], "probes": 14 },
         { "feature": "referenceTypes", "tier": "portable", "refusedBy": [], "probes": 8 },
         {
@@ -106,7 +106,7 @@
           "tier": "lowered",
           "pass": "RelaxedSimdLowering",
           "refusedBy": ["wasmer", "wazero"],
-          "probes": 40,
+          "probes": 20,
           "note": "Lowered to the specification's deterministic profile, the same result on every engine; where engines run the original, results differ by hardware. Safari ships it only in Technology Preview (MDN browser-compat-data 8.1.7)."
         },
         {
@@ -153,7 +153,7 @@
             "wazero",
             "webkit"
           ],
-          "probes": 8
+          "probes": 4
         },
         {
           "feature": "customDescriptors",
@@ -179,6 +179,13 @@
       ],
       "opcodes": [
         { "name": "br_on_non_null", "tier": "excluded", "refusedBy": ["wasmer"], "probes": 1 },
+        {
+          "name": "return_call_ref",
+          "tier": "excluded",
+          "refusedBy": ["wasmer"],
+          "probes": 1,
+          "note": "A tail call, and wasmer runs none; D1 gates it under functionReferences, the proposal that defines it (since D4 1.1.0, 2026-10-24; tailCall's before)."
+        },
         {
           "name": "try",
           "tier": "lowered",

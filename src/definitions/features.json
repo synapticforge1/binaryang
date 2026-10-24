@@ -1,24 +1,91 @@
 {
   "definition": "D2",
   "title": "WebAssembly feature / proposal list",
-  "dataVersion": "2.0.0",
-  "sha256": "19c8136690f59799df0be2e9f1e0d86362474a79ebf310b2020f6be38ec23373",
+  "dataVersion": "2.1.0",
+  "sha256": "81bc142b27ec9de4a9cd87644c4bbc405ad6cc4d1aa1ce0cef7712e1184a5ad9",
   "rules": {
     "name": "The canonical name: the key of binaryang's `Features` (`allFeatures()`, `defaultFeatures()`).",
     "cli": "The spelling binaryang's CLIs accept, as `--enable-<cli>` / `--disable-<cli>` — upstream wabt's and wasm-tools'.",
     "defaultOn": "On in `defaultFeatures()` (wabt's tool defaults; not the same as 'in Wasm 3.0').",
     "implemented": "false: the flag exists and changes nothing (see `note`).",
+    "requires": "The features its proposal states it builds on — function-references 'is based on the reference types proposal'; GC: reference types and typed function references, 'Both proposals are prerequisites'; custom descriptors is 'for WasmGC structs' (its title); relaxed SIMD's every instruction takes `v128`, which only SIMD defines. RECORDED, NOT ENFORCED (owner, 2026-10-24): nothing turns a feature on or off with another and no feature set is refused; each instruction is gated by its own D1 `feature`. So with functionReferences off and gc on, `call_ref` is refused and a GC struct is accepted — as wasmtime 50 and wasm-tools 1.262 do.",
+    "presets": "Named feature sets: exactly these on, every other off. wasm1, wasm2, wasm3 are the specification's releases (its change history, document/core/appendix/changes.rst; mutableGlobals predates it, so it is in 1.0); all is every feature. wasm2 is `defaultOn`.",
     "testsuiteDirs": "Directories of the spec testsuite (relative to its root) whose suites need this feature. Empty: its tests are in the core suite, which runs with every feature on except as `onlyIn` / `offIn` say.",
     "onlyIn": "Absent: on everywhere. Present: ON only in these directories — it CHANGES core semantics, and the core suite (or another) asserts against the change.",
     "offIn": "Directories whose suite must run with this feature OFF — a snapshot written before the feature, which it relaxes.",
     "since": "The date the entry entered this list."
   },
+  "presets": [
+    { "name": "wasm1", "features": ["mutableGlobals"] },
+    {
+      "name": "wasm2",
+      "features": [
+        "mutableGlobals",
+        "satFloatToInt",
+        "signExtension",
+        "simd",
+        "multiValue",
+        "bulkMemory",
+        "referenceTypes"
+      ]
+    },
+    {
+      "name": "wasm3",
+      "features": [
+        "exceptions",
+        "mutableGlobals",
+        "satFloatToInt",
+        "signExtension",
+        "simd",
+        "functionReferences",
+        "multiValue",
+        "tailCall",
+        "bulkMemory",
+        "referenceTypes",
+        "annotations",
+        "gc",
+        "memory64",
+        "multiMemory",
+        "extendedConst",
+        "relaxedSimd"
+      ],
+      "note": "Release 3.0's exception handling is the exnref form; D2's `exceptions` also gates the legacy instructions, which no release contains."
+    },
+    {
+      "name": "all",
+      "features": [
+        "exceptions",
+        "mutableGlobals",
+        "satFloatToInt",
+        "signExtension",
+        "simd",
+        "threads",
+        "functionReferences",
+        "multiValue",
+        "tailCall",
+        "bulkMemory",
+        "referenceTypes",
+        "annotations",
+        "codeMetadata",
+        "gc",
+        "memory64",
+        "multiMemory",
+        "extendedConst",
+        "relaxedSimd",
+        "customPageSizes",
+        "compactImports",
+        "wideArithmetic",
+        "customDescriptors"
+      ]
+    }
+  ],
   "entries": [
     {
       "name": "exceptions",
       "cli": "exceptions",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": ["legacy/"],
       "since": "2026-10-06"
     },
@@ -27,6 +94,7 @@
       "cli": "mutable-globals",
       "defaultOn": true,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -35,6 +103,7 @@
       "cli": "saturating-float-to-int",
       "defaultOn": true,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -43,6 +112,7 @@
       "cli": "sign-extension",
       "defaultOn": true,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -51,6 +121,7 @@
       "cli": "simd",
       "defaultOn": true,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -59,6 +130,7 @@
       "cli": "threads",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": ["proposals/threads/"],
       "since": "2026-10-06"
     },
@@ -67,6 +139,7 @@
       "cli": "function-references",
       "defaultOn": false,
       "implemented": true,
+      "requires": ["referenceTypes"],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -75,6 +148,7 @@
       "cli": "multi-value",
       "defaultOn": true,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -83,6 +157,7 @@
       "cli": "tail-call",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -91,6 +166,7 @@
       "cli": "bulk-memory",
       "defaultOn": true,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -99,6 +175,7 @@
       "cli": "reference-types",
       "defaultOn": true,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -107,6 +184,7 @@
       "cli": "annotations",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -115,6 +193,7 @@
       "cli": "code-metadata",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -123,6 +202,7 @@
       "cli": "gc",
       "defaultOn": false,
       "implemented": true,
+      "requires": ["referenceTypes", "functionReferences"],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -131,6 +211,7 @@
       "cli": "memory64",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -139,6 +220,7 @@
       "cli": "multi-memory",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "offIn": ["proposals/threads/"],
       "note": "proposals/threads/ predates multi-memory: it asserts 'multiple memories' invalid five times (imports.wast:410/414/418, memory.wast:14/15).",
@@ -149,6 +231,7 @@
       "cli": "extended-const",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -157,6 +240,7 @@
       "cli": "relaxed-simd",
       "defaultOn": false,
       "implemented": true,
+      "requires": ["simd"],
       "testsuiteDirs": [],
       "since": "2026-10-06"
     },
@@ -165,6 +249,7 @@
       "cli": "custom-page-sizes",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": ["proposals/custom-page-sizes/"],
       "since": "2026-10-06"
     },
@@ -173,6 +258,7 @@
       "cli": "compact-imports",
       "defaultOn": false,
       "implemented": false,
+      "requires": [],
       "testsuiteDirs": [],
       "note": "Declared, not implemented: setting it changes nothing, and a module using import kind 0x7f is refused.",
       "since": "2026-10-06"
@@ -182,6 +268,7 @@
       "cli": "wide-arithmetic",
       "defaultOn": false,
       "implemented": true,
+      "requires": [],
       "testsuiteDirs": ["proposals/wide-arithmetic/"],
       "since": "2026-10-06"
     },
@@ -190,6 +277,7 @@
       "cli": "custom-descriptors",
       "defaultOn": false,
       "implemented": true,
+      "requires": ["gc"],
       "testsuiteDirs": ["proposals/custom-descriptors/"],
       "onlyIn": ["proposals/custom-descriptors/"],
       "note": "Relaxes br_on_cast's typing rule: on in the core suite, br_on_cast.wast and br_on_cast_fail.wast each lose 3 assert_invalid (wasmtk, measured 2026-09-28).",
