@@ -1,5 +1,55 @@
 # Changelog
 
+## 2.1.0
+
+A minor release. Above all a fix: **`wasm-validate` and `wat2wasm` refused every module with a
+function table under their default features** — every real C, Rust, Zig and TinyGo build with an
+indirect call — in every release since at least 1.5.3. Also: **tail calls are portable** under
+`wasm-opt --target portable`, `return_call_ref` needs only function references, the validator
+gains two feature checks it lacked, and `./definitions` records each feature's prerequisites and
+the specification's releases. Nothing is removed or renamed.
+
+### Fixes
+
+- **A module with a function table was INVALID under the default features.** `wasm-validate` with
+  no feature flags, `wat2wasm` (which validates by default) and `wasmValidate(bytes, { features:
+  defaultFeatures() })` refused an element segment written as a list of function indices — the
+  WebAssembly 1.0 form every module with an indirect call has — with "typed reference in elem
+  segment not allowed: enable the functionReferences feature". Every release checked, 1.5.3 to
+  2.0.0. `wasm-opt`, and callers passing `allFeatures()`, were not affected. If you were told a
+  valid module was invalid, this is why.
+- **`return_call_ref` needs function references only, not tail calls**, as upstream wabt,
+  wasm-tools and wasmtime have it and as the function-references proposal (which defines it) says.
+  With tail calls switched off it was refused ("tail call not allowed"). `./definitions`: D1's
+  `feature` for `return_call_ref` is `functionReferences` (data version 1.0.1).
+- **Two feature checks the validator lacked**, both refused by wasm-tools: `funcref` / `externref`
+  as a value type (a parameter, result, local, global, or an `externref` table) now needs
+  reference types — a `funcref` table and its element segment do not, as in WebAssembly 1.0 — and a
+  table's initializer expression needs function references. Both were accepted with the feature
+  switched off.
+- `./definitions`: D4's probe counts for relaxed SIMD and wide arithmetic were double (40 and 8;
+  20 and 4 modules exist).
+
+### Changed
+
+- **`wasm-opt --target portable` keeps tail calls** (`return_call`, `return_call_indirect`,
+  `return_call_ref`) instead of refusing the module. The portability profile had excluded them as
+  "refused by wasmer"; that measurement passed wasmer `--enable-tail-call`, a switch wasmer
+  refuses itself, and wasmer runs every tail call without it. The profile was re-measured on all
+  fourteen engines on 2026-10-24 and agrees everywhere; `./definitions`: D4 data version 1.1.0.
+
+### New
+
+- **`./definitions`: each feature's prerequisites and the specification's releases** (D2 data
+  version 2.1.0). `FeatureDefinition.requires` lists what a feature's proposal states it builds on
+  (function references on reference types; GC on both; relaxed SIMD on SIMD; custom descriptors
+  on GC). It is recorded, not enforced: each instruction is still gated by its own feature, so with
+  GC on and function references off, `call_ref` is refused and a GC struct is accepted, as wasmtime
+  and wasm-tools do. `FeatureDefinitions.presets` (`FeaturePreset`) names the feature sets of the
+  specification's releases — `wasm1`, `wasm2` (binaryang's defaults), `wasm3` — and `all`.
+- **The opcode guide**, `docs/opcode-guide.md` in the repository (not in the package): the whole
+  portability profile for projects that produce, run or load modules.
+
 ## 2.0.0
 
 A major release, for **one breaking change**: the `sat-float-to-int` feature-flag spelling,
