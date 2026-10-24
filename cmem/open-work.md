@@ -70,6 +70,18 @@ removed record went to a topic file, and the full text is one `git show` away:
     the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
     item 35.
 
+38. ⬚ **binaryang's interpreter refuses every shared memory** (found 2026-10-23, open-work 34 pass 1;
+    numbered 2026-10-24 at the owner's word). `src/interp/interpreter.ts:877`: instantiating a
+    module with ANY shared memory stops with "unsupported: a shared memory" — even when the export
+    run never touches an atomic. So `wasm-interp` and `wasm-ctor-eval` cannot take a threaded build
+    (Emscripten `-pthread`, Rust / C with atomics), and the interpreter runs none of the 67 atomic
+    probes (reported, not defining). A clean refusal, never a wrong result. NOT affected: the
+    optimizer — `Precompute` and `OptimizeInstructions` share only `interp/numeric.ts`, never
+    instantiate a module. Single-threaded semantics are small: a shared memory as a plain one,
+    atomics as their plain operations, `memory.atomic.notify` → 0 woken, `wait` → "not-equal" or
+    "timed-out" (no other thread can wake it). Precedence (2026-10-24): none needed — nothing open
+    depends on it.
+
 35. ✅ **The validator enforces `multiValue`** (found 2026-10-23; FIXED 2026-10-24, owner: "on 35
     lets fix that first to conform with upstream"). Upstream measured first on 10 shapes, both
     paths (wabt 1.0.41 `wat2wasm` / `wasm-validate --disable-multi-value`, wasm-tools agreeing):
