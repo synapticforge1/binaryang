@@ -62,6 +62,10 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.17.0
 
-Nothing on `main` yet. **PLANNED — ⚠️ BREAKING, so the next release is 2.0.0** (owner, 2026-10-24:
+- **NEW — the interpreter runs shared memory and every atomic** (open-work 38), single-threaded;
+  `wasm-interp` and `wasm-ctor-eval` take threaded builds. Behaviour: what was a Stop now runs.
+  Repo only: the interp gate step's harness gained `spectest.shared_memory`.
+
+**PLANNED — ⚠️ BREAKING, so the next release is 2.0.0** (owner, 2026-10-24:
 "we will remove the deprecated spelling on the next release"): `--enable-/--disable-sat-float-to-int`
 removed, and D2's `cliAliases` with it (data version 2.0.0) — open-work 39.

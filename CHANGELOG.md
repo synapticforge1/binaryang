@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **The interpreter runs shared memory and atomics** (`wasm-interp`, `wasm-ctor-eval`). A module
+  with a shared memory was refused outright ("unsupported: a shared memory"), so threaded builds
+  could not be run or constructor-evaluated. Now every atomic runs, single-threaded: misaligned
+  accesses trap as engines trap them, `memory.atomic.notify` wakes no one (there is no other
+  thread), and `memory.atomic.wait` returns "not-equal" or "timed-out" — a wait with no timeout,
+  which no thread could ever end, is reported as a hang instead of running forever.
+
 ## 1.17.0
 
 A minor release: **every command answers `--help`**, `wasm-opt` can **replace TinyGo's libc copy
