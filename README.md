@@ -245,16 +245,16 @@ npx binaryang wasm-opt in.wasm --target portable -Oz -o out.wasm
 ```
 
 ```text
-wasm-opt: --target portable: the module uses features no pass makes portable (engines measured 2026-10-23):
-  tailCall — refused by wasmer
+wasm-opt: --target portable: the module uses features no pass makes portable (engines measured 2026-10-24):
   gc — refused by wasmer, wazero
+  multiMemory — refused by wazero
 ```
 
 | the module uses | `--target portable` |
 | --- | --- |
-| Wasm 2.0, threads, standard exception handling, typed function references, extended-const | keeps it |
+| Wasm 2.0, threads, standard exception handling, typed function references, tail calls, extended-const | keeps it |
 | memory64, custom page sizes, wide arithmetic, relaxed SIMD, legacy exception handling | lowers it |
-| GC, tail calls, multi-memory, custom descriptors, `br_on_non_null` | refuses the module |
+| GC, multi-memory, custom descriptors, `br_on_non_null` | refuses the module |
 
 ```ts
 import { TargetError, wasmOpt } from '@jrmarcum/binaryang/tools/wasm-opt';
