@@ -14,6 +14,15 @@
   wasi-libc copy is replaced. Every call with a defined result behaves the same; a `memcpy` of
   overlapping ranges (undefined in C) and a copy out of bounds (a trap either way) do not.
 
+### Changed
+
+- **The saturating float-to-int feature flag is spelled as upstream spells it:**
+  `--enable-saturating-float-to-int` / `--disable-saturating-float-to-int`, as wabt and
+  wasm-tools. The old `sat-float-to-int` spelling still works, with a warning naming the new one;
+  it is deprecated, and removing it will be a major version. `./definitions`: D2's `cli` for
+  `satFloatToInt` is now `saturating-float-to-int`, with a new `cliAliases` field listing the old
+  spelling (data version 1.1.0).
+
 ### Fixes
 
 - **Multi-value can be switched off, as upstream allows** (`--disable-multi-value`, or

@@ -415,6 +415,12 @@ before that rule.
 | 1.7.0   | `./interop` removed, with `Module.optimize(flags, hybridMode)`'s `hybridMode` and `wasm-opt --hybrid`                                         | run upstream `wasm-opt` directly to compare; the `compat/*` APIs are unchanged                                                         |
 | 1.6.0   | `./binary` and `./encoder` removed; the Binaryen IR took wabt-ts's record shapes                                                              | read with `readBinary` from `./compat/binaryen`, write with `module.emitBinary()` or `toBinary()` from `./api`; CHANGELOG § 1.6.0 lists the renames |
 
+**Deprecated, still accepted** — removing any of these will be a major version:
+
+| Since    | Deprecated                                            | Use instead                                                        |
+| -------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
+| the next | `--enable-sat-float-to-int` / `--disable-sat-float-to-int` (prints a warning) | `--enable-saturating-float-to-int` / `--disable-saturating-float-to-int`, upstream wabt's and wasm-tools' spelling |
+
 ### From the predecessors
 
 From either predecessor, this is a package rename plus two subpaths.

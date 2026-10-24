@@ -53,6 +53,10 @@ describe('every command answers --help and --version', () => {
       const out = cli([c, '--help']).stdout;
       for (const f of FEATURE_DEFINITIONS.entries) {
         expect(out).toContain(`${f.defaultOn ? '--disable-' : '--enable-'}${f.cli} `);
+        // A deprecated spelling is still accepted, so it is listed (open-work 33).
+        for (const a of f.cliAliases ?? []) {
+          expect(out).toContain(`${f.defaultOn ? '--disable-' : '--enable-'}${a} `);
+        }
       }
     }
   });
