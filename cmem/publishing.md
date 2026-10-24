@@ -5,9 +5,10 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-23 UTC): 1.15.0 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@1.15.0` (Rekor `3423023791`) and npm `@synapticforge1/binaryang@1.15.0`
-(published by GitHub Actions, SLSA provenance) — § "1.15.0". **The repo is
+**Latest (2026-10-24 UTC): 1.16.0 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@1.16.0` (Rekor `3431051155`) and npm `@synapticforge1/binaryang@1.16.0`
+(published by GitHub Actions, SLSA provenance) — § "1.16.0", the first release through the
+compatibility gate. **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
 hash changed (§ "The history purge").
@@ -1005,6 +1006,36 @@ local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fir
 but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
 each would have failed on JSR's existing version, but push such tags with that in mind.
+
+## 1.16.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "bump. update the project memory files and push to main". It carries
+`wasm-opt --target portable` and D4, `WideArithmeticLowering`, `RelaxedSimdLowering`, the README's
+Breaking Changes table and Safari corrections, and Binaryen attribution (CHANGELOG § 1.16.0). The
+FIRST release through the compatibility gate.
+
+1. `CHANGELOG.md` § 1.16.0 on `release/1.16.0` (`d2b614cf0`), gated 17 / 17, merged
+   (`8cb099e39`), pushed unbumped. CI and auto-tag GREEN on it — after the Browsers job sat in
+   "Install the browsers" ~35 min (a download stall; no `timeout-minutes` yet: fixed after, below).
+2. A FRESH CLONE from GitHub of `8cb099e39`: 17 / 17 exit 0.
+3. No tag, neither registry had 1.16.0; `bun run bump minor` — the gate's first real run: floor
+   MINOR (33 additions, the usage-text patches), and **v1.15.0's tests on this tree: 6,108, 0
+   failed, 0 accepted**; `version_sync` 3 / 3; `bun run release`: `bump to v1.16.0`
+   (`02a866672`), `main` + `v1.16.0` in one push.
+4. publish.yml and auto-tag GREEN on `02a866672`: **JSR** 1.16.0 created 2026-10-24T00:44:06Z, not
+   yanked, **Rekor log id `3431051155`**; **npm** `@synapticforge1/binaryang@1.16.0` at
+   00:45:43Z, `latest`, attestations `https://slsa.dev/provenance/v1` and npm's publish
+   attestation; GitHub Release `v1.16.0` (00:44:13Z). As a user: `deno run -A --min-dep-age 0
+   jsr:@jrmarcum/binaryang@1.16.0 --version` and `npx -y @synapticforge1/binaryang@1.16.0
+   --version` both print `binaryang 1.16.0`.
+5. 🔧 **CI went RED on the bump commit — the gate's own defect, not the release's:** `surface:check`
+   read the bump as "CLI binaryang: usage text changed" (the root usage names the version). The
+   publish was not stopped (publish.yml runs only `--release-check`, which passed). Fixed in
+   `7648bb5eb` (`usageText`, version → `<version>`; mutant killed), re-baselined in `577993094`
+   (§ "The compatibility gate" above).
+6. After the release, the Browsers CI job (owner: "I agree with your 3 suggestions"):
+   `timeout-minutes: 20`, `actions/cache@v6` on Playwright's browsers keyed on `bun.lock`, apt
+   retries with 30 s timeouts (`1ea543e9f`).
 
 ## 1.15.0 — a MINOR from `main` (2026-10-23 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 

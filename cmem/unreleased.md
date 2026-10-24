@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-23 (UTC): the last release is `v1.15.0`, on JSR and npm, both with provenance;
+**As of 2026-10-24 (UTC): the last release is `v1.16.0`, on JSR and npm, both with provenance;
 nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
---oneline v1.15.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.15.0; the
+--oneline v1.16.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.16.0; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
@@ -30,13 +30,16 @@ without provenance, its publish failed after the upload) or **1.13.3** (1.13.2 a
 provenance on JSR and, the first workflow publish there, on npm) or **1.14.0** (`Memory64Lowering`
 with table64 in the same pass, sound above 2^32 where upstream's wraps; the README's "Making a
 module run on Safari and Bun"; the multi-memory limit corrected to 100) or **1.15.0** (`SSANoMerge`
-first at -O3 / -Os / -Oz; the note that the history was rewritten, letter H19). The public summary of each is
+first at -O3 / -Os / -Oz; the note that the history was rewritten, letter H19) or **1.16.0**
+(`wasm-opt --target portable` and D4; `WideArithmeticLowering`, `RelaxedSimdLowering`; the README's
+Breaking Changes table and Safari corrections; Binaryen attribution; the compatibility gate's
+first release). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
 `fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
 (1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
-`7ebcee3ad` (1.14.0), and at `ae9e87162` (1.15.0).
+`7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), and at `02a866672` (1.16.0).
 
 ## How to use this file
 
@@ -53,37 +56,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.15.0
+## Since 1.16.0
 
-- **NEW pass — `WideArithmeticLowering`** (`--wide-arithmetic-lowering`; open-work 34, owner
-  decision 2): the four wide-arithmetic instructions → `i64` arithmetic through one helper per
-  instruction used. Opt-in; no default pipeline includes it; no other output moves. The gate's
-  floor: MINOR ("pass WideArithmeticLowering added"). [portability.md](portability.md) § "The
-  wide-arithmetic lowering".
-- **NEW pass — `RelaxedSimdLowering`** (`--relaxed-simd-lowering`; open-work 34, owner decision 2,
-  and the spec's deterministic profile as the semantics, owner 2026-10-23): the 20 relaxed-SIMD
-  instructions → plain SIMD-128 with the profile's result; one helper for the dot products. Opt-in;
-  no default pipeline includes it; no other output moves. The gate's floor: MINOR. README §
-  "Making a module run without relaxed SIMD". [portability.md](portability.md) § "The relaxed-SIMD
-  lowering".
-- **NEW — `wasm-opt --target portable`** (`target` option; `TargetError` / `TargetFinding` exported
-  from `./tools/wasm-opt`) and **D4** in `./definitions` (`PROFILE_DEFINITIONS`,
-  `profileDefinition`, the `Profile*` types, `profiles.json`): open-work 34. Opt-in; without a
-  target no output moves. `data.ts`'s generated header now says `bun run definitions`. The gate's
-  floor: MINOR (exports added). [portability.md](portability.md) § "The portable target".
-- **README corrections**: wide arithmetic does NOT run on Safari's engine (measured: WebKit 26.6
-  refuses it); `./definitions` listed among the imports.
-- **README correction**: multi-memory runs on Bun's JavaScriptCore but ships in Safari only as
-  Technology Preview (MDN browser-compat-data 8.1.7).
-
-- **README — a Breaking Changes table** (2026-10-23, workspace letter H6, rule 4): the three past
-  breaks (1.6.0, 1.7.0, 1.12.0) with their migrations. The README ships in both packages. Repo
-  only, not shipped: the compatibility gate itself (`api-surface.json`, the bump's floor, the tag
-  check, the previous-release tests) — [publishing.md](publishing.md) § "The compatibility gate".
-
-- **Licensing — Binaryen attribution** (2026-10-23, [licensing.md](licensing.md) § "CORRECTED"):
-  `NOTICE.md` attributes both upstreams; 30 files carry a `Ported from` / `Based on
-  WebAssembly/binaryen` header — then, by the owner's "full attribution", 29 more (Binaryen by
-  lineage or same-named component, and wabt's command-line tools): 86 of 119 `src/` files. Comments and the NOTICE only — no code, no output change. The
-  published packages change (the NOTICE, and the headers in the shipped sources), so the next
-  release note says it. `CHANGELOG.md` § Unreleased.
+Nothing yet.
