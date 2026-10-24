@@ -12,8 +12,8 @@
  * - **What a module needs** is decided by the validator, the one judge of feature use: a module
  *   NEEDS feature X when it is invalid with X off and every other feature on. Measured exact on
  *   the 789 probe modules (2026-10-23), up to dependencies (a GC module also needs typed function
- *   references). Instructions whose tier differs from their feature's (`br_on_non_null`,
- *   `return_call_ref`, the legacy exception instructions) are found in the IR.
+ *   references). Instructions whose tier differs from their feature's (`br_on_non_null`, the
+ *   legacy exception instructions) are found in the IR.
  * - **Lowered** features and instructions are rewritten by their pass, before any optimization.
  * - **Excluded** ones refuse the module, every one named with the engines measured refusing it —
  *   before anything runs.
@@ -111,7 +111,6 @@ function instructionsUsed(module: WasmModule, names: ReadonlySet<string>): Set<s
         if (e.delegate !== undefined) see('delegate');
       } else if (e.kind === ExpressionKind.Rethrow) see('rethrow');
       else if (e.kind === ExpressionKind.BrOn && e.opcode === BrOnOp.NonNull) see('br_on_non_null');
-      else if (e.kind === ExpressionKind.CallRef && e.isReturn) see('return_call_ref');
     });
   }
   return found;

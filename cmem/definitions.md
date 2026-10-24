@@ -139,8 +139,9 @@ and the spec's 3.0 change log lists it under neither. With each feature switched
 | tail-call AND gc | Binaryen 133 (no separate function-references: "made part of GC") |
 | tail-call AND functionReferences | binaryang before the fix — `tail call not allowed`, from wabt-ts (1.8.1 the same) |
 
-Fixed: D1 1.0.1, `Validator.onCallRefExpr`, D4 1.1.0 (excluded instruction, wasmer), the target's
-IR scan. divergences.md RC1.
+Fixed: D1 1.0.1, `Validator.onCallRefExpr`. divergences.md RC1. (D4 1.1.0 first listed it as an
+excluded instruction for wasmer; the committed probe then showed wasmer runs every tail call, and
+tail calls became portable — portability.md § "The committed probe".)
 
 **D2 `requires` — RECORDED, NOT ENFORCED** (owner, 2026-10-24, after asking what wasmtime does).
 Only what a proposal states: functionReferences → referenceTypes ("based on the reference types
