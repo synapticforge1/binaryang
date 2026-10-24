@@ -62,4 +62,6 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 1.17.0
 
-Nothing yet.
+Nothing on `main` yet. **PLANNED — ⚠️ BREAKING, so the next release is 2.0.0** (owner, 2026-10-24:
+"we will remove the deprecated spelling on the next release"): `--enable-/--disable-sat-float-to-int`
+removed, and D2's `cliAliases` with it (data version 2.0.0) — open-work 39.
