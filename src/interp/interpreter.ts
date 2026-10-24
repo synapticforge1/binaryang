@@ -34,8 +34,9 @@
  * imported and exported memories (E3b, `memory.ts`); tables, references,
  * indirect and tail calls (E3c, `table.ts`); exceptions (E3d-1); GC (E3d-2,
  * `types.ts`); `v128` — every SIMD operator through `simd.ts`, the SIMD loads
- * and stores, lane loads and stores (E3e); wide arithmetic. What is left is a
- * {@link Stop}: atomics and shared memory, custom descriptors.
+ * and stores, lane loads and stores (E3e); wide arithmetic; shared memory and every
+ * atomic, single-threaded (open-work 38). What is left is a {@link Stop}: custom
+ * descriptors, and a `memory.atomic.wait` with no timeout, which no other thread can end.
  *
  * @license MIT
  */
@@ -56,6 +57,7 @@ import { simdExtract, simdReplace, simdShuffle, simdTernary } from './simd.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { ExternalKind } from '../core/binary.ts';
+import { OPCODE_DEFINITIONS, opcodeKey } from '../definitions/mod.ts';
 import type { Opcode } from '../core/opcode.ts';
 import { isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import type {
@@ -627,6 +629,47 @@ function writeValue(mem: MemoryCell, at: number, opcode: Opcode, value: Value): 
   }
 }
 
+/**
+ * An atomic memory instruction's shape, from its D1 NAME (open-work 38): its width, the plain load
+ * and store of the same type and width (`i64.atomic.rmw16.add_u` reads as `i64.load16_u` and
+ * writes as `i64.store16`), and its read-modify-write operation. Single-threaded, an atomic access
+ * IS its plain access — what differs is that a misaligned one traps.
+ */
+interface AtomicShape {
+  bytes: number;
+  load: Opcode;
+  store: Opcode;
+  op: 'load' | 'store' | 'add' | 'sub' | 'and' | 'or' | 'xor' | 'xchg' | 'cmpxchg';
+}
+const ATOMIC_SHAPES: ReadonlyMap<number, AtomicShape> = (() => {
+  const keyOf = new Map(OPCODE_DEFINITIONS.entries.map((d) => [d.name, opcodeKey(d)]));
+  const out = new Map<number, AtomicShape>();
+  for (const d of OPCODE_DEFINITIONS.entries) {
+    const m =
+      /^(i32|i64)\.atomic\.(?:(load|store)(8|16|32)?(_u)?|rmw(8|16|32)?\.(add|sub|and|or|xor|xchg|cmpxchg)(_u)?)$/
+        .exec(d.name);
+    if (m === null) continue;
+    const [, type, access, accessWidth, , rmwWidth, op] = m;
+    const width = accessWidth ?? rmwWidth;
+    const bits = width === undefined ? (type === 'i32' ? 32 : 64) : Number(width);
+    const load = keyOf.get(`${type}.load${width === undefined ? '' : `${width}_u`}`);
+    const store = keyOf.get(`${type}.store${width ?? ''}`);
+    if (load === undefined || store === undefined) throw new Error(`no plain access for ${d.name}`);
+    out.set(opcodeKey(d), {
+      bytes: bits / 8,
+      load: load as Opcode,
+      store: store as Opcode,
+      op: (access ?? op) as AtomicShape['op'],
+    });
+  }
+  // 7 loads, 7 stores, 7 shapes × (6 read-modify-writes + cmpxchg): a missing D1 entry fails here.
+  if (out.size !== 63) throw new Error(`atomic shapes: ${out.size}, not 63`);
+  return out;
+})();
+const WAIT64 = opcodeKey(
+  OPCODE_DEFINITIONS.entries.find((d) => d.name === 'memory.atomic.wait64')!,
+);
+
 /** The bytes a `simd.load` reads: 8 for the extending loads, the lane's width for a splat or `_zero`. */
 function simdLoadBytes(opcode: number): number {
   switch (opcode) {
@@ -773,6 +816,8 @@ export class Interpreter {
   private readonly globals: GlobalCell[] = [];
   private readonly globalNames: string[] = [];
   private readonly memories: MemoryCell[] = [];
+  /** The memories declared `shared`: only there may `memory.atomic.wait` run. */
+  private readonly sharedMemories = new Set<MemoryCell>();
   private readonly memoryNames: string[] = [];
   /** Each data segment's bytes; a dropped one is empty. */
   private readonly data: Uint8Array[] = [];
@@ -850,6 +895,7 @@ export class Interpreter {
       } else if (imp.kind === ExternalKind.Memory) {
         const h = host(imp.module, imp.field);
         if (h?.kind !== 'memory') throw new Stop('host', `memory ${imp.module}.${imp.field}`);
+        if (imp.memory.limits.isShared) this.sharedMemories.add(h.cell);
         this.memories.push(h.cell);
         this.memoryNames.push(imp.memory.name);
       } else if (imp.kind === ExternalKind.Table) {
@@ -874,9 +920,11 @@ export class Interpreter {
       this.funcNames.push(fn.name);
     }
     for (const m of module.memories) {
-      if (m.limits.isShared) throw new Stop('unsupported', 'a shared memory');
+      // A shared memory, single-threaded, is a plain one; `wait` asks whether it is (open-work 38).
       try {
-        this.memories.push(new MemoryCell(m.limits));
+        const cell = new MemoryCell(m.limits);
+        if (m.limits.isShared) this.sharedMemories.add(cell);
+        this.memories.push(cell);
       } catch (e) {
         if (e instanceof TooLarge) throw new Stop('unsupported', e.message);
         throw e;
@@ -2075,9 +2123,132 @@ export class Interpreter {
         return;
       }
 
+      // Atomics (open-work 38), single-threaded: an atomic access is its plain access, the order of
+      // checks wasmtime's (measured 2026-10-24) — misaligned, then out of bounds, then (wait) unshared.
+      case ExpressionKind.AtomicLoad: {
+        this.exec(e.address, locals);
+        const shape = ATOMIC_SHAPES.get(e.opcode)!;
+        const { mem, at } = this.atomicAt(e, shape.bytes);
+        s.push(readValue(mem, at, shape.load));
+        return;
+      }
+      case ExpressionKind.AtomicStore: {
+        this.exec(e.address, locals);
+        this.exec(e.value, locals);
+        const shape = ATOMIC_SHAPES.get(e.opcode)!;
+        const value = this.pop();
+        const { mem, at } = this.atomicAt(e, shape.bytes);
+        writeValue(mem, at, shape.store, value);
+        return;
+      }
+      case ExpressionKind.AtomicRMW:
+      case ExpressionKind.AtomicCmpxchg: {
+        this.exec(e.address, locals);
+        if (e.kind === ExpressionKind.AtomicRMW) this.exec(e.value, locals);
+        else {
+          this.exec(e.expected, locals);
+          this.exec(e.replacement, locals);
+        }
+        const shape = ATOMIC_SHAPES.get(e.opcode)!;
+        const operand = this.pop();
+        const expected = e.kind === ExpressionKind.AtomicCmpxchg ? this.pop() : undefined;
+        const { mem, at } = this.atomicAt(e, shape.bytes);
+        // The old value, zero-extended (the plain `_u` load), is what the instruction returns.
+        const old = readValue(mem, at, shape.load);
+        const bits = shape.bytes * 8;
+        const u = (v: Value) =>
+          BigInt.asUintN(bits, BigInt((v as { value: number | bigint }).value));
+        const [a, b] = [u(old), u(operand)];
+        let next: bigint | null;
+        switch (shape.op) {
+          case 'add':
+            next = a + b;
+            break;
+          case 'sub':
+            next = a - b;
+            break;
+          case 'and':
+            next = a & b;
+            break;
+          case 'or':
+            next = a | b;
+            break;
+          case 'xor':
+            next = a ^ b;
+            break;
+          case 'xchg':
+            next = b;
+            break;
+          // Compared at the access width: `expected` wrapped to it, as the proposal says.
+          case 'cmpxchg':
+            next = u(expected!) === a ? b : null;
+            break;
+          default:
+            throw invalid(`atomic ${shape.op}`);
+        }
+        if (next !== null) {
+          const n = BigInt.asIntN(64, next);
+          writeValue(
+            mem,
+            at,
+            shape.store,
+            old.type === ValType.I32
+              ? { type: ValType.I32, value: Number(BigInt.asIntN(32, n)) }
+              : { type: ValType.I64, value: n },
+          );
+        }
+        s.push(old);
+        return;
+      }
+      case ExpressionKind.AtomicWait: {
+        this.exec(e.address, locals);
+        this.exec(e.expected, locals);
+        this.exec(e.timeout, locals);
+        const timeout = this.i64();
+        const is64 = e.opcode === WAIT64;
+        const expected = is64 ? this.i64() : BigInt(this.i32());
+        const { mem, at } = this.atomicAt(e, is64 ? 8 : 4);
+        if (!this.sharedMemories.has(mem)) throw new Trap('atomic wait on non-shared memory');
+        const loaded = is64 ? mem.view.getBigInt64(at, true) : BigInt(mem.view.getInt32(at, true));
+        // Not equal: "not-equal" (1). Equal: the agent sleeps until woken or the timeout expires;
+        // single-threaded no other agent can wake it, so a timeout expires ("timed-out", 2) and
+        // none never returns — a hang, reported as one.
+        if (loaded !== expected) s.push({ type: ValType.I32, value: 1 });
+        else if (timeout >= 0n) s.push({ type: ValType.I32, value: 2 });
+        else {throw new Stop(
+            'hang',
+            'memory.atomic.wait with no timeout: no other thread can wake it',
+          );}
+        return;
+      }
+      case ExpressionKind.AtomicNotify: {
+        this.exec(e.address, locals);
+        this.exec(e.count, locals);
+        this.i32();
+        this.atomicAt(e, 4);
+        s.push({ type: ValType.I32, value: 0 }); // no other agent waits: none woken
+        return;
+      }
+      case ExpressionKind.AtomicFence:
+        return; // one agent: nothing to order
+
       default:
         throw new Stop('unsupported', e.kind);
     }
+  }
+
+  /**
+   * Pops an atomic access's address: traps "unaligned atomic" when the EFFECTIVE address is not a
+   * multiple of the access width, then "out of bounds memory access" — wasmtime's order.
+   */
+  private atomicAt(
+    e: { offset: bigint; memidx: Var },
+    bytes: number,
+  ): { mem: MemoryCell; at: number } {
+    const mem = this.memory(e.memidx);
+    const addr = address(this.pop());
+    if ((addr + e.offset) % BigInt(bytes) !== 0n) throw new Trap('unaligned atomic');
+    return { mem, at: memoryOp(() => mem.at(addr, e.offset, bytes)) };
   }
 
   /** Pops a reference, trapping with `message` on null. */

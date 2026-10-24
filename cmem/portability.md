@@ -372,7 +372,10 @@ the implementation, so not a defect; the probe compares NaN results as NaN from 
 406 if the two interpreters must run them too. Found on the way:
 
 - **binaryang's interpreter refuses every shared memory** — it cannot run, ctor-eval or precompute
-  through atomics (an open-work item of its own).
+  through atomics (an open-work item of its own). ✅ FIXED 2026-10-24 (open-work 38): the interpreter
+  matches the engines on all 179 threads probes it can be judged on (2 more: the engines disagree);
+  the threads spec suite 267 / 267. (Precompute was never affected: it shares only
+  `interp/numeric.ts`.)
 - **wazero 1.12 does not decode relaxed SIMD and mis-reports it**: its errors read the 2-byte LEB
   sub-opcode as one byte and name an opcode that is not there. It still refuses each one.
 

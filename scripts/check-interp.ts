@@ -279,12 +279,17 @@ function spectest(
   field: string,
   memory: () => MemoryCell,
   table: () => TableCell<Value>,
+  sharedMemory: () => MemoryCell,
 ): HostImport | undefined {
   switch (field) {
     case 'table':
       return { kind: 'table', cell: table() };
     case 'memory':
       return { kind: 'memory', cell: memory() };
+    // The threads proposal's spectest (`interpreter/host/spectest.ml`): 1–2 pages, shared. Asked for
+    // only once the interpreter ran shared memory (open-work 38).
+    case 'shared_memory':
+      return { kind: 'memory', cell: sharedMemory() };
     case 'global_i32':
       return { kind: 'global', cell: { value: { type: ValType.I32, value: 666 } } };
     case 'global_i64':
@@ -333,6 +338,14 @@ for (const root of roots) {
     let spectestMemory: MemoryCell | undefined;
     const memory = () =>
       spectestMemory ??= new MemoryCell({ initial: 1n, max: 2n, isShared: false, is64: false });
+    let spectestSharedMemory: MemoryCell | undefined;
+    const sharedMemory = () =>
+      spectestSharedMemory ??= new MemoryCell({
+        initial: 1n,
+        max: 2n,
+        isShared: true,
+        is64: false,
+      });
     let spectestTable: TableCell<Value> | undefined;
     const table = () =>
       spectestTable ??= new TableCell<Value>(
@@ -340,7 +353,7 @@ for (const root of roots) {
         NULL,
       );
     const imports = (module: string, field: string): HostImport | undefined => {
-      if (module === 'spectest') return spectest(field, memory, table);
+      if (module === 'spectest') return spectest(field, memory, table, sharedMemory);
       const inst = registered.get(module);
       if (inst === undefined) return undefined;
       switch (inst.exportKind(field)) {
