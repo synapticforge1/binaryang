@@ -10629,7 +10629,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
   'definition': 'D4',
   'title': 'Portability profiles: what the widely used WebAssembly engines run, measured',
   'dataVersion': '1.1.0',
-  'sha256': '09ad6f37af16a62ea018b91e2f9ce6aec384505558e4bf2d664412cb2e8f1468',
+  'sha256': '6fdbf06ec4d550a1149a52b2006fae55c2fe388e7a9c0cf2a5d85aa65c67c639',
   'rules': {
     'name': "The profile's name, as `wasm-opt --target <name>` takes it.",
     'measured':
@@ -10648,7 +10648,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
   'entries': [
     {
       'name': 'portable',
-      'measured': '2026-10-23',
+      'measured': '2026-10-24',
       'engines': [
         {
           'name': 'wasmtime',
@@ -10708,7 +10708,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
         {
           'name': 'edge',
           'kind': 'browser',
-          'build': 'Edge 155, stock',
+          'build': 'Edge 156, stock',
         },
         {
           'name': 'firefox-release',
@@ -10767,7 +10767,7 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
           'tier': 'portable',
           'refusedBy': [],
           'probes': 6,
-          'note': 'br_on_non_null and return_call_ref excepted: see `opcodes`.',
+          'note': 'br_on_non_null excepted: see `opcodes`.',
         },
         {
           'feature': 'multiValue',
@@ -10777,11 +10777,11 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
         },
         {
           'feature': 'tailCall',
-          'tier': 'excluded',
-          'refusedBy': [
-            'wasmer',
-          ],
+          'tier': 'portable',
+          'refusedBy': [],
           'probes': 2,
+          'note':
+            'Excluded until 2026-10-24 on a measurement artifact: wasmer 7.5.0 refuses its own `--enable-tail-call` switch (even for a module with no tail call) and runs every tail call without it.',
         },
         {
           'feature': 'bulkMemory',
@@ -10935,16 +10935,6 @@ export const PROFILE_DEFINITIONS: ProfileDefinitions = {
             'wasmer',
           ],
           'probes': 1,
-        },
-        {
-          'name': 'return_call_ref',
-          'tier': 'excluded',
-          'refusedBy': [
-            'wasmer',
-          ],
-          'probes': 1,
-          'note':
-            "A tail call, and wasmer runs none; D1 gates it under functionReferences, the proposal that defines it (since D4 1.1.0, 2026-10-24; tailCall's before).",
         },
         {
           'name': 'try',

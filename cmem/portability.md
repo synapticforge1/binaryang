@@ -34,6 +34,10 @@ runtime suites and attempt to create a consolidated opcode set that all can deco
    GC, tail calls, `br_on_non_null` and multi-memory stay **engine-specific** until both support
    them (neither GC nor tail calls has a practical lowering). They join the "runs everywhere"
    evidence ([run-everywhere.md](run-everywhere.md)) beside the browsers and JS runtimes.
+   🔧 **Corrected 2026-10-24: tail calls are PORTABLE** (owner: "Make them portable"). wasmer
+   7.5.0 runs every tail call; the 2026-10-23 harness passed it `--enable-tail-call`, a switch
+   wasmer itself refuses ("No backends support…", even for a plain `call`). § "The committed
+   probe" below.
 
 7. **Browsers: the cross-platform, commonly used engines only** (owner, 2026-10-23: "The only
    outlier is ladybird browser that is still in development and only available on mac and linux.
@@ -69,7 +73,8 @@ first: its pass-2 results discriminate (66 values, 5 expected traps, 5 refusals)
   from any engine, and they refuse only what every browser refuses (custom descriptors, custom
   page sizes). **Even ESR 153 runs GC, tail calls, standard exceptions, typed function references,
   memory64 and multi-memory** — so the stable browsers do NOT narrow the portable tier; wasmer and
-  wazero remain what keeps GC and tail calls out.
+  wazero remain what keeps GC out (and tail calls, as measured then — an artifact, corrected
+  2026-10-24).
 - **Pass 1** — two differences, both explained:
   - 🔑 **Chrome 156 and Edge 155 TRAP on `memory.atomic.wait32` / `wait64`: "Atomics.wait cannot be
     called in this context".** A browser forbids a BLOCKING wait on the page's main thread; it is
@@ -105,7 +110,7 @@ wazero); relaxed SIMD is via its planned lowering.
 | extended-const | 17.4 | 114 | 112 |
 | typed function references | 18 | 119 | 120 |
 | exceptions, standard (exnref, BCD `exceptionsFinal`) | 18.4 | 137 | 131 |
-| GC · tail calls (engine-specific: wasmer / wazero) | 18.2 | 119 · 112 | 120 · 121 |
+| GC (engine-specific: wasmer / wazero) · tail calls (portable since 2026-10-24) | 18.2 | 119 · 112 | 120 · 121 |
 | memory64 · multi-memory · relaxed SIMD · wide-arithmetic | preview only | 133 · 120 · 114 · — | 134 · 125 · 146 · 155 |
 
 The portable tier as measured needs **Safari / iOS 18.4** (March 2025), set by standard exceptions;
@@ -308,6 +313,39 @@ pattern once, every one counted).
   needs the owner (recognition by name or by shape, and `memory.copy` traps BEFORE writing where a
   loop writes part of the range first — a behaviour change on the out-of-bounds path).
 
+### The committed probe — D4 re-measured (2026-10-24, open-work 34 a)
+
+`bun run probe <work dir> [executor,…]` (`scripts/probe/`, local only; the wazero Go harness
+committed and the stock browsers' paths in gitignored `cmem/local/probe-browsers.json`, owner's
+choices). 785 modules (497 typed, 76 templates, 210 failure paths, 2 encodings; every D1 entry
+exercised), 17 executors, the lowered outputs too; it compares the measurement with D4 and exits 0
+only when they agree. Its full runs found, in order:
+
+- **D4's `probes` double-counted** relaxedSimd (40, really 20) and wideArithmetic (8, really 4):
+  the derivation counted run 6's copies of run 1's modules. Fixed in D4 1.1.0 (open-work 40).
+- **Its own wrong expectation**: `memory.fill` / `memory.copy` "out of bounds" had length 0 at
+  exactly the end (D1 types the length `addr`, so the generic case passed 0), which is IN bounds
+  and must not trap; every engine returned 0. Now `len0-at-end`, expecting 0.
+- 🔑 **Tail calls were never refused by wasmer.** The runner passed wasmer the flag of each
+  module's feature; wasmer 7.5.0 refuses `--enable-tail-call` ITSELF ("No backends support the
+  required features", even on a module with only `call`) and runs `return_call`,
+  `return_call_indirect` and `return_call_ref` correctly without it. Every other wasmer refusal
+  was re-run with no flags at all and stands (GC, relaxed SIMD, wide arithmetic, custom
+  descriptors, custom page sizes, i64 memory, `br_on_non_null`); table64 also ran bare, but the
+  i64 memory keeps memory64 lowered. The runner now tries the base switches first and a feature's
+  flag only after a refusal. **D4: tailCall portable** (owner, 2026-10-24: "Make them portable").
+- **Playwright Chromium and WebKit had never run the 497 typed modules** (run 1 had Node, Bun,
+  Playwright Firefox and the stock Chrome / Edge only); now they have, and agree with D4.
+  `memory.atomic.wait*` traps in Chromium, WebKit, Chrome and Edge — the main thread may not block;
+  WebKit says so as "Out of bounds memory access" (Bun, the same engine, waits). Reported as
+  browser policy, as D4's threads note says.
+- **The final run: 0 D4 differences after the tail-call change, 0 wrong results** — every defining
+  engine gives the agreed value or the spec's trap on all 785 originals and the 750 lowered
+  outputs. D4's `measured` is 2026-10-24; Edge's build moved to 156. Reported only: relaxed SIMD's
+  hardware-dependent values (the reason it is lowered), binaryang's interpreter not running custom
+  descriptors, and a NaN sign from `f32x4.sqrt` / `f64x2.sqrt` of a negative lane in both
+  interpreters (the spec allows either).
+
 ### The browser engine map (from the owner's list, corrected 2026-10-23)
 
 - **Three engines cover every browser listed**: Chromium / **V8** — Chrome, Edge, Opera, Samsung
@@ -418,7 +456,7 @@ hex; all 13 agreed on it.) binaryang's interpreter stops cleanly on custom descr
 | exceptions, STANDARD (`try_table`, `throw`, `throw_ref`) | — | **portable** |
 | typed function references (`call_ref`, `ref.as_non_null`, `br_on_null`) | — | **portable** |
 | … `br_on_non_null` | wasmer ("only numeric types are supported") | engine-specific |
-| tail calls | wasmer ("no backend supports") | engine-specific |
+| tail calls | wasmer ("no backend supports") — 🔧 the harness's `--enable-tail-call`, not the engine: corrected 2026-10-24 | engine-specific → **portable** |
 | GC (26 templates) | wasmer ("GC is not implemented yet"), wazero (both modes) | engine-specific |
 | exceptions, LEGACY (`try` / `catch` / `catch_all` / `rethrow` / `delegate`) | wasmtime, WasmEdge, wazero | **via lowering** — `TranslateToExnref` to the standard form, which is portable |
 | memory64 / table64 | wasmer, wazero, Bun (JavaScriptCore; Playwright's newer WebKit runs it) — Bun corrected 2026-10-23 from the results | **via lowering** — `Memory64Lowering` |
@@ -428,9 +466,9 @@ hex; all 13 agreed on it.) binaryang's interpreter stops cleanly on custom descr
 | multi-memory | wazero | engine-specific (binaryang has no multi-memory lowering) |
 | custom descriptors | every engine at its defaults (V8 behind `--experimental-wasm-custom-descriptors`) | engine-specific |
 
-🔑 **What the list review turns on:** wasmer and wazero are the only engines keeping GC and tail
-calls out of the portable tier, and wazero alone multi-memory; neither GC nor tail calls has a
-practical lowering. So whether GC-language output (Kotlin, Dart, OCaml, …) is portable is exactly
+🔑 **What the list review turns on:** wasmer and wazero are the only engines keeping GC (and, as
+measured then, tail calls — corrected 2026-10-24, they are portable) out of the portable tier, and
+wazero alone multi-memory; neither GC nor tail calls has a practical lowering. So whether GC-language output (Kotlin, Dart, OCaml, …) is portable is exactly
 the question of whether wasmer and wazero are prevalent enough to define "portable" (owner
 decision 1). The browser builds measured are Playwright's (recent); the STABLE versions in use are
 part of that review.

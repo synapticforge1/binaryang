@@ -67,13 +67,12 @@ removed record went to a topic file, and the full text is one `git show` away:
     truncations; the one candidate, TinyGo's `memcpy` / `memmove` → `memory.copy`, is item 37.
     The relaxed-SIMD lowering's run cost MEASURED 2026-10-24 (portability.md). **D1's spec check is a gate** 2026-10-24 (`spec_opcodes.test.ts` over a
     committed snapshot, `bun run spec-opcodes refresh` when the spec moves; definitions.md § "D1
-    against the specification"). **The D4 probe is WRITTEN, parked** on branch `d4-probe`
-    (`519e223d4`, unmerged): `scripts/probe/`, `bun run probe <work dir>`; Go harness committed and
-    stock-browser paths in gitignored `cmem/local/probe-browsers.json` (owner, 2026-10-24). Its
-    first full run found D4's doubled probe counts (fixed by item 40) and its own wrong
-    expectation (a zero-length bulk access AT the end does not trap). **Next:** rebase it on item
-    40 (its `return_call_ref` template's feature becomes functionReferences), one full run, gate,
-    merge; then `opcode-guide.md`, then the D2 letter. Found on
+    against the specification"). **The D4 probe is DONE** 2026-10-24: `scripts/probe/`, `bun run probe <work
+    dir>`, local only; Go harness committed and stock-browser paths in gitignored
+    `cmem/local/probe-browsers.json` (owner's choices). Its runs found D4's doubled probe counts,
+    its own wrong expectation, and that tail calls were excluded on a harness artifact — now
+    portable (owner); the final run agrees with D4 on all 14 engines (portability.md § "The
+    committed probe"). **Next:** `opcode-guide.md`, then the D2 letter. Found on
     the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
     item 35.
 
@@ -81,8 +80,9 @@ removed record went to a topic file, and the full text is one `git show` away:
     in the next release (unreleased.md). wasmrt's item 4 ("binaryang — D1's `return_call_ref`
     feature and D2's missing dependency rules"), relayed by the owner; both runtimes follow D1 / D2
     since contract v33 (v35 current, its `--features` row unchanged). (1) `return_call_ref` needs
-    functionReferences only: D1 1.0.1, the validator's inherited tail-call demand dropped, D4 1.1.0
-    lists it excluded (wasmer). (2) D2 2.1.0: `requires` (owner, after asking what wasmtime does:
+    functionReferences only: D1 1.0.1, the validator's inherited tail-call demand dropped (D4 1.1.0
+    first listed it excluded for wasmer; the probe then showed wasmer runs every tail call, so tail
+    calls became portable — portability.md § "The committed probe"). (2) D2 2.1.0: `requires` (owner, after asking what wasmtime does:
     "recorded only option") and `presets`. Measurements and sources: definitions.md § "D2's
     dependency and preset rules", divergences.md RC1. **The runtimes' answer goes in the D2 letter**
     (owner: "draft the letter after item 34"), sent when the release ships, since they pin.
