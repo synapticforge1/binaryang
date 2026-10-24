@@ -475,12 +475,11 @@ part of that review.
 
 ## Open
 
-- **The defining engine list and its review basis** (owner decision 1): which engines, at which
-  versions (the stable release in use, not a trunk build — Playwright's browsers are recent builds),
-  and the prevalence data the list is reviewed against.
-- **Pass 3, the trap paths of the typed opcodes** (divide by zero, out of bounds, invalid
-  conversion): pass 2 covered traps only for the untyped ones.
-- **The two lowerings** (owner decision 2), the portable target and D4.
-- **Target-aware optimization** (owner decision 5): passes that use a feature the target profile
-  permits and the input lacks — after D4 gives the profile, each measured for size AND run speed.
-- binaryang's interpreter: shared memories (pass 1) and custom descriptors are unsupported.
+Open-work 34 CLOSED 2026-10-24; what it delivered is above, and the reference for the other
+projects is `docs/opcode-guide.md`. The earlier list here (the engine list's review basis, pass 3,
+the two lowerings, the target, decision 5, the interpreter's shared memory) is all done or decided:
+decisions 1 and 8, § "Pass 3", the lowering sections, § "Decision 5 scoped" (its one candidate was
+item 37), open-work 38. Still true:
+
+- **Re-measure when an engine releases**: `bun run probe <work dir>`; exit 0 means D4 holds.
+- binaryang's interpreter does not run custom descriptors (reported by the probe, not defining).
