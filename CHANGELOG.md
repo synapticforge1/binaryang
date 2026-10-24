@@ -8,6 +8,11 @@
   examples, and every option it accepts, in upstream wabt's layout (the feature flags of
   `wat2wasm` and `wasm-validate` included, each as the switch away from its default), and exits 0.
   Before, every command but the root reported "unknown option --help" and exited 1.
+- **`wasm-opt --memcpy-to-bulk-memory`**: TinyGo's wasi-libc `memcpy` / `memmove` loops become one
+  `memory.copy` each, 9–11% off a TinyGo module, at the same speed; also done under
+  `--target portable` with an optimization level. Only code that is byte for byte a known
+  wasi-libc copy is replaced. Every call with a defined result behaves the same; a `memcpy` of
+  overlapping ranges (undefined in C) and a copy out of bounds (a trap either way) do not.
 
 ### Fixes
 

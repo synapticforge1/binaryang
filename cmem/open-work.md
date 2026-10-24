@@ -99,11 +99,18 @@ removed record went to a topic file, and the full text is one `git show` away:
     against fixtures — it caught one at once (the fixture, not the example: two inputs exporting the
     same name are refused by default, as documented). 4 mutants killed.
 
-37. ⬚ **TinyGo's `memcpy` / `memmove` → `memory.copy`** (decision 5's one candidate) — **approved
-    on a condition** (owner, 2026-10-24: "if the rewrite from the tinygo implementation does not
-    change the runtime result, I agree"). To measure first: the result, on TinyGo's workload and
-    on edge cases (overlap, zero length, out of bounds — where `memory.copy` traps before writing
-    and a loop writes part first).
+37. ✅ **TinyGo's `memcpy` / `memmove` → `memory.copy`** (decision 5's one candidate). Owner,
+    2026-10-24: "if the rewrite … does not change the runtime result, I agree"; measured first
+    (−1,489 / −1,087 B against the round-tripped original, 0.98–1.02× speed, the checksum the
+    same); then "1 is acceptable" (overlapping `memcpy`, undefined in C, and out-of-bounds copies
+    differ) and "exact code match only". BUILT: `src/tools/memcpy-to-bulk-memory.ts`, a `wasm-opt`
+    step (`--memcpy-to-bulk-memory`, and under `--target` with -O), not a pass — it matches the
+    INPUT's bytes before any runner prepares the tree (a pass's tree no longer encodes to them: the
+    first build failed exactly so). Catalogue `src/tools/known-copy-bodies.ts` (3 bodies, generated
+    from `benches/browser-opt/modules`); `memmove`'s call immediate masked at the reader's offset.
+    Test: the catalogue recognised in TinyGo and nothing in Rust / Zig; one valid byte changed →
+    no match; names play no part; the checksum; >1,000 defined calls leave the same memory and
+    value. 6 mutants killed.
 
 No defects open. (Item 32 closed 2026-10-22: our OUTPUT runs on JavaScriptCore too — Safari and
 Bun, the engine behind 34 of the 36 known Bun differences. Owner: "we should work on item 32

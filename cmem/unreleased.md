@@ -68,3 +68,6 @@ contains ([handoffs.md](handoffs.md)).
   `src/cli/help.ts` renders each tool's usage, description, examples and options in wabt's layout;
   the feature flags come from D2. `tests/wabt-ts/cli/help.test.ts` RUNS every example a help
   prints. The surface gate: MINOR (flags now named in the usage text).
+- **NEW — `wasm-opt --memcpy-to-bulk-memory`** (`memcpyToBulkMemory` option; also under `--target`
+  with -O; open-work 37): TinyGo's wasi-libc copy loops → `memory.copy`, exact-code match only.
+  Behaviour moves ONLY when asked for or under a target with -O; no default pipeline includes it.
