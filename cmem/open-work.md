@@ -14,21 +14,21 @@ with the Browsers job (2026-10-13, `0e7c5398f`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
-**State, 2026-10-24 — PAUSED for the day (owner: "update the project memory files and pause here
-for today"); supersedes the paragraphs above where they differ.** The last release is
-**`binaryang@2.1.0`**, on JSR (Rekor `3436968278`) and npm (SLSA provenance) — CHANGELOG § 2.1.0,
-[publishing.md](publishing.md) § "2.1.0". Released today: 1.16.0, 1.16.1, 1.17.0, 2.0.0, 2.1.0.
-Closed today: 33 (FL1), 34 (the portable profile, its durable checks and `docs/opcode-guide.md`),
-35–41. Letter [handoffs.md](handoffs.md) § 42 SENT by the owner to wasmrt, wazmrt and wasmtk.
-`main` was 2 commits ahead of GitHub (the § 42 record) plus this one — NOT pushed: nothing is
-pushed without the owner's word.
+**State, 2026-10-24, end of the session (supersedes the paragraphs above where they differ).** The
+last release is **`binaryang@2.2.0`**, on JSR (Rekor `3438521434`) and npm (SLSA provenance) —
+CHANGELOG § 2.2.0, [publishing.md](publishing.md) § "2.2.0". Released today: 1.16.0, 1.16.1,
+1.17.0, 2.0.0, 2.1.0, 2.2.0. Closed today: 33 (FL1), 34 (the portable profile, its durable checks
+and `docs/opcode-guide.md`), 35–42. Letters [handoffs.md](handoffs.md) § 42 (to wasmrt, wazmrt,
+wasmtk) and § 44 (to wazmrt, wasmrt) SENT by the owner; § 43 their replies. D3 stays testsuite
+messages only (owner: "stay with what we have" — wazmrt's "expected shared memory" class declined;
+tell wazmrt, § 44 had left it open). Everything pushed with the 2.2.0 record.
 
 - **Open:** 31 (resume as its "State 2026-10-22" paragraph says: re-derive the six 139,857 and the
   corpus 811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening
   re-run until clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk).
   No defect or gap is open, so by the owner's order 31 is next unless the owner says 13.
-- **Awaiting replies:** wasmrt's two fuzz inputs (item 41); wasmrt's and wazmrt's feature
-  matrices on 2.1.0 (§ 42); wasmtk's optional answer to § 19.
+- **Awaiting replies:** wasmrt's and wazmrt's feature matrices on 2.2.0 (§ 44); wasmtk's
+  optional answer to § 19.
 - **Before relying on a number in this file, re-derive it** (rule: a written number is a claim
   with a date).
 
@@ -68,8 +68,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     calls portable since 2026-10-24 (owner). **What remains is a letter**: the D2 letter to the
     runtimes (item 40), which can point them at the guide.
 
-42. ✅ **The runtimes' replies to § 42: D2's type rule, five validator defects** — DONE 2026-10-24
-    on `main`, for the next release (at least 2.2.0: D2 gains `typeRules` / `encodingRules`).
+42. ✅ **The runtimes' replies to § 42: D2's type rule, five validator defects** — DONE 2026-10-24,
+    SHIPPED in 2.2.0 (CHANGELOG § 2.2.0).
     [handoffs.md](handoffs.md) § 43 (received) and § 44 (the reply, SENT by the owner 2026-10-24). Fixed:
     wasmrt's two fuzz inputs (`ref.cast` / `ref.test` / `br_on_cast` naming a type past the section;
     `stringref` validated with no feature); `--disable-mutable-globals` refused nothing (wabt's two
