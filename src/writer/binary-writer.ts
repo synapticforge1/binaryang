@@ -160,6 +160,7 @@ const RELOC_DEFAULT_SYMBOL = '__memory_image';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { blockTypeOf, BrOnOp, localNameEntries } from '../ir/ir.ts';
+import { isFuncIdxElemSegment } from '../ir/elem-form.ts';
 import { isRealName } from '../ir/made-up-names.ts';
 import { encodeTextForm, hasWrittenForms, TEXT_FORM_SECTION } from '../ir/text-form.ts';
 import { stackOmissions } from '../passes/stack-ir.ts';
@@ -193,16 +194,6 @@ function varIndexValue(v: Var, label: string): number {
     );
   }
   return v.value;
-}
-
-/**
- * Can this element type hold plain function indices? True for `funcref` and
- * for `(ref [null] func)` — the funcidx element-segment form always yields
- * non-null function references, which are a subtype of all three.
- */
-function isNonNullFuncRef(t: ValueType): boolean {
-  return isRefValueType(t) && !t.nullable && t.heapType.kind === 'abstract' &&
-    t.heapType.name === 'func';
 }
 
 function writeHeapType(s: MemoryStream, h: HeapTypeRef): void {
@@ -1686,10 +1677,7 @@ class BinaryWriter {
         // expression form, or the encoding silently widens — and a module the
         // spec calls invalid (a `funcref` segment against a `(ref func)`
         // table) comes back out looking valid.
-        const useFuncIdx = isNonNullFuncRef(seg.elemType) &&
-          seg.elemExprs.every((xs) =>
-            xs.children.length === 1 && xs.children[0]!.kind === 'ref.func'
-          );
+        const useFuncIdx = isFuncIdxElemSegment(seg);
 
         let flags: number;
         if (useFuncIdx) {
