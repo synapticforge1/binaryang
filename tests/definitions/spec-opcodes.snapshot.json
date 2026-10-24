@@ -1,0 +1,3572 @@
+{
+  "about": "Opcode numbers and mnemonics extracted from the WebAssembly specification sources below (facts, with attribution) by scripts/spec-opcodes.ts refresh. Not shipped. D1 (src/definitions/opcodes.json) must agree; tests/definitions/spec_opcodes.test.ts checks it.",
+  "sources": [
+    {
+      "name": "spec",
+      "commit": "4441525194f66330466eae7709e59c6031c9c77f",
+      "date": "2026-10-23",
+      "repository": "https://github.com/WebAssembly/spec.git",
+      "files": [
+        "document/core/appendix/index-instructions.py",
+        "document/core/util/macros.def"
+      ],
+      "licence": "W3C Software and Document License (https://www.w3.org/copyright/software-license/)"
+    },
+    {
+      "name": "threads",
+      "commit": "cc535ada1aa21cfaa3cabf3ac73b89acef78a0a0",
+      "date": "2026-07-30",
+      "repository": "https://github.com/WebAssembly/threads.git",
+      "files": [
+        "proposals/threads/Overview.md"
+      ],
+      "licence": "CC0 1.0 Universal"
+    },
+    {
+      "name": "wide-arithmetic",
+      "commit": "024d4ce1b28cee7fd006d9c5175e3b7ece52b429",
+      "date": "2026-08-10",
+      "repository": "https://github.com/WebAssembly/wide-arithmetic.git",
+      "files": [
+        "proposals/wide-arithmetic/Overview.md"
+      ],
+      "licence": "CC0 1.0 Universal"
+    },
+    {
+      "name": "custom-descriptors",
+      "commit": "412f62dd23e53c38244b0176f07db4bd64bab679",
+      "date": "2026-10-23",
+      "repository": "https://github.com/WebAssembly/custom-descriptors.git",
+      "files": [
+        "proposals/custom-descriptors/Overview.md"
+      ],
+      "licence": "CC0 1.0 Universal"
+    },
+    {
+      "name": "legacy-exceptions",
+      "commit": "4441525194f66330466eae7709e59c6031c9c77f",
+      "date": "2026-10-23",
+      "repository": "https://github.com/WebAssembly/spec.git",
+      "files": [
+        "proposals/exception-handling/legacy/Exceptions.md"
+      ],
+      "licence": "CC0 1.0 Universal"
+    }
+  ],
+  "known": [
+    {
+      "prefix": "0xfd",
+      "opcode": 259,
+      "spec": "i32x4.relaxed_trunc_f64x2_s",
+      "d1": "i32x4.relaxed_trunc_f64x2_s_zero",
+      "reason": "the instruction index's abstract-syntax name; the text format (spec testsuite, SpecTec) writes _zero"
+    },
+    {
+      "prefix": "0xfd",
+      "opcode": 260,
+      "spec": "i32x4.relaxed_trunc_f64x2_u",
+      "d1": "i32x4.relaxed_trunc_f64x2_u_zero",
+      "reason": "the instruction index's abstract-syntax name; the text format (spec testsuite, SpecTec) writes _zero"
+    }
+  ],
+  "opcodes": [
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 0,
+      "name": "unreachable"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 1,
+      "name": "nop"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 2,
+      "name": "block"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 3,
+      "name": "loop"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 4,
+      "name": "if"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 5,
+      "name": "else"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 8,
+      "name": "throw"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 10,
+      "name": "throw_ref"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 11,
+      "name": "end"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 12,
+      "name": "br"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 13,
+      "name": "br_if"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 14,
+      "name": "br_table"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 15,
+      "name": "return"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 16,
+      "name": "call"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 17,
+      "name": "call_indirect"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 18,
+      "name": "return_call"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 19,
+      "name": "return_call_indirect"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 20,
+      "name": "call_ref"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 21,
+      "name": "return_call_ref"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 26,
+      "name": "drop"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 27,
+      "name": "select"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 28,
+      "name": "select"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 31,
+      "name": "try_table"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 32,
+      "name": "local.get"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 33,
+      "name": "local.set"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 34,
+      "name": "local.tee"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 35,
+      "name": "global.get"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 36,
+      "name": "global.set"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 37,
+      "name": "table.get"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 38,
+      "name": "table.set"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 40,
+      "name": "i32.load"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 41,
+      "name": "i64.load"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 42,
+      "name": "f32.load"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 43,
+      "name": "f64.load"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 44,
+      "name": "i32.load8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 45,
+      "name": "i32.load8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 46,
+      "name": "i32.load16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 47,
+      "name": "i32.load16_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 48,
+      "name": "i64.load8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 49,
+      "name": "i64.load8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 50,
+      "name": "i64.load16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 51,
+      "name": "i64.load16_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 52,
+      "name": "i64.load32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 53,
+      "name": "i64.load32_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 54,
+      "name": "i32.store"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 55,
+      "name": "i64.store"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 56,
+      "name": "f32.store"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 57,
+      "name": "f64.store"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 58,
+      "name": "i32.store8"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 59,
+      "name": "i32.store16"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 60,
+      "name": "i64.store8"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 61,
+      "name": "i64.store16"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 62,
+      "name": "i64.store32"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 63,
+      "name": "memory.size"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 64,
+      "name": "memory.grow"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 65,
+      "name": "i32.const"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 66,
+      "name": "i64.const"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 67,
+      "name": "f32.const"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 68,
+      "name": "f64.const"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 69,
+      "name": "i32.eqz"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 70,
+      "name": "i32.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 71,
+      "name": "i32.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 72,
+      "name": "i32.lt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 73,
+      "name": "i32.lt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 74,
+      "name": "i32.gt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 75,
+      "name": "i32.gt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 76,
+      "name": "i32.le_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 77,
+      "name": "i32.le_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 78,
+      "name": "i32.ge_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 79,
+      "name": "i32.ge_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 80,
+      "name": "i64.eqz"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 81,
+      "name": "i64.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 82,
+      "name": "i64.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 83,
+      "name": "i64.lt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 84,
+      "name": "i64.lt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 85,
+      "name": "i64.gt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 86,
+      "name": "i64.gt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 87,
+      "name": "i64.le_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 88,
+      "name": "i64.le_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 89,
+      "name": "i64.ge_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 90,
+      "name": "i64.ge_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 91,
+      "name": "f32.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 92,
+      "name": "f32.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 93,
+      "name": "f32.lt"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 94,
+      "name": "f32.gt"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 95,
+      "name": "f32.le"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 96,
+      "name": "f32.ge"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 97,
+      "name": "f64.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 98,
+      "name": "f64.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 99,
+      "name": "f64.lt"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 100,
+      "name": "f64.gt"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 101,
+      "name": "f64.le"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 102,
+      "name": "f64.ge"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 103,
+      "name": "i32.clz"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 104,
+      "name": "i32.ctz"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 105,
+      "name": "i32.popcnt"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 106,
+      "name": "i32.add"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 107,
+      "name": "i32.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 108,
+      "name": "i32.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 109,
+      "name": "i32.div_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 110,
+      "name": "i32.div_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 111,
+      "name": "i32.rem_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 112,
+      "name": "i32.rem_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 113,
+      "name": "i32.and"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 114,
+      "name": "i32.or"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 115,
+      "name": "i32.xor"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 116,
+      "name": "i32.shl"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 117,
+      "name": "i32.shr_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 118,
+      "name": "i32.shr_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 119,
+      "name": "i32.rotl"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 120,
+      "name": "i32.rotr"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 121,
+      "name": "i64.clz"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 122,
+      "name": "i64.ctz"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 123,
+      "name": "i64.popcnt"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 124,
+      "name": "i64.add"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 125,
+      "name": "i64.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 126,
+      "name": "i64.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 127,
+      "name": "i64.div_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 128,
+      "name": "i64.div_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 129,
+      "name": "i64.rem_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 130,
+      "name": "i64.rem_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 131,
+      "name": "i64.and"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 132,
+      "name": "i64.or"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 133,
+      "name": "i64.xor"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 134,
+      "name": "i64.shl"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 135,
+      "name": "i64.shr_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 136,
+      "name": "i64.shr_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 137,
+      "name": "i64.rotl"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 138,
+      "name": "i64.rotr"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 139,
+      "name": "f32.abs"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 140,
+      "name": "f32.neg"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 141,
+      "name": "f32.ceil"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 142,
+      "name": "f32.floor"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 143,
+      "name": "f32.trunc"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 144,
+      "name": "f32.nearest"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 145,
+      "name": "f32.sqrt"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 146,
+      "name": "f32.add"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 147,
+      "name": "f32.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 148,
+      "name": "f32.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 149,
+      "name": "f32.div"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 150,
+      "name": "f32.min"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 151,
+      "name": "f32.max"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 152,
+      "name": "f32.copysign"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 153,
+      "name": "f64.abs"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 154,
+      "name": "f64.neg"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 155,
+      "name": "f64.ceil"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 156,
+      "name": "f64.floor"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 157,
+      "name": "f64.trunc"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 158,
+      "name": "f64.nearest"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 159,
+      "name": "f64.sqrt"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 160,
+      "name": "f64.add"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 161,
+      "name": "f64.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 162,
+      "name": "f64.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 163,
+      "name": "f64.div"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 164,
+      "name": "f64.min"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 165,
+      "name": "f64.max"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 166,
+      "name": "f64.copysign"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 167,
+      "name": "i32.wrap_i64"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 168,
+      "name": "i32.trunc_f32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 169,
+      "name": "i32.trunc_f32_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 170,
+      "name": "i32.trunc_f64_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 171,
+      "name": "i32.trunc_f64_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 172,
+      "name": "i64.extend_i32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 173,
+      "name": "i64.extend_i32_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 174,
+      "name": "i64.trunc_f32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 175,
+      "name": "i64.trunc_f32_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 176,
+      "name": "i64.trunc_f64_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 177,
+      "name": "i64.trunc_f64_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 178,
+      "name": "f32.convert_i32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 179,
+      "name": "f32.convert_i32_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 180,
+      "name": "f32.convert_i64_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 181,
+      "name": "f32.convert_i64_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 182,
+      "name": "f32.demote_f64"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 183,
+      "name": "f64.convert_i32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 184,
+      "name": "f64.convert_i32_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 185,
+      "name": "f64.convert_i64_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 186,
+      "name": "f64.convert_i64_u"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 187,
+      "name": "f64.promote_f32"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 188,
+      "name": "i32.reinterpret_f32"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 189,
+      "name": "i64.reinterpret_f64"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 190,
+      "name": "f32.reinterpret_i32"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 191,
+      "name": "f64.reinterpret_i64"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 192,
+      "name": "i32.extend8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 193,
+      "name": "i32.extend16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 194,
+      "name": "i64.extend8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 195,
+      "name": "i64.extend16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 196,
+      "name": "i64.extend32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 208,
+      "name": "ref.null"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 209,
+      "name": "ref.is_null"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 210,
+      "name": "ref.func"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 211,
+      "name": "ref.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 212,
+      "name": "ref.as_non_null"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 213,
+      "name": "br_on_null"
+    },
+    {
+      "source": "spec",
+      "prefix": null,
+      "opcode": 214,
+      "name": "br_on_non_null"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 0,
+      "name": "struct.new"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 1,
+      "name": "struct.new_default"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 2,
+      "name": "struct.get"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 3,
+      "name": "struct.get_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 4,
+      "name": "struct.get_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 5,
+      "name": "struct.set"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 6,
+      "name": "array.new"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 7,
+      "name": "array.new_default"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 8,
+      "name": "array.new_fixed"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 9,
+      "name": "array.new_data"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 10,
+      "name": "array.new_elem"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 11,
+      "name": "array.get"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 12,
+      "name": "array.get_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 13,
+      "name": "array.get_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 14,
+      "name": "array.set"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 15,
+      "name": "array.len"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 16,
+      "name": "array.fill"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 17,
+      "name": "array.copy"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 18,
+      "name": "array.init_data"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 19,
+      "name": "array.init_elem"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 20,
+      "name": "ref.test"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 21,
+      "name": "ref.test"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 22,
+      "name": "ref.cast"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 23,
+      "name": "ref.cast"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 24,
+      "name": "br_on_cast"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 25,
+      "name": "br_on_cast_fail"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 26,
+      "name": "any.convert_extern"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 27,
+      "name": "extern.convert_any"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 28,
+      "name": "ref.i31"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 29,
+      "name": "i31.get_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfb",
+      "opcode": 30,
+      "name": "i31.get_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 0,
+      "name": "i32.trunc_sat_f32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 1,
+      "name": "i32.trunc_sat_f32_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 2,
+      "name": "i32.trunc_sat_f64_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 3,
+      "name": "i32.trunc_sat_f64_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 4,
+      "name": "i64.trunc_sat_f32_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 5,
+      "name": "i64.trunc_sat_f32_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 6,
+      "name": "i64.trunc_sat_f64_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 7,
+      "name": "i64.trunc_sat_f64_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 8,
+      "name": "memory.init"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 9,
+      "name": "data.drop"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 10,
+      "name": "memory.copy"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 11,
+      "name": "memory.fill"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 12,
+      "name": "table.init"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 13,
+      "name": "elem.drop"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 14,
+      "name": "table.copy"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 15,
+      "name": "table.grow"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 16,
+      "name": "table.size"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfc",
+      "opcode": 17,
+      "name": "table.fill"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 0,
+      "name": "v128.load"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 1,
+      "name": "v128.load8x8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 2,
+      "name": "v128.load8x8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 3,
+      "name": "v128.load16x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 4,
+      "name": "v128.load16x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 5,
+      "name": "v128.load32x2_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 6,
+      "name": "v128.load32x2_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 7,
+      "name": "v128.load8_splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 8,
+      "name": "v128.load16_splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 9,
+      "name": "v128.load32_splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 10,
+      "name": "v128.load64_splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 11,
+      "name": "v128.store"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 12,
+      "name": "v128.const"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 13,
+      "name": "i8x16.shuffle"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 14,
+      "name": "i8x16.swizzle"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 15,
+      "name": "i8x16.splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 16,
+      "name": "i16x8.splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 17,
+      "name": "i32x4.splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 18,
+      "name": "i64x2.splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 19,
+      "name": "f32x4.splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 20,
+      "name": "f64x2.splat"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 21,
+      "name": "i8x16.extract_lane_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 22,
+      "name": "i8x16.extract_lane_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 23,
+      "name": "i8x16.replace_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 24,
+      "name": "i16x8.extract_lane_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 25,
+      "name": "i16x8.extract_lane_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 26,
+      "name": "i16x8.replace_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 27,
+      "name": "i32x4.extract_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 28,
+      "name": "i32x4.replace_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 29,
+      "name": "i64x2.extract_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 30,
+      "name": "i64x2.replace_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 31,
+      "name": "f32x4.extract_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 32,
+      "name": "f32x4.replace_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 33,
+      "name": "f64x2.extract_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 34,
+      "name": "f64x2.replace_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 35,
+      "name": "i8x16.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 36,
+      "name": "i8x16.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 37,
+      "name": "i8x16.lt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 38,
+      "name": "i8x16.lt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 39,
+      "name": "i8x16.gt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 40,
+      "name": "i8x16.gt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 41,
+      "name": "i8x16.le_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 42,
+      "name": "i8x16.le_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 43,
+      "name": "i8x16.ge_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 44,
+      "name": "i8x16.ge_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 45,
+      "name": "i16x8.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 46,
+      "name": "i16x8.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 47,
+      "name": "i16x8.lt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 48,
+      "name": "i16x8.lt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 49,
+      "name": "i16x8.gt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 50,
+      "name": "i16x8.gt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 51,
+      "name": "i16x8.le_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 52,
+      "name": "i16x8.le_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 53,
+      "name": "i16x8.ge_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 54,
+      "name": "i16x8.ge_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 55,
+      "name": "i32x4.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 56,
+      "name": "i32x4.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 57,
+      "name": "i32x4.lt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 58,
+      "name": "i32x4.lt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 59,
+      "name": "i32x4.gt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 60,
+      "name": "i32x4.gt_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 61,
+      "name": "i32x4.le_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 62,
+      "name": "i32x4.le_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 63,
+      "name": "i32x4.ge_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 64,
+      "name": "i32x4.ge_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 65,
+      "name": "f32x4.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 66,
+      "name": "f32x4.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 67,
+      "name": "f32x4.lt"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 68,
+      "name": "f32x4.gt"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 69,
+      "name": "f32x4.le"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 70,
+      "name": "f32x4.ge"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 71,
+      "name": "f64x2.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 72,
+      "name": "f64x2.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 73,
+      "name": "f64x2.lt"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 74,
+      "name": "f64x2.gt"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 75,
+      "name": "f64x2.le"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 76,
+      "name": "f64x2.ge"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 77,
+      "name": "v128.not"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 78,
+      "name": "v128.and"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 79,
+      "name": "v128.andnot"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 80,
+      "name": "v128.or"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 81,
+      "name": "v128.xor"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 82,
+      "name": "v128.bitselect"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 83,
+      "name": "v128.any_true"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 84,
+      "name": "v128.load8_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 85,
+      "name": "v128.load16_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 86,
+      "name": "v128.load32_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 87,
+      "name": "v128.load64_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 88,
+      "name": "v128.store8_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 89,
+      "name": "v128.store16_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 90,
+      "name": "v128.store32_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 91,
+      "name": "v128.store64_lane"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 92,
+      "name": "v128.load32_zero"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 93,
+      "name": "v128.load64_zero"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 94,
+      "name": "f32x4.demote_f64x2_zero"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 95,
+      "name": "f64x2.promote_low_f32x4"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 96,
+      "name": "i8x16.abs"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 97,
+      "name": "i8x16.neg"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 98,
+      "name": "i8x16.popcnt"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 99,
+      "name": "i8x16.all_true"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 100,
+      "name": "i8x16.bitmask"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 101,
+      "name": "i8x16.narrow_i16x8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 102,
+      "name": "i8x16.narrow_i16x8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 103,
+      "name": "f32x4.ceil"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 104,
+      "name": "f32x4.floor"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 105,
+      "name": "f32x4.trunc"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 106,
+      "name": "f32x4.nearest"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 107,
+      "name": "i8x16.shl"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 108,
+      "name": "i8x16.shr_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 109,
+      "name": "i8x16.shr_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 110,
+      "name": "i8x16.add"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 111,
+      "name": "i8x16.add_sat_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 112,
+      "name": "i8x16.add_sat_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 113,
+      "name": "i8x16.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 114,
+      "name": "i8x16.sub_sat_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 115,
+      "name": "i8x16.sub_sat_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 116,
+      "name": "f64x2.ceil"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 117,
+      "name": "f64x2.floor"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 118,
+      "name": "i8x16.min_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 119,
+      "name": "i8x16.min_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 120,
+      "name": "i8x16.max_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 121,
+      "name": "i8x16.max_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 122,
+      "name": "f64x2.trunc"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 123,
+      "name": "i8x16.avgr_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 124,
+      "name": "i16x8.extadd_pairwise_i8x16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 125,
+      "name": "i16x8.extadd_pairwise_i8x16_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 126,
+      "name": "i32x4.extadd_pairwise_i16x8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 127,
+      "name": "i32x4.extadd_pairwise_i16x8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 128,
+      "name": "i16x8.abs"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 129,
+      "name": "i16x8.neg"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 130,
+      "name": "i16x8.q15mulr_sat_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 131,
+      "name": "i16x8.all_true"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 132,
+      "name": "i16x8.bitmask"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 133,
+      "name": "i16x8.narrow_i32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 134,
+      "name": "i16x8.narrow_i32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 135,
+      "name": "i16x8.extend_low_i8x16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 136,
+      "name": "i16x8.extend_high_i8x16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 137,
+      "name": "i16x8.extend_low_i8x16_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 138,
+      "name": "i16x8.extend_high_i8x16_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 139,
+      "name": "i16x8.shl"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 140,
+      "name": "i16x8.shr_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 141,
+      "name": "i16x8.shr_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 142,
+      "name": "i16x8.add"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 143,
+      "name": "i16x8.add_sat_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 144,
+      "name": "i16x8.add_sat_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 145,
+      "name": "i16x8.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 146,
+      "name": "i16x8.sub_sat_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 147,
+      "name": "i16x8.sub_sat_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 148,
+      "name": "f64x2.nearest"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 149,
+      "name": "i16x8.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 150,
+      "name": "i16x8.min_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 151,
+      "name": "i16x8.min_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 152,
+      "name": "i16x8.max_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 153,
+      "name": "i16x8.max_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 155,
+      "name": "i16x8.avgr_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 156,
+      "name": "i16x8.extmul_low_i8x16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 157,
+      "name": "i16x8.extmul_high_i8x16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 158,
+      "name": "i16x8.extmul_low_i8x16_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 159,
+      "name": "i16x8.extmul_high_i8x16_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 160,
+      "name": "i32x4.abs"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 161,
+      "name": "i32x4.neg"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 163,
+      "name": "i32x4.all_true"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 164,
+      "name": "i32x4.bitmask"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 167,
+      "name": "i32x4.extend_low_i16x8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 168,
+      "name": "i32x4.extend_high_i16x8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 169,
+      "name": "i32x4.extend_low_i16x8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 170,
+      "name": "i32x4.extend_high_i16x8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 171,
+      "name": "i32x4.shl"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 172,
+      "name": "i32x4.shr_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 173,
+      "name": "i32x4.shr_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 174,
+      "name": "i32x4.add"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 177,
+      "name": "i32x4.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 181,
+      "name": "i32x4.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 182,
+      "name": "i32x4.min_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 183,
+      "name": "i32x4.min_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 184,
+      "name": "i32x4.max_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 185,
+      "name": "i32x4.max_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 186,
+      "name": "i32x4.dot_i16x8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 188,
+      "name": "i32x4.extmul_low_i16x8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 189,
+      "name": "i32x4.extmul_high_i16x8_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 190,
+      "name": "i32x4.extmul_low_i16x8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 191,
+      "name": "i32x4.extmul_high_i16x8_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 192,
+      "name": "i64x2.abs"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 193,
+      "name": "i64x2.neg"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 195,
+      "name": "i64x2.all_true"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 196,
+      "name": "i64x2.bitmask"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 199,
+      "name": "i64x2.extend_low_i32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 200,
+      "name": "i64x2.extend_high_i32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 201,
+      "name": "i64x2.extend_low_i32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 202,
+      "name": "i64x2.extend_high_i32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 203,
+      "name": "i64x2.shl"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 204,
+      "name": "i64x2.shr_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 205,
+      "name": "i64x2.shr_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 206,
+      "name": "i64x2.add"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 209,
+      "name": "i64x2.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 213,
+      "name": "i64x2.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 214,
+      "name": "i64x2.eq"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 215,
+      "name": "i64x2.ne"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 216,
+      "name": "i64x2.lt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 217,
+      "name": "i64x2.gt_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 218,
+      "name": "i64x2.le_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 219,
+      "name": "i64x2.ge_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 220,
+      "name": "i64x2.extmul_low_i32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 221,
+      "name": "i64x2.extmul_high_i32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 222,
+      "name": "i64x2.extmul_low_i32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 223,
+      "name": "i64x2.extmul_high_i32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 224,
+      "name": "f32x4.abs"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 225,
+      "name": "f32x4.neg"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 227,
+      "name": "f32x4.sqrt"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 228,
+      "name": "f32x4.add"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 229,
+      "name": "f32x4.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 230,
+      "name": "f32x4.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 231,
+      "name": "f32x4.div"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 232,
+      "name": "f32x4.min"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 233,
+      "name": "f32x4.max"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 234,
+      "name": "f32x4.pmin"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 235,
+      "name": "f32x4.pmax"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 236,
+      "name": "f64x2.abs"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 237,
+      "name": "f64x2.neg"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 239,
+      "name": "f64x2.sqrt"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 240,
+      "name": "f64x2.add"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 241,
+      "name": "f64x2.sub"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 242,
+      "name": "f64x2.mul"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 243,
+      "name": "f64x2.div"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 244,
+      "name": "f64x2.min"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 245,
+      "name": "f64x2.max"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 246,
+      "name": "f64x2.pmin"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 247,
+      "name": "f64x2.pmax"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 248,
+      "name": "i32x4.trunc_sat_f32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 249,
+      "name": "i32x4.trunc_sat_f32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 250,
+      "name": "f32x4.convert_i32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 251,
+      "name": "f32x4.convert_i32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 252,
+      "name": "i32x4.trunc_sat_f64x2_s_zero"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 253,
+      "name": "i32x4.trunc_sat_f64x2_u_zero"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 254,
+      "name": "f64x2.convert_low_i32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 255,
+      "name": "f64x2.convert_low_i32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 256,
+      "name": "i8x16.relaxed_swizzle"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 257,
+      "name": "i32x4.relaxed_trunc_f32x4_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 258,
+      "name": "i32x4.relaxed_trunc_f32x4_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 259,
+      "name": "i32x4.relaxed_trunc_f64x2_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 260,
+      "name": "i32x4.relaxed_trunc_f64x2_u"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 261,
+      "name": "f32x4.relaxed_madd"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 262,
+      "name": "f32x4.relaxed_nmadd"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 263,
+      "name": "f64x2.relaxed_madd"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 264,
+      "name": "f64x2.relaxed_nmadd"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 265,
+      "name": "i8x16.relaxed_laneselect"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 266,
+      "name": "i16x8.relaxed_laneselect"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 267,
+      "name": "i32x4.relaxed_laneselect"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 268,
+      "name": "i64x2.relaxed_laneselect"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 269,
+      "name": "f32x4.relaxed_min"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 270,
+      "name": "f32x4.relaxed_max"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 271,
+      "name": "f64x2.relaxed_min"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 272,
+      "name": "f64x2.relaxed_max"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 273,
+      "name": "i16x8.relaxed_q15mulr_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 274,
+      "name": "i16x8.relaxed_dot_i8x16_i7x16_s"
+    },
+    {
+      "source": "spec",
+      "prefix": "0xfd",
+      "opcode": 275,
+      "name": "i32x4.relaxed_dot_i8x16_i7x16_add_s"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 0,
+      "name": "memory.atomic.notify"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 1,
+      "name": "memory.atomic.wait32"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 2,
+      "name": "memory.atomic.wait64"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 3,
+      "name": "atomic.fence"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 16,
+      "name": "i32.atomic.load"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 17,
+      "name": "i64.atomic.load"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 18,
+      "name": "i32.atomic.load8_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 19,
+      "name": "i32.atomic.load16_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 20,
+      "name": "i64.atomic.load8_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 21,
+      "name": "i64.atomic.load16_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 22,
+      "name": "i64.atomic.load32_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 23,
+      "name": "i32.atomic.store"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 24,
+      "name": "i64.atomic.store"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 25,
+      "name": "i32.atomic.store8"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 26,
+      "name": "i32.atomic.store16"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 27,
+      "name": "i64.atomic.store8"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 28,
+      "name": "i64.atomic.store16"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 29,
+      "name": "i64.atomic.store32"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 30,
+      "name": "i32.atomic.rmw.add"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 31,
+      "name": "i64.atomic.rmw.add"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 32,
+      "name": "i32.atomic.rmw8.add_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 33,
+      "name": "i32.atomic.rmw16.add_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 34,
+      "name": "i64.atomic.rmw8.add_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 35,
+      "name": "i64.atomic.rmw16.add_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 36,
+      "name": "i64.atomic.rmw32.add_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 37,
+      "name": "i32.atomic.rmw.sub"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 38,
+      "name": "i64.atomic.rmw.sub"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 39,
+      "name": "i32.atomic.rmw8.sub_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 40,
+      "name": "i32.atomic.rmw16.sub_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 41,
+      "name": "i64.atomic.rmw8.sub_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 42,
+      "name": "i64.atomic.rmw16.sub_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 43,
+      "name": "i64.atomic.rmw32.sub_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 44,
+      "name": "i32.atomic.rmw.and"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 45,
+      "name": "i64.atomic.rmw.and"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 46,
+      "name": "i32.atomic.rmw8.and_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 47,
+      "name": "i32.atomic.rmw16.and_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 48,
+      "name": "i64.atomic.rmw8.and_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 49,
+      "name": "i64.atomic.rmw16.and_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 50,
+      "name": "i64.atomic.rmw32.and_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 51,
+      "name": "i32.atomic.rmw.or"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 52,
+      "name": "i64.atomic.rmw.or"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 53,
+      "name": "i32.atomic.rmw8.or_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 54,
+      "name": "i32.atomic.rmw16.or_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 55,
+      "name": "i64.atomic.rmw8.or_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 56,
+      "name": "i64.atomic.rmw16.or_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 57,
+      "name": "i64.atomic.rmw32.or_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 58,
+      "name": "i32.atomic.rmw.xor"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 59,
+      "name": "i64.atomic.rmw.xor"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 60,
+      "name": "i32.atomic.rmw8.xor_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 61,
+      "name": "i32.atomic.rmw16.xor_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 62,
+      "name": "i64.atomic.rmw8.xor_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 63,
+      "name": "i64.atomic.rmw16.xor_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 64,
+      "name": "i64.atomic.rmw32.xor_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 65,
+      "name": "i32.atomic.rmw.xchg"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 66,
+      "name": "i64.atomic.rmw.xchg"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 67,
+      "name": "i32.atomic.rmw8.xchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 68,
+      "name": "i32.atomic.rmw16.xchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 69,
+      "name": "i64.atomic.rmw8.xchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 70,
+      "name": "i64.atomic.rmw16.xchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 71,
+      "name": "i64.atomic.rmw32.xchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 72,
+      "name": "i32.atomic.rmw.cmpxchg"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 73,
+      "name": "i64.atomic.rmw.cmpxchg"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 74,
+      "name": "i32.atomic.rmw8.cmpxchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 75,
+      "name": "i32.atomic.rmw16.cmpxchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 76,
+      "name": "i64.atomic.rmw8.cmpxchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 77,
+      "name": "i64.atomic.rmw16.cmpxchg_u"
+    },
+    {
+      "source": "threads",
+      "prefix": "0xfe",
+      "opcode": 78,
+      "name": "i64.atomic.rmw32.cmpxchg_u"
+    },
+    {
+      "source": "wide-arithmetic",
+      "prefix": "0xfc",
+      "opcode": 19,
+      "name": "i64.add128"
+    },
+    {
+      "source": "wide-arithmetic",
+      "prefix": "0xfc",
+      "opcode": 20,
+      "name": "i64.sub128"
+    },
+    {
+      "source": "wide-arithmetic",
+      "prefix": "0xfc",
+      "opcode": 21,
+      "name": "i64.mul_wide_s"
+    },
+    {
+      "source": "wide-arithmetic",
+      "prefix": "0xfc",
+      "opcode": 22,
+      "name": "i64.mul_wide_u"
+    },
+    {
+      "source": "custom-descriptors",
+      "prefix": "0xfb",
+      "opcode": 32,
+      "name": "struct.new_desc"
+    },
+    {
+      "source": "custom-descriptors",
+      "prefix": "0xfb",
+      "opcode": 33,
+      "name": "struct.new_default_desc"
+    },
+    {
+      "source": "custom-descriptors",
+      "prefix": "0xfb",
+      "opcode": 34,
+      "name": "ref.get_desc"
+    },
+    {
+      "source": "custom-descriptors",
+      "prefix": "0xfb",
+      "opcode": 35,
+      "name": "ref.cast_desc_eq"
+    },
+    {
+      "source": "custom-descriptors",
+      "prefix": "0xfb",
+      "opcode": 36,
+      "name": "ref.cast_desc_eq null"
+    },
+    {
+      "source": "custom-descriptors",
+      "prefix": "0xfb",
+      "opcode": 37,
+      "name": "br_on_cast_desc_eq"
+    },
+    {
+      "source": "custom-descriptors",
+      "prefix": "0xfb",
+      "opcode": 38,
+      "name": "br_on_cast_desc_eq_fail"
+    },
+    {
+      "source": "legacy-exceptions",
+      "prefix": null,
+      "opcode": 6,
+      "name": "try"
+    },
+    {
+      "source": "legacy-exceptions",
+      "prefix": null,
+      "opcode": 7,
+      "name": "catch"
+    },
+    {
+      "source": "legacy-exceptions",
+      "prefix": null,
+      "opcode": 25,
+      "name": "catch_all"
+    },
+    {
+      "source": "legacy-exceptions",
+      "prefix": null,
+      "opcode": 24,
+      "name": "delegate"
+    },
+    {
+      "source": "legacy-exceptions",
+      "prefix": null,
+      "opcode": 8,
+      "name": "throw"
+    },
+    {
+      "source": "legacy-exceptions",
+      "prefix": null,
+      "opcode": 9,
+      "name": "rethrow"
+    }
+  ]
+}

@@ -86,13 +86,22 @@ defines is missing from D1.** The opcode set rests on the specification, not on 
 - **D1's `ref.test null` / `ref.cast null`** (`0xfb 0x15` / `0x17`) carry their form in the name, by
   D1's own rule; the index names both forms alike. Treated as equal.
 - **Licences of what was read:** the spec's `document/` is under the W3C Software and Document
-  License, its `proposals/` under CC0; opcode numbers and mnemonics are facts. Nothing was copied
-  into the repo; a durable check would carry the extracted facts with their source and licence.
+  License, its `proposals/` under CC0; opcode numbers and mnemonics are facts. No source text is
+  copied; the snapshot below carries only the extracted facts, each source's repository, commit,
+  files and licence.
 
-**Not yet done — the durable form:** this was a one-time proof. Making the specification the
-SOURCE going forward means a committed check (a Bun script and a pinned snapshot of the extracted
-facts, with their source commits) that the gate runs, so D1 cannot drift from the spec unseen;
-it fits beside D4 (open-work 34), which needs the same source documents for its features.
+**The durable form (2026-10-24, open-work 34 b):** `bun run spec-opcodes refresh <dir>` reads local
+git checkouts `<dir>/spec`, `<dir>/threads`, `<dir>/wide-arithmetic`, `<dir>/custom-descriptors`
+(the extraction above, ported into `scripts/spec-opcodes.ts`) and writes
+`tests/definitions/spec-opcodes.snapshot.json`: 583 definitions (582 distinct; `throw` twice), the
+sources with full commits, and the two known differences with their reasons.
+`tests/definitions/spec_opcodes.test.ts` — in `bun run test`, so CI — reads ONLY the snapshot and
+requires D1 to equal it both ways; `bun run spec-opcodes check` runs the same comparison. Mutants
+on D1 (renamed, renumbered, wrong prefix, dropped from each source, an extra opcode, a known
+difference applied to the wrong name, the ` null` form on the wrong name) each fail it, by test.
+**When the specification moves:** clone the four repositories, `refresh`, read the diff of the
+snapshot — a new opcode fails the test until D1 has it (`bun run definitions`), a renamed one until
+D1 follows or the difference is listed in `KNOWN` with its reason.
 
 ## D4 — the portability profiles (2026-10-23)
 
