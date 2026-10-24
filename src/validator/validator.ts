@@ -1190,6 +1190,18 @@ class ModuleValidator implements ExprVisitorDelegate {
     return this.sv.onReturnCall(locOf(e), varIdx(e.func));
   }
   onCallIndirectExpr(e: CallIndirectExpr): Result {
+    // 🔧 Wasm 1.0 writes the table index as the single byte 0x00; a longer LEB is reference
+    // types' (wasm-tools: "zero byte expected"). It validated with the feature off (wazmrt's
+    // matrix; open-work 42). The reader records the encoding; text has no such form.
+    if (this.module.fidelity?.get(e.nodeId)?.tableIndexOverlong === true) {
+      this.acc(
+        this.sv.requireFeature(
+          'referenceTypes',
+          'call_indirect table index in more than one byte',
+          locOf(e),
+        ),
+      );
+    }
     // An inline signature is interned by `synthesizeTypes`; a node that reaches
     // here without a type has nothing the writer could encode.
     if (e.typeVar === undefined) {

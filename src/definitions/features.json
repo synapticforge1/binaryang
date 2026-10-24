@@ -1,20 +1,73 @@
 {
   "definition": "D2",
   "title": "WebAssembly feature / proposal list",
-  "dataVersion": "2.1.0",
-  "sha256": "81bc142b27ec9de4a9cd87644c4bbc405ad6cc4d1aa1ce0cef7712e1184a5ad9",
+  "dataVersion": "2.2.0",
+  "sha256": "9da43d1142fb11c73302175df704b472035055e058c03f93c8a588a1482e525e",
   "rules": {
     "name": "The canonical name: the key of binaryang's `Features` (`allFeatures()`, `defaultFeatures()`).",
     "cli": "The spelling binaryang's CLIs accept, as `--enable-<cli>` / `--disable-<cli>` — upstream wabt's and wasm-tools'.",
     "defaultOn": "On in `defaultFeatures()` (wabt's tool defaults; not the same as 'in Wasm 3.0').",
     "implemented": "false: the flag exists and changes nothing (see `note`).",
-    "requires": "The features its proposal states it builds on — function-references 'is based on the reference types proposal'; GC: reference types and typed function references, 'Both proposals are prerequisites'; custom descriptors is 'for WasmGC structs' (its title); relaxed SIMD's every instruction takes `v128`, which only SIMD defines. RECORDED, NOT ENFORCED (owner, 2026-10-24): nothing turns a feature on or off with another and no feature set is refused; each instruction is gated by its own D1 `feature`. So with functionReferences off and gc on, `call_ref` is refused and a GC struct is accepted — as wasmtime 50 and wasm-tools 1.262 do.",
+    "requires": "The features its proposal states it builds on — function-references 'is based on the reference types proposal'; GC: reference types and typed function references, 'Both proposals are prerequisites'; custom descriptors is 'for WasmGC structs' (its title); relaxed SIMD's every instruction takes `v128`, which only SIMD defines. RECORDED, NOT ENFORCED (owner, 2026-10-24): nothing turns a feature on or off with another and no feature set is refused; each instruction is gated by its own D1 `feature`. So with functionReferences off and gc on, `call_ref` is refused and a GC struct is accepted — as wasmtime 50 and wasm-tools 1.262 do. Which features a TYPE or an ENCODING needs is `typeRules` / `encodingRules`.",
+    "typeRules": "Which features each value TYPE needs, wherever it is written (a param, result, local, global, table, field, block type). `needs` is a list of groups: EVERY group needs AT LEAST ONE of its features on — [[\"referenceTypes\"], [\"functionReferences\", \"gc\"]] is reference types AND (function references OR GC). `needs: null`: no feature enables it, so it is always refused. The rule is wasm-tools 1.262's, measured feature by feature (owner, 2026-10-24); an instruction's own needs are D1's `feature`. wasm-tools also has a `gc-types` sub-feature D2 does not, which refuses GC types when it is off even with `gc` on — D2's `gc` includes it.",
+    "encodingRules": "Which features a binary ENCODING or module structure needs, apart from its instructions and types — the gates binaryang's validator applies. `needs` as in `typeRules`.",
     "presets": "Named feature sets: exactly these on, every other off. wasm1, wasm2, wasm3 are the specification's releases (its change history, document/core/appendix/changes.rst; mutableGlobals predates it, so it is in 1.0); all is every feature. wasm2 is `defaultOn`.",
     "testsuiteDirs": "Directories of the spec testsuite (relative to its root) whose suites need this feature. Empty: its tests are in the core suite, which runs with every feature on except as `onlyIn` / `offIn` say.",
     "onlyIn": "Absent: on everywhere. Present: ON only in these directories — it CHANGES core semantics, and the core suite (or another) asserts against the change.",
     "offIn": "Directories whose suite must run with this feature OFF — a snapshot written before the feature, which it relaxes.",
     "since": "The date the entry entered this list."
   },
+  "typeRules": [
+    {
+      "type": "funcref, externref — (ref null func), (ref null extern)",
+      "needs": [["referenceTypes"]],
+      "note": "As the element type of a table or an element segment, funcref needs nothing: Wasm 1.0 had it there."
+    },
+    {
+      "type": "(ref func), (ref extern) — non-null",
+      "needs": [["referenceTypes"], ["functionReferences"]]
+    },
+    {
+      "type": "(ref $t), (ref null $t) — a type index",
+      "needs": [["referenceTypes"], ["functionReferences", "gc"]],
+      "note": "(exact $t) needs customDescriptors as well."
+    },
+    {
+      "type": "exnref, nullexnref — (ref null? exn), (ref null? noexn)",
+      "needs": [["referenceTypes"], ["exceptions"]]
+    },
+    {
+      "type": "anyref, eqref, i31ref, structref, arrayref, nullref, nullfuncref, nullexternref — and (ref null? any | eq | i31 | struct | array | none | nofunc | noextern)",
+      "needs": [["referenceTypes"], ["gc"]]
+    },
+    {
+      "type": "stringref",
+      "needs": null,
+      "note": "The stringref proposal: no D2 feature enables it."
+    }
+  ],
+  "encodingRules": [
+    { "encoding": "importing or exporting a mutable global", "needs": [["mutableGlobals"]] },
+    {
+      "encoding": "a call_indirect table index in more than one byte (an LEB other than the single byte 0x00)",
+      "needs": [["referenceTypes"]]
+    },
+    { "encoding": "more than one table", "needs": [["referenceTypes"]] },
+    {
+      "encoding": "a table initializer expression",
+      "needs": [["functionReferences"]]
+    },
+    {
+      "encoding": "a function type with more than one result; a block, loop or if with parameters",
+      "needs": [["multiValue"]]
+    },
+    { "encoding": "more than one memory", "needs": [["multiMemory"]] },
+    { "encoding": "a shared memory", "needs": [["threads"]] },
+    { "encoding": "a 64-bit memory or table", "needs": [["memory64"]] },
+    { "encoding": "a custom page size", "needs": [["customPageSizes"]] },
+    { "encoding": "a struct or array type definition", "needs": [["gc"]] },
+    { "encoding": "a tag (the tag section, imported or exported)", "needs": [["exceptions"]] }
+  ],
   "presets": [
     { "name": "wasm1", "features": ["mutableGlobals"] },
     {

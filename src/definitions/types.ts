@@ -93,7 +93,30 @@ export interface FeaturePreset {
   note?: string;
 }
 
+/**
+ * Which features a type or an encoding needs (D2): EVERY group of `needs` needs AT LEAST ONE of its
+ * features on; `null`, none enables it (always refused).
+ */
+export type FeatureNeeds = string[][] | null;
+
+/** A value type's feature needs (D2 `typeRules`). */
+export interface FeatureTypeRule {
+  /** The types it covers, in text format. */
+  type: string;
+  needs: FeatureNeeds;
+  note?: string;
+}
+
+/** An encoding's or a module structure's feature needs (D2 `encodingRules`). */
+export interface FeatureEncodingRule {
+  encoding: string;
+  needs: FeatureNeeds;
+  note?: string;
+}
+
 export interface FeatureDefinitions extends DefinitionHeader {
+  typeRules: FeatureTypeRule[];
+  encodingRules: FeatureEncodingRule[];
   presets: FeaturePreset[];
   entries: FeatureDefinition[];
 }
