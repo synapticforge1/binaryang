@@ -5,11 +5,10 @@ widely used engine. Written for the projects that produce, run or load modules (
 `wasic`, wasmrt, wazmrt, rsxtk, the universal loaders); binaryang is the source of the data and the
 tool that applies it.
 
-**Status (2026-10-24).** This describes binaryang's `main`: D1 data 1.0.1, D2 2.1.0, D4 1.1.0, the
-engines measured 2026-10-24. These ship in binaryang's next release (2.1.0 or later). The
-published 2.0.0 carries D1 1.0.0, D2 2.0.0 and D4 1.0.0, which still exclude tail calls (see
-[What changed](#what-changed-since-the-published-data)). Pin the version you read; the data says
-its own version in `dataVersion`.
+**Status (2026-10-24).** This describes **binaryang 2.1.0**: D1 data 1.0.1, D2 2.1.0, D4 1.1.0, the
+engines measured 2026-10-24. 2.0.0 carried D1 1.0.0, D2 2.0.0 and D4 1.0.0, which still excluded
+tail calls (see [What changed in 2.1.0](#what-changed-in-210)). Pin the version you read; the data
+says its own version in `dataVersion`.
 
 ## The rule
 
@@ -146,9 +145,9 @@ trap when unaligned; bulk operations that straddle the end trap — and **a zero
   runs their `--target portable` outputs too, and compares everything with D4. Exit 0 means D4
   holds. Run it when an engine releases.
 
-## What changed since the published data
+## What changed in 2.1.0
 
-| | published (binaryang 2.0.0) | `main`, next release |
+| | binaryang 2.0.0 | binaryang 2.1.0 |
 | --- | --- | --- |
 | D1 `return_call_ref` | feature `tailCall` | feature `functionReferences` (D1 1.0.1) |
 | D2 | names only | + `requires` (recorded only) and `presets` (D2 2.1.0) |

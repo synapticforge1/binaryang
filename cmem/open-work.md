@@ -51,7 +51,7 @@ removed record went to a topic file, and the full text is one `git show` away:
     runtimes (item 40), which can point them at the guide.
 
 41. ✅ **wasmrt's gate rows, and a Wasm 1.0 element segment refused by default** — DONE 2026-10-24,
-    to ship in the next release. wasmrt's item 4 also listed binaryang's validator rows its sweep
+    SHIPPED in 2.1.0. wasmrt's item 4 also listed binaryang's validator rows its sweep
     found accepted (multi-value, reference-types, the table-initializer form) and two fuzz
     accept-invalid cases. Re-measured on `main`: multi-value already fixed (item 35); the other two
     still open, and FIXED — `funcref` / `externref` as value types need referenceTypes (a funcref
@@ -66,8 +66,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     inputs are not in its record ("func 0 failed to validate"; "invalid value type" at `0x3b`);
     ask for the bytes in the letter.
 
-40. ✅ **`return_call_ref`'s gate and D2's dependency / preset rules** — DONE 2026-10-24, to ship
-    in the next release (unreleased.md). wasmrt's item 4 ("binaryang — D1's `return_call_ref`
+40. ✅ **`return_call_ref`'s gate and D2's dependency / preset rules** — DONE 2026-10-24, SHIPPED
+    in 2.1.0 (CHANGELOG § 2.1.0). wasmrt's item 4 ("binaryang — D1's `return_call_ref`
     feature and D2's missing dependency rules"), relayed by the owner; both runtimes follow D1 / D2
     since contract v33 (v35 current, its `--features` row unchanged). (1) `return_call_ref` needs
     functionReferences only: D1 1.0.1, the validator's inherited tail-call demand dropped (D4 1.1.0
@@ -75,8 +75,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     calls became portable — portability.md § "The committed probe"). (2) D2 2.1.0: `requires` (owner, after asking what wasmtime does:
     "recorded only option") and `presets`. Measurements and sources: definitions.md § "D2's
     dependency and preset rules", divergences.md RC1. **The runtimes' answer is DRAFTED**: [handoffs.md](handoffs.md) § 42
-    (owner: "draft the letter after item 34"), not sent — best sent when the release ships, since
-    they pin. It also asks wasmrt for item 41's two fuzz inputs.
+    (owner: "draft the letter after item 34"), not sent — READY to send: 2.1.0, which carries
+    everything it describes, is published (2026-10-24). It also asks wasmrt for item 41's two fuzz inputs.
 
 39. ✅ **DONE on `main` 2026-10-24** (owner: "2.0.0 is accepted"), to ship as 2.0.0: the alias
     gone from D2 (data version 2.0.0), and the alias MECHANISM with it — `cliAliases`, its rule,
