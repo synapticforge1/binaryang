@@ -5,10 +5,9 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-24 UTC): 1.16.1 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@1.16.1` (Rekor `3432040093`) and npm `@synapticforge1/binaryang@1.16.1`
-(published by GitHub Actions, SLSA provenance) — § "1.16.1": the package of 1.16.0, released to
-prove the compatibility gate's fix on a real bump (§ "1.16.0", step 5). **The repo is
+**Latest (2026-10-24 UTC): 1.17.0 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@1.17.0` (Rekor `3434909247`) and npm `@synapticforge1/binaryang@1.17.0`
+(published by GitHub Actions, SLSA provenance) — § "1.17.0". **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
 hash changed (§ "The history purge").
@@ -1006,6 +1005,26 @@ local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fir
 but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
 each would have failed on JSR's existing version, but push such tags with that in mind.
+
+## 1.17.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "bump the version, update the project memory files, then push". It carries
+every command's `--help` / `--version` (open-work 36), `--memcpy-to-bulk-memory` (37), the
+`saturating-float-to-int` spelling with `sat-float-to-int` deprecated and D2 at 1.1.0 (33), multi-value
+off enforced (35), and the relaxed-SIMD cost in the README (CHANGELOG § 1.17.0).
+
+1. `CHANGELOG.md` § 1.17.0 on `release/1.17.0`, gated 17 / 17, merged (`453a90e3a`), pushed
+   unbumped: CI and auto-tag GREEN (the Browsers job within its new time limit). A FRESH CLONE of
+   `453a90e3a`: 17 / 17.
+2. No tag, neither registry had 1.17.0; `bun run bump minor`: no major in the floor, **v1.16.1's
+   tests on this tree: 6,152, 0 failed**; `surface:check` matches on the bumped tree;
+   `version_sync` 3 / 3; `bun run release`: `bump to v1.17.0` (`f8473c620`).
+3. CI (surface check included), auto-tag and publish.yml GREEN on the bump: **JSR** 1.17.0 created
+   2026-10-24T03:24:52Z, not yanked, **Rekor log id `3434909247`**; **npm** at 03:27:04Z,
+   `latest`, SLSA provenance and npm's publish attestation; GitHub Release `v1.17.0`. As a user:
+   `deno run … jsr:@jrmarcum/binaryang@1.17.0 wasm-opt --version` prints `binaryang 1.17.0`;
+   `npx @synapticforge1/binaryang@1.17.0 wasm-validate --help` lists
+   `--disable-saturating-float-to-int` and the deprecated `--disable-sat-float-to-int`.
 
 ## 1.16.1 — a PATCH from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
