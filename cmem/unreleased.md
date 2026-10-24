@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-24 (UTC): the last release is `v2.0.0`, on JSR and npm, both with provenance;
+**As of 2026-10-24 (UTC): the last release is `v2.1.0`, on JSR and npm, both with provenance;
 nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
---oneline v2.0.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.0.0; the
+--oneline v2.1.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.1.0; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
@@ -37,14 +37,16 @@ first release) or **1.16.1** (no package change: the release tooling checked on 
 **1.17.0** (every command's `--help`; `--memcpy-to-bulk-memory`; `saturating-float-to-int`, the old
 spelling deprecated, D2 1.1.0; multi-value off enforced; the relaxed-SIMD cost in the README) or
 **2.0.0** (BREAKING: `sat-float-to-int` removed with `cliAliases`, D2 2.0.0; the interpreter runs
-shared memory and atomics). The public summary of each is
+shared memory and atomics) or **2.1.0** (every module with a function table valid under the
+default features; `return_call_ref` under function references, D1 1.0.1; two validator feature
+checks; D2 `requires` and `presets`, 2.1.0; tail calls portable, D4 1.1.0). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
 `fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
 (1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
 `7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), at `02a866672` (1.16.0), at `f8473c620`
-(1.17.0), and at `4cf6624af` (2.0.0).
+(1.17.0), at `4cf6624af` (2.0.0), and at `b7fdb9de5` (2.1.0).
 
 ## How to use this file
 
@@ -61,38 +63,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 2.0.0
+## Since 2.1.0
 
-The next release is at least a MINOR (2.1.0): the compatibility gate reads D2's new fields as minor
-API additions.
-
-- **Behaviour — `return_call_ref` needs `functionReferences` only, no longer `tailCall`** (open-work
-  40). With tail-call off it was refused ("tail call not allowed"); upstream wabt 1.0.41,
-  wasm-tools 1.262 and wasmtime 50 accept it, and the function-references proposal defines it.
-  Inherited from wabt-ts (1.8.1 already refused it). D1 data version **1.0.1**: its `feature` is
-  `functionReferences`. (`--target portable` keeps it: tail calls are portable, below.)
-- **Silent fix — a module with a function table was INVALID under the default features** (open-work
-  41). `wasm-validate` with no flags, `wat2wasm` (which validates by default) and
-  `wasmValidate(bytes, { features: defaultFeatures() })` refused every element segment written as
-  a list of function indices — the Wasm 1.0 form every C, Rust, Zig and TinyGo build with an
-  indirect call has ("typed reference in elem segment not allowed: enable the functionReferences
-  feature"). Every release checked, 1.5.3 → 2.0.0. `wasm-opt` and callers passing
-  `allFeatures()` were not affected. A user may have concluded valid modules were invalid.
-- **Behaviour — two gates the validator lacked** (open-work 41, from wasmrt's sweep): `funcref` /
-  `externref` as a value type (param, result, local, global, an `externref` table) now needs
-  reference types — a `funcref` table and its segment do not, as in Wasm 1.0; and a table's
-  initializer expression needs function references. Both were accepted with the feature off,
-  where wasm-tools refuses them.
-- **NEW — D2 `requires` and `presets`** (data version **2.1.0**; types `FeatureDefinition.requires`,
-  `FeatureDefinitions.presets`, `FeaturePreset`): each feature's prerequisites as its proposal
-  states them, RECORDED, NOT ENFORCED (owner, 2026-10-24); the spec's releases `wasm1` / `wasm2` /
-  `wasm3` and `all` as named feature sets. For wasmrt's item 4 / contract v33: with gc on and
-  functionReferences off, `call_ref` is refused and a GC struct accepted, as binaryang already did.
-- **Behaviour — tail calls are PORTABLE** (D4 data version **1.1.0**, re-measured 2026-10-24 by the
-  committed probe; owner: "Make them portable"): `wasm-opt --target portable` keeps `return_call`,
-  `return_call_indirect` and `return_call_ref` instead of refusing them. D4 excluded tail calls
-  as "refused by wasmer"; that was the measuring harness passing wasmer `--enable-tail-call`, a
-  switch wasmer refuses itself — it runs every tail call. README's table and example corrected.
-- **Silent fix — D4's probe counts**: relaxedSimd said 40 probes and wideArithmetic 8; 20 and 4
-  modules exist (the one-time derivation counted a re-run's copies twice). D4's `measured` is
-  2026-10-24 (every engine re-run; Edge's build 156).
+Nothing yet.

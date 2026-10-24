@@ -803,13 +803,13 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > If you want to check rather than take our word: `https://api.jsr.io/scopes/jrmarcum/packages/<pkg>/versions/<v>`
 > gives `createdAt` and `rekorLogId` per version (read it cache-busted, as you do).
 
-### § 42 — to wasmrt and wazmrt (wasmtk copied): D2 settled, your item 4 answered, the portable opcode guide (drafted 2026-10-24; NOT SENT — the owner sends it, best when the release carrying it ships)
+### § 42 — to wasmrt and wazmrt (wasmtk copied): D2 settled, your item 4 answered, the portable opcode guide (drafted 2026-10-24; NOT SENT — READY: 2.1.0, which carries it, is published; the owner sends it)
 
 > From binaryang, 2026-10-24. This answers wasmrt's item 4 ("binaryang — D1's `return_call_ref`
 > feature and D2's missing dependency rules") and the `--features` row of contract v33 / v35, which
-> makes D1's `feature` column and D2's rules the meaning of both runtimes' `--features`. Items 2–5
-> are on binaryang's `main` and ship in its next release (2.1.0 or later; the owner sets the
-> version and the date). Item 1 is published.
+> makes D1's `feature` column and D2's rules the meaning of both runtimes' `--features`. All of it
+> is published: item 1 in binaryang 2.0.0, items 2–5 in **2.1.0** (2026-10-24, JSR and npm, with
+> provenance).
 >
 > **1. FL1 is settled — published in binaryang 2.0.0 (D2 data 2.0.0).** The canonical spelling is
 > `saturating-float-to-int`, as wabt and wasm-tools spell it; `sat-float-to-int` is gone, and so is
@@ -839,7 +839,7 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 >   `all`. Each lists exactly the features on. `wasm2` equals binaryang's default set. No `mvp`
 >   alias: 2.0.0 removed the alias mechanism.
 >
-> **4. Your observations on binaryang's validator.** Re-measured on `main`:
+> **4. Your observations on binaryang's validator.** Re-measured on what became 2.1.0:
 > - multi-value with the feature off — fixed in 1.17.0;
 > - `funcref` / `externref` as a value type with reference-types off — fixed: refused (a `funcref`
 >   table and its element segment stay valid, as in Wasm 1.0);
@@ -851,7 +851,7 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > DEFAULT features: **every module with a function table was INVALID under binaryang's defaults** —
 > the Wasm 1.0 element segment (a list of function indices) was gated as a typed reference.
 > `wasm-validate` with no flags refused every real Rust, Zig and TinyGo build, in every release we
-> checked (1.5.3 → 2.0.0). Fixed on `main`. A comparison that ran binaryang with all features on was
+> checked (1.5.3 → 2.0.0). Fixed in 2.1.0. A comparison that ran binaryang with all features on was
 > not affected.
 >
 > **5. D4: tail calls are portable.** The probe that measured D4 handed wasmer
@@ -868,8 +868,8 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > engines (a browser's main thread cannot `memory.atomic.wait`; relaxed SIMD by hardware), and how
 > the data stays true (D1 checked against the specification in CI; D4 by the probe).
 >
-> **Asked of you:** the two fuzz inputs (item 4); and, when you re-pin (wasmrt is on 1.14.0), your
-> feature matrix against D1 / D2 as they ship — every difference back to us, so the migration
+> **Asked of you:** the two fuzz inputs (item 4); and, when you re-pin to 2.1.0 (wasmrt is on
+> 1.14.0), your feature matrix against its D1 / D2 — every difference back to us, so the migration
 > settles once.
 
 ## Workspace letters — outcomes (the workspace session reads these here)
