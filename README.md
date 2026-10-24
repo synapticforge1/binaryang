@@ -419,7 +419,7 @@ before that rule.
 
 | Since    | Deprecated                                            | Use instead                                                        |
 | -------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
-| the next | `--enable-sat-float-to-int` / `--disable-sat-float-to-int` (prints a warning) | `--enable-saturating-float-to-int` / `--disable-saturating-float-to-int`, upstream wabt's and wasm-tools' spelling |
+| 1.17.0   | `--enable-sat-float-to-int` / `--disable-sat-float-to-int` (prints a warning) | `--enable-saturating-float-to-int` / `--disable-saturating-float-to-int`, upstream wabt's and wasm-tools' spelling |
 
 ### From the predecessors
 
