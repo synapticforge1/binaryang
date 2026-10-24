@@ -70,6 +70,16 @@ removed record went to a topic file, and the full text is one `git show` away:
     the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
     item 35.
 
+39. ⬚ **Remove the deprecated `sat-float-to-int` spelling in the next release** (owner, 2026-10-24:
+    "we will remove the deprecated spelling on the next release"; deprecated in 1.17.0, item 33).
+    Removing a flag is BREAKING, so **the next release is a MAJOR, 2.0.0** — the compatibility gate
+    refuses less (rule: a break is a major). The change: D2 `features.json` drops `cliAliases` for
+    `satFloatToInt` (data version 2.0.0: a consumer accepting the old spelling stops), so
+    `FeatureFlags` refuses `--enable-/--disable-sat-float-to-int` as unknown and `--help` stops
+    listing it; the README's "Deprecated, still accepted" row becomes a Breaking Changes row for
+    2.0.0 with its migration; CHANGELOG and the release note say it; consumers generating from D2
+    (workspace letter H10) are told. To make when the next release is prepared.
+
 38. ⬚ **binaryang's interpreter refuses every shared memory** (found 2026-10-23, open-work 34 pass 1;
     numbered 2026-10-24 at the owner's word). `src/interp/interpreter.ts:877`: instantiating a
     module with ANY shared memory stops with "unsupported: a shared memory" — even when the export
