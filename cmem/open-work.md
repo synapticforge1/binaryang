@@ -81,9 +81,10 @@ removed record went to a topic file, and the full text is one `git show` away:
     `typeRules`, with `encodingRules` for the encoding gates; `tests/definitions/d2_rules.test.ts`
     proves every rule against the validator both ways (four mutants killed, one survivor found
     and closed: the import side of mutable globals had no sample). Record: definitions.md § "D2's
-    type and encoding rules". **Open from § 43:** wazmrt's request for a D3 class "expected shared
-    memory" — the owner's decision (D3 holds only testsuite messages; the threads suite never
-    asserts this trap).
+    type and encoding rules". **From § 43, DECIDED:** wazmrt's request for a D3 class "expected shared
+    memory" is DECLINED (owner, 2026-10-24: "stay with what we have") — D3 holds only messages the
+    spec testsuite writes, and the threads suite never asserts this trap. wazmrt keeps its own
+    check (`error.ExpectedSharedMemory`).
 
 41. ✅ **wasmrt's gate rows, and a Wasm 1.0 element segment refused by default** — DONE 2026-10-24,
     SHIPPED in 2.1.0. wasmrt's item 4 also listed binaryang's validator rows its sweep
