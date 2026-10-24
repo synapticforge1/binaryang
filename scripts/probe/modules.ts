@@ -280,7 +280,8 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'return_call_ref',
-    feature: 'tailCall',
+    // D1 gates it under functionReferences (open-work 40), the proposal that defines it.
+    feature: 'functionReferences',
     covers: ['return_call_ref'],
     fields: H,
     expect: '2a',
