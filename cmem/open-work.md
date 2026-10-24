@@ -70,7 +70,7 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 42. ✅ **The runtimes' replies to § 42: D2's type rule, five validator defects** — DONE 2026-10-24
     on `main`, for the next release (at least 2.2.0: D2 gains `typeRules` / `encodingRules`).
-    [handoffs.md](handoffs.md) § 43 (received) and § 44 (the reply, drafted, NOT SENT). Fixed:
+    [handoffs.md](handoffs.md) § 43 (received) and § 44 (the reply, SENT by the owner 2026-10-24). Fixed:
     wasmrt's two fuzz inputs (`ref.cast` / `ref.test` / `br_on_cast` naming a type past the section;
     `stringref` validated with no feature); `--disable-mutable-globals` refused nothing (wabt's two
     checks restored); an overlong `call_indirect` table index with reference-types off (the reader
