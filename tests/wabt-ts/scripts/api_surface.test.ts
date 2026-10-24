@@ -5,7 +5,7 @@
  */
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import { floorOf, type Surface } from '../../../scripts/release/api-surface.ts';
+import { floorOf, type Surface, usageText } from '../../../scripts/release/api-surface.ts';
 
 const base = (): Surface => ({
   library: {
@@ -62,6 +62,19 @@ describe('floorOf: what a surface difference demands', () => {
     const f = floorOf(base(), after);
     expect(f.floor).toBe('patch');
     expect(f.reasons).toEqual([{ level: 'patch', what: 'CLI wat2wasm: usage text changed' }]);
+  });
+
+  it("a bump alone is no usage change: the tree's own version is not part of the text", () => {
+    // 1.16.0's bump failed surface:check on CI: the root usage names the version.
+    const before = usageText('binaryang 1.15.0 — a toolchain\r\n  wasm-opt  optimise\n', '1.15.0');
+    expect(before).toBe('binaryang <version> — a toolchain\n  wasm-opt  optimise');
+    expect(usageText('binaryang 1.16.0 — a toolchain\n  wasm-opt  optimise', '1.16.0')).toBe(
+      before,
+    );
+    // A real wording change still differs.
+    expect(usageText('binaryang 1.16.0 — a tool chain\n  wasm-opt  optimise', '1.16.0')).not.toBe(
+      before,
+    );
   });
 
   it('the floor is the HIGHEST reason: an addition does not hide a removal', () => {
