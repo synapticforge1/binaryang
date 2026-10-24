@@ -803,6 +803,75 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > If you want to check rather than take our word: `https://api.jsr.io/scopes/jrmarcum/packages/<pkg>/versions/<v>`
 > gives `createdAt` and `rekorLogId` per version (read it cache-busted, as you do).
 
+### § 42 — to wasmrt and wazmrt (wasmtk copied): D2 settled, your item 4 answered, the portable opcode guide (drafted 2026-10-24; NOT SENT — the owner sends it, best when the release carrying it ships)
+
+> From binaryang, 2026-10-24. This answers wasmrt's item 4 ("binaryang — D1's `return_call_ref`
+> feature and D2's missing dependency rules") and the `--features` row of contract v33 / v35, which
+> makes D1's `feature` column and D2's rules the meaning of both runtimes' `--features`. Items 2–5
+> are on binaryang's `main` and ship in its next release (2.1.0 or later; the owner sets the
+> version and the date). Item 1 is published.
+>
+> **1. FL1 is settled — published in binaryang 2.0.0 (D2 data 2.0.0).** The canonical spelling is
+> `saturating-float-to-int`, as wabt and wasm-tools spell it; `sat-float-to-int` is gone, and so is
+> D2's `cliAliases` field. Your v32 row said it would be rewritten when FL1 settles: it can be.
+>
+> **2. `return_call_ref` belongs to function-references (D1 data 1.0.1).** The function-references
+> proposal defines it (opcode 0x15, its Overview's instruction list and opcode table); the
+> tail-call proposal does not mention it. Measured with each feature switched off alone:
+> function-references only — wasm-tools 1.262, wasmtime 50, wabt 1.0.41; tail-call AND GC —
+> Binaryen 133 (it folded function references into GC). binaryang's validator also demanded
+> tail-call, inherited from wabt-ts; that is fixed. So `--features all,-tail-call` accepts it, and
+> `all,-function-references` refuses it.
+>
+> **3. D2's dependency and preset rules (D2 data 2.1.0).**
+> - `requires`: each feature's prerequisites, ONLY as its proposal states them —
+>   `function-references` → `reference-types`; `gc` → `reference-types`, `function-references`
+>   ("Both proposals are prerequisites"); `relaxed-simd` → `simd`; `custom-descriptors` → `gc`.
+> - **RECORDED, NOT ENFORCED** (owner, 2026-10-24, after asking what wasmtime does): no feature turns
+>   another on or off, and no feature set is refused; each instruction is gated by its own D1
+>   `feature`. So under `all,-function-references` (GC still on): `call_ref` is REFUSED and a GC
+>   struct is ACCEPTED — what wasmtime 50, wasm-tools 1.262 and binaryang do. wazmrt 2.0.0 accepted
+>   `call_ref` there (wasmrt's measurement); under v33 that changes. Binaryen accepts it (GC implies
+>   function references there); wasmtime's one configuration error (relaxed-simd on, simd off) is
+>   not adopted.
+> - `presets`: `wasm1`, `wasm2`, `wasm3` — the specification's releases, from its change history
+>   (`document/core/appendix/changes.rst`; mutable globals predate it, so they are in 1.0) — and
+>   `all`. Each lists exactly the features on. `wasm2` equals binaryang's default set. No `mvp`
+>   alias: 2.0.0 removed the alias mechanism.
+>
+> **4. Your observations on binaryang's validator.** Re-measured on `main`:
+> - multi-value with the feature off — fixed in 1.17.0;
+> - `funcref` / `externref` as a value type with reference-types off — fixed: refused (a `funcref`
+>   table and its element segment stay valid, as in Wasm 1.0);
+> - a table initializer expression with function-references off — fixed: refused;
+> - **your two fuzz accept-invalid cases** ("func 0 failed to validate"; "invalid value type" at
+>   `0x3b`) — NOT reproduced: the inputs are not in your record. **Please send the bytes.**
+>
+> Fixing these found a worse one, which matters if any of your sweeps used binaryang with its
+> DEFAULT features: **every module with a function table was INVALID under binaryang's defaults** —
+> the Wasm 1.0 element segment (a list of function indices) was gated as a typed reference.
+> `wasm-validate` with no flags refused every real Rust, Zig and TinyGo build, in every release we
+> checked (1.5.3 → 2.0.0). Fixed on `main`. A comparison that ran binaryang with all features on was
+> not affected.
+>
+> **5. D4: tail calls are portable.** The probe that measured D4 handed wasmer
+> `--enable-tail-call`; wasmer 7.5.0 refuses that switch itself (even on a module with only `call`)
+> and runs `return_call`, `return_call_indirect` and `return_call_ref` correctly without it. Every
+> other wasmer refusal stands with no switches at all. If your own measurements pass wasmer that
+> switch, they carry the same artifact. D4 (data 1.1.0) was re-measured on all fourteen engines
+> 2026-10-24 by a committed probe: no wrong result, and D4 agrees everywhere.
+>
+> **6. The reference: `docs/opcode-guide.md`** in binaryang
+> (`https://github.com/synapticforge1/binaryang/blob/main/docs/opcode-guide.md`): every feature's
+> tier with its instruction count (582: 513 portable, 29 lowered, 40 excluded), the engines refusing
+> each, what a runtime should do with D1 / D2 (the rules above), the behaviour that differs between
+> engines (a browser's main thread cannot `memory.atomic.wait`; relaxed SIMD by hardware), and how
+> the data stays true (D1 checked against the specification in CI; D4 by the probe).
+>
+> **Asked of you:** the two fuzz inputs (item 4); and, when you re-pin (wasmrt is on 1.14.0), your
+> feature matrix against D1 / D2 as they ship — every difference back to us, so the migration
+> settles once.
+
 ## Workspace letters — outcomes (the workspace session reads these here)
 
 Letters addressed to binaryang in `../../cmem/handoffs.md`, acted on in this repo. The workspace
