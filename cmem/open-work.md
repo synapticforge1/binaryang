@@ -74,9 +74,9 @@ removed record went to a topic file, and the full text is one `git show` away:
     first listed it excluded for wasmer; the probe then showed wasmer runs every tail call, so tail
     calls became portable — portability.md § "The committed probe"). (2) D2 2.1.0: `requires` (owner, after asking what wasmtime does:
     "recorded only option") and `presets`. Measurements and sources: definitions.md § "D2's
-    dependency and preset rules", divergences.md RC1. **The runtimes' answer is DRAFTED**: [handoffs.md](handoffs.md) § 42
-    (owner: "draft the letter after item 34"), not sent — READY to send: 2.1.0, which carries
-    everything it describes, is published (2026-10-24). It also asks wasmrt for item 41's two fuzz inputs.
+    dependency and preset rules", divergences.md RC1. **The runtimes' answer is SENT**: [handoffs.md](handoffs.md) § 42 (owner:
+    "letter sent to each", 2026-10-24, after 2.1.0 was published). Awaiting: wasmrt's two fuzz
+    inputs (item 41) and both runtimes' feature matrices once they re-pin to 2.1.0. It also asks wasmrt for item 41's two fuzz inputs.
 
 39. ✅ **DONE on `main` 2026-10-24** (owner: "2.0.0 is accepted"), to ship as 2.0.0: the alias
     gone from D2 (data version 2.0.0), and the alias MECHANISM with it — `cliAliases`, its rule,
