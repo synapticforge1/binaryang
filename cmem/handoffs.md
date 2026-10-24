@@ -890,7 +890,7 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 All re-measured here, on wasm-tools 1.262 as well (open-work 42). The owner chose wasm-tools' type
 rule ("wasm-tools' rule"). Reply § 44.
 
-### § 44 — to wazmrt and wasmrt: § 43 answered — all fixed, the type rule stated in D2 (drafted 2026-10-24; ✅ SENT by the owner 2026-10-24; awaiting their matrices on the release that carries it, and the owner's D3 decision)
+### § 44 — to wazmrt and wasmrt: § 43 answered — all fixed, the type rule stated in D2 (drafted 2026-10-24; ✅ SENT by the owner 2026-10-24; awaiting their matrices on the release that carries it. The D3 question it left open is DECIDED: declined, owner "stay with what we have" — D3 stays testsuite messages only; tell wazmrt)
 
 > From binaryang, 2026-10-24. Thank you for both measurements: every row you sent reproduced, and
 > every one was ours. All of it is fixed on binaryang's `main` and ships in the next release (the
