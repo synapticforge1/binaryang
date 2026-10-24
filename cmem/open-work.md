@@ -21,7 +21,7 @@ CHANGELOG § 2.2.0, [publishing.md](publishing.md) § "2.2.0". Released today: 1
 and `docs/opcode-guide.md`), 35–42. Letters [handoffs.md](handoffs.md) § 42 (to wasmrt, wazmrt,
 wasmtk) and § 44 (to wazmrt, wasmrt) SENT by the owner; § 43 their replies. D3 stays testsuite
 messages only (owner: "stay with what we have" — wazmrt's "expected shared memory" class declined;
-tell wazmrt, § 44 had left it open). Everything pushed with the 2.2.0 record.
+wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 record.
 
 - **Open:** 31 (resume as its "State 2026-10-22" paragraph says: re-derive the six 139,857 and the
   corpus 811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening
