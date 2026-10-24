@@ -14,7 +14,25 @@ with the Browsers job (2026-10-13, `0e7c5398f`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
-**State, 2026-10-23 (supersedes the paragraphs above where they differ):** letter H19 is COMPLETE
+**State, 2026-10-24 — PAUSED for the day (owner: "update the project memory files and pause here
+for today"); supersedes the paragraphs above where they differ.** The last release is
+**`binaryang@2.1.0`**, on JSR (Rekor `3436968278`) and npm (SLSA provenance) — CHANGELOG § 2.1.0,
+[publishing.md](publishing.md) § "2.1.0". Released today: 1.16.0, 1.16.1, 1.17.0, 2.0.0, 2.1.0.
+Closed today: 33 (FL1), 34 (the portable profile, its durable checks and `docs/opcode-guide.md`),
+35–41. Letter [handoffs.md](handoffs.md) § 42 SENT by the owner to wasmrt, wazmrt and wasmtk.
+`main` was 2 commits ahead of GitHub (the § 42 record) plus this one — NOT pushed: nothing is
+pushed without the owner's word.
+
+- **Open:** 31 (resume as its "State 2026-10-22" paragraph says: re-derive the six 139,857 and the
+  corpus 811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening
+  re-run until clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk).
+  No defect or gap is open, so by the owner's order 31 is next unless the owner says 13.
+- **Awaiting replies:** wasmrt's two fuzz inputs (item 41); wasmrt's and wazmrt's feature
+  matrices on 2.1.0 (§ 42); wasmtk's optional answer to § 19.
+- **Before relying on a number in this file, re-derive it** (rule: a written number is a claim
+  with a date).
+
+**State, 2026-10-23 (superseded by the paragraph above):** letter H19 is COMPLETE
 — the rewritten history is on GitHub — and **`binaryang@1.15.0` is PUBLISHED** on JSR (Rekor
 `3423023791`) and npm (SLSA provenance), carrying `SSANoMerge` (open-work 31, step 16) and the
 history note (CHANGELOG § 1.15.0; release record [publishing.md](publishing.md) § "1.15.0"). Also
