@@ -406,20 +406,15 @@ buried.
 
 Every release that removed or renamed something you could import. From the release after 1.15.0
 on, a break is a **major** version, and the release tooling refuses a lower one (Semantic
-Versioning, checked against a committed snapshot of the API); the three below came out as minors,
-before that rule.
+Versioning, checked against a committed snapshot of the API); the three before 2.0.0 came out as
+minors, before that rule.
 
 | Version | What changed                                                                                                                                  | How to migrate                                                                                                                         |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 2.0.0   | `--enable-sat-float-to-int` / `--disable-sat-float-to-int` removed (deprecated in 1.17.0); `./definitions`: `FeatureDefinition.cliAliases` removed, D2 data version 2.0.0 | spell it as upstream wabt and wasm-tools do: `--enable-saturating-float-to-int` / `--disable-saturating-float-to-int` |
 | 1.12.0  | `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` removed (deprecated in 1.11.0); type names `Type` in `./api`, `Features` / `WasmModule` in `./compat/wabt` removed | import from `./ir`, which exports the same names from the same declarations; use `ExprType`, `WabtFeatures`, `WabtWasmModule` |
 | 1.7.0   | `./interop` removed, with `Module.optimize(flags, hybridMode)`'s `hybridMode` and `wasm-opt --hybrid`                                         | run upstream `wasm-opt` directly to compare; the `compat/*` APIs are unchanged                                                         |
 | 1.6.0   | `./binary` and `./encoder` removed; the Binaryen IR took wabt-ts's record shapes                                                              | read with `readBinary` from `./compat/binaryen`, write with `module.emitBinary()` or `toBinary()` from `./api`; CHANGELOG § 1.6.0 lists the renames |
-
-**Deprecated, still accepted** — removing any of these will be a major version:
-
-| Since    | Deprecated                                            | Use instead                                                        |
-| -------- | ----------------------------------------------------- | ------------------------------------------------------------------ |
-| 1.17.0   | `--enable-sat-float-to-int` / `--disable-sat-float-to-int` (prints a warning) | `--enable-saturating-float-to-int` / `--disable-saturating-float-to-int`, upstream wabt's and wasm-tools' spelling |
 
 ### From the predecessors
 

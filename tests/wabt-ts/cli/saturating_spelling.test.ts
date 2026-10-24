@@ -2,8 +2,9 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 // Open-work 33 / FL1 (owner, 2026-10-24: "lets rename binaryang's to conform with upstream
-// saturating-float-to-int"): the flag is spelled as upstream wabt 1.0.41 and wasm-tools spell it,
-// and the old spelling still works, deprecated — through the CLIs themselves.
+// saturating-float-to-int"): the flag is spelled as upstream wabt 1.0.41 and wasm-tools spell it —
+// through the CLIs themselves. The old spelling, deprecated in 1.17.0, is gone in 2.0.0 (open-work
+// 39; owner: "we will remove the deprecated spelling on the next release", "2.0.0 is accepted").
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
@@ -34,12 +35,10 @@ describe('--disable-saturating-float-to-int, as upstream', () => {
     expect(r.stderr).not.toContain('unknown option');
   });
 
-  it('the old spelling still does, with a warning naming the new one', () => {
+  it('the old spelling is refused as an unknown option', () => {
     const r = cli(['wat2wasm', wat, '--disable-sat-float-to-int', '-o', join(dir, 'b.wasm')]);
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain(
-      'warning: --disable-sat-float-to-int is deprecated; use --disable-saturating-float-to-int',
-    );
+    expect(r.stderr).toContain('wat2wasm: unknown option --disable-sat-float-to-int');
   });
 
   it('with neither, the module assembles', () => {
