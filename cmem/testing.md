@@ -856,7 +856,8 @@ Same prepared corpus as `spec`; ~3 s. Owner: "yes on deno task interp" (2026-10-
 - **The `proposals/` corpora run too, IN the gate since 2026-10-07** (owner: "Yes (runs
   everywhere)"; the ones the `proposals` step prepares, so `interp` runs after it): at E3e
   custom-descriptors 170 pass / 0 FAIL / 317 stopped, custom-page-sizes 31 / 0 / 0, threads
-  80 / 0 / 187 (shared memory stops), wide-arithmetic 99 / 0 / 0. The custom-descriptors corpus
+  80 / 0 / 187 (shared memory stops; since 2026-10-24, open-work 38: 267 / 0 / 0, with the
+  harness's `spectest.shared_memory` added), wide-arithmetic 99 / 0 / 0. The custom-descriptors corpus
   found BOTH of E3d-2's defects — descriptor operations run as plain ones (85 FAILs, now Stops)
   and an imported function's reference typed by the importer's declaration — while the core suite
   was green.
