@@ -1,8 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-24 (UTC): the last release is `v1.16.0`, on JSR and npm, both with provenance;
+**As of 2026-10-24 (UTC): the last release is `v1.16.1`, on JSR and npm, both with provenance;
 nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
---oneline v1.16.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.16.0; the
+--oneline v1.16.1..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 1.16.1; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
@@ -33,7 +33,8 @@ module run on Safari and Bun"; the multi-memory limit corrected to 100) or **1.1
 first at -O3 / -Os / -Oz; the note that the history was rewritten, letter H19) or **1.16.0**
 (`wasm-opt --target portable` and D4; `WideArithmeticLowering`, `RelaxedSimdLowering`; the README's
 Breaking Changes table and Safari corrections; Binaryen attribution; the compatibility gate's
-first release). The public summary of each is
+first release) or **1.16.1** (no package change: the release tooling checked on a real bump). The
+public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
