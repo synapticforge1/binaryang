@@ -24,6 +24,7 @@
     "interp": "bun scripts/check-interp.ts",
     "proposals": "bun scripts/check-proposals.ts",
     "definitions": "bun scripts/definitions.ts",
+    "spec-opcodes": "bun scripts/spec-opcodes.ts",
     "offsets": "bun scripts/v8.ts scripts/measure-diagnostic-offsets.ts",
     "direct": "bun scripts/v8.ts scripts/check-direct-corpus.ts",
     "direct-behaviour": "bun scripts/v8.ts scripts/check-direct-behaviour.ts",
