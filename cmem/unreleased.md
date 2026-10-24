@@ -63,3 +63,4 @@ contains ([handoffs.md](handoffs.md)).
   refuses (open-work 35): several results in a function type, parameters on a block type, and (in a
   binary only) a block type encoded as a type index. Before, the flag changed nothing; a caller
   validating against Wasm 1.0 was told multi-value modules were valid. Default unchanged (on).
+- **README** — the relaxed-SIMD lowering's measured run cost (portability.md).

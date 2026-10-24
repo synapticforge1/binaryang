@@ -256,6 +256,36 @@ OUTPUT against the profile again, so no pass can leave it.
   case). `tests/definitions/definitions.test.ts` checks D4 against D1, D2 and the passes.
 - 🔧 **Found on the way: the validator does not enforce `multiValue`** — open-work 35.
 
+### The relaxed-SIMD lowering's run cost — measured (2026-10-24)
+
+Owner: "test the SIMD lowering's runtime cost". Scratch `rsbench/` (`gen.ts`, `bench.mjs`,
+`wt.ts`): one kernel per relaxed family, a DEPENDENT chain of the one instruction (each result
+feeds the next, the result returned so nothing folds), original vs `--relaxed-simd-lowering`;
+Node 24.21 (V8) and Bun 1.4.4 (JavaScriptCore) at N = 2·10⁷, median of 7 after a warm-up;
+wasmtime 50 at N = 2·10⁸, wall time minus an N = 1 control, median of 3. Re-run on a QUIET machine
+after a first run shared the CPU with a gate (it agreed within a few %). Lowered ÷ original:
+
+| kernel | V8 | JSC | wasmtime |
+| --- | --- | --- | --- |
+| f32 madd | 1.76 | 0.98 | 1.72 |
+| f32 nmadd | 2.12 | 1.23 | 2.13 |
+| f64 madd | 1.79 | 1.00 | 1.71 |
+| swizzle | 0.98 | 0.83 | 1.14 |
+| laneselect | 0.97 | 1.00 | 1.07 |
+| f32 min | 3.49 | 3.36 | 3.39 |
+| f64 max | 4.69 | 4.74 | 4.05 |
+| trunc f32 → i32 s | 1.96 | 1.01 | 2.34 |
+| q15mulr | 1.64 | 1.64 | 1.64 |
+| dot | 2.98 | 2.38 | 2.31 |
+| dot add | 4.30 | 1.69 | 1.81 |
+
+Reading: the regular `min` / `max` (NaN and ±0 handled) is 3–5× the relaxed one on every engine
+— the largest cost; the dots cost 2–4× on V8. JavaScriptCore's relaxed madd / trunc are already
+the deterministic forms (no cost). Every result was the same both ways except laneselect on V8
+and wasmtime, whose mask lanes were not all-0 / all-1 — the hardware dependence the lowering
+exists to remove. A whole program pays these only on its share of these instructions. README §
+"Making a module run without relaxed SIMD" carries the summary.
+
 ### Decision 5 scoped — what real compiler output leaves to introduce (2026-10-24)
 
 Measured before building (owner: "proceed with 34"), with scratch `to-introduce.ts` and
