@@ -333,7 +333,19 @@ npx binaryang wasm-opt in.wasm --relaxed-simd-lowering -o out.wasm
 ```
 
 The hardware's fused multiply-add and single-instruction dot products are given up for
-plain SIMD-128 instructions that every engine runs.
+plain SIMD-128 instructions that every engine runs. **The cost, measured** on a loop of nothing
+but the one instruction (each result feeding the next) on Node, Bun and wasmtime:
+
+| instruction | lowered, time against the original |
+| --- | --- |
+| swizzle, laneselect | the same |
+| madd / nmadd, q15mulr, the truncations | up to about 2.3× (Bun: the same, except nmadd 1.2×) |
+| the dot products | about 1.7 – 4.3× |
+| min / max | about 3.4 – 4.7× (a regular `min` / `max` is slower than the relaxed one everywhere) |
+
+A real program spends a share of its time on these instructions, so its slowdown is that share
+scaled by these factors. Lower only for an engine that cannot run relaxed SIMD, or where every
+engine must give the same result.
 
 ### Optimizing in the browser
 

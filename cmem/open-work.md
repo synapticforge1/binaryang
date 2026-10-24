@@ -64,8 +64,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     SCOPED 2026-10-24** (portability.md § "Decision 5 scoped"): the optimizer introduces no
     feature (now a gate check in `optimize-corpus`), and real compiler output (Rust, Zig,
     Emscripten, TinyGo; 11 modules) has nothing to introduce — 0 shift pairs, 0 trapping
-    truncations; the one candidate, TinyGo's `memcpy` / `memmove` → `memory.copy`, **waits on the
-    owner**. **Next:** the durable checks (a committed probe that re-measures D4; D1's spec check as
+    truncations; the one candidate, TinyGo's `memcpy` / `memmove` → `memory.copy`, is item 37.
+    The relaxed-SIMD lowering's run cost MEASURED 2026-10-24 (portability.md). **Next:** the durable checks (a committed probe that re-measures D4; D1's spec check as
     a gate — definitions.md), then `opcode-guide.md`. Found on
     the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
     item 35.
@@ -81,11 +81,24 @@ removed record went to a topic file, and the full text is one `git show` away:
     (one survived first: a check refusing EVERY block — two plain-block cases added). On by
     default: nothing changes unless it is switched off.
 
-33. ⬚ **FL1 — upstream's feature-flag spelling is refused** (found 2026-10-23 measuring workspace
+33. ◐ **FL1 — upstream's feature-flag spelling is refused** (found 2026-10-23 measuring workspace
     letter H8 / I6): `--enable-saturating-float-to-int` / `--disable-…` (upstream wabt 1.0.41 and
-    wasm-tools) is an unknown flag here; ours is `sat-float-to-int`. **Waits on the owner**, because
-    `./definitions` (D2) publishes the spelling: accept upstream's (ours as an alias is additive) and
-    decide whether D2's `cli` changes. [divergences.md](divergences.md) FL1.
+    wasm-tools) is an unknown flag here; ours is `sat-float-to-int`. Measured 2026-10-24: the ONLY
+    spelling of ours wabt lacks (`custom-descriptors` aside, which wabt has not); Binaryen 133 says
+    `nontrapping-float-to-int`, its own vocabulary. **DECIDED** (owner, 2026-10-24: "lets rename
+    binaryang's to conform with upstream saturating-float-to-int"): `saturating-float-to-int`
+    canonical; `sat-float-to-int` kept as a DEPRECATED alias (rule 4 — removing a flag is a major);
+    D2's `cli` changes with a `cliAliases` field, data version 1.1.0. To build.
+    [divergences.md](divergences.md) FL1.
+
+36. ⬚ **The CLI tools answer `--help`** (owner, 2026-10-24: "add the help to the cli tools and the
+    needed information to go with it"). To build.
+
+37. ⬚ **TinyGo's `memcpy` / `memmove` → `memory.copy`** (decision 5's one candidate) — **approved
+    on a condition** (owner, 2026-10-24: "if the rewrite from the tinygo implementation does not
+    change the runtime result, I agree"). To measure first: the result, on TinyGo's workload and
+    on edge cases (overlap, zero length, out of bounds — where `memory.copy` traps before writing
+    and a loop writes part first).
 
 No defects open. (Item 32 closed 2026-10-22: our OUTPUT runs on JavaScriptCore too — Safari and
 Bun, the engine behind 34 of the 36 known Bun differences. Owner: "we should work on item 32

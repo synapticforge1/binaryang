@@ -2132,6 +2132,21 @@ the fix on a real bump. **How to apply:** exercise a release gate on the exact e
 (change the version locally, run the CI step) before the release depends on it; and know which
 workflow a check gates — the publish was never at risk (publish.yml runs only `--release-check`).
 
+### Never change the working tree while a gate runs IN it
+
+2026-10-24: with the full gate running on item 35's commit, a branch switch (to start item 33)
+changed every file under it — the run would have checked a mix of two trees. It was stopped and
+re-run whole; the tree was checked clean first. **How to apply:** while a gate runs, do only
+read-only work in that tree, or work in a separate clone (on C:, since D: is exFAT); print the
+commit before and after a gate run, so a moved HEAD is visible in its log.
+
+### A library's default is not its CLI's — a test must ask for what the CLI does
+
+`wat2wasm()` validates only with `validate: true`; the CLI validates by default. The multi-value
+test first called the library without it, so the text path validated nothing and seven cases read
+as "binaryang accepts" — while the CLI refused them. **How to apply:** before asserting a tool's
+verdict through its library, check the library's defaults against the CLI's.
+
 ### Two orders that behave the same are not the same — measure the choice
 
 Memory64Lowering then LowerCustomPageSizes gave 640 bytes; the other order 789, the same behaviour.
