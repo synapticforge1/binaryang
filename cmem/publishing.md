@@ -5,9 +5,9 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-24 UTC): 1.17.0 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@1.17.0` (Rekor `3434909247`) and npm `@synapticforge1/binaryang@1.17.0`
-(published by GitHub Actions, SLSA provenance) — § "1.17.0". **The repo is
+**Latest (2026-10-24 UTC): 2.0.0 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@2.0.0` (Rekor `3436248876`) and npm `@synapticforge1/binaryang@2.0.0`
+(published by GitHub Actions, SLSA provenance) — § "2.0.0", the first MAJOR. **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
 hash changed (§ "The history purge").
@@ -1005,6 +1005,26 @@ local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fir
 but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
 each would have failed on JSR's existing version, but push such tags with that in mind.
+
+## 2.0.0 — the first MAJOR, from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "2.0.0 is accepted", then "bump and push". One breaking change — the
+`sat-float-to-int` spelling (deprecated in 1.17.0) removed with `cliAliases`, D2 data version 2.0.0
+(open-work 39) — and the interpreter running shared memory and atomics (38). CHANGELOG § 2.0.0;
+README § Breaking Changes, the 2.0.0 row.
+
+1. `CHANGELOG.md` § 2.0.0 on `release/2.0.0`, gated 17 / 17, merged (`7ce4cd1d9`), pushed
+   unbumped: CI and auto-tag GREEN. A FRESH CLONE of `7ce4cd1d9`: 17 / 17.
+2. No tag, neither registry had 2.0.0; `bun run bump major`: the floor MAJOR, exactly the three
+   intended entries (`FeatureDefinition.cliAliases`, `--disable-sat-float-to-int` on `wat2wasm`
+   and `wasm-validate`). The previous release's tests are NOT run for a major — by design (rule 3:
+   a major may break them). `surface:check` matches on the bumped tree; `version_sync` 3 / 3;
+   `bun run release`: `bump to v2.0.0` (`4cf6624af`).
+3. CI, auto-tag and publish.yml GREEN on the bump: **JSR** 2.0.0 created 2026-10-24T04:28:47Z, not
+   yanked, **Rekor log id `3436248876`**; **npm** at 04:31:00Z, `latest`, SLSA provenance and npm's
+   publish attestation; GitHub Release `v2.0.0`. As a user: JSR `--version` prints
+   `binaryang 2.0.0`; npm's `wat2wasm --disable-sat-float-to-int` exits 1 ("unknown option") — the
+   break, as published — and its `wasm-interp` runs a shared-memory module (`notify() => i32:0`).
 
 ## 1.17.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
