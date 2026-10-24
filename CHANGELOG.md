@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.16.1
+
+A patch release with **no change to the package**: the library, the command line and the
+documentation are those of 1.16.0. It is released to check this repository's release tooling, whose
+compatibility check misread 1.16.0's version bump as a change to the command line's help text (the
+help text names the version). 1.16.0 itself was published correctly.
+
 ## 1.16.0
 
 A minor release: **`wasm-opt --target portable`** makes a module run, with the same behaviour, on
