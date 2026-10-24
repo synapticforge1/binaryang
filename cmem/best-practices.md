@@ -2153,6 +2153,23 @@ Memory64Lowering then LowerCustomPageSizes gave 640 bytes; the other order 789, 
 The order was a guess until measured, and the owner's targets include size. **How to apply:** when
 an order or a choice is free for correctness, measure it against the targets before fixing it.
 
+### A harness's switch can be the thing refused — run the subject bare before blaming it
+
+The probe handed wasmer `--enable-tail-call` for every tail-call module, and D4 excluded tail calls
+as "refused by wasmer" for a day. wasmer refuses that SWITCH (even on a module with only `call`)
+and runs every tail call without it. **How to apply:** before recording that an engine refuses a
+feature, run the module with no feature switches at all; a refusal that moves with the switch is
+the harness's.
+
+### Test what users get by DEFAULT, on real input — an all-features gate cannot see it
+
+Every gate passed `allFeatures()`, and so did wasmtk; `wasm-validate` with no flags called every real
+Rust, Zig and TinyGo build INVALID, in every release from 1.5.3 to 2.0.0 (open-work 41). The same
+blind spot as T13.10, from the other side: there a gate was inert, here a gate was wrong, and only
+the default configuration showed either. **How to apply:** for every default a user runs (a CLI
+with no flags, a library call with no options), keep a test that runs real compiler output through
+it — `reference_types_gate.test.ts` now does, on the six builds in `benches/`.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

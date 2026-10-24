@@ -474,9 +474,19 @@ export class SharedValidator {
       // delegate hook of their own and were reachable only through their
       // anyref result (T13.10).
       //
-      // `funcref` and `externref` are REFERENCE TYPES, not GC, and must not be
-      // caught here — they are ratified and on by default.
+      // `funcref` and `externref` are REFERENCE TYPES, not GC: gated on
+      // `referenceTypes`, which is on by default. Wasm 1.0 had `funcref` only as
+      // a table's (and so an element segment's) element type. 🔧 Neither was
+      // gated: `(param externref)` validated with reference types off, where
+      // wasm-tools refuses it (wasmrt's sweep; open-work 41, 2026-10-24).
       switch (vt) {
+        case Type.FuncRef:
+          if (what === 'table' || what === 'imported table' || what === 'elem segment') {
+            return Result.Ok;
+          }
+          return this.requireFeature('referenceTypes', `funcref in ${what}`, loc);
+        case Type.ExternRef:
+          return this.requireFeature('referenceTypes', `externref in ${what}`, loc);
         case Type.AnyRef:
         case Type.EqRef:
         case Type.I31Ref:

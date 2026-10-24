@@ -71,6 +71,18 @@ API additions.
   wasm-tools 1.262 and wasmtime 50 accept it, and the function-references proposal defines it.
   Inherited from wabt-ts (1.8.1 already refused it). D1 data version **1.0.1**: its `feature` is
   `functionReferences`. (`--target portable` keeps it: tail calls are portable, below.)
+- **Silent fix — a module with a function table was INVALID under the default features** (open-work
+  41). `wasm-validate` with no flags, `wat2wasm` (which validates by default) and
+  `wasmValidate(bytes, { features: defaultFeatures() })` refused every element segment written as
+  a list of function indices — the Wasm 1.0 form every C, Rust, Zig and TinyGo build with an
+  indirect call has ("typed reference in elem segment not allowed: enable the functionReferences
+  feature"). Every release checked, 1.5.3 → 2.0.0. `wasm-opt` and callers passing
+  `allFeatures()` were not affected. A user may have concluded valid modules were invalid.
+- **Behaviour — two gates the validator lacked** (open-work 41, from wasmrt's sweep): `funcref` /
+  `externref` as a value type (param, result, local, global, an `externref` table) now needs
+  reference types — a `funcref` table and its segment do not, as in Wasm 1.0; and a table's
+  initializer expression needs function references. Both were accepted with the feature off,
+  where wasm-tools refuses them.
 - **NEW — D2 `requires` and `presets`** (data version **2.1.0**; types `FeatureDefinition.requires`,
   `FeatureDefinitions.presets`, `FeaturePreset`): each feature's prerequisites as its proposal
   states them, RECORDED, NOT ENFORCED (owner, 2026-10-24); the spec's releases `wasm1` / `wasm2` /
