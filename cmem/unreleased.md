@@ -71,3 +71,8 @@ contains ([handoffs.md](handoffs.md)).
 - **NEW — `wasm-opt --memcpy-to-bulk-memory`** (`memcpyToBulkMemory` option; also under `--target`
   with -O; open-work 37): TinyGo's wasi-libc copy loops → `memory.copy`, exact-code match only.
   Behaviour moves ONLY when asked for or under a target with -O; no default pipeline includes it.
+- **CHANGED, DEPRECATION — the saturating float-to-int flag** (open-work 33 / FL1): upstream's
+  `saturating-float-to-int` is the spelling; `sat-float-to-int` still accepted, with a warning —
+  removing it later is a MAJOR (README § "Deprecated, still accepted"). **D2 data changed**:
+  `cli`, a new `cliAliases` field, `dataVersion` 1.1.0, a new `sha256` — consumers generating
+  from D2 (workspace letter H10) see it; the release note must say so.
