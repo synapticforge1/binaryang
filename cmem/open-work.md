@@ -68,6 +68,23 @@ removed record went to a topic file, and the full text is one `git show` away:
     calls portable since 2026-10-24 (owner). **What remains is a letter**: the D2 letter to the
     runtimes (item 40), which can point them at the guide.
 
+42. ✅ **The runtimes' replies to § 42: D2's type rule, five validator defects** — DONE 2026-10-24
+    on `main`, for the next release (at least 2.2.0: D2 gains `typeRules` / `encodingRules`).
+    [handoffs.md](handoffs.md) § 43 (received) and § 44 (the reply, drafted, NOT SENT). Fixed:
+    wasmrt's two fuzz inputs (`ref.cast` / `ref.test` / `br_on_cast` naming a type past the section;
+    `stringref` validated with no feature); `--disable-mutable-globals` refused nothing (wabt's two
+    checks restored); an overlong `call_indirect` table index with reference-types off (the reader
+    records the encoding, `FidelityEntry.tableIndexOverlong`); `(ref any)` gated by
+    function-references. **The type rule** — owner, 2026-10-24: "wasm-tools' rule" — every reference
+    type needs reference-types; `(ref null? $t)` function-references OR gc; non-null func / extern
+    function-references; the exn hierarchy exceptions; the GC heap types gc. Stated in D2 2.2.0 as
+    `typeRules`, with `encodingRules` for the encoding gates; `tests/definitions/d2_rules.test.ts`
+    proves every rule against the validator both ways (four mutants killed, one survivor found
+    and closed: the import side of mutable globals had no sample). Record: definitions.md § "D2's
+    type and encoding rules". **Open from § 43:** wazmrt's request for a D3 class "expected shared
+    memory" — the owner's decision (D3 holds only testsuite messages; the threads suite never
+    asserts this trap).
+
 41. ✅ **wasmrt's gate rows, and a Wasm 1.0 element segment refused by default** — DONE 2026-10-24,
     SHIPPED in 2.1.0. wasmrt's item 4 also listed binaryang's validator rows its sweep
     found accepted (multi-value, reference-types, the table-initializer form) and two fuzz

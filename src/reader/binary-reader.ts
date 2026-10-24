@@ -2044,7 +2044,9 @@ export class BinaryReader {
         }
         case Opcode.CallIndirect: {
           const typeIdx = this.readU32Leb();
+          const tableAt = this.pos;
           const tableIdx = this.readU32Leb();
+          const overlong = this.pos - tableAt > 1;
           const sig = getTypeSig(m, typeIdx);
           const callee = stack.pop() ?? operandPlaceholder(loc);
           const args = popN(stack, sig.params.length);
@@ -2055,7 +2057,11 @@ export class BinaryReader {
             kind: 'call_indirect',
             sig: sigType,
             typeVar: varIndex(typeIdx),
-            nodeId: m.fidelity.record({ typeUse: 'resolved', sig: sigType }),
+            nodeId: m.fidelity.record({
+              typeUse: 'resolved',
+              sig: sigType,
+              ...(overlong ? { tableIndexOverlong: true as const } : {}),
+            }),
             table: varIndex(tableIdx),
             operands: args,
             callee,

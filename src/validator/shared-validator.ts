@@ -465,20 +465,24 @@ export class SharedValidator {
     return r;
   }
 
+  /**
+   * Which features a value TYPE needs — D2's `typeRules` (owner, 2026-10-24: wasm-tools' rule,
+   * measured on wasm-tools 1.262; open-work 42). Every reference type needs reference types, and:
+   * `funcref` / `externref` nothing more (and a `funcref` table or element segment nothing at all,
+   * as in Wasm 1.0); `(ref func)` / `(ref extern)` function references; `(ref null? $t)` function
+   * references OR GC; the exn hierarchy exceptions; the any / eq / i31 / struct / array / none /
+   * nofunc / noextern heap types GC, nullable or not; `stringref` no feature, so it is refused.
+   *
+   * 🔧 Before: a typed reference demanded function references and nothing else, so with GC on and
+   * function references off a function returning `(ref $s)` was refused (wasm-tools accepts it),
+   * `(ref any)` was gated by function references instead of GC, reference types was never asked of
+   * a typed reference or a GC type, and `stringref` validated with no feature (wazmrt's matrix and
+   * wasmrt's fuzz, letters of 2026-10-24).
+   */
   checkValueType(loc: Location, vt: StorageType, what: string, bound = this.numTypes): Result {
     if (!isRefValueType(vt)) {
       // A GC abstract heap type is as much "using the proposal" as a
-      // `struct.new` is. Gating only the INSTRUCTIONS left `(param anyref)`,
-      // `(result anyref)` and `ref.null any` accepted with `gc: false` — and
-      // with them `any.convert_extern` / `extern.convert_any`, which have no
-      // delegate hook of their own and were reachable only through their
-      // anyref result (T13.10).
-      //
-      // `funcref` and `externref` are REFERENCE TYPES, not GC: gated on
-      // `referenceTypes`, which is on by default. Wasm 1.0 had `funcref` only as
-      // a table's (and so an element segment's) element type. 🔧 Neither was
-      // gated: `(param externref)` validated with reference types off, where
-      // wasm-tools refuses it (wasmrt's sweep; open-work 41, 2026-10-24).
+      // `struct.new` is (T13.10: `(param anyref)` was once accepted with gc off).
       switch (vt) {
         case Type.FuncRef:
           if (what === 'table' || what === 'imported table' || what === 'elem segment') {
@@ -495,25 +499,64 @@ export class SharedValidator {
         case Type.NullRef:
         case Type.NullFuncRef:
         case Type.NullExternRef:
-          return this.requireFeature('gc', `GC reference type in ${what}`, loc);
+          return combineResults(
+            this.requireFeature('referenceTypes', `GC reference type in ${what}`, loc),
+            this.requireFeature('gc', `GC reference type in ${what}`, loc),
+          );
         case Type.ExnRef:
         case Type.NullExnRef:
-          return this.requireFeature('exceptions', `exception reference in ${what}`, loc);
+          return combineResults(
+            this.requireFeature('referenceTypes', `exception reference in ${what}`, loc),
+            this.requireFeature('exceptions', `exception reference in ${what}`, loc),
+          );
+        case Type.StringRef:
+          return this.printError(
+            loc,
+            `stringref in ${what} not allowed: no feature enables the stringref proposal`,
+          );
         default:
           return Result.Ok;
       }
     }
-    // A CONCRETE typed reference `(ref $T)` is the function-references
-    // proposal, whichever kind of type it names.
-    const rf = this.requireFeature('functionReferences', `typed reference in ${what}`, loc);
-    if (rf !== Result.Ok) return rf;
+    let r = this.requireFeature('referenceTypes', `typed reference in ${what}`, loc);
     let h = vt.heapType;
     if (h.kind === 'exact') {
       const cd = this.requireFeature('customDescriptors', `exact reference in ${what}`, loc);
       if (cd !== Result.Ok) return cd;
       h = h.type;
     }
-    if (h.kind !== 'index') return Result.Ok;
+    if (h.kind === 'abstract') {
+      switch (h.name) {
+        case 'func':
+        case 'extern':
+          // The nullable forms are `funcref` / `externref`; a NON-null one is function references'.
+          if (vt.nullable) return r;
+          return combineResults(
+            r,
+            this.requireFeature('functionReferences', `non-null reference in ${what}`, loc),
+          );
+        case 'exn':
+        case 'noexn':
+          return combineResults(
+            r,
+            this.requireFeature('exceptions', `exception reference in ${what}`, loc),
+          );
+        default:
+          return combineResults(r, this.requireFeature('gc', `GC reference type in ${what}`, loc));
+      }
+    }
+    if (h.kind !== 'index') return r;
+    // A CONCRETE typed reference: function references or GC admits it.
+    if (!this.features.functionReferences && !this.features.gc) {
+      r = combineResults(
+        r,
+        this.printError(
+          loc,
+          `typed reference in ${what} not allowed: enable the functionReferences or gc feature`,
+        ),
+      );
+    }
+    if (r !== Result.Ok) return r;
     // `bound` is the SCOPE, not the section size: a type may reference
     // anything defined before it plus the rest of its own rec group, and
     // nothing later. Checking against the section size instead accepted
@@ -714,10 +757,19 @@ export class SharedValidator {
     return r;
   }
 
-  onGlobalImport(_loc: Location, typeIn: ValueType, mutable: boolean): Result {
+  /**
+   * 🔧 Importing or exporting a MUTABLE global is the mutable-globals proposal (upstream wabt:
+   * "mutable globals cannot be imported" / "… exported" with it off). The port had dropped both
+   * checks, so `--disable-mutable-globals` refused nothing (wazmrt's matrix, letter of
+   * 2026-10-24; open-work 42).
+   */
+  onGlobalImport(loc: Location, typeIn: ValueType, mutable: boolean): Result {
     const type = typeIn;
     this.globals.push({ type, mutable });
     this.numImportedGlobals++;
+    if (mutable && !this.features.mutableGlobals) {
+      return this.printError(loc, 'mutable globals cannot be imported');
+    }
     return Result.Ok;
   }
 
@@ -764,9 +816,14 @@ export class SharedValidator {
       case ExternalKind.Memory:
         r = combineResults(r, this.checkIndex(itemIdx, this.memories.length, 'memory', loc));
         break;
-      case ExternalKind.Global:
-        r = combineResults(r, this.checkIndex(itemIdx, this.globals.length, 'global', loc));
+      case ExternalKind.Global: {
+        const gr = this.checkIndex(itemIdx, this.globals.length, 'global', loc);
+        r = combineResults(r, gr);
+        if (gr === Result.Ok && this.globals[itemIdx]!.mutable && !this.features.mutableGlobals) {
+          r = combineResults(r, this.printError(loc, 'mutable globals cannot be exported'));
+        }
         break;
+      }
       case ExternalKind.Tag:
         r = combineResults(r, this.checkIndex(itemIdx, this.tags.length, 'tag', loc));
         break;
@@ -1037,6 +1094,12 @@ export class SharedValidator {
     // Custom descriptors relaxes that to "rt1 and rt2 share a supertype" — one
     // hierarchy — for these two instructions as well as its own
     // br_on_cast_desc_eq pair.
+    const what = onFail ? 'br_on_cast_fail' : 'br_on_cast';
+    const range = combineResults(
+      this.checkTypeRange(loc, from, what),
+      this.checkTypeRange(loc, to, what),
+    );
+    if (range !== Result.Ok) return range;
     let r: Result = Result.Ok;
     if (this.features.customDescriptors) {
       if (!this.tc.sameHierarchy(to, from)) {
@@ -1673,14 +1736,26 @@ export class SharedValidator {
     // (`checkValueType` reads `(ref null extern)` in this record form as a typed
     // reference and asked for function references — a default-feature
     // `ref.null extern` was refused, `ref_null.test.ts`).
-    let r: Result = Result.Ok;
-    if (isRefValueType(refType)) {
-      const h = refType.heapType.kind === 'exact' ? refType.heapType.type : refType.heapType;
-      if (h.kind === 'index' && h.value >= this.numTypes) {
-        r = this.printError(loc, `unknown type ${h.value} in ref.null`);
-      }
+    return combineResults(
+      this.checkTypeRange(loc, refType, 'ref.null'),
+      this.tc.onRefNull(refType),
+    );
+  }
+
+  /**
+   * A reference type an INSTRUCTION names must name a type that exists — only the range: the
+   * features are the instruction's (D1), as `onRefNull` explains. 🔧 `ref.test`, `ref.cast` and
+   * `br_on_cast` checked nothing, so `ref.cast (ref 45)` with five types validated (wasmrt's
+   * differential fuzz, letter of 2026-10-24; wasm-tools: "unknown type 45: type index out of
+   * bounds"; open-work 42).
+   */
+  private checkTypeRange(loc: Location, vt: ValueType, what: string): Result {
+    if (!isRefValueType(vt)) return Result.Ok;
+    const h = vt.heapType.kind === 'exact' ? vt.heapType.type : vt.heapType;
+    if (h.kind === 'index' && h.value >= this.numTypes) {
+      return this.printError(loc, `unknown type ${h.value} in ${what}`);
     }
-    return combineResults(r, this.tc.onRefNull(refType));
+    return Result.Ok;
   }
 
   onRefIsNull(loc: Location): Result {
@@ -2190,7 +2265,7 @@ export class SharedValidator {
    */
   onRefTest(loc: Location, testTo: ValueType): Result {
     this.currentLoc = loc;
-    return this.tc.onRefTest(testTo);
+    return combineResults(this.checkTypeRange(loc, testTo, 'ref.test'), this.tc.onRefTest(testTo));
   }
 
   /**
@@ -2200,7 +2275,7 @@ export class SharedValidator {
    */
   onRefCast(loc: Location, castTo: ValueType): Result {
     this.currentLoc = loc;
-    return this.tc.onRefCast(castTo);
+    return combineResults(this.checkTypeRange(loc, castTo, 'ref.cast'), this.tc.onRefCast(castTo));
   }
 
   // ---------------------------------------------------------------------------

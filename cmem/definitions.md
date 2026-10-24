@@ -166,3 +166,36 @@ is refused.
 sections — exactly `defaultOn`), `wasm3` (+ the nine 3.0 features; its exception handling is the
 exnref form, while D2's `exceptions` also gates the legacy instructions), `all`. No `mvp` alias
 (2.0.0 removed the alias mechanism).
+
+## D2's type and encoding rules (2026-10-24, open-work 42)
+
+Asked by wazmrt ("state the type rule in D2, so both runtimes take it from there") and wasmrt
+(the same two rules), after their matrices on 2.1.0 ([handoffs.md](handoffs.md) § 43). D1 says
+which feature each INSTRUCTION needs; nothing said which feature a TYPE or an ENCODING needs, and
+binaryang's own gating disagreed with wasm-tools and both runtimes.
+
+**Owner, 2026-10-24: "wasm-tools' rule."** Measured on wasm-tools 1.262, feature by feature
+(scratch `fuzz42/matrix2.ts`, `matrix3.ts`; `--features=` with `=`, or `-all` is read as a switch):
+
+| type | wasm-tools needs | binaryang before |
+| --- | --- | --- |
+| `funcref`, `externref` | reference-types | (fixed in item 41) |
+| `(ref func)`, `(ref extern)` | reference-types + function-references (gc does NOT stand in) | function-references only |
+| `(ref null? $t)` | reference-types + (function-references OR gc) | function-references only |
+| exn, noexn (nullable or not) | reference-types + exceptions (non-null exn needs nothing more) | exceptions only |
+| any / eq / i31 / struct / array / none / nofunc / noextern | reference-types + gc | gc only (nullable); function-references (non-null — wazmrt's row 4) |
+| `stringref` | refused | accepted, ungated (wasmrt's fuzz 94-2) |
+
+⚠️ wasm-tools has a `gc-types` sub-feature D2 does not: under `-all,…` it refuses GC types (and
+`(ref extern)`, `nullexnref`) even with `gc` on. D2's `gc` includes it; four matrix rows differ
+for that reason only.
+
+**As data:** D2 2.2.0 `typeRules` and `encodingRules`, `needs` a list of groups (every group needs
+at least one of its features; `null`: never). `encodingRules` lists every encoding gate the
+validator applies (mutable global import / export, the overlong `call_indirect` index, more than
+one table, a table initializer, multi-value, more than one memory, shared memory, 64-bit memory or
+table, custom page size, struct / array definitions, tags). **The proof:**
+`tests/definitions/d2_rules.test.ts` — per rule a sample module per form, valid with everything on,
+refused with each group off, still valid with one alternative off; a rule without a sample fails.
+Its first mutant run found the import side of mutable globals untested (the sample only exported),
+now a second form.

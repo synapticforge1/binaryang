@@ -65,4 +65,22 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 2.1.0
 
-Nothing yet.
+The next release is at least a MINOR (2.2.0): D2 gains `typeRules` and `encodingRules`, and the
+validator's type gating changes.
+
+- **Behaviour — which features a reference TYPE needs is wasm-tools' rule** (open-work 42; owner,
+  2026-10-24). Every reference type needs reference types; `(ref null? $t)` needs function
+  references OR GC (was function references alone: with GC on and function references off, a
+  function returning `(ref $s)` was refused); `(ref any)` and the other GC heap types need GC (the
+  non-null ones were gated by function references); `(ref func)` / `(ref extern)` need function
+  references; the exn types exceptions. Typed references and GC types with reference types off are
+  now refused.
+- **Silent fix — four validator gaps, each accepted what wasm-tools refuses** (open-work 42, from
+  wasmrt and wazmrt): `ref.test` / `ref.cast` / `br_on_cast` naming a type index past the type
+  section; a `stringref` (no feature enables it); importing or exporting a mutable global with
+  `--disable-mutable-globals` (the switch did nothing); a `call_indirect` table index written in
+  more than one byte with reference types off.
+- **NEW — D2 `typeRules` and `encodingRules`** (data version **2.2.0**; types `FeatureTypeRule`,
+  `FeatureEncodingRule`, `FeatureNeeds`): which features each value type and each encoding gate
+  needs, as data, proved against the validator by `tests/definitions/d2_rules.test.ts`. Also
+  `FidelityEntry.tableIndexOverlong` (`./ir`).

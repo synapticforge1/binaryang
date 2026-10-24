@@ -166,11 +166,18 @@ describe('T13.10 — a TYPE uses a proposal as much as an instruction does', () 
     }
   });
 
-  it('gates a concrete (ref $T) on functionReferences', () => {
+  it('gates a concrete (ref $T) on functionReferences OR gc (D2 typeRules, open-work 42)', () => {
+    // Was functionReferences alone; wasm-tools (and both runtimes) let gc admit it too, which D2
+    // now states (owner, 2026-10-24). d2_rules.test.ts proves every rule this way.
     const bin = encode('(module (type $t (func)) (func (param (ref null $t))))');
     assertEquals(wasmValidate(bin, { features: allFeatures() }).result, Result.Ok);
     assertEquals(
       wasmValidate(bin, { features: { ...allFeatures(), functionReferences: false } }).result,
+      Result.Ok,
+    );
+    assertEquals(
+      wasmValidate(bin, { features: { ...allFeatures(), functionReferences: false, gc: false } })
+        .result,
       Result.Error,
     );
   });
