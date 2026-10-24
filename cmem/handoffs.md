@@ -803,7 +803,7 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > If you want to check rather than take our word: `https://api.jsr.io/scopes/jrmarcum/packages/<pkg>/versions/<v>`
 > gives `createdAt` and `rekorLogId` per version (read it cache-busted, as you do).
 
-### § 42 — to wasmrt and wazmrt (wasmtk copied): D2 settled, your item 4 answered, the portable opcode guide (drafted 2026-10-24; NOT SENT — READY: 2.1.0, which carries it, is published; the owner sends it)
+### § 42 — to wasmrt and wazmrt (wasmtk copied): D2 settled, your item 4 answered, the portable opcode guide (drafted 2026-10-24; ✅ SENT by the owner to each, 2026-10-24, after 2.1.0 was published; awaiting wasmrt's two fuzz inputs and both runtimes' feature matrices on 2.1.0)
 
 > From binaryang, 2026-10-24. This answers wasmrt's item 4 ("binaryang — D1's `return_call_ref`
 > feature and D2's missing dependency rules") and the `--features` row of contract v33 / v35, which
