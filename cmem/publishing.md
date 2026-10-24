@@ -5,10 +5,10 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-24 UTC): 1.16.0 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@1.16.0` (Rekor `3431051155`) and npm `@synapticforge1/binaryang@1.16.0`
-(published by GitHub Actions, SLSA provenance) — § "1.16.0", the first release through the
-compatibility gate. **The repo is
+**Latest (2026-10-24 UTC): 1.16.1 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@1.16.1` (Rekor `3432040093`) and npm `@synapticforge1/binaryang@1.16.1`
+(published by GitHub Actions, SLSA provenance) — § "1.16.1": the package of 1.16.0, released to
+prove the compatibility gate's fix on a real bump (§ "1.16.0", step 5). **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
 hash changed (§ "The history purge").
@@ -1006,6 +1006,25 @@ local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fir
 but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
 each would have failed on JSR's existing version, but push such tags with that in mind.
+
+## 1.16.1 — a PATCH from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "just to check lets bump to 1.16.1 and push". **No package change** — nothing
+shipped differs from `v1.16.0` (`src/`, `main.ts`, `jsr.json`, README, NOTICE, `package.json`;
+`scripts/**` is excluded from the package). It proves the gate's fix (`7648bb5eb`) where 1.16.0's
+bump went red.
+
+1. `CHANGELOG.md` § 1.16.1 on `release/1.16.1` (`c435d05d2`), gated 17 / 17, merged (`d0615f7aa`),
+   pushed unbumped: CI and auto-tag GREEN (the Browsers job with its new cache step). A FRESH
+   CLONE of `d0615f7aa`: 17 / 17.
+2. No tag, neither registry had 1.16.1; `bun run bump`: floor PATCH, **v1.16.0's 6,151 tests on
+   this tree, 0 failed**; on the bumped tree `surface:check` MATCHES ("binaryang 1.16.1 — …" in the
+   usage text); `version_sync` 3 / 3; `bun run release`: `bump to v1.16.1` (`cef4a669f`).
+3. **CI GREEN on the bump commit** (`surface:check` included — 1.16.0's went red there), auto-tag
+   and publish.yml GREEN: **JSR** 1.16.1 created 2026-10-24T01:26:01Z, not yanked, **Rekor log id
+   `3432040093`**; **npm** at 01:27:36Z, `latest`, SLSA provenance and npm's publish attestation;
+   GitHub Release `v1.16.1`. As a user, Deno from JSR and npx from npm both print
+   `binaryang 1.16.1`.
 
 ## 1.16.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
