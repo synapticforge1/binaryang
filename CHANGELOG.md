@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 2.0.0
+
+A major release, for **one breaking change**: the `sat-float-to-int` feature-flag spelling,
+deprecated in 1.17.0, is removed — use upstream's `saturating-float-to-int` (README § Breaking
+Changes). Also new: **the interpreter runs threaded modules** (shared memory and atomics). Nothing
+else is removed or renamed.
 
 ### ⚠️ Removed — breaking
 
