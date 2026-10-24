@@ -50,6 +50,7 @@ import {
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliExit, cliProcess, cliRead, cliWrite } from '../cli/io.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -154,7 +155,25 @@ export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): Wasm
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
+const HELP: ToolHelp = {
+  usage: 'wasm-strip [options] <input.wasm>',
+  description:
+    'Remove custom sections from a WebAssembly binary: all of them (the name section included),\nor only those named.',
+  examples: [
+    ['remove every custom section from test.wasm, in place', 'wasm-strip test.wasm'],
+    ['remove only the name section, writing out.wasm', 'wasm-strip test.wasm -s name -o out.wasm'],
+  ],
+  options: [
+    ['-o, --output <file>', 'Output file (default: overwrite the input)'],
+    ['-s, --section <name>', 'Remove only this custom section (repeat for more)'],
+  ],
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   args = args.slice();
   let input: string | undefined;
   let output: string | undefined;

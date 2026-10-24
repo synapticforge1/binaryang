@@ -145,6 +145,13 @@ deno run -A jsr:@jrmarcum/binaryang <command> [options]             # Deno, no i
 | `wasm-bundle <in>...`     | bundle modules into one with ONE memory, each image relocated exactly through its `linking` / `reloc.*` sections (`wasm-ld --emit-relocs`, or `(@reloc data)` marks in WAT) · `-o <file>`, `--on-conflict=prefix\|alias\|exclude`, `--alias a.wasm=m`, `--unmarked=guess`, `--start=NAME`, `-S` · writes `<out>.wit` (the interface, from core signatures) unless `--no-wit` |
 | `wasm2ts <in.wasm>`       | emit TypeScript — **not yet implemented**                                                                                                                                                                                                                                                                                                                                    |
 
+Every command answers `--help` — what it does, examples, and every option it accepts, in upstream
+wabt's layout — and `--version`:
+
+```sh
+npx binaryang wasm-opt --help
+```
+
 ¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records how each instruction was written —
 bare or folded, and grouped how — in a `binaryang.text-form` custom section, and `wasm2wat` gives it
 back that way: linear stays linear, folded stays folded, a mix stays the same mix (the plain nested

@@ -40,6 +40,7 @@ import {
   WasmException,
 } from '../interp/interpreter.ts';
 import { cliExit, cliProcess, fsRead } from '../cli/io.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 /** Options for {@link wasmInterp}. */
 export interface WasmInterpOptions {
@@ -219,7 +220,39 @@ function usage(): void {
 }
 
 /** The CLI: parses `args` and runs {@link wasmInterp}. */
+const HELP: ToolHelp = {
+  usage: 'wasm-interp [options] <input.wasm|.wat>',
+  description:
+    "Run a module's exported functions on binaryang's interpreter and print each result.",
+  examples: [
+    ['run every export that takes no arguments', 'wasm-interp test.wasm --run-all-exports'],
+    [
+      'run add(2, 3) — each value typed by the parameter it fills',
+      'wasm-interp test.wasm --run-export=add --argument=2 --argument=3',
+    ],
+  ],
+  options: [
+    ['--run-all-exports', 'Run every exported function with zero arguments'],
+    ['--run-export=NAME', 'Run one export'],
+    [
+      '--argument=V',
+      'An argument for --run-export, as written: 3, -1, 2.5, nan (repeat, in order)',
+    ],
+    ['--dummy-import-func', 'Every imported function returns zeros'],
+    ['--fuel=N', 'Instructions one call may run'],
+    [
+      '--hang-check=SECONDS',
+      'Check for a loop that provably never exits after this long, and every this long after (default 2; 0 from the start)',
+    ],
+    ['--no-hang-check', 'Do not check'],
+  ],
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   let input: string | undefined;
   const options: Partial<WasmInterpOptions> = { args: [] };
   for (const a of args) {

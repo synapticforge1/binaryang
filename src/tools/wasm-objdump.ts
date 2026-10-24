@@ -48,6 +48,7 @@ import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.t
 import type { ErrorList } from '../core/error.ts';
 import type { Module, SectionMeta } from '../ir/ir.ts';
 import { cliExit, cliProcess, cliRead } from '../cli/io.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { countImports } from '../ir/ir.ts';
 
 // ---------------------------------------------------------------------------
@@ -294,7 +295,24 @@ function extKindName(kind: ExternalKind): string {
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
+const HELP: ToolHelp = {
+  usage: 'wasm-objdump [options] <input.wasm> [...]',
+  description: 'Print information about the contents of WebAssembly binaries.',
+  examples: [
+    ['the section headers', 'wasm-objdump test.wasm'],
+    ['the headers and every section in detail', 'wasm-objdump -h -d test.wasm'],
+  ],
+  options: [
+    ['-h, --headers', 'Print the section headers (the default when no other option is given)'],
+    ['-d, --details', 'Print the contents of every section'],
+  ],
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   args = args.slice();
   const inputs: string[] = [];
   let details = false;
