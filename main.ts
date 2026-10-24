@@ -82,7 +82,7 @@ export * from './src/index.ts';
  * present and adjacent in the published package, which is a worse coupling than a
  * constant whose drift is closed mechanically by the bump script plus the test.
  */
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 
 const COMMANDS: Record<string, (args: string[]) => Promise<void>> = {
   'wasm-opt': wasmOptMain,
