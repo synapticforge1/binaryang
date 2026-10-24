@@ -57,6 +57,9 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 1.16.0
+## Since 1.16.1
 
-Nothing yet.
+- **Silent fix — `multiValue: false` / `--disable-multi-value` now refuses** what upstream wabt
+  refuses (open-work 35): several results in a function type, parameters on a block type, and (in a
+  binary only) a block type encoded as a type index. Before, the flag changed nothing; a caller
+  validating against Wasm 1.0 was told multi-value modules were valid. Default unchanged (on).
