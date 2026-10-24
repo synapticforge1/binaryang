@@ -1015,7 +1015,9 @@ carries `SSANoMerge` (open-work 31, step 16) and says the history was rewritten 
 1. H19 step 1: the 24 public refs force-pushed (§ "The history purge", "Pushed"). `CHANGELOG.md`
    § 1.15.0 on `release/1.15.0` (`ef44c7490`), gated 17 / 17, merged (`b424dd127`), pushed
    unbumped. CI GREEN on `586666b38` (🔧 **1 h 1 m 39 s**: the Browsers job, which has no
-   `timeout-minutes`, so a hang there would run GitHub's 6-hour default) and on `b424dd127`
+   `timeout-minutes`, so a hang there would run GitHub's 6-hour default — ✅ since 2026-10-24 it
+   has `timeout-minutes: 20`, a cache of Playwright's browsers, and apt retries with 30 s
+   timeouts, owner: "I agree with your 3 suggestions") and on `b424dd127`
    (4 m 41 s). The nine error annotations on a green CI run are `test:bun`'s KNOWN JavaScriptCore
    differences: the same nine on the last green run before it — not a failure.
 2. A FRESH CLONE from GitHub of `b424dd127`: 17 / 17 exit 0.
