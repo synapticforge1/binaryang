@@ -59,6 +59,7 @@ import {
 import type { ErrorList } from '../core/error.ts';
 import { cliExit, cliProcess, cliRead, cliWrite, writeStdout } from '../cli/io.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -200,7 +201,30 @@ function assemble(source: string | Uint8Array, opts: Wat2WasmOptions): Wat2WasmR
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
+const HELP: ToolHelp = {
+  usage: 'wat2wasm [options] <input.wat>',
+  description:
+    'Read a file in the WebAssembly text format, check it for errors, and write it in the\nbinary format. Validates by default, as upstream.',
+  examples: [
+    ['assemble add.wat and write the binary to add.wasm', 'wat2wasm add.wat -o add.wasm'],
+    [
+      'the bytes upstream wat2wasm writes, with no record of how the text was written',
+      'wat2wasm add.wat --no-text-form -o add.wasm',
+    ],
+  ],
+  options: [
+    ['-o, --output <file>', 'Output file (default: the binary to stdout)'],
+    ['--no-check', 'Do not validate the module'],
+    ['--no-text-form', 'Do not record how each instruction was written (upstream bytes exactly)'],
+  ],
+  features: true,
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   args = args.slice();
   let input: string | undefined;
   let output: string | undefined;

@@ -91,8 +91,13 @@ removed record went to a topic file, and the full text is one `git show` away:
     D2's `cli` changes with a `cliAliases` field, data version 1.1.0. To build.
     [divergences.md](divergences.md) FL1.
 
-36. ⬚ **The CLI tools answer `--help`** (owner, 2026-10-24: "add the help to the cli tools and the
-    needed information to go with it"). To build.
+36. ✅ **The CLI tools answer `--help`** (owner, 2026-10-24: "add the help to the cli tools and the
+    needed information to go with it"). DONE 2026-10-24: all ten commands, in upstream wabt's layout
+    (usage, description, examples, every option; `--help` only, as upstream — wabt's `wasm-objdump
+    -h` is "headers"), exit 0; `<command> --version` from the dispatcher. One renderer
+    (`src/cli/help.ts`); the feature flags from D2. The test RUNS every example the helps print,
+    against fixtures — it caught one at once (the fixture, not the example: two inputs exporting the
+    same name are refused by default, as documented). 4 mutants killed.
 
 37. ⬚ **TinyGo's `memcpy` / `memmove` → `memory.copy`** (decision 5's one candidate) — **approved
     on a condition** (owner, 2026-10-24: "if the rewrite from the tinygo implementation does not
