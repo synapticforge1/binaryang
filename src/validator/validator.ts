@@ -1176,12 +1176,16 @@ class ModuleValidator implements ExprVisitorDelegate {
     if (rf !== Result.Ok) this.acc(rf);
     return this.sv.onReturnCallIndirect(locOf(e), varIdx(e.typeVar), varIdx(e.table));
   }
+  /**
+   * `return_call_ref` needs `functionReferences` ONLY: that proposal defines it (opcode 0x15), and
+   * D1 says so. 🔧 It also required `tailCall` — inherited from wabt-ts, so refused with tail-call
+   * off where upstream wabt 1.0.41, wasm-tools 1.262 and wasmtime 50 accept it (open-work 40,
+   * 2026-10-24; wasmrt's item 4, binding on both runtimes since contract v33).
+   */
   onCallRefExpr(e: CallRefExpr): Result {
     const rf = this.sv.requireFeature('functionReferences', 'typed function reference', locOf(e));
     if (rf !== Result.Ok) this.acc(rf);
     if (!e.isReturn) return this.sv.onCallRef(locOf(e), varIdx(e.sigType));
-    const rt = this.sv.requireFeature('tailCall', 'tail call', locOf(e));
-    if (rt !== Result.Ok) this.acc(rt);
     return this.sv.onReturnCallRef(locOf(e), varIdx(e.sigType));
   }
 

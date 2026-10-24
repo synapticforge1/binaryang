@@ -63,4 +63,20 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 2.0.0
 
-Nothing yet.
+The next release is at least a MINOR (2.1.0): the compatibility gate reads D2's new fields as minor
+API additions.
+
+- **Behaviour — `return_call_ref` needs `functionReferences` only, no longer `tailCall`** (open-work
+  40). With tail-call off it was refused ("tail call not allowed"); upstream wabt 1.0.41,
+  wasm-tools 1.262 and wasmtime 50 accept it, and the function-references proposal defines it.
+  Inherited from wabt-ts (1.8.1 already refused it). D1 data version **1.0.1**: its `feature` is
+  `functionReferences`. `--target portable` still refuses it (wasmer), now as an instruction.
+- **NEW — D2 `requires` and `presets`** (data version **2.1.0**; types `FeatureDefinition.requires`,
+  `FeatureDefinitions.presets`, `FeaturePreset`): each feature's prerequisites as its proposal
+  states them, RECORDED, NOT ENFORCED (owner, 2026-10-24); the spec's releases `wasm1` / `wasm2` /
+  `wasm3` and `all` as named feature sets. For wasmrt's item 4 / contract v33: with gc on and
+  functionReferences off, `call_ref` is refused and a GC struct accepted, as binaryang already did.
+- **Silent fix — D4's probe counts** (data version **1.1.0**): relaxedSimd said 40 probes and
+  wideArithmetic 8; 20 and 4 modules exist (the one-time derivation counted a re-run's copies
+  twice). No tier or refusal changed. D4 also lists `return_call_ref` as an excluded instruction
+  (wasmer), and tailCall's probes are 2.
