@@ -2091,6 +2091,53 @@ refused the dirty tree. The release guard caught it; a plain commit would have c
 **How to apply:** read a scratch script's header instead of probing it with `--help`; give every
 positional-argument script a guard that refuses a leading `-` and unknown flags.
 
+## 🆕 Lessons from open-work 34 and releases 1.16.0 / 1.16.1 (2026-10-23 – 24)
+
+### A switch's NAME is not its semantics — check an oracle against the spec before it referees
+
+The agreed oracle for the relaxed-SIMD lowering was wasmtime's `-W relaxed-simd-deterministic`.
+Measured first on 68 edge cases against the spec's own definitions (prose AND SpecTec), it was NOT
+the spec's deterministic profile: it fuses madd and does not wrap the dot-add's i16 intermediate
+(15 of 20 instructions matched). Had it refereed, a correct lowering would have "failed" on 9 lanes,
+or a wrong one been written to match it. **How to apply:** before an engine judges, run it on the
+edge inputs where the definitions differ and compare with the definition itself; where they part,
+the definition is the oracle (an independent reading of it, in its own code).
+
+### A probe's TAG is a claim about the module — print the module before blaming the tool
+
+`run4` held the LOWERED wide-arithmetic modules, still tagged `wideArithmetic`. The feature
+detector found no wide arithmetic in them, which read as a validator defect — until the module was
+printed: a `call` to a helper, no `add128`. **How to apply:** when a tool disagrees with a label,
+look at the artifact the label describes before suspecting the tool.
+
+### A test module must be valid in the ORIGINAL — run it unlowered first
+
+The lowering-order test stored 8 bytes into a 3-byte memory: the original trapped, and so did both
+lowered orders, which looked like the passes failing. **How to apply:** a positive control for
+every hand-written probe: the original must give the intended value before a transform is judged.
+
+### Compare against the set that DEFINES the verdict, and report the rest separately
+
+The portable-target corpus first showed "183 modules off" — every one an interpreter (wabt's trap
+format, binaryang's shared-memory gap), which owner decision 1 says are reported, not defining.
+Judged on the 15 defining executors: 772 / 774, the 2 a browser policy the originals shared.
+**How to apply:** decide the denominator before reading the result; print what was excluded.
+
+### A gate's first REAL use is its real test — simulate the event it guards before relying on it
+
+The compatibility gate passed every inverted case and a dry bump, yet went red on the first real
+bump (1.16.0): the root usage text NAMES the version, so a bump read as "usage text changed" —
+every bump would have. The dry runs never changed the version line. 1.16.1 was released to prove
+the fix on a real bump. **How to apply:** exercise a release gate on the exact edit it will see
+(change the version locally, run the CI step) before the release depends on it; and know which
+workflow a check gates — the publish was never at risk (publish.yml runs only `--release-check`).
+
+### Two orders that behave the same are not the same — measure the choice
+
+Memory64Lowering then LowerCustomPageSizes gave 640 bytes; the other order 789, the same behaviour.
+The order was a guess until measured, and the owner's targets include size. **How to apply:** when
+an order or a choice is free for correctness, measure it against the targets before fixing it.
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:
