@@ -52,19 +52,16 @@ const refusal = async (wat: string): Promise<TargetError> => {
 
 const GC =
   '(module (type $s (struct (field i32))) (func (export "t") (result i32) (struct.get $s 0 (struct.new $s (i32.const 1)))))';
-const TAIL =
-  '(module (func $f (result i32) i32.const 1) (func (export "t") (result i32) return_call $f))';
 
 describe('--target portable refuses what the profile excludes, naming the engines', () => {
   it('GC: wasmer and wazero', async () => {
     const e = await refusal(GC);
     expect(e.findings.map((f) => [f.name, f.refusedBy])).toEqual([['gc', ['wasmer', 'wazero']]]);
     expect(e.message).toContain('gc — refused by wasmer, wazero');
-    expect(e.message).toContain('measured 2026-10-23');
+    expect(e.message).toContain('measured 2026-10-24');
   });
 
-  it('tail calls, multi-memory, br_on_non_null', async () => {
-    expect((await refusal(TAIL)).findings.map((f) => f.name)).toEqual(['tailCall']);
+  it('multi-memory, br_on_non_null', async () => {
     expect(
       (await refusal(
         '(module (memory 1) (memory 1) (func (export "t") (result i32) (i32.load 1 (i32.const 0))))',
@@ -78,32 +75,29 @@ describe('--target portable refuses what the profile excludes, naming the engine
     ).toEqual([['instruction', 'br_on_non_null', ['wasmer']]]);
   });
 
-  it('return_call_ref: an excluded INSTRUCTION of a portable feature, not a tail call', async () => {
-    // D1 gates it under functionReferences since open-work 40 (2026-10-24); wasmer still refuses
-    // it, so D4 lists it as br_on_non_null is listed. call_ref, its non-tail form, is portable.
+  it('tail calls are PORTABLE: all three accepted, and they run', async () => {
+    // Excluded until 2026-10-24 on a measurement artifact: wasmer refuses its own
+    // `--enable-tail-call` switch and runs every tail call without it (the D4 probe, open-work 34).
     const sig =
-      '(type $t (func (result i32))) (func $f (type $t) i32.const 1) (elem declare func $f)';
-    expect(
-      (await refusal(
-        `(module ${sig} (func (export "t") (result i32) (return_call_ref $t (ref.func $f))))`,
-      ))
-        .findings.map((f) => [f.kind, f.name, f.refusedBy]),
-    ).toEqual([['instruction', 'return_call_ref', ['wasmer']]]);
-    expect(
-      await run(
-        await toPortable(
-          `(module ${sig} (func (export "t") (result i32) (call_ref $t (ref.func $f))))`,
-        ),
-      ),
-    )
-      .toBe(1);
+      '(type $t (func (result i32))) (func $f (type $t) i32.const 1) (elem declare func $f) (table 1 funcref) (elem (i32.const 0) func $f)';
+    for (
+      const call of [
+        'return_call $f',
+        '(return_call_indirect (type $t) (i32.const 0))',
+        '(return_call_ref $t (ref.func $f))',
+      ]
+    ) {
+      expect(
+        await run(await toPortable(`(module ${sig} (func (export "t") (result i32) ${call}))`)),
+      )
+        .toBe(1);
+    }
   });
 
   it('every excluded feature at once, not only the first', async () => {
-    const both = `(module (type $s (struct (field i32)))
-      (func $f (result i32) (struct.get $s 0 (struct.new $s (i32.const 1))))
-      (func (export "t") (result i32) return_call $f))`;
-    expect((await refusal(both)).findings.map((f) => f.name)).toEqual(['tailCall', 'gc']);
+    const both = `(module (type $s (struct (field i32))) (memory 1) (memory 1)
+      (func (export "t") (result i32) (struct.get $s 0 (struct.new $s (i32.load 1 (i32.const 0))))))`;
+    expect((await refusal(both)).findings.map((f) => f.name)).toEqual(['gc', 'multiMemory']);
   });
 
   it('an unknown target is refused, naming the targets', async () => {
@@ -205,8 +199,8 @@ describe('the pieces', () => {
   });
 
   it('checkTarget refuses a module outside the profile', () => {
-    const b = wasm(TAIL);
-    expect(() => checkTarget(b, readForPasses(b), 'portable')).toThrow('the output uses tailCall');
+    const b = wasm(GC);
+    expect(() => checkTarget(b, readForPasses(b), 'portable')).toThrow('the output uses gc');
   });
 
   it('the CLI: --target <name>, and a missing name refused', () => {
