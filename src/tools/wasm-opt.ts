@@ -51,6 +51,7 @@ import {
 import type { PassOptions } from '../passes/pass.ts';
 import { ModuleBuilder } from '../ir/module.ts';
 import { applyTarget, checkTarget } from './target.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
 
 // ---------------------------------------------------------------------------
@@ -202,7 +203,43 @@ export async function wasmOpt(
  * node main.ts wasm-opt input.wasm -o out.wasm -O2
  * ```
  */
+const HELP: ToolHelp = {
+  usage: 'wasm-opt [options] <input.wasm|.wat>',
+  description:
+    "Optimize a WebAssembly module with binaryang's passes, the Binaryen pipeline ported: a level,\nor passes named one by one, in order. Validates its input and its output.",
+  examples: [
+    ['optimize for size', 'wasm-opt in.wasm -Oz -o out.wasm'],
+    [
+      'make the output run on every widely used engine, then optimize',
+      'wasm-opt in.wasm --target portable -O2 -o out.wasm',
+    ],
+    ['run two passes, in order', 'wasm-opt in.wasm --vacuum --dce -o out.wasm'],
+  ],
+  options: [
+    ['-o, --output <file>', 'Output file (default: output.wasm; - for stdout)'],
+    ['-O0 .. -O4', 'Optimization level'],
+    ['-Os, -Oz', 'Optimize for size (shrink level 1, 2)'],
+    ['-c, --converge', 'Repeat the passes until a round saves under 0.1%'],
+    ['-S, --emit-text', 'Emit WAT text'],
+    ['-g, --debug-info', 'Keep debug names'],
+    ['--no-validate', 'Do not validate the input or the output (--validate: do, the default)'],
+    ['--closed-world', 'Let passes assume every caller of an internal function is visible'],
+    ['--target <name>', 'Make the output fit a portability profile (portable), or refuse it'],
+    ['--pass-arg key=val', 'A per-pass argument (passname@key=val)'],
+    [
+      '-pii, --partial-inlining-ifs N',
+      'Partial inlining: split out up to N if arms of one function (0 = off)',
+    ],
+    ['--print-all-passes', 'List every registered pass and exit'],
+    ['--<pass-name>', 'Run one pass by name (kebab or Pascal case: --dce, --memory64-lowering)'],
+  ],
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   // A bad argument is a one-line diagnostic, not a stack trace.
   let parsed: ReturnType<typeof parseArgs>;
   try {

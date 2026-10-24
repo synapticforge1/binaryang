@@ -99,6 +99,7 @@ import {
   SymbolKind,
 } from '../core/linking.ts';
 import { baseName, cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------
 // Options and report
@@ -1745,7 +1746,41 @@ function usage(): void {
 }
 
 /** The CLI: parses `args` and runs {@link wasmBundle}. */
+const HELP: ToolHelp = {
+  usage: 'wasm-bundle [options] <input.wasm|.wat>...',
+  description:
+    'Bundle modules into one with ONE memory, each image relocated exactly through its linking /\nreloc.* sections (wasm-ld --emit-relocs, or (@reloc data) marks in WAT). Writes\n<output>.wit, the interface from core signatures, unless --no-wit.',
+  examples: [
+    ['bundle a.wasm and b.wasm into bundle.wasm', 'wasm-bundle a.wasm b.wasm'],
+    [
+      'prefix clashing export names, naming the inputs',
+      'wasm-bundle a.wasm b.wasm --on-conflict=prefix --alias a.wasm=a,b.wasm=b -o out.wasm',
+    ],
+  ],
+  options: [
+    ['-o <file>', 'Output file (default: bundle.wasm; - for stdout)'],
+    [
+      '--on-conflict=MODE',
+      'Same export name in two inputs: refuse (default, listing them) | prefix | alias | exclude',
+    ],
+    [
+      '--alias a.wasm=m,b.wasm=n',
+      'Name inputs (the prefix on conflict; what others import from); also --alias=…',
+    ],
+    ['--unmarked=guess', 'Relocate an input without relocations by address range (warned)'],
+    ['--start=NAME', 'Whose _start stays _start (the others are prefixed)'],
+    ['--no-wit', 'Do not write <output>.wit'],
+    ['--wit', 'Write <output>.wit (the default)'],
+    ['-q, --quiet', 'No report lines'],
+    ['-S', 'Emit WAT text'],
+  ],
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   const inputs: string[] = [];
   const options: Partial<WasmBundleOptions> = {};
   let output = 'bundle.wasm';

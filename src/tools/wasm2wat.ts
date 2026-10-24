@@ -51,6 +51,7 @@ import {
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import { cliExit, cliProcess, cliRead, cliWrite } from '../cli/io.ts';
+import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -182,7 +183,30 @@ function disassemble(binary: Uint8Array, opts: Wasm2WatOptions): Wasm2WatResult 
  * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
  * pass `args` explicitly to drive it from a test or another tool.
  */
+const HELP: ToolHelp = {
+  usage: 'wasm2wat [options] <input.wasm>',
+  description:
+    'Read a WebAssembly binary and write it in the text format. Every instruction is written in\nthe form it was written (our wat2wasm records it), otherwise folded.',
+  examples: [
+    ['disassemble add.wasm to stdout', 'wasm2wat add.wasm'],
+    [
+      'one line per instruction, in execution order, to add.wat',
+      'wasm2wat add.wasm --linear -o add.wat',
+    ],
+  ],
+  options: [
+    ['-o, --output <file>', 'Output file (default: stdout)'],
+    ['-f, --fold', 'Fold every function, whatever the binary records'],
+    ['-l, --linear', 'Write every function flat, one instruction per line'],
+    ['--generate-names', 'Invent $f0, $g0, ... for what the binary does not name'],
+  ],
+};
+
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
+  if (wantsHelp(args)) {
+    console.log(helpText(HELP));
+    return;
+  }
   args = args.slice();
   let input: string | undefined;
   let output: string | undefined;

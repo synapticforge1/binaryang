@@ -64,3 +64,7 @@ contains ([handoffs.md](handoffs.md)).
   binary only) a block type encoded as a type index. Before, the flag changed nothing; a caller
   validating against Wasm 1.0 was told multi-value modules were valid. Default unchanged (on).
 - **README** — the relaxed-SIMD lowering's measured run cost (portability.md).
+- **NEW — `<command> --help` and `<command> --version`** for all ten commands (open-work 36):
+  `src/cli/help.ts` renders each tool's usage, description, examples and options in wabt's layout;
+  the feature flags come from D2. `tests/wabt-ts/cli/help.test.ts` RUNS every example a help
+  prints. The surface gate: MINOR (flags now named in the usage text).

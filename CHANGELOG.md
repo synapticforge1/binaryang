@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### New
+
+- **Every command answers `--help` and `--version`.** `--help` prints what the command does,
+  examples, and every option it accepts, in upstream wabt's layout (the feature flags of
+  `wat2wasm` and `wasm-validate` included, each as the switch away from its default), and exits 0.
+  Before, every command but the root reported "unknown option --help" and exited 1.
+
 ### Fixes
 
 - **Multi-value can be switched off, as upstream allows** (`--disable-multi-value`, or
