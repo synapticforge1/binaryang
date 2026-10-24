@@ -13,6 +13,12 @@
   type written as a type index ("expected valid block signature type"). Multi-value is on by
   default, so nothing changes unless it is switched off.
 
+### Documentation
+
+- **What lowering relaxed SIMD costs** (README): measured on Node, Bun and wasmtime, from no cost
+  (swizzle, laneselect) to about 3–5× for `min` / `max` and up to about 4× for the dot products, on
+  a loop of nothing but the instruction.
+
 ## 1.16.1
 
 A patch release with **no change to the package**: the library, the command line and the
