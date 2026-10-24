@@ -39,42 +39,16 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-34. ◐ **One opcode profile every widely used engine runs** (owner, 2026-10-23: "attempt to create a
-    consolidated opcode set that all can decode and run. lets test and scope", then the four
-    decisions in [portability.md](portability.md): the defining engines are the most widely used
-    by browser and runtime prevalence; build the wide-arithmetic and relaxed-SIMD lowerings;
-    binaryang is the source; wasmrt / wazmrt adopt it afterwards). Pass 1 (497 typed opcodes) and
-    pass 2 (76 templates: every untyped D1 entry plus the encoding-level features; 13 executors
-    incl. Chromium, Firefox, WebKit, Deno) DONE 2026-10-23: no engine computes a different value;
-    the tiers are in portability.md. wasmer and wazero DEFINE portability (owner, 2026-10-23), so
-    GC, tail calls and multi-memory stay engine-specific. Browsers: V8, SpiderMonkey,
-    JavaScriptCore only (owner, 2026-10-23; Ladybird excluded). Stable browsers measured
-    2026-10-23 (Chrome 156, Edge 155, Firefox 158, ESR 153, stock, no automation): they do not
-    narrow the portable tier; Chrome / Edge forbid a blocking `memory.atomic.wait` on the main
-    thread. Safari from MDN browser-compat-data: memory64, multi-memory and relaxed SIMD are
-    preview-only there. Floor DECIDED (owner, decision 8): supported browsers on supported operating
-    systems — Safari 18.4+, current Chrome / Edge, Firefox current + ESR 153; the tier stands. Pass 3
-    DONE: every engine and stable browser matches the spec on 210 failure paths. **The final
-    deliverable** (owner, 2026-10-23): an **`opcode-guide.md`** for the other projects to follow as
-    a reference, once conformance is done. The wide-arithmetic and relaxed-SIMD lowerings BUILT
-    and proven 2026-10-23 (portability.md; relaxed SIMD as the spec's deterministic profile, which
-    wasmtime's `relaxed-simd-deterministic` is not — it fuses madd and skips the dot-add wrap).
-    **The portable target and D4 BUILT** 2026-10-23 (`wasm-opt --target portable`,
-    `profiles.json` in `./definitions`; portability.md § "The portable target"). **Decision 5
-    SCOPED 2026-10-24** (portability.md § "Decision 5 scoped"): the optimizer introduces no
-    feature (now a gate check in `optimize-corpus`), and real compiler output (Rust, Zig,
-    Emscripten, TinyGo; 11 modules) has nothing to introduce — 0 shift pairs, 0 trapping
-    truncations; the one candidate, TinyGo's `memcpy` / `memmove` → `memory.copy`, is item 37.
-    The relaxed-SIMD lowering's run cost MEASURED 2026-10-24 (portability.md). **D1's spec check is a gate** 2026-10-24 (`spec_opcodes.test.ts` over a
-    committed snapshot, `bun run spec-opcodes refresh` when the spec moves; definitions.md § "D1
-    against the specification"). **The D4 probe is DONE** 2026-10-24: `scripts/probe/`, `bun run probe <work
-    dir>`, local only; Go harness committed and stock-browser paths in gitignored
-    `cmem/local/probe-browsers.json` (owner's choices). Its runs found D4's doubled probe counts,
-    its own wrong expectation, and that tail calls were excluded on a harness artifact — now
-    portable (owner); the final run agrees with D4 on all 14 engines (portability.md § "The
-    committed probe"). **Next:** `opcode-guide.md`, then the D2 letter. Found on
-    the way, each its own item when worked: binaryang's interpreter refuses every shared memory;
-    item 35.
+34. ✅ **One opcode profile every widely used engine runs** — DONE 2026-10-24 (owner, 2026-10-23:
+    "attempt to create a consolidated opcode set that all can decode and run"). The record is
+    [portability.md](portability.md) (decisions 1–8, passes 1–3, the lowerings, the target and D4,
+    decision 5, "The committed probe") and [definitions.md](definitions.md) (D1 against the
+    specification, D4). The deliverables: `wasm-opt --target portable` and D4; D1's spec check as a
+    CI test; the D4 probe (`bun run probe`, local only); and **`docs/opcode-guide.md`**, the
+    reference for the other projects (linked from the README; shipped in neither package). The
+    final probe run: 513 instructions portable, 29 lowered, 40 excluded, on all 14 engines; tail
+    calls portable since 2026-10-24 (owner). **What remains is a letter**: the D2 letter to the
+    runtimes (item 40), which can point them at the guide.
 
 40. ✅ **`return_call_ref`'s gate and D2's dependency / preset rules** — DONE 2026-10-24, to ship
     in the next release (unreleased.md). wasmrt's item 4 ("binaryang — D1's `return_call_ref`

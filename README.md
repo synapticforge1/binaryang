@@ -271,7 +271,10 @@ engines measured refusing it, and the builds measured. An engine that catches up
 when it is measured again. Safari's engine was measured as Playwright's WebKit build, which is newer
 than any shipped Safari; for Safari itself, the profile follows MDN's compatibility data (memory64,
 multi-memory and relaxed SIMD are Technology Preview only there, and the profile lowers or refuses
-each).
+each). For projects that produce, run or load modules, the
+[opcode guide](https://github.com/synapticforge1/binaryang/blob/main/docs/opcode-guide.md) sets out
+the whole profile — every feature's tier, what a producer, a runtime and a loader should do with
+it, and the behaviour that differs between engines.
 
 ### Making a module run on Safari and Bun
 
