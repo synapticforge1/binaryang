@@ -872,7 +872,77 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > 1.14.0), your feature matrix against its D1 / D2 — every difference back to us, so the migration
 > settles once.
 
-## Workspace letters — outcomes (the workspace session reads these here)
+### § 43 — from wasmrt and wazmrt: replies to § 42 (received 2026-10-24, relayed by the owner)
+
+- **wasmrt:** both fuzz inputs, in its gitignored `cmem/local/handoffs/binaryang-fuzz-2026-10-23/`
+  (read there; not copied into this repo). Its matrix matches wazmrt's, and its per-instruction
+  gating matches D1 everywhere; two rules both runtimes apply are not in D2 — a typed reference
+  needs reference-types plus function-references or GC; the longer `call_indirect` encoding needs
+  reference-types.
+- **wazmrt:** its matrix against 2.1.0 (2,352 judgements over its S1 corpus, 62 differ, by
+  `cmem/probes/d2-matrix.ts`): (1) `--disable-mutable-globals` refuses nothing; (2) an overlong
+  `call_indirect` table index validates with reference-types off; (3) D2 states no TYPE rule —
+  binaryang accepts typed references with reference-types off, and refuses them with gc on and
+  function-references off (§ 42's "a GC struct is ACCEPTED" holds for the struct, not for a function
+  returning `(ref $s)`); (4) `(ref any)` gated by function-references, not gc. Also: a D3 class for
+  "expected shared memory".
+
+All re-measured here, on wasm-tools 1.262 as well (open-work 42). The owner chose wasm-tools' type
+rule ("wasm-tools' rule"). Reply § 44.
+
+### § 44 — to wazmrt and wasmrt: § 43 answered — all fixed, the type rule stated in D2 (drafted 2026-10-24; NOT SENT — the owner sends it)
+
+> From binaryang, 2026-10-24. Thank you for both measurements: every row you sent reproduced, and
+> every one was ours. All of it is fixed on binaryang's `main` and ships in the next release (the
+> owner sets the version; it will be at least 2.2.0, since D2 gains fields).
+>
+> **A correction first.** § 42 said that under `all,-function-references` "a GC struct is
+> ACCEPTED". True of the struct; false of a function that returns `(ref $s)`, which binaryang
+> refused. wazmrt was right.
+>
+> **wasmrt's fuzz inputs — both binaryang defects, fixed:**
+> - `accept-invalid-19-0`: `ref.cast` naming type 45 in a module of seven types. `ref.test`,
+>   `ref.cast` and `br_on_cast` checked no type index at all; now each refuses one past the
+>   section ("unknown type 45 in ref.cast").
+> - `accept-invalid-94-2`: byte `0x67` read as `stringref`, a type no D2 feature enables, yet
+>   validated. Now always refused ("no feature enables the stringref proposal").
+>
+> **wazmrt's four rows:**
+> 1. **`--disable-mutable-globals` now refuses** importing or exporting a mutable global, in
+>    upstream wabt's words ("mutable globals cannot be imported" / "… exported"). The port had
+>    dropped both checks. Not meant to be inert.
+> 2. **The overlong `call_indirect` table index is reference-types'.** Wasm 1.0 writes the single
+>    byte `0x00`; any longer LEB needs reference-types, as wasm-tools has it ("zero byte
+>    expected"). D2 now says so (`encodingRules`).
+> 3. **The type rule is stated in D2** — `typeRules`, wasm-tools 1.262's rule, measured feature by
+>    feature (owner: "wasm-tools' rule"). `needs` is a list of groups; every group needs at least one
+>    of its features on:
+>    - `funcref`, `externref`: reference-types (as a table's or element segment's type, `funcref`
+>      needs nothing — Wasm 1.0);
+>    - `(ref func)`, `(ref extern)`: reference-types and function-references;
+>    - `(ref null? $t)`: reference-types and (function-references OR gc) — so gc admits it, as you
+>      found;
+>    - `exnref`, `nullexnref` and their `(ref …)` forms: reference-types and exceptions;
+>    - any / eq / i31 / struct / array / none / nofunc / noextern, nullable or not:
+>      reference-types and gc;
+>    - `stringref`: no feature — always refused.
+>
+>    One caution: wasm-tools has a `gc-types` sub-feature D2 does not, so under `-all,…` it refuses
+>    GC types even with `gc` on. D2's `gc` includes it; compare against wasm-tools with that in mind.
+> 4. **`(ref any)` is gc's** — the rule above; it was the defect you thought.
+>
+> D2 also gains **`encodingRules`**: every gate binaryang's validator applies to an encoding or a
+> module's structure (mutable global import/export, the overlong index, more than one table, a table
+> initializer, multi-value, more than one memory, shared memory, 64-bit memory or table, a custom
+> page size, struct and array type definitions, tags). A test proves every type and encoding rule
+> against the validator in both directions — refused with its features off, still valid with only
+> one alternative off — so the data cannot drift from the code.
+>
+> **The D3 class for "expected shared memory"** is the owner's decision, not yet made: D3 holds
+> only messages the spec testsuite writes, and the threads suite never asserts this trap (its
+> module of waits on an unshared memory only validates). We will write when it is decided.
+>
+> **When the release ships**, re-pin and re-run your matrices; every difference back to us.
 
 Letters addressed to binaryang in `../../cmem/handoffs.md`, acted on in this repo. The workspace
 closes its own rows; nothing is written there from here.

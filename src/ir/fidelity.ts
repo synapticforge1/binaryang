@@ -82,6 +82,13 @@ export interface FidelityEntry {
    * every engine refuses).
    */
   readonly selectTyped?: true;
+  /**
+   * A `call_indirect`'s table index written in MORE THAN ONE byte (`80 00` for table 0). Wasm 1.0's
+   * binary grammar has the single byte `0x00` there; the longer LEB is reference types' (wasm-tools:
+   * "zero byte expected" with it off). The tree keeps only the index, so the validator reads the
+   * encoding here (wazmrt's matrix, letter of 2026-10-24; open-work 42).
+   */
+  readonly tableIndexOverlong?: true;
 
   // ⚠️ `blockType` is deliberately NOT here any more (S6 step 5, stage (c2)).
   // It recorded a block's type AS DECLARED — not always the derived one
