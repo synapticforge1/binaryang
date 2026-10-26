@@ -5,9 +5,9 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-24 UTC): 2.2.0 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@2.2.0` (Rekor `3438521434`) and npm `@synapticforge1/binaryang@2.2.0`
-(published by GitHub Actions, SLSA provenance) — § "2.2.0". **The repo is
+**Latest (2026-10-26 UTC): 2.2.1 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@2.2.1` (Rekor `3490805794`) and npm `@synapticforge1/binaryang@2.2.1`
+(published by GitHub Actions, SLSA provenance) — § "2.2.1". **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
 hash changed (§ "The history purge").
@@ -1041,6 +1041,38 @@ was found in it: 424 checked, 0 missing. The control, today's `main` tip, was co
 **Old ids now resolve only through that bundle** (`cmem/local/backups/`, with a name → hash list
 of the deleted branches). The same run found two old ids the purge had missed in `working-rules.md`
 (step 16's), rewritten through the map.
+
+## 2.2.1 — a PATCH from `main` (2026-10-26 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "we should bump and release the fix for wasm-strip". One fix: `wasm-strip`
+copies the sections it keeps instead of re-encoding the module (open-work 45, `e948e84db`;
+CHANGELOG § 2.2.1).
+
+1. `CHANGELOG.md` § 2.2.1 on `release/2.2.1` (`a3c84e0f8`), gated 17 / 17, merged (`369230e02`),
+   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `369230e02` from GitHub: 17 / 17
+   (counted from its 17 step logs). The fix's own branch had run the full gate, 29 / 29.
+2. **The consumer step (rule 3) SKIPPED, by its own rule:** since `v2.2.0` the shipped code
+   changed in one file, `src/tools/wasm-strip.ts`, and no consumer imports it (wasmtk, LeptonPad,
+   the runtimes and the loaders grep clean).
+3. No tag, neither registry had 2.2.1. `bun run bump patch`: floor PATCH; **v2.2.0's tests on
+   this tree: 6,336, 0 failed, 0 accepted**; it reported one STALE entry in
+   `tests/accepted-changes.json` (2.2.0's, which only the 2.1.0 tests needed) — harmless, to
+   drop at the next re-baseline. `surface:check` matches; `version_sync` 3 / 3; `bun run
+   release`: `bump to v2.2.1` (`78392bab4`), `main` + `v2.2.1` in one push.
+4. auto-tag and publish.yml GREEN on the bump: **JSR** 2.2.1 created 2026-10-26T16:36:48Z, not
+   yanked, **Rekor log id `3490805794`**; **npm** at 16:38:35Z, `latest`, SLSA provenance; GitHub
+   Release `v2.2.1`. As a user: npm `--version` prints `binaryang 2.2.1`; its `wasm-strip -s name`
+   on the bundle fixture `strbin_rust.wasm` gives upstream wabt's `-R name` bytes exactly (SHA-256
+   `24c2d397…`) and `wasm-bundle` takes the result, where 2.2.0's output is refused ("relocations
+   are stale"); JSR's `wasm-strip` (strip all) gives upstream's bytes exactly (`424aad5f…`) — the
+   fix, as published. JSR needed `--minimum-dependency-age=0` to fetch a version minutes old
+   (§ "Consumers hit a 24-hour wall").
+5. ⚠️ **CI on the bump commit `78392bab4` was CANCELLED, not failed:** every job green (Gates —
+   tests on Node 24 and Bun, baseline, surface, publish dry run, npm proof — and all seven CLI
+   jobs) except **Browsers**, which hit its 20-minute `timeout-minutes` inside "Install the
+   browsers" (Playwright's download hung, 16:33:52 → 16:53:46Z) before any test ran. The same
+   tree minus the version line passed Browsers on `369230e02`. A re-run needs a GitHub login
+   (no `gh`, no token here); CI on the next push is the check — recorded below when it reports.
 
 ## 2.2.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 

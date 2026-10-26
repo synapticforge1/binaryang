@@ -14,13 +14,21 @@ with the Browsers job (2026-10-13, `0e7c5398f`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**Later, 2026-10-26: `binaryang@2.2.1` RELEASED** (owner: "we should bump and release the fix
+for wasm-strip") — the `wasm-strip` fix on JSR (Rekor `3490805794`) and npm (SLSA provenance),
+[publishing.md](publishing.md) § "2.2.1". And the predecessors' local material taken over before
+the owner deletes their checkouts: the upstream reference clones are now this repo's gitignored
+`upstream/binaryen/` and `upstream/wabt/`, the history bundles and notes are private
+([project.md](project.md) § "The predecessors' local checkouts"). The paragraph below otherwise
+stands.
+
 **State, 2026-10-26, end of the session (supersedes the paragraph below).** On `main`, pushed:
-the **`wasm-strip` fix** (item 45, unreleased — [unreleased.md](unreleased.md); full gate 29 / 29),
+the **`wasm-strip` fix** (item 45, shipped in 2.2.1 — [unreleased.md](unreleased.md); full gate 29 / 29),
 the **benchmark modules rebuilt with no machine path** (item 44; the optimizer's six baseline is
 now 138,410 vs upstream 137,621, [optimizer.md](optimizer.md) § "State 2026-10-26"), H27 / H20
 recorded, I8 closed, C1 / C2 closed, C9 sent to the workspace (git's `safe.directory` entries name
 the old folder). **Open for the owner:** 46 (the old blobs in public history: a second purge and
-force-push, or accept), the release of the item 45 fix and its level, and C9's config write.
+force-push, or accept). (The item 45 release and C9's config write are done.)
 **Next by the owner's order:** 31, from 138,410. The release, 13, 14, 15 and 43 are unchanged.
 
 **State, 2026-10-26, earlier (superseded where the paragraph above differs).** Since 2026-10-24,
@@ -52,7 +60,7 @@ wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 reco
   clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk), 43 (the kept
   `wip/r15-tree-pass` branch: fold its message into the record, then the owner decides). 44 is
   DONE at HEAD (below); what remains of it is the owner's: the purge of the old blobs from public
-  history and the force-push. 45 is FIXED on `main` (unreleased, 2026-10-26).
+  history and the force-push. 45 is FIXED and released in 2.2.1 (2026-10-26).
 - **Awaiting replies:** wasmtk's optional answer to § 19. (The runtimes' matrices on 2.2.0
   came back clean — § 45, 2026-10-26.)
 - **Before relying on a number in this file, re-derive it** (rule: a written number is a claim
@@ -106,7 +114,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     a session's work on the owner's word; the push is the owner's.
 
 45. ✅ **`wasm-strip` re-encoded the sections it keeps** — FIXED on `main` 2026-10-26 (owner:
-    "agreed. build it"), unreleased ([unreleased.md](unreleased.md)). Found the same day fixing
+    "agreed. build it"), SHIPPED in **2.2.1** the same day ([publishing.md](publishing.md)
+    § "2.2.1"). Found the same day fixing
     item 44. 🔒 **DECIDED DEFECT (owner, 2026-10-26: "I agree that this is a defect that needs
     correction")**; the owner also confirmed that the minimal re-encoding stays what OPTIMIZING
     does (L1: any pass run goes through the writer), only `wasm-strip` stops re-encoding.
