@@ -931,6 +931,16 @@ API before 1.13.1 was tagged). In the repo:
 `origin`, the README, `publish.ts`'s printed URL and the npm manifest's repository / homepage / bugs
 name `synapticforge1`.
 
+**Trusted publishing after the move (workspace letter H20, recorded 2026-10-26).** Both paths are
+OIDC from `publish.yml`, no token on either. **JSR** links the package to the GitHub repository by
+id — `1347384560` followed the transfer and the rename once the owner re-linked it (above), and the
+link is what a release must check first. **npm**'s trusted publisher was created on the package
+under the `synapticforge1` org AFTER the move (§ "1.13.1", § "1.13.3"), so it was never locked to
+the old owner; every release since 1.13.3 (nine, through 2.2.0) published on both registries with
+provenance. Not measured: whether npm's policy pins owner / repository IDs the way nuget.org's does
+(H20's failure, loader-dotnet). It was created after the move, so the question returns only at a
+NEXT transfer or rename — then re-check the JSR link and the npm publisher before the first release.
+
 ## 🔒 The history purge (workspace letter H19, 2026-10-22) — EVERY public hash changed
 
 Owner: "start" (H19: purge personal information from git history), then "only public facing items

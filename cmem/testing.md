@@ -108,7 +108,7 @@ tree, exit 1 naming the file when one byte-count or hash is altered.
 
 | corpus                  | what                                         | state                                                                                                                                                                                                                                                                     |
 | ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `upstream/test`         | binaryen's own suite, for parse→encode→parse | the reading-room clone, OUTSIDE the repo at `wasmExamples/binaryen-ts/upstream/test`. The test looks in both places and SKIPS only when neither exists, so CI is unaffected. 🔧 It had silently skipped from the merge until 2026-09-12 — see "Independent oracles" below |
+| `upstream/test`         | binaryen's own suite, for parse→encode→parse | the reading-room clone, OUTSIDE the repo at the sibling's `../binaryen-ts/upstream/test`. The test looks in both places and SKIPS only when neither exists, so CI is unaffected. 🔧 It had silently skipped from the merge until 2026-09-12 — see "Independent oracles" below |
 | `tests/wabt-ts/wasmtk/` | 421 real-world WAT files from wasmtk         | present; the runner picks up any file dropped in, and a reverse-direction runner asserts the disassembly re-compiles                                                                                                                                                      |
 
 ### The wasmtk corpus is a SNAPSHOT, and that has cost real credibility
@@ -621,7 +621,7 @@ is named — and check the ignored count, every time.**
 
 - **`corpus_roundtrip` (91 upstream binaries) had been skipping since the MERGE.** It looked for the
   reading-room clone at `<repo>/upstream/test`, and the clone stayed BESIDE the merged repo, in
-  `wasmExamples/binaryen-ts/upstream/test`. It now checks both paths (`8f5945b83`).
+  the sibling's `../binaryen-ts/upstream/test`. It now checks both paths (`8f5945b83`).
 - **Then it turned out not to guard what its doc claimed**: `summary()` counted 4 of the 9 index
   spaces, so deleting the entire EXPORT section from the encoder still passed it. It now counts
   every space and compares the whole record.

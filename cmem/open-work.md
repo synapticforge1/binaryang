@@ -19,7 +19,11 @@ memory only, no code: letters H24 (★ 5.2 re-copied) and H22 (the privacy rule'
 H25 §3(a) measured — no binaryang force-push is pending (the path-bearing commits sat on local
 branches never pushed; 398 of them deleted on the owner's word, 2026-10-26, one kept —
 [publishing.md](publishing.md) § "Local branches deleted"); the runtimes' § 44 matrices on 2.2.0
-read from their records, 0 differences ([handoffs.md](handoffs.md) § 45). All pushed. Waiting on
+read from their records, 0 differences ([handoffs.md](handoffs.md) § 45). All pushed. Later the
+same day: H27 (the `synapticforge1` stamp wording, four old-folder prose lines) done, H20 recorded,
+I8 closed for all four assemblers (wazmrt's own fix), and the ledger rows binaryang created — C1
+(§ 41) and C2 (§ 44) — closed by binaryang as their creator ([handoffs.md](handoffs.md) § "Letters
+addressed to binaryang"). Waiting on
 the workspace: the canonical ★ 6.1 still cites our pre-purge `b8fafaa3f` (re-copy when it changes).
 The release, the open items and the next step below are unchanged.
 
@@ -32,11 +36,13 @@ wasmtk) and § 44 (to wazmrt, wasmrt) SENT by the owner; § 43 their replies. D3
 messages only (owner: "stay with what we have" — wazmrt's "expected shared memory" class declined;
 wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 record.
 
-- **Open:** 31 (resume as its "State 2026-10-22" paragraph says: re-derive the six 139,857 and the
+- **Open:** 44 (🗓️ OWNER — five committed benchmark modules embed personal paths; found
+  2026-10-26), 31 (resume as its "State 2026-10-22" paragraph says: re-derive the six 139,857 and the
   corpus 811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening
   re-run until clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk), 43
   (the kept `wip/r15-tree-pass` branch: fold its message into the record, then the owner decides).
-  No defect or gap is open, so by the owner's order 31 is next unless the owner says 13.
+  44 is a gap (privacy, not code), so by the owner's order it is first; its fix moves 31's
+  baseline, so decide 44 before resuming 31.
 - **Awaiting replies:** wasmtk's optional answer to § 19. (The runtimes' matrices on 2.2.0
   came back clean — § 45, 2026-10-26.)
 - **Before relying on a number in this file, re-derive it** (rule: a written number is a claim
@@ -66,6 +72,27 @@ removed record went to a topic file, and the full text is one `git show` away:
 | everything else: M-series and post-M8 tables, the pre-bump items         | `git show 3bd64ece7:cmem/open-work.md`                                                               |
 
 ## Defects and gaps — the owner's first
+
+44. 🗓️ **Five committed benchmark modules embed the owner's machine paths** (found 2026-10-26
+    while closing workspace letter H27; OWNER decides). `benches/browser-opt/modules/{rust-debug,
+    zig-debug, zig-releasefast}.wasm` (public since `f9b74f213`, 2026-10-13) and
+    `modules64/{rust-release-wasm64, zig-releasefast-wasm64}.wasm` (`4dcb140e3`, 2026-10-22) carry,
+    in their DWARF sections and panic-location strings, the user-profile path of the scoop
+    toolchain and AppData (199 hits) and the project tree under the old workspace folder name. The
+    privacy rule's scan (`git grep -I`) and the H18 / H19 / H25 history scans (`git log -G`) skip
+    binary files, so every "HEAD is clean" claim was true of text only; the rule now has a binary
+    scan ([working-rules.md](working-rules.md) § Records). Not shipped in either package
+    (`benches/**` excluded). **Why it is not a one-line fix:** these are the optimizer's six
+    baseline inputs (every six-module number in [optimizer.md](optimizer.md) and item 31) and the
+    fixtures of four tests (`real_compiler_behaviour`, `memory64_real_compiler`,
+    `memcpy_to_bulk_memory` — whose catalogue is generated from their bytes — and
+    `reference_types_gate`). **Options for the owner:** (a) rebuild each with its paths remapped
+    (`-C remap-path-prefix` / `--remap-path-prefix` for Rust, the Zig equivalent, or strip the
+    DWARF sections and keep the name section) and re-derive every baseline and the memcpy catalogue
+    in the same commit; (b) leave the files and accept the exposure (the paths name a user and a
+    toolchain layout, nothing secret). Either way the public history keeps the blobs until a
+    second H19 purge of these paths and a force-push (owner). Record of the finding:
+    [handoffs.md](handoffs.md) § "Letters addressed to binaryang", the H18 entry.
 
 34. ✅ **One opcode profile every widely used engine runs** — DONE 2026-10-24 (owner, 2026-10-23:
     "attempt to create a consolidated opcode set that all can decode and run"). The record is

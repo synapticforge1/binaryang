@@ -229,7 +229,12 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   and works on any comparable host (the workspace's example: a fixed cache directory such as
   `C:\zig-cache\<repo>`). Tool settings that record paths (`.claude/settings.local.json`, IDE
   workspace files) are never tracked.
-  Scan before committing: `git grep -I -n -i -E '[A-Za-z]:[\\/]+(Programs|Users|scoop|tools)[\\/]|/[a-z]/(Programs|Users)/'`.
+  Scan before committing: `git grep -I -n -i -E '[A-Za-z]:[\\/]+(Programs|Users|scoop|tools)[\\/]|/[a-z]/(Programs|Users)/'`,
+  **and the same pattern over BINARIES: `git grep -c -a -i -E '…'`** (2026-10-26: `-I` skips
+  binary files, and five committed benchmark `.wasm` under `benches/browser-opt/` carried the
+  owner's profile and project paths in their debug info, public since 2026-10-13, unseen by every
+  text scan — open-work 44. A compiler's debug build embeds the build machine's paths; strip or
+  remap them before committing a module.)
   A hit is a CANDIDATE, judged by the test above — remove what records this machine; do not scrub
   a convention path. 🔧 `scripts/spec-prepare.ts` held an absolute default corpus path from
   `cebbb1260` until 2026-10-22; the public history was purged of it (letter H19, 2026-10-23).

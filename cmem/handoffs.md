@@ -1016,7 +1016,13 @@ closes its own rows; nothing is written there from here.
     runtimes now differ from wasm-tools where binaryang does not. For the workspace to re-check
     with the runtimes; not ours to run. **wasmrt re-ran it 2026-10-26** (its record, in the
     workspace's notes): wasm-tools 1.262 writes one name section, and wasmrt's unit test expects
-    exactly those bytes — so wasmrt = wasm-tools 1.262 = binaryang. wazmrt's re-run is still open.
+    exactly those bytes — so wasmrt = wasm-tools 1.262 = binaryang. **wazmrt re-ran it the same
+    day** (its notes in `../../cmem/handoffs.md`): on 1.262 wazmrt was the one outlier of four — a
+    wazmrt DEFECT, fixed (`852ff84`, pushed 2026-10-26, unreleased); its `probes/four-assemblers.ts`
+    over the two `h8-fixtures/` plus five variants: all seven equal wasm-tools on wazmrt, wasmrt and
+    binaryang 2.2.0 (except binaryang's own `name` shape on `"names"`, I7 DESIGN). **I8 is closed
+    for all four on wasm-tools 1.262**; nothing for binaryang to do. (This line said "wazmrt's
+    re-run is still open" until 2026-10-26, the same day — written before its notes were read.)
 - **H24 ✅ 2026-10-26** (owner: "work on H24"). ★ rule 5.2 re-copied with the workspace's new
   wording (the development drive's FILESYSTEM, not its letter) and the block re-stamped in
   [best-practices.md](best-practices.md) § "The workspace's convergent rules (★)". A one-time
@@ -1048,6 +1054,45 @@ closes its own rows; nothing is written there from here.
   0 commits. The frozen `wabt-ts/*` / `binaryen-ts/*` remote-tracking refs reach 2, in their own
   history; unreachable objects stay in the store until git's gc. Record:
   [publishing.md](publishing.md) § "Local branches deleted".
+- **H27 ✅ 2026-10-26** (owner: "fix items for binaryang"). The folder is `synapticforge1` (was
+  `wasmExamples`), and the ★ stamp's canonical wording is `Copied from
+  synapticforge1/cmem/best-practices.md on <date>`. Both stamps in
+  [best-practices.md](best-practices.md) (the ★ block, § 5.5's checklist) now carry it; the ★
+  block re-dated after the proof the letter asks for — a one-time Bun script compared all 28 ★
+  rules by number and normalized text against the workspace file: 28 = 28, 0 differences; the
+  checklist's nine questions re-read against the canonical § 5.5 prose, clause by clause, equal.
+  The four prose lines that named the old folder as a location ([testing.md](testing.md) twice,
+  [binaryen-ts.md](binaryen-ts.md), [wabt-ts.md](wabt-ts.md)) now say the sibling's
+  `../binaryen-ts/upstream/…` / `../wabt-ts/upstream/…`. `git grep wasmExamples` over the tree's
+  TEXT files: 0 — and the same grep over binaries found the H18 item below.
+- **H18 / H25 §3(a) — REOPENED for binaryang, 2026-10-26: five committed binaries carry personal
+  paths, at HEAD and on `origin/main`.** `git grep -c -a` (binaries included) over every tracked
+  file: `benches/browser-opt/modules/{rust-debug,zig-debug,zig-releasefast}.wasm` (public since
+  `f9b74f213`, 2026-10-13) and `modules64/{rust-release-wasm64,zig-releasefast-wasm64}.wasm`
+  (`4dcb140e3`, 2026-10-22) embed, in DWARF and panic-location strings, the owner's user profile
+  (199 hits: the scoop toolchain and AppData) and the project tree under the OLD workspace folder
+  name. Every earlier scan — ours, H18's, H25's — used `git grep -I` / `git log -G`, which skip
+  binary files, so "HEAD is clean" and "0 commits" were true of text only. **Not shipped**:
+  `jsr.json` excludes `benches/**`, npm ships `dist/`. **Not a one-line fix**: the five are the
+  optimizer's six baseline inputs ([optimizer.md](optimizer.md), every six-module number) and the
+  fixtures of `real_compiler_behaviour`, `memory64_real_compiler`, `memcpy_to_bulk_memory` (its
+  catalogue is generated from their bytes) and `reference_types_gate`; rebuilt with
+  `--remap-path-prefix` (Rust) / stripped debug info, their bytes change and every baseline must be
+  re-derived in the same commit. The history purge (H19) then needs a second round for these
+  blobs, and a force-push — 🗓️ OWNER. Record: [open-work.md](open-work.md) 44; the rule gained
+  the binary scan ([working-rules.md](working-rules.md) § Records).
+- **H20 ✅ record-only, 2026-10-26.** Which publishing path this repo uses and whether it pins
+  owner / repository ids: [publishing.md](publishing.md) § "The move to `synapticforge`", the
+  closing paragraph. Both registries are OIDC; both published every release since the move.
+- **C1 and C2 CLOSED by binaryang, 2026-10-26** (the creator closes, 🔒 owner 2026-10-26). C2
+  (§ 44's matrices): both replies read, § 45 — 0 differences on either runtime, no binaryang
+  defect. C1 (§ 41 to wasmtk): re-derived from wasmtk's own record — 1.15.0 and 1.16.1 pinned
+  2026-10-23, 2.2.0 pinned 2026-10-24 (`../wasmtk/cmem/workflow.md`, its bump checklist);
+  `upstream/binaryang` re-cloned from `synapticforge1/binaryang` after our purge; the provenance
+  correction recorded in its `design-decisions.md` (`../wasmtk/cmem/next-work.md`, "binaryang
+  letter, 2026-10-23"). § 41 asked for no code; wasmtk's reply on item 1 (its gate numbers on
+  1.15.0 / 1.16.1) is drafted in its `scripts/binaryang-report.md` for the owner to send, and is
+  logged as a new § when it arrives.
 
 ## Lessons the correspondence paid for
 
