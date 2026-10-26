@@ -2175,6 +2175,26 @@ the default configuration showed either. **How to apply:** for every default a u
 with no flags, a library call with no options), keep a test that runs real compiler output through
 it — `reference_types_gate.test.ts` now does, on the six builds in `benches/`.
 
+## 🆕 Lessons from open-work 44 and 45 (2026-10-26)
+
+### A text scan is evidence about text files; a compiler's debug build embeds the machine's paths
+
+Every privacy scan — the rule's `git grep -I`, the history purge's `git log -G` — skipped binary
+files, so "HEAD is clean" held for text only while five committed benchmark modules carried the
+owner's profile and project paths in DWARF and in Rust's panic locations, public for two weeks
+(open-work 44). **How to apply:** scan binaries too (`git grep -a`); build committed modules with
+path remapping (Rust `--remap-path-prefix` plus `-Ztranslate-remapped-path-to-local-path=no`) or
+their debug sections removed, and make the build script refuse an output that still has a path.
+
+### A tool that removes something must copy the rest — a re-encoding breaks what refers to bytes
+
+`wasm-strip` decoded the module and wrote it back. The printed code was identical, so every check
+that compared text passed, but the bytes were re-encoded, and a KEPT section that names code
+offsets (`reloc.CODE`) went stale: `wasm-bundle` refused the stripped module (open-work 45).
+Upstream copies. **How to apply:** for a tool whose job is to remove or add one part, the oracle is
+"the input minus that part, byte for byte" — test it against upstream's bytes by hash, and keep the
+re-encoding to tools whose job is to rewrite (the optimizer, L1).
+
 ## Where to go for the rest
 
 The predecessor summaries hold what did not converge:

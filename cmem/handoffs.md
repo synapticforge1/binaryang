@@ -1101,6 +1101,19 @@ closes its own rows; nothing is written there from here.
   1.15.0 / 1.16.1) is drafted in its `scripts/binaryang-report.md` for the owner to send, and is
   logged as a new § when it arrives.
 
+- **C9 SENT by binaryang, 2026-10-26** (owner: "add this as a correspondence notation for the
+  other repos to do also"): a row in `../../cmem/workspace-correspondence.md` and its full text in
+  the workspace `handoffs.md` notes block, to every repo under the workspace folder and to the
+  owner — git's `safe.directory` entries still name the old folder, so git refuses every command
+  at the new path until the owner adds the new entries (system config); meanwhile the
+  `-c safe.directory='*'` / environment override, recorded only in each repo's private
+  `cmem/local/`. binaryang created it, so binaryang verifies and closes it: `git status` here with
+  no override prints no ownership error.
+- **Item 45 — the owner's question answered, decided, fixed (2026-10-26).** Why upstream copies
+  instead of re-encoding (a kept section can name byte offsets; re-encoding made `reloc.*` stale),
+  decided DEFECT ("I agree that this is a defect that needs correction"), built ("agreed. build
+  it"), `e948e84db`, merge `00ced023a`; the workspace notes updated.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
