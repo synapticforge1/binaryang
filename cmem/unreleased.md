@@ -1,10 +1,28 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-24 (UTC): the last release is `v2.2.0`, on JSR and npm, both with provenance;
-nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
+**As of 2026-10-26: the last release is `v2.2.0`, on JSR and npm, both with provenance; ONE
+user-visible change is unreleased on `main` — the `wasm-strip` fix below** (check it rather than trust this line: `git log
 --oneline v2.2.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.0; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
+
+**For the next release (open-work 45, on `main` 2026-10-26):**
+
+- **Silent fix + Behaviour — `wasm-strip` / `wasmStrip` no longer re-encodes the module.** It
+  removed custom sections by decoding the module and writing it back, so every kept section came
+  out re-encoded: LLVM's relocation-padded LEBs written minimally (14 of 18 Rust / Zig modules
+  measured; e.g. zig-debug's code 64,910 → 59,154 bytes). The code it printed was the same, but
+  the bytes were not the input's, and a KEPT section that names code offsets went stale: after
+  `wasm-strip -s name` a relocatable module's `reloc.CODE` / `reloc.DATA` (and a kept
+  `.debug_line`) pointed at the wrong bytes — `wasm-bundle` refused it. **What a user may have
+  shipped:** a module stripped with `-s <some sections>` that kept relocation or DWARF sections
+  carries stale offsets; re-strip it from the original. Stripping EVERYTHING produced a valid,
+  equivalent module (only smaller than upstream's). Now the module is still decoded (malformed
+  input reported as before), and the output is the input minus the removed sections, byte for
+  byte — upstream wabt's `wasm-strip`'s output exactly (tested against its hashes). Accepts one
+  thing it refused: a module that decodes but could not be re-encoded (an index past its
+  section) now strips, as with upstream. API unchanged. A fix, so a PATCH by SemVer — the level
+  is the owner's call.
 
 **Repo-only, 2026-10-26 (nothing in either package; no release-note line):** the five benchmark
 modules under `benches/browser-opt/` that embedded the build machine's paths were replaced —

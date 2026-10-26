@@ -37,16 +37,13 @@ messages only (owner: "stay with what we have" — wazmrt's "expected shared mem
 wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 record.
 
 - **Open:** 46 (🗓️ OWNER — the path-bearing benchmark blobs are still in PUBLIC history: a
-  second H19 purge and force-push, then the GitHub Support request), 45 (DEFECT, decided by the
-  owner 2026-10-26 — `wasm-strip` must copy the sections it keeps verbatim; the fix is to build,
-  a `src/` change with the full gate), 31 (resume as its "State 2026-10-22" paragraph says, from the REBUILT six —
+  second H19 purge and force-push, then the GitHub Support request), 31 (resume as its "State 2026-10-22" paragraph says, from the REBUILT six —
   138,410 since 2026-10-26, [optimizer.md](optimizer.md) § "State 2026-10-26" — and the corpus
   811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening re-run until
   clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk), 43 (the kept
   `wip/r15-tree-pass` branch: fold its message into the record, then the owner decides). 44 is
   DONE at HEAD (below); what remains of it is the owner's: the purge of the old blobs from public
-  history and the force-push. 45 is a probable defect, so by the owner's order it is decided
-  before 31 resumes.
+  history and the force-push. 45 is FIXED on `main` (unreleased, 2026-10-26).
 - **Awaiting replies:** wasmtk's optional answer to § 19. (The runtimes' matrices on 2.2.0
   came back clean — § 45, 2026-10-26.)
 - **Before relying on a number in this file, re-derive it** (rule: a written number is a claim
@@ -99,11 +96,22 @@ removed record went to a topic file, and the full text is one `git show` away:
     name — no secret). **🗓️ OWNER: order the purge, or close as accepted.** The rewrite itself is
     a session's work on the owner's word; the push is the owner's.
 
-45. ◐ **`wasm-strip` re-encodes the sections it keeps** (found 2026-10-26 fixing item 44).
-    🔒 **DECIDED DEFECT (owner, 2026-10-26: "I agree that this is a defect that needs
-    correction")** — the fix below is the next piece of work on this item; the owner also
-    confirmed that the minimal re-encoding stays what OPTIMIZING does (L1: any pass run goes
-    through the writer), only `wasm-strip` alone stops re-encoding. Removing only the `.debug_*` sections from zig-debug with our `wasm-strip -s …`
+45. ✅ **`wasm-strip` re-encoded the sections it keeps** — FIXED on `main` 2026-10-26 (owner:
+    "agreed. build it"), unreleased ([unreleased.md](unreleased.md)). Found the same day fixing
+    item 44. 🔒 **DECIDED DEFECT (owner, 2026-10-26: "I agree that this is a defect that needs
+    correction")**; the owner also confirmed that the minimal re-encoding stays what OPTIMIZING
+    does (L1: any pass run goes through the writer), only `wasm-strip` stops re-encoding.
+    **The fix:** `src/tools/wasm-strip.ts` still decodes (the `{ binary, errors, result }`
+    contract, T13.29's malformed-input tests unchanged), then cuts the custom sections to remove
+    out of the input and copies every other byte; the write-back and its fail-loud catch are
+    gone. `benches/browser-opt/build.ts` calls the tool instead of its own walk (one
+    implementation). **Proof:** `tests/wabt-ts/tools/strip_verbatim.test.ts` — a hand-built
+    padded LEB survives; strip-all equals upstream wabt 1.0.41's output by SHA-256 on three LLVM
+    modules; `-s name` equals upstream's `-R name` and the module still bundles — all three RED
+    on the old path, green on the new; the 8 files that use the tool 112 / 112; the tool's DWARF
+    strip reproduces the three committed Zig modules from their pre-fix blobs byte for byte, and
+    the old tool does not (the negative control); then the full gate on the committed tree.
+    Measurements kept below. Removing only the `.debug_*` sections from zig-debug with our `wasm-strip -s …`
     left 59,154 code bytes of 64,910: every kept section goes through the reader and the writer,
     so LLVM's relocation-padded LEBs come out minimal (divergence L1) and the module is no longer
     the compiler's bytes. Upstream wabt 1.0.41's `wasm-strip` copies every kept section verbatim

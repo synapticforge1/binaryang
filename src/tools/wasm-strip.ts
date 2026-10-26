@@ -31,15 +31,15 @@
  * await Deno.writeFile("stripped.wasm", binary);
  * ```
  *
- * Pipeline: `readBinaryIr` with `readDebugNames: false` (so the name section
- * stays in `module.customSections`) → clear `module.customSections` → `writeBinaryIr` with
- * `writeDebugNames: false` (so no name section is generated in its place).
+ * Pipeline, as upstream's `wasm-strip.cc`: the module is DECODED (so malformed input is reported
+ * in `errors`, never stripped blind), then the custom sections to remove are cut out of the
+ * input and every other byte is COPIED — nothing is re-encoded. A re-encoding would write
+ * LLVM's relocation-padded LEBs minimally, changing the code and leaving any kept section that
+ * names code offsets (`reloc.CODE`, `.debug_line`) stale (open-work 45, divergence ST1).
  */
 
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import type { ReadBinaryOptions } from '../reader/binary-reader.ts';
-import { writeBinaryIr } from '../writer/binary-writer.ts';
-import { TEXT_FORM_SECTION } from '../ir/text-form.ts';
 import { Result } from '../core/result.ts';
 import {
   addError,
@@ -91,58 +91,77 @@ export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): Wasm
   const readOpts: ReadBinaryOptions = { readDebugNames: false };
   if (opts.filename !== undefined) readOpts.filename = opts.filename;
 
-  const module = readBinaryIr(binary, errors, readOpts);
+  // The decode is the contract, not the source of the output: malformed input is reported here
+  // and never stripped blind (T13.29). Its result is not written back.
+  readBinaryIr(binary, errors, readOpts);
 
   if (hasErrors(errors)) {
     return { binary: new Uint8Array(0), errors, result: Result.Error };
   }
 
-  // INTENT: `opts.sections` names the sections to REMOVE, not the ones to
-  // keep -- see `WasmStripOptions.sections`. The local was called `keep` while
-  // being used as `!keep.has(...)`, which reads as the opposite of what it
-  // does; a reader trusting the name would invert the condition and silently
-  // turn strip into keep.
-  //
-  // The survivors keep their POSITION in the section sequence, which the
-  // writer honours via `Custom.precedingSection` (T13.41). This tool must not
-  // relocate a section it was not asked to touch.
-  if (opts.sections) {
-    const remove = new Set(opts.sections);
-    module.customSections = module.customSections.filter((c) => !remove.has(c.name));
-  } else {
-    module.customSections = [];
-  }
-
-  // The binary writer is deliberately FAIL-LOUD (T10.7): it throws rather than
-  // emit bytes it cannot justify. That is right for the writer and wrong to
-  // propagate from here — `wasmStrip` is a published entrypoint whose contract
-  // is `{ binary, errors, result }`, and its input is untrusted.
-  //
-  // A module can decode cleanly and still be un-encodable: index validity is
-  // the VALIDATOR's job, not the reader's, so a corrupted binary whose func
-  // references a type the type section no longer contains reaches this line
-  // with no decode error. Two such inputs crashed this tool during the T13.29
-  // fuzz. Report instead.
-  //
-  // `writeDebugNames: false` because the writer otherwise GENERATES a name
-  // section from the IR (N1 P2) — and would put one back into every module
-  // this tool had just stripped. A `name` section the caller asked to keep is
-  // still among the customs and is written verbatim.
-  //
-  // The same for S7's `binaryang.text-form` section: the reader moves it into
-  // the fidelity table, so the writer would put it back. It goes when every
-  // custom section goes, or when it is named (`text-form.ts`).
-  const stripTextForm = opts.sections === undefined || opts.sections.includes(TEXT_FORM_SECTION);
-  try {
-    const stripped = writeBinaryIr(module, {
-      writeDebugNames: false,
-      writeTextForm: !stripTextForm,
-    });
-    return { binary: stripped, errors, result: Result.Ok };
-  } catch (e) {
-    addError(errors, unknownLocation(), e instanceof Error ? e.message : String(e));
+  // INTENT: `opts.sections` names the sections to REMOVE, not the ones to keep — see
+  // `WasmStripOptions.sections`. With none named, every custom section goes: the `name`
+  // section and S7's `binaryang.text-form` are custom sections like any other here.
+  const remove = opts.sections ? new Set(opts.sections) : undefined;
+  const stripped = removeCustomSections(binary, remove);
+  if (stripped === undefined) {
+    // The reader accepted the framing, so this cannot be reached by any input it decodes; if
+    // the two ever disagree, report it rather than emit bytes the walk could not justify.
+    addError(errors, unknownLocation(), 'wasm-strip: the section framing could not be walked');
     return { binary: new Uint8Array(0), errors, result: Result.Error };
   }
+  return { binary: stripped, errors, result: Result.Ok };
+}
+
+/**
+ * Cuts custom sections out of `binary` (all of them, or those named in `remove`) and copies every
+ * other byte verbatim, in its position: the 8-byte header, every known section, every kept custom
+ * section. Returns `undefined` if a section header runs past the end.
+ */
+function removeCustomSections(
+  binary: Uint8Array,
+  remove: Set<string> | undefined,
+): Uint8Array | undefined {
+  const readU32 = (p: number): [number, number] | undefined => {
+    let result = 0;
+    for (let i = 0; i < 5; i++) {
+      if (p + i >= binary.length) return undefined;
+      const b = binary[p + i]!;
+      result += (b & 0x7f) * 2 ** (7 * i);
+      if ((b & 0x80) === 0) return [result, p + i + 1];
+    }
+    return undefined;
+  };
+  const kept: Uint8Array[] = [binary.subarray(0, 8)];
+  let length = 8;
+  let p = 8;
+  while (p < binary.length) {
+    const start = p;
+    const id = binary[p]!;
+    const size = readU32(p + 1);
+    if (size === undefined) return undefined;
+    const end = size[1] + size[0];
+    if (end > binary.length) return undefined;
+    let drop = false;
+    if (id === 0) {
+      const nameLen = readU32(size[1]);
+      if (nameLen === undefined || nameLen[1] + nameLen[0] > end) return undefined;
+      const name = new TextDecoder().decode(binary.subarray(nameLen[1], nameLen[1] + nameLen[0]));
+      drop = remove === undefined || remove.has(name);
+    }
+    if (!drop) {
+      kept.push(binary.subarray(start, end));
+      length += end - start;
+    }
+    p = end;
+  }
+  const out = new Uint8Array(length);
+  let o = 0;
+  for (const k of kept) {
+    out.set(k, o);
+    o += k.length;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

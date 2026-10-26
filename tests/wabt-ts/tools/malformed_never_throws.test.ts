@@ -23,11 +23,11 @@
 // `readBinaryIr` itself, because one unconverted throw anywhere in 3000 lines
 // of decoder reproduces the whole bug.
 //
-// `wasmStrip` needed a second guard for a different reason: it RE-ENCODES, and
+// `wasmStrip` needed a second guard for a different reason: it RE-ENCODED, and
 // a module can decode cleanly yet be un-encodable, because index validity is
-// the VALIDATOR's job and not the reader's. The binary writer is deliberately
-// fail-loud (T10.7) and must stay that way, so the tool catches rather than the
-// writer softening.
+// the VALIDATOR's job and not the reader's. Since open-work 45 (2026-10-26) it
+// copies the kept bytes instead, as upstream does, so that path is gone; such a
+// module now strips, as it does with upstream's tool.
 //
 // This is T7.1's "never throw, never hang" rule, which was applied to the WAT
 // parser and never to the binary path — the same rule, the other front door.
