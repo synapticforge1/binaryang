@@ -1040,6 +1040,14 @@ closes its own rows; nothing is written there from here.
   **`8d9ba0cb9`** (an ancestor of `origin/main`), which `working-rules.md` and `testing.md` already
   cite. Our copy in [best-practices.md](best-practices.md) carries the old id too and is NOT edited
   here (the stamp's rule): when the workspace fixes 6.1, re-copy it and re-stamp.
+- **H25 §3(a) settled for binaryang, 2026-10-26** (owner: "delete the never-pushed local branches
+  if they are now irrelevant"). 398 local branches deleted; `wip/r15-tree-pass` kept (cited) and
+  re-parented onto the post-purge history (`91dfb6cc2`). Every deleted tip is in the pre-purge
+  bundle, so nothing is lost. A check for the workspace: `git branch` lists `main` and
+  `wip/r15-tree-pass`, and `git log --branches --tags --remotes=origin -G <the scan pattern>` finds
+  0 commits. The frozen `wabt-ts/*` / `binaryen-ts/*` remote-tracking refs reach 2, in their own
+  history; unreachable objects stay in the store until git's gc. Record:
+  [publishing.md](publishing.md) § "Local branches deleted".
 
 ## Lessons the correspondence paid for
 

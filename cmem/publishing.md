@@ -951,7 +951,8 @@ tags were rewritten; one signature dropped (the one signed commit of the owner's
 differ from the originals only in `scripts/spec-prepare.ts` (owner, asked: "Clean them too" —
 letter H19's rule 4 keeps tagged trees identical for Go's checksum database, which binaryang does
 not have, and `scripts/` was never in a published package). The 372 local-only branches were left
-as they were.
+as they were — ✅ **deleted 2026-10-26** (owner: "delete the never-pushed local branches if they
+are now irrelevant"; § "Local branches deleted" below).
 
 **Verified before the push:** a re-scan of the public refs finds the address on 0 commits / 0 tags
 and 0 path-bearing files; every rewritten commit has the original's message bytes, author and
@@ -1005,6 +1006,30 @@ local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fir
 but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
 each would have failed on JSR's existing version, but push such tags with that in mind.
+
+**Local branches deleted (2026-10-26).** 398 of the 399 local branches besides `main` were deleted.
+None had been pushed, and some still held the pre-purge history (H25 §3(a)). A one-time script
+classified them first:
+- 388 were in `main`, directly or through the H19 map.
+- 10 pre-purge branches had no change missing from pre-purge `main` (`git cherry`: 0 unique).
+- **Kept:** `wip/r15-tree-pass`, with 1 unmerged commit. It is cited by name in
+  [ir-convergence.md](ir-convergence.md) and `src/passes/lower-block-params.ts` for the traps its
+  message records. Its ancestry was pre-purge and reached the 6 path-bearing commits, so it was
+  **re-parented** onto the map's new parent `1729de2a5`. The result, `91dfb6cc2` (was `ade9019d6`,
+  in the bundle), keeps the message bytes, names, dates and the same patch (3 files). Its tree took
+  the parent's `scripts/spec-prepare.ts`, which the commit never touched; a first attempt that kept
+  the old tree carried the path back in through that file.
+
+After the deletion, a scan of every local branch, every tag and `origin` finds **0** commits with a
+drive path. The frozen predecessors' remote-tracking refs (`wabt-ts/*`, `binaryen-ts/*`) reach 2,
+in their own history, which this repo does not rewrite.
+
+Before deleting, the pre-purge bundle was unpacked into a scratch repo. Every deleted tip, and every
+old id still cited in tracked files (the "before" column above, and `b8fafaa3f` in the ★ 6.1 copy),
+was found in it: 424 checked, 0 missing. The control, today's `main` tip, was correctly absent.
+**Old ids now resolve only through that bundle** (`cmem/local/backups/`, with a name → hash list
+of the deleted branches). The same run found two old ids the purge had missed in `working-rules.md`
+(step 16's), rewritten through the map.
 
 ## 2.2.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
