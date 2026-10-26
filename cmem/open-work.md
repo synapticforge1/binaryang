@@ -14,7 +14,15 @@ with the Browsers job (2026-10-13, `0e7c5398f`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
-**State, 2026-10-24, end of the session (supersedes the paragraphs above where they differ).** The
+**State, 2026-10-26 (supersedes the paragraphs above where they differ).** Since 2026-10-24,
+memory only, no code: letters H24 (★ 5.2 re-copied) and H22 (the privacy rule's path test) done;
+H25 §3(a) measured — no binaryang force-push is pending (the path-bearing commits sit on local
+branches never pushed; deleting them is the owner's call); the runtimes' § 44 matrices on 2.2.0
+read from their records, 0 differences ([handoffs.md](handoffs.md) § 45). All pushed. Waiting on
+the workspace: the canonical ★ 6.1 still cites our pre-purge `b8fafaa3f` (re-copy when it changes).
+The release, the open items and the next step below are unchanged.
+
+**State, 2026-10-24, end of the session.** The
 last release is **`binaryang@2.2.0`**, on JSR (Rekor `3438521434`) and npm (SLSA provenance) —
 CHANGELOG § 2.2.0, [publishing.md](publishing.md) § "2.2.0". Released today: 1.16.0, 1.16.1,
 1.17.0, 2.0.0, 2.1.0, 2.2.0. Closed today: 33 (FL1), 34 (the portable profile, its durable checks
@@ -27,8 +35,8 @@ wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 reco
   corpus 811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening
   re-run until clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk).
   No defect or gap is open, so by the owner's order 31 is next unless the owner says 13.
-- **Awaiting replies:** wasmrt's and wazmrt's feature matrices on 2.2.0 (§ 44); wasmtk's
-  optional answer to § 19.
+- **Awaiting replies:** wasmtk's optional answer to § 19. (The runtimes' matrices on 2.2.0
+  came back clean — § 45, 2026-10-26.)
 - **Before relying on a number in this file, re-derive it** (rule: a written number is a claim
   with a date).
 

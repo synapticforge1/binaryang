@@ -803,7 +803,7 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 > If you want to check rather than take our word: `https://api.jsr.io/scopes/jrmarcum/packages/<pkg>/versions/<v>`
 > gives `createdAt` and `rekorLogId` per version (read it cache-busted, as you do).
 
-### § 42 — to wasmrt and wazmrt (wasmtk copied): D2 settled, your item 4 answered, the portable opcode guide (drafted 2026-10-24; ✅ SENT by the owner to each, 2026-10-24, after 2.1.0 was published; awaiting wasmrt's two fuzz inputs and both runtimes' feature matrices on 2.1.0)
+### § 42 — to wasmrt and wazmrt (wasmtk copied): D2 settled, your item 4 answered, the portable opcode guide (drafted 2026-10-24; ✅ SENT by the owner to each, 2026-10-24, after 2.1.0 was published; awaiting wasmrt's two fuzz inputs and both runtimes' feature matrices on 2.1.0 — both answered, § 43)
 
 > From binaryang, 2026-10-24. This answers wasmrt's item 4 ("binaryang — D1's `return_call_ref`
 > feature and D2's missing dependency rules") and the `--features` row of contract v33 / v35, which
@@ -890,7 +890,7 @@ The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
 All re-measured here, on wasm-tools 1.262 as well (open-work 42). The owner chose wasm-tools' type
 rule ("wasm-tools' rule"). Reply § 44.
 
-### § 44 — to wazmrt and wasmrt: § 43 answered — all fixed, the type rule stated in D2 (drafted 2026-10-24; ✅ SENT by the owner 2026-10-24; everything it describes SHIPPED in 2.2.0 the same day; awaiting their matrices on 2.2.0. The D3 question it left open is DECIDED: declined, owner "stay with what we have" — D3 stays testsuite messages only; wazmrt notified by the owner, 2026-10-24)
+### § 44 — to wazmrt and wasmrt: § 43 answered — all fixed, the type rule stated in D2 (drafted 2026-10-24; ✅ SENT by the owner 2026-10-24; everything it describes SHIPPED in 2.2.0 the same day; both runtimes' matrices on 2.2.0 ANSWERED, § 45. The D3 question it left open is DECIDED: declined, owner "stay with what we have" — D3 stays testsuite messages only; wazmrt notified by the owner, 2026-10-24)
 
 > From binaryang, 2026-10-24. Thank you for both measurements: every row you sent reproduced, and
 > every one was ours. All of it is fixed on binaryang's `main` and ships in the next release (the
@@ -943,6 +943,22 @@ rule ("wasm-tools' rule"). Reply § 44.
 > module of waits on an unshared memory only validates). We will write when it is decided.
 >
 > **When the release ships**, re-pin and re-run your matrices; every difference back to us.
+
+### § 45 — from wazmrt and wasmrt: § 44's matrices on 2.2.0 (done 2026-10-24; read from their records 2026-10-26 — no letter was sent, nothing re-run here)
+
+Neither reports a binaryang defect; nothing is asked of us. Source: each runtime's own memory, read
+2026-10-26.
+
+- **wazmrt** (`../wazmrt/cmem/open-work.md`, "DONE 2026-10-24, once binaryang 2.2.0 shipped"):
+  re-pinned to 2.2.0, its definitions generator renders `typeRules` / `encodingRules` / `presets` /
+  `requires` (`ee71a70`); `probes/d2-matrix.ts` against 2.2.0: **2,352 / 0 differ** (2.1.0: 62).
+  Accepting less, so its gate set **4.0.0**; contract v39. Later it found and fixed one row of its
+  own that its corpus had missed — a table initializer with function-references off (`bd97ae2`,
+  contract v40); binaryang 2.2.0 already refused it.
+- **wasmrt** (`../wasmrt/cmem/known-issues.md`, "the binaryang 2.2.0 re-pin"): its S1 corpus
+  (140 modules) × D2's 49 configurations against `wasm-validate` from `git archive v2.2.0`:
+  **0 of 6,860** after one wasmrt fix (an `exact` reference skipped the type rule; 2 → 0). Its
+  memory still called § 44 "drafted, not yet sent"; corrected on its side (`cd8081f`, 2026-10-26).
 
 Letters addressed to binaryang in `../../cmem/handoffs.md`, acted on in this repo. The workspace
 closes its own rows; nothing is written there from here.
@@ -998,7 +1014,9 @@ closes its own rows; nothing is written there from here.
     (wasm-tools 1.259 wrote BOTH sections, with identifiers, and both runtimes matched it). Cause
     unmeasured — a wasm-tools change between 1.259 and 1.262 is one candidate; if it is, the
     runtimes now differ from wasm-tools where binaryang does not. For the workspace to re-check
-    with the runtimes; not ours to run.
+    with the runtimes; not ours to run. **wasmrt re-ran it 2026-10-26** (its record, in the
+    workspace's notes): wasm-tools 1.262 writes one name section, and wasmrt's unit test expects
+    exactly those bytes — so wasmrt = wasm-tools 1.262 = binaryang. wazmrt's re-run is still open.
 - **H24 ✅ 2026-10-26** (owner: "work on H24"). ★ rule 5.2 re-copied with the workspace's new
   wording (the development drive's FILESYSTEM, not its letter) and the block re-stamped in
   [best-practices.md](best-practices.md) § "The workspace's convergent rules (★)". A one-time
@@ -1016,6 +1034,12 @@ closes its own rows; nothing is written there from here.
   scan hit judged as a candidate, and the one exception: the maintainer contact email in a
   registry manifest field and as the commit address (owner, 2026-10-26). § Git notes that this repo
   keeps the noreply address, which the rule allows. Nothing rewritten: HEAD's scan is empty.
+- **★ 6.1 quotes a pre-purge id of ours — waits on the workspace (2026-10-26).** rsxtk found that
+  the canonical rule cites `b8fafaa3f` ("build: pin npm:binaryen to 132 …", 2026-09-12). Measured
+  here: that id is on no remote branch and no tag; the same commit on `origin/main` is
+  **`8d9ba0cb9`** (an ancestor of `origin/main`), which `working-rules.md` and `testing.md` already
+  cite. Our copy in [best-practices.md](best-practices.md) carries the old id too and is NOT edited
+  here (the stamp's rule): when the workspace fixes 6.1, re-copy it and re-stamp.
 
 ## Lessons the correspondence paid for
 
