@@ -36,6 +36,10 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { readBinaryIr } from '../../src/reader/binary-reader.ts';
+import { wasmStrip } from '../../src/tools/wasm-strip.ts';
+import { Result } from '../../src/core/result.ts';
+import { formatErrors, hasErrors, makeErrorList } from '../../src/core/error.ts';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const repo = fileURLToPath(new URL('../..', import.meta.url));
@@ -72,34 +76,22 @@ function remapFlags(): string {
 }
 const RUSTFLAGS = remapFlags();
 
-/** Removes the `.debug_*` custom sections from a wasm file, copying every other section verbatim. */
+/**
+ * Removes the `.debug_*` custom sections from a wasm file with binaryang's own `wasm-strip`,
+ * which copies every other section verbatim (open-work 45).
+ */
 function stripDwarf(file: string): void {
   const buf = new Uint8Array(readFileSync(file));
-  const leb = (p: number): [number, number] => {
-    let r = 0, s = 0, b: number;
-    do {
-      b = buf[p++]!;
-      r |= (b & 0x7f) << s;
-      s += 7;
-    } while (b & 0x80);
-    return [r >>> 0, p];
-  };
-  const keep: Uint8Array[] = [buf.subarray(0, 8)];
-  let p = 8;
-  while (p < buf.length) {
-    const hdr = p;
-    const id = buf[p++]!;
-    const [size, q] = leb(p);
-    const end = q + size;
-    let drop = false;
-    if (id === 0) {
-      const [n, r] = leb(q);
-      drop = new TextDecoder().decode(buf.subarray(r, r + n)).startsWith('.debug_');
-    }
-    if (!drop) keep.push(buf.subarray(hdr, end));
-    p = end;
+  const errors = makeErrorList();
+  const dwarf = readBinaryIr(buf, errors, { readDebugNames: false })
+    .customSections.map((c) => c.name)
+    .filter((n) => n.startsWith('.debug_'));
+  const r = wasmStrip(buf, { sections: dwarf });
+  if (hasErrors(errors) || r.result !== Result.Ok) {
+    console.error(`✗ ${file}: ${formatErrors(errors)}${formatErrors(r.errors)}`);
+    process.exit(1);
   }
-  writeFileSync(file, Buffer.concat(keep.map((k) => Buffer.from(k))));
+  writeFileSync(file, r.binary);
 }
 
 /** Fails the build if a module still carries a path from this machine. */
