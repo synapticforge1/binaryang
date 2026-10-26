@@ -999,6 +999,17 @@ closes its own rows; nothing is written there from here.
     unmeasured — a wasm-tools change between 1.259 and 1.262 is one candidate; if it is, the
     runtimes now differ from wasm-tools where binaryang does not. For the workspace to re-check
     with the runtimes; not ours to run.
+- **H24 ✅ 2026-10-26** (owner: "work on H24"). ★ rule 5.2 re-copied with the workspace's new
+  wording (the development drive's FILESYSTEM, not its letter) and the block re-stamped in
+  [best-practices.md](best-practices.md) § "The workspace's convergent rules (★)". A one-time
+  script compared all 28 ★ rules, workspace against this copy, by number and normalized text:
+  5.2 the only difference before the edit (its positive control), 0 of 28 after.
+- **Workspace status, 2026-10-26 — notations left for the workspace session** in
+  `../../cmem/handoffs.md` (its "Notes from binaryang" block): which letters are done here with
+  their commits, H25 §3(a) measured (the public refs carry no drive path; the path-bearing commits
+  are on local-only branches never pushed), H22 NOT done here (our privacy rule still says "no
+  absolute path" and has no "machine-specific?" test or convention-path allowance), and the
+  stale binaryang cells in its sweep and open-work.
 
 ## Lessons the correspondence paid for
 
