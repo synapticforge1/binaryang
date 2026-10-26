@@ -16,8 +16,9 @@ with the Browsers job (2026-10-13, `0e7c5398f`); the code lens pass 1 merged and
 
 **State, 2026-10-26 (supersedes the paragraphs above where they differ).** Since 2026-10-24,
 memory only, no code: letters H24 (★ 5.2 re-copied) and H22 (the privacy rule's path test) done;
-H25 §3(a) measured — no binaryang force-push is pending (the path-bearing commits sit on local
-branches never pushed; deleting them is the owner's call); the runtimes' § 44 matrices on 2.2.0
+H25 §3(a) measured — no binaryang force-push is pending (the path-bearing commits sat on local
+branches never pushed; 398 of them deleted on the owner's word, 2026-10-26, one kept —
+[publishing.md](publishing.md) § "Local branches deleted"); the runtimes' § 44 matrices on 2.2.0
 read from their records, 0 differences ([handoffs.md](handoffs.md) § 45). All pushed. Waiting on
 the workspace: the canonical ★ 6.1 still cites our pre-purge `b8fafaa3f` (re-copy when it changes).
 The release, the open items and the next step below are unchanged.
