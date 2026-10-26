@@ -14,7 +14,16 @@ with the Browsers job (2026-10-13, `0e7c5398f`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
-**State, 2026-10-26 (supersedes the paragraphs above where they differ).** Since 2026-10-24,
+**State, 2026-10-26, end of the session (supersedes the paragraph below).** On `main`, pushed:
+the **`wasm-strip` fix** (item 45, unreleased — [unreleased.md](unreleased.md); full gate 29 / 29),
+the **benchmark modules rebuilt with no machine path** (item 44; the optimizer's six baseline is
+now 138,410 vs upstream 137,621, [optimizer.md](optimizer.md) § "State 2026-10-26"), H27 / H20
+recorded, I8 closed, C1 / C2 closed, C9 sent to the workspace (git's `safe.directory` entries name
+the old folder). **Open for the owner:** 46 (the old blobs in public history: a second purge and
+force-push, or accept), the release of the item 45 fix and its level, and C9's config write.
+**Next by the owner's order:** 31, from 138,410. The release, 13, 14, 15 and 43 are unchanged.
+
+**State, 2026-10-26, earlier (superseded where the paragraph above differs).** Since 2026-10-24,
 memory only, no code: letters H24 (★ 5.2 re-copied) and H22 (the privacy rule's path test) done;
 H25 §3(a) measured — no binaryang force-push is pending (the path-bearing commits sat on local
 branches never pushed; 398 of them deleted on the owner's word, 2026-10-26, one kept —
@@ -118,7 +127,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     (64,910 → 64,910, measured). Under the fidelity mandate a tool that removes a section leaves
     the rest untouched, so this reads as a DEFECT; the alternative is to call it DESIGN under L1.
     [divergences.md](divergences.md) ST1. The byte-exact removal used for the modules lives in
-    `benches/browser-opt/build.ts` (`stripDwarf`), which a fix would move into the tool.
+    `benches/browser-opt/build.ts` (`stripDwarf`) until the fix; since it, `stripDwarf` calls the
+    tool.
     **Measured 2026-10-26** (owner: "measure open work item 45 and report"), upstream wabt 1.0.41
     `wasm-strip` against ours, both removing every custom section, on all 13 tracked `.wasm` plus
     the five pre-fix blobs: **14 of 18 differ** — every LLVM-linked Rust and Zig module; the 4
