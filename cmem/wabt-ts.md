@@ -919,7 +919,7 @@ Full text: `git show 62c65a9db:cmem/wabt-ts/best-practices.md`
 What wabt-ts was: a TypeScript port of WebAssembly/wabt, built so wasmtk would not need the compiled binary, with `wasm2ts` as the long-term goal. The file also held the conformance table, a newest-first retelling of the T13 audit and hardening passes (T13.11–T13.47), the standalone repo layout, and the sibling-project framing. **It is stale in two ways.** It treats wasmtk as part of the merge, but binaryang is two projects and wasmtk stays a consumer. And its layout (`upstream/`, `binaryen-ts/`, `wasmtk/` submodules, `src/bridge/binaryen-bridge.ts`) no longer exists.
 
 **Kept**
-- [correction] **The merge was two projects, not three.** → cmem/project.md § "Scope: two projects, not three". Source is now `src/wabt-ts/…`, the bridge is `src/bridge/bridge.ts`, and there are no submodules. The upstream C++ is a clone outside the repo (`wasmExamples/wabt-ts/upstream/`, which exists).
+- [correction] **The merge was two projects, not three.** → cmem/project.md § "Scope: two projects, not three". Source is now `src/wabt-ts/…`, the bridge is `src/bridge/bridge.ts`, and there are no submodules. The upstream C++ is a clone outside the repo (the sibling's `../wabt-ts/upstream/`, which exists).
 - [decision] **Who encodes what.** wabt-ts's encoder serves the format tools (the `wat2wasm`/`wasm2wat` round trip, strip, validate). binaryen-ts encodes *optimized* wasm. External `.wat` enters through wabt-ts (routing W4 → cmem/ir-convergence.md § "The bridge and the WAT routes into binaryen-ts — history, summarized").
 - [decision] **Wasmtime is the authority when V8 and Wasmtime disagree**, and engine limits are told apart
   from spec limits → § "Oracles — the engine panel" above.

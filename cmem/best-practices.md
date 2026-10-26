@@ -43,8 +43,10 @@ That is not style converging; it is the same failure modes teaching the same les
 
 ## The workspace's convergent rules (★)
 
-> **Copied from `../../cmem/best-practices.md` on 2026-10-23; re-copied 2026-10-26** (rule 5.2's
-> new wording, workspace letter H24 — the other 27 compared equal by a one-time script; workspace letter H6; memory
+> **Copied from synapticforge1/cmem/best-practices.md on 2026-10-26** (the stamp's canonical
+> wording, workspace letter H27; first copied 2026-10-23, rule 5.2 re-copied 2026-10-26 under letter
+> H24 — at each re-copy a one-time script compared all 28 ★ rules by number and normalized text, 0
+> differences; workspace letter H6; memory
 > conventions: the convergent method rules are canonical THERE and duplicated into every repo under
 > this stamp — a change is made there and re-copied, never edited here). ★ = two or more repos
 > derived the rule without reading each other; the tags name them. Section numbers are the
@@ -572,7 +574,9 @@ Four rules they add to the two above:
 
 ### The checklist — "where is this construct USED, not where is it NAMED?"
 
-> **Copied from `../../cmem/best-practices.md` § 5.5 on 2026-10-23** (workspace letter H5, drift
+> **Copied from synapticforge1/cmem/best-practices.md § 5.5 on 2026-10-23** (stamp wording per
+> workspace letter H27, 2026-10-26, the nine clauses of the canonical prose re-read against the
+> list below, equal; workspace letter H5, drift
 > W5: canonical THERE, copied into each repo under this stamp; a change is made there and
 > re-copied, never edited here). Nine questions:
 >
