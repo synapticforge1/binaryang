@@ -23,6 +23,8 @@ not survive a clone is not a project rule. The lessons behind them are in
   `user.email` (2026-10-22, letter H19; the history was purged of the personal address that
   day — [publishing.md](publishing.md) § "The history purge"). A fresh clone needs it set again
   before its first commit: `git config --local user.email` must print the noreply address.
+  (Since 2026-10-26 the workspace also allows the maintainer address on commits — § Records'
+  exception; this repo keeps noreply, which the rule leaves as it is.)
 - **Never push from a clone made before 2026-10-22** (wasmtk's `upstream/binaryang`, old scratch
   clones): it carries the pre-purge history and would publish it again. Re-clone.
 - **Prefer a new commit over `--amend`.**
@@ -219,9 +221,24 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   written out, so the scan below stays empty.) Committed files use repo- or sibling-relative
   paths (`new URL('../../wasmtk/…', import.meta.url)`), an environment variable, or a placeholder
   (`<repo>`, `<scratchpad>`); the real path goes in the gitignored `cmem/local/`, or nowhere.
-  Scan before committing: `git grep -I -n -i -E '[A-Za-z]:[\\/]+(Programs|Users|scoop|tools)[\\/]|/[a-z]/(Programs|Users)/'`
-  must find nothing. 🔧 `scripts/spec-prepare.ts` held an absolute default corpus path from
-  `cebbb1260` until 2026-10-22; it is public in history — the purge is letter H19's.
+  **The test is "is it machine-specific?", not "is it absolute?"** (owner, 2026-10-23; workspace
+  `../cmem/working-rules.md` § Records, letter H22; recorded here 2026-10-26). NOT public: any path
+  that records the owner's own machine layout — a user profile, the project tree, another drive,
+  a scoop or AppData install, a scratchpad or session id. FINE: repo- or sibling-relative paths,
+  environment variables, placeholders, and a CONVENTION path that names nothing about one machine
+  and works on any comparable host (the workspace's example: a fixed cache directory such as
+  `C:\zig-cache\<repo>`). Tool settings that record paths (`.claude/settings.local.json`, IDE
+  workspace files) are never tracked.
+  Scan before committing: `git grep -I -n -i -E '[A-Za-z]:[\\/]+(Programs|Users|scoop|tools)[\\/]|/[a-z]/(Programs|Users)/'`.
+  A hit is a CANDIDATE, judged by the test above — remove what records this machine; do not scrub
+  a convention path. 🔧 `scripts/spec-prepare.ts` held an absolute default corpus path from
+  `cebbb1260` until 2026-10-22; the public history was purged of it (letter H19, 2026-10-23).
+  **The one exception — the maintainer contact email** (owner, 2026-10-23, widened 2026-10-26):
+  a publishing project may carry ONE contact email in the manifest field its registry reads, and
+  it may be the git author / committer address. Nowhere else — not in `cmem/`, README text,
+  issues or scripts; memory calls it "the maintainer address" and never writes it. binaryang
+  commits with the noreply address (§ Git); either is allowed, so no change is required. A
+  history purge rewrites paths and other personal facts, not that address.
 - **Owner calls stay owner calls.** Where a record says 🗓️ OWNER or "future discussion", gather the
   evidence and stop.
 
