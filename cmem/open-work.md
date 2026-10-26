@@ -34,7 +34,8 @@ wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 reco
 
 - **Open:** 31 (resume as its "State 2026-10-22" paragraph says: re-derive the six 139,857 and the
   corpus 811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening
-  re-run until clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk).
+  re-run until clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk), 43
+  (the kept `wip/r15-tree-pass` branch: fold its message into the record, then the owner decides).
   No defect or gap is open, so by the owner's order 31 is next unless the owner says 13.
 - **Awaiting replies:** wasmtk's optional answer to § 19. (The runtimes' matrices on 2.2.0
   came back clean — § 45, 2026-10-26.)
@@ -400,6 +401,22 @@ kept free.)
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
+43. ⬚ **The one kept local branch, `wip/r15-tree-pass`** (owner, 2026-10-26: "add that to the open
+    items list so that it is not forgotten"). The 2026-09-20 first attempt at R15's block-param
+    lowering, as a tree pass; it failed 6 of 8 modules and was never merged. R15 landed another way
+    (positional, merge `f3008cbd6`). It was kept when the other 398 local branches were deleted
+    ([publishing.md](publishing.md) § "Local branches deleted") because two places send readers to
+    its commit message for the traps it records: [ir-convergence.md](ir-convergence.md) § R15 and
+    `src/passes/lower-block-params.ts:33`. It is local only: never pushed, not in any clone.
+    ⚠️ Its id is now `91dfb6cc2` (re-parented 2026-10-26). The pre-purge bundle holds the OLD id,
+    `ade9019d6`, with the same patch and message, so the branch's content is backed up, but under
+    another id.
+    **To close:** (1) fold what the message alone holds into [ir-convergence.md](ir-convergence.md)
+    § R15. That is the failures it measured per module and trap 1: `mapExpression` calls back with
+    a REBUILT node, so identity survives only for leaves; a lookup by identity never matched, nothing
+    was lowered, and the guard loop ran 1,000 times. Trap 2, "a no-op passes every validity test",
+    is already in [best-practices.md](best-practices.md). (2) Point both citations at that record
+    instead of the branch. (3) The owner decides: delete the branch, or keep it.
 (Item 25 closed 2026-10-13: the deprecated IR subpaths and names are removed on `main`, for the next
 minor, 1.12.0 — [unreleased.md](unreleased.md), the letter [handoffs.md](handoffs.md) § 32. The
 premise "wasmtk does not import the IR subpaths" was checked in their repo before relying on it: true
