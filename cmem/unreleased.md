@@ -6,6 +6,12 @@ nothing user-visible is unreleased on `main`** (check it rather than trust this 
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
+**Repo-only, 2026-10-26 (nothing in either package; no release-note line):** the five benchmark
+modules under `benches/browser-opt/` that embedded the build machine's paths were replaced —
+Rust rebuilt with path remapping, Zig's DWARF removed byte for byte — and `build.ts` now scans its
+outputs ([open-work.md](open-work.md) 44). The optimizer's six-module baseline moved with them
+([optimizer.md](optimizer.md) § "State 2026-10-26"); the published optimizer is unchanged.
+
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR record
 changes, the post-M8 and Q1–Q8 fixes, S7), **1.6.1** (the CLI from JSR), **1.7.0** (`./interop`

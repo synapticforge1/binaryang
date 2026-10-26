@@ -103,6 +103,12 @@ upstream at the same level.
 | tinygo-opt1     |   12,996 |   12,958 |       12,930 | +0.2% |   12,958 |       12,848 | +0.9% |
 | tinygo-optz     |   11,389 |   11,382 |       11,392 | −0.1% |   11,382 |       11,384 | 0.0% |
 
+🔧 2026-10-26: the modules this table measured were REPLACED (open-work 44 — they embedded the
+build machine's paths): rust-debug and rust-release are a later nightly's output (originals
+50,286 / 19,856 code bytes), and the Zig files carry no DWARF any more, so their total size is
+their code bytes. The table stays as the 2026-10-13 record; today's -Oz / -O2 totals are under
+§ "Open-work 31", "State 2026-10-26".
+
 **binaryang's optimize time in the browser, -O2** (Chrome / Firefox / Safari, ms): rust-debug
 321 / 551 / 384; rust-release 85 / 182 / 100; zig-debug 712 / 1,662 / 871; zig-releasefast
 137 / 379 / 172; tinygo-opt1 90 / 171 / 76; tinygo-optz 60 / 98 / 60. -Oz within 15% of these.
@@ -297,6 +303,20 @@ variants apart.
 (139,709). Left: simplify-locals-nostructure 135 · simplify-locals 117 · remove-unused-brs 109 ·
 vacuum 63 · local-cse 36 · precompute-propagate 35 · ssa-nomerge 33 · rse 32 · …;
 optimize-instructions −118.
+
+**State 2026-10-26 — the six REBUILT (open-work 44), the baseline re-derived.** Five of the
+committed modules carried the build machine's paths (user profile, toolchains, project tree) in
+their DWARF and in Rust's panic locations — public on GitHub — so they were replaced: the Rust
+ones rebuilt with rustc's path remapping (nightly 2026-10-20; the original nightly was never
+recorded, so the code moved), the Zig ones with their `.debug_*` sections removed byte for byte
+(code bytes unchanged, 64,910 / 20,408 / 19,743), TinyGo untouched. Positive control first: the
+OLD modules reproduced step 16's numbers exactly on today's tree (ours 139,857; upstream 133
+`-Oz --strip-dwarf -all` 139,068). **New baseline, six -Oz: ours 138,410 vs upstream 137,621
+(+0.57%); -O2: ours 139,865 vs upstream 142,855 (−2.1%)** — the gap is unchanged. Originals'
+code bytes now rust-debug 50,286 (was 51,752), rust-release 19,856 (19,836); the four others as
+before. The corpus was not re-measured (none of its modules changed; 811,071 is still step 16's
+claim). **Item 31 resumes from 138,410, not 139,857.** `benches/browser-opt/build.ts` now
+remaps, strips and SCANS, and refuses a module that carries a machine path.
 
 **Measuring note (step 4):** a first "stack-IR prize" of 5 KB on the corpus was upstream's
 compact-imports encoding, which `--all-features` switches on (20 bytes on a typical module's import
