@@ -23,16 +23,95 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
+const repo = fileURLToPath(new URL('../..', import.meta.url));
 const out = join(here, 'modules');
 mkdirSync(out, { recursive: true });
 const tmp = mkdtempSync(join(tmpdir(), 'binaryang-browser-opt-'));
+
+// No machine path may reach a committed module (cmem/working-rules.md § Records; open-work 44,
+// 2026-10-26: the first builds embedded the user profile, the toolchains and the project tree in
+// DWARF and in Rust's panic locations). Rust remaps every prefix at compile time (nightly:
+// `-Ztranslate-remapped-path-to-local-path=no` keeps std's `/rustc/<hash>` virtual paths instead
+// of translating them back to the local rust-src); Zig has no prefix map, so its DWARF custom
+// sections are removed from the file byte for byte (code bytes untouched; the `name` section
+// stays); TinyGo builds with `-no-debug`. Every output is then scanned, and the build FAILS on a hit.
+function remapFlags(): string {
+  const sysroot = spawnSync('rustc', ['+nightly', '--print', 'sysroot'], { encoding: 'utf8' })
+    .stdout.trim();
+  const cargoHome = process.env['CARGO_HOME'] ?? join(homedir(), '.cargo');
+  // General prefixes first, specific ones last (the later mapping wins where both match).
+  const pairs: [string, string][] = [
+    [homedir(), '/home'],
+    [cargoHome, '/cargo'],
+    [sysroot, '/rustc/sysroot'],
+    [tmp, '/tmp'],
+    [repo.replace(/[\\/]$/, ''), '/binaryang'],
+  ];
+  const flags = ['-Ztranslate-remapped-path-to-local-path=no'];
+  for (const [from, to] of pairs) {
+    for (const f of new Set([from, from.replaceAll('\\', '/'), from.replaceAll('/', '\\')])) {
+      flags.push(`--remap-path-prefix=${f}=${to}`);
+    }
+  }
+  return flags.join(' ');
+}
+const RUSTFLAGS = remapFlags();
+
+/** Removes the `.debug_*` custom sections from a wasm file, copying every other section verbatim. */
+function stripDwarf(file: string): void {
+  const buf = new Uint8Array(readFileSync(file));
+  const leb = (p: number): [number, number] => {
+    let r = 0, s = 0, b: number;
+    do {
+      b = buf[p++]!;
+      r |= (b & 0x7f) << s;
+      s += 7;
+    } while (b & 0x80);
+    return [r >>> 0, p];
+  };
+  const keep: Uint8Array[] = [buf.subarray(0, 8)];
+  let p = 8;
+  while (p < buf.length) {
+    const hdr = p;
+    const id = buf[p++]!;
+    const [size, q] = leb(p);
+    const end = q + size;
+    let drop = false;
+    if (id === 0) {
+      const [n, r] = leb(q);
+      drop = new TextDecoder().decode(buf.subarray(r, r + n)).startsWith('.debug_');
+    }
+    if (!drop) keep.push(buf.subarray(hdr, end));
+    p = end;
+  }
+  writeFileSync(file, Buffer.concat(keep.map((k) => Buffer.from(k))));
+}
+
+/** Fails the build if a module still carries a path from this machine. */
+function scanClean(file: string): void {
+  const text = readFileSync(file).toString('latin1').replaceAll('\\', '/');
+  const generic = /[A-Za-z]:\/+(Users|Programs|scoop|tools)\/|\/[a-z]\/(Users|Programs)\//;
+  const own = [homedir(), repo, tmp].map((s) => s.replaceAll('\\', '/').replace(/\/$/, ''));
+  if (generic.test(text) || own.some((s) => text.includes(s))) {
+    console.error(`✗ ${file} embeds a machine path (see the note above remapFlags)`);
+    process.exit(1);
+  }
+}
 
 function run(
   label: string,
@@ -76,7 +155,7 @@ if (process.argv.includes('--wasm64')) {
         '-Zbuild-std=std,panic_abort',
       ],
       join(here, 'src', 'rust'),
-      { CARGO_TARGET_DIR: target },
+      { CARGO_TARGET_DIR: target, RUSTFLAGS },
     );
     copyFileSync(
       join(target, 'wasm64-unknown-unknown', 'release', 'browser_opt_workload.wasm'),
@@ -95,6 +174,7 @@ if (process.argv.includes('--wasm64')) {
       '--cache-dir',
       join(tmp, 'zig-cache64'),
     ]);
+    stripDwarf(join(out64, 'zig-releasefast-wasm64.wasm'));
     // Emscripten: on Windows `emcc` is a .bat, which spawnSync runs only through cmd.exe, and
     // cmd.exe mangles quoted arguments; emsdk's `emcc.exe` launcher beside it is run directly.
     const emsdk = process.env['EMSDK'];
@@ -142,6 +222,7 @@ if (process.argv.includes('--wasm64')) {
       'emcc-o2-program-wasm64.cjs',
     ]
   ) {
+    scanClean(join(out64, n));
     console.log(`${n}: ${statSync(join(out64, n)).size} bytes`);
   }
   process.exit(0);
@@ -153,16 +234,18 @@ try {
   console.log(`tinygo: ${version('tinygo', 'version')}`);
 
   // Rust: wasm32-unknown-unknown, debug and release (opt-level 3, LTO), target dir outside the repo.
+  // `+nightly` because the path-remapping flags are nightly-only (above).
   const rust = join(here, 'src', 'rust');
   const target = join(tmp, 'cargo');
   for (const [profile, flag] of [['debug', []], ['release', ['--release']]] as const) {
     run(
-      `cargo build ${profile}`,
+      `cargo +nightly build ${profile}`,
       'cargo',
-      ['build', '--target', 'wasm32-unknown-unknown', ...flag],
+      ['+nightly', 'build', '--target', 'wasm32-unknown-unknown', ...flag],
       rust,
       {
         CARGO_TARGET_DIR: target,
+        RUSTFLAGS,
       },
     );
     copyFileSync(
@@ -188,6 +271,7 @@ try {
       '--cache-dir',
       join(tmp, 'zig-cache'),
     ]);
+    stripDwarf(join(out, `${name}.wasm`));
   }
 
   // TinyGo: the plain-wasm target, -opt=1 and -opt=z (size, TinyGo's default for wasm). Not -opt=0:
@@ -218,5 +302,6 @@ for (
     'tinygo-optz',
   ]
 ) {
+  scanClean(join(out, `${n}.wasm`));
   console.log(`${n}.wasm: ${statSync(join(out, `${n}.wasm`)).size} bytes`);
 }

@@ -36,13 +36,15 @@ wasmtk) and § 44 (to wazmrt, wasmrt) SENT by the owner; § 43 their replies. D3
 messages only (owner: "stay with what we have" — wazmrt's "expected shared memory" class declined;
 wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 record.
 
-- **Open:** 44 (🗓️ OWNER — five committed benchmark modules embed personal paths; found
-  2026-10-26), 31 (resume as its "State 2026-10-22" paragraph says: re-derive the six 139,857 and the
-  corpus 811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening
-  re-run until clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk), 43
-  (the kept `wip/r15-tree-pass` branch: fold its message into the record, then the owner decides).
-  44 is a gap (privacy, not code), so by the owner's order it is first; its fix moves 31's
-  baseline, so decide 44 before resuming 31.
+- **Open:** 45 (🗓️ OWNER — `wasm-strip` re-encodes the sections it keeps; found 2026-10-26
+  fixing 44), 31 (resume as its "State 2026-10-22" paragraph says, from the REBUILT six —
+  138,410 since 2026-10-26, [optimizer.md](optimizer.md) § "State 2026-10-26" — and the corpus
+  811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening re-run until
+  clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk), 43 (the kept
+  `wip/r15-tree-pass` branch: fold its message into the record, then the owner decides). 44 is
+  DONE at HEAD (below); what remains of it is the owner's: the purge of the old blobs from public
+  history and the force-push. 45 is a probable defect, so by the owner's order it is decided
+  before 31 resumes.
 - **Awaiting replies:** wasmtk's optional answer to § 19. (The runtimes' matrices on 2.2.0
   came back clean — § 45, 2026-10-26.)
 - **Before relying on a number in this file, re-derive it** (rule: a written number is a claim
@@ -73,26 +75,40 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-44. 🗓️ **Five committed benchmark modules embed the owner's machine paths** (found 2026-10-26
-    while closing workspace letter H27; OWNER decides). `benches/browser-opt/modules/{rust-debug,
-    zig-debug, zig-releasefast}.wasm` (public since `f9b74f213`, 2026-10-13) and
-    `modules64/{rust-release-wasm64, zig-releasefast-wasm64}.wasm` (`4dcb140e3`, 2026-10-22) carry,
-    in their DWARF sections and panic-location strings, the user-profile path of the scoop
-    toolchain and AppData (199 hits) and the project tree under the old workspace folder name. The
-    privacy rule's scan (`git grep -I`) and the H18 / H19 / H25 history scans (`git log -G`) skip
-    binary files, so every "HEAD is clean" claim was true of text only; the rule now has a binary
-    scan ([working-rules.md](working-rules.md) § Records). Not shipped in either package
-    (`benches/**` excluded). **Why it is not a one-line fix:** these are the optimizer's six
-    baseline inputs (every six-module number in [optimizer.md](optimizer.md) and item 31) and the
-    fixtures of four tests (`real_compiler_behaviour`, `memory64_real_compiler`,
-    `memcpy_to_bulk_memory` — whose catalogue is generated from their bytes — and
-    `reference_types_gate`). **Options for the owner:** (a) rebuild each with its paths remapped
-    (`-C remap-path-prefix` / `--remap-path-prefix` for Rust, the Zig equivalent, or strip the
-    DWARF sections and keep the name section) and re-derive every baseline and the memcpy catalogue
-    in the same commit; (b) leave the files and accept the exposure (the paths name a user and a
-    toolchain layout, nothing secret). Either way the public history keeps the blobs until a
-    second H19 purge of these paths and a force-push (owner). Record of the finding:
-    [handoffs.md](handoffs.md) § "Letters addressed to binaryang", the H18 entry.
+45. 🗓️ **`wasm-strip` re-encodes the sections it keeps** (found 2026-10-26 fixing item 44;
+    OWNER decides). Removing only the `.debug_*` sections from zig-debug with our `wasm-strip -s …`
+    left 59,154 code bytes of 64,910: every kept section goes through the reader and the writer,
+    so LLVM's relocation-padded LEBs come out minimal (divergence L1) and the module is no longer
+    the compiler's bytes. Upstream wabt 1.0.41's `wasm-strip` copies every kept section verbatim
+    (64,910 → 64,910, measured). Under the fidelity mandate a tool that removes a section leaves
+    the rest untouched, so this reads as a DEFECT; the alternative is to call it DESIGN under L1.
+    [divergences.md](divergences.md) ST1. The byte-exact removal used for the modules lives in
+    `benches/browser-opt/build.ts` (`stripDwarf`), which a fix would move into the tool.
+
+44. ✅ **Five committed benchmark modules embedded the owner's machine paths** — DONE at HEAD
+    2026-10-26 (owner: "lets fix 44"); found the same day while closing workspace letter H27.
+    `benches/browser-opt/modules/{rust-debug, zig-debug, zig-releasefast}.wasm` (public since
+    `f9b74f213`, 2026-10-13) and `modules64/{rust-release-wasm64, zig-releasefast-wasm64}.wasm`
+    (`4dcb140e3`, 2026-10-22) carried, in DWARF and in Rust's panic-location strings, the
+    user-profile path of the scoop toolchain and AppData (199 hits) and the project tree under the
+    old workspace folder name. Every text scan — the rule's `git grep -I`, the H18 / H19 / H25
+    `git log -G` — skips binary files, so "HEAD is clean" had been true of text only; the rule
+    now has a binary scan ([working-rules.md](working-rules.md) § Records). Never shipped
+    (`benches/**` is excluded from the package; npm ships `dist/`). **The fix:** the two wasm32
+    Rust modules and the wasm64 one rebuilt with every prefix remapped (`--remap-path-prefix` for
+    the home, cargo home, sysroot, temp and repo paths, `-Ztranslate-remapped-path-to-local-path=no`
+    so std keeps its `/rustc/<hash>` virtual paths — the data-section hits were panic locations
+    rustc had translated back to the local rust-src); the three Zig modules with their `.debug_*`
+    custom sections removed byte for byte (Zig has no prefix map; code bytes unchanged); TinyGo
+    untouched (`-no-debug`, no hits). `build.ts` now does all three and SCANS every output,
+    failing on a machine path. Checked: the binary-aware scan over the whole tree finds nothing;
+    every module validates; the four tests that read them pass (34 / 34); the optimizer baseline
+    re-derived with a positive control — [optimizer.md](optimizer.md) § "State 2026-10-26": six
+    -Oz 138,410 vs upstream 137,621 (+0.57%, the gap unchanged; item 31 resumes from 138,410).
+    `results.json` (the 2026-10-22 browser run) and the 28.6 table stay as dated records of the
+    old modules. **Left to the owner:** the old blobs are in public history from `f9b74f213` /
+    `4dcb140e3` — a second H19 purge (paths only, every ref) and a force-push, or accepting that
+    history. Record: [handoffs.md](handoffs.md) § "Letters addressed to binaryang", the H18 entry.
 
 34. ✅ **One opcode profile every widely used engine runs** — DONE 2026-10-24 (owner, 2026-10-23:
     "attempt to create a consolidated opcode set that all can decode and run"). The record is
@@ -310,7 +326,8 @@ CI shell scripts are TypeScript (the old item 17).
     simplify-locals 117, remove-unused-brs 109, vacuum 63. **Paused** there (owner: "update the
 project memory files, then pause until later today"); resume by attributing
 simplify-locals-nostructure per function (`passfn.ts <module> simplify-locals-nostructure`),
-after re-deriving the six (139,857) and corpus (811,071).
+after re-deriving the six (138,410 since the 2026-10-26 rebuild of the modules, item 44; 139,857
+before it) and corpus (811,071).
 
 **Workspace letter H15 (2026-10-22, the scripting rule) — acted on** (owner: "proceed with H15"):
 the rule recorded in [working-rules.md](working-rules.md) § Tools (committed repeated-use scripts

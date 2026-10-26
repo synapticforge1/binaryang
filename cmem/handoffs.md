@@ -1081,6 +1081,13 @@ closes its own rows; nothing is written there from here.
   re-derived in the same commit. The history purge (H19) then needs a second round for these
   blobs, and a force-push — 🗓️ OWNER. Record: [open-work.md](open-work.md) 44; the rule gained
   the binary scan ([working-rules.md](working-rules.md) § Records).
+  **✅ FIXED at HEAD the same day** (owner: "lets fix 44"): the Rust modules rebuilt with every
+  prefix remapped, the Zig modules' DWARF removed byte for byte, `build.ts` scanning its outputs;
+  whole-tree binary-aware scan empty; tests 34 / 34; the optimizer baseline re-derived
+  ([open-work.md](open-work.md) 44, [optimizer.md](optimizer.md) § "State 2026-10-26"). **Still
+  open, the owner's:** the old blobs in public history (`f9b74f213`, `4dcb140e3`) — a second H19
+  purge and force-push, or accept. Found on the way: our `wasm-strip` re-encodes what it keeps
+  (open-work 45).
 - **H20 ✅ record-only, 2026-10-26.** Which publishing path this repo uses and whether it pins
   owner / repository ids: [publishing.md](publishing.md) § "The move to `synapticforge`", the
   closing paragraph. Both registries are OIDC; both published every release since the move.
