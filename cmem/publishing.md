@@ -1072,7 +1072,9 @@ CHANGELOG § 2.2.1).
    jobs) except **Browsers**, which hit its 20-minute `timeout-minutes` inside "Install the
    browsers" (Playwright's download hung, 16:33:52 → 16:53:46Z) before any test ran. The same
    tree minus the version line passed Browsers on `369230e02`. A re-run needs a GitHub login
-   (no `gh`, no token here); CI on the next push is the check — recorded below when it reports.
+   (no `gh`, no token here); CI on the next push is the check. ✅ **It reported GREEN, every
+   job, Browsers included:** CI and auto-tag on `25aad71c9` (the record's own push, the same
+   code), 2026-10-26 — so the cancellation was the download timeout, nothing in the release.
 
 ## 2.2.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
