@@ -1007,9 +1007,15 @@ closes its own rows; nothing is written there from here.
 - **Workspace status, 2026-10-26 — notations left for the workspace session** in
   `../../cmem/handoffs.md` (its "Notes from binaryang" block): which letters are done here with
   their commits, H25 §3(a) measured (the public refs carry no drive path; the path-bearing commits
-  are on local-only branches never pushed), H22 NOT done here (our privacy rule still says "no
-  absolute path" and has no "machine-specific?" test or convention-path allowance), and the
-  stale binaryang cells in its sweep and open-work.
+  are on local-only branches never pushed), H22 not yet done here at that point (done below, the
+  same day), and the stale binaryang cells in its sweep and open-work.
+- **H22 ✅ 2026-10-26** (owner: "lets go ahead and do H22"). Record-only:
+  [working-rules.md](working-rules.md) § Records now states the path test — "is it
+  machine-specific?", not "is it absolute?" — with what is not public, what is fine (relative
+  paths, environment variables, placeholders, convention paths), tool settings never tracked, a
+  scan hit judged as a candidate, and the one exception: the maintainer contact email in a
+  registry manifest field and as the commit address (owner, 2026-10-26). § Git notes that this repo
+  keeps the noreply address, which the rule allows. Nothing rewritten: HEAD's scan is empty.
 
 ## Lessons the correspondence paid for
 
