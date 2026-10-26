@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.2.1
+
+A patch release with one fix: **`wasm-strip` now leaves every section it keeps exactly as it
+was.** Nothing is added, removed or renamed.
+
+### Fixes
+
+- **`wasm-strip` / `wasmStrip` re-encoded the module instead of copying it.** It removed custom
+  sections by decoding the module and writing it back, so the sections it kept came out
+  re-encoded: a linker's padded LEB numbers were written in their shortest form. The code meant
+  the same, but its bytes were not the input's (zig-debug's code section, for one, went from
+  64,910 to 59,154 bytes), and a kept section that points at code by byte offset went stale. After
+  `wasm-strip -s name`, a relocatable module's `reloc.CODE` / `reloc.DATA` sections, or a kept
+  `.debug_line`, pointed at the wrong bytes; `wasm-bundle` refused such a module. Now the module is
+  still decoded, so malformed input is reported as before, and the output is the input minus the
+  removed sections, byte for byte — the same bytes upstream wabt's `wasm-strip` writes. **If you
+  stripped only some sections from a relocatable or DWARF-carrying module with an earlier
+  release, strip it again from the original.** Stripping every custom section gave a valid,
+  equivalent module before too, only smaller than upstream's.
+- A module that decodes but could not be re-encoded (an index past the end of its section) is no
+  longer refused by `wasm-strip`; it is stripped, as upstream's tool does. `wasm-validate` still
+  reports it.
+
+Optimizing is unchanged: `wasm-opt` rewrites the module and writes the shortest encoding, as
+upstream does.
+
 ## 2.2.0
 
 A minor release that settles **which features a reference type needs**, as wasm-tools has it,
