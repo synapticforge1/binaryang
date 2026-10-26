@@ -1,34 +1,15 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-26: the last release is `v2.2.0`, on JSR and npm, both with provenance; ONE
-user-visible change is unreleased on `main` — the `wasm-strip` fix below** (check it rather than trust this line: `git log
---oneline v2.2.0..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.0; the
+**As of 2026-10-26 (UTC): the last release is `v2.2.1`, on JSR and npm, both with provenance;
+nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
+--oneline v2.2.1..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.1; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of
 work.
 
-**For the next release (open-work 45, on `main` 2026-10-26):**
-
-- **Silent fix + Behaviour — `wasm-strip` / `wasmStrip` no longer re-encodes the module.** It
-  removed custom sections by decoding the module and writing it back, so every kept section came
-  out re-encoded: LLVM's relocation-padded LEBs written minimally (14 of 18 Rust / Zig modules
-  measured; e.g. zig-debug's code 64,910 → 59,154 bytes). The code it printed was the same, but
-  the bytes were not the input's, and a KEPT section that names code offsets went stale: after
-  `wasm-strip -s name` a relocatable module's `reloc.CODE` / `reloc.DATA` (and a kept
-  `.debug_line`) pointed at the wrong bytes — `wasm-bundle` refused it. **What a user may have
-  shipped:** a module stripped with `-s <some sections>` that kept relocation or DWARF sections
-  carries stale offsets; re-strip it from the original. Stripping EVERYTHING produced a valid,
-  equivalent module (only smaller than upstream's). Now the module is still decoded (malformed
-  input reported as before), and the output is the input minus the removed sections, byte for
-  byte — upstream wabt's `wasm-strip`'s output exactly (tested against its hashes). Accepts one
-  thing it refused: a module that decodes but could not be re-encoded (an index past its
-  section) now strips, as with upstream. API unchanged. A fix, so a PATCH by SemVer — the level
-  is the owner's call.
-
-**Repo-only, 2026-10-26 (nothing in either package; no release-note line):** the five benchmark
-modules under `benches/browser-opt/` that embedded the build machine's paths were replaced —
-Rust rebuilt with path remapping, Zig's DWARF removed byte for byte — and `build.ts` now scans its
-outputs ([open-work.md](open-work.md) 44). The optimizer's six-module baseline moved with them
-([optimizer.md](optimizer.md) § "State 2026-10-26"); the published optimizer is unchanged.
+**Repo-only since 2.2.0 (nothing in either package; no release-note line):** the benchmark
+modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
+[optimizer.md](optimizer.md) § "State 2026-10-26"); the upstream reference clones moved into the
+repo's gitignored `upstream/` ([project.md](project.md) § "The predecessors' local checkouts").
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR record
@@ -65,14 +46,15 @@ shared memory and atomics) or **2.1.0** (every module with a function table vali
 default features; `return_call_ref` under function references, D1 1.0.1; two validator feature
 checks; D2 `requires` and `presets`, 2.1.0; tail calls portable, D4 1.1.0) or **2.2.0** (the
 reference-type rule as wasm-tools has it; four validator gaps; D2 `typeRules` / `encodingRules`,
-2.2.0). The public summary of each is
+2.2.0) or **2.2.1** (`wasm-strip` copies the sections it keeps, as upstream; a partial strip of
+a relocatable or DWARF module had left stale offsets). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
 `fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
 (1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
 `7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), at `02a866672` (1.16.0), at `f8473c620`
-(1.17.0), at `4cf6624af` (2.0.0), at `b7fdb9de5` (2.1.0), and at `6e1923397` (2.2.0).
+(1.17.0), at `4cf6624af` (2.0.0), at `b7fdb9de5` (2.1.0), at `6e1923397` (2.2.0), and at `4fbf4d58c` (2.2.1).
 
 ## How to use this file
 
