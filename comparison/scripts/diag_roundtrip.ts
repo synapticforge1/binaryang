@@ -9,7 +9,7 @@
  * function so the offending construct can be read directly.
  *
  * Run:
- *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/diag_roundtrip.ts <relpath-under-upstream/test>
+ *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/diag_roundtrip.ts <relpath-under-upstream/binaryen/test>
  *
  * @license MIT
  */
@@ -20,7 +20,7 @@ import upstream from 'npm:binaryen@^116.0.0';
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
 
-const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = Deno.args[0] ?? 'fib-dbg.wasm';
 
 function emitText(bytes: Uint8Array): string {

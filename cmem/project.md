@@ -412,6 +412,36 @@ Two lessons the phase records paid for:
 | how binaryang is tested                       | [testing.md](testing.md)                                                      |
 | the rules paid for, and the working checklist | [best-practices.md](best-practices.md) · [working-rules.md](working-rules.md) |
 | licensing                                     | [licensing.md](licensing.md)                                                  |
+| upstream binaryen / wabt source (reference, the round-trip corpus) | `upstream/binaryen/`, `upstream/wabt/` — gitignored clones in THIS repo (below) |
+
+### The predecessors' local checkouts — what binaryang took over (2026-10-26)
+
+Owner, 2026-10-26: "We need to pull in what we currently do not have. I will be deleting that
+repo." Measured before anything was copied: binaryang imports nothing from binaryen-ts or
+wabt-ts, neither package depends on them, and every commit this memory cites with `git show` is
+on binaryang's own `main`. What existed ONLY in the predecessor checkouts, and where it went:
+
+- **The upstream reference clones** — binaryen (`version_132` + 38) and wabt (`1.0.41` + 68),
+  no local edits — now gitignored clones in this repo at `upstream/binaryen/` and
+  `upstream/wabt/`, the same commits, origin GitHub, upstream's tags fetched (so `version_133`,
+  the optimizer's oracle, can be checked out to read its source). `corpus_roundtrip.test.ts`
+  and the 20 diagnostic scripts under `scripts/binaryen-ts/` and `comparison/scripts/` read
+  `upstream/binaryen/test` (the scripts had pointed at a path that never existed since the merge).
+- **Each predecessor's own git history and 39 tags, under the ORIGINAL ids** — binaryang holds
+  the merged content but under ids its H19 purge rewrote. Kept as git bundles of every ref,
+  proven by restoring each into an empty repository (refs and ids identical, `fsck` clean), with
+  two shallow nested clones that sat inside wabt-ts archived whole; machine-local, in the
+  private `cmem/local/`. The published history on GitHub (`jrmarcum/binaryen-ts`,
+  `jrmarcum/wabt-ts`) is a separate matter: the JSR packages' provenance names those repos.
+- **The gitignored notes archives** (each predecessor's `CLAUDE.md`, binaryen-ts's `TASKS.md`)
+  — copied byte for byte into the private `cmem/local/`; they record this machine's paths, so
+  they are never committed. The curated memory was already here (`binaryen-ts.md`, `wabt-ts.md`).
+- Not kept: binaryen-ts's gitignored `src/wasm/` build output (the `.wat` it was built from is
+  binaryang's own, byte-identical).
+
+The local `binaryen-ts` and `wabt-ts` git REMOTES in this clone point at those checkouts and
+will dangle once they are gone (`git fetch --all` would then error); they carry nothing binaryang
+needs.
 
 ## Memory: what was retired, and where it went
 

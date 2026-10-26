@@ -21,7 +21,7 @@ import upstream from 'npm:binaryen@^116.0.0';
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
 
-const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test', import.meta.url).pathname.replace(/^\//, '');
 const TARGET_REL = 'passes/fannkuch0_dwarf.wasm';
 const TARGET_FN_HINT = '5'; // function #5 per the validator error
 

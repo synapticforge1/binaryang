@@ -63,7 +63,7 @@ class BinaryReader {
   }
 }
 
-const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test', import.meta.url).pathname.replace(/^\//, '');
 const TARGET_REL = 'passes/fannkuch0_dwarf.wasm';
 const TARGET_FN_INDEX = 5; // from validator error: function #5
 

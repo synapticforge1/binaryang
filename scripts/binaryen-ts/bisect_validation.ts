@@ -21,7 +21,7 @@ import { writeWasm } from '../../src/ir/write-wasm.ts';
 import { createPass, type PassOptions } from '../../src/passes/pass.ts';
 import '../../src/passes/index.ts';
 
-const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test', import.meta.url).pathname.replace(/^\//, '');
 
 const TARGET = 'passes/fannkuch0_dwarf.wasm'; // smallest failing case
 

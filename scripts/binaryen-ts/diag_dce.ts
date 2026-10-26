@@ -15,7 +15,7 @@ import { createPass, PassRunner } from '../../src/passes/pass.ts';
 import process from 'node:process';
 import '../../src/passes/index.ts';
 
-const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test/', import.meta.url).pathname.replace(/^\//, '');
 const orig = new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm'));
 
 /** Any IR node: an object with a `kind`. */

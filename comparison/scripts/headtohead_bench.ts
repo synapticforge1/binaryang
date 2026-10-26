@@ -72,7 +72,7 @@ function sectionSizes(bytes: Uint8Array): { code: number; customBytes: number } 
   return { code, customBytes };
 }
 
-const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test', import.meta.url).pathname.replace(/^\//, '');
 
 // Picked corpus subset: a mix of sizes from the parseable-after-LEB128-fix set.
 // Selected for a representative range of small/medium/large + variety of shapes

@@ -5,7 +5,7 @@
  * on the re-encoded output, reporting the exact validation error.
  *
  * Run:
- *   bun scripts/v8.ts scripts/binaryen-ts/diag_compile.ts <relpath-under-upstream/test>
+ *   bun scripts/v8.ts scripts/binaryen-ts/diag_compile.ts <relpath-under-upstream/binaryen/test>
  *
  * @license MIT
  */
@@ -16,7 +16,7 @@ import { writeWasm } from '../../src/ir/write-wasm.ts';
 
 import process from 'node:process';
 
-const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = process.argv.slice(2)[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const re = writeWasm(readForPasses(orig));

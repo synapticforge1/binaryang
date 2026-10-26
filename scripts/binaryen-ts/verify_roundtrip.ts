@@ -19,7 +19,7 @@ import { writeWasm } from '../../src/ir/write-wasm.ts';
 import { walkExpression } from '../../src/ir/walk.ts';
 import type { WasmModule } from '../../src/ir/module.ts';
 
-const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test', import.meta.url).pathname.replace(/^\//, '');
 
 async function findWasmFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
