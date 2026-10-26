@@ -1108,7 +1108,18 @@ closes its own rows; nothing is written there from here.
   at the new path until the owner adds the new entries (system config); meanwhile the
   `-c safe.directory='*'` / environment override, recorded only in each repo's private
   `cmem/local/`. binaryang created it, so binaryang verifies and closes it: `git status` here with
-  no override prints no ownership error.
+  no override prints no ownership error. ✅ **CLOSED by binaryang the same day**: the owner added
+  the entries to the system config; `git status` with no override succeeds in all 22 repos under
+  the folder. wasmtk had answered that it hit the same refusal (also in TinyGo's VCS stamping).
+- **wasmtk now calls binaryang's bundler (workspace ledger H11, wasmtk's answer of 2026-10-26).**
+  Its `wasmbundle` reads each input with `compat/binaryen`'s `readBinary(…)._inner` and calls
+  `bundle()` from `./tools/wasm-bundle` with `unmarked: 'guess'` (pinned at 2.2.0, import map
+  `binaryang-bundle`). All three are in `api-surface.json` (`Module._inner`, `bundle`,
+  `BundleOptions.unmarked`), so the compatibility gate already treats a change to any of them as
+  breaking; `_inner` is public on the compat `Module` despite its underscore (documented as the
+  way down to the IR), and `readBinary` uses the same `readForPasses` the bundle CLI uses. **For
+  a release:** a change to compat `Module._inner`, `bundle`'s inputs or `unmarked` now breaks a
+  known consumer; the consumer check (release pattern step 3) covers it. Nothing asked of us.
 - **Item 45 — the owner's question answered, decided, fixed (2026-10-26).** Why upstream copies
   instead of re-encoding (a kept section can name byte offsets; re-encoding made `reloc.*` stale),
   decided DEFECT ("I agree that this is a defect that needs correction"), built ("agreed. build
