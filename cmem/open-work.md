@@ -36,7 +36,9 @@ wasmtk) and § 44 (to wazmrt, wasmrt) SENT by the owner; § 43 their replies. D3
 messages only (owner: "stay with what we have" — wazmrt's "expected shared memory" class declined;
 wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 record.
 
-- **Open:** 45 (🗓️ OWNER — `wasm-strip` re-encodes the sections it keeps; found 2026-10-26
+- **Open:** 46 (🗓️ OWNER — the path-bearing benchmark blobs are still in PUBLIC history: a
+  second H19 purge and force-push, then the GitHub Support request), 45 (🗓️ OWNER —
+  `wasm-strip` re-encodes the sections it keeps; found 2026-10-26
   fixing 44), 31 (resume as its "State 2026-10-22" paragraph says, from the REBUILT six —
   138,410 since 2026-10-26, [optimizer.md](optimizer.md) § "State 2026-10-26" — and the corpus
   811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening re-run until
@@ -75,6 +77,28 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
+46. 🗓️ **The old benchmark blobs are still in PUBLIC history — a second H19 purge** (owner,
+    2026-10-26: "add the history item on github as an open item"). Item 44 fixed HEAD, but the
+    five modules with the owner's machine paths are reachable on GitHub from `f9b74f213`
+    (2026-10-13; `modules/{rust-debug,zig-debug,zig-releasefast}.wasm`) and `4dcb140e3`
+    (2026-10-22; `modules64/{rust-release-wasm64,zig-releasefast-wasm64}.wasm`) through every
+    later commit up to `293e7f401`, and the tags `v1.13.0` … `v2.2.0` carry them (the trees of
+    1.13.0 onward include `benches/`). **What it takes** (the H19 template, [publishing.md](publishing.md)
+    § "The history purge"): rewrite those blobs in every ref — paths only, the maintainer address
+    stays — with a blob-replacement filter (the five path-bearing blobs → the clean 2026-10-26
+    bytes, or the same files emptied), keeping every other blob; `--tag-name-filter cat -- --all`;
+    verify with the binary-aware scan over every ref (`git log --all -p -- benches` is text-blind:
+    check each blob with `git grep -a` per ref, or `git cat-file` + the scan pattern); H16's
+    `gc --prune=now`; record the old → new hash map tag by tag (every hash cited since 2026-10-23
+    changes AGAIN — wasmtk re-clones `upstream/binaryang` a second time; the workspace and the
+    runtimes re-map their citations); force-push with a lease; no publish is triggered (`jsr.json`
+    stays 2.2.0 and the tags exist). ⚠️ The released provenance (Rekor, npm attestations) keeps the
+    current hashes forever, as the first purge's did. **Then** the GitHub Support request that the
+    first purge left with the owner (old commits are still served by hash) — one request can
+    name both purges. Alternatively: accept the exposure (user name, toolchain layout, old folder
+    name — no secret). **🗓️ OWNER: order the purge, or close as accepted.** The rewrite itself is
+    a session's work on the owner's word; the push is the owner's.
+
 45. 🗓️ **`wasm-strip` re-encodes the sections it keeps** (found 2026-10-26 fixing item 44;
     OWNER decides). Removing only the `.debug_*` sections from zig-debug with our `wasm-strip -s …`
     left 59,154 code bytes of 64,910: every kept section goes through the reader and the writer,
@@ -84,6 +108,31 @@ removed record went to a topic file, and the full text is one `git show` away:
     the rest untouched, so this reads as a DEFECT; the alternative is to call it DESIGN under L1.
     [divergences.md](divergences.md) ST1. The byte-exact removal used for the modules lives in
     `benches/browser-opt/build.ts` (`stripDwarf`), which a fix would move into the tool.
+    **Measured 2026-10-26** (owner: "measure open work item 45 and report"), upstream wabt 1.0.41
+    `wasm-strip` against ours, both removing every custom section, on all 13 tracked `.wasm` plus
+    the five pre-fix blobs: **14 of 18 differ** — every LLVM-linked Rust and Zig module; the 4
+    identical are TinyGo's and Emscripten's, already minimal because wasm-opt ran after their link.
+    The difference is ENCODING only: `wasm-tools print` gives the same text for upstream's and ours
+    on the four checked (rust-release, zig-debug, rust-release-wasm64, strbin_rust); upstream keeps
+    11 / 69 / 37 / 27 padded 5-byte LEBs where ours has 0; every output validates. Ours is a
+    canonical re-encoding — idempotent, and ours(upstream's output) = ours(input) on all 18.
+    Sizes, upstream → ours: rust-debug 51,752 → 48,040 (−7.2%), rust-release 19,856 → 18,707,
+    rust-release-wasm64 24,215 → 21,070 (−13.0%), zig-debug 64,910 → 59,154 (−8.9%),
+    zig-releasefast 20,408 → 20,277, strbin_rust 39,191 → 36,308. **Cause**, from the source:
+    `src/tools/wasm-strip.ts` is `readBinaryIr` → drop the customs → `writeBinaryIr` (its own doc
+    says so); upstream's `wasm-strip.cc` only LOCATES the custom sections with a no-op reader and
+    copies every other byte. **Dependents in the repo:** `scripts/cli-smoke.ts` and seven test
+    files (`text_form`, `custom_section_position`, `name_section`, `malformed_never_throws`,
+    `cli_io_errors`, `help`, `stale_name_section`) — none asserts the re-encoding; `-s name` and
+    S7's text-form section stay custom sections under a raw copy, so their semantics hold. No
+    sibling calls it (wasmtk and LeptonPad grep clean). **Fix shape, if DEFECT:** walk the section
+    table (the 40-line walk `build.ts` `stripDwarf` already does), copy the kept ranges verbatim,
+    keep the decode for the `{ binary, errors, result }` contract and the malformed-input tests;
+    one new test — a padded-LEB input strips byte-identically to upstream, red on the old path;
+    a `src/` change, so the full gate. **Recommendation: DEFECT.** The tool's contract is "remove
+    custom sections"; L1's DESIGN covers tools that must re-encode (the round trip, the optimizer),
+    not one that removes sections and should touch nothing else — upstream's shape, and the
+    fidelity mandate's.
 
 44. ✅ **Five committed benchmark modules embedded the owner's machine paths** — DONE at HEAD
     2026-10-26 (owner: "lets fix 44"); found the same day while closing workspace letter H27.
