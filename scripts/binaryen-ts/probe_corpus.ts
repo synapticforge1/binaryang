@@ -1,7 +1,7 @@
 /**
  * @module scripts/binaryen-ts/probe_corpus
  *
- * Phase 10 profiling step 0 — discover which upstream/test/*.wasm files parse
+ * Phase 10 profiling step 0 — discover which upstream/binaryen/test/*.wasm files parse
  * cleanly with our binary parser. Reports byte size, function count, total
  * expression node count, and pass/fail. Output is consumed by the Phase 10
  * profiler harness when picking a corpus subset.
@@ -20,7 +20,7 @@ import { walkExpression } from '../../src/ir/walk.ts';
 import type { WasmModule } from '../../src/ir/module.ts';
 import { ExternalKind } from '../../src/core/binary.ts';
 
-const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test', import.meta.url).pathname.replace(/^\//, '');
 
 async function findWasmFiles(dir: string): Promise<string[]> {
   const out: string[] = [];

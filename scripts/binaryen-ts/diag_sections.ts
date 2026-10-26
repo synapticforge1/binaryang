@@ -7,7 +7,7 @@
  * whether custom (e.g. DWARF `.debug_*`) sections are dropped.
  *
  * Run:
- *   bun scripts/binaryen-ts/diag_sections.ts <relpath-under-upstream/test>
+ *   bun scripts/binaryen-ts/diag_sections.ts <relpath-under-upstream/binaryen/test>
  *
  * @license MIT
  */
@@ -65,7 +65,7 @@ function sections(bytes: Uint8Array): { id: number; label: string; size: number 
   return out;
 }
 
-const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = process.argv.slice(2)[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 const reenc = writeWasm(readForPasses(orig));

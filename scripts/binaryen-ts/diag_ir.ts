@@ -15,7 +15,7 @@ import { readForPasses } from '../../src/ir/prepare.ts';
 
 import process from 'node:process';
 
-const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = process.argv.slice(2)[0];
 const fnIdx = parseInt(process.argv.slice(2)[1] ?? '0', 10);
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));

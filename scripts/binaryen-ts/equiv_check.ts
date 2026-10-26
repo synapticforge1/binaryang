@@ -37,7 +37,7 @@ import { ExternalKind } from '../../src/core/binary.ts';
 
 import process from 'node:process';
 
-const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test/', import.meta.url).pathname.replace(/^\//, '');
 
 // Files where WT-2 showed ours producing notably different code size — the
 // highest-value targets for an equivalence check — plus a couple of controls.

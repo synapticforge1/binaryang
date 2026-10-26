@@ -19,7 +19,7 @@ import { walkExpression } from '../../src/ir/walk.ts';
 import { requireIndex, type Var } from '../../src/ir/ir.ts';
 import '../../src/passes/index.ts';
 
-const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test/', import.meta.url).pathname.replace(/^\//, '');
 const before = readForPasses(new Uint8Array(await fs.readFile(ROOT + 'fib-dbg.wasm')));
 const fibBefore = before.functions.find((f) => f.name === '$func5')!;
 

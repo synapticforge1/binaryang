@@ -52,11 +52,12 @@ const asPath = (rel: string): string =>
  * it as a script meant nobody ran it" — reported `ignored` on every run instead,
  * which is the same thing wearing a passing suite's colours. A skip is only
  * honest when the corpus is genuinely absent, as it is in CI.
+ *
+ * Since 2026-10-26 the clone lives in THIS repo, at `upstream/binaryen/` (beside
+ * `upstream/wabt/`, both gitignored), pulled in from the frozen binaryen-ts
+ * checkout before that checkout was deleted. The old sibling path is gone with it.
  */
-const CORPUS_CANDIDATES = [
-  asPath('../../../upstream/test'),
-  asPath('../../../../binaryen-ts/upstream/test'),
-];
+const CORPUS_CANDIDATES = [asPath('../../../upstream/binaryen/test')];
 
 /**
  * Lower bound on files that must survive a full round-trip. Raise it when the

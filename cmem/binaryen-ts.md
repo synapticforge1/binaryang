@@ -502,7 +502,7 @@ projects, not three"). Its version (v1.3.9) and layout are pre-merge.
   (`ce1972630`). Probing found it reachable through Flatten (an `if` typed `(ref $T)` left a read no set covered;
   V8 refused the module), not through Inlining. `non-nullable-locals.ts` ports upstream's
   `handleNonDefaultableLocals`; `PassRunner.run` calls it after each pass declaring the flag, now `true` on twelve.
-- [reference] **Upstream references**, present in the sibling's clone at `../binaryen-ts/upstream/`:
+- [reference] **Upstream references**, present in this repo's gitignored clone at `upstream/binaryen/` (moved in from the binaryen-ts checkout 2026-10-26; `version_132` + 38 checked out, `version_133` fetched — check it out to read the source the 133 oracle runs):
   `WebAssembly/binaryen/src/parser/lexer.h`, `…/parser/wat-parser.cpp`, `…/src/wasm.h`, `…/src/passes/*.cpp`,
   `…/src/binaryen-c.h` (constructor-API shape), `…/src/js/binaryen.js-post.js` (`/compat`, interop).
 - [decision] **Out of scope:** WAT printer, `wasm-as`, validation → wabt-ts; `wasm2js`, interpreter → the runtimes;

@@ -19,7 +19,7 @@ import { createPass, PassRunner } from '../../src/passes/pass.ts';
 import process from 'node:process';
 import '../../src/passes/index.ts'; // side-effect: register all built-in passes
 
-const ROOT = new URL('../../upstream/test/', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test/', import.meta.url).pathname.replace(/^\//, '');
 const rel = process.argv.slice(2)[0];
 const orig = new Uint8Array(await fs.readFile(ROOT + rel));
 

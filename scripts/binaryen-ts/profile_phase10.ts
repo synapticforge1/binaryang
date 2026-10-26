@@ -56,7 +56,7 @@ import '../../src/passes/index.ts';
 // Corpus loading
 // ---------------------------------------------------------------------------
 
-const ROOT = new URL('../../upstream/test', import.meta.url).pathname.replace(/^\//, '');
+const ROOT = new URL('../../upstream/binaryen/test', import.meta.url).pathname.replace(/^\//, '');
 
 interface CorpusEntry {
   source: string;
