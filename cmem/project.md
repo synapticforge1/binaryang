@@ -431,17 +431,24 @@ on binaryang's own `main`. What existed ONLY in the predecessor checkouts, and w
   the merged content but under ids its H19 purge rewrote. Kept as git bundles of every ref,
   proven by restoring each into an empty repository (refs and ids identical, `fsck` clean), with
   two shallow nested clones that sat inside wabt-ts archived whole; machine-local, in the
-  private `cmem/local/`. The published history on GitHub (`jrmarcum/binaryen-ts`,
-  `jrmarcum/wabt-ts`) is a separate matter: the JSR packages' provenance names those repos.
+  private `cmem/local/`. **The GitHub repos are deleted too** (owner, 2026-10-26: "Yes both the
+  local folders and the github repos"), so both were MIRRORED and bundled first: 34 of
+  binaryen-ts's GitHub tags named different commits from the local checkout's (rewritten after
+  they were pushed), and those are the commits the JSR versions' provenance names. Restored
+  into empty repositories, every ref and id equals GitHub's. Neither repo had releases, issues
+  or pull requests. ⚠️ After the deletion, the provenance on `@jrmarcum/binaryen-ts` and
+  `@jrmarcum/wabt-ts` (JSR, frozen at 1.5.1) links to repositories that no longer exist — the
+  commits survive only in those bundles.
 - **The gitignored notes archives** (each predecessor's `CLAUDE.md`, binaryen-ts's `TASKS.md`)
   — copied byte for byte into the private `cmem/local/`; they record this machine's paths, so
   they are never committed. The curated memory was already here (`binaryen-ts.md`, `wabt-ts.md`).
 - Not kept: binaryen-ts's gitignored `src/wasm/` build output (the `.wat` it was built from is
   binaryang's own, byte-identical).
 
-The local `binaryen-ts` and `wabt-ts` git REMOTES in this clone point at those checkouts and
-will dangle once they are gone (`git fetch --all` would then error); they carry nothing binaryang
-needs.
+The local `binaryen-ts` and `wabt-ts` git REMOTES this clone had are REMOVED (2026-10-26), after
+checking that every commit their remote-tracking branches named is in a bundle; `origin` is the
+only remote. No tracked file in binaryang links to either GitHub repo (`git grep`, checked); the
+README's `jsr:@jrmarcum/wabt-ts` is the JSR package, which stays.
 
 ## Memory: what was retired, and where it went
 
