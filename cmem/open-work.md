@@ -132,7 +132,16 @@ removed record went to a topic file, and the full text is one `git show` away:
     a `src/` change, so the full gate. **Recommendation: DEFECT.** The tool's contract is "remove
     custom sections"; L1's DESIGN covers tools that must re-encode (the round trip, the optimizer),
     not one that removes sections and should touch nothing else — upstream's shape, and the
-    fidelity mandate's.
+    fidelity mandate's. **Why the copy matters beyond bytes (measured 2026-10-26, the owner's
+    question):** a KEPT custom section may refer to byte offsets inside the sections being
+    re-encoded. `wasm-strip -s name` on the bundle fixture `strbin_rust.wasm` (a relocatable
+    module: `linking`, `reloc.CODE`, `reloc.DATA`) keeps the reloc sections and re-encodes the
+    code (39,191 → 36,308 code bytes), so every relocation now points at the wrong byte — our own
+    `wasm-bundle` refuses the result ("R_WASM_MEMORY_ADDR_REL_SLEB at offset 0x14 does not match
+    the code … relocations are stale") where it bundles the original. The same holds for kept
+    `.debug_line` / `.debug_info` (code offsets) and `sourceMappingURL`-style sections. Upstream's
+    raw copy keeps them all valid by construction. So the re-encoding is not only a size
+    difference; it silently breaks a section the user asked to keep.
 
 44. ✅ **Five committed benchmark modules embedded the owner's machine paths** — DONE at HEAD
     2026-10-26 (owner: "lets fix 44"); found the same day while closing workspace letter H27.
