@@ -43,7 +43,8 @@ That is not style converging; it is the same failure modes teaching the same les
 
 ## The workspace's convergent rules (★)
 
-> **Copied from `../../cmem/best-practices.md` on 2026-10-23** (workspace letter H6; memory
+> **Copied from `../../cmem/best-practices.md` on 2026-10-23; re-copied 2026-10-26** (rule 5.2's
+> new wording, workspace letter H24 — the other 27 compared equal by a one-time script; workspace letter H6; memory
 > conventions: the convergent method rules are canonical THERE and duplicated into every repo under
 > this stamp — a change is made there and re-copied, never edited here). ★ = two or more repos
 > derived the rule without reading each other; the tags name them. Section numbers are the
@@ -128,8 +129,8 @@ That is not style converging; it is the same failure modes teaching the same les
   right by luck. [wazmrt + wasmrt]
 - **5.2 ★ Identify the LAYER before naming a cause; the stage that REPORTS a failure is usually
   not the stage that caused it; finding a real defect at a layer is not evidence it causes your
-  symptom — vary one thing.** "Memory-grow ordering" was decoder reordering; the `D:` drive symptom
-  was diagnosed wrong three times. [wazmrt + binaryen-ts + wasmtk + wasmrt]
+  symptom — vary one thing.** "Memory-grow ordering" was decoder reordering; a symptom caused by the
+  development drive's FILESYSTEM (exFAT) was diagnosed wrong three times. [wazmrt + binaryen-ts + wasmtk + wasmrt]
 **§6 Recording and claims**
 
 - **6.1 ★ A written result is a CLAIM: a commit message, a status line, a doc of a safety guard, a
