@@ -77,8 +77,20 @@ test('type ID constants match upstream binaryen.js values', () => {
   assertEquals(binaryen.f32, 4);
   assertEquals(binaryen.f64, 5);
   assertEquals(binaryen.v128, 6);
-  assertEquals(binaryen.funcref, 7);
-  assertEquals(binaryen.externref, 8);
+  // binaryen.js 132's own values, measured 2026-10-28 (open-work 52 (a)): this test's name said
+  // "upstream" while it pinned 7 and 8, the facade's old numbering.
+  assertEquals(binaryen.funcref, 18);
+  assertEquals(binaryen.externref, 10);
+  assertEquals(binaryen.anyref, 34);
+  assertEquals(binaryen.eqref, 42);
+  assertEquals(binaryen.i31ref, 50);
+  assertEquals(binaryen.structref, 58);
+  assertEquals(binaryen.arrayref, 66);
+  assertEquals(binaryen.stringref, 82);
+  assertEquals(binaryen.nullref, 90);
+  assertEquals(binaryen.nullexternref, 98);
+  assertEquals(binaryen.nullfuncref, 106);
+  assertEquals(binaryen.auto, -1);
 });
 
 test('external kind constants match upstream binaryen.js values', () => {
@@ -89,9 +101,40 @@ test('external kind constants match upstream binaryen.js values', () => {
   assertEquals(binaryen.ExternalTag, 4);
 });
 
-test('Features.All is a non-zero bitmask', () => {
-  assertEquals(binaryen.Features.All, 0x7fffffff);
-  assertEquals(binaryen.Features.MVP, 0);
+test('Features match upstream binaryen.js 132, bit for bit', () => {
+  // Measured 2026-10-28 (open-work 52 (a)): All was 0x7fffffff here, and five flags sat at other
+  // bits. Every value below is binaryen.js 132's.
+  const want: Record<string, number> = {
+    MVP: 0,
+    Atomics: 1,
+    MutableGlobals: 2,
+    NontrappingFPToInt: 4,
+    SIMD128: 8,
+    BulkMemory: 16,
+    SignExt: 32,
+    ExceptionHandling: 64,
+    TailCall: 128,
+    ReferenceTypes: 256,
+    Multivalue: 512,
+    GC: 1024,
+    Memory64: 2048,
+    RelaxedSIMD: 4096,
+    ExtendedConst: 8192,
+    Strings: 16384,
+    MultiMemory: 32768,
+    StackSwitching: 65536,
+    SharedEverything: 131072,
+    FP16: 262144,
+    BulkMemoryOpt: 524288,
+    CallIndirectOverlong: 1048576,
+    AcquireReleaseAtomics: 4194304,
+    CustomPageSizes: 8388608,
+    WideArithmetic: 33554432,
+    CompactImports: 67108864,
+    RelaxedAtomics: 134217728,
+    All: 268435455,
+  };
+  assertEquals({ ...binaryen.Features }, want);
 });
 
 // ---------------------------------------------------------------------------
@@ -256,12 +299,14 @@ test('getFunctionInfo reports module/base as "" for a defined function and inclu
 // setFeatures (informational)
 // ---------------------------------------------------------------------------
 
-test('setFeatures updates the features field', () => {
+test('setFeatures updates the features field, and getFeatures reads it', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
-  // Default is All.
-  assertEquals(mod.features, binaryen.Features.All);
-  mod.setFeatures(binaryen.Features.MVP);
+  // Default is MVP (0), as binaryen.js 132's getFeatures() for a new module (open-work 52 (a);
+  // it was All here).
   assertEquals(mod.features, binaryen.Features.MVP);
+  assertEquals(mod.getFeatures(), 0);
+  mod.setFeatures(binaryen.Features.All);
+  assertEquals(mod.getFeatures(), binaryen.Features.All);
 });
 
 // ---------------------------------------------------------------------------

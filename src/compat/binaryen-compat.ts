@@ -166,10 +166,10 @@ export function listPasses(): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Numeric type IDs — `none` … `v128` have upstream binaryen.js's values; the reference types and
-// `auto` do NOT (binaryen.js 132: funcref 18, externref 10, anyref 34, eqref 42, i31ref 50,
-// structref 58, arrayref 66, stringref 82, auto -1 — measured 2026-10-28, code lens pass 3). Use
-// them by NAME; a number written down, or shared with the real binaryen.js, means another type.
+// Numeric type IDs — upstream binaryen.js 132's values, mirrored exactly (the facade's decision,
+// binaryen-ts.md). 🔧 Until 2026-10-28 only `none` … `v128` matched: the reference types were
+// numbered 7–14 and `auto` 15, so a number written down or shared with the real binaryen.js
+// meant another type (open-work 52 (a), divergence CL17; measured against binaryen.js 132).
 // ---------------------------------------------------------------------------
 
 /** Type ID for the empty (void) result. */
@@ -187,23 +187,34 @@ export const f64: number = 5;
 /** Type ID for `v128`. */
 export const v128: number = 6;
 /** Type ID for `funcref`. */
-export const funcref: number = 7;
+export const funcref: number = 18;
 /** Type ID for `externref`. */
-export const externref: number = 8;
+export const externref: number = 10;
 /** Type ID for `anyref` (GC proposal). */
-export const anyref: number = 9;
+export const anyref: number = 34;
 /** Type ID for `eqref` (GC proposal). */
-export const eqref: number = 10;
+export const eqref: number = 42;
 /** Type ID for `i31ref` (GC proposal). */
-export const i31ref: number = 11;
+export const i31ref: number = 50;
 /** Type ID for `structref` (GC proposal). */
-export const structref: number = 12;
+export const structref: number = 58;
 /** Type ID for `arrayref` (GC proposal). */
-export const arrayref: number = 13;
+export const arrayref: number = 66;
 /** Type ID for `stringref` (stringref proposal). */
-export const stringref: number = 14;
+export const stringref: number = 82;
+/** Type ID for `nullref`, the bottom of the `any` hierarchy (GC proposal). */
+export const nullref: number = 90;
+/** Type ID for `nullexternref`, the bottom of the `extern` hierarchy. */
+export const nullexternref: number = 98;
+/** Type ID for `nullfuncref`, the bottom of the `func` hierarchy. */
+export const nullfuncref: number = 106;
 /** Sentinel used by upstream when the caller wants binaryen to infer the type. */
-export const auto: number = 15;
+export const auto: number = -1;
+
+// binaryen.js 132 reports these through `getFunctionInfo` and the like but exports no constant
+// for them; they are kept internal, so the facade's exports stay binaryen.js's.
+const exnref = 74;
+const nullexnref = 122;
 
 const _VAL_TO_ID: Record<string, number> = {
   [ValType.I32]: i32,
@@ -219,11 +230,12 @@ const _VAL_TO_ID: Record<string, number> = {
   [ValType.StructRef]: structref,
   [ValType.ArrayRef]: arrayref,
   [ValType.StringRef]: stringref,
-  [ValType.NullFuncRef]: funcref,
-  [ValType.NullExternRef]: externref,
-  [ValType.NullRef]: anyref,
-  [ValType.ExnRef]: externref,
-  [ValType.NullExnRef]: externref,
+  // Each bottom type is its own ID, as upstream — not its hierarchy's top, as they were reported.
+  [ValType.NullFuncRef]: nullfuncref,
+  [ValType.NullExternRef]: nullexternref,
+  [ValType.NullRef]: nullref,
+  [ValType.ExnRef]: exnref,
+  [ValType.NullExnRef]: nullexnref,
 };
 
 const _ID_TO_VAL: Record<number, ValType> = {
@@ -240,6 +252,11 @@ const _ID_TO_VAL: Record<number, ValType> = {
   [structref]: ValType.StructRef,
   [arrayref]: ValType.ArrayRef,
   [stringref]: ValType.StringRef,
+  [nullref]: ValType.NullRef,
+  [nullexternref]: ValType.NullExternRef,
+  [nullfuncref]: ValType.NullFuncRef,
+  [exnref]: ValType.ExnRef,
+  [nullexnref]: ValType.NullExnRef,
 };
 
 /**
@@ -248,9 +265,9 @@ const _ID_TO_VAL: Record<number, ValType> = {
  * Upstream interns a concrete typed reference (`(ref null $T)`) as an opaque
  * type ID allocated by its own type table, which this facade does not model.
  * Such a type is therefore reported as its nearest abstract supertype
- * (`anyref` / `funcref` / `externref`). ⚠️ Not for `exnref` / `nullexnref`: exn is under no
- * other hierarchy, and this facade has no `exnref` ID, so they are reported as `externref` — a
- * caller testing `=== externref` is fooled (code lens pass 3, 2026-10-28; open-work 52).
+ * (`anyref` / `funcref` / `externref`). `exnref` and the bottom types are reported by their own
+ * upstream IDs (2026-10-28: `exnref` was reported as `externref`, fooling a caller testing
+ * `=== externref`; open-work 52 (a)).
  *
  * This is an APPROXIMATION, and it is only safe because it is confined to the
  * read-only introspection direction: nothing turns the result back into bytes.
@@ -359,10 +376,10 @@ export function createType(types: number[]): number | number[] {
 }
 
 // ---------------------------------------------------------------------------
-// Features bitflags — NOT upstream binaryen.js's values: BulkMemory, MutableGlobals,
-// NontrappingFPToInt, SignExt and SIMD128 sit at other bits there, `All` differs, and upstream has
-// flags this has not (CustomPageSizes, WideArithmetic, FP16, …) (binaryen.js 132, measured
-// 2026-10-28). Use them by NAME.
+// Features bitflags — upstream binaryen.js 132's, every flag and `All`, mirrored exactly. 🔧 Until
+// 2026-10-28 five sat at other bits (BulkMemory, MutableGlobals, NontrappingFPToInt, SignExt,
+// SIMD128), `All` was 0x7fffffff and ten upstream flags were missing (open-work 52 (a), CL17).
+// They are informational here (`Module.setFeatures`): the pipeline accepts every feature.
 // ---------------------------------------------------------------------------
 
 /**
@@ -374,11 +391,11 @@ export function createType(types: number[]): number | number[] {
 export const Features = {
   MVP: 0,
   Atomics: 1 << 0,
-  BulkMemory: 1 << 1,
-  MutableGlobals: 1 << 2,
-  NontrappingFPToInt: 1 << 3,
-  SignExt: 1 << 4,
-  SIMD128: 1 << 5,
+  MutableGlobals: 1 << 1,
+  NontrappingFPToInt: 1 << 2,
+  SIMD128: 1 << 3,
+  BulkMemory: 1 << 4,
+  SignExt: 1 << 5,
   ExceptionHandling: 1 << 6,
   TailCall: 1 << 7,
   ReferenceTypes: 1 << 8,
@@ -389,7 +406,17 @@ export const Features = {
   ExtendedConst: 1 << 13,
   Strings: 1 << 14,
   MultiMemory: 1 << 15,
-  All: 0x7fffffff,
+  StackSwitching: 1 << 16,
+  SharedEverything: 1 << 17,
+  FP16: 1 << 18,
+  BulkMemoryOpt: 1 << 19,
+  CallIndirectOverlong: 1 << 20,
+  AcquireReleaseAtomics: 1 << 22,
+  CustomPageSizes: 1 << 23,
+  WideArithmetic: 1 << 25,
+  CompactImports: 1 << 26,
+  RelaxedAtomics: 1 << 27,
+  All: 268435455,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -464,7 +491,10 @@ export const UnreachableId: number = 23;
 // Module-level optimization state (mirrors npm:binaryen global setters)
 // ---------------------------------------------------------------------------
 
-let _shrinkLevel = 0;
+// binaryen.js 132's defaults (measured 2026-10-28): optimize level 2, shrink level 1 — so
+// `optimize()` with no setter runs upstream's pipeline. 🔧 The shrink level started at 0
+// (open-work 52 (a), divergence CL18).
+let _shrinkLevel = 1;
 let _optimizeLevel = 2;
 let _debugInfo = false;
 let _lowMemoryUnused = false;
@@ -1098,9 +1128,11 @@ export class Module {
   /**
    * Feature bitflags currently associated with the module. Informational only —
    * binaryen-ts always accepts the full feature set; this field exists for
-   * parity with upstream's `setFeatures` API.
+   * parity with upstream's `setFeatures` / `getFeatures` API. It starts at `Features.MVP` (0),
+   * what binaryen.js 132's `getFeatures()` returns for a new module (it started at `All` here
+   * until 2026-10-28; open-work 52 (a)).
    */
-  features: number = Features.All;
+  features: number = Features.MVP;
 
   /** `i32`-typed expression factory namespace (e.g. `mod.i32.add(l, r)`). */
   readonly i32: I32Ops = _I32;
@@ -1154,6 +1186,14 @@ export class Module {
   /** Sets the feature bitflags (informational — see class docs). */
   setFeatures(flags: number): void {
     this.features = flags;
+  }
+
+  /**
+   * The feature bitflags {@link setFeatures} last set; `Features.MVP` for a new module, as
+   * binaryen.js. It was missing — ported code calling it got a TypeError (open-work 52 (a)).
+   */
+  getFeatures(): number {
+    return this.features;
   }
 
   // -------------------------------------------------------------------------
