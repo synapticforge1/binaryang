@@ -48,7 +48,7 @@ function constBits(wat: string): number[] {
   return out;
 }
 
-const f32 = (lit: string) => constBits(`(module (func (result f32) f32.const ${lit}))`)[0];
+const f32 = (lit: string) => constBits(`(module (func (result f32) f32.const ${lit}))`)[0]!;
 
 function fround(n: number): number {
   const v = new DataView(new ArrayBuffer(4));
