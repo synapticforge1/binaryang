@@ -2087,15 +2087,23 @@ export class TypeChecker {
     return r;
   }
 
-  onDelegate(_depth: number): Result {
+  /**
+   * As upstream wabt's `TypeChecker::OnDelegate`. The depth counts from OUTSIDE the `try` (the
+   * delegate is not inside its own try block), so the label it names is at `depth + 1`; it must
+   * exist. `delegate` then ends the `try` as `end` would: its results are pushed and the code
+   * after it is REACHABLE. (Until C12, 2026-10-28, the depth was dropped and the enclosing frame
+   * was set unreachable, so an out-of-range `delegate`, and anything after a `try … delegate`,
+   * validated unchecked.)
+   */
+  onDelegate(depth: number): Result {
+    if (!this.getLabel(depth + 1)) return Result.Error;
     const label = this.topLabel();
     if (!label) return Result.Error;
     let r = this.popAndCheckSignature(label.resultTypes, 'try block');
     r = combineResults(r, this.checkTypeStackEnd('try block'));
     this.resetTypeStackToLabel(label);
     this.pushTypes(label.resultTypes);
-    r = combineResults(r, this.popLabel());
-    return combineResults(r, this.setUnreachable());
+    return combineResults(r, this.popLabel());
   }
 
   onUnreachable(): Result {

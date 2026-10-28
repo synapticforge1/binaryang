@@ -39,6 +39,12 @@
  * Bundle BEFORE optimising: the relocations are consumed here; `wasm-opt`
  * on the result is then safe (the Linking sections are not carried over).
  *
+ * Address 0 stays address 0, and it belongs to the FIRST input's image. A
+ * producer that reads the literal address 0 as a real location (wasic's empty
+ * array is the pointer 0, read as a zero header there) sees the first image's
+ * bytes when it is laid out later: neither a relocation entry nor the
+ * `unmarked: 'guess'` rule can tell such a 0 from a null.
+ *
  * @license MIT
  */
 

@@ -91,6 +91,27 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
+47. ✅ **A legacy `delegate`'s label was never checked, and nothing after a `try … delegate` was
+    type-checked** — FIXED on `main` 2026-10-28 (owner: "fix C12 and C21"), unreleased
+    ([unreleased.md](unreleased.md)). Reported by wasmtk (workspace correspondence C12, its
+    2026-10-23 pin letter): its mirror of the soundness guard found `legacy/try_delegate.wast`'s
+    `(assert_invalid (module (func (try (do) (delegate 1)))) "unknown label")` accepted, on 1.15.0
+    and still on 2.2.0. Reproduced on 2.2.1 against upstream wabt 1.0.41 and wasm-tools 1.262 (both
+    refuse; V8 too), and a SECOND defect found in the same function: after popping the `try`,
+    `TypeChecker.onDelegate` set the enclosing frame unreachable, so
+    `(func (result i32) (try (do) (delegate 0)))` — a function ending with nothing on the stack —
+    validated. Both from wabt-ts's first port (`17532ae43`, 2026-05-22), no recorded decision.
+    **The fix** is upstream wabt's `TypeChecker::OnDelegate`: look the label up at `depth + 1` (the
+    delegate counts from outside its own try) and do not make the frame unreachable. Upstream's
+    words come out exactly ("invalid depth: 2 (max 1)"). **Proof:**
+    `tests/wabt-ts/validator/delegate_depth.test.ts` — 3 invalid modules (V8 refuses each; ours
+    refuses with upstream's words) and 5 valid ones (V8 accepts; ours accepts), RED on the old code
+    for the three, green after, on V8 and on Bun; 3 mutants (depth without `+ 1`; the unreachable
+    mark restored; `+ 2`, which refuses valid modules) killed, 2 / 1 / 7 failing. Then the full gate
+    on the committed tree. **Found on the way, not fixed:** divergence DG7 (the words for a short
+    function end differ from upstream's in every function, delegate or not). wasmtk's pinned
+    `KNOWN_ACCEPTED_INVALID` entry can go to 0 once it pins the release that carries this.
+
 46. 🗓️ **The old benchmark blobs are still in PUBLIC history — a second H19 purge** (owner,
     2026-10-26: "add the history item on github as an open item"). Item 44 fixed HEAD, but the
     five modules with the owner's machine paths are reachable on GitHub from `f9b74f213`
