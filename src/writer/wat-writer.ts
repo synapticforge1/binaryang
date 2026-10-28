@@ -887,7 +887,7 @@ class WatWriter extends ModuleContext {
     this.putsSpace(opName);
     this.writeMemoryVarUnlessZero(memidx, NC.Space);
     if (offset !== 0n) this.writef(`offset=${offset}`);
-    if (align !== naturalAlign) this.writef(`align=${align}`);
+    if (align !== naturalAlign) this.writef(`align=${alignText(align)}`);
     this.newline(false);
   }
 
@@ -1585,7 +1585,7 @@ class WatWriter extends ModuleContext {
         this.putsSpace(opname(e.opcode));
         this.writeMemoryVarUnlessZero(e.memidx, NC.Space);
         if (e.offset !== 0n) this.writef(`offset=${e.offset}`);
-        if (e.align !== na) this.writef(`align=${e.align}`);
+        if (e.align !== na) this.writef(`align=${alignText(e.align)}`);
         this.writef(`${e.lane}`);
         this.newline(false);
         return Result.Ok;
@@ -3077,6 +3077,15 @@ class WatWriter extends ModuleContext {
 // ---------------------------------------------------------------------------
 // Module-level helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * An alignment's text: its exact decimal. An alignment is a power of two, which a number holds
+ * exactly up to 2^63 — but `String(2 ** 63)` is `9223372036854776000`, JavaScript's SHORTEST
+ * round-tripping digits, not the integer; `BigInt` prints the integer (open-work 50, 2026-10-28).
+ */
+function alignText(align: number): string {
+  return Number.isSafeInteger(align) ? String(align) : String(BigInt(align));
+}
 
 /**
  * Operand sub-expressions of a CONSTANT expression, in stack order, or `null`
