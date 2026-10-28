@@ -629,5 +629,10 @@ sent and answered (their reply reached us 2026-09-29) — closed in [handoffs.md
   frozen.
 - **Converging the two IRs further is not a release task.** It is open-ended by decision 1 and
   tracked by `deno task collisions` ([project.md](project.md)).
-- **D4 — never yank, ever** ([project.md](project.md)).
-- **The predecessors are frozen**: no change to `binaryen-ts` or `wabt-ts` on GitHub or JSR.
+- ~~**D4 — never yank, ever**~~ — reversed by the owner 2026-10-26 for the predecessors'
+  packages ([project.md](project.md)).
+- ~~**The predecessors are frozen**: no change to `binaryen-ts` or `wabt-ts` on GitHub or JSR.~~
+  **RETIRED 2026-10-26 (owner):** the local checkouts and the GitHub repos are deleted (404,
+  checked 2026-10-28) and their JSR versions yanked except 1.5.1 — for binaryen-ts 12 more were
+  still live on 2026-10-28 ([project.md](project.md), the reversed D4). Their history and notes
+  are in binaryang's private bundles; the upstream reference clones are binaryang's `upstream/`.

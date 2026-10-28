@@ -286,11 +286,20 @@ reporting exactly one JSR dependent.
   `Optimizer and compiler/toolchain library for WebAssembly`, `The WebAssembly Binary Toolkit` — an
   accepted cost, not an oversight; the archived banner and README signpost carry the message. **Do
   not re-open it.** The freeze does not cover binaryang.
-- 🚨 **D4 — never yank anything, ever.** Yanking is version-level and affects RESOLUTION: it would
-  reach backwards into all 31 published wasmtk versions and LeptonPad's transitive
-  `binaryen-ts@1.4.3` / `wabt-ts@1.3.5` pins. **Archiving is not yanking** — an archived package
-  keeps resolving and only refuses new versions. Yanking is the one action that converts this safe
-  break into a breaking one.
+- ~~🚨 **D4 — never yank anything, ever.**~~ 🔒 **REVERSED by the owner, 2026-10-26** ("I will
+  yank them which is fine also"), knowing the cost stated here: yanking is version-level and
+  affects RESOLUTION, so it reaches backwards into the 31 published wasmtk versions that ask for
+  the predecessors by RANGE (wasmtk 1.10.0: `^1.3.5` / `^1.3.3`, read from JSR's API) — a fresh
+  install of those stops resolving; exact-version imports and lockfiles keep working. Current
+  wasmtk (3.0.0, on binaryang 2.2.0) and every repo in the workspace import neither package.
+  (Before: **archiving is not yanking** — an archived package keeps resolving and only refuses new
+  versions; both were archived 2026-09-02.) **Measured 2026-10-28:** `@jrmarcum/wabt-ts` 31 of 32
+  yanked, 1.5.1 live; `@jrmarcum/binaryen-ts` only 26 of 39 yanked — **12 besides 1.5.1 still
+  live: 1.3.1, 1.3.2, 1.3.3, 1.3.5 – 1.3.9, 1.4.0, 1.4.1, 1.4.3, 1.5.0** (the workspace pointer
+  says "JSR versions other than 1.5.1 yanked"; for binaryen-ts that does not hold yet — the
+  owner's to finish or to call done). Both GitHub repos answer 404 and both local checkouts are
+  gone (2026-10-28); their histories are in the private bundles (§ "The predecessors' local
+  checkouts").
 - ⚠️ **`dependentCount` reads 1 on both predecessors and will never reach zero**: wasmtk's earlier
   versions are immutable and still name them. Retirement means _no new dependents_. The only way to
   drive the count down is yanking — see D4.
