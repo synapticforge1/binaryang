@@ -371,7 +371,8 @@ describe('generateNames', () => {
     m.functions.push(makeFuncBody([outer]));
     generateNames(m);
     const labels = [outer, loop, inner].map((e) => (e as { label: string }).label);
-    assertEquals(labels, ['$B0', '$B1', '$B2']);
+    // Each kind its own prefix, one counter, as upstream (open-work 50, CL6): the loop is `$L`.
+    assertEquals(labels, ['$B0', '$L1', '$B2']);
   });
 
   it('names a label nested in EITHER if arm (the arms are regions, S6 step 5 (d2))', () => {
@@ -390,7 +391,8 @@ describe('generateNames', () => {
     m.functions.push(makeFuncBody([ife]));
     generateNames(m);
     const labels = [ife, inThen, inElse].map((e) => (e as { label: string }).label);
-    assertEquals(labels, ['$B0', '$B1', '$B2']);
+    // The `if` is `$I`, as upstream (CL6).
+    assertEquals(labels, ['$I0', '$B1', '$B2']);
   });
 
   it('leaves pre-existing names unchanged', () => {
@@ -420,7 +422,8 @@ describe('generateNames', () => {
     const m = makeModule();
     m.functions.push(makeFuncBody([]));
     generateNames(m, NameOpts.AlphaNames);
-    assertEquals(m.functions[0]?.name, '$fa');
+    // Upstream's form: `_` between prefix and letters (generate-names.cc; CL6). It was `$fa`.
+    assertEquals(m.functions[0]?.name, '$f_a');
   });
 });
 

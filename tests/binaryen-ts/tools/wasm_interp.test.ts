@@ -27,26 +27,37 @@ const MOD = readForPasses(
 
 const lines = (r: ReturnType<typeof interpModule>) => r.map(showInvocation);
 
+// `MOD` imports a function, which only `--dummy-import-func` supplies: without it the module is
+// refused before anything runs, as upstream (divergence CL10, 2026-10-28).
+const dummy = { dummyImportFunc: true } as const;
+
 describe('wasm-interp', () => {
   it('runs one export with written arguments', () => {
-    expect(lines(interpModule(MOD, { runExport: 'add', args: ['2', '-3'] }))).toEqual([
-      'add(i32:2, i32:-3) => i32:-1',
+    expect(lines(interpModule(MOD, { ...dummy, runExport: 'add', args: ['2', '-3'] }))).toEqual([
+      // Unsigned, as upstream (divergence CL11): -3 and -1 as 32-bit patterns.
+      'add(i32:2, i32:4294967293) => i32:4294967295',
     ]);
-    expect(lines(interpModule(MOD, { runExport: 'half', args: ['5'] }))).toEqual([
+    expect(lines(interpModule(MOD, { ...dummy, runExport: 'half', args: ['5'] }))).toEqual([
       'half(f64:5) => f64:2.5',
     ]);
-    expect(() => interpModule(MOD, { runExport: 'nope' })).toThrow('no exported function "nope"');
+    expect(() => interpModule(MOD, { ...dummy, runExport: 'nope' })).toThrow(
+      'no exported function "nope"',
+    );
   });
 
-  it('runs every function export with zeros; a trap and a stop are named, never a value', () => {
-    expect(lines(interpModule(MOD, { runAllExports: true }))).toEqual([
-      'add(i32:0, i32:0) => i32:0',
-      'div(i32:0, i32:0) => trap: integer divide by zero',
-      'half(f64:0) => f64:0',
-      'host() => stopped: host: env.f',
-    ]);
-    expect(lines(interpModule(MOD, { runExport: 'host', dummyImportFunc: true }))).toEqual([
+  it('refuses an import it cannot supply before running anything, as upstream', () => {
+    expect(() => interpModule(MOD, { runExport: 'add', args: ['1', '2'] })).toThrow(
+      'error initializing module: invalid import "env.f"',
+    );
+  });
+
+  it('--run-all-exports runs the exports that take no arguments; a trap is named, never a value', () => {
+    // add, div and half take parameters: skipped, as upstream (they ran with zeros — CL10).
+    expect(lines(interpModule(MOD, { ...dummy, runAllExports: true }))).toEqual([
       'host() => i32:0',
+    ]);
+    expect(lines(interpModule(MOD, { ...dummy, runExport: 'div', args: ['1', '0'] }))).toEqual([
+      'div(i32:1, i32:0) => trap: integer divide by zero',
     ]);
   });
 
@@ -63,8 +74,11 @@ describe('wasm-interp', () => {
         { textForm: false },
       ).binary,
     );
-    expect(lines(interpModule(simd, { runAllExports: true, dummyImportFunc: true }))).toEqual([
+    // `not` takes an argument, so it is run by name; its v128 defaults to zero.
+    expect(lines(interpModule(simd, { runExport: 'not', ...dummy }))).toEqual([
       'not(v128:0x00000000000000000000000000000000) => v128:0xffffffffffffffffffffffffffffffff',
+    ]);
+    expect(lines(interpModule(simd, { runAllExports: true, ...dummy }))).toEqual([
       'host() => v128:0x00000000000000000000000000000000',
     ]);
   });
@@ -83,7 +97,10 @@ describe('wasm-interp', () => {
         { textForm: false },
       ).binary,
     );
-    const out = interpModule(refs, { runAllExports: true, dummyImportFunc: true });
+    // Exports with parameters are run by name (--run-all-exports skips them, as upstream).
+    const out = ['id', 'host', 'nullable'].flatMap((name) =>
+      interpModule(refs, { runExport: name, ...dummy })
+    );
     expect(out.map((i) => [i.name, Object.keys(i.outcome)[0]])).toEqual([
       ['id', 'stop'],
       ['host', 'stop'],

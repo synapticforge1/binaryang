@@ -61,14 +61,11 @@ export class MergeLocalsPass implements Pass {
   readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
-    for (const fn of module.functions) {
-      const body = fn.body;
-      try {
-        mergeLocals(fn);
-      } catch {
-        fn.body = body; // an untyped node, an unresolvable branch: the function stays as it is
-      }
-    }
+    // No catch-all: an untyped node or an unresolvable branch is a bug in whatever made the
+    // function, and CoalesceLocals, which reads the same CFG, already says so. 🔧 Every exception
+    // was swallowed and the function skipped, so a real bug here showed only as lost size, and an
+    // earlier pass's broken label surfaced only at the writer (open-work 52 (c), 2026-10-28).
+    for (const fn of module.functions) mergeLocals(fn);
   }
 }
 

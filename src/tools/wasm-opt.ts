@@ -177,17 +177,16 @@ export async function wasmOpt(
   const isWat = fromPath ? input.endsWith('.wat') : !hasWasmMagic(inputBytes);
 
   const out = _nativeOptimize(inputBytes, isWat, opts, fromPath ? input : '<input>');
-  // `validate` (default true) runs the engine's structural validator over the
-  // optimized binary. Previously this option was parsed but never enforced — a
-  // documented behavior that didn't exist. WebAssembly.compile IS a validator,
-  // so it gives the option real meaning and a safety net against encoder bugs.
+  // `validate` (default true) checks the optimized binary with THIS project's validator, every
+  // feature on — the one that judged the input (`validateInput`), as upstream wasm-opt validates
+  // with its own. 🔧 It was the HOST engine's `WebAssembly.compile`, so the verdict depended on
+  // the runtime: on Bun (JavaScriptCore) a valid memory64 module failed "optimized module failed
+  // validation … Memory64 is not enabled" with no pass run, and an input JSC refuses was blamed
+  // on the optimizer (open-work 52 (c), 2026-10-28).
   if (opts.validate) {
-    try {
-      await WebAssembly.compile(out as BufferSource);
-    } catch (e) {
-      throw new Error(
-        `optimized module failed validation: ${e instanceof Error ? e.message : String(e)}`,
-      );
+    const { errors } = wasmValidate(out, { filename: '<optimized>', features: allFeatures() });
+    if (hasErrors(errors)) {
+      throw new Error(`optimized module failed validation:\n${formatErrors(errors)}`);
     }
   }
   // `-S`: the bytes just validated, as text — read back by the one reader and
@@ -390,7 +389,11 @@ function _nativeOptimize(
   const passOpts: PassOptions = {
     optimizeLevel: opts.optimizeLevel,
     shrinkLevel: opts.shrinkLevel,
-    debugInfo: opts.debugInfo,
+    // TEXT output keeps the names, as upstream's printer does: `-g` governs the name SECTION of a
+    // binary, and debugInfo decides nothing else here (it only keeps that section, `pass.ts`).
+    // 🔧 `-S` read its text back from bytes optimized without names, so `wasm-opt x.wasm --dce -S`
+    // printed `(func (;0;) …)` where upstream prints `$add` (open-work 50, divergence CL9).
+    debugInfo: opts.debugInfo || opts.emitText,
     closedWorld: opts.closedWorld,
     passArgs: opts.passArgs,
     partialInliningIfs: opts.partialInliningIfs,

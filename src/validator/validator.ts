@@ -103,7 +103,6 @@ import type {
   TableInitExpr,
   TableSetExpr,
   TableSizeExpr,
-  Tag,
   TernaryExpr,
   ThrowExpr,
   ThrowRefExpr,
@@ -516,10 +515,17 @@ class ModuleValidator implements ExprVisitorDelegate {
           this.acc(this.sv.onGlobalImport(locOf(imp.global), imp.global.type, imp.global.mutable));
           break;
         case ExternalKind.Tag:
-          // A tag's type is the func type with the same params and no results.
-          // Resolve it the same way as a defined tag rather than assuming
-          // index 0 (which silently mis-typed any non-first tag signature).
-          this.acc(this.sv.onTag(locOf(imp.tag), this.tagTypeIndex(imp.tag)));
+          // A tag's type is the one it names (`typeVar`, Q9), as a defined tag's.
+          if (imp.tag.typeVar === undefined) {
+            this.acc(
+              this.sv.printError(
+                locOf(imp.tag),
+                'imported tag: no type index (run synthesizeTypes)',
+              ),
+            );
+            break;
+          }
+          this.acc(this.sv.onTag(locOf(imp.tag), varIdx(imp.tag.typeVar)));
           break;
       }
     }
@@ -575,11 +581,20 @@ class ModuleValidator implements ExprVisitorDelegate {
     }
 
     // Tags
-    for (const tag of m.tags) this.acc(this.sv.onTag(locOf(tag), this.tagTypeIndex(tag)));
+    // A tag with no type index is refused, as a function is: checking it against a GUESSED type
+    // (the first matching one, else type 0) let a correct `throw` be refused and a wrong one
+    // accepted (open-work 50, 2026-10-28). The text and binary paths always give one.
+    for (const tag of m.tags) {
+      if (tag.typeVar === undefined) {
+        this.acc(this.sv.printError(locOf(tag), 'tag: no type index (run synthesizeTypes)'));
+        continue;
+      }
+      this.acc(this.sv.onTag(locOf(tag), varIdx(tag.typeVar)));
+    }
 
     // Exports
     for (const exp of m.exports) {
-      this.acc(this.sv.onExport(loc, exp.kind, varIdx(exp.var), exp.name));
+      this.acc(this.sv.onExport(exp.loc ?? loc, exp.kind, varIdx(exp.var), exp.name));
     }
 
     // Start
@@ -895,30 +910,6 @@ class ModuleValidator implements ExprVisitorDelegate {
   private visitExprList(exprs: Expr[]): void {
     const visitor = new ExprVisitor(this);
     this.acc(visitor.visitExprList(exprs));
-  }
-
-  /**
-   * The type a tag HAS — its `typeVar` (Q9) — checked by `onTag` for range,
-   * kind and results. 🔧 It was re-derived from the signature, as the writers
-   * did, so a tag naming a type that does not exist (`(tag (type 42))`, V8:
-   * invalid) validated against whichever type matched its empty signature.
-   * A tag with none (one built without it) takes the first match.
-   */
-  private tagTypeIndex(tag: Tag): number {
-    if (tag.typeVar !== undefined) return varIdx(tag.typeVar);
-    const { params, results } = tag.sig;
-    for (const [i, te] of this.module.types.entries()) {
-      if (
-        te.kind === 'func' &&
-        te.sig.params.length === params.length &&
-        te.sig.results.length === results.length &&
-        te.sig.params.every((t, j) => t === params[j]) &&
-        te.sig.results.every((t, j) => t === results[j])
-      ) {
-        return i;
-      }
-    }
-    return 0;
   }
 
   // -------------------------------------------------------------------------

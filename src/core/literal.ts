@@ -119,8 +119,11 @@ export function parseS32Literal(s: string): [result: Result, value: number] {
   const [r, uval] = parseU32Literal(abs);
   if (r === Result.Error) return [Result.Error, 0];
   if (negative) {
-    // WAT allows -2147483648 through -1; anything whose absolute value > 2^32 is invalid
+    // WAT allows -2147483648 through -1. 🔧 Anything beyond -2^31 was WRAPPED, not refused:
+    // `-2147483649` read as 2147483647 (open-work 52 (e), 2026-10-28) — the comment said
+    // "> 2^32 is invalid", but the bound that matters is 2^31.
     if (uval === 0) return [Result.Error, 0]; // -0 in the unsigned-only context is invalid
+    if (uval > 0x80000000) return [Result.Error, 0];
     return [Result.Ok, (-uval) | 0];
   }
   return [Result.Ok, uval | 0];
@@ -167,6 +170,8 @@ export function parseS64Literal(s: string): [result: Result, value: bigint] {
   if (r === Result.Error) return [Result.Error, 0n];
   if (negative) {
     if (uval === 0n) return [Result.Error, 0n];
+    // -2^63 is the most negative i64; beyond it was wrapped, as `parseS32Literal` did.
+    if (uval > 1n << 63n) return [Result.Error, 0n];
     return [Result.Ok, BigInt.asIntN(64, -uval)];
   }
   return [Result.Ok, BigInt.asIntN(64, uval)];

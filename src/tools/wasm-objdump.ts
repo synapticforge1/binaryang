@@ -33,7 +33,8 @@
  * ```
  */
 
-import { indexOf, locOf, valueTypeName } from '../ir/ir.ts';
+import { indexOf, locOf, recGroups, valueTypeName } from '../ir/ir.ts';
+import { withEmptyRecGroups } from '../ir/fidelity.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import { isRealName } from '../ir/made-up-names.ts';
 import { Result } from '../core/result.ts';
@@ -244,7 +245,10 @@ function sectionLabel(meta: SectionMeta, m: Module): string {
 function sectionCount(meta: SectionMeta, m: Module): number {
   switch (meta.section) {
     case BinarySection.Type:
-      return m.types.length;
+      // The section is a vector of REC GROUPS: `(rec (type) (type))` is one entry, an empty
+      // `(rec)` is one too. 🔧 It was `m.types.length`, the TYPE count — 5 for a module whose
+      // section says 4, as `wasm-tools objdump` reports (divergence CL8).
+      return withEmptyRecGroups(recGroups(m.types), m.fidelity, m.types.length).length;
     case BinarySection.Import:
       return m.imports.length;
     case BinarySection.Function:

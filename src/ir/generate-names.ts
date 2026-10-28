@@ -128,6 +128,14 @@ class NameGenerator {
     for (const seg of m.elements) seed(used.elem, seg.name);
     for (const seg of m.dataSegments) seed(used.data, seg.name);
 
+    // 🔧 Upstream's ORDER (generate-names.cc `VisitModule`): imports, then exports, give the
+    // better names, derived from what the module says — an import `$module.field`, an exported
+    // entity its export name — and only what is still unnamed gets an index name below. This
+    // gave `$f0` to every one of them, and no param, local or label kind its own prefix
+    // (open-work 50, divergence CL6, 2026-10-28).
+    this.nameImports(used);
+    this.nameExports(used);
+
     // Types
     for (const [i, t] of m.types.entries()) {
       if (!t.name) t.name = this.uniqueName(used.type, 't', i);
@@ -218,9 +226,105 @@ class NameGenerator {
     }
     for (const func of m.functions) allFuncs.push(func);
 
+    for (const func of m.functions) this.nameLocals(func);
     for (const func of allFuncs) {
       this.generateLabelNames(func.body.children, { count: 0 });
     }
+  }
+
+  /** `$module.field` for each unnamed imported entity, disambiguated `_1`, `_2`, … as upstream. */
+  private nameImports(used: Record<string, Set<string>>): void {
+    for (const imp of this.module.imports) {
+      const [set, item] = imp.kind === ExternalKind.Func
+        ? [used['func']!, imp.func]
+        : imp.kind === ExternalKind.Global
+        ? [used['global']!, imp.global]
+        : imp.kind === ExternalKind.Table
+        ? [used['table']!, imp.table]
+        : imp.kind === ExternalKind.Memory
+        ? [used['memory']!, imp.memory]
+        : [used['tag']!, imp.tag];
+      if (!item.name) this.useName(set, item, `${imp.module}.${imp.field}`);
+    }
+  }
+
+  /** The export's name for each unnamed exported entity — the first export, as upstream. */
+  private nameExports(used: Record<string, Set<string>>): void {
+    const m = this.module;
+    const pick = <T>(
+      kind: ExternalKind,
+      defined: T[],
+      ofImport: (i: (typeof m.imports)[number]) => T | undefined,
+    ) => {
+      const imported = m.imports.filter((i) => i.kind === kind).map((i) => ofImport(i)!);
+      return [...imported, ...defined];
+    };
+    const spaces: Record<number, [Set<string>, { name?: string }[]]> = {
+      [ExternalKind.Func]: [
+        used['func']!,
+        pick(
+          ExternalKind.Func,
+          m.functions,
+          (i) => i.kind === ExternalKind.Func ? i.func : undefined,
+        ),
+      ],
+      [ExternalKind.Global]: [
+        used['global']!,
+        pick(
+          ExternalKind.Global,
+          m.globals,
+          (i) => i.kind === ExternalKind.Global ? i.global : undefined,
+        ),
+      ],
+      [ExternalKind.Table]: [
+        used['table']!,
+        pick(
+          ExternalKind.Table,
+          m.tables,
+          (i) => i.kind === ExternalKind.Table ? i.table : undefined,
+        ),
+      ],
+      [ExternalKind.Memory]: [
+        used['memory']!,
+        pick(
+          ExternalKind.Memory,
+          m.memories,
+          (i) => i.kind === ExternalKind.Memory ? i.memory : undefined,
+        ),
+      ],
+      [ExternalKind.Tag]: [
+        used['tag']!,
+        pick(ExternalKind.Tag, m.tags, (i) => i.kind === ExternalKind.Tag ? i.tag : undefined),
+      ],
+    };
+    for (const exp of m.exports) {
+      if (exp.var.kind !== 'index') continue; // a name already names it
+      const [set, items] = spaces[exp.kind]!;
+      const item = items[exp.var.value];
+      if (item !== undefined && !item.name) this.useName(set, item, exp.name);
+    }
+  }
+
+  /** `$p<i>` for an unnamed param, `$l<i>` for an unnamed local, as upstream. */
+  private nameLocals(func: Func): void {
+    const taken = new Set(func.locals.flatMap((l) => (l.name ? [l.name] : [])));
+    const params = func.sig.params.length;
+    for (const [i, local] of func.locals.entries()) {
+      if (!local.name) local.name = this.uniqueName(taken, i < params ? 'p' : 'l', i);
+    }
+  }
+
+  /**
+   * `$<text>` for `item`, disambiguated against `used` — upstream's `MaybeUseAndBindName`. An
+   * empty text gives no name (a bare `$` is no identifier), and the index pass names it.
+   */
+  private useName(used: Set<string>, item: { name?: string }, text: string): void {
+    if (text === '') return;
+    const base = `$${text}`;
+    let name = base;
+    for (let n = 1; used.has(name); n++) name = `${base}_${n}`;
+    used.add(name);
+    item.name = name;
   }
 
   private generateLabelNames(exprs: Expr[], counter: { count: number }): void {
@@ -231,22 +335,25 @@ class NameGenerator {
       if ('params' in e && e.params !== undefined) {
         this.generateLabelNames(e.params.values, counter);
       }
+      // Each kind its own prefix, one counter per function, as upstream: `$B` block, `$L` loop,
+      // `$I` if, `$T` try and try_table (every one was `$B`).
       switch (e.kind) {
         case 'block':
         case 'loop': {
-          if (!e.label) (e as { label: string }).label = this.make('B', counter.count++);
+          const prefix = e.kind === 'block' ? 'B' : 'L';
+          if (!e.label) (e as { label: string }).label = this.make(prefix, counter.count++);
           this.generateLabelNames(e.kind === 'block' ? e.children : e.body.children, counter);
           break;
         }
         case 'if': {
-          if (!e.label) (e as { label: string }).label = this.make('B', counter.count++);
+          if (!e.label) (e as { label: string }).label = this.make('I', counter.count++);
           this.generateLabelNames(e.ifTrue.children, counter);
           this.generateLabelNames(e.ifFalse?.children ?? [], counter);
           break;
         }
         case 'try':
         case 'try_table': {
-          if (!e.label) (e as { label: string }).label = this.make('B', counter.count++);
+          if (!e.label) (e as { label: string }).label = this.make('T', counter.count++);
           this.generateLabelNames(e.body.children, counter);
           break;
         }
@@ -275,7 +382,12 @@ class NameGenerator {
     // invalid WAT that failed to round-trip through wat2wasm. Include the
     // per-namespace `prefix` in alpha mode too, so a func and a global at the
     // same index don't both collapse to `$a`.
-    const suffix = this.opts & NameOpts.AlphaNames ? indexToAlphaName(index) : String(index);
-    return `$${prefix}${suffix}`;
+    // Alpha names as upstream: `_` between prefix and letters (`$f_a`), and NO prefix for a param
+    // or local (`$a`).
+    if (this.opts & NameOpts.AlphaNames) {
+      const letters = indexToAlphaName(index);
+      return prefix === 'p' || prefix === 'l' ? `$${letters}` : `$${prefix}_${letters}`;
+    }
+    return `$${prefix}${index}`;
   }
 }

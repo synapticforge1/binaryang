@@ -41,6 +41,8 @@
  *   module that fails here rather than earlier.
  * - `WasmModule.toText(opts?)` → `string` — renders the IR as WAT.
  * - `WasmModule.applyNames()` — fills any unnamed entities with synthetic names.
+ * - `WasmModule.validate()` — throws on an invalid module (the features it was parsed with;
+ *   every feature for one from `readWasm`).
  * - `WasmModule.destroy()` — releases the IR (a no-op aside from clearing the
  *   internal ref, since wabt-ts is GC'd; matches the libwabt.js contract).
  *
@@ -60,7 +62,7 @@
  * - Anything binaryen-specific (use `@jrmarcum/binaryang/compat/binaryen` for those).
  */
 
-import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
+import { type ErrorList, formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import { LexerSource } from '../parser/lexer-source.ts';
 import { parseWatModule } from '../parser/wast-parser.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
@@ -70,6 +72,54 @@ import { resolveNames } from '../ir/resolve-names.ts';
 import { generateNames } from '../ir/generate-names.ts';
 import { synthesizeTypes } from '../ir/synthesize-types.ts';
 import type { Module as WabtIrModule } from '../ir/ir.ts';
+import { allFeatures, defaultFeatures, type Features } from '../core/feature.ts';
+import { validateModule } from '../validator/validator.ts';
+import { FEATURE_DEFINITIONS } from '../definitions/mod.ts';
+
+/**
+ * libwabt.js's feature-bag key for each of binaryang's features: D2's CLI spelling with `_` for
+ * `-` (`bulk-memory` → `bulk_memory`), and libwabt's own `sat_float_to_int` beside upstream's CLI
+ * `saturating-float-to-int`.
+ */
+const FEATURE_KEYS = new Map<string, keyof Features>([
+  ...FEATURE_DEFINITIONS.entries.map((f) =>
+    [f.cli.replaceAll('-', '_'), f.name as keyof Features] as const
+  ),
+  ['sat_float_to_int', 'satFloatToInt'],
+]);
+
+/**
+ * The features a libwabt.js feature bag asks for: upstream's defaults, each key given set on or
+ * off, everything with `enable_all`. Unknown keys are ignored, as upstream ignores them.
+ */
+function featuresOf(bag: WabtFeatures | undefined): Features {
+  if (bag?.enable_all === true) return allFeatures();
+  const features = defaultFeatures();
+  for (const [key, on] of Object.entries(bag ?? {})) {
+    const name = FEATURE_KEYS.get(key);
+    if (name !== undefined && on !== undefined) features[name] = on;
+  }
+  return features;
+}
+
+/**
+ * The validation errors `module` has ONLY because some feature is off in `features` — those the
+ * all-features run does not report. That is what libwabt.js's parser refuses (it gates each
+ * construct on its feature while parsing), with nothing else of validation: `parseWat` does not
+ * validate (DG5), it refuses a disabled feature.
+ */
+function disabledFeatureErrors(module: WabtIrModule, features: Features): ErrorList {
+  const all = makeErrorList();
+  validateModule(module, all, { features: allFeatures() });
+  const seen = new Set(
+    all.map((e) => `${e.loc.offset}:${e.loc.line}:${e.loc.column}:${e.message}`),
+  );
+  const gated = makeErrorList();
+  validateModule(module, gated, { features });
+  return gated.filter((e) =>
+    !seen.has(`${e.loc.offset}:${e.loc.line}:${e.loc.column}:${e.message}`)
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Public API shape — mirrors npm:wabt
@@ -158,6 +208,12 @@ export interface WabtWasmModule {
   toText(opts?: ToTextOptions): string;
   /** Fill any unnamed funcs / globals / etc. with synthetic names (matches upstream). */
   applyNames(): void;
+  /**
+   * Validate the module with the features it was parsed or read with; THROWS on an invalid one,
+   * as libwabt.js's `validate()` (an `Error` naming this method). It was missing: code ported
+   * from libwabt.js got a TypeError (open-work 52 (b), divergence CL21, 2026-10-28).
+   */
+  validate(): void;
   /** Release the IR reference. After this, all other methods throw. */
   destroy(): void;
 }
@@ -183,7 +239,7 @@ export interface WabtModule {
 // Implementation
 // ---------------------------------------------------------------------------
 
-function makeWasmModuleHandle(ir: WabtIrModule | null): WabtWasmModule {
+function makeWasmModuleHandle(ir: WabtIrModule | null, features: Features): WabtWasmModule {
   // Captured-by-closure ref; destroy() nulls it out and the other methods
   // throw on null. Matches the libwabt.js destroy() semantics where the
   // wasm-side allocation is freed and further calls are undefined behavior.
@@ -227,7 +283,16 @@ function makeWasmModuleHandle(ir: WabtIrModule | null): WabtWasmModule {
       // multiple views; an explicit copy avoids accidental aliasing).
       const buffer = new ArrayBuffer(bytes.byteLength);
       new Uint8Array(buffer).set(bytes);
-      return { buffer };
+      // `log` is always there, as libwabt.js's (a string; this writer keeps no log, so empty).
+      // It was absent (open-work 52 (b), CL21).
+      return { buffer, log: '' };
+    },
+
+    validate(): void {
+      const m = checkAlive('validate');
+      const errors = makeErrorList();
+      validateModule(m, errors, { features });
+      if (hasErrors(errors)) throw new Error(`validate: ${formatErrors(errors)}`);
     },
 
     toText(opts: ToTextOptions = {}): string {
@@ -265,11 +330,12 @@ export default function wabt(): Promise<WabtModule> {
     parseWat(
       filename: string,
       source: string | Uint8Array,
-      _features?: WabtFeatures,
+      featureBag?: WabtFeatures,
     ): WabtWasmModule {
-      // wabt-ts already understands every proposal it implements; the
-      // Features flag bag is accepted for shape parity but the parser does
-      // not gate on it. Future per-proposal validation can read this object.
+      // The feature bag GATES, as libwabt.js's: a construct of a feature that is off is refused
+      // here (see `disabledFeatureErrors`). 🔧 It was accepted and ignored, so a partial bag
+      // equalled `enable_all` (open-work 52 (b), divergence CL24, 2026-10-28).
+      const features = featuresOf(featureBag);
       const src = new LexerSource(source, filename);
       const { module, errors } = parseWatModule(src);
       if (hasErrors(errors)) {
@@ -282,7 +348,9 @@ export default function wabt(): Promise<WabtModule> {
         throw new Error(formatErrors(errors));
       }
       synthesizeTypes(module);
-      return makeWasmModuleHandle(module);
+      const gated = disabledFeatureErrors(module, features);
+      if (hasErrors(gated)) throw new Error(formatErrors(gated));
+      return makeWasmModuleHandle(module, features);
     },
 
     readWasm(buffer: ArrayBuffer | Uint8Array, opts: ReadWasmOptions = {}): WabtWasmModule {
@@ -294,7 +362,10 @@ export default function wabt(): Promise<WabtModule> {
       if (hasErrors(errors)) {
         throw new Error(formatErrors(errors));
       }
-      return makeWasmModuleHandle(module);
+      // Read with every feature, as before, and validated (on request) with every feature: a
+      // binary's bag is not gated here — wasmtk reads its own GC / EH output this way, passing
+      // only `readDebugNames`, and no record asks for it (CL24 is `parseWat`'s).
+      return makeWasmModuleHandle(module, allFeatures());
     },
   };
   return Promise.resolve(api);

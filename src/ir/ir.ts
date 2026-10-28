@@ -2377,6 +2377,12 @@ export interface Export {
   name: string;
   kind: ExternalKind;
   var: Var;
+  /**
+   * Where it was written — the `(export …)` in text, the entry's offset in a binary — for the
+   * validator's diagnostics. Absent for one built by hand. Added 2026-10-28 (open-work 50): every
+   * export error, "mutable globals cannot be exported" among them, had no location.
+   */
+  loc?: Location;
 }
 
 /** A custom section's raw bytes and name. */

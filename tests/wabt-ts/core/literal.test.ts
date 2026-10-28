@@ -74,6 +74,10 @@ describe('parseS32Literal', () => {
       assertEquals(v, expected | 0);
     });
   }
+  // Beyond -2^31 was WRAPPED (`-2147483649` → 2147483647) — open-work 52 (e), 2026-10-28.
+  for (const s of ['-2147483649', '-4294967295', '-4294967296', '-0']) {
+    it(`rejects "${s}"`, () => assertEquals(parseS32Literal(s)[0], Result.Error));
+  }
 });
 
 describe('parseU64Literal', () => {
@@ -108,6 +112,10 @@ describe('parseS64Literal', () => {
     const [r, v] = parseS64Literal('-9223372036854775808');
     assertEquals(r, Result.Ok);
     assertEquals(v, -9223372036854775808n);
+  });
+  it('rejects beyond -2^63 instead of wrapping (open-work 52 (e))', () => {
+    assertEquals(parseS64Literal('-9223372036854775809')[0], Result.Error);
+    assertEquals(parseS64Literal('-18446744073709551615')[0], Result.Error);
   });
 });
 

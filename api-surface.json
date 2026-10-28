@@ -352,6 +352,7 @@
    "ExplicitNames.types": "property#f66f3382843a",
    "Export": "interface#d54e370c645e",
    "Export.kind": "property#d2402ac4319b",
+   "Export.loc": "property#5a23448527bd",
    "Export.name": "property#90b258461267",
    "Export.var": "property#065a3acf34c3",
    "Expr": "typeAlias#f152adceab0f",
@@ -1618,7 +1619,7 @@
    "F64Ops.store": "method#12a1b54807f0",
    "F64Ops.sub": "method#09c6dcf771fe",
    "F64Ops.trunc": "method#e5739f761d31",
-   "Features": "variable#dcc2c36b44b3",
+   "Features": "variable#9b191c2eada3",
    "funcref": "variable#72ede4abf051",
    "FunctionInfo": "interface#d54e370c645e",
    "FunctionInfo.base": "property#adbd6d1d3962",
@@ -1760,6 +1761,7 @@
    "Module.f64": "property#940372a175af",
    "Module.features": "property#62ac1bae2fe2",
    "Module.getExportByIndex": "method#e9d83e740971",
+   "Module.getFeatures": "method#c8e228eb3117",
    "Module.getFunction": "method#c29f7d45edcc",
    "Module.getNumExports": "method#48f3b61560ad",
    "Module.global": "property#28dfd5d425ff",
@@ -1782,6 +1784,9 @@
    "Module.validate": "method#1c6d66135083",
    "none": "variable#72ede4abf051",
    "NopId": "variable#72ede4abf051",
+   "nullexternref": "variable#72ede4abf051",
+   "nullfuncref": "variable#72ede4abf051",
+   "nullref": "variable#72ede4abf051",
    "readBinary": "function#9c0c2477c9e5",
    "ReturnId": "variable#72ede4abf051",
    "SelectId": "variable#72ede4abf051",
@@ -1830,7 +1835,8 @@
    "WabtWasmModule.applyNames": "method#4d5353458cdc",
    "WabtWasmModule.destroy": "method#a160374759f2",
    "WabtWasmModule.toBinary": "method#a56be46be71e",
-   "WabtWasmModule.toText": "method#7396c8935810"
+   "WabtWasmModule.toText": "method#7396c8935810",
+   "WabtWasmModule.validate": "method#668ec0a3bd28"
   },
   "./api": {
    "BinaryOp": "reference#4ef0a7f41d5a",
@@ -2094,11 +2100,13 @@
    "wasm2wat": "function#79f86fefd401",
    "Wasm2WatOptions": "interface#d54e370c645e",
    "Wasm2WatOptions.asWritten": "property#a831bf1d9bed",
+   "Wasm2WatOptions.features": "property#fdea4a45a396",
    "Wasm2WatOptions.filename": "property#c8a031e7a4d7",
    "Wasm2WatOptions.fold": "property#5e97a3e23394",
    "Wasm2WatOptions.generateNames": "property#1a383f12e1cc",
    "Wasm2WatOptions.inlineExport": "property#95fcc3a82230",
    "Wasm2WatOptions.readDebugNames": "property#152251ac3d34",
+   "Wasm2WatOptions.validate": "property#6b174aa99f23",
    "Wasm2WatResult": "interface#d54e370c645e",
    "Wasm2WatResult.errors": "property#3e82db2799af",
    "Wasm2WatResult.result": "property#cf978cfee373",
@@ -2338,17 +2346,41 @@
   },
   "wasm2wat": {
    "flags": [
+    "--disable-bulk-memory",
+    "--disable-multi-value",
+    "--disable-mutable-globals",
+    "--disable-reference-types",
+    "--disable-saturating-float-to-int",
+    "--disable-sign-extension",
+    "--disable-simd",
+    "--enable-all",
+    "--enable-annotations",
+    "--enable-code-metadata",
+    "--enable-compact-imports",
+    "--enable-custom-descriptors",
+    "--enable-custom-page-sizes",
+    "--enable-exceptions",
+    "--enable-extended-const",
+    "--enable-function-references",
+    "--enable-gc",
+    "--enable-memory64",
+    "--enable-multi-memory",
+    "--enable-relaxed-simd",
+    "--enable-tail-call",
+    "--enable-threads",
+    "--enable-wide-arithmetic",
     "--fold",
     "--generate-names",
     "--help",
     "--linear",
+    "--no-check",
     "--output",
     "--version",
     "-f",
     "-l",
     "-o"
    ],
-   "usage": "1d20b263f935"
+   "usage": "474effcabdb3"
   },
   "wasm-validate": {
    "flags": [
@@ -2436,7 +2468,7 @@
     "--run-export",
     "--version"
    ],
-   "usage": "e73046bf710b"
+   "usage": "cf2a9d620610"
   },
   "wasm-bundle": {
    "flags": [

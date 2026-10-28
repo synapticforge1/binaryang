@@ -28,15 +28,18 @@ describe('code lens 2 — a memarg alignment exponent must fit below the memory-
 
   it('still writes align=2^63 as exponent 63 (the largest that fits), and it decodes', () => {
     // Upstream wabt accepts this text but writes it as align=1; we write the exponent the text
-    // says. (Printing it back is imprecise — 2^63 has no exact JS number text — a LOW residue
-    // recorded with the code lens; the validator refuses such an alignment anyway, as larger
-    // than the access.)
+    // says. (The validator refuses such an alignment anyway, as larger than the access.)
     const r = wat2wasm(load('9223372036854775808'));
     assert(!hasErrors(r.errors), formatErrors(r.errors));
     const bytes = [...r.binary!];
     const at = bytes.indexOf(0x28); // i32.load
     assertEquals(bytes[at + 1], 63, 'the alignment exponent');
-    assert(!hasErrors(wasm2wat(r.binary!).errors), 'it no longer decodes');
+    const back = wasm2wat(r.binary!);
+    assert(!hasErrors(back.errors), 'it no longer decodes');
+    // Printed EXACTLY, and so it round-trips (open-work 50): it was `align=9223372036854776000`,
+    // JavaScript's shortest digits for 2^63, not the integer.
+    assert(back.text.includes('align=9223372036854775808'), back.text);
+    assertEquals([...wat2wasm(back.text).binary!], bytes, 'text → binary → text → binary');
   });
 
   it('still writes an ordinary alignment exactly', () => {

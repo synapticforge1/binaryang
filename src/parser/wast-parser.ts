@@ -2524,6 +2524,19 @@ export class WastParser {
       this.expect(TokenType.Rpar);
       return r;
     }
+    // An active segment's offset is REQUIRED: `(offset …)` or one folded instruction. 🔧 Nothing
+    // read here was accepted, and the VALIDATOR then refused the empty offset in other words —
+    // "type mismatch in initializer expression" for `(data (memory 0) "x")` (open-work 52 (d),
+    // 2026-10-28). Upstream wabt's words, and its refusal; wasm-tools refuses too ("expected `(`").
+    if (this.peek() !== TokenType.Lpar) {
+      this.error(
+        this.loc(),
+        `unexpected token ${
+          tokenName(this.peek())
+        }, expected an offset expr (e.g. (i32.const 123)).`,
+      );
+      return Result.Error;
+    }
     return this.parseInstrList(ctx);
   }
 
@@ -3192,6 +3205,7 @@ export class WastParser {
   }
 
   private parseExportModuleField(module: Module): Result {
+    const at = this.loc();
     if (this.expect(TokenType.Lpar) !== Result.Ok) return Result.Error;
     if (this.expect(TokenType.Export) !== Result.Ok) return Result.Error;
     const name = this.parseQuotedText() ?? '';
@@ -3222,7 +3236,7 @@ export class WastParser {
     const v = this.parseVar();
     this.expect(TokenType.Rpar);
     this.expect(TokenType.Rpar);
-    if (v !== null) module.exports.push({ name, kind, var: v });
+    if (v !== null) module.exports.push({ name, kind, var: v, loc: at });
     return Result.Ok;
   }
 
@@ -3238,10 +3252,15 @@ export class WastParser {
     const funcIdx = countImports(module, ExternalKind.Func) + module.functions.length;
 
     // Inline exports
-    while (this.matchLpar(TokenType.Export)) {
+    for (let at = this.loc(); this.matchLpar(TokenType.Export); at = this.loc()) {
       const expName = this.parseQuotedText() ?? '';
       this.expect(TokenType.Rpar);
-      module.exports.push({ name: expName, kind: ExternalKind.Func, var: varIndex(funcIdx) });
+      module.exports.push({
+        name: expName,
+        kind: ExternalKind.Func,
+        var: varIndex(funcIdx),
+        loc: at,
+      });
     }
 
     // Inline import?
@@ -3371,10 +3390,15 @@ export class WastParser {
     const name = this.parseBindVarOpt();
     const globalIdx = countImports(module, ExternalKind.Global) + module.globals.length;
 
-    while (this.matchLpar(TokenType.Export)) {
+    for (let at = this.loc(); this.matchLpar(TokenType.Export); at = this.loc()) {
       const expName = this.parseQuotedText() ?? '';
       this.expect(TokenType.Rpar);
-      module.exports.push({ name: expName, kind: ExternalKind.Global, var: varIndex(globalIdx) });
+      module.exports.push({
+        name: expName,
+        kind: ExternalKind.Global,
+        var: varIndex(globalIdx),
+        loc: at,
+      });
     }
 
     const inlineImp = this.parseInlineImport();
@@ -3407,10 +3431,15 @@ export class WastParser {
     const name = this.parseBindVarOpt();
     const memIdx = countImports(module, ExternalKind.Memory) + module.memories.length;
 
-    while (this.matchLpar(TokenType.Export)) {
+    for (let at = this.loc(); this.matchLpar(TokenType.Export); at = this.loc()) {
       const expName = this.parseQuotedText() ?? '';
       this.expect(TokenType.Rpar);
-      module.exports.push({ name: expName, kind: ExternalKind.Memory, var: varIndex(memIdx) });
+      module.exports.push({
+        name: expName,
+        kind: ExternalKind.Memory,
+        var: varIndex(memIdx),
+        loc: at,
+      });
     }
 
     const inlineImp = this.parseInlineImport();
@@ -3492,10 +3521,15 @@ export class WastParser {
     const name = this.parseBindVarOpt();
     const tableIdx = countImports(module, ExternalKind.Table) + module.tables.length;
 
-    while (this.matchLpar(TokenType.Export)) {
+    for (let at = this.loc(); this.matchLpar(TokenType.Export); at = this.loc()) {
       const expName = this.parseQuotedText() ?? '';
       this.expect(TokenType.Rpar);
-      module.exports.push({ name: expName, kind: ExternalKind.Table, var: varIndex(tableIdx) });
+      module.exports.push({
+        name: expName,
+        kind: ExternalKind.Table,
+        var: varIndex(tableIdx),
+        loc: at,
+      });
     }
 
     const inlineImp = this.parseInlineImport();
@@ -3863,10 +3897,15 @@ export class WastParser {
     const name = this.parseBindVarOpt();
     const tagIdx = countImports(module, ExternalKind.Tag) + module.tags.length;
 
-    while (this.matchLpar(TokenType.Export)) {
+    for (let at = this.loc(); this.matchLpar(TokenType.Export); at = this.loc()) {
       const expName = this.parseQuotedText() ?? '';
       this.expect(TokenType.Rpar);
-      module.exports.push({ name: expName, kind: ExternalKind.Tag, var: varIndex(tagIdx) });
+      module.exports.push({
+        name: expName,
+        kind: ExternalKind.Tag,
+        var: varIndex(tagIdx),
+        loc: at,
+      });
     }
 
     const inlineImp = this.parseInlineImport();

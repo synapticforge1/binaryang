@@ -5,6 +5,42 @@ code lens passes 2 and 3 are unreleased on `main`** (below; check it rather than
 `git log --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of work.
 
+**Unreleased — open-work 50 and 52, fixed** (2026-10-28, owner: "fix the 52 and 50 items"). The
+surface gate says **at least a MINOR**: new CLI options and library options and exports. Several
+lines change what a script or a consumer sees, so the note should say so plainly:
+
+- **Behaviour (CLI output) — upstream's forms:**
+  - `wasm-validate` prints nothing on success, and no `INVALID` line after errors: scripts must
+    read the exit code.
+  - `wasm-interp` prints integers unsigned (`i32:4294967295`). `--run-all-exports` runs only the
+    exports that take no arguments. An import nothing supplies is refused before anything runs
+    ("error initializing module: invalid import …", exit 1).
+  - `--generate-names` uses upstream wabt's names: `$env.imp`, export names, `$p0` / `$l2`,
+    labels `$B` / `$L` / `$I` / `$T`.
+  - `wasm-opt <pass> -S` keeps the names.
+  - `wasm-objdump` counts the type section in rec groups.
+- **Behaviour (refuses more):**
+  - `wasm2wat` VALIDATES by default with upstream's default features. It takes the feature
+    flags and `--no-check`; an invalid module, or a feature outside the defaults without its
+    flag, is now refused where it printed.
+  - A raw control character inside a WAT string is refused (the spec's rule).
+  - A segment with no offset is refused by the parser.
+  - A branch hint must point at a real `if` / `br_if`.
+  - A library-built tag with no type index is refused.
+- **Behaviour (library):**
+  - The binaryen facade's type IDs, Features bits, a new module's features (MVP) and the default
+    shrink level (1) are binaryen.js 132's. Code comparing NUMBERS sees new values; every
+    change is in the ID register.
+  - `getFunction` returns imports, and `getFeatures()` exists.
+  - The wabt facade gains `validate()` and `toBinary().log`. Its `parseWat` feature bag GATES:
+    a partial bag means upstream's defaults plus those keys. wasmtk's `wasmbundle.ts:370` passes
+    `{ exceptions: true }`.
+  - `wasm2wat()` takes `validate` / `features`, and `Export` gains `loc`.
+- **Silent fix:**
+  - `wasm-opt` judges its output with our validator: a valid memory64 module optimizes on Bun.
+  - MergeLocals, SSANoMerge and StackIR no longer hide a failure.
+  - A 2^63 alignment prints exactly.
+
 **Unreleased — code lens pass 3** (open-work 53, [hardening.md](hardening.md) § "Code lens, pass
 3"). Two of these change what OPTIMIZED code computes, so the release note should lead with them:
 

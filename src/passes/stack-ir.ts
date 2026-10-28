@@ -58,14 +58,13 @@ function arity(e: Expression): number {
 
 /**
  * The `local.set` and `local.get` nodes of `fn` the writer may leave out, in pairs; empty when
- * the function holds a shape this does not handle, or when the analysis cannot read it.
+ * the function holds a shape this does not handle. An analysis that cannot read the function
+ * (an untyped node, an unresolvable branch) THROWS: it is a bug in whatever made the function.
+ * 🔧 Every exception was caught and the function written as it was, hiding such bugs as lost
+ * size (open-work 52 (c), 2026-10-28).
  */
 export function stackOmissions(fn: WasmFunction): Set<Expression> {
-  try {
-    return _omissions(fn);
-  } catch {
-    return new Set(); // an untyped node, an unresolvable branch: write it as it is
-  }
+  return _omissions(fn);
 }
 
 function _omissions(fn: WasmFunction): Set<Expression> {
