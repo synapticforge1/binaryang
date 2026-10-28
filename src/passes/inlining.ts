@@ -69,7 +69,7 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import { elemFuncNames, type Local, type WasmFunction, type WasmModule } from '../ir/module.ts';
-import type { ExprType } from '../ir/ir.ts';
+import type { ExprType, Var } from '../ir/ir.ts';
 import { isRef, None, Unreachable, ValType } from '../ir/types.ts';
 import { isRefType, type ValueType } from '../ir/gc-types.ts';
 import {
@@ -652,7 +652,15 @@ function substituteBody(
   localMapping: number[],
   returnLabel: string,
   rewriteReturns = true,
+  frameLabel: string | undefined = undefined,
 ): Expression {
+  // A branch to the callee's FUNCTION FRAME (`bodyFrameLabel`: `br_if 0` at the top of its body)
+  // leaves the callee; inlined, it must leave the wrapper block instead. Copied as it was it
+  // named a label the caller does not have, and -O2 and above refused a valid module: "cfg:
+  // branch to "$l0_frame", which no enclosing construct declares" (code lens pass 3, 2026-10-28).
+  // At a tail-call site the wrapper is returned, so the wrapper is the right target there too.
+  const retarget = (v: Var): Var =>
+    frameLabel !== undefined && labelName(v) === frameLabel ? varName(returnLabel) : v;
   // A callee local with no slot in the caller used to remap to `undefined`,
   // producing a `local.get`/`local.set` whose index is not a number. Nothing
   // downstream checks that, so it reached the encoder and was written as
@@ -689,6 +697,23 @@ function substituteBody(
         // any block that infers its type from this `br` as its last child.
         return makeBreak(returnLabel, undefined, e.values);
       }
+
+      case ExpressionKind.Break:
+      case ExpressionKind.BrOn:
+      case ExpressionKind.Rethrow:
+        return frameLabel === undefined ? e : { ...e, target: retarget(e.target) };
+      case ExpressionKind.Switch:
+        return frameLabel === undefined
+          ? e
+          : { ...e, targets: e.targets.map(retarget), defaultTarget: retarget(e.defaultTarget) };
+      case ExpressionKind.TryTable:
+        return frameLabel === undefined
+          ? e
+          : { ...e, catches: e.catches.map((c) => ({ ...c, target: retarget(c.target) })) };
+      case ExpressionKind.Try:
+        return frameLabel === undefined || e.delegate === undefined
+          ? e
+          : { ...e, delegate: retarget(e.delegate) };
 
       // A TAIL call in the callee returns from the CALLEE: inlined at a plain call site, it must
       // become an ordinary call whose results leave the wrapper block, like a `return`. Copied as
@@ -827,7 +852,9 @@ function inlineCallSite(
   // its values came from several instructions, and an `unreachable` was
   // appended when the body ended in `none` or `unreachable` (a callee
   // returning only through `return` → `br`). Declaring the results is both.
-  const body = asRegion(substituteBody(bodyCopy, mapping, label, !call.isReturn));
+  const body = asRegion(
+    substituteBody(bodyCopy, mapping, label, !call.isReturn, callee.bodyFrameLabel),
+  );
   const substituted = asStatement(body, retType);
   children.push(substituted);
 
