@@ -51,15 +51,8 @@ export class SSANoMergePass implements Pass {
   readonly requiresNonNullableLocalFixups = true;
 
   run(module: WasmModule, _options: PassOptions): void {
-    for (const fn of module.functions) {
-      const body = fn.body, count = fn.locals.length;
-      try {
-        ssaNoMerge(fn);
-      } catch {
-        fn.body = body; // an untyped node, an unresolvable branch: the function stays as it is
-        fn.locals.length = count;
-      }
-    }
+    // No catch-all, as MergeLocals beside it (open-work 52 (c), 2026-10-28): it hid real bugs.
+    for (const fn of module.functions) ssaNoMerge(fn);
   }
 }
 
