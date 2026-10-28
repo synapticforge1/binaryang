@@ -13,21 +13,29 @@ never in `src/`, never in the CLI.
 | `scripts/*.ts`                          | upstream `npm:binaryen` side by side with ours: `headtohead_bench`, `diag_roundtrip`, `diff_wat`, `trace_failing`                    |
 
 ```sh
-deno task comparison     # type-check, then run the tests (each skips loudly without its tool)
+bun run comparison   # install binaryen.js here, type-check, then run the tests on Node (the V8 referee)
+bun scripts/v8.ts comparison/scripts/headtohead_bench.ts   # a script, on the same referee
 ```
 
-Needs, per test: upstream `wasm-opt` on PATH (v133 measured 2026-09-28: 18 passed, none skipped);
-network for `npm:binaryen`.
+No Deno (2026-10-28, open-work 51; it ran on Deno until then). `package.json` here pins upstream
+binaryen.js — `binaryen` 132, and 116 as `binaryen-116` for the scripts — with its own `bun.lock`,
+so the root install never fetches its 50 MB. `tsconfig.json` is the root's strictness with
+`noUncheckedIndexedAccess` off, as this tree always had. The tests are `node:test`, run on the
+referee through `scripts/v8.ts` (`node --test`), as the root suite runs.
+
+Needs, per test: upstream `wasm-opt` on PATH (v133 measured 2026-10-28: 23 passed, none skipped);
+the network for the first `bun install`.
 
 ## Isolation, and how it is enforced
 
-- **Not published:** `deno.json`'s `publish.include` names only `main.ts` and `src/`.
-- **Not run by the gate or by a bare `deno test`:** the tests are named `*.compare.ts`, which Deno
-  does not discover — only `deno task comparison`, which names them, runs them. (A `test.exclude` in
-  the config was tried and rejected: it also blocks the explicit path.) Not type-checked or linted
-  by the gate, and not in CI — its tools are not installed there.
-- **Formatted:** as a workspace member it IS covered by the gate's `deno fmt --check` — formatting
-  only, which is harmless.
+- **Not published:** `jsr.json`'s `publish.include` names only `main.ts` and `src/`, and the npm
+  package is built from `src/`.
+- **Not run by `bun run test`:** the tests are named `*.compare.ts`, which no runner discovers by
+  itself — only `bun run comparison`, which names them, runs them. The gate runs that step; CI does
+  not — its tools are not installed there.
+- **Not type-checked by `bun run check`:** that check runs in CI, where binaryen.js is not
+  installed; `bun run comparison` checks this tree itself. Not linted (Biome's scope excludes it).
+- **Formatted:** dprint covers it, as everything else.
 - **One direction only:** nothing outside this directory imports from it; it imports from `src/` and
   from `tests/binaryen-ts/passes/asyncify_helpers.ts`, never the other way.
 

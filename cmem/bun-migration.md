@@ -646,9 +646,27 @@ run by Bun: `bun x deno@2.9.6 …`. Measured against the installed Deno 2.9.8:
 five pass. **Why not `bunx jsr publish`:** finding 2 — it forces `--no-check`, and the cold run
 exists to catch what CI's `deno publish` type check would fail after the tag is public.
 **Not changed:** `publish.yml` (`setup-deno` + `deno publish` directly, for provenance) and the
-CI `runtimes` Deno leg — CI runners, not this machine. **Left:** `comparison` (`deno check` /
-`deno test`), and the pin itself (four sites: `package.json`, `publish.ts`, `api-surface.ts`,
-`ir_subpath.test.ts`) — open-work 51. **Option, not taken:** `@deno/doc` (deno_doc as WASM, JSR,
+CI `runtimes` Deno leg — CI runners, not this machine. **Left:** the pin itself (four sites:
+`package.json`, `publish.ts`, `api-surface.ts`, `ir_subpath.test.ts`) — open-work 51.
+
+**Then the comparison suite, PORTED off Deno the same day** (owner: "then port it so it also is
+deno free"; not npm's Deno — no Deno at all). Bun 1.4.4 resolves no `npm:` specifier (measured:
+"Cannot find package 'npm:binaryen@116.0.0'"), so binaryen.js became a real dependency:
+`comparison/package.json` pins `binaryen` 132.0.0 and `binaryen-116` (`npm:binaryen@116.0.0`),
+exactly `deno.lock`'s two, with its own `bun.lock` — not the root's, which would fetch 50 MB on
+every install for a suite CI never runs. `Deno.test` → `node:test` (the asyncify test's six
+`t.step`s → a nested `describe`); `Deno.Command` / temp files / `Deno.args` / `Deno.exit` →
+`node:` builtins; `deno check` → `bun check -p comparison/tsconfig.json` (the root's strictness,
+`noUncheckedIndexedAccess` off as before; the root's `noPropertyAccessFromIndexSignature`, which
+deno.json lacked, found one `exports.f`). Run by `node --test` through `scripts/v8.ts`, the V8
+referee, as the root suite — the engine Deno's run used. `comparison/deno.json` and `deno.lock`
+deleted. **Proof, Deno's last run against the new one:** the same 24 test names, every one ok
+(23 tests + 1 suite; Deno counted 18 + 6 steps); `diag_roundtrip`, `diff_wat`, `trace_failing`
+stdout byte-identical, their four WAT dumps identical, and `headtohead_bench`'s size and validity
+columns identical (timing columns vary run to run); a planted wrong expectation fails the step
+(22 / 1, exit 1). Found on the way: `interop/binaryen-js.ts` claimed `npm:binaryen` "works under
+Deno and Bun without setup" (false for Bun; its default is `binaryen` now), and the scripts'
+`_diffs/` output was never gitignored. **Option, not taken:** `@deno/doc` (deno_doc as WASM, JSR,
 0.210.0) would answer `deno doc` with no Deno binary at all, but its JSON is the library's, not
 the CLI's, and every `api-surface.json` hash would have to be shown unchanged first.
 

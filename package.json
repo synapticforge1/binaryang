@@ -40,7 +40,7 @@
     "fmt": "dprint fmt",
     "fmt:check": "dprint check && bun scripts/check-fmt-canary.ts",
     "publish:dry": "bun x deno@2.9.6 publish --dry-run --allow-dirty",
-    "comparison": "deno check --config comparison/deno.json comparison/ && deno test --config comparison/deno.json --allow-read --allow-write --allow-run --allow-env --allow-net 'comparison/tests/*.compare.ts'",
+    "comparison": "bun install --cwd comparison --frozen-lockfile && bun check -p comparison/tsconfig.json && bun scripts/v8.ts --v8=--test comparison/tests/asyncify_vs_wasm_opt.compare.ts comparison/tests/binaryen_interop.compare.ts comparison/tests/upstream_wasm_opt.compare.ts",
     "browsers": "bun scripts/check-browsers.ts"
   },
   "devDependencies": {

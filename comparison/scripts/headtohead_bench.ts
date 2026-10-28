@@ -1,4 +1,4 @@
-// Diagnostic script: intentionally imports upstream binaryen via npm: specifier for head-to-head comparison.
+// Diagnostic script: intentionally imports upstream binaryen (comparison/package.json) for head-to-head comparison.
 
 /**
  * @module scripts/binaryen-ts/headtohead_bench
@@ -25,9 +25,8 @@
  * - 5-20×         → migration possible for non-perf-critical paths
  * - 20×+          → migration blocked on perf; significant pipeline work needed
  *
- * Run (requires npm:binaryen to be cached on first call):
- *   deno run --allow-read --allow-env --allow-net --allow-write --allow-ffi \
- *     scripts/binaryen-ts/headtohead_bench.ts
+ * Run on the V8 referee, as the suite (after `bun install` in comparison/):
+ *   bun scripts/v8.ts comparison/scripts/headtohead_bench.ts
  *
  * @license MIT
  */
@@ -36,8 +35,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
-// Upstream binaryen (Emscripten-built C++ via npm:binaryen)
-import upstream from 'npm:binaryen@^116.0.0';
+// Upstream binaryen (Emscripten-built C++), 116 — comparison/package.json's `binaryen-116`
+import upstream from 'binaryen-116';
 
 // Our TypeScript implementation via the compat facade
 import * as ours from '../../src/compat/binaryen-compat.ts';

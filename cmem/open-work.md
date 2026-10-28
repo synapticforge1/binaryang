@@ -109,12 +109,12 @@ removed record went to a topic file, and the full text is one `git show` away:
 51. **The last Deno uses on this machine** (owner, 2026-10-28: "migrating everything to bun").
     Done the same day ([bun-migration.md](bun-migration.md) § "B8"): the publish dry runs,
     `deno doc` (api-surface, the `./ir` test) and the smoke's Deno leg run Deno from npm
-    (`bun x deno@2.9.6`), proved with Deno off the PATH. **Open:** (a) `comparison` (`deno check` /
-    `deno test` with `comparison/deno.json`) — the same one-line change, or a port to `node:test`;
-    (b) the pin is written in four places (`package.json`, `publish.ts`, `api-surface.ts`,
-    `ir_subpath.test.ts`): one constant, or a devDependency in `bun.lock`, would keep them equal;
-    (c) CI keeps `setup-deno` (publish.yml must; the `runtimes` leg could take the npm Deno) — the
-    owner's call; (d) option: `@deno/doc` (WASM) for `deno doc` with no Deno binary, only if every surface hash
+    (`bun x deno@2.9.6`), proved with Deno off the PATH; and the `comparison` suite PORTED to
+    `node:test` and Bun, no Deno at all (same 24 names and results, scripts' output identical).
+    **Open:** (a) the pin is written in four places (`package.json`, `publish.ts`,
+    `api-surface.ts`, `ir_subpath.test.ts`): one constant, or a devDependency in `bun.lock`, would
+    keep them equal; (b) CI keeps `setup-deno` (publish.yml must; the `runtimes` leg could take the
+    npm Deno) — the owner's call; (c) option: `@deno/doc` (WASM) for `deno doc` with no Deno binary, only if every surface hash
     holds.
 
 50. **Code lens pass 2: found and recorded, not fixed** (2026-10-28, [hardening.md](hardening.md)

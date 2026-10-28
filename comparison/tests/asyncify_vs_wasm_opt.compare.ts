@@ -17,6 +17,11 @@
  * @license MIT
  */
 
+import { describe, it, test } from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { assertEquals } from '@std/assert';
 
 import {
@@ -30,17 +35,19 @@ import {
   TWO_IMPORTS,
 } from '../../tests/binaryen-ts/passes/asyncify_helpers.ts';
 
-async function haveWasmOpt(): Promise<boolean> {
-  try {
-    const p = new Deno.Command('wasm-opt', { args: ['--version'], stdout: 'null', stderr: 'null' });
-    return (await p.output()).success;
-  } catch {
-    return false;
-  }
-}
-const ignore = !(await haveWasmOpt());
-if (ignore) {
+const skip = spawnSync('wasm-opt', ['--version'], { stdio: 'ignore' }).status !== 0;
+if (skip) {
   console.warn('comparison: wasm-opt not on PATH — the asyncify differentials are skipped');
+}
+
+/** Runs `use` with a fresh temporary directory, removed afterwards. */
+function withTempDir<T>(use: (dir: string) => T): T {
+  const dir = mkdtempSync(join(tmpdir(), 'binaryang-comparison-'));
+  try {
+    return use(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -48,40 +55,39 @@ if (ignore) {
  * Verbose prints one line per state-changing function; imported functions are
  * reported as "is an import ..." and are NOT instrumented.
  */
-async function wasmOptInstrumentSet(
-  wat: string,
-  passArgs: Record<string, string>,
-): Promise<Set<string>> {
-  const inFile = await Deno.makeTempFile({ suffix: '.wat' });
-  const outFile = await Deno.makeTempFile({ suffix: '.wat' });
-  try {
-    await Deno.writeTextFile(inFile, wat);
-    const args = [inFile, '--asyncify', '--pass-arg=asyncify-verbose', '-S', '-o', outFile];
+function wasmOptInstrumentSet(wat: string, passArgs: Record<string, string>): Set<string> {
+  return withTempDir((dir) => {
+    const inFile = join(dir, 'in.wat');
+    writeFileSync(inFile, wat);
+    const args = [
+      inFile,
+      '--asyncify',
+      '--pass-arg=asyncify-verbose',
+      '-S',
+      '-o',
+      join(dir, 'out.wat'),
+    ];
     for (const [k, v] of Object.entries(passArgs)) {
       args.push(v === '' ? `--pass-arg=${k}` : `--pass-arg=${k}@${v}`);
     }
-    const out = await new Deno.Command('wasm-opt', { args, stdout: 'piped', stderr: 'piped' })
-      .output();
-    const text = new TextDecoder().decode(out.stdout) + new TextDecoder().decode(out.stderr);
+    const out = spawnSync('wasm-opt', args, { encoding: 'utf8', maxBuffer: 1 << 30 });
+    const text = out.stdout + out.stderr;
     const set = new Set<string>();
     for (const line of text.split('\n')) {
       const m = line.match(/^\[asyncify\]\s+(\S+)\s+can change the state/);
       if (m && !line.includes('is an import')) set.add(m[1]);
     }
     return set;
-  } finally {
-    await Deno.remove(inFile).catch(() => {});
-    await Deno.remove(outFile).catch(() => {});
-  }
+  });
 }
 
-async function assertMatchesOracle(
+function assertMatchesOracle(
   name: string,
   wat: string,
   passArgs: Record<string, string> = {},
-): Promise<void> {
+): void {
   const ours = ourInstrumentSet(wat, passArgs);
-  const ref = await wasmOptInstrumentSet(wat, passArgs);
+  const ref = wasmOptInstrumentSet(wat, passArgs);
   assertEquals(
     [...ours].sort(),
     [...ref].sort(),
@@ -91,59 +97,43 @@ async function assertMatchesOracle(
 
 /** Upstream's `wasm-opt --asyncify` bytes for `wat`. */
 function wasmOptAsyncify(wat: string): Uint8Array {
-  const inFile = Deno.makeTempFileSync({ suffix: '.wat' });
-  const outFile = Deno.makeTempFileSync({ suffix: '.wasm' });
-  try {
-    Deno.writeTextFileSync(inFile, wat);
-    const out = new Deno.Command('wasm-opt', {
-      args: [inFile, '--asyncify', '-o', outFile],
-      stdout: 'null',
-      stderr: 'piped',
-    }).outputSync();
-    if (!out.success) {
-      throw new Error(`wasm-opt --asyncify failed: ${new TextDecoder().decode(out.stderr)}`);
-    }
-    return Deno.readFileSync(outFile);
-  } finally {
-    Deno.removeSync(inFile);
-    Deno.removeSync(outFile);
-  }
+  return withTempDir((dir) => {
+    const inFile = join(dir, 'in.wat');
+    const outFile = join(dir, 'out.wasm');
+    writeFileSync(inFile, wat);
+    const out = spawnSync('wasm-opt', [inFile, '--asyncify', '-o', outFile], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      encoding: 'utf8',
+    });
+    if (out.status !== 0) throw new Error(`wasm-opt --asyncify failed: ${out.stderr}`);
+    return new Uint8Array(readFileSync(outFile));
+  });
 }
 
-Deno.test({
-  name: 'analyzer vs wasm-opt --asyncify (verbose)',
-  ignore,
-  async fn(t) {
-    await t.step('import call', () => assertMatchesOracle('import call', IMPORT_CALL));
-    await t.step('transitive', () => assertMatchesOracle('transitive', TRANSITIVE));
-    await t.step('indirect (default)', () => assertMatchesOracle('indirect', INDIRECT));
-    await t.step(
-      'ignore-indirect',
-      () => assertMatchesOracle('ignore-indirect', INDIRECT, { 'asyncify-ignore-indirect': '' }),
-    );
-    await t.step(
-      'ignore-imports',
-      () => assertMatchesOracle('ignore-imports', IMPORT_CALL, { 'asyncify-ignore-imports': '' }),
-    );
-    await t.step(
-      'imports list',
-      () => assertMatchesOracle('imports list', TWO_IMPORTS, { 'asyncify-imports': 'env.sleep' }),
-    );
-  },
+// Six steps of one Deno test until 2026-10-28; `t.step` became a nested describe, as in the
+// suite's own port (Bun migration B5).
+describe('analyzer vs wasm-opt --asyncify (verbose)', { skip }, () => {
+  it('import call', () => assertMatchesOracle('import call', IMPORT_CALL));
+  it('transitive', () => assertMatchesOracle('transitive', TRANSITIVE));
+  it('indirect (default)', () => assertMatchesOracle('indirect', INDIRECT));
+  it(
+    'ignore-indirect',
+    () => assertMatchesOracle('ignore-indirect', INDIRECT, { 'asyncify-ignore-indirect': '' }),
+  );
+  it(
+    'ignore-imports',
+    () => assertMatchesOracle('ignore-imports', IMPORT_CALL, { 'asyncify-ignore-imports': '' }),
+  );
+  it(
+    'imports list',
+    () => assertMatchesOracle('imports list', TWO_IMPORTS, { 'asyncify-imports': 'env.sleep' }),
+  );
 });
 
-Deno.test({
-  name: 'e2e: upstream --asyncify through our driver (x + get())',
-  ignore,
-  fn() {
-    assertEquals(driveOnce(wasmOptAsyncify(ADD_GET), 'compute', [10], 'get', 42), 52);
-  },
+test('e2e: upstream --asyncify through our driver (x + get())', { skip }, () => {
+  assertEquals(driveOnce(wasmOptAsyncify(ADD_GET), 'compute', [10], 'get', 42), 52);
 });
 
-Deno.test({
-  name: 'e2e: upstream --asyncify through our driver (loop)',
-  ignore,
-  fn() {
-    assertEquals(driveOnce(wasmOptAsyncify(LOOP_GET), 'sum', [3], 'get', 7), 21);
-  },
+test('e2e: upstream --asyncify through our driver (loop)', { skip }, () => {
+  assertEquals(driveOnce(wasmOptAsyncify(LOOP_GET), 'sum', [3], 'get', 7), 21);
 });

@@ -21,8 +21,8 @@ bun run browsers       # the library in REAL browsers (open-work 28.3): the inst
 
 In a test, a file or a temp dir is `tests/test_fs.ts` (`fsx.readTextFile`, `fsx.makeTempDir`, …; no
 `Deno.*`), and the CLI as a child process is `tests/run_ts.ts` (`runTsAsync(main, [tool, …])`). Deno
-runs `node:test` too, but deno.json and its `test` task are gone (B7); `bun run comparison` is the
-one Deno-run suite (comparison/deno.json).
+runs `node:test` too, but deno.json and its `test` task are gone (B7); `bun run comparison` was the
+last Deno-run suite, and runs on Node since 2026-10-28 (open-work 51, below).
 
 The Deno-era commands, kept for the record:
 
@@ -917,7 +917,11 @@ binary) lives in the committed `comparison/` directory ([its README](../comparis
 the former `./interop` bridge, its tests, our `-O2` beside upstream's, the Asyncify differentials
 (split from the native tests, which stayed — shared fixtures and driver in
 `tests/binaryen-ts/passes/asyncify_helpers.ts`), and four `npm:binaryen` scripts. Run with
-`deno task comparison` — 18 passed, none skipped, with `wasm-opt` v133 (2026-09-28).
+`deno task comparison` — 18 passed, none skipped, with `wasm-opt` v133 (2026-09-28). **Since
+2026-10-28 Deno-free** ([bun-migration.md](bun-migration.md) § "B8"): `bun run comparison`
+installs binaryen.js from `comparison/package.json`, `bun check`s the tree, and runs it with
+`node --test` on the referee — 23 passed, none skipped (the 18 Deno tests plus the 6 steps, the
+parent now a suite), the same 24 names and results as Deno's last run.
 
 - **Its tests are `*.compare.ts`**, a name `deno test` does not discover; the task names them. ⚠️
   A config `"test": { "exclude": ["comparison/"] }` was tried first and REJECTED: Deno applies it

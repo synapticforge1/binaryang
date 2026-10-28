@@ -8,7 +8,8 @@
   // Scope: the shipped code, and scripts/ since B4 converted it to node: builtins (2026-10-12).
   // scripts/binaryen-ts/, tests/ and tests/binaryen-ts/ have their own tsconfig.json (the two
   // binaryen-ts trees relax noUncheckedIndexedAccess); `bun run check` runs all four. comparison/
-  // is Deno-run and checked by `bun run comparison`, from comparison/deno.json.
+  // has its own tsconfig.json too, checked by `bun run comparison` (it needs binaryen.js, which only
+  // comparison/package.json installs; Deno ran it until 2026-10-28).
   //
   // ⚠️ With no deno.json, `deno publish` reads THIS file's compilerOptions too, but not the
   // `@types/node` it names: shipped code must not rely on a type only @types/node declares

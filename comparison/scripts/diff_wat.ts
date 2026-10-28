@@ -1,4 +1,4 @@
-// Diagnostic script: intentionally imports upstream binaryen via npm: specifier as a trusted disassembler.
+// Diagnostic script: intentionally imports upstream binaryen (comparison/package.json) as a trusted disassembler.
 
 /**
  * @module scripts/binaryen-ts/diff_wat
@@ -9,15 +9,16 @@
  * that the round-trip introduces.
  *
  * Run:
- *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/diff_wat.ts
+ *   bun scripts/v8.ts comparison/scripts/diff_wat.ts
  *
  * @license MIT
  */
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import process from 'node:process';
 
-import upstream from 'npm:binaryen@^116.0.0';
+import upstream from 'binaryen-116';
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
 
@@ -53,7 +54,7 @@ try {
   origText = emitText(original);
 } catch (e) {
   console.log('Upstream rejected original:', e);
-  Deno.exit(1);
+  process.exit(1);
 }
 try {
   reText = emitText(reEncoded);

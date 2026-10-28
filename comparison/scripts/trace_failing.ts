@@ -1,16 +1,16 @@
-// Diagnostic script: intentionally imports upstream binaryen via npm: specifier for head-to-head comparison.
+// Diagnostic script: intentionally imports upstream binaryen (comparison/package.json) for head-to-head comparison.
 
 /**
  * Trace a small failing module to find the producer instruction whose
  * parser handler isn't pushing.
  *
  * Run:
- *   deno run --allow-read --allow-env --allow-net scripts/binaryen-ts/trace_failing.ts
+ *   bun scripts/v8.ts comparison/scripts/trace_failing.ts
  */
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import upstream from 'npm:binaryen@^116.0.0';
+import upstream from 'binaryen-116';
 import { readForPasses } from '../../src/ir/prepare.ts';
 import { writeWasm } from '../../src/ir/write-wasm.ts';
 
