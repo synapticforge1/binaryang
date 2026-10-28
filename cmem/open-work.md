@@ -14,6 +14,11 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**Later, 2026-10-28: code lens pass 2** (owner: "look for code issues") — item 49 fixed (five
+defects CL1–CL5, comments, dead code; [unreleased.md](unreleased.md)), item 50 recorded (the
+CLI's differences CL6–CL14 and four library-side findings). Merged to `main`, NOT pushed and not
+released: both are the owner's word. The paragraph below otherwise stands.
+
 **State, 2026-10-28 (supersedes the paragraphs below where they differ).** **`binaryang@2.2.2`
 RELEASED** (owner: "We will release the delegate fix as 2.2.2") — JSR Rekor `3541668152`, npm
 SLSA provenance, [publishing.md](publishing.md) § "2.2.2": the legacy `delegate` fix (item 47,
@@ -100,6 +105,30 @@ removed record went to a topic file, and the full text is one `git show` away:
 | everything else: M-series and post-M8 tables, the pre-bump items         | `git show 3bd64ece7:cmem/open-work.md`                                                               |
 
 ## Defects and gaps — the owner's first
+
+50. **Code lens pass 2: found and recorded, not fixed** (2026-10-28, [hardening.md](hardening.md)
+    § "Code lens, pass 2"). Each needs the owner's priority; none changes a validity verdict on
+    the CLI path. (a) The CLI's differences from upstream, divergences **CL6–CL14**:
+    `--generate-names` names less (CL6), `wasm-objdump -d` values and coverage (CL7), its rec-group
+    count (CL8), `wasm-opt <pass> -S` drops names (CL9), `wasm-interp --run-all-exports` and
+    unresolved imports (CL10), signed integers (CL11), `--disable-bulk-memory` leaves reference
+    types on (CL12), `wasm-validate`'s `OK` line (CL13, the owner's call: a consumer may read it),
+    `wasm2wat` has no feature flags (CL14). (b) `branch-hints.ts:93`: a hint is checked only by
+    the byte at its offset, so one landing on an immediate of value 4 or 13 passes. (c)
+    `validator.ts:902` `tagTypeIndex`: a library-built tag with no `typeVar` is checked against a
+    guessed type (first match, else type 0); a function in the same state is refused — the tag
+    should be too. Library only. (d) `--disable-mutable-globals`: the refusal (correct, wasm-tools
+    agrees) carries no location. (e) A memarg alignment of 2^63 prints imprecisely in the text
+    (upstream writes it `align=1`).
+
+49. ✅ **Code lens pass 2 — five defects fixed, comments corrected, dead code removed**
+    (2026-10-28, owner: "look for code issues"; branch `fix/code-lens-2`). CL1 a `struct.new_desc`
+    descriptor in a constant expression must be constant; CL2 an unknown CLI option is an error and
+    `--output=FILE` works (`wasm-strip --output=` overwrote its INPUT); CL3 the SIMD lane and
+    shuffle messages name the instruction; CL4 an alignment exponent ≥ 64 is refused by the writer;
+    CL5 `wasm-interp` prints `-0` and NaN payloads. Each with a test red on the old code. Record,
+    instruments and controls: [hardening.md](hardening.md) § "Code lens, pass 2". What it found and
+    did not fix: item 50. Unreleased: [unreleased.md](unreleased.md).
 
 48. ✅ **The validator's type-mismatch messages are upstream wabt's** (divergence DG7) — FIXED
     on `main` 2026-10-28 (owner: "fix item 46 and divergence DG7"), SHIPPED in 2.2.2. Every
