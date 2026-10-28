@@ -680,9 +680,14 @@ class ModuleValidator implements ExprVisitorDelegate {
       case 'extern.convert_any':
         return this.isConstExpr(e.value);
       case 'struct.new':
-      case 'array.new_fixed':
         // The default form has no operands, so `every` is vacuously true --
-        // which is the right answer, and why it needs no separate case.
+        // which is the right answer, and why it needs no separate case. The
+        // descriptor of `struct.new_desc` / `struct.new_default_desc` is `desc`,
+        // NOT one of the operands, and must be constant too (code lens pass 2,
+        // 2026-10-28: a call there validated; wasm-tools refuses it).
+        return e.operands.every((x) => this.isConstExpr(x)) &&
+          (e.desc === undefined || this.isConstExpr(e.desc));
+      case 'array.new_fixed':
         return e.operands.every((x) => this.isConstExpr(x));
       case 'array.new':
         return (e.init === undefined || this.isConstExpr(e.init)) && this.isConstExpr(e.length);
