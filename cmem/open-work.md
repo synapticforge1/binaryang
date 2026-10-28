@@ -634,6 +634,11 @@ sent and answered (their reply reached us 2026-09-29) — closed in [handoffs.md
   shelve that decision until it become available in a later release"). Merged to Bun's main
   (oven-sh/bun PR #44805) and documented at bun.com/docs/lint, but NOT in Bun 1.4.3, the release
   CI and publish pin (`bun lint` there: `Script not found "lint"`); canary only.
+  **Re-measured 2026-10-28 on Bun 1.4.4** (workspace correspondence C21, from s3d-reportcompiler):
+  `bun fmt` EXISTS (Prettier-style, `--check`; s3d-reportcompiler adopted it) and `bun lint` still
+  does not. The trigger below is unchanged — the lint half; whether the formatter half alone is
+  worth deciding now (a `bun fmt` vs dprint byte comparison, below) is the owner's call. Still
+  shelved.
   - **Trigger to reopen:** a Bun RELEASE that ships `bun lint` (check its release notes, then
     `bun lint --rules` outside the repo: our `lint` script shadows it inside).
   - **What deciding needs then**, the `bun check` method ([jsr-deno-exit-guide.md](jsr-deno-exit-guide.md)

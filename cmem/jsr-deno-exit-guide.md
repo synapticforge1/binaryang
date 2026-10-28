@@ -469,6 +469,49 @@ binaryang's B5, for your packages (its bun-migration.md § "B5" has the detail):
 - Pin the absence: a test that fails if `deno.json` comes back, since with it `deno publish`
   would silently publish from it again.
 
+### Six traps s3d-reportcompiler measured on steps 2–4 (workspace correspondence C21, 2026-10-26)
+
+s3d-reportcompiler is the first package with dependencies to take these steps; its record is
+`../S3D-ReportCompiler/cmem/bun-migration.md` (steps 2–4), `known-issues.md` #27–#30. Each line
+says whether binaryang RE-MEASURED it (2026-10-28: Deno 2.9.8, Bun 1.4.4, Node 22.23 / 24.21 /
+26.12, Windows 11) or only READ it.
+
+1. **With no `tasks` in `deno.json`, `deno task <name>` runs the `package.json` script of that
+   name.** Re-measured: a `deno.json` holding only `fmt` and a `package.json` script `release`
+   — `deno task release` ran the script. S3D's probe of "does the old name still resolve?" ran its
+   REAL release. → Once step 4 moves the tasks out, never probe a task name you would not run.
+2. **`Deno.readTextFile` KEEPS a leading BOM**, and so does `readFile(p, 'utf8')` from `node:fs`
+   — on Deno, Bun and Node alike; `new TextDecoder().decode(…)` DROPS it. Re-measured on all three
+   (BOM + `A` read back as `feff 41` / `feff 41` / `41`). → A port of `Deno.readTextFile` is
+   `readFile(p, 'utf8')`, not a `TextDecoder` over the bytes (S3D's first port lost 3 bytes); this
+   adds to step 4's `readFile`-returns-a-pooled-`Buffer` trap.
+3. **Bun 1.4.4 ships `bun fmt`** (Prettier-style; JS/TS, CSS, HTML, JSON, YAML, Markdown;
+   `--check`), and **`bun lint` is still absent** (`Script not found "lint"`). Re-measured.
+   Bare `bun fmt` formats EVERY supported file, so name the paths in the script (S3D's scope
+   would otherwise have rewritten `cmem/` and byte-checked HTML). binaryang's own move to
+   `bun lint` / `bun format` stays SHELVED by the owner until a Bun release ships `bun lint`
+   (binaryang `open-work.md` § Not tasks); the formatter half is now available, the lint half not.
+4. **Biome's binaries are OPTIONAL, per-platform dependencies**: with `.npmrc` `omit=optional`,
+   npm installs a `@biomejs/biome` wrapper with no binary (`Cannot find module
+   '@biomejs/cli-win32-x64/biome.exe'`); `bunx @biomejs/biome@<pin>` works. Read, not
+   re-measured: binaryang omits nothing optional and its `cli-win32-x64` is installed.
+5. **npm 12 refuses the alias `npx jsr add` installs.** Node 24.21 bundles npm 12.2.0 (Node 22.23:
+   npm 10.9.9; Node 26.12: npm 11.20.0). Re-measured, and NARROWER than first reported: a direct
+   `npm install @jsr/jrmarcum__binaryang` from `npm.jsr.io` works on npm 12; `npx jsr add
+   @jrmarcum/binaryang`, which installs the alias `@jrmarcum/binaryang@npm:@jsr/…`, fails with
+   `Refusing to fetch "@jrmarcum/binaryang@https://npm.jsr.io/…tgz"`. `npm_config_allow_remote=all`,
+   or `allow-remote=all` in the project `.npmrc`, lets it through (re-measured; the installed CLI
+   runs); npm 10 needs neither. → binaryang's README carries this note since 2026-10-28; every
+   package whose README says `npx jsr add` needs it. ⚠️ Probe in a folder with its OWN
+   `package.json`: without one, npm adopts the nearest parent project (here it wrote into a
+   project in the user's home folder — undone with `npm uninstall`).
+6. **`deno publish` of a version that already exists SKIPS with exit 0**, so a re-run tag
+   workflow carries on past the publish step. Read, not re-measured (it needs a real re-publish).
+   For binaryang's `publish.yml`, by reading: the next step, `gh release create`, fails on the
+   release that exists, so a re-run stops LOUD there and the npm job (`needs: publish`) does not
+   start; if the first run died before creating the release, a re-run completes only the missing
+   part. Check a workflow's steps AFTER the publish for what a re-run does.
+
 ### The web: every export must LOAD in a browser
 
 - **The trap, measured in binaryang: 15 of 22 exports would not even bundle for a browser**,

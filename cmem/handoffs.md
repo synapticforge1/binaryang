@@ -1165,6 +1165,15 @@ closes its own rows; nothing is written there from here.
   decided DEFECT ("I agree that this is a defect that needs correction"), built ("agreed. build
   it"), `e948e84db`, merge `00ced023a`; the workspace notes updated.
 
+- **C20 and C21, from s3d-reportcompiler, for `jsr-deno-exit-guide.md` (answered 2026-10-28).**
+  C20: F1's "`--config jsr.json` publishes the same files" holds for a package with no
+  dependencies only; the guide carries S3D's measurement and check (`130b2faa9`). C21: six traps
+  from S3D's steps 2–4, in the guide's § 5a, four RE-MEASURED here (the `deno task` fallback, the
+  BOM, `bun fmt` / no `bun lint`, npm 12 — narrower than reported: only the `npx jsr add` alias is
+  refused), two read (Biome's optional binaries; `deno publish` skipping an existing version,
+  checked against our `publish.yml`). npm 12 hits binaryang's own README install line, which now
+  carries the fix. Answers written into the two ledger rows; S3D, the creator, closes them.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
