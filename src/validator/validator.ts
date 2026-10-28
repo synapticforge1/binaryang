@@ -670,7 +670,7 @@ class ModuleValidator implements ExprVisitorDelegate {
         return true;
       case 'binary': {
         // extended-const: only add / sub / mul on i32 / i64.
-        const name = anyOpcodeName(e.opcode) ?? '';
+        const name = anyOpcodeName(e.opcode);
         if (!/^i(32|64)\.(add|sub|mul)$/.test(name)) return false;
         return this.isConstExpr(e.left) && this.isConstExpr(e.right);
       }

@@ -167,16 +167,10 @@ export function applyNames(module: Module, names: ModuleNames): Result {
   const ctx: ApplyContext = { module, names };
 
   // Import func bodies (usually empty but included for completeness)
-  let applyFuncIdx = 0;
   for (const imp of module.imports) {
-    if (imp.kind === ExternalKind.Func) {
-      rewriteFuncVars(imp.func, applyFuncIdx, ctx);
-      applyFuncIdx++;
-    }
+    if (imp.kind === ExternalKind.Func) rewriteFuncVars(imp.func, ctx);
   }
-  for (const [i, func] of module.functions.entries()) {
-    rewriteFuncVars(func, countImports(module, ExternalKind.Func) + i, ctx);
-  }
+  for (const func of module.functions) rewriteFuncVars(func, ctx);
 
   // Global init exprs
   for (const global of module.globals) {
@@ -209,7 +203,7 @@ function lookupName(map: NameMap, idx: number): Var {
   return n !== undefined ? varName(n) : varIndex(idx);
 }
 
-function rewriteFuncVars(func: Func, _funcIdx: number, ctx: ApplyContext): void {
+function rewriteFuncVars(func: Func, ctx: ApplyContext): void {
   rewriteExprListVars(func.body.children, ctx);
 }
 

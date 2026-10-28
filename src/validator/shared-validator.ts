@@ -191,10 +191,6 @@ export class SharedValidator {
     return Result.Error;
   }
 
-  setCurrentLoc(loc: Location): void {
-    this.currentLoc = loc;
-  }
-
   // ---------------------------------------------------------------------------
   // Index helpers
   // ---------------------------------------------------------------------------
