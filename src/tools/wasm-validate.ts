@@ -237,12 +237,10 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       console.error(formatErrors(errors));
     }
 
-    if (result === Result.Ok) {
-      console.log(`${input}: OK`);
-    } else {
-      console.error(`${input}: INVALID`);
-      anyFailed = true;
-    }
+    // Silent on success, as upstream wasm-validate: the exit code is the verdict, and an invalid
+    // module's errors are its whole report. 🔧 It printed `<file>: OK` on success and
+    // `<file>: INVALID` after the errors, lines upstream never writes (divergence CL13).
+    if (result !== Result.Ok) anyFailed = true;
   }
 
   if (anyFailed) cliExit(1);
