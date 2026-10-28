@@ -21,8 +21,8 @@
  * import { createModule, BinaryOp, ValType } from "@jrmarcum/binaryang/api";
  * import { writeFile } from "node:fs/promises";
  *
- * const mod = createModule((b) => {
- *   b.addFunction("add", [ValType.I32, ValType.I32], [ValType.I32], (e) =>
+ * const mod = createModule((b, e) => {
+ *   b.addFunction("add", [ValType.I32, ValType.I32], [ValType.I32],
  *     e.return(e.binary(BinaryOp.AddI32, e.localGet(0), e.localGet(1)))
  *   );
  *   b.addExport("add", "add");
@@ -63,10 +63,15 @@ import {
   type UnaryOp,
 } from '../ir/expressions.ts';
 import { ModuleBuilder, type WasmModule } from '../ir/module.ts';
-import { ValType } from '../ir/types.ts';
+import { None, Unreachable, ValType } from '../ir/types.ts';
 import { writeWasm, writeWat } from '../ir/write-wasm.ts';
 import { PassRunner } from '../passes/index.ts';
-import { varIndex } from '../ir/ir.ts';
+import { type BlockResult, varIndex } from '../ir/ir.ts';
+import type { ExprType } from '../ir/ir.ts';
+
+/** What a block or `if` declares for contents of type `t`: none for none or unreachable. */
+const concrete = (t: ExprType | undefined): BlockResult =>
+  t === undefined || t === Unreachable ? None : t;
 
 // ---------------------------------------------------------------------------
 // Expression builder (fluent helper passed to function body closures)
@@ -114,13 +119,23 @@ export class ExprBuilder {
   unary(opcode: UnaryOp, value: Expression): Expression {
     return makeUnary(opcode, value);
   }
-  /** `if` expression. */
+  /**
+   * `if` expression. With an `else`, it yields what its arms yield; one-armed, nothing.
+   *
+   * 🔧 Both this and `block` declared NO result, so `e.if(c, e.i32(1), e.i32(2))` or a block
+   * ending in a value was written as an invalid module, without any error ("values remaining on
+   * stack at end of block"; code lens pass 3, 2026-10-28). They are typed from their contents now,
+   * as the binaryen.js facade (`compat/binaryen`) already typed them.
+   */
   if(cond: Expression, then: Expression, else_?: Expression): Expression {
-    return makeIf(cond, then, else_ ?? null);
+    const declared = else_ === undefined
+      ? None
+      : [then.type, else_.type].map(concrete).find((t) => t !== None) ?? None;
+    return makeIf(cond, then, else_ ?? null, '', declared);
   }
-  /** `block` expression. */
+  /** `block` expression. It yields what its last child yields. */
   block(children: Expression[], name?: string): Expression {
-    return makeBlock(children, name ?? null);
+    return makeBlock(children, name ?? null, concrete(children[children.length - 1]?.type));
   }
   /** `return` expression. */
   return(value?: Expression): Expression {
