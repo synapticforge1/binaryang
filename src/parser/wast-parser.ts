@@ -6050,7 +6050,9 @@ export class WastParser {
       const tok = this.consume() as LiteralToken;
       const n = parseNatText(tok.literal.text);
       if (n === null) return null;
-      const bits = f32ValueToBits(this.signedZero(n, tok.literal.text));
+      const bits = n === 0n
+        ? f32ValueToBits(this.signedZero(n, tok.literal.text))
+        : integerToF32Bits(n);
       if ((bits & 0x7fffffff) === 0x7f800000) {
         this.error(tok.loc, `f32 constant out of range: ${tok.literal.text}`);
         return null;
@@ -6988,6 +6990,36 @@ function f32ValueToBits(v: number): number {
   return F32_VIEW.getUint32(0, true);
 }
 
+/**
+ * The f32 bits of the integer `n`, rounded ONCE, to nearest with ties to even (`-0` for a negative
+ * zero is the caller's). An integer-spelled `f32.const` went through `Number(n)` first, rounding
+ * to f64, and then to f32 — twice: `18014399583223809` (2^54 + 2^30 + 1) lands on an f32 midpoint
+ * after the first and came out 0x1p+54 instead of 0x1.000002p+54, with no diagnostic (code lens
+ * pass 3, 2026-10-28; upstream wabt and wasm-tools round once). An integer is never subnormal.
+ */
+function integerToF32Bits(n: bigint): number {
+  const sign = n < 0n ? 0x80000000 : 0;
+  let mag = n < 0n ? -n : n;
+  if (mag === 0n) return sign;
+  let shift = mag.toString(2).length - 24;
+  if (shift > 0) {
+    const rem = mag & ((1n << BigInt(shift)) - 1n);
+    const half = 1n << BigInt(shift - 1);
+    mag >>= BigInt(shift);
+    if (rem > half || (rem === half && (mag & 1n) === 1n)) mag += 1n;
+    if (mag === 1n << 24n) {
+      mag >>= 1n;
+      shift += 1;
+    }
+  } else {
+    mag <<= BigInt(-shift);
+  }
+  // `mag` is now 24 bits, 1.f × 2^23; the value is mag × 2^shift.
+  const biased = 23 + shift + 127;
+  if (biased >= 0xff) return (sign | 0x7f800000) >>> 0;
+  return (sign | (biased << 23) | Number(mag & 0x7fffffn)) >>> 0;
+}
+
 function f64ValueToBits(v: number): bigint {
   F64_VIEW.setFloat64(0, v, true);
   return F64_VIEW.getBigUint64(0, true);
@@ -7147,7 +7179,8 @@ function parseF32LiteralBits(lit: { literalType: LiteralType; text: string }): n
   // are floating-point literals.
   const n = parseNatText(text);
   if (n === null) return null;
-  return f32ValueToBits(Number(n));
+  // Rounded once (see `integerToF32Bits`); `-0` keeps its sign as before.
+  return n === 0n ? f32ValueToBits(text.trimStart().startsWith('-') ? -0 : 0) : integerToF32Bits(n);
 }
 
 function parseF64LiteralBits(lit: { literalType: LiteralType; text: string }): bigint | null {
