@@ -1835,7 +1835,8 @@
    "WabtWasmModule.applyNames": "method#4d5353458cdc",
    "WabtWasmModule.destroy": "method#a160374759f2",
    "WabtWasmModule.toBinary": "method#a56be46be71e",
-   "WabtWasmModule.toText": "method#7396c8935810"
+   "WabtWasmModule.toText": "method#7396c8935810",
+   "WabtWasmModule.validate": "method#668ec0a3bd28"
   },
   "./api": {
    "BinaryOp": "reference#4ef0a7f41d5a",
