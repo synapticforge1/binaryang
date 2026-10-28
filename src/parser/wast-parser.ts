@@ -2524,6 +2524,19 @@ export class WastParser {
       this.expect(TokenType.Rpar);
       return r;
     }
+    // An active segment's offset is REQUIRED: `(offset …)` or one folded instruction. 🔧 Nothing
+    // read here was accepted, and the VALIDATOR then refused the empty offset in other words —
+    // "type mismatch in initializer expression" for `(data (memory 0) "x")` (open-work 52 (d),
+    // 2026-10-28). Upstream wabt's words, and its refusal; wasm-tools refuses too ("expected `(`").
+    if (this.peek() !== TokenType.Lpar) {
+      this.error(
+        this.loc(),
+        `unexpected token ${
+          tokenName(this.peek())
+        }, expected an offset expr (e.g. (i32.const 123)).`,
+      );
+      return Result.Error;
+    }
     return this.parseInstrList(ctx);
   }
 
