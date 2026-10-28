@@ -209,13 +209,21 @@ version is permanent.
    Bun-only. **Done when** each file's test count matches the last Deno run, and a deliberately
    broken assertion fails.
 6. **CI and the release path:** gate with Bun (and Node, § 5). Keep `setup-deno` +
-   `deno publish --config jsr.json` for publishing (F2). Keep a Deno leg in the runtime-support
+   `deno publish` for publishing (F2) — with `--config jsr.json` only while `deno.json` still
+   exists, and NO `--config` once it is gone (C26: S3D released 1.1.0 attested that way, Rekor
+   `3544353215`; binaryang's `publish.yml` has run a bare `deno publish` since B7). Keep a Deno leg in the runtime-support
    matrix while consumers use Deno (since 2026-10-28 binaryang's leg runs Deno from npm, with no
    `setup-deno` — § 5a "No installed Deno"; only the publish workflow installs Deno). Prove it with one real release, checking that provenance was
    recorded (`rekorLogId` from `api.jsr.io`). **For a package with dependencies, the release gate
    reads the UPLOAD:** keep the fake-registry capture (F1) as a committed check that compares every
    rewritten import specifier with the expected list before a tag — a green `deno publish` is not
-   evidence that the package loads.
+   evidence that the package loads. **A reusable one:** S3D's `scripts/jsr-upload-check.ts`
+   (C26). It checks that the uploaded files are `publish.include`, that every import specifier is
+   the source's resolved through `jsr.json`'s `imports`, in order, that everything else is
+   byte-identical, and that there is no `deno.json`. It is inverted (made to fail on purpose) to
+   prove it works, and runs in CI and in `publish.yml` before the real publish. ⚠️ **The fake
+   registry must answer `GET …/versions/<v>` with 404:** answered with 200, `deno publish` took
+   the version as already published, uploaded NOTHING and exited 0 (measured by S3D, C26).
 7. **Delete `deno.json` and `deno.lock`.** Drop `--config jsr.json`. (With dependencies, this is
    where step 1 happens too — see step 1's caveat.)
 
@@ -471,6 +479,11 @@ binaryang's B5, for your packages (its bun-migration.md § "B5" has the detail):
   (binaryang: `import.meta.main`; fixed with `(import.meta as { main?: boolean }).main`).
 - **Keep a COLD pre-tag check:** with no `deno check`, the Deno type check left is the one inside
   `deno publish`, so run `deno publish --dry-run` in an empty `DENO_DIR` before tagging.
+- ⚠️ **With no `deno.json`, `deno check --doc` loads no manifest**, so a JSDoc example that
+  imports the package by its own NAME fails (TS2307, three of them in S3D's CI). Passing
+  `--config jsr.json` to THAT command only fixes it. That is safe: a type check fails loudly,
+  unlike `deno publish` (F1's caveat). Measured by S3D (C26). binaryang's examples import full
+  `jsr:` specifiers and it runs no `deno check --doc`, so it was not re-measured here.
 - **A Deno-run side suite needs its own config.** binaryang's `comparison/` (Deno, `npm:binaryen`)
   had silently broken when `package.json` and `node_modules` arrived: Deno resolved `npm:` from
   node_modules and refused what was not listed. A standalone `deno.json` with
@@ -527,9 +540,17 @@ Windows 11, Bun 1.4.4, Node 24, Deno 2.9.6 from npm against 2.9.8 installed.
 6. **What stays:** the publish workflow's `setup-deno` + direct `deno publish` (F2: provenance
    through a subprocess has failed silently before, and `bun x` is a subprocess too). That is
    JSR's tooling, until JSR ships a publisher without Deno.
-7. **Option, not taken:** `@deno/doc` on JSR (deno_doc as WASM, 0.210.0) answers `deno doc` with
-   no Deno binary at all. Its JSON is the library's, not the CLI's, so check first that every
-   snapshot built from it comes out unchanged.
+7. **Options, not taken by binaryang:**
+   - `@deno/doc` on JSR (deno_doc as WASM, 0.210.0) answers `deno doc` with no Deno binary at
+     all. Its JSON is the library's, not the CLI's, so check first that every snapshot built from
+     it comes out unchanged.
+   - **An API surface read from tsc's emitted `.d.ts`** (S3D's `scripts/compat.ts`, C26). It
+     named the same 69 symbols, kinds and exports as `deno doc --json`, with no Deno at all
+     (measured by S3D). For binaryang it would mean re-baselining `api-surface.json`, whose
+     hashes come from `deno doc`'s JSON.
+8. **The stricter road** (S3D, C26): Deno only on GitHub's runners, and none at all on the
+   development machine, not even `bun x deno`. It trades the local cold dry run and `deno doc`
+   for CI's.
 
 ### Six traps s3d-reportcompiler measured on steps 2–4 (workspace correspondence C21, 2026-10-26)
 
@@ -695,7 +716,11 @@ survey here: `../S3D-ReportCompiler/cmem/bun-migration.md`. It is the first pack
 dependencies (8, `npm:` and `jsr:`) to take these steps, and it found what binaryang could not:
 F1's `--config jsr.json` corrupts dependency imports silently (§ "Step 1, measured" there; C20),
 so it folded step 1 into step 7; and six more traps from its steps 2–4 (workspace correspondence
-C21) — read its record before § 4 step 2 onward.
+C21) — read its record before § 4 step 2 onward. **Steps 5–7 done, and 1.1.0 released attested**
+(Rekor `3544353215`, 2026-10-28). Its five findings from them are recorded in this guide (C26):
+§ 4 step 6, the `deno check --doc` note under B7, § 5a "No installed Deno" items 7–8, and § 7.
+Its record: `../S3D-ReportCompiler/cmem/bun-migration.md` § "binaryang's guide update of
+2026-10-28 — reviewed".
 
 ## 7. Pitfalls already met
 
@@ -717,3 +742,8 @@ C21) — read its record before § 4 step 2 onward.
   query: JSR's API is cached.
 - The file that holds `version` is the one that ARMS an auto-tag release. Moving it (step 1)
   means the workflows must read the new file in the same change.
+- A fake JSR that answers `GET …/versions/<v>` with 200 makes `deno publish` upload nothing and
+  exit 0. Answer 404 (C26, measured by S3D).
+- A package that renders through Chrome: pagination differs by platform (13 samples: 100 pages on
+  Windows, 103 on GitHub's Ubuntu runner), so a test that pins a page count fails in CI (C26,
+  measured by S3D).
