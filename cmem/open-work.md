@@ -123,36 +123,22 @@ removed record went to a topic file, and the full text is one `git show` away:
     text-format gaps"): a table's linear initializer, and empty `(rec)` groups kept (P3.12,
     P3.13). Each with a test red on the old code. [unreleased.md](unreleased.md).
 
-52. **Code lens pass 3: found and recorded, not fixed** (2026-10-28). The owner's to order;
-    none is reachable as wrong output from the CLI's default paths.
-    (a) **The binaryen.js facade's public values differ from binaryen.js** (CL17–CL19): the
-    reference-type IDs and `auto`, five Features bits and `All`, the default shrink level (0,
-    upstream 1), `getFunction` on an import (null, upstream a handle), `exnref` reported as
-    `externref`, `i64.const(low, high)` silently dropping `high` (upstream aborts). Mirroring
-    upstream's constants is ALREADY decided ([binaryen-ts.md](binaryen-ts.md) "[decision]
-    `./compat/binaryen` … upstream numeric constants mirrored exactly"); only the release level is
-    open — the precedent is C7, released as a PATCH (1.8.1) "by the owner's decision". wasmtk
-    consumes `./compat/binaryen`.
-    (b) **The wabt.js facade** (CL21, CL24): no `WasmModule.validate()`, `toBinary()` has no
-    `log`, `parseWat` ignores its features bag. NOT open: `toText`'s folded / inline-export and
-    `readWasm`'s names defaults (CL16) are three owner rulings; changing them for the facade
-    would reverse those.
-    (c) **The optimizer:** `wasm-opt` checks its output with the HOST engine (`wasm-opt.ts:184`),
-    so on Bun (JavaScriptCore) a valid memory64 module fails "optimized module failed
-    validation" with no pass run, and an input JSC refuses is blamed on the optimizer — the
-    repo's own validator is the one that should judge; MergeLocals, SSANoMerge and StackIR
-    swallow every exception and skip the function (`merge-locals.ts:66`, `ssa-nomerge.ts:56`,
-    `stack-ir.ts:64`), so a pass bug shows only as lost size; LowerBlockParams refuses a
-    `try_table` catch (and a `br_on_*`) to a loop with parameters (`lower-block-params.ts:426`),
-    so `-O1`, `-O2`, even `--vacuum` exit 1 on a valid module.
-    (d) **The text format:** ✅ the table's linear initializer (CL22) and empty `(rec)` groups
-    (CL23) FIXED the same day (owner: "fix the two text-format gaps"; item 53, P3.12 / P3.13).
-    Left: a data / elem segment with no offset is
-    refused by the validator, not the parser, with a misleading message; a raw tab in a string
-    is accepted (as upstream wabt; the spec excludes control characters).
-    (e) `parseS32Literal` (`core/literal.ts:115`) wraps a negative past −2^31 (`-2147483649` →
-    2147483647) instead of failing; found while fixing `--argument`, which no longer uses it.
-    Check its callers before relying on it.
+52. ◐ **Code lens pass 3's recorded findings — FIXED 2026-10-28 but two** (owner: "fix the 52
+    and 50 items"; branch `fix/open-50-52`). ✅ (a) the binaryen facade mirrors binaryen.js 132:
+    type IDs, Features, `getFeatures()`, shrink default 1, import handles, exnref's ID
+    (`a1618195c`, `61541dff2`; every ID old → new in [divergences.md](divergences.md) § "Numeric
+    IDs — the register"). ✅ (b) the wabt facade: `validate()`, `toBinary`'s `log`, a gating
+    `parseWat` feature bag (`5984b5a79`; ⚠️ wasmtk's one partial bag, CL24). ✅ (c) `wasm-opt`
+    judges its output with our validator, not the host engine (`5b1e64999`); MergeLocals,
+    SSANoMerge and StackIR fail loudly (`d9c271195`, corpus and six modules unchanged). ✅ (d)
+    raw control characters in strings refused (`4b03ff338`); a missing segment offset refused by
+    the parser (`23f5d9570`). ✅ (e) `parseS32Literal` / `parseS64Literal` refuse past the range
+    (`458af6c10`). **Open:** ⬚ `i64.const(low, high)` (CL19) — the check needed a lint
+    suppression and was reverted (`052e8f5fa`; owner: "if it needs an ignore statement it is
+    not a fix"): a second parameter (surface gate: MAJOR) or leave it, the owner's to choose.
+    ⬚ LowerBlockParams refuses a `try_table` catch (and a `br_on_*`) to a loop with parameters
+    (`lower-block-params.ts:426`): `-O1`, `-O2`, even `--vacuum` exit 1 on a valid module — not
+    yet done (a lowering to design: the catch's values must reach the loop's parameters).
 
 51. **The last Deno uses on this machine** (owner, 2026-10-28: "migrating everything to bun").
     Done the same day ([bun-migration.md](bun-migration.md) § "B8"): the publish dry runs,
@@ -168,20 +154,17 @@ removed record went to a topic file, and the full text is one `git show` away:
     option only:** `@deno/doc` (WASM) for `deno doc` with no Deno binary, only if every surface hash
     holds.
 
-50. **Code lens pass 2: found and recorded, not fixed** (2026-10-28, [hardening.md](hardening.md)
-    § "Code lens, pass 2"). Each needs the owner's priority; none changes a validity verdict on
-    the CLI path. (a) The CLI's differences from upstream, divergences **CL6–CL14**:
-    `--generate-names` names less (CL6), `wasm-objdump -d` values and coverage (CL7), its rec-group
-    count (CL8), `wasm-opt <pass> -S` drops names (CL9), `wasm-interp --run-all-exports` and
-    unresolved imports (CL10), signed integers (CL11), `--disable-bulk-memory` leaves reference
-    types on (CL12), `wasm-validate`'s `OK` line (CL13, the owner's call: a consumer may read it),
-    `wasm2wat` has no feature flags (CL14). (b) `branch-hints.ts:93`: a hint is checked only by
-    the byte at its offset, so one landing on an immediate of value 4 or 13 passes. (c)
-    `validator.ts:902` `tagTypeIndex`: a library-built tag with no `typeVar` is checked against a
-    guessed type (first match, else type 0); a function in the same state is refused — the tag
-    should be too. Library only. (d) `--disable-mutable-globals`: the refusal (correct, wasm-tools
-    agrees) carries no location. (e) A memarg alignment of 2^63 prints imprecisely in the text
-    (upstream writes it `align=1`).
+50. ◐ **Code lens pass 2's recorded findings — FIXED 2026-10-28 but two** (owner: "fix the 52
+    and 50 items"). ✅ CL6 `--generate-names` (`efbfc6f8e`), CL8 objdump's rec-group count
+    (`ef56a7d32`), CL9 `-S` names (`c246edcc3`), CL10 / CL11 `wasm-interp` (`7170ac901`), CL13
+    `wasm-validate` silent (`030ddebb8`), CL14 `wasm2wat` flags and validation (`631055f4f`);
+    (b) branch hints on an instruction only (`f27ffb263`); (c) a tag with no type index refused
+    (`cd6c5874d`); (d) export errors located, `Export.loc` (`b93cbe456`); (e) 2^63 alignment
+    printed exactly (`827178d5b`). **Held for the owner:** ⚖️ CL12 — enforcing wabt's
+    bulk-memory → reference-types coupling would reverse the owner's 2026-10-24 ruling ("RECORDED,
+    NOT ENFORCED … nothing turns a feature on or off with another"); ⚖️ CL7 — upstream's `-x` is
+    details and its `-d` a disassembly binaryang lacks, so matching it changes what our `-d`
+    means (a CLI-contract decision), and upstream's details cover every section.
 
 49. ✅ **Code lens pass 2 — five defects fixed, comments corrected, dead code removed**
     (2026-10-28, owner: "look for code issues"; branch `fix/code-lens-2`). CL1 a `struct.new_desc`
