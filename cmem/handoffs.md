@@ -1003,7 +1003,7 @@ reads address 0, which belongs to the FIRST image in a bundle.
 Letters addressed to binaryang in `../../cmem/handoffs.md`, acted on in this repo. The workspace
 closes its own rows; nothing is written there from here.
 
-- **H5 ✅ 2026-10-23** (`8bc2efa1a`). Drift B1–B7 and W5. B1 / B2 [testing.md](testing.md)
+- **H5 ✅ 2026-10-23** (`526d447da`). Drift B1–B7 and W5. B1 / B2 [testing.md](testing.md)
   brought to today's tree; B3 [publishing.md](publishing.md)'s header re-states the settled release
   pattern and the three superseded dispatch sections are one summary (and `auto-tag.yml`'s comments
   stop quoting 0-of-3 / 5-of-5); B4 [ir-convergence.md](ir-convergence.md)'s finished Stage 1–3
@@ -1013,7 +1013,7 @@ closes its own rows; nothing is written there from here.
   17 publishes in the scope unattested 07-08 → 07-30); our "refutes" rested on later dates. The
   corrected letter is § 41 above, for the owner to send. W5: the nine-item checklist copied into
   [best-practices.md](best-practices.md) under a dated stamp.
-- **H12 ✅ 2026-10-23** (`d494438e3`). `./ts2wasm` reserved in [project.md](project.md) § "Reserved
+- **H12 ✅ 2026-10-23** (`a272482ff`). `./ts2wasm` reserved in [project.md](project.md) § "Reserved
   subpaths" — no code, no stub, no `jsr.json` entry, no scope.
 - **H6 ✅ 2026-10-23 — the compatibility gate built** ([publishing.md](publishing.md) § "The
   compatibility gate"): `api-surface.json` + `scripts/release/api-surface.ts` (rule 1), the floor in
@@ -1108,8 +1108,8 @@ closes its own rows; nothing is written there from here.
 - **H18 / H25 §3(a) — REOPENED for binaryang, 2026-10-26: five committed binaries carry personal
   paths, at HEAD and on `origin/main`.** `git grep -c -a` (binaries included) over every tracked
   file: `benches/browser-opt/modules/{rust-debug,zig-debug,zig-releasefast}.wasm` (public since
-  `f9b74f213`, 2026-10-13) and `modules64/{rust-release-wasm64,zig-releasefast-wasm64}.wasm`
-  (`4dcb140e3`, 2026-10-22) embed, in DWARF and panic-location strings, the owner's user profile
+  `22ecb4ab2`, 2026-10-13) and `modules64/{rust-release-wasm64,zig-releasefast-wasm64}.wasm`
+  (`2ea5da23a`, 2026-10-22) embed, in DWARF and panic-location strings, the owner's user profile
   (199 hits: the scoop toolchain and AppData) and the project tree under the OLD workspace folder
   name. Every earlier scan — ours, H18's, H25's — used `git grep -I` / `git log -G`, which skip
   binary files, so "HEAD is clean" and "0 commits" were true of text only. **Not shipped**:
@@ -1125,7 +1125,7 @@ closes its own rows; nothing is written there from here.
   prefix remapped, the Zig modules' DWARF removed byte for byte, `build.ts` scanning its outputs;
   whole-tree binary-aware scan empty; tests 34 / 34; the optimizer baseline re-derived
   ([open-work.md](open-work.md) 44, [optimizer.md](optimizer.md) § "State 2026-10-26"). **Still
-  open, the owner's:** the old blobs in public history (`f9b74f213`, `4dcb140e3`) — a second H19
+  open, the owner's:** the old blobs in public history (`22ecb4ab2`, `2ea5da23a`) — a second H19
   purge and force-push, or accept. Found on the way: our `wasm-strip` re-encodes what it keeps
   (open-work 45).
 - **H20 ✅ record-only, 2026-10-26.** Which publishing path this repo uses and whether it pins
@@ -1163,11 +1163,11 @@ closes its own rows; nothing is written there from here.
 - **Item 45 — the owner's question answered, decided, fixed (2026-10-26).** Why upstream copies
   instead of re-encoding (a kept section can name byte offsets; re-encoding made `reloc.*` stale),
   decided DEFECT ("I agree that this is a defect that needs correction"), built ("agreed. build
-  it"), `e948e84db`, merge `00ced023a`; the workspace notes updated.
+  it"), `1a4b06f43`, merge `9e8c48f39`; the workspace notes updated.
 
 - **C20 and C21, from s3d-reportcompiler, for `jsr-deno-exit-guide.md` (answered 2026-10-28).**
   C20: F1's "`--config jsr.json` publishes the same files" holds for a package with no
-  dependencies only; the guide carries S3D's measurement and check (`130b2faa9`). C21: six traps
+  dependencies only; the guide carries S3D's measurement and check (`5bac71de1`). C21: six traps
   from S3D's steps 2–4, in the guide's § 5a, four RE-MEASURED here (the `deno task` fallback, the
   BOM, `bun fmt` / no `bun lint`, npm 12 — narrower than reported: only the `npx jsr add` alias is
   refused), two read (Biome's optional binaries; `deno publish` skipping an existing version,

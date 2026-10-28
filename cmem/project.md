@@ -72,7 +72,7 @@ gives 19 and 24 commits respectively. Both "preserve history"; only one keeps it
     tree depends on them (re-checked 2026-10-23: no JSON import in `src/` or `main.ts`). **The floor
     itself is exercised on every push** (drift B6, closed 2026-10-23): CI's runtimes job runs
     `scripts/cli-smoke.ts` on **Node 22.18** and **Bun 1.4.0** beside Node 22 / 24 / 26 and Deno —
-    green on the 1.15.0 release commit `ae9e87162`. Each job only PRINTS its output hash to the run
+    green on the 1.15.0 release commit `bc97aa573`. Each job only PRINTS its output hash to the run
     summary; nothing in CI compares them across jobs (locally, `bun run lts` does, for the LTS lines). If a JSON
     import is ever added, that job is what will say whether 22.18 takes it.
 - **Adopt wabt-ts's `compilerOptions`** (measured at exactly 4 errors in binaryen-ts's `src/`), with
@@ -489,6 +489,6 @@ reasoned — and the check was inverted (a mutated copy fails it, naming exactly
 | the wabt-ts wing, `cmem/wabt-ts/` (12 files) | [wabt-ts.md](wabt-ts.md) | `git show 62c65a9db:cmem/wabt-ts/<file>` |
 | the binaryen-ts wing, `cmem/binaryen-ts/` (14 files) | [binaryen-ts.md](binaryen-ts.md) | `git show 62c65a9db:cmem/binaryen-ts/<file>` |
 | `open-work.md` again (1,020 lines → open items), `unreleased.md` (all shipped), 2026-09-29 | [open-work.md](open-work.md)'s own table of where each record went | `git show 3bd64ece7:cmem/<file>` |
-| `ir-convergence.md` § "Scope" — the Stage 1–3 plan (drift B4, 2026-10-23) | a summary in place, its four lessons kept | `git show b51af1c64:cmem/ir-convergence.md` |
-| `publishing.md` — the dispatch sections "3 of 3", "The fix: RELEASE_PAT", "ROOT CAUSE" (drift B3, 2026-10-23) | publishing.md § "The auto-tag dispatch path does not publish" | `git show b51af1c64:cmem/publishing.md` |
-| `open-work.md` — six stacked "State" paragraphs, 2026-10-09 → 10-22 (H6, 2026-10-23) | a summary in place | `git show 4e1c27969:cmem/open-work.md` |
+| `ir-convergence.md` § "Scope" — the Stage 1–3 plan (drift B4, 2026-10-23) | a summary in place, its four lessons kept | `git show 8147adc90:cmem/ir-convergence.md` |
+| `publishing.md` — the dispatch sections "3 of 3", "The fix: RELEASE_PAT", "ROOT CAUSE" (drift B3, 2026-10-23) | publishing.md § "The auto-tag dispatch path does not publish" | `git show 8147adc90:cmem/publishing.md` |
+| `open-work.md` — six stacked "State" paragraphs, 2026-10-09 → 10-22 (H6, 2026-10-23) | a summary in place | `git show b94a1c6ae:cmem/open-work.md` |

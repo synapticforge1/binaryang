@@ -160,7 +160,7 @@ is already on the stack". The convergence question there is different — see be
 ## Scope — Stages 1–3, as first planned (summarized 2026-10-23, drift B4)
 
 The first plan, written 2026-08-31 and finished or overtaken by 2026-09-28. Full text, with the
-tables and measurements: `git show b51af1c64:cmem/ir-convergence.md` (§ "Scope" through § "Stage 3").
+tables and measurements: `git show 8147adc90:cmem/ir-convergence.md` (§ "Scope" through § "Stage 3").
 
 - **Stage 1 — binaryen-ts's WAT parser accepts stack-sourced operands.** Built (`f809efaf6`, one
   claim per instruction, refused rather than reversed past that) until the owner's 2026-09-10

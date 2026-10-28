@@ -150,10 +150,10 @@ precompute-propagate) into our -O2 already.
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
 | — | before | | 153,470 (+10.4%) | 825,077 (+1.86%) |
-| 1 | OptimizeInstructions knows a value's bits: `and(x, 2^n-1)` → `x` when `x` fits; `eqz(cmp)` → the inverse integer comparison; `x op x` of a local is a constant | `9727361e1` | 150,181 (+8.0%) | 823,398 |
-| 2 | CodeFolding writes TERMINATING tails once: what several places end with before `unreachable` (Zig's `call $panic … unreachable`), upstream's `optimizeTerminatingTails` | `4f242ba35` `bd0d39d8d` | 148,211 (+6.6%) | 823,349 |
-| 3 | RemoveUnusedModuleElements empties a slot of a table only this module sees that no `call_indirect` of its signature can reach (Zig's vtables) | `2bd456396` `9dc3f9968` | 146,667 (+5.5%) | 823,322 |
-| 4 | MergeSimilarFunctions (new, -Oz): functions differing only in constants share one body, each a thunk | `72b0c84db` `ac0cdf963` | **145,859 (+4.9%)** | **822,964 (+1.60%)** |
+| 1 | OptimizeInstructions knows a value's bits: `and(x, 2^n-1)` → `x` when `x` fits; `eqz(cmp)` → the inverse integer comparison; `x op x` of a local is a constant | `5c286581b` | 150,181 (+8.0%) | 823,398 |
+| 2 | CodeFolding writes TERMINATING tails once: what several places end with before `unreachable` (Zig's `call $panic … unreachable`), upstream's `optimizeTerminatingTails` | `3b159e5af` `d9c9bae05` | 148,211 (+6.6%) | 823,349 |
+| 3 | RemoveUnusedModuleElements empties a slot of a table only this module sees that no `call_indirect` of its signature can reach (Zig's vtables) | `45a1c1bc9` `c16ef7a5a` | 146,667 (+5.5%) | 823,322 |
+| 4 | MergeSimilarFunctions (new, -Oz): functions differing only in constants share one body, each a thunk | `c7afe86a8` `f7b23bd8a` | **145,859 (+4.9%)** | **822,964 (+1.60%)** |
 
 Per module after: rust-debug +2.7%, rust-release +0.4%, zig-debug **+14.0%** (from +31.1%),
 zig-releasefast +2.3%, tinygo +0.8% / 0.0%. At -O2 the six are **+1.5%** (from +6.3%; zig-debug
@@ -164,10 +164,10 @@ zig-releasefast +2.3%, tinygo +0.8% / 0.0%. At -O2 the six are **+1.5%** (from +
   legacy `try` ending both arms of an `if`, with an `i64.const` in a catch body, made the optimizer
   THROW at -O2 and above ("cannot serialize a BigInt"; reproduced on the pre-item-30 tree). Found
   when step 4 keyed whole bodies and the gate's `optimize-corpus` failed ten legacy-EH modules.
-  `ac0cdf963`; `code_folding_tails.test.ts` holds the CodeFolding case.
+  `f7b23bd8a`; `code_folding_tails.test.ts` holds the CodeFolding case.
 - `Func.locals` is EVERY local, parameters first: step 4's first shared function wrote 0 locals
   (invalid, caught by `wasmOpt`'s own validation), and step 3 had dropped an emptied function's
-  parameter entries (no byte changed; `9dc3f9968`).
+  parameter entries (no byte changed; `c16ef7a5a`).
 - Table references inside code may be by INDEX: step 3's first version threw on `table.get 0`
   (caught by its own test before merging).
 
@@ -186,15 +186,15 @@ we can actually optimize." Start: six modules -Oz 145,859 (+4.9%), corpus -Oz 82
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
 | — | start | | 145,859 (+4.9%) | 822,964 (+1.60%) |
-| 1 | RemoveUnusedBrs: jump threading (a branch to a block followed by `br $y` goes to `$y`), and RemoveUnusedBrs + RemoveUnusedNames + Vacuum after CodeFolding (item 30's folded tails had left 152 `if (c) (br …)`) | `4a175f213` | 144,444 (+3.9%) | 822,798 (+1.58%) |
-| 2 | Effects: two plain memory accesses may change places (both trap only out of bounds; a trap's KIND stays observable, so not upstream's "any two implicit traps") — SimplifyLocals now sinks past loads | `6586bc5b3` | 143,810 (+3.4%) | 822,780 (+1.58%) |
-| 3 | DeadArgumentElimination: a parameter written before any read (its incoming value is dead) goes, and rounds repeat to a fixed point | `d9323353b` | 143,271 (+3.1%) | 822,764 (+1.58%) |
-| 4 | Local2Stack in the writer (upstream's StackIR at -O3/-Os/-Oz): a set and its one read are left out when the value can stay on the stack; `Module.optimizeStack`, `WriteBinaryOptions.stackIR` | `369bb9422` | 142,587 (+2.6%) | 822,460 (+1.54%) |
-| 5 | ConstantPropagation removes a write of the constant the local already holds (upstream's rse, for constants); the first version's identity bug caught by the -Oz fuzz, fixed before merging | `53acdb6e8` `e37a9a188` | 142,317 (+2.4%) | **816,938 (+0.86%)** |
-| 6 | CodeFolding folds tails before a `return` too (Zig restores its stack pointer before every return); rust-release now BELOW upstream (−0.3%) | `65c88338e` | 142,115 (+2.2%) | 816,932 (+0.86%) |
+| 1 | RemoveUnusedBrs: jump threading (a branch to a block followed by `br $y` goes to `$y`), and RemoveUnusedBrs + RemoveUnusedNames + Vacuum after CodeFolding (item 30's folded tails had left 152 `if (c) (br …)`) | `7a94cf9ab` | 144,444 (+3.9%) | 822,798 (+1.58%) |
+| 2 | Effects: two plain memory accesses may change places (both trap only out of bounds; a trap's KIND stays observable, so not upstream's "any two implicit traps") — SimplifyLocals now sinks past loads | `7d19d5ad6` | 143,810 (+3.4%) | 822,780 (+1.58%) |
+| 3 | DeadArgumentElimination: a parameter written before any read (its incoming value is dead) goes, and rounds repeat to a fixed point | `90a326d47` | 143,271 (+3.1%) | 822,764 (+1.58%) |
+| 4 | Local2Stack in the writer (upstream's StackIR at -O3/-Os/-Oz): a set and its one read are left out when the value can stay on the stack; `Module.optimizeStack`, `WriteBinaryOptions.stackIR` | `b77da39c2` | 142,587 (+2.6%) | 822,460 (+1.54%) |
+| 5 | ConstantPropagation removes a write of the constant the local already holds (upstream's rse, for constants); the first version's identity bug caught by the -Oz fuzz, fixed before merging | `36350ec4e` `e395e296d` | 142,317 (+2.4%) | **816,938 (+0.86%)** |
+| 6 | CodeFolding folds tails before a `return` too (Zig restores its stack pointer before every return); rust-release now BELOW upstream (−0.3%) | `9e2527f49` | 142,115 (+2.2%) | 816,932 (+0.86%) |
 | 7 | MEASURED, NOT KEPT: SSANoMerge (a set whose every reader reads only it gets a fresh local, before the function passes at -O3/-Os/-Oz) gave −26 on the six and **+48** on the corpus, and was reverted. Kept: the exact local graph (reaching definitions) moved to `passes/local-graph.ts` for reuse. 🔧 Its merge message says "all 27 steps": the gate ran 16 (`gate.ts --full` with no scratch path read `--full` AS the path); the full gate on step 8, which carries step 7's code, is green | (refactor only) | (142,089) | (816,980) |
 | 8 | What a SECOND run of our own -Oz found (corpus −1.5 KB, then −2.9 KB more on a third): **PrecomputePropagate** (new pass: ConstantPropagation + Precompute to the fixed point, replacing two fixed rounds; and again after SimplifyLocals, which sinks constants into their uses) — corpus 816,241 alone; and **three rounds of DAE + Inlining + the function passes** (a function the round before shrank is inlinable now) — 812,485. A fourth round: −71, not kept. -O2+ about a third slower | this step | 141,857 (+2.0%) 🔧 | **812,485 (+0.31%)** |
-| 9 | The control, diffed on zig-debug: upstream's BARE round trip alone shrinks our -Oz (−321 at -O2, −405 at -Oz, 0 at -O0) — its WRITER never emits code after a terminator, and ours held some, where DCE never looked. **DCE descends into operands** (a block in `(local.tee (block …))`, as stack code reads back, was never visited) and **trims after a construct that never reaches its `end`** (a block / `if` / `try` / `try_table` no branch targets, or a loop, every path ending in a terminator; the tail becomes ONE `unreachable`, since the stack after an `end` is not polymorphic). Attributed: no descent = main exactly; no structural tails = six 141,341. Measured, not kept: DCE to a fixed point (six +19, corpus 0). `branchTargets` shared in `ir/walk.ts` | `e3c37c37a` | **141,018 (+1.4%)** (zig-debug 38,123 → 37,306) | **812,093 (+0.26%)** |
+| 9 | The control, diffed on zig-debug: upstream's BARE round trip alone shrinks our -Oz (−321 at -O2, −405 at -Oz, 0 at -O0) — its WRITER never emits code after a terminator, and ours held some, where DCE never looked. **DCE descends into operands** (a block in `(local.tee (block …))`, as stack code reads back, was never visited) and **trims after a construct that never reaches its `end`** (a block / `if` / `try` / `try_table` no branch targets, or a loop, every path ending in a terminator; the tail becomes ONE `unreachable`, since the stack after an `end` is not polymorphic). Attributed: no descent = main exactly; no structural tails = six 141,341. Measured, not kept: DCE to a fixed point (six +19, corpus 0). `branchTargets` shared in `ir/walk.ts` | `46732e907` | **141,018 (+1.4%)** (zig-debug 38,123 → 37,306) | **812,093 (+0.26%)** |
 
 🔧 **Step 8's six-module figure:** `main` after step 8 measures **141,905**, by passrank's code-byte
 count (`passrank10.log` says the same) and by `six.ts`; the 141,857 in its row is not reproduced.
@@ -208,7 +208,7 @@ merge-locals 74 · remove-unused-names 65 · rse 62 · …; optimize-instruction
 
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
-| 10 | merge-blocks, attributed per function (scratch `passfn.ts`): its head-hoisting. **Vacuum moves a NAMED block's head out** — the leading statements before the first that names its label or has a value type, the last child kept — and our passes then collapse the block (`block { if … br } …` → an `if`). Caught by the corpus before merging: a void statement need not be stack-neutral (`(local.set $a (call $two))` leaves a result for a later `pop`), so nothing moves out of a block holding a `pop` | `05b6c94d4` | **140,885 (+1.3%)** | **812,064 (+0.26%)** |
+| 10 | merge-blocks, attributed per function (scratch `passfn.ts`): its head-hoisting. **Vacuum moves a NAMED block's head out** — the leading statements before the first that names its label or has a value type, the last child kept — and our passes then collapse the block (`block { if … br } …` → an `if`). Caught by the corpus before merging: a void statement need not be stack-neutral (`(local.set $a (call $two))` leaves a result for a later `pop`), so nothing moves out of a block holding a `pop` | `7e6d94128` | **140,885 (+1.3%)** | **812,064 (+0.26%)** |
 
 **After step 10** (`gap/passrank12.log`): merge-blocks 161 → 16; control 104 below ours
 (140,781). Left: ssa-nomerge 288 · code-folding 285 · simplify-locals 270 · remove-unused-brs 251 ·
@@ -217,7 +217,7 @@ optimize-instructions −137.
 
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
-| 11 | code-folding, attributed per function: the shape item 30 left unbuilt. **CodeFolding folds the tails before a block's branches** (upstream's `visitBlock`): what every way into a block's `end` ends with — its fall-through and each plain `br` to it, ending its list — goes after the block once. A `br_if` / `br_table` / `br_on_*` to it stops the fold; a tail item is a void statement branching to no label it does not declare, holding no `pop`; not with a `try`; a label declared twice (Inlining copies them) skips only its blocks (refusing the function cost 72 on zig-debug). The first version walked every candidate per round: -Oz 30% slower on the six; indexed once per round, the same time as main | `a5811c268` | **140,587 (+1.1%)** | **811,997 (+0.25%)** |
+| 11 | code-folding, attributed per function: the shape item 30 left unbuilt. **CodeFolding folds the tails before a block's branches** (upstream's `visitBlock`): what every way into a block's `end` ends with — its fall-through and each plain `br` to it, ending its list — goes after the block once. A `br_if` / `br_table` / `br_on_*` to it stops the fold; a tail item is a void statement branching to no label it does not declare, holding no `pop`; not with a `try`; a label declared twice (Inlining copies them) skips only its blocks (refusing the function cost 72 on zig-debug). The first version walked every candidate per round: -Oz 30% slower on the six; indexed once per round, the same time as main | `eab756cf1` | **140,587 (+1.1%)** | **811,997 (+0.25%)** |
 
 **After step 11** (`gap/passrank13.log`): code-folding 285 → 0; control 98 below ours (140,489).
 Left: ssa-nomerge 328 (step 7's version did not pay) · simplify-locals 268 · remove-unused-brs 241 ·
@@ -226,7 +226,7 @@ optimize-instructions −133.
 
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
-| 12 | simplify-locals, attributed per function: its STRUCTURE half, which ours never had. **SimplifyLocals gives a block its result from sets** (upstream's `optimizeBlockReturn`): every way out — each plain `br` ending its list right after a set of one local, and the fall-through's set, or none when the block never falls through — becomes the block's result, set once; nested blocks fold in one round; a label declared twice is skipped. Runs once sinking stops (every round: corpus 7–11% slower). **Measured, not kept:** upstream's `if` form (both arms end setting the local), six 0 / corpus **+1,106** — our later passes (CodeFolding's arms, Vacuum's heads) work on VOID constructs. Caught by the corpus before merging: an identity edit after a `mapExpression` that had rebuilt the tree (core_SwitchCase invalid) | `39a98b7c1` | **140,395 (+0.95%)** | **811,843 (+0.23%)** |
+| 12 | simplify-locals, attributed per function: its STRUCTURE half, which ours never had. **SimplifyLocals gives a block its result from sets** (upstream's `optimizeBlockReturn`): every way out — each plain `br` ending its list right after a set of one local, and the fall-through's set, or none when the block never falls through — becomes the block's result, set once; nested blocks fold in one round; a label declared twice is skipped. Runs once sinking stops (every round: corpus 7–11% slower). **Measured, not kept:** upstream's `if` form (both arms end setting the local), six 0 / corpus **+1,106** — our later passes (CodeFolding's arms, Vacuum's heads) work on VOID constructs. Caught by the corpus before merging: an identity edit after a `mapExpression` that had rebuilt the tree (core_SwitchCase invalid) | `9595a94a4` | **140,395 (+0.95%)** | **811,843 (+0.23%)** |
 
 **After step 12** (`gap/passrank14.log`): simplify-locals 268 → 87, but remove-unused-brs 241 → 310
 and simplify-locals-nostructure 52 → 127 — the new block results are shapes upstream's branch passes
@@ -236,7 +236,7 @@ optimize-instructions −133.
 
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
-| 13 | remove-unused-brs, attributed per function: branches in tail position BELOW the block they name (ours took only that block's own last child). **RemoveUnusedBrs drops branches that flow to their target**: one top-down walk carries the labels whose `end` falling off the current list reaches (a void block adds its own; a void `if` passes them and its own to both arms; a loop passes them to its body, its own label being a back edge; a declared label leaves the set, so a shadowed name never matches). At a list's end a `br` to one goes, a `br_if` to one becomes `(drop cond)`, and `(br_if $a x) (br $b)` becomes `(br_if $b (i32.eqz x))`. Attributed: flowing `br`s −70 / −27, the `br_if` rules −34 / −10. 🔧 The first gate failed spec-behaviour: a branch DISCARDS stack values (`unwind.wast`, invalid at -O2+); a list reaches an end only when all before its last statement leave nothing | `a2514287f` `b2bc35938` | **140,291 (+0.88%)** | **811,806 (+0.22%)** |
+| 13 | remove-unused-brs, attributed per function: branches in tail position BELOW the block they name (ours took only that block's own last child). **RemoveUnusedBrs drops branches that flow to their target**: one top-down walk carries the labels whose `end` falling off the current list reaches (a void block adds its own; a void `if` passes them and its own to both arms; a loop passes them to its body, its own label being a back edge; a declared label leaves the set, so a shadowed name never matches). At a list's end a `br` to one goes, a `br_if` to one becomes `(drop cond)`, and `(br_if $a x) (br $b)` becomes `(br_if $b (i32.eqz x))`. Attributed: flowing `br`s −70 / −27, the `br_if` rules −34 / −10. 🔧 The first gate failed spec-behaviour: a branch DISCARDS stack values (`unwind.wast`, invalid at -O2+); a list reaches an end only when all before its last statement leave nothing | `6d23d64e6` `8d2303a1d` | **140,291 (+0.88%)** | **811,806 (+0.22%)** |
 
 **After step 13** (`gap/passrank15.log`): remove-unused-brs 310 → 224; control 104 below ours
 (140,187). Left: ssa-nomerge 320 (step 7's version did not pay) · remove-unused-brs 224 ·
@@ -245,7 +245,7 @@ optimize-instructions −133.
 
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
-| 14 | remove-unused-brs again, two shapes. **A block that is the last statement of a void block** sends its branches to that block (jump threading's "a `br $y` right after it", with the parent's own end as `$y`; upstream merges the names): −78 / −15. **Adjacent `br_if`s to one label merge on `i32.or`**, and a `br_if` then an `if` holding only a `br_if` to the same label, through `(select x (i32.const 0) c)` — the later condition must have no effect and not trap (it now runs when the first held): −64 / −64. 🔧 The first gate failed the test step: three fixtures had two `br_if`s side by side only to dodge another rule; each kept on what it is about (a `nop` between, or the assertion it meant) | `d67fb2439` `b9b307c3a` | **140,149 (+0.78%)** | **811,727 (+0.22%)** |
+| 14 | remove-unused-brs again, two shapes. **A block that is the last statement of a void block** sends its branches to that block (jump threading's "a `br $y` right after it", with the parent's own end as `$y`; upstream merges the names): −78 / −15. **Adjacent `br_if`s to one label merge on `i32.or`**, and a `br_if` then an `if` holding only a `br_if` to the same label, through `(select x (i32.const 0) c)` — the later condition must have no effect and not trap (it now runs when the first held): −64 / −64. 🔧 The first gate failed the test step: three fixtures had two `br_if`s side by side only to dodge another rule; each kept on what it is about (a `nop` between, or the assertion it meant) | `a579a328c` `694f7999e` | **140,149 (+0.78%)** | **811,727 (+0.22%)** |
 
 **After step 14** (`gap/passrank16.log`): remove-unused-brs 224 → 125; control 102 below ours
 (140,047). Left: ssa-nomerge 325 · simplify-locals-nostructure 129 · remove-unused-brs 125 ·
@@ -253,19 +253,19 @@ simplify-locals 102 · merge-locals 72 · rse 62 · vacuum 38 · …; optimize-i
 
 | step | what | commits | six modules -Oz | corpus -Oz |
 | --- | --- | --- | ---: | ---: |
-| 15 | ssa-nomerge, attributed per function (`passfn.ts`; zig-debug −193 in funcs 23 / 22 / 41 / 29): a local the compiler REUSES hides a copy — `local.get 7; local.set 8`, then `(i32.ne (local.get 8) (local.get 7))` guarding a panic, always false. We had no merge-locals at all. **MergeLocals** (new, `merge-locals.ts`, upstream's method): a read of `$b` whose only reaching write is a copy `$b = $a` reads `$a` where a second graph shows `$a` unchanged (the copy instrumented with a tee of `$a`); OptimizeInstructions folds the reflexive comparison. Before the first CoalesceLocals at -O3 / -Oz. **Measured, not kept:** upstream's all-or-nothing per copy (six 0, corpus +3); again before the second CoalesceLocals (0). **`localGraph`** takes the locals to follow and runs gen / kill bitsets: the Map-of-Sets dataflow took MergeLocals 1.72 s on zig-debug (six -Oz 3.3 → 6.9 s); now 3.29 s, corpus 10.89 → 9.53 s; equal to the old graph on 8,208 functions (scratch `graph-eq.ts`). 🔧 The first gate failed four behaviour steps (spec float_exprs `f32.epsilon` 0 at -O3 / -Oz, direct-behaviour 1_fib-rs, the -Oz fuzz): taking the instrumentation out also took a copy that is itself a tee, leaving a refused read of a local nothing wrote; the defect was worth 52 / 96 of the first figures (−173 / −724) | `aea1ec796` `772beafe1` `72f047922` | **140,028 (+0.69%)** | **811,099 (+0.14%)** |
+| 15 | ssa-nomerge, attributed per function (`passfn.ts`; zig-debug −193 in funcs 23 / 22 / 41 / 29): a local the compiler REUSES hides a copy — `local.get 7; local.set 8`, then `(i32.ne (local.get 8) (local.get 7))` guarding a panic, always false. We had no merge-locals at all. **MergeLocals** (new, `merge-locals.ts`, upstream's method): a read of `$b` whose only reaching write is a copy `$b = $a` reads `$a` where a second graph shows `$a` unchanged (the copy instrumented with a tee of `$a`); OptimizeInstructions folds the reflexive comparison. Before the first CoalesceLocals at -O3 / -Oz. **Measured, not kept:** upstream's all-or-nothing per copy (six 0, corpus +3); again before the second CoalesceLocals (0). **`localGraph`** takes the locals to follow and runs gen / kill bitsets: the Map-of-Sets dataflow took MergeLocals 1.72 s on zig-debug (six -Oz 3.3 → 6.9 s); now 3.29 s, corpus 10.89 → 9.53 s; equal to the old graph on 8,208 functions (scratch `graph-eq.ts`). 🔧 The first gate failed four behaviour steps (spec float_exprs `f32.epsilon` 0 at -O3 / -Oz, direct-behaviour 1_fib-rs, the -Oz fuzz): taking the instrumentation out also took a copy that is itself a tee, leaving a refused read of a local nothing wrote; the defect was worth 52 / 96 of the first figures (−173 / −724) | `d0dd41cc0` `e1227b41f` `0ebfb4e7a` | **140,028 (+0.69%)** | **811,099 (+0.14%)** |
 
 🚨 **Step 4's Local2Stack computed WRONG results on real compiler output, steps 4–15** (found
 2026-10-20 at 1.13.0's release check, before anything was pushed; never released, 1.12.1 is
 correct). Re-running `benches/browser-opt/measure.ts` for the release: rust-debug -Oz returned a
 different checksum and zig-releasefast -Oz trapped out of bounds, in Chrome, Firefox and WebKit
 alike; -O3 / -Os / -Oz, never -O2 (the levels `optimizeStack` is set at). Bisected over main's
-merges (scratch `commit-bisect.ts` + `six-run.ts`) to `0c1dc2f16`, confirmed by writing the same
+merges (scratch `commit-bisect.ts` + `six-run.ts`) to `5a8ab6fdb`, confirmed by writing the same
 optimized module with `optimizeStack` on and off. **The defect:** the stack walk took every
 candidate as a pair and went on as if both were left out; the pairs the local graph rejects were
 dropped only AFTER the walk, so a kept pair left a later, exact one taken on a stack that does not
 exist (`set $c … set $d … get $c … get $d` with only (d) exact: `get $c` written above `$d`'s
-value). Upstream judges at the get. Fixed in `077d8bdf0` (merge `eb0fff576`): six -Oz 140,028 →
+value). Upstream judges at the get. Fixed in `9da703316` (merge `065f8dd54`): six -Oz 140,028 →
 140,032, corpus unchanged. **Why nothing caught it:** this item measured the six by COMPILING
 them (`six.ts` instantiates nothing), and the behaviour gates replay the spec suite and the
 corpus, where no function had the shape. `real_compiler_behaviour.test.ts` (new, in `bun run

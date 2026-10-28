@@ -51,7 +51,7 @@ B3):
   fails on zero (its first run printed "? tests").
 - 🔧 **Its first release (1.16.0) found a defect:** the root CLI's usage text names the version
   ("binaryang 1.16.0 — …"), so the bump commit itself read as "usage text changed" and CI's
-  `surface:check` went red on `02a866672` — every bump would have. The publish was NOT stopped
+  `surface:check` went red on `d81463f32` — every bump would have. The publish was NOT stopped
   (publish.yml runs only `--release-check`, which passed). Fixed 2026-10-24: `usageText` replaces
   the tree's OWN version (its `jsr.json`) by `<version>` before fingerprinting; re-baselined once
   in its own commit.
@@ -489,7 +489,7 @@ cache-busted read distinguishes them.
 
 Summarized 2026-10-23 (drift B3) from three sections written as they were found — "3 of 3", "The
 fix: `RELEASE_PAT`" and "ROOT CAUSE" (2026-08-26 / 27); full text: `git show
-b51af1c64:cmem/publishing.md`, lines 431–573.
+8147adc90:cmem/publishing.md`, lines 431–573.
 
 **The cause:** JSR authorises the OIDC token's ACTOR. `auto-tag` pushes its tag with
 `GITHUB_TOKEN`, which GitHub's recursion guard stops from firing `publish.yml`, so it DISPATCHES
@@ -907,7 +907,7 @@ first, archived). Checked through the APIs:
 - **In the repo:** `origin` set to `https://github.com/synapticforge/binaryang.git`; the README's
   CI badge and links, and the Actions URL `scripts/release/publish.ts` prints, name the org.
   `cmem/` keeps the old URL where a dated record says it.
-- **Not proven yet** (✅ both proven since: CI / auto-tag on `c812e4e3c`, the publish with
+- **Not proven yet** (✅ both proven since: CI / auto-tag on `27e6f2cda`, the publish with
   provenance by 1.13.1): a publish from the org with provenance (the next release), and the org's
   Actions settings — workflow permissions must allow auto-tag's `contents: write` / `actions:
   write` and publish's `id-token: write`, and OIDC must not be restricted (the next push's CI and
@@ -915,7 +915,7 @@ first, archived). Checked through the APIs:
 - **Other repos** name the old URL in a `git clone` hint or a README (wasmtk
   `scripts/upstream-link.ts`, `cmem/workflow.md`; binaryen-ts / wabt-ts READMEs): the redirect
   covers them; a handoff note if they should change.
-- **The first push from the org** (`c812e4e3c`): CI and auto-tag GREEN — the org's workflow
+- **The first push from the org** (`27e6f2cda`): CI and auto-tag GREEN — the org's workflow
   permissions allow CI's and auto-tag's needs. The publish side (OIDC, provenance) is still the
   next release's to show.
 
@@ -994,24 +994,24 @@ tag (commit hashes):
 | `v1.10.0` | `23b9f36fb` | `48586b485` |
 | `v1.11.0` | `fc021fe08` | `fd5e96acf` |
 | `v1.12.0` | `604b33cf8` | `a86765385` |
-| `v1.12.1` | `e03d38f33` | `a8c264620` |
-| `v1.13.0` | `2b74934bf` | `65b16f99e` |
-| `v1.13.1` | `840b7d79a` | `710592f53` |
-| `v1.13.2` | `37cf58485` | `ee59fad76` |
-| `v1.13.3` | `a021ef19d` | `225f76a8a` |
-| `v1.14.0` | `e2d44d66c` | `7ebcee3ad` |
+| `v1.12.1` | `e03d38f33` | `926d3e4e3` |
+| `v1.13.0` | `2b74934bf` | `9d065cf17` |
+| `v1.13.1` | `840b7d79a` | `09e0c7d9d` |
+| `v1.13.2` | `37cf58485` | `b86b1b66a` |
+| `v1.13.3` | `a021ef19d` | `5d812889a` |
+| `v1.14.0` | `e2d44d66c` | `99c60dee0` |
 
 Branches: `release/1.5.3` `d0ef9f8f1` → `896477cc0`, `release/1.6.1` = `v1.6.1`; GitHub's `main`
-before the push `9cc85f0e7` → `5b137f878`. **Not in our control:** GitHub serves old commits by
+before the push `9cc85f0e7` → `eff6af062`. **Not in our control:** GitHub serves old commits by
 hash until its own garbage collection (a full purge is a GitHub Support request — the owner's);
 any OLD clone (wasmtk's `upstream/binaryang`, scratch clones) carries the old history and must be
 re-cloned, never pushed from. The frozen wabt-ts and binaryen-ts repos keep their own old hashes.
 
 **Pushed 2026-10-23** (owner: "continue with H19"). Checked first, by a one-time script: each of
 the 24 refs on GitHub held the map's OLD value (`main` GitHub's `9cc85f0e7`) and each local ref the
-NEW one (`main` a descendant of `5b137f878`); the address on 0 commits / 0 tags of the public refs,
+NEW one (`main` a descendant of `eff6af062`); the address on 0 commits / 0 tags of the public refs,
 the commits since the purge clean. One `git push` with a `--force-with-lease=<ref>:<old>` per ref:
-24 forced updates, `main` `9cc85f0e7` → `586666b38`; read back, every ref on GitHub equals the
+24 forced updates, `main` `9cc85f0e7` → `7553eb632`; read back, every ref on GitHub equals the
 local one. 🔑 **No publish ran for the 21 re-pointed tags:** `publish.yml` fires on a `v*` tag push,
 but GitHub creates no tag events when more than three tags are pushed at once (Actions showed only
 CI and auto-tag on `main`). A push of three tags or fewer WOULD have started a publish per tag;
@@ -1042,14 +1042,72 @@ was found in it: 424 checked, 0 missing. The control, today's `main` tip, was co
 of the deleted branches). The same run found two old ids the purge had missed in `working-rules.md`
 (step 16's), rewritten through the map.
 
+## 🔒 The second purge (open-work 46, 2026-10-28) — every hash from 2026-10-13 on changed AGAIN
+
+Owner: "fix item 46". The first purge cleaned TEXT only (its scans were `git grep -I` / `git log
+-G`, which skip binaries); five committed benchmark modules carried the owner's user profile, the
+toolchain layout and the project tree in DWARF and in Rust's panic strings, public from
+`f9b74f213` (2026-10-13; now `22ecb4ab2`) until item 44 replaced them on 2026-10-26.
+
+**Scanned first, binaries included:** every blob reachable from GitHub's refs and local `main`,
+104,719, read byte for byte — machine paths in exactly **5 binary blobs**, one historical version of
+each module; the 63 text hits are the old folder's NAME in prose (`wasmExamples/binaryen-ts/…`,
+H27's class, fixed at HEAD), no drive path.
+
+**How:** the first purge's plumbing-only script, adapted (scratch `h46/rewrite.ts`): in each of
+the five blobs, each machine-specific path PREFIX (the Rust sysroot, the cargo home, the Zig lib,
+the Zig cache, the project tree) replaced by a label of the SAME LENGTH padded with `_`
+(`<rust-sysroot>____…`) — nothing after a prefix touched, so every length, offset and section stays
+put; a commit rewritten only when its tree or a parent changed; no address change (the commits carry
+the noreply address since H19; the maintainer address is allowed since 2026-10-26). **383 of 13,138
+commits rewritten**, 12,755 unchanged (everything before 2026-10-13 keeps its hash), 215 trees, no
+signature dropped, no annotated tag.
+
+**Verified before the push** (scratch `h46/verify.ts`): every rewritten commit has the original's
+message bytes and author / committer lines, its tree differing ONLY at the five module paths (346
+of 383; the rest differ only in a parent); `main`'s tree identical; each cleaned module the same
+length and section layout, its CODE section unchanged (the bytes changed lie in the DWARF custom
+sections, and in the two Rust modules' data-section panic strings), and `run(300)` =
+`1892226719` on original and cleaned alike, all five, on V8; a rescan of the rewritten refs finds 0
+binary blobs with a machine path; `fsck` clean. 151 commit hashes cited in 12 tracked files
+rewritten through the map (`cite-map.ts`, as H19's, also judging a prefix against the map's old
+side). Machine-local: the pre-rewrite bundle (`cmem/local/backups/`, all 31 refs, proven to
+restore identically) and the full old → new map.
+
+**Published releases name the OLD hashes forever** (JSR / npm provenance, Rekor). Tag by tag
+(commit hashes; the "before" column is the first purge's "after"):
+
+| tag | before | after |
+| --- | --- | --- |
+| `v1.12.1` | `a8c264620` | `926d3e4e3` |
+| `v1.13.0` | `65b16f99e` | `9d065cf17` |
+| `v1.13.1` | `710592f53` | `09e0c7d9d` |
+| `v1.13.2` | `ee59fad76` | `b86b1b66a` |
+| `v1.13.3` | `225f76a8a` | `5d812889a` |
+| `v1.14.0` | `7ebcee3ad` | `99c60dee0` |
+| `v1.15.0` | `ae9e87162` | `bc97aa573` |
+| `v1.16.0` | `02a866672` | `d81463f32` |
+| `v1.16.1` | `cef4a669f` | `158552e95` |
+| `v1.17.0` | `f8473c620` | `e19525bb0` |
+| `v2.0.0` | `4cf6624af` | `0ee193d95` |
+| `v2.1.0` | `b7fdb9de5` | `e3af69711` |
+| `v2.2.0` | `6e1923397` | `7e1e272e8` |
+| `v2.2.1` | `78392bab4` | `a420a88c0` |
+
+Unchanged: `v1.5.1` … `v1.12.0`, `release/1.5.3`, `release/1.6.1` (all before 2026-10-13).
+**Not in our control, as after the first purge:** GitHub serves the old commits by hash until its
+own garbage collection (a GitHub Support request — the owner's; one request can name both purges);
+every OLD clone carries the old history — wasmtk's `upstream/binaryang` must be re-cloned again,
+and never pushed from.
+
 ## 2.2.1 — a PATCH from `main` (2026-10-26 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
 The owner's go: "we should bump and release the fix for wasm-strip". One fix: `wasm-strip`
-copies the sections it keeps instead of re-encoding the module (open-work 45, `e948e84db`;
+copies the sections it keeps instead of re-encoding the module (open-work 45, `1a4b06f43`;
 CHANGELOG § 2.2.1).
 
-1. `CHANGELOG.md` § 2.2.1 on `release/2.2.1` (`a3c84e0f8`), gated 17 / 17, merged (`369230e02`),
-   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `369230e02` from GitHub: 17 / 17
+1. `CHANGELOG.md` § 2.2.1 on `release/2.2.1` (`23dc941b9`), gated 17 / 17, merged (`3c0328047`),
+   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `3c0328047` from GitHub: 17 / 17
    (counted from its 17 step logs). The fix's own branch had run the full gate, 29 / 29.
 2. **The consumer step (rule 3) SKIPPED, by its own rule:** since `v2.2.0` the shipped code
    changed in one file, `src/tools/wasm-strip.ts`, and no consumer imports it (wasmtk, LeptonPad,
@@ -1058,7 +1116,7 @@ CHANGELOG § 2.2.1).
    this tree: 6,336, 0 failed, 0 accepted**; it reported one STALE entry in
    `tests/accepted-changes.json` (2.2.0's, which only the 2.1.0 tests needed) — harmless, to
    drop at the next re-baseline. `surface:check` matches; `version_sync` 3 / 3; `bun run
-   release`: `bump to v2.2.1` (`78392bab4`), `main` + `v2.2.1` in one push.
+   release`: `bump to v2.2.1` (`a420a88c0`), `main` + `v2.2.1` in one push.
 4. auto-tag and publish.yml GREEN on the bump: **JSR** 2.2.1 created 2026-10-26T16:36:48Z, not
    yanked, **Rekor log id `3490805794`**; **npm** at 16:38:35Z, `latest`, SLSA provenance; GitHub
    Release `v2.2.1`. As a user: npm `--version` prints `binaryang 2.2.1`; its `wasm-strip -s name`
@@ -1067,13 +1125,13 @@ CHANGELOG § 2.2.1).
    are stale"); JSR's `wasm-strip` (strip all) gives upstream's bytes exactly (`424aad5f…`) — the
    fix, as published. JSR needed `--minimum-dependency-age=0` to fetch a version minutes old
    (§ "Consumers hit a 24-hour wall").
-5. ⚠️ **CI on the bump commit `78392bab4` was CANCELLED, not failed:** every job green (Gates —
+5. ⚠️ **CI on the bump commit `a420a88c0` was CANCELLED, not failed:** every job green (Gates —
    tests on Node 24 and Bun, baseline, surface, publish dry run, npm proof — and all seven CLI
    jobs) except **Browsers**, which hit its 20-minute `timeout-minutes` inside "Install the
    browsers" (Playwright's download hung, 16:33:52 → 16:53:46Z) before any test ran. The same
-   tree minus the version line passed Browsers on `369230e02`. A re-run needs a GitHub login
+   tree minus the version line passed Browsers on `3c0328047`. A re-run needs a GitHub login
    (no `gh`, no token here); CI on the next push is the check. ✅ **It reported GREEN, every
-   job, Browsers included:** CI and auto-tag on `25aad71c9` (the record's own push, the same
+   job, Browsers included:** CI and auto-tag on `50d10b1a9` (the record's own push, the same
    code), 2026-10-26 — so the cancellation was the download timeout, nothing in the release.
 
 ## 2.2.0 — a MINOR from `main` (2026-10-24 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
@@ -1084,14 +1142,14 @@ runtimes found (an out-of-range type in `ref.test` / `ref.cast` / `br_on_cast`, 
 mutable-global import / export with the feature off, the overlong `call_indirect` table index),
 and D2 2.2.0's `typeRules` / `encodingRules` (CHANGELOG § 2.2.0); the opcode guide on 2.2.0.
 
-1. `CHANGELOG.md` § 2.2.0 on `release/2.2.0` (`c0b2082bb`), gated 17 / 17, merged (`830bb86d3`),
-   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `830bb86d3`: 17 / 17 (17 step logs).
+1. `CHANGELOG.md` § 2.2.0 on `release/2.2.0` (`cc8cd3996`), gated 17 / 17, merged (`569370ea3`),
+   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `569370ea3`: 17 / 17 (17 step logs).
 2. No tag, neither registry had 2.2.0. `bun run bump minor` stopped as designed: floor MINOR (D2's
    new types), **v2.1.0's tests: 6,268, 1 failed** — "gates a concrete (ref $T) on
-   functionReferences", the old type rule. Listed in `tests/accepted-changes.json` (`b0863492c`,
-   merged `0efb01520`), replacing 2.1.0's four entries, which the check reported STALE: only the
+   functionReferences", the old type rule. Listed in `tests/accepted-changes.json` (`71afda46d`,
+   merged `56cc9bb8b`), replacing 2.1.0's four entries, which the check reported STALE: only the
    release just before is run. Re-run: 6,268, 1 failed, 1 accepted; `surface:check` matches;
-   `version_sync` 3 / 3; `bun run release`: `bump to v2.2.0` (`6e1923397`), `main` + `v2.2.0`.
+   `version_sync` 3 / 3; `bun run release`: `bump to v2.2.0` (`7e1e272e8`), `main` + `v2.2.0`.
 3. CI, auto-tag and publish.yml GREEN on the bump: **JSR** 2.2.0 created 2026-10-24T08:27:20Z, not
    yanked, **Rekor log id `3438521434`**; **npm** at 08:29:35Z, `latest`, SLSA provenance; GitHub
    Release `v2.2.0`. As a user: JSR `--version` prints `binaryang 2.2.0`; npm's `wasm-validate
@@ -1106,16 +1164,16 @@ open-work 41), `return_call_ref` under function references and D2's `requires` /
 two validator feature checks (41), tail calls portable under `--target portable` and D4
 re-measured (34), and the opcode guide (CHANGELOG § 2.1.0).
 
-1. `CHANGELOG.md` § 2.1.0 on `release/2.1.0` (`4c642a09b`), gated 17 / 17, merged (`5b0d7c161`),
-   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `5b0d7c161`: 17 / 17 (counted from its
+1. `CHANGELOG.md` § 2.1.0 on `release/2.1.0` (`dd99e9390`), gated 17 / 17, merged (`65a3794a0`),
+   pushed unbumped: CI and auto-tag GREEN. A FRESH CLONE of `65a3794a0`: 17 / 17 (counted from its
    17 step logs, not from "0 failed").
 2. No tag, neither registry had 2.1.0. `bun run bump minor` STOPPED, as designed: the floor
    MINOR (D2's six additions), but **v2.0.0's tests on this tree: 6,231, 4 failed** — all in
    `target.test.ts`, all the intended tail-call change (three expected a tail call refused, one
    the old measurement date). Listed in `tests/accepted-changes.json` with version and reason, in
-   their own commit (`0dc0df5c2`, merged `3d8d7f244`) — the list's first entries. Re-run: 6,231,
+   their own commit (`ec6dc1bba`, merged `989a957fd`) — the list's first entries. Re-run: 6,231,
    4 failed, 4 accepted; `surface:check` matches; `version_sync` 3 / 3; `bun run release`:
-   `bump to v2.1.0` (`b7fdb9de5`), `main` + `v2.1.0` in one push.
+   `bump to v2.1.0` (`e3af69711`), `main` + `v2.1.0` in one push.
 3. CI, auto-tag and publish.yml GREEN on the bump: **JSR** 2.1.0 created 2026-10-24T06:50:01Z,
    not yanked, **Rekor log id `3436968278`**; **npm** at 06:51:39Z, `latest`, SLSA provenance;
    GitHub Release `v2.1.0`. As a user: JSR `--version` prints `binaryang 2.1.0`; npm's
@@ -1132,13 +1190,13 @@ The owner's go: "2.0.0 is accepted", then "bump and push". One breaking change �
 (open-work 39) — and the interpreter running shared memory and atomics (38). CHANGELOG § 2.0.0;
 README § Breaking Changes, the 2.0.0 row.
 
-1. `CHANGELOG.md` § 2.0.0 on `release/2.0.0`, gated 17 / 17, merged (`7ce4cd1d9`), pushed
-   unbumped: CI and auto-tag GREEN. A FRESH CLONE of `7ce4cd1d9`: 17 / 17.
+1. `CHANGELOG.md` § 2.0.0 on `release/2.0.0`, gated 17 / 17, merged (`6869f92c7`), pushed
+   unbumped: CI and auto-tag GREEN. A FRESH CLONE of `6869f92c7`: 17 / 17.
 2. No tag, neither registry had 2.0.0; `bun run bump major`: the floor MAJOR, exactly the three
    intended entries (`FeatureDefinition.cliAliases`, `--disable-sat-float-to-int` on `wat2wasm`
    and `wasm-validate`). The previous release's tests are NOT run for a major — by design (rule 3:
    a major may break them). `surface:check` matches on the bumped tree; `version_sync` 3 / 3;
-   `bun run release`: `bump to v2.0.0` (`4cf6624af`).
+   `bun run release`: `bump to v2.0.0` (`0ee193d95`).
 3. CI, auto-tag and publish.yml GREEN on the bump: **JSR** 2.0.0 created 2026-10-24T04:28:47Z, not
    yanked, **Rekor log id `3436248876`**; **npm** at 04:31:00Z, `latest`, SLSA provenance and npm's
    publish attestation; GitHub Release `v2.0.0`. As a user: JSR `--version` prints
@@ -1152,12 +1210,12 @@ every command's `--help` / `--version` (open-work 36), `--memcpy-to-bulk-memory`
 `saturating-float-to-int` spelling with `sat-float-to-int` deprecated and D2 at 1.1.0 (33), multi-value
 off enforced (35), and the relaxed-SIMD cost in the README (CHANGELOG § 1.17.0).
 
-1. `CHANGELOG.md` § 1.17.0 on `release/1.17.0`, gated 17 / 17, merged (`453a90e3a`), pushed
+1. `CHANGELOG.md` § 1.17.0 on `release/1.17.0`, gated 17 / 17, merged (`30ab803b4`), pushed
    unbumped: CI and auto-tag GREEN (the Browsers job within its new time limit). A FRESH CLONE of
-   `453a90e3a`: 17 / 17.
+   `30ab803b4`: 17 / 17.
 2. No tag, neither registry had 1.17.0; `bun run bump minor`: no major in the floor, **v1.16.1's
    tests on this tree: 6,152, 0 failed**; `surface:check` matches on the bumped tree;
-   `version_sync` 3 / 3; `bun run release`: `bump to v1.17.0` (`f8473c620`).
+   `version_sync` 3 / 3; `bun run release`: `bump to v1.17.0` (`e19525bb0`).
 3. CI (surface check included), auto-tag and publish.yml GREEN on the bump: **JSR** 1.17.0 created
    2026-10-24T03:24:52Z, not yanked, **Rekor log id `3434909247`**; **npm** at 03:27:04Z,
    `latest`, SLSA provenance and npm's publish attestation; GitHub Release `v1.17.0`. As a user:
@@ -1169,15 +1227,15 @@ off enforced (35), and the relaxed-SIMD cost in the README (CHANGELOG § 1.17.0)
 
 The owner's go: "just to check lets bump to 1.16.1 and push". **No package change** — nothing
 shipped differs from `v1.16.0` (`src/`, `main.ts`, `jsr.json`, README, NOTICE, `package.json`;
-`scripts/**` is excluded from the package). It proves the gate's fix (`7648bb5eb`) where 1.16.0's
+`scripts/**` is excluded from the package). It proves the gate's fix (`102ddb64f`) where 1.16.0's
 bump went red.
 
-1. `CHANGELOG.md` § 1.16.1 on `release/1.16.1` (`c435d05d2`), gated 17 / 17, merged (`d0615f7aa`),
+1. `CHANGELOG.md` § 1.16.1 on `release/1.16.1` (`f8878d1f6`), gated 17 / 17, merged (`e802e08f6`),
    pushed unbumped: CI and auto-tag GREEN (the Browsers job with its new cache step). A FRESH
-   CLONE of `d0615f7aa`: 17 / 17.
+   CLONE of `e802e08f6`: 17 / 17.
 2. No tag, neither registry had 1.16.1; `bun run bump`: floor PATCH, **v1.16.0's 6,151 tests on
    this tree, 0 failed**; on the bumped tree `surface:check` MATCHES ("binaryang 1.16.1 — …" in the
-   usage text); `version_sync` 3 / 3; `bun run release`: `bump to v1.16.1` (`cef4a669f`).
+   usage text); `version_sync` 3 / 3; `bun run release`: `bump to v1.16.1` (`158552e95`).
 3. **CI GREEN on the bump commit** (`surface:check` included — 1.16.0's went red there), auto-tag
    and publish.yml GREEN: **JSR** 1.16.1 created 2026-10-24T01:26:01Z, not yanked, **Rekor log id
    `3432040093`**; **npm** at 01:27:36Z, `latest`, SLSA provenance and npm's publish attestation;
@@ -1191,15 +1249,15 @@ The owner's go: "bump. update the project memory files and push to main". It car
 Breaking Changes table and Safari corrections, and Binaryen attribution (CHANGELOG § 1.16.0). The
 FIRST release through the compatibility gate.
 
-1. `CHANGELOG.md` § 1.16.0 on `release/1.16.0` (`d2b614cf0`), gated 17 / 17, merged
-   (`8cb099e39`), pushed unbumped. CI and auto-tag GREEN on it — after the Browsers job sat in
+1. `CHANGELOG.md` § 1.16.0 on `release/1.16.0` (`d92ed0fed`), gated 17 / 17, merged
+   (`c8f754014`), pushed unbumped. CI and auto-tag GREEN on it — after the Browsers job sat in
    "Install the browsers" ~35 min (a download stall; no `timeout-minutes` yet: fixed after, below).
-2. A FRESH CLONE from GitHub of `8cb099e39`: 17 / 17 exit 0.
+2. A FRESH CLONE from GitHub of `c8f754014`: 17 / 17 exit 0.
 3. No tag, neither registry had 1.16.0; `bun run bump minor` — the gate's first real run: floor
    MINOR (33 additions, the usage-text patches), and **v1.15.0's tests on this tree: 6,108, 0
    failed, 0 accepted**; `version_sync` 3 / 3; `bun run release`: `bump to v1.16.0`
-   (`02a866672`), `main` + `v1.16.0` in one push.
-4. publish.yml and auto-tag GREEN on `02a866672`: **JSR** 1.16.0 created 2026-10-24T00:44:06Z, not
+   (`d81463f32`), `main` + `v1.16.0` in one push.
+4. publish.yml and auto-tag GREEN on `d81463f32`: **JSR** 1.16.0 created 2026-10-24T00:44:06Z, not
    yanked, **Rekor log id `3431051155`**; **npm** `@synapticforge1/binaryang@1.16.0` at
    00:45:43Z, `latest`, attestations `https://slsa.dev/provenance/v1` and npm's publish
    attestation; GitHub Release `v1.16.0` (00:44:13Z). As a user: `deno run -A --min-dep-age 0
@@ -1208,11 +1266,11 @@ FIRST release through the compatibility gate.
 5. 🔧 **CI went RED on the bump commit — the gate's own defect, not the release's:** `surface:check`
    read the bump as "CLI binaryang: usage text changed" (the root usage names the version). The
    publish was not stopped (publish.yml runs only `--release-check`, which passed). Fixed in
-   `7648bb5eb` (`usageText`, version → `<version>`; mutant killed), re-baselined in `577993094`
+   `102ddb64f` (`usageText`, version → `<version>`; mutant killed), re-baselined in `0f3ffe2de`
    (§ "The compatibility gate" above).
 6. After the release, the Browsers CI job (owner: "I agree with your 3 suggestions"):
    `timeout-minutes: 20`, `actions/cache@v6` on Playwright's browsers keyed on `bun.lock`, apt
-   retries with 30 s timeouts (`1ea543e9f`).
+   retries with 30 s timeouts (`e6f784c5c`).
 
 ## 1.15.0 — a MINOR from `main` (2026-10-23 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
@@ -1221,18 +1279,18 @@ carries `SSANoMerge` (open-work 31, step 16) and says the history was rewritten 
 § 1.15.0); the first release on the rewritten history.
 
 1. H19 step 1: the 24 public refs force-pushed (§ "The history purge", "Pushed"). `CHANGELOG.md`
-   § 1.15.0 on `release/1.15.0` (`ef44c7490`), gated 17 / 17, merged (`b424dd127`), pushed
-   unbumped. CI GREEN on `586666b38` (🔧 **1 h 1 m 39 s**: the Browsers job, which has no
+   § 1.15.0 on `release/1.15.0` (`e06c5cefd`), gated 17 / 17, merged (`3e023a302`), pushed
+   unbumped. CI GREEN on `7553eb632` (🔧 **1 h 1 m 39 s**: the Browsers job, which has no
    `timeout-minutes`, so a hang there would run GitHub's 6-hour default — ✅ since 2026-10-24 it
    has `timeout-minutes: 20`, a cache of Playwright's browsers, and apt retries with 30 s
-   timeouts, owner: "I agree with your 3 suggestions") and on `b424dd127`
+   timeouts, owner: "I agree with your 3 suggestions") and on `3e023a302`
    (4 m 41 s). The nine error annotations on a green CI run are `test:bun`'s KNOWN JavaScriptCore
    differences: the same nine on the last green run before it — not a failure.
-2. A FRESH CLONE from GitHub of `b424dd127`: 17 / 17 exit 0.
+2. A FRESH CLONE from GitHub of `3e023a302`: 17 / 17 exit 0.
 3. No tag, neither registry had 1.15.0; `bun run bump minor` (`jsr.json`, `main.ts`), `version_sync`
-   3 / 3; `bun run release`: every guard passed, `bump to v1.15.0` (`ae9e87162`), `main` +
+   3 / 3; `bun run release`: every guard passed, `bump to v1.15.0` (`bc97aa573`), `main` +
    `v1.15.0` in one push.
-4. publish.yml, CI and auto-tag GREEN on `ae9e87162`: **JSR** 1.15.0 created
+4. publish.yml, CI and auto-tag GREEN on `bc97aa573`: **JSR** 1.15.0 created
    2026-10-23T18:57:53Z, not yanked, **Rekor log id `3423023791`**; **npm**
    `@synapticforge1/binaryang@1.15.0` at 19:01:00Z, `latest`, published by **GitHub Actions** (the
    trusted publisher), attestation `https://slsa.dev/provenance/v1`; GitHub Release `v1.15.0`. As a
@@ -1251,14 +1309,14 @@ as a minor ("1.14.0": a new pass, `Memory64Lowering`, and its two flags; nothing
 carries open-work 32 (CHANGELOG § 1.14.0).
 
 1. `CHANGELOG.md` § 1.14.0 and the open-work state on `release/1.14.0`, gated 17 / 17 (the full
-   29 / 29 had run on the commit before), merged; `main` pushed unbumped at `dd5f9ced4`: CI and
+   29 / 29 had run on the commit before), merged; `main` pushed unbumped at `b7db9be09`: CI and
    auto-tag GREEN. 🔧 Scratch `ci-wait.ts` was given a SHORT sha and listed nothing until asked:
    the API's `head_sha` filter matches only a full sha. It now refuses anything but 40 hex digits.
-2. The CI half of the gate from a FRESH CLONE from GitHub of `dd5f9ced4`: 17 / 17 exit 0.
+2. The CI half of the gate from a FRESH CLONE from GitHub of `b7db9be09`: 17 / 17 exit 0.
 3. No tag, neither registry had 1.14.0; 1.14.0 typed BY HAND in `jsr.json` and `main.ts`,
    `version_sync` green. The release guard refused once: an untracked `--help/` of gate logs (a
    `gate.ts --help` run had taken `--help` as its scratch path), removed. `bun run release`:
-   `bump to v1.14.0` (`7ebcee3ad`), `main` + `v1.14.0` in one push.
+   `bump to v1.14.0` (`99c60dee0`), `main` + `v1.14.0` in one push.
 4. publish.yml GREEN with CI and auto-tag: **JSR** 1.14.0 created 2026-10-22T07:03:39Z, not
    yanked, **Rekor log id `3379566195`**; **npm** `@synapticforge1/binaryang@1.14.0` at 07:05:40Z,
    `latest`, published by **GitHub Actions** (the trusted publisher), attestation
@@ -1276,15 +1334,15 @@ for provenance; carries no code change.
 
 1. The workflows' bash logic moved to `scripts/release/workflow.ts` first (owner rule; merge
    after a 28 / 28 gate), then `CHANGELOG.md` § 1.13.3 on `release/1.13.3`, gated, merged; `main`
-   pushed unbumped at `d933bfbc8`: CI and auto-tag GREEN.
+   pushed unbumped at `fd01060cf`: CI and auto-tag GREEN.
 2. 🔧 **The fresh-clone check caught a flake first:** `test:bun` failed `hang_check.test.ts` "waits
    for its interval" — 99.75 ms for a 100 ms interval: the interpreter arms by `Date.now()` (whole
    ms), the test measured `performance.now()`. Since 1.11.0, hit once. The bound is now 99, with
-   the reason in the test (`43048e0d4`, gated 28 / 28, merged at `22d6d2fc6`, CI GREEN; the clone
+   the reason in the test (`3d995e98f`, gated 28 / 28, merged at `ed65b841c`, CI GREEN; the clone
    check 17 / 17). publish.yml runs `test:bun` before `deno publish`: the flake could have stopped
    the release halfway.
 3. No tag, neither registry had 1.13.3, JSR linked to `synapticforge1/binaryang`; `bun run bump`,
-   `version_sync` green; `bun run release`: `bump to v1.13.3` (`225f76a8a`), `main` + `v1.13.3`.
+   `version_sync` green; `bun run release`: `bump to v1.13.3` (`5d812889a`), `main` + `v1.13.3`.
 4. publish.yml GREEN, both jobs: **JSR** 1.13.3 created 2026-10-22T04:01:47Z, **Rekor log id
    `3375011478`**; **npm** `@synapticforge1/binaryang@1.13.3` at 04:04:40Z, `latest`, published by
    **GitHub Actions** (the trusted publisher), attestation `https://slsa.dev/provenance/v1` — the
@@ -1300,9 +1358,9 @@ readme", then "Yes, release 1.13.2". Meant as the first npm publish by the workf
 provenance; it carries the README for both registries (no code change).
 
 1. `CHANGELOG.md` § 1.13.2 on `release/1.13.2`, gated (28 / 28), merged; `main` pushed unbumped at
-   `5d18ddb8d`: CI and auto-tag GREEN; a fresh clone from `synapticforge1/binaryang`: 17 / 17.
+   `359910148`: CI and auto-tag GREEN; a fresh clone from `synapticforge1/binaryang`: 17 / 17.
 2. No tag, 1.13.2 on neither registry, JSR linked to `synapticforge1/binaryang`; `bun run bump`,
-   `version_sync` green; `bun run release` committed `bump to v1.13.2` (`ee59fad76`) and pushed
+   `version_sync` green; `bun run release` committed `bump to v1.13.2` (`b86b1b66a`) and pushed
    `main` + `v1.13.2`.
 3. **publish.yml FAILED at "Publish to JSR (with provenance)"** — `deno publish` exited non-zero
    AFTER the upload: JSR has 1.13.2 (created 2026-10-21T01:11:33Z, `latest`, not yanked) with
@@ -1333,10 +1391,10 @@ npm job off). It carries the README's links to the new org; no code change.
 1. The JSR link re-made by the owner and checked through the API FIRST (`synapticforge1/binaryang`,
    23:36:03Z) — after the move and again after the rename, JSR kept the old name.
 2. `CHANGELOG.md` § 1.13.1 and the rename fixes on a branch, gated (28 / 28, the npm step among
-   them), merged; `main` pushed unbumped at `fcf2a1575`: CI and auto-tag GREEN.
+   them), merged; `main` pushed unbumped at `ba1213373`: CI and auto-tag GREEN.
 3. A FRESH CLONE from `github.com/synapticforge1/binaryang` of that commit: the CI steps, 17 / 17.
 4. JSR 1.13.1 404, no remote tag; `bun run bump` (`jsr.json` + `main.ts`), `version_sync` green;
-   `bun run release` committed `bump to v1.13.1` (`710592f53`) and pushed `main` + `v1.13.1`.
+   `bun run release` committed `bump to v1.13.1` (`09e0c7d9d`) and pushed `main` + `v1.13.1`.
 5. publish.yml GREEN (the `npm` job skipped: `NPM_PUBLISH` unset), with CI and auto-tag; JSR 1.13.1
    created 2026-10-21T00:08:58Z, not yanked, **Rekor log id `3346116525`**, `latestVersion` 1.13.1;
    GitHub Release `v1.13.1`; `deno run … jsr:@jrmarcum/binaryang@1.13.1 --version` prints it.
@@ -1362,13 +1420,13 @@ nothing. It carries the code lens C1–C17 and open-work 30 / 31 steps 1–15 (C
 0. 🚨 **The release check found WRONG output first.** Re-running `benches/browser-opt/measure.ts`
    for the CHANGELOG's figures: rust-debug and zig-releasefast at -O3 / -Os / -Oz computed wrong
    results in all three browsers, from open-work 31 step 4 (Local2Stack). Nothing had been pushed.
-   Fixed, gated and merged (`eb0fff576`), with a test that runs the six modules' workload; the
+   Fixed, gated and merged (`065f8dd54`), with a test that runs the six modules' workload; the
    benchmark re-run on the fix: every variant agrees in Chrome 155, Firefox 155, Safari 26.6
    ([optimizer.md](optimizer.md) § "Open-work 31"). **A release that re-measures is a release
    that re-checks**: the figures were the reason to run it, and the run was the only test of
    those modules' behaviour.
 1. `CHANGELOG.md` § 1.13.0 on `release/1.13.0`, gated (27 / 27), merged; `main` pushed unbumped at
-   `63c82eac5`: CI and auto-tag GREEN (scratch `ci-wait.ts`, the public Actions API; `gh` is not
+   `43e0461e1`: CI and auto-tag GREEN (scratch `ci-wait.ts`, the public Actions API; `gh` is not
    installed here).
 2. The CI half of the gate from a FRESH CLONE of that commit (on an NTFS disk): 16 / 16 exit 0 — install,
    fmt, lint, `bun run test`, `bun run test:bun` (the 36 listed), check, naming, portability,
@@ -1377,7 +1435,7 @@ nothing. It carries the code lens C1–C17 and open-work 30 / 31 steps 1–15 (C
    `version_sync` green. `.claude/` (the editor's session settings, untracked) went into
    `.git/info/exclude` so the guard's clean-tree check passes: local only, nothing committed.
    `bun run release` (cold publish dry run, check, entry check) committed `bump to v1.13.0`
-   (`65b16f99e`) and pushed `main` + `v1.13.0` together.
+   (`9d065cf17`) and pushed `main` + `v1.13.0` together.
 4. publish.yml GREEN, with CI and auto-tag; JSR 1.13.0 created 2026-10-20T21:37:03Z, not yanked,
    **Rekor log id `3344028471`**, `latestVersion` 1.13.0; GitHub Release `v1.13.0` exists.
    Verified as a user: `deno run -A --min-dep-age 0 jsr:@jrmarcum/binaryang@1.13.0 --version`
@@ -1389,11 +1447,11 @@ The owner's go: "update the project memory files, commit and bump and push". It 
 Asyncify fix (a paused call's operands restored on the rewind), the only user-facing change.
 
 1. `CHANGELOG.md` § 1.12.1 on `release/1.12.1`, gated, merged; `main` pushed unbumped at
-   `0f42f3dd7`: CI (the Browsers job included) and auto-tag GREEN.
+   `c902fe91c`: CI (the Browsers job included) and auto-tag GREEN.
 2. The suite from a FRESH CLONE of that commit: install, tsc, `bun run test` (5,910; 1 skip),
    `bun run test:bun` (the 36 listed), `bun run publish:dry`: all exit 0.
 3. JSR 1.12.1 404, no remote tag; `bun run bump` (a patch, `jsr.json` + `main.ts`), `bun run
-   release` committed `bump to v1.12.1` (`a8c264620`) and pushed `main` + `v1.12.1` together.
+   release` committed `bump to v1.12.1` (`926d3e4e3`) and pushed `main` + `v1.12.1` together.
 4. publish.yml GREEN, with CI and auto-tag; JSR 1.12.1 created 2026-10-14T03:40:26Z, not yanked,
    **Rekor log id `3248420107`**, `latestVersion` 1.12.1.
 

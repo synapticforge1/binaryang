@@ -48,7 +48,7 @@ not survive a clone is not a project rule. The lessons behind them are in
   `unreleased.md` and `CHANGELOG.md` § Unreleased lines for a change go in that change's commit,
   not on a docs branch after it ("a doc pass scheduled after the release is a doc pass that does
   not happen"). 🔧 Until then each open-work 31 step merged its code first and its record on a
-  second branch (step 16: `a401f7165`, then `428c61fae`). A record of something that happened
+  second branch (step 16: `540e18090`, then `a823117de`). A record of something that happened
   AFTER the commit — a release's publish, CI's verdict, a measurement taken later — is its own
   commit, as before.
 - **A re-baseline goes in its OWN commit**:

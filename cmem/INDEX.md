@@ -97,7 +97,7 @@ from cmem stays recoverable through commits, merge messages and `git log -S`.
 | [divergences.md](divergences.md) | **Every divergence from upstream and from engines, classified** — read BEFORE refactoring, optimizing or porting a pass |
 | [portability.md](portability.md) | **One profile every widely used engine runs** (open-work 34, closed): the owner's decisions, the engine and version floor, passes 1–3, the lowerings, the target and D4, the committed probe (`bun run probe`; tail calls portable) |
 | [ir-convergence.md](ir-convergence.md) | **The IR convergence, S1–S7 and One front end**: one tree, two verb sets; status at the top; the merge log |
-| [../docs/ir-map.html](../docs/ir-map.html) | **The IR's layout as a page**, for this repo and its siblings (a snapshot at `f42ae3484`; update it when `src/ir` changes) |
+| [../docs/ir-map.html](../docs/ir-map.html) | **The IR's layout as a page**, for this repo and its siblings (a snapshot at `cfe7da2c7`; update it when `src/ir` changes) |
 | `local/environment.md` 🔒 | **This machine — PRIVATE, gitignored, absent in a clone**: the exFAT disk, git and Bun quirks, oracles, scratch scripts |
 
 ### Topics — how things work and why

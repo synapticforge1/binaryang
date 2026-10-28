@@ -77,10 +77,10 @@ a relocatable or DWARF module had left stale offsets). The public summary of eac
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
-`fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `a8c264620` (1.12.1), at `65b16f99e`
-(1.13.0), at `710592f53` (1.13.1), at `ee59fad76` (1.13.2), at `225f76a8a` (1.13.3), and at
-`7ebcee3ad` (1.14.0), at `ae9e87162` (1.15.0), at `02a866672` (1.16.0), at `f8473c620`
-(1.17.0), at `4cf6624af` (2.0.0), at `b7fdb9de5` (2.1.0), at `6e1923397` (2.2.0), and at `4fbf4d58c` (2.2.1).
+`fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `926d3e4e3` (1.12.1), at `9d065cf17`
+(1.13.0), at `09e0c7d9d` (1.13.1), at `b86b1b66a` (1.13.2), at `5d812889a` (1.13.3), and at
+`99c60dee0` (1.14.0), at `bc97aa573` (1.15.0), at `d81463f32` (1.16.0), at `e19525bb0`
+(1.17.0), at `0ee193d95` (2.0.0), at `e3af69711` (2.1.0), at `7e1e272e8` (2.2.0), and at `59ba8fde2` (2.2.1).
 
 ## How to use this file
 
