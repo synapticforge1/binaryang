@@ -181,6 +181,30 @@ attested against the spec (D1); the IR's `ValType` codes ARE the binary encoding
 are the binary format's. **Open:** the wabt.js facade's numeric values have not been measured
 against libwabt.js; do it before the spec work relies on them.
 
+### Overlaps with the specification — what must match it (owner, 2026-10-28)
+
+The owner, the same day: "If there are any other overlapping items, that should match the spec
+also, lets note those also." Every place a definition of binaryang's overlaps one the
+specification documents make, with WHAT IT FOLLOWS TODAY and whether that was MEASURED against
+the spec text. Only rows marked **spec-attested** were compared with the documents themselves; the
+rest match an upstream tool, an engine or the testsuite — evidence, not the authority. A change
+made to meet the spec gets its row updated, and a numeric one a row in the table above.
+
+| overlap | follows today | against the spec documents |
+| --- | --- | --- |
+| opcodes: byte, prefix, mnemonic (D1, 582) | the spec | **spec-attested** 2026-10-23 ([definitions.md](definitions.md) § "D1 against the specification"): 499 core + 83 from four proposals' Overviews and legacy EH |
+| D1's `immediates` (order), `align` (natural alignment), `signature` | the port; proved by decode / re-encode, our validator and V8 (`opcodes.test.ts`) | NOT measured against the spec's binary and validation rules |
+| binary codes: value and heap types (`0x7f` …), section ids, external kinds, rec / sub prefixes (`0x4e`, `0x50`, `0x4f`), limits flags, memarg flag bits (bit 6 = memory index) | the binary format, by construction (the IR's codes ARE the bytes) | NOT attested row by row against the spec's binary grammar |
+| feature NAMES and CLI spellings (D2 `name`, `cli`) | `cli`: upstream wabt / wasm-tools spellings (FL1, owner 2026-10-24); `name`: binaryang's `Features` keys | the proposals' own names NOT compared; a rename is a compatibility decision |
+| D2 "requires" (one feature built on another) | RECORDED, NOT ENFORCED (owner, 2026-10-24) — as wasmtime and wasm-tools; CL12 is that ruling | the proposals' prose; not a spec rule to enforce |
+| trap messages (D3, 19 classes + exhaustion) | the spec TESTSUITE's `assert_trap` texts (21 messages, prefix rule) | testsuite-bound; the testsuite is the spec's own |
+| validation messages | upstream wabt's words (DG7, owner 2026-10-28) | the testsuite's `assert_invalid` texts are NOT matched — a known, decided difference |
+| text format: keywords, abbreviations, string characters, required parts | the spec's text grammar, fixed where measured: a table's linear initializer, empty `(rec)`, control characters in strings, a required segment offset (all 2026-10-28) | NOT attested as a whole against the text grammar |
+| custom sections: `name` and its subsection ids (0 module, 1 function, 2 local; the extended-name ids), `metadata.code.branch_hint` | upstream wabt's and binaryen's | the spec appendix (name section) and the branch-hinting proposal NOT compared |
+| numerics: float rounding, NaN propagation, `nearest`, `trunc_sat`, integer edge cases | bit-exact with V8 on every case the interpreter investigator tried (pass 3); f32 integer literals rounded once (F4) | the spec's numerics chapter NOT attested |
+| implementation limits: pages, table elements, nesting, locals | the engines' (V8's 2^48-page memory etc., classified in pass 1) | the spec appendix's implementation-limits section NOT compared |
+| library facades' constants (binaryen.js, libwabt.js) | the libraries (the register above) | not the spec's — a library is the authority there |
+
 **N1 — names** (found 2026-09-10, BUILT in both halves 2026-09-11; merged `b9ee4fb75`, `6dc071475`).
 Its owner decisions — wabt-ts ALWAYS keeps names, reading and writing without optimization keeps
 them over both upstreams' defaults, optimized output follows `debugInfo`, export and import names
