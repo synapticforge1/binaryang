@@ -46,7 +46,7 @@ import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 /** Options for {@link wasmInterp}. */
 export interface WasmInterpOptions {
-  /** Run every exported function (`--run-all-exports`), each with zero arguments. */
+  /** Run every exported function that takes no arguments (`--run-all-exports`), as upstream. */
   runAllExports: boolean;
   /** Run this export (`--run-export`), with {@link args}. */
   runExport?: string | undefined;
@@ -174,10 +174,13 @@ function showFloat(v: Value & { type: typeof ValType.F32 | typeof ValType.F64 })
 
 export function showValue(v: Value): string {
   switch (v.type) {
+    // Integers print UNSIGNED, as upstream wasm-interp (`i32:4294967295`, not `i32:-1`): a wasm
+    // integer has no sign, only the operations do. They printed signed until 2026-10-28
+    // (divergence CL11).
     case ValType.I32:
-      return `i32:${v.value}`;
+      return `i32:${(v.value as number) >>> 0}`;
     case ValType.I64:
-      return `i64:${v.value}`;
+      return `i64:${BigInt.asUintN(64, BigInt(v.value))}`;
     case ValType.F32:
       return `f32:${showFloat(v)}`;
     case ValType.F64:
@@ -211,12 +214,25 @@ export function interpModule(
     const results = imp.func.sig.results;
     return { kind: 'func', call: () => results.map((t) => argValue(t, undefined)) };
   };
+  // An import nothing here can supply is refused BEFORE anything runs, as upstream wasm-interp
+  // ("error initializing module: invalid import "env.h"", exit 1): a function import only with
+  // `--dummy-import-func`, any other kind never. 🔧 It instantiated anyway and stopped only when
+  // the import was CALLED — `callh() => stopped: host: env.h`, exit 0 (divergence CL10).
+  for (const imp of module.imports) {
+    if (imp.kind === ExternalKind.Func && opts.dummyImportFunc) continue;
+    throw new Stop(
+      'host',
+      `error initializing module: invalid import "${imp.module}.${imp.field}"`,
+    );
+  }
   const inst = new Interpreter(module, { imports, fuel: opts.fuel, hangCheck: opts.hangCheck });
   const exports = module.exports.filter((e) => e.kind === ExternalKind.Func);
+  // `--run-all-exports` runs the exports that take NO arguments, as upstream; one with
+  // parameters is skipped. 🔧 They ran with zeros made up for every parameter (CL10).
   const targets = opts.runExport !== undefined
     ? exports.filter((e) => e.name === opts.runExport)
     : opts.runAllExports
-    ? exports
+    ? exports.filter((e) => functionSignature(module, inst.functionIndex(e.var)).length === 0)
     : [];
   if (opts.runExport !== undefined && targets.length === 0) {
     throw new Error(`no exported function "${opts.runExport}"`);
@@ -264,7 +280,7 @@ export async function wasmInterp(
 
 function usage(): void {
   console.error('Usage: wasm-interp <input.wasm|.wat> [options]');
-  console.error('  --run-all-exports          Run every exported function with zero arguments');
+  console.error('  --run-all-exports          Run every exported function that takes no arguments');
   console.error('  --run-export=NAME          Run one export');
   console.error('  --argument=V               An argument for --run-export (repeat, in order)');
   console.error('  --dummy-import-func        Every imported function returns zeros');
@@ -291,7 +307,7 @@ const HELP: ToolHelp = {
     ],
   ],
   options: [
-    ['--run-all-exports', 'Run every exported function with zero arguments'],
+    ['--run-all-exports', 'Run every exported function that takes no arguments'],
     ['--run-export=NAME', 'Run one export'],
     [
       '--argument=V',
