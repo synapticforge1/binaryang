@@ -3534,14 +3534,16 @@ export class WastParser {
         const limits = this.parseLimits() ?? { initial: 0n, isShared: false, is64: false };
         const elemType = this.parseValueType() ?? Type.FuncRef;
         // Optional initializer expression: `(table $t 10 funcref (ref.null func))`
-        // fills every slot with the given value.
+        // fills every slot with the given value. It is an `expr` like a global's,
+        // so folded or LINEAR — `(table 1 funcref ref.null func)`, as `wasm-tools
+        // print` writes it. 🔧 Only ONE parenthesised instruction was read, so
+        // the linear form was refused ("expected ), got ref.null") (code lens
+        // pass 3, 2026-10-28; divergence CL22).
         let init: RegionExpr | undefined;
-        if (this.peek() === TokenType.Lpar) {
-          const ctx = newCtx();
-          if (this.parseOneInstr(ctx) === Result.Ok) {
-            flushStack(ctx);
-            init = region([...ctx.stmts], loc);
-          }
+        if (this.peek() !== TokenType.Rpar) {
+          const instrs: Expr[] = [];
+          this.parseInstrListInto(instrs);
+          if (instrs.length > 0) init = region(instrs, loc);
         }
         module.tables.push({
           name,
