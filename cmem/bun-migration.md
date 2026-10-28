@@ -56,6 +56,9 @@ The tools Deno bundles that Bun does not: `deno check` (the type checker), `deno
    Consequences:
    - JSR publishing depends on a Deno binary for as long as JSR's tooling does. That is JSR's
      problem to solve after 2027, but it is the one Deno dependency we cannot remove.
+   - ✅ **But not an INSTALLED one** (2026-10-28, § "B8"): Deno's own npm package `deno` runs the
+     same `deno publish` with its type check, through `bun x deno@<pin>`. `bunx jsr publish` stays
+     rejected: Deno refuses `--check` beside the `--no-check` it adds (measured, jsr 0.14.3).
    - `publish.yml` keeps calling `deno publish` **directly**. The provenance record
      ([publishing.md](publishing.md)) shows OIDC provenance failing through a subprocess, and
      `bunx jsr publish` is a subprocess.
@@ -622,6 +625,32 @@ Also deliberate in B4: the two generators' OUTPUT headers keep their old wording
 (`deno task definitions` in `src/definitions/data.ts`; the `deno run …` line in
 `src/wasm/demo_bytes.ts`). Those headers are part of shipped files, and `data.ts` is what consumers
 check their copies against. Update them with the next intentional change to either file.
+
+## B8: no installed Deno on the development machine (2026-10-28)
+
+**Owner, 2026-10-28:** "It would remove the need for deno on this machine though … I am slowly
+migrating everything to bun, including wasmtk." Deno stays where it is the AUTHORITY (JSR's
+publish and type check, JSR's view of the exports, the Deno consumer's run); it stops being a
+tool you install. **How:** Deno's own npm package (`deno`, maintainers ry and denobot), pinned and
+run by Bun: `bun x deno@2.9.6 …`. Measured against the installed Deno 2.9.8:
+
+| use | was | now | proof |
+| --- | --- | --- | --- |
+| `publish:dry` | `deno publish --dry-run --allow-dirty` | `bun x deno@2.9.6 publish …` | `Success Dry run complete`; every export `Check`ed |
+| release cold dry run (`publish.ts`) | `spawnSync('deno', …)` | `spawnSync('bun', ['x', 'deno@2.9.6', …])` | the same command; the wiring test pins it, and that no `--no-check` appears |
+| `api-surface.ts` | `deno doc --json` | `bun x deno@2.9.6 doc --json` | output BYTE-IDENTICAL on all 19 entries (3,676,250 B), the same 62 `@types/node` warnings; `surface:check` matches |
+| `tests/ir/ir_subpath.test.ts` | `deno doc --json` | the same | 4 / 4 |
+| cli-smoke, Deno leg | `deno run -A scripts/cli-smoke.ts "deno run -A"` | `bun scripts/cli-smoke.ts "bun x deno@2.9.6 run -A"` | the same output hash as installed Deno and as Bun (`7dbdcd45…`) |
+
+**Proved with Deno OFF the PATH** (a PATH holding a copy of Bun's shim and no scoop shims): all
+five pass. **Why not `bunx jsr publish`:** finding 2 — it forces `--no-check`, and the cold run
+exists to catch what CI's `deno publish` type check would fail after the tag is public.
+**Not changed:** `publish.yml` (`setup-deno` + `deno publish` directly, for provenance) and the
+CI `runtimes` Deno leg — CI runners, not this machine. **Left:** `comparison` (`deno check` /
+`deno test`), and the pin itself (four sites: `package.json`, `publish.ts`, `api-surface.ts`,
+`ir_subpath.test.ts`) — open-work 51. **Option, not taken:** `@deno/doc` (deno_doc as WASM, JSR,
+0.210.0) would answer `deno doc` with no Deno binary at all, but its JSON is the library's, not
+the CLI's, and every `api-surface.json` hash would have to be shown unchanged first.
 
 ## Other issues to account for
 

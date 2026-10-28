@@ -30,8 +30,9 @@ const BARRELS = {
 function exported(entry: string): Map<string, string> {
   const path = new URL(entry, import.meta.url);
   // `deno doc` lists a module's exports, types included, as JSR sees them: a JSR question, so
-  // Deno answers it (owner, 2026-10-12: Deno for JSR) whichever runtime runs the tests.
-  const out = spawnSync('deno', ['doc', '--json', path.href], {
+  // Deno answers it (owner, 2026-10-12: Deno for JSR) whichever runtime runs the tests — Deno
+  // from npm, pinned as in publish.ts, so none need be installed (owner, 2026-10-28).
+  const out = spawnSync('bun', ['x', 'deno@2.9.6', 'doc', '--json', path.href], {
     encoding: 'utf8',
     maxBuffer: 64 << 20,
   });

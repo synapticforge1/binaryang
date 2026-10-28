@@ -195,7 +195,10 @@ export async function surfaceOf(root: string): Promise<Surface> {
     string,
     string
   >;
-  const doc = JSON.parse(run('deno', ['doc', '--json', ...Object.values(exportsMap)], root)) as {
+  // Deno from npm, pinned as in publish.ts: no installed Deno needed (owner, 2026-10-28). Its
+  // output was byte-identical to an installed Deno 2.9.8's on all 19 entries, measured.
+  const docArgs = ['x', 'deno@2.9.6', 'doc', '--json', ...Object.values(exportsMap)];
+  const doc = JSON.parse(run('bun', docArgs, root)) as {
     nodes: Record<string, { symbols?: DocSymbol[] }>;
   };
   const rootUrl = pathToFileURL(root.endsWith('/') || root.endsWith('\\') ? root : `${root}/`).href;

@@ -58,7 +58,9 @@ a command line that used to run now exit 1:
 modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
 [optimizer.md](optimizer.md) § "State 2026-10-26"); the upstream reference clones moved into the
 repo's gitignored `upstream/` ([project.md](project.md) § "The predecessors' local checkouts");
-the second history purge (open-work 46, [publishing.md](publishing.md) § "The second purge").
+the second history purge (open-work 46, [publishing.md](publishing.md) § "The second purge");
+no installed Deno needed to develop or release (open-work 51, [bun-migration.md](bun-migration.md)
+§ "B8", 2026-10-28: Deno from npm, `bun x deno@2.9.6`).
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR record

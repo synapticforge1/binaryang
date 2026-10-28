@@ -101,7 +101,11 @@ describe('T13.44 — the release preflight stays wired in', () => {
   it('runs a cold type check, in a fresh DENO_DIR, before mutating anything', () => {
     // Since Bun migration B7 the Deno type check is the one inside `deno publish` (no deno.json,
     // no `deno check`), so the cold run is the publish DRY RUN; `bun run check` (`bun check`) follows it.
-    const at = PUBLISH.indexOf("spawnSync('deno', ['publish', '--dry-run', '--allow-dirty']");
+    // Deno from npm, pinned (2026-10-28), and never with `--no-check`: jsr's wrapper adds it.
+    const at = PUBLISH.indexOf(
+      "spawnSync('bun', ['x', 'deno@2.9.6', 'publish', '--dry-run', '--allow-dirty']",
+    );
+    expect(PUBLISH).not.toContain("'--no-check'");
     expect(at).toBeGreaterThan(-1);
     const tsc = PUBLISH.indexOf("spawnSync('bun', ['run', 'check']");
     expect(tsc).toBeGreaterThan(at);
