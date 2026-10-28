@@ -131,12 +131,17 @@ if (remoteTag.trim() !== '') {
 // type check publish.yml still runs is the one inside `deno publish` itself, so
 // THAT is what runs here, as a dry run, in an empty `DENO_DIR`. (It caught, the
 // day it was written, `import.meta.main` untyped once deno.json was gone.)
+//
+// Deno comes from npm (`deno`, Deno's own package, pinned), so no installed Deno is needed
+// (owner, 2026-10-28: migrating to Bun). NOT `bunx jsr publish`: with a package.json it adds
+// `--no-check`, and Deno refuses `--check` beside it — the dry run would check no types (measured
+// on jsr 0.14.3).
 const coldDir = await mkdtemp(join(tmpdir(), 'binaryang-release-check-'));
 try {
-  console.log(`$ DENO_DIR=${coldDir} deno publish --dry-run --allow-dirty   (cold)`);
+  console.log(`$ DENO_DIR=${coldDir} bun x deno@2.9.6 publish --dry-run --allow-dirty   (cold)`);
   // `env` REPLACES the environment in node:child_process (Deno.Command merged it), so the
-  // parent's is spread in: without PATH, `deno` itself would not be found.
-  const cold = spawnSync('deno', ['publish', '--dry-run', '--allow-dirty'], {
+  // parent's is spread in: without PATH, `bun` itself would not be found.
+  const cold = spawnSync('bun', ['x', 'deno@2.9.6', 'publish', '--dry-run', '--allow-dirty'], {
     env: { ...process.env, DENO_DIR: coldDir },
     stdio: 'inherit',
   });
