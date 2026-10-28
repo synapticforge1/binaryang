@@ -293,11 +293,12 @@ reporting exactly one JSR dependent.
   install of those stops resolving; exact-version imports and lockfiles keep working. Current
   wasmtk (3.0.0, on binaryang 2.2.0) and every repo in the workspace import neither package.
   (Before: **archiving is not yanking** — an archived package keeps resolving and only refuses new
-  versions; both were archived 2026-09-02.) **Measured 2026-10-28:** `@jrmarcum/wabt-ts` 31 of 32
-  yanked, 1.5.1 live; `@jrmarcum/binaryen-ts` only 26 of 39 yanked — **12 besides 1.5.1 still
-  live: 1.3.1, 1.3.2, 1.3.3, 1.3.5 – 1.3.9, 1.4.0, 1.4.1, 1.4.3, 1.5.0** (the workspace pointer
-  says "JSR versions other than 1.5.1 yanked"; for binaryen-ts that does not hold yet — the
-  owner's to finish or to call done). Both GitHub repos answer 404 and both local checkouts are
+  versions; both were archived 2026-09-02.) **Measured 2026-10-28, final:** EVERY version of both
+  is yanked — `@jrmarcum/binaryen-ts` 39 of 39, `@jrmarcum/wabt-ts` 32 of 32, 1.5.1 included
+  (JSR's API, cache-busted: `latestVersion` null, both archived). Nothing resolves by range any
+  more; an EXACT-version import still downloads (JSR keeps yanked versions; `1.5.1_meta.json`
+  answers 200). (An earlier read the same day found 12 binaryen-ts versions still live; the owner
+  finished the yank.) Both GitHub repos answer 404 and both local checkouts are
   gone (2026-10-28); their histories are in the private bundles (§ "The predecessors' local
   checkouts").
 - ⚠️ **`dependentCount` reads 1 on both predecessors and will never reach zero**: wasmtk's earlier
