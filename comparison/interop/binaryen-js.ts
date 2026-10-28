@@ -31,15 +31,15 @@
  * ```ts
  * import { BinaryenInterop } from "@jrmarcum/binaryang/interop";
  *
- * // Deno auto-resolves npm: specifiers.
- * const interop = await BinaryenInterop.create({ binaryenJsPath: "npm:binaryen" });
+ * // `binaryen` as installed by comparison/package.json (132).
+ * const interop = await BinaryenInterop.create({ binaryenJsPath: "binaryen" });
  * const optimizedWat = interop.optimizeWat(watText, { optimizeLevel: 2, shrinkLevel: 2 });
  * ```
  *
  * ## Runtime requirements
  *
- * - Subprocess (`optimizeViaSubprocess`) uses `node:child_process` — Deno 1.40+,
- *   Node 18+, or Bun. Not available in the browser.
+ * - Subprocess (`optimizeViaSubprocess`) uses `node:child_process` — Node, Bun or
+ *   Deno. Not available in the browser.
  * - In-process (`create`) is browser-safe **as long as** the caller supplies a
  *   binaryen.js module that resolves under the target runtime (e.g. via an
  *   ESM CDN URL or pre-loaded instance).
@@ -98,12 +98,13 @@ export interface BinaryenJsLib {
 export interface BinaryenInteropOptions {
   /**
    * Module specifier or URL passed directly to dynamic `import()`. The default,
-   * `"npm:binaryen"`, works under Deno and Bun without setup; under Node it
-   * requires `npm install binaryen` first.
+   * `"binaryen"`, is the package comparison/package.json installs; Node and Bun resolve it from
+   * there. (It was `"npm:binaryen"` until 2026-10-28, which only Deno resolves: the old claim that
+   * Bun did too was measured false, Bun 1.4.4.)
    *
    * Other examples:
-   * - `"npm:binaryen"` — Deno / Bun
-   * - `"binaryen"` — Node (after `npm install binaryen`)
+   * - `"binaryen-116"` — the older pin beside it
+   * - `"npm:binaryen"` — Deno only
    * - `"https://esm.sh/binaryen"` — browser / Deno via ESM CDN
    * - `"./vendor/binaryen.js"` — file path
    */
@@ -145,7 +146,7 @@ export class BinaryenInterop {
    * Loads and initializes a `binaryen.js` instance.
    *
    * @param options - Either `binaryen` (pre-loaded) or `binaryenJsPath` (module
-   *                  specifier). Defaults to `binaryenJsPath: "npm:binaryen"`.
+   *                  specifier). Defaults to `binaryenJsPath: "binaryen"`.
    * @throws If the binaryen.js module cannot be loaded or does not match the
    *         expected API shape.
    */
@@ -154,7 +155,7 @@ export class BinaryenInterop {
       _validateBinaryenLib(options.binaryen, '<options.binaryen>');
       return new BinaryenInterop(options.binaryen);
     }
-    const path = options.binaryenJsPath ?? 'npm:binaryen';
+    const path = options.binaryenJsPath ?? 'binaryen';
     let mod: unknown;
     try {
       mod = await import(path);

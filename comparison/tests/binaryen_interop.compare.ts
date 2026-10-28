@@ -6,8 +6,8 @@
  *
  * Tests for the Phase 0 binaryen.js in-process bridge.
  *
- * binaryen.js itself is not installed in CI (would require an npm install and
- * we're a Deno-first project), so these tests pass a hand-written mock factory
+ * binaryen.js itself is not installed in CI (only comparison/package.json
+ * installs it, and CI never runs this suite), so these tests pass a hand-written mock factory
  * via {@link BinaryenInterop.create}'s `binaryen` option. The mock satisfies
  * the same interface the real binaryen.js exposes, so all bridge-side logic
  * (parse → optimize → emit → dispose lifecycle, pass-list routing, level
@@ -20,6 +20,7 @@
  * @license MIT
  */
 
+import { test } from 'node:test';
 import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert';
 import {
   BinaryenInterop,
@@ -115,13 +116,13 @@ function makeMockModule(events: MockEvent[]): BinaryenWrappedModule {
 // create()
 // ---------------------------------------------------------------------------
 
-Deno.test('BinaryenInterop.create — accepts pre-loaded binaryen instance', async () => {
+test('BinaryenInterop.create — accepts pre-loaded binaryen instance', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   assertEquals(interop.binaryen, mock);
 });
 
-Deno.test('BinaryenInterop.create — rejects invalid pre-loaded binaryen', async () => {
+test('BinaryenInterop.create — rejects invalid pre-loaded binaryen', async () => {
   await assertRejects(
     () => BinaryenInterop.create({ binaryen: {} as unknown as BinaryenJsLib }),
     Error,
@@ -129,7 +130,7 @@ Deno.test('BinaryenInterop.create — rejects invalid pre-loaded binaryen', asyn
   );
 });
 
-Deno.test('BinaryenInterop.create — surfaces import failure with hint', async () => {
+test('BinaryenInterop.create — surfaces import failure with hint', async () => {
   await assertRejects(
     () =>
       BinaryenInterop.create({
@@ -144,7 +145,7 @@ Deno.test('BinaryenInterop.create — surfaces import failure with hint', async 
 // optimizeWat — pass-list and level routing
 // ---------------------------------------------------------------------------
 
-Deno.test('optimizeWat — runs default pipeline when no passes given', async () => {
+test('optimizeWat — runs default pipeline when no passes given', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   const out = interop.optimizeWat('(module)');
@@ -163,7 +164,7 @@ Deno.test('optimizeWat — runs default pipeline when no passes given', async ()
   assertEquals(mock.shrinkLevel, 0);
 });
 
-Deno.test('optimizeWat — explicit pass list bypasses default optimize()', async () => {
+test('optimizeWat — explicit pass list bypasses default optimize()', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   interop.optimizeWat('(module)', { passes: ['vacuum', 'dce'] });
@@ -175,7 +176,7 @@ Deno.test('optimizeWat — explicit pass list bypasses default optimize()', asyn
   assertEquals(runPassesEvent?.payload, ['vacuum', 'dce']);
 });
 
-Deno.test("optimizeWat — '-Oz' shorthand maps to optimizeLevel=2, shrinkLevel=2", async () => {
+test("optimizeWat — '-Oz' shorthand maps to optimizeLevel=2, shrinkLevel=2", async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   interop.optimizeWat('(module)', '-Oz');
@@ -183,7 +184,7 @@ Deno.test("optimizeWat — '-Oz' shorthand maps to optimizeLevel=2, shrinkLevel=
   assertEquals(mock.shrinkLevel, 2);
 });
 
-Deno.test("optimizeWat — '-Os' shorthand maps to optimizeLevel=2, shrinkLevel=1", async () => {
+test("optimizeWat — '-Os' shorthand maps to optimizeLevel=2, shrinkLevel=1", async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   interop.optimizeWat('(module)', '-Os');
@@ -191,7 +192,7 @@ Deno.test("optimizeWat — '-Os' shorthand maps to optimizeLevel=2, shrinkLevel=
   assertEquals(mock.shrinkLevel, 1);
 });
 
-Deno.test("optimizeWat — '-O3' shorthand maps to optimizeLevel=3, shrinkLevel=0", async () => {
+test("optimizeWat — '-O3' shorthand maps to optimizeLevel=3, shrinkLevel=0", async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   interop.optimizeWat('(module)', '-O3');
@@ -199,7 +200,7 @@ Deno.test("optimizeWat — '-O3' shorthand maps to optimizeLevel=3, shrinkLevel=
   assertEquals(mock.shrinkLevel, 0);
 });
 
-Deno.test('optimizeWat — unknown shorthand throws', async () => {
+test('optimizeWat — unknown shorthand throws', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   assertThrows(
@@ -209,7 +210,7 @@ Deno.test('optimizeWat — unknown shorthand throws', async () => {
   );
 });
 
-Deno.test('optimizeWat — dispose runs even when emitText throws', async () => {
+test('optimizeWat — dispose runs even when emitText throws', async () => {
   const mock = makeMockBinaryen();
   // Substitute the next parseText result with a module whose emitText throws.
   const original = mock.parseText;
@@ -231,7 +232,7 @@ Deno.test('optimizeWat — dispose runs even when emitText throws', async () => 
 // optimizeBinary
 // ---------------------------------------------------------------------------
 
-Deno.test('optimizeBinary — round-trips through readBinary + optimize + emitBinary', async () => {
+test('optimizeBinary — round-trips through readBinary + optimize + emitBinary', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   const input = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
@@ -249,7 +250,7 @@ Deno.test('optimizeBinary — round-trips through readBinary + optimize + emitBi
   ]);
 });
 
-Deno.test('optimizeBinary — honors explicit passes', async () => {
+test('optimizeBinary — honors explicit passes', async () => {
   const mock = makeMockBinaryen();
   const interop = await BinaryenInterop.create({ binaryen: mock });
   interop.optimizeBinary(new Uint8Array([0]), { passes: ['dce'] });
@@ -266,31 +267,33 @@ Deno.test('optimizeBinary — honors explicit passes', async () => {
 // binaryen **116**, whose OLD s-expression parser reads folded form only —
 // `parseText` hits `[parse exception: expected list]`, Emscripten calls
 // `Fatal:` and aborts the process with exit(1), which Deno's exit sanitizer
-// reports, and the set exit code then fails the NEXT live test for free.
+// reported (when Deno ran this suite, until 2026-10-28), and the set exit code then
+// failed the NEXT live test for free.
 //
-// The pin is **132** now (the `wasm-opt` on PATH, and the vendored upstream),
+// The pin is **132** now (comparison/package.json; the `wasm-opt` on PATH, and the vendored upstream),
 // whose new parser reads both forms — so this fixture would pass either way.
 // It stays FOLDED deliberately: what is under test is `BinaryenInterop`, not
 // which WAT dialect a given binaryen build accepts, and folded is the form
 // every version takes.
 //
-// It runs whenever npm:binaryen can be loaded, and skips when it cannot — the
+// It runs whenever binaryen can be loaded, and skips when it cannot — the
 // same rule the corpus round-trip uses, and for the same reason: a permanently
 // skipped test is a test nobody runs.
 // ---------------------------------------------------------------------------
 
 /**
- * The binaryen this test loads — **must track the pin in `deno.lock`**.
+ * The binaryen this test loads: comparison/package.json's `binaryen`, pinned to **132**
+ * (with 116 beside it as `binaryen-116`, for the scripts).
  *
- * Spelled with its version because `deno lint`'s `no-unversioned-import` refuses
- * a bare `npm:binaryen`, and rightly: an unversioned specifier is how this test
- * came to run against 116 while every other tool here was 132. One constant, used
- * for the availability probe and both live cases, so the version is one fact in
- * one place rather than three literals that can drift apart.
+ * It was `npm:binaryen@132` until 2026-10-28, spelled with its version because an unversioned
+ * `npm:binaryen` is how this test came to run against 116 while every other tool here was 132.
+ * Bun and Node resolve no `npm:` specifier, so the version now lives in the package's manifest
+ * and lockfile: one fact in one place. One constant, used for the availability probe and both
+ * live cases.
  */
-const BINARYEN = 'npm:binaryen@132';
+const BINARYEN = 'binaryen';
 
-/** Whether binaryen resolves here (it needs the package cached or network). */
+/** Whether binaryen resolves here (`bun install` in comparison/ puts it there). */
 async function binaryenAvailable(): Promise<boolean> {
   try {
     await import(BINARYEN);
@@ -299,27 +302,24 @@ async function binaryenAvailable(): Promise<boolean> {
     return false;
   }
 }
+const noBinaryen = !(await binaryenAvailable());
 
-Deno.test({
-  name: 'BinaryenInterop.create — live npm:binaryen end-to-end',
-  ignore: !(await binaryenAvailable()),
-  fn: async () => {
-    const interop = await BinaryenInterop.create({ binaryenJsPath: BINARYEN });
-    // FOLDED: every binaryen parser takes it. See the note above.
-    const watIn = '(module (func (export "f") (result i32) (i32.const 42)))';
-    const watOut = interop.optimizeWat(watIn, '-Oz');
-    assert(watOut.length > 0);
-    assert(watOut.includes('i32.const'), watOut);
-    // It really went through binaryen: the output is binaryen's own printing,
-    // which names the type and hoists the export.
-    assert(watOut.includes('(type'), watOut);
-  },
+test('BinaryenInterop.create — live npm:binaryen end-to-end', { skip: noBinaryen }, async () => {
+  const interop = await BinaryenInterop.create({ binaryenJsPath: BINARYEN });
+  // FOLDED: every binaryen parser takes it. See the note above.
+  const watIn = '(module (func (export "f") (result i32) (i32.const 42)))';
+  const watOut = interop.optimizeWat(watIn, '-Oz');
+  assert(watOut.length > 0);
+  assert(watOut.includes('i32.const'), watOut);
+  // It really went through binaryen: the output is binaryen's own printing,
+  // which names the type and hoists the export.
+  assert(watOut.includes('(type'), watOut);
 });
 
-Deno.test({
-  name: 'BinaryenInterop — a binary round-trips through live binaryen',
-  ignore: !(await binaryenAvailable()),
-  fn: async () => {
+test(
+  'BinaryenInterop — a binary round-trips through live binaryen',
+  { skip: noBinaryen },
+  async () => {
     const interop = await BinaryenInterop.create({ binaryenJsPath: BINARYEN });
     // `(module (func (export "f") (result i32) (i32.const 42)))`, assembled.
     const wat = '(module (func (export "f") (result i32) (i32.const 42)))';
@@ -331,4 +331,4 @@ Deno.test({
     assertEquals([...bytes.subarray(0, 4)], [0x00, 0x61, 0x73, 0x6d], 'still a wasm binary');
     assert(WebAssembly.validate(bytes as BufferSource), 'and it validates');
   },
-});
+);

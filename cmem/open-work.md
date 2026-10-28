@@ -109,12 +109,15 @@ removed record went to a topic file, and the full text is one `git show` away:
 51. **The last Deno uses on this machine** (owner, 2026-10-28: "migrating everything to bun").
     Done the same day ([bun-migration.md](bun-migration.md) § "B8"): the publish dry runs,
     `deno doc` (api-surface, the `./ir` test) and the smoke's Deno leg run Deno from npm
-    (`bun x deno@2.9.6`), proved with Deno off the PATH. **Open:** (a) `comparison` (`deno check` /
-    `deno test` with `comparison/deno.json`) — the same one-line change, or a port to `node:test`;
-    (b) the pin is written in four places (`package.json`, `publish.ts`, `api-surface.ts`,
-    `ir_subpath.test.ts`): one constant, or a devDependency in `bun.lock`, would keep them equal;
-    (c) CI keeps `setup-deno` (publish.yml must; the `runtimes` leg could take the npm Deno) — the
-    owner's call; (d) option: `@deno/doc` (WASM) for `deno doc` with no Deno binary, only if every surface hash
+    (`bun x deno@2.9.6`), proved with Deno off the PATH; and the `comparison` suite PORTED to
+    `node:test` and Bun, no Deno at all (same 24 names and results, scripts' output identical).
+    Then (owner: "fix the four files. yes the CI should use npm's deno leg"): the pin is ONE
+    constant, `scripts/deno.ts` (`DENO`, `denoCommand`; run as a launcher from command lines), and
+    `tests/wabt-ts/scripts/deno_pin.test.ts` refuses a `deno@<version>` anywhere else (a planted
+    copy failed it); CI installs no Deno — the gates job's `setup-deno` is gone, and the runtimes
+    matrix's Deno leg runs `bun scripts/deno.ts run -A` (cli-smoke itself on Deno, the same hash).
+    publish.yml keeps `setup-deno`: its `deno publish` runs directly, for provenance. **Open,
+    option only:** `@deno/doc` (WASM) for `deno doc` with no Deno binary, only if every surface hash
     holds.
 
 50. **Code lens pass 2: found and recorded, not fixed** (2026-10-28, [hardening.md](hardening.md)

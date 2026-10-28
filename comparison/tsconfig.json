@@ -1,0 +1,13 @@
+{
+  // The comparison suite under `bun check` (2026-10-28: Deno-free, open-work 51). The root's
+  // strictness, with the one relaxation this tree always had (comparison/deno.json, until then):
+  // `noUncheckedIndexedAccess` off. Its own package.json pins upstream binaryen.js (132, and 116 as
+  // `binaryen-116`), installed here rather than in the root so a plain `bun install` does not fetch
+  // 50 MB for a suite only `bun run comparison` runs.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["./**/*.ts"]
+}

@@ -15,6 +15,8 @@
 //
 // Runs only where upstream `wasm-opt` is on PATH.
 
+import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
 import { assert, assertEquals } from '@std/assert';
 
 import { createModule } from '../../src/api/index.ts';
@@ -22,15 +24,8 @@ import { readWat } from '../../src/tools/read-wat.ts';
 import { writeWat } from '../../src/ir/write-wasm.ts';
 import { BinaryenInterop } from '../interop/binaryen-js.ts';
 
-async function wasmOptOnPath(): Promise<boolean> {
-  try {
-    return (await new Deno.Command('wasm-opt', { args: ['--version'] }).output()).code === 0;
-  } catch {
-    return false;
-  }
-}
-const ignore = !(await wasmOptOnPath());
-if (ignore) {
+const skip = spawnSync('wasm-opt', ['--version'], { stdio: 'ignore' }).status !== 0;
+if (skip) {
   console.warn('comparison: wasm-opt not on PATH — the upstream -O2 comparison is skipped');
 }
 
@@ -51,19 +46,15 @@ const WAT = `(module
 const run = (bytes: Uint8Array) =>
   (new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource), {
     env: { log: () => {}, tick: () => {} },
-  }).exports.f as (x: number) => number)(41);
+  }).exports['f'] as (x: number) => number)(41);
 
-Deno.test({
-  name: 'ours and upstream -O2: both valid, both compute the same',
-  ignore,
-  async fn() {
-    const mod = createModule(() => {});
-    Object.assign(mod.ir, readWat(WAT));
-    const ours = await mod.optimize('-O2');
-    const upstream = await BinaryenInterop.optimizeViaSubprocess(writeWat(readWat(WAT)), ['-O2']);
-    assert(WebAssembly.validate(ours as BufferSource), 'the engine accepts ours');
-    assert(WebAssembly.validate(upstream as BufferSource), 'the engine accepts upstream');
-    assertEquals(run(ours), 42);
-    assertEquals(run(upstream), 42);
-  },
+test('ours and upstream -O2: both valid, both compute the same', { skip }, async () => {
+  const mod = createModule(() => {});
+  Object.assign(mod.ir, readWat(WAT));
+  const ours = await mod.optimize('-O2');
+  const upstream = await BinaryenInterop.optimizeViaSubprocess(writeWat(readWat(WAT)), ['-O2']);
+  assert(WebAssembly.validate(ours as BufferSource), 'the engine accepts ours');
+  assert(WebAssembly.validate(upstream as BufferSource), 'the engine accepts upstream');
+  assertEquals(run(ours), 42);
+  assertEquals(run(upstream), 42);
 });

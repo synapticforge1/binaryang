@@ -10,7 +10,7 @@
  * The argument is the runtime invocation that runs `main.ts`:
  *
  * ```sh
- * deno run -A scripts/cli-smoke.ts "deno run -A"
+ * bun scripts/deno.ts run -A scripts/cli-smoke.ts "bun scripts/deno.ts run -A"   # Deno, from npm
  * node scripts/cli-smoke.ts "node"
  * bun scripts/cli-smoke.ts "bun"
  * node scripts/cli-smoke.ts "node" <pkg>/main.js   # another entry: the npm package's (npm:prove)

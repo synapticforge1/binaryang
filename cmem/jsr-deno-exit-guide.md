@@ -77,6 +77,14 @@ left in `deno.json` WINS.
 (binaryang's `publishing.md`), and the jsr CLI IS a subprocess. Run your own type check in the
 gate before publishing. Publishing is the one Deno dependency nobody can remove yet. That is
 JSR's to solve before 2027-10.
+✅ **But it need not be an INSTALLED Deno** (binaryang, 2026-10-28; jsr 0.14.3, Deno 2.9.6 / 2.9.8,
+Bun 1.4.4). Deno publishes itself on npm as `deno` (maintainers `ry`, `denobot`), so `bun x
+deno@<exact> publish --dry-run` runs the real `deno publish`, type check included, on a machine
+or CI runner with no Deno. **jsr's `--no-check` cannot be undone:** it passes your flags through,
+but Deno refuses `--check` beside `--no-check` ("cannot be used with"), measured. So a dry run
+meant to catch type errors before a tag must not go through `npx jsr`. The real publish in the
+publish workflow stays `setup-deno` + a direct `deno publish`, for provenance. Recipe: § 5a "No
+installed Deno".
 
 **F3. Node and Bun cannot import from JSR without installing first.**
 
@@ -202,7 +210,8 @@ version is permanent.
    broken assertion fails.
 6. **CI and the release path:** gate with Bun (and Node, § 5). Keep `setup-deno` +
    `deno publish --config jsr.json` for publishing (F2). Keep a Deno leg in the runtime-support
-   matrix while consumers use Deno. Prove it with one real release, checking that provenance was
+   matrix while consumers use Deno (since 2026-10-28 binaryang's leg runs Deno from npm, with no
+   `setup-deno` — § 5a "No installed Deno"; only the publish workflow installs Deno). Prove it with one real release, checking that provenance was
    recorded (`rekorLogId` from `api.jsr.io`). **For a package with dependencies, the release gate
    reads the UPLOAD:** keep the fake-registry capture (F1) as a committed check that compares every
    rewritten import specifier with the expected list before a tag — a green `deno publish` is not
@@ -465,9 +474,62 @@ binaryang's B5, for your packages (its bun-migration.md § "B5" has the detail):
 - **A Deno-run side suite needs its own config.** binaryang's `comparison/` (Deno, `npm:binaryen`)
   had silently broken when `package.json` and `node_modules` arrived: Deno resolved `npm:` from
   node_modules and refused what was not listed. A standalone `deno.json` with
-  `"nodeModulesDir": "none"`, its own import map and lock fixed it.
+  `"nodeModulesDir": "none"`, its own import map and lock fixed it. (Superseded 2026-10-28: the
+  suite was PORTED off Deno instead — § 5a "No installed Deno", step 4.)
 - Pin the absence: a test that fails if `deno.json` comes back, since with it `deno publish`
   would silently publish from it again.
+
+### No installed Deno: Deno from npm, one pin (2026-10-28)
+
+**What it is for.** After steps 2–7, Deno is still the AUTHORITY wherever JSR is the question:
+`deno publish`'s type check, `deno doc`'s view of the exports, a Deno user's run. It need not be a
+tool anyone installs. binaryang did this 2026-10-28 (owner: "migrating everything to bun"); its
+record is [bun-migration.md](bun-migration.md) § "B8", and every step below was measured on
+Windows 11, Bun 1.4.4, Node 24, Deno 2.9.6 from npm against 2.9.8 installed.
+
+1. **One module holds the pin.** binaryang's `scripts/deno.ts` exports `DENO = 'deno@2.9.6'` and
+   `denoCommand(args)` → `['bun', ['x', DENO, ...args]]`. When run as a file it launches Deno
+   with its arguments (`bun scripts/deno.ts publish --dry-run --allow-dirty`), so `package.json`
+   scripts and CI name no version. Code that spawns Deno imports `denoCommand`. A test reads every
+   tracked file and refuses `deno@<digit>` anywhere but the pin (binaryang:
+   `tests/wabt-ts/scripts/deno_pin.test.ts`). A copy planted in `package.json` failed it. Pin an
+   EXACT version at least two weeks old: `deno doc`'s output can feed snapshot hashes.
+2. **Replace each Deno call and prove the output is the same.**
+   - `deno publish --dry-run`: the type check runs (every export is listed as `Check`).
+   - `deno doc --json` over all 19 entry points: byte-identical (3,676,250 B) to the installed
+     Deno's, with the same 62 warnings.
+   - The CLI smoke on Deno: the same output hash.
+
+   Run the three through `bun x` and compare each with the installed Deno's result.
+3. **Prove "none installed" by REMOVING Deno, not by trusting it.** A PATH filter that drops
+   folders named `deno` misses a scoop or volta shim folder, where `deno.exe` sits beside `bun.exe`.
+   binaryang copied every shim except Deno's into a scratch folder and put that in place of the
+   shim folder. `command -v deno` then found nothing, and the full gate ran green (29 / 29). A
+   Windows path starting `C:` breaks a POSIX PATH (the colon), so use the `/c/...` form.
+4. **A side suite that imports `npm:` packages is a port, not a swap.** **Bun 1.4.4 resolves no
+   `npm:` specifier**, measured: `import('npm:binaryen@116.0.0')` → "Cannot find package".
+   binaryang's `comparison/` suite did it this way:
+   - Each `npm:x@v` became a real dependency in a `package.json` of the suite's own, with its own
+     lockfile (two versions of one package: `"binaryen": "132.0.0"` and `"binaryen-116":
+     "npm:binaryen@116.0.0"`). The root's install stays small (each binaryen is 25 MB).
+   - `Deno.test` → `node:test`, with `t.step` becoming a nested `describe`. `Deno.Command`, the
+     temp files and `Deno.args` / `Deno.exit` → `node:` builtins.
+   - `deno check` → `bun check -p <suite>/tsconfig.json`, extending the root's strictness. That
+     found one property access the old Deno config had allowed.
+   - The tests run on the V8 referee, so the engine stayed the one Deno used.
+
+   **Proof:** the same test names and results as Deno's last run; scripts' stdout and files
+   byte-identical; and a planted wrong expectation fails the step.
+5. **CI.** Drop `setup-deno` from every job but the publish workflow. A runtime-matrix Deno leg
+   becomes `setup: bun`, with the invocation `bun scripts/deno.ts run -A`. The smoke script and
+   the CLI still run ON Deno, so the leg still tests what it tested. Pin the decision in the guard
+   test: `ci.yml` has no `setup-deno`, and `publish.yml` does.
+6. **What stays:** the publish workflow's `setup-deno` + direct `deno publish` (F2: provenance
+   through a subprocess has failed silently before, and `bun x` is a subprocess too). That is
+   JSR's tooling, until JSR ships a publisher without Deno.
+7. **Option, not taken:** `@deno/doc` on JSR (deno_doc as WASM, 0.210.0) answers `deno doc` with
+   no Deno binary at all. Its JSON is the library's, not the CLI's, so check first that every
+   snapshot built from it comes out unchanged.
 
 ### Six traps s3d-reportcompiler measured on steps 2–4 (workspace correspondence C21, 2026-10-26)
 
@@ -641,7 +703,14 @@ C21) — read its record before § 4 step 2 onward.
 - `deno publish --config jsr.json` beside a `deno.json` publishes a package whose dependency
   imports point at relative paths that do not exist, and reports success (F1's caveat; measured
   by s3d-reportcompiler, C20). Read the upload, not the exit code.
-- A `package.json` turns `npx jsr publish` into a publish without a type check (F2).
+- A `package.json` turns `npx jsr publish` into a publish without a type check (F2), and adding
+  `--check` does not restore it: Deno refuses the pair (measured 2026-10-28, jsr 0.14.3).
+- Bun resolves no `npm:` import specifier (Bun 1.4.4, 2026-10-28). A doc that says "works under
+  Deno and Bun" may be wrong; binaryang's said exactly that and was. Measure it.
+- A Deno version written in several files drifts. Keep one pin and a test that refuses copies
+  (§ 5a "No installed Deno").
+- "No Deno installed" is a claim you can only check by taking Deno off the PATH, and a shim folder
+  shared with Bun hides it from a simple filter (§ 5a "No installed Deno", step 3).
 - `"bin"` in `package.json` does nothing for a JSR package (F4).
 - `@std/testing/bdd` imports fine on Bun and then fails when the tests run (F5).
 - A green publish run is not proof of provenance. Check `rekorLogId`, with a cache-busting
