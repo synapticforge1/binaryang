@@ -6,11 +6,11 @@ item closes, its record goes to the topic file and its line leaves here.
 
 **Earlier state lines, summarized 2026-10-23** (workspace letter H6, memory conventions: the
 status is written once). Six dated "State" paragraphs, 2026-10-09 → 2026-10-22, each superseding
-the one above, are folded here; their full text: `git show 4e1c27969:cmem/open-work.md` (lines
+the one above, are folded here; their full text: `git show b94a1c6ae:cmem/open-work.md` (lines
 7–161). What they recorded, and where it lives now: releases 1.10.0 → 1.14.0 ([publishing.md](publishing.md),
-one section per release); the Bun migration, items 26 and 28, `bun check` (merge `f5eb19750`)
+one section per release); the Bun migration, items 26 and 28, `bun check` (merge `ec3f2c3ff`)
 ([bun-migration.md](bun-migration.md), [run-everywhere.md](run-everywhere.md)); CI fully green
-with the Browsers job (2026-10-13, `0e7c5398f`); the code lens pass 1 merged and closed
+with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and closed
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
@@ -53,8 +53,7 @@ wasmtk) and § 44 (to wazmrt, wasmrt) SENT by the owner; § 43 their replies. D3
 messages only (owner: "stay with what we have" — wazmrt's "expected shared memory" class declined;
 wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 record.
 
-- **Open:** 46 (🗓️ OWNER — the path-bearing benchmark blobs are still in PUBLIC history: a
-  second H19 purge and force-push, then the GitHub Support request), 31 (resume as its "State 2026-10-22" paragraph says, from the REBUILT six —
+- **Open:** 31 (resume as its "State 2026-10-22" paragraph says, from the REBUILT six —
   138,410 since 2026-10-26, [optimizer.md](optimizer.md) § "State 2026-10-26" — and the corpus
   811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening re-run until
   clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk), 43 (the kept
@@ -123,12 +122,16 @@ removed record went to a topic file, and the full text is one `git show` away:
     function end differ from upstream's in every function, delegate or not). wasmtk's pinned
     `KNOWN_ACCEPTED_INVALID` entry can go to 0 once it pins the release that carries this.
 
-46. 🗓️ **The old benchmark blobs are still in PUBLIC history — a second H19 purge** (owner,
-    2026-10-26: "add the history item on github as an open item"). Item 44 fixed HEAD, but the
-    five modules with the owner's machine paths are reachable on GitHub from `f9b74f213`
-    (2026-10-13; `modules/{rust-debug,zig-debug,zig-releasefast}.wasm`) and `4dcb140e3`
+46. ✅ **The old benchmark blobs were in PUBLIC history — the second purge** — DONE 2026-10-28
+    (owner: "fix item 46"): 383 commits rewritten, the five blobs' machine-path prefixes replaced
+    by same-length labels (code unchanged, `run(300)` equal), every check passed before the
+    force-push; record and tag map: [publishing.md](publishing.md) § "The second purge". Left
+    with the owner: the GitHub Support request (old commits served by hash), covering both purges.
+    Was (owner, 2026-10-26: "add the history item on github as an open item"): Item 44 fixed HEAD, but the
+    five modules with the owner's machine paths are reachable on GitHub from `22ecb4ab2`
+    (2026-10-13; `modules/{rust-debug,zig-debug,zig-releasefast}.wasm`) and `2ea5da23a`
     (2026-10-22; `modules64/{rust-release-wasm64,zig-releasefast-wasm64}.wasm`) through every
-    later commit up to `293e7f401`, and the tags `v1.13.0` … `v2.2.0` carry them (the trees of
+    later commit up to `6c0f9d11f`, and the tags `v1.13.0` … `v2.2.0` carry them (the trees of
     1.13.0 onward include `benches/`). **What it takes** (the H19 template, [publishing.md](publishing.md)
     § "The history purge"): rewrite those blobs in every ref — paths only, the maintainer address
     stays — with a blob-replacement filter (the five path-bearing blobs → the clean 2026-10-26
@@ -208,8 +211,8 @@ removed record went to a topic file, and the full text is one `git show` away:
 44. ✅ **Five committed benchmark modules embedded the owner's machine paths** — DONE at HEAD
     2026-10-26 (owner: "lets fix 44"); found the same day while closing workspace letter H27.
     `benches/browser-opt/modules/{rust-debug, zig-debug, zig-releasefast}.wasm` (public since
-    `f9b74f213`, 2026-10-13) and `modules64/{rust-release-wasm64, zig-releasefast-wasm64}.wasm`
-    (`4dcb140e3`, 2026-10-22) carried, in DWARF and in Rust's panic-location strings, the
+    `22ecb4ab2`, 2026-10-13) and `modules64/{rust-release-wasm64, zig-releasefast-wasm64}.wasm`
+    (`2ea5da23a`, 2026-10-22) carried, in DWARF and in Rust's panic-location strings, the
     user-profile path of the scoop toolchain and AppData (199 hits) and the project tree under the
     old workspace folder name. Every text scan — the rule's `git grep -I`, the H18 / H19 / H25
     `git log -G` — skips binary files, so "HEAD is clean" had been true of text only; the rule
@@ -226,8 +229,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     re-derived with a positive control — [optimizer.md](optimizer.md) § "State 2026-10-26": six
     -Oz 138,410 vs upstream 137,621 (+0.57%, the gap unchanged; item 31 resumes from 138,410).
     `results.json` (the 2026-10-22 browser run) and the 28.6 table stay as dated records of the
-    old modules. **Left to the owner:** the old blobs are in public history from `f9b74f213` /
-    `4dcb140e3` — a second H19 purge (paths only, every ref) and a force-push, or accepting that
+    old modules. **Left to the owner:** the old blobs are in public history from `22ecb4ab2` /
+    `2ea5da23a` — a second H19 purge (paths only, every ref) and a force-push, or accepting that
     history. Record: [handoffs.md](handoffs.md) § "Letters addressed to binaryang", the H18 entry.
 
 34. ✅ **One opcode profile every widely used engine runs** — DONE 2026-10-24 (owner, 2026-10-23:
@@ -416,7 +419,7 @@ CI shell scripts are TypeScript (the old item 17).
     real-compiler six AND the corpus measured. Start: six modules -Oz 145,859 (+4.9% over upstream
     133's 139,020), corpus -Oz 822,964 (+1.60% over 809,986). Progress: optimizer.md § "Open-work
     31". **State 2026-10-20, after step 15 — RELEASED in 1.13.0:** six 140,032 (+0.69% over
-    upstream's 139,068; 140,028 before the Local2Stack fix, `eb0fff576`), corpus 811,099
+    upstream's 139,068; 140,028 before the Local2Stack fix, `065f8dd54`), corpus 811,099
     (+0.14%); -O2 2.1% BELOW upstream. Step 9: the control diff (step 8's "next")
     found upstream's WRITER dropping code after terminators that our DCE never visited (blocks in
     operands) or never judged dead (constructs that never reach their `end`); fixed in DCE. Step

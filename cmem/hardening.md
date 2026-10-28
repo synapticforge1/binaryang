@@ -227,7 +227,7 @@ the producer corpus and the behaviour run had nothing left but classified V8 gap
 was found by the throw-check after that, and C16 / C17 by the panel. No full re-run had been made
 on `ecd54abef`.
 
-**✅ Convergence SHOWN 2026-10-15 — pass 1 CLOSED.** The branch merged onto 1.12.1 (`4bc570e78`,
+**✅ Convergence SHOWN 2026-10-15 — pass 1 CLOSED.** The branch merged onto 1.12.1 (`435a1cac7`,
 full gate green on it; the merge decisions are in its message), and the re-run was made on THAT
 tree, so it also covers what the merge changed. The instruments are the 2026-10-09 scripts ported
 to `node:` builtins with their logic unchanged, run on Node 24 (the V8 referee); **positive
