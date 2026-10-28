@@ -352,6 +352,7 @@
    "ExplicitNames.types": "property#f66f3382843a",
    "Export": "interface#d54e370c645e",
    "Export.kind": "property#d2402ac4319b",
+   "Export.loc": "property#5a23448527bd",
    "Export.name": "property#90b258461267",
    "Export.var": "property#065a3acf34c3",
    "Expr": "typeAlias#f152adceab0f",
