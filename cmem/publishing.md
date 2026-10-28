@@ -5,9 +5,10 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-26 UTC): 2.2.1 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@2.2.1` (Rekor `3490805794`) and npm `@synapticforge1/binaryang@2.2.1`
-(published by GitHub Actions, SLSA provenance) — § "2.2.1". **The repo is
+**Latest (2026-10-28 UTC): 2.2.2 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@2.2.2` (Rekor `3541668152`) and npm `@synapticforge1/binaryang@2.2.2`
+(published by GitHub Actions, SLSA provenance) — § "2.2.2". **The history was rewritten a second
+time on 2026-10-28** (§ "The second purge"): every hash from 2026-10-13 on changed again. **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
 hash changed (§ "The history purge").
@@ -1041,6 +1042,35 @@ was found in it: 424 checked, 0 missing. The control, today's `main` tip, was co
 **Old ids now resolve only through that bundle** (`cmem/local/backups/`, with a name → hash list
 of the deleted branches). The same run found two old ids the purge had missed in `working-rules.md`
 (step 16's), rewritten through the map.
+
+## 2.2.2 — a PATCH from `main` (2026-10-28 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "We will release the delegate fix as 2.2.2". It carries the legacy `delegate`
+fix (open-work 47, C12), upstream wabt's type-mismatch words (open-work 48, DG7) and the README's
+npm 12 note (C21) — CHANGELOG § 2.2.2. The first release on the history rewritten by the second
+purge (§ below), which was force-pushed the same day before this release began.
+
+1. `CHANGELOG.md` § 2.2.2 on `release/2.2.2`, gated 17 / 17, merged (`02b774d68`), pushed
+   unbumped: CI (Browsers included) and auto-tag GREEN. A FRESH CLONE of `02b774d68` from GitHub:
+   17 / 17 (17 step logs). The two fixes' own branches had each run the full gate, 29 / 29.
+2. **The consumer step:** the validator, which wasmtk imports (`wasm-validate`), changed, so it is
+   not skipped by its rule. wasmtk pins 2.2.0 EXACTLY, so nothing reaches it before its own bump;
+   what changes for it was sent in C12's answer (its `try_delegate` pin can go to 0). Its suite
+   was not run here (its tree is its own).
+3. No tag, neither registry had 2.2.2. `bun run bump patch`: floor PATCH; **v2.2.1's tests on this
+   tree: 6,339, 2 failed, 2 accepted** — the two tests that pinned the old mismatch words, listed in
+   `tests/accepted-changes.json` in their own commit (`a03a667e7`, merged `ceb18dbda`), replacing
+   2.2.0's stale entry. Found on the way: Node's JUnit reporter escapes a quote twice and
+   `previous-tests.ts` decodes once, so a test name with a quote is listed as the tool reports it
+   (`&quot;`). `surface:check` matches; `version_sync` 3 / 3; `bun run release`: `bump to
+   v2.2.2` (`88a0e7c6f`), `main` + `v2.2.2` in one push.
+4. CI, auto-tag and publish.yml GREEN on the bump: **JSR** 2.2.2 created 2026-10-28T15:15:39Z,
+   not yanked, **Rekor log id `3541668152`**; **npm** at 15:19:13Z, `latest`, SLSA provenance;
+   GitHub Release `v2.2.2`. As a user: npm and JSR `--version` print `binaryang 2.2.2`; `wat2wasm`
+   refuses `(func (try (do) (delegate 1)))` with `invalid depth: 2 (max 1)` from both registries,
+   where npm's 2.2.1 accepted it; `(func (result i32))` reads `type mismatch in implicit return,
+   expected [i32] but got []` (2.2.1: `… in function, expected 1 elements on the stack but got 0`) —
+   the fixes, as published.
 
 ## 🔒 The second purge (open-work 46, 2026-10-28) — every hash from 2026-10-13 on changed AGAIN
 

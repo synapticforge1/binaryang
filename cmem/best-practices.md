@@ -43,10 +43,10 @@ That is not style converging; it is the same failure modes teaching the same les
 
 ## The workspace's convergent rules (★)
 
-> **Copied from synapticforge1/cmem/best-practices.md on 2026-10-26** (the stamp's canonical
+> **Copied from synapticforge1/cmem/best-practices.md on 2026-10-28** (the stamp's canonical
 > wording, workspace letter H27; first copied 2026-10-23, rule 5.2 re-copied 2026-10-26 under letter
-> H24 — at each re-copy a one-time script compared all 28 ★ rules by number and normalized text, 0
-> differences; workspace letter H6; memory
+> H24, rule 6.1's commit id 2026-10-28 under ledger C8 — at each re-copy a one-time script compared
+> all 28 ★ rules by number and normalized text, 0 differences; workspace letter H6; memory
 > conventions: the convergent method rules are canonical THERE and duplicated into every repo under
 > this stamp — a change is made there and re-copied, never edited here). ★ = two or more repos
 > derived the rule without reading each other; the tags name them. Section numbers are the
@@ -137,7 +137,7 @@ That is not style converging; it is the same failure modes teaching the same les
 
 - **6.1 ★ A written result is a CLAIM: a commit message, a status line, a doc of a safety guard, a
   contract row verified by reading. Compare it to the artifact; put a pin where the tool enforces
-  it.** `b8fafaa3f` said "pin to 132" and left 116; prose has no failure mode. [binaryang + wabt-ts + wasmrt]
+  it.** `8d9ba0cb9` (was `b8fafaa3f` before binaryang's 2026-10-23 purge; corrected here 2026-10-26, ledger C8) said "pin to 132" and left 116; prose has no failure mode. [binaryang + wabt-ts + wasmrt]
 - **6.2 ★ Write down the thing you only said out loud; write the negatives (what was varied, what
   held fixed), the calibration, and what you did NOT check; distinguish clean / measured /
   UNMEASURED.** Knowledge that exists only in a conversation is operationally identical to
