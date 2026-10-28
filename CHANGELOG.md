@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.2.2
+
+A patch release: the validator now checks a legacy `delegate` properly, and its type-mismatch
+messages read as upstream wabt's. Nothing is added, removed or renamed.
+
+### Fixes
+
+- **A legacy `delegate` was never checked.** `wasm-validate`, `wasmValidate` and `wat2wasm` (which
+  validates by default) accepted a `delegate` naming a label that does not exist —
+  `(func (try (do) (delegate 1)))` — and checked nothing after a `try … delegate`, so
+  `(func (result i32) (try (do) (delegate 0)))`, a function that ends with an empty stack,
+  validated. Both are refused now, as upstream wabt, wasm-tools and V8 refuse them, the first with
+  upstream's words, `invalid depth: 2 (max 1)`. **If binaryang called a module with legacy
+  exception handling valid and an engine refused it, this is why; re-validate it.** Modules that
+  were valid stay valid. Reported by wasmtk.
+
+### Changed
+
+- **Validation errors read as upstream wabt's.** Every type-mismatch message now has upstream's
+  form: `type mismatch in implicit return, expected [i32] but got []` where binaryang said `type
+  mismatch in function, expected 1 elements on the stack but got 0`; `type mismatch at end of
+  block, expected [] but got [i32, i32]` where it said `type mismatch at end of end`; `type
+  mismatch in drop, expected [any] but got []`. A one-armed `if` with a result is reported once,
+  as ``type mismatch in `if false` branch``, not twice. An error at a function's end points at
+  its last instruction. No module changes verdict; code that matches the old message TEXT needs
+  the new words.
+- The README's JSR install section says that npm 12 (bundled with Node 24.21) refuses the alias
+  `npx jsr add` installs, and gives the `.npmrc` line that allows it (`allow-remote=all`).
+
 ## 2.2.1
 
 A patch release with one fix: **`wasm-strip` now leaves every section it keeps exactly as it
