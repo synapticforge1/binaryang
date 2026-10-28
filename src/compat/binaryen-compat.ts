@@ -94,7 +94,7 @@ import {
   makeI32Const,
   makeI64Const,
   makeIf,
-  makeLoad,
+  makeLoad as irMakeLoad,
   makeLocalGet,
   makeLocalSet,
   makeLocalTee,
@@ -105,7 +105,7 @@ import {
   makeRegion,
   makeReturn,
   makeSelect,
-  makeStore,
+  makeStore as irMakeStore,
   makeSwitch,
   makeUnary,
   makeUnreachable,
@@ -130,8 +130,19 @@ import {
   varIndex,
   varName,
 } from '../ir/ir.ts';
-import { Opcode } from '../core/opcode.ts';
+import { naturalAlignForOpcode, Opcode } from '../core/opcode.ts';
 import { ExternalKind } from '../core/binary.ts';
+
+// binaryen.js's `align` of 0 means NATURAL alignment (its `load(offset, align, ptr)` docs, and what
+// every caller that does not care passes). Our IR takes alignment in bytes and has no such
+// sentinel, so 0 reached the writer as "alignment 0: not a power of two" and the module could not
+// be written (code lens pass 3, 2026-10-28). Mapped here, at the facade, not in the IR.
+const alignOrNatural = (op: Opcode, align: number): number =>
+  align === 0 ? naturalAlignForOpcode(op) : align;
+const makeLoad = (op: Opcode, offset: bigint, align: number, ptr: Expression) =>
+  irMakeLoad(op, offset, alignOrNatural(op, align), ptr);
+const makeStore = (op: Opcode, offset: bigint, align: number, ptr: Expression, value: Expression) =>
+  irMakeStore(op, offset, alignOrNatural(op, align), ptr, value);
 import { formatErrors, hasErrors, makeErrorList } from '../core/error.ts';
 import { allFeatures } from '../core/feature.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
