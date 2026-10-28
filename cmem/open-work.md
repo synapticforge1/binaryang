@@ -14,6 +14,10 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**Later still, 2026-10-28: code lens pass 3** (owner: "look for code issues", again) — item
+53 fixed (thirteen commits, among them two `-O2` miscompiles and an `f32.const` parser
+miscount), item 52 recorded; correspondence C26 (S3D) answered in the exit guide. NOT pushed.
+
 **Later, 2026-10-28: code lens pass 2** (owner: "look for code issues") — item 49 fixed (five
 defects CL1–CL5, comments, dead code; [unreleased.md](unreleased.md)), item 50 recorded (the
 CLI's differences CL6–CL14 and four library-side findings). Merged to `main`, NOT pushed and not
@@ -105,6 +109,44 @@ removed record went to a topic file, and the full text is one `git show` away:
 | everything else: M-series and post-M8 tables, the pre-bump items         | `git show 3bd64ece7:cmem/open-work.md`                                                               |
 
 ## Defects and gaps — the owner's first
+
+53. ✅ **Code lens pass 3 — thirteen fixes** (2026-10-28, owner: "look for code issues"; branch
+    `fix/code-lens-3`; [hardening.md](hardening.md) § "Code lens, pass 3"). Wrong OUTPUT on
+    valid input, fixed: an integer-spelled `f32.const` rounded twice (parser); `-O2` and up
+    inlining a callee's tail call so it returned from the CALLER, and SimplifyLocals moving a
+    local write past a throwing call in a `try` (both change what a module computes, judged by
+    V8); `wasm-ctor-eval` writing invalid modules (a null in a non-nullable local, renumbered
+    data segments). Refused valid input, fixed: a cross-memory `memory.copy`; inlining a callee
+    that branches to its own frame. Also: compat `align` 0, `./api` `if` / `block` types,
+    `wasm-interp` `--argument` / `--fuel`, `ctor-eval` with an empty constructor, an unknown
+    local's message, wabt compat `foldExprs`, and comments. Each with a test red on the old code.
+    [unreleased.md](unreleased.md).
+
+52. **Code lens pass 3: found and recorded, not fixed** (2026-10-28). The owner's to order;
+    none is reachable as wrong output from the CLI's default paths.
+    (a) **The binaryen.js facade's public values differ from binaryen.js** (CL17–CL20): the
+    reference-type IDs and `auto`, five Features bits and `All`, the default shrink level (0,
+    upstream 1), `getFunction` on an import (null, upstream a handle), `exnref` reported as
+    `externref`, `i64.const(low, high)` silently dropping `high` (upstream aborts). Changing a
+    public value is a compatibility question (wasmtk consumes `./compat/binaryen`).
+    (b) **The wabt.js facade** (CL16, CL21): no `WasmModule.validate()`, `toBinary()` has no
+    `log`, `toText`'s defaults folded / inline-export where libwabt.js's are off.
+    (c) **The optimizer:** `wasm-opt` checks its output with the HOST engine (`wasm-opt.ts:184`),
+    so on Bun (JavaScriptCore) a valid memory64 module fails "optimized module failed
+    validation" with no pass run, and an input JSC refuses is blamed on the optimizer — the
+    repo's own validator is the one that should judge; MergeLocals, SSANoMerge and StackIR
+    swallow every exception and skip the function (`merge-locals.ts:66`, `ssa-nomerge.ts:56`,
+    `stack-ir.ts:64`), so a pass bug shows only as lost size; LowerBlockParams refuses a
+    `try_table` catch (and a `br_on_*`) to a loop with parameters (`lower-block-params.ts:426`),
+    so `-O1`, `-O2`, even `--vacuum` exit 1 on a valid module.
+    (d) **The text format** (CL22, CL23): a table's linear initializer (`(table 1 funcref ref.null
+    func)`) is refused, which wasm-tools accepts (upstream wabt refuses too); empty `(rec)` groups
+    are dropped on both the text and binary paths; a data / elem segment with no offset is
+    refused by the validator, not the parser, with a misleading message; a raw tab in a string
+    is accepted (as upstream wabt; the spec excludes control characters).
+    (e) `parseS32Literal` (`core/literal.ts:115`) wraps a negative past −2^31 (`-2147483649` →
+    2147483647) instead of failing; found while fixing `--argument`, which no longer uses it.
+    Check its callers before relying on it.
 
 51. **The last Deno uses on this machine** (owner, 2026-10-28: "migrating everything to bun").
     Done the same day ([bun-migration.md](bun-migration.md) § "B8"): the publish dry runs,

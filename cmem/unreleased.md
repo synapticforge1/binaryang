@@ -1,9 +1,35 @@
 # Unreleased on `main` — what the next release note must say
 
 **As of 2026-10-28 (UTC): the last release is `v2.2.2`, on JSR and npm, both with provenance;
-code lens pass 2 is unreleased on `main`** (below; check it rather than trust this line: `git log
---oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the version
-line arms a release, so the next bump is the owner's decision, never a side effect of work.
+code lens passes 2 and 3 are unreleased on `main`** (below; check it rather than trust this line:
+`git log --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the
+version line arms a release, so the next bump is the owner's decision, never a side effect of work.
+
+**Unreleased — code lens pass 3** (open-work 53, [hardening.md](hardening.md) § "Code lens, pass
+3"). Two of these change what OPTIMIZED code computes, so the release note should lead with them:
+
+- **Silent fix — `-O2` / `-Oz` / `--inlining` (and `-O3` for two forms) inlined a callee's tail
+  call so that it returned from the CALLER**, skipping the rest of the caller; a void one could
+  write an invalid module. **What a user may have shipped:** an optimized module whose code
+  after a call to a tail-calling function never ran — re-optimize it. (L4)
+- **Silent fix — SimplifyLocals moved a local write past a call that may throw inside a `try`**,
+  so the catch saw the old value (`--simplify-locals`, `-O2`, `-O3`, `-Oz`). **What a user may
+  have shipped:** an optimized module with exception handling whose handler read a stale local —
+  re-optimize it. (L5)
+- **Silent fix — `wat2wasm` wrote the wrong value for an integer-spelled `f32.const` of more than
+  53 bits** (`f32.const 18014399583223809`), and refused one just below FLT_MAX's rounding
+  midpoint. Rounded once now; a hex integer near a midpoint is rounded to nearest, where upstream
+  wabt and wasm-tools truncate (divergence F4). (L1)
+- **Behaviour (accepts more):** a `memory.copy` between a 64- and a 32-bit memory (L2); `-O2` and
+  up on a callee that branches to its own frame, which they refused (L6).
+- **Behaviour (output):** `wasm-ctor-eval` no longer writes invalid modules (a null in a
+  non-nullable local; renumbered data segments) and removes an empty constructor's export (L7);
+  `./api`'s `if` / `block` are typed from their contents, so a value-producing one is valid (L9);
+  binaryen facade `align` 0 is natural alignment (L3); wabt facade `toText({ foldExprs: false })`
+  is linear (L11).
+- **Behaviour (refuses more):** `wasm-interp --argument` and `--fuel` (and `wasm-ctor-eval
+  --fuel`) refuse what they cannot read — they guessed (L8); the typed form `f32:8` is taken.
+- **Diagnostics:** an unknown local is `undefined local variable "$x"`, as upstream (L10).
 
 **Unreleased — code lens pass 2** (open-work 49, [hardening.md](hardening.md) § "Code lens, pass
 2"). The compatibility floor decides the bump; all five read as patch-level fixes, but CL2 makes
