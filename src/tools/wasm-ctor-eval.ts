@@ -44,6 +44,7 @@ import { readValidWat, WatInputError } from './read-wat.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import {
   type Expression,
+  ExpressionKind,
   type Literal,
   makeConst,
   makeLocalSet,
@@ -51,8 +52,9 @@ import {
   makeRefNull,
   makeRegion,
 } from '../ir/expressions.ts';
-import { mapExpression } from '../ir/walk.ts';
+import { mapExpression, walkExpression } from '../ir/walk.ts';
 import { ValType } from '../ir/types.ts';
+import { isRefType } from '../ir/gc-types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { type DataSegment, type ValueType, type Var, varIndex } from '../ir/ir.ts';
 import {
@@ -129,6 +131,21 @@ function snapshot(s: InstanceState, importedGlobals: number): Snapshot {
     data: [...s.data],
     elems: [...s.elems],
   };
+}
+
+/** Whether any function body names a data segment by index (see `applyToModule`). */
+function namesDataSegment(module: WasmModule): boolean {
+  let found = false;
+  for (const f of module.functions) {
+    walkExpression(f.body, (e) => {
+      if (
+        e.kind === ExpressionKind.DataDrop || e.kind === ExpressionKind.MemoryInit ||
+        e.kind === ExpressionKind.ArrayNewData || e.kind === ExpressionKind.ArrayInitData
+      ) found = true;
+    });
+    if (found) return true;
+  }
+  return false;
 }
 
 /** Whether `v` can be written into the module as a constant expression. */
@@ -242,10 +259,16 @@ function applyToModule(module: WasmModule, snap: Snapshot, imported: Counts): vo
     }
   });
   // Every active segment was applied at instantiation, so its bytes are in
-  // the image. A passive one may still be named by `memory.init` / `data.drop`
-  // (by INDEX), so when any exists the active ones are emptied in place and
-  // the image appended; otherwise the image replaces them all.
-  if (module.dataSegments.some((d) => d.kind === 'passive')) {
+  // the image. A segment may still be named by INDEX — a passive one by
+  // `memory.init`, and ANY one by `data.drop` (an active segment is dropped
+  // already, so dropping it again is valid), `memory.init` of length 0 or the
+  // `array.*_data` instructions — so when a passive segment exists or any
+  // instruction names one, the active ones are emptied in place and the image
+  // appended; otherwise the image replaces them all. 🔧 The second condition
+  // was missing: `(data.drop 1)` with two active segments and no passive one
+  // came out naming a segment past the end — "data_segment variable out of
+  // range: 1 (max 1)" (code lens pass 3, 2026-10-28).
+  if (module.dataSegments.some((d) => d.kind === 'passive') || namesDataSegment(module)) {
     for (const d of module.dataSegments) {
       if (d.kind !== 'active') continue;
       d.data = new Uint8Array(0);
@@ -467,7 +490,10 @@ export function ctorEval(
       ...(reason ? { reason } : {}),
     });
 
-    if (done === 0) continue;
+    // Nothing ran and nothing completed: the module is unchanged. (A constructor with an EMPTY
+    // body completes having run 0 statements; it was skipped here too, keeping its export where
+    // upstream removes it — code lens pass 3, 2026-10-28.)
+    if (done === 0 && !complete) continue;
     applyToModule(module, last, imported);
     if (complete) {
       if (ctor.start) {
@@ -495,10 +521,17 @@ export function ctorEval(
       );
       continue;
     }
-    // Partial: a copy without the statements that ran, its locals set at entry.
-    const sets = localsAtLast.map((v, i) =>
-      makeLocalSet(varIndex(i), constOf(v, fn.locals[i]!.type))
-    );
+    // Partial: a copy without the statements that ran, its locals set at entry — except a
+    // NON-nullable reference local still null at the cut. The statements that ran never assigned
+    // it, so the rest assign it before any read (the original validated); `local.set` of
+    // `ref.null` into `(ref $f)` made the output invalid (code lens pass 3, 2026-10-28: "type
+    // mismatch in local.set, expected [(ref 0)] but got [(ref null 0)]"; upstream's output is
+    // valid). It is left unset, as the inliner leaves such a local (`zeroForType`).
+    const sets = localsAtLast.flatMap((v, i) => {
+      const type = fn.locals[i]!.type;
+      if (v.type === 'ref' && v.kind === 'null' && isRefType(type) && !type.nullable) return [];
+      return [makeLocalSet(varIndex(i), constOf(v, type))];
+    });
     const copy: WasmFunction = {
       ...fn,
       name: freshName(module, fn.name),
