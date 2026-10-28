@@ -38,7 +38,9 @@ describe('a named heap type in an inline call_indirect signature is resolved', (
 
     it(`${call}, through compat parseWat → toBinary (wasmtk's route)`, async () => {
       const wabt = await initWabt();
-      const m = wabt.parseWat('t.wat', module(call));
+      // `enable_all`, as wasmtk passes it (src/wast.ts, utils.ts): since 2026-10-28 the feature bag
+      // gates, as libwabt.js's, and this module uses typed references and tail calls.
+      const m = wabt.parseWat('t.wat', module(call), { enable_all: true });
       const { buffer } = m.toBinary({});
       assert(WebAssembly.validate(buffer as BufferSource), 'valid');
     });
