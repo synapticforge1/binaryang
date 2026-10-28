@@ -52,6 +52,9 @@ import {
 import type { ErrorList } from '../core/error.ts';
 import { cliExit, cliProcess, cliRead, cliWrite } from '../cli/io.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
+import { FeatureFlags } from '../cli/feature-flags.ts';
+import { allFeatures, type Features } from '../core/feature.ts';
+import { wasmValidate } from './wasm-validate.ts';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -112,6 +115,15 @@ export interface Wasm2WatOptions {
    * by index.
    */
   generateNames?: boolean;
+  /**
+   * Validate the module first, and write nothing when it is invalid — exactly `wasm-validate`'s
+   * verdict, with {@link features}. Default: `false` for this LIBRARY function, as `wat2wasm`'s
+   * (DG5: parsing and validating are separate library steps). The CLI turns it ON, as upstream
+   * `wasm2wat`, which validates unless given `--no-check` (divergence CL14, 2026-10-28).
+   */
+  validate?: boolean;
+  /** The proposals `validate` allows. Default: every feature. The CLI passes upstream's defaults and flags. */
+  features?: Features;
 }
 
 /** Return value from {@link wasm2wat}. */
@@ -140,6 +152,15 @@ export function wasm2wat(binary: Uint8Array, opts: Wasm2WatOptions = {}): Wasm2W
 }
 
 function disassemble(binary: Uint8Array, opts: Wasm2WatOptions): Wasm2WatResult {
+  if (opts.validate === true) {
+    const checked = wasmValidate(binary, {
+      ...(opts.filename === undefined ? {} : { filename: opts.filename }),
+      features: opts.features ?? allFeatures(),
+    });
+    if (checked.result !== Result.Ok) {
+      return { text: '', errors: checked.errors, result: Result.Error };
+    }
+  }
   const errors = makeErrorList();
   const readDebugNames = opts.readDebugNames !== false;
   const readOpts: ReadBinaryOptions = { readDebugNames };
@@ -193,7 +214,9 @@ const HELP: ToolHelp = {
     ['-f, --fold', 'Fold every function, whatever the binary records'],
     ['-l, --linear', 'Write every function flat, one instruction per line'],
     ['--generate-names', 'Invent $f0, $g0, ... for what the binary does not name'],
+    ['--no-check', 'Do not validate the module (validated by default, as upstream)'],
   ],
+  features: true,
 };
 
 /**
@@ -213,11 +236,17 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   let fold = true;
   let asWritten = true;
   let generateNames = false;
+  // Validates by default with upstream's default features, `--no-check` to skip, and the
+  // `--enable-*` / `--disable-*` flags, as upstream wasm2wat (divergence CL14, 2026-10-28).
+  let validate = true;
+  const flags = new FeatureFlags();
   let bad = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg === '-o' || arg === '--output') {
+    if (arg === '--no-check') {
+      validate = false;
+    } else if (arg === '-o' || arg === '--output') {
       output = args[++i];
       if (output === undefined) {
         console.error(`wasm2wat: ${arg} needs a file`);
@@ -244,7 +273,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       asWritten = false;
     } else if (!arg.startsWith('-')) {
       input = arg;
-    } else {
+    } else if (flags.apply(arg) !== true) {
       // An option this tool does not have is an ERROR, never skipped (workspace contract S2).
       console.error(`wasm2wat: unknown option ${arg}`);
       bad = true;
@@ -272,6 +301,8 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     fold,
     asWritten,
     generateNames,
+    validate,
+    features: flags.features,
   });
 
   if (errors.length > 0) {
