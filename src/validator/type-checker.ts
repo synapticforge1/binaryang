@@ -2131,7 +2131,7 @@ export class TypeChecker {
     // dropped only one operand for replace_lane (its scalar was never checked),
     // (b) gave extract_lane the wrong result type, and (c) never range-checked
     // the lane immediate. `laneCount` is the number of lanes for the shape.
-    // (laneType, laneCount) per shape; the replace family is the odd opcodes.
+    // (laneType, laneCount) per shape; the replace family is the six opcodes listed below.
     const sub = opcode & 0xffff;
     const isReplace = sub === 0x17 || sub === 0x1a || sub === 0x1c ||
       sub === 0x1e || sub === 0x20 || sub === 0x22;
@@ -2164,11 +2164,13 @@ export class TypeChecker {
       this.printError(`SIMD lane index ${lane} out of range (0..${laneCount - 1})`);
       r = Result.Error;
     }
+    // Named as upstream wabt names them (`i32x4.replace_lane`), not by family (code lens 2).
+    const name = anyOpcodeName(opcode);
     if (isReplace) {
-      r = combineResults(r, this.popAndCheck2Types(_V128, laneType, 'replace_lane'));
+      r = combineResults(r, this.popAndCheck2Types(_V128, laneType, name));
       this.pushType(_V128);
     } else {
-      r = combineResults(r, this.popAndCheck1Type(_V128, 'extract_lane'));
+      r = combineResults(r, this.popAndCheck1Type(_V128, name));
       this.pushType(laneType);
     }
     return r;
@@ -2179,20 +2181,23 @@ export class TypeChecker {
   // dropped it, hard-coding i32 — so on a 64-bit memory a correct i64 address
   // was REJECTED and an incorrect i32 one accepted. T9.11 fixed the `offset`
   // parameter for this same pair of handlers and left `is64` behind.
-  onSimdLoadLane(is64: boolean): Result {
+  // Each names its instruction (`v128.load8_lane`, `i8x16.shuffle`), as upstream wabt does; until
+  // code lens pass 2 (2026-10-28) they printed the IR kind `simd.load_store_lane` and a
+  // non-existent `v128.shuffle`.
+  onSimdLoadLane(is64: boolean, opcode: number): Result {
     const addrType = is64 ? _I64 : _I32;
-    const r = this.popAndCheck2Types(addrType, _V128, 'simd.load_store_lane');
+    const r = this.popAndCheck2Types(addrType, _V128, anyOpcodeName(opcode));
     this.pushType(_V128);
     return r;
   }
 
-  onSimdStoreLane(is64: boolean): Result {
+  onSimdStoreLane(is64: boolean, opcode: number): Result {
     const addrType = is64 ? _I64 : _I32;
-    return this.popAndCheck2Types(addrType, _V128, 'simd.load_store_lane');
+    return this.popAndCheck2Types(addrType, _V128, anyOpcodeName(opcode));
   }
 
-  onSimdShuffleOp(): Result {
-    const r = this.popAndCheck2Types(_V128, _V128, 'v128.shuffle');
+  onSimdShuffleOp(opcode: number): Result {
+    const r = this.popAndCheck2Types(_V128, _V128, anyOpcodeName(opcode));
     this.pushType(_V128);
     return r;
   }

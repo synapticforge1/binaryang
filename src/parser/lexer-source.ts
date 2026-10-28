@@ -35,11 +35,6 @@ export class LexerSource {
     }
   }
 
-  /** Total byte length of the source. */
-  get size(): number {
-    return this.data.length;
-  }
-
   /** Current read position. */
   get offset(): number {
     return this._offset;
@@ -61,18 +56,8 @@ export class LexerSource {
     this._offset = Math.min(offset, this.data.length);
   }
 
-  /** Return the slice of source bytes in `[start, end)`. */
-  slice(start: number, end: number): Uint8Array {
-    return this.data.subarray(start, end);
-  }
-
   /** Decode `[start, end)` as UTF-8 text. */
   sliceText(start: number, end: number): string {
     return TEXT_DECODER.decode(this.data.subarray(start, end));
-  }
-
-  /** Return true when all bytes have been consumed. */
-  get isEof(): boolean {
-    return this._offset >= this.data.length;
   }
 }

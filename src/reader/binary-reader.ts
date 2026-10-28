@@ -688,7 +688,7 @@ export class BinaryReader {
   // applied to the WAT parser and never to the binary path.
   //
   // Do NOT make `core/leb128.ts` stop throwing to fix this — its callers
-  // include the WAT parser and the bridge, where a throw is the right signal.
+  // include the WAT parser, where a throw is the right signal.
   // The conversion belongs at THIS boundary.
   private lebError(e: unknown): void {
     this.err(e instanceof Error ? e.message : String(e));
@@ -3238,7 +3238,6 @@ export class BinaryReader {
     // while we are still before the first one. See `Custom.precedingSection`.
     let lastKnownSection: BinarySection | null = null;
     while (this.pos < this.data.length && this.ok()) {
-      const sectionStart = this.pos;
       const sectionId = this.readU8() as BinarySection;
       if (sectionId !== BinarySection.Custom && sectionOrderRank(sectionId) < 0) {
         this.err(`malformed section id: ${sectionId}`);
@@ -3354,13 +3353,14 @@ export class BinaryReader {
           this.readTagSection(m, sectionEnd);
           break;
         default:
-          this.pos = sectionEnd;
-          break;
+          // Every id `sectionOrderRank` admits has a case above; reaching here means the two
+          // lists disagree. It REPORTS, never skips the section silently (code lens pass 2).
+          this.err(`malformed section id: ${sectionId}`);
+          return m;
       }
 
       meta.size = this.pos - sectionBodyStart;
       m.sectionMeta.push(meta);
-      void sectionStart;
 
       if (this.ok() && this.pos !== sectionEnd) {
         // Reading LESS than the section declared leaves bytes no producer

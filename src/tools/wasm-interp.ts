@@ -113,6 +113,24 @@ function argValue(type: ValueType, text: string | undefined): Value {
 }
 
 /** A value as the tool prints it: `i32:3`, `f64:2.5`, `v128:0x…`, `ref.null`. */
+/**
+ * A float as text that keeps every bit a JavaScript number's own text drops (code lens pass 2,
+ * 2026-10-28: a template string wrote -0 as `0` and every NaN as `NaN`): -0 is `-0`, and a NaN is
+ * WAT's `nan:0x<payload>` with its sign, which reads back to the same bits. Every other value is
+ * the number's text, as before.
+ */
+function showFloat(v: Value & { type: typeof ValType.F32 | typeof ValType.F64 }): string {
+  const x = literalFloat(v);
+  if (Object.is(x, -0)) return '-0';
+  if (!Number.isNaN(x)) return String(x);
+  const bits = BigInt.asUintN(v.type === ValType.F32 ? 32 : 64, BigInt(v.bits));
+  const width = v.type === ValType.F32 ? 32n : 64n;
+  const fraction = v.type === ValType.F32 ? 23n : 52n;
+  const sign = (bits >> (width - 1n)) & 1n;
+  const payload = bits & ((1n << fraction) - 1n);
+  return `${sign ? '-' : ''}nan:0x${payload.toString(16)}`;
+}
+
 export function showValue(v: Value): string {
   switch (v.type) {
     case ValType.I32:
@@ -120,9 +138,9 @@ export function showValue(v: Value): string {
     case ValType.I64:
       return `i64:${v.value}`;
     case ValType.F32:
-      return `f32:${literalFloat(v)}`;
+      return `f32:${showFloat(v)}`;
     case ValType.F64:
-      return `f64:${literalFloat(v)}`;
+      return `f64:${showFloat(v)}`;
     case ValType.V128:
       return `v128:0x${[...v.bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
     default:

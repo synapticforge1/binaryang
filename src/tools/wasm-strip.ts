@@ -87,7 +87,8 @@ export interface WasmStripResult {
 export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): WasmStripResult {
   const errors = makeErrorList();
 
-  // Read without parsing the name section so it stays in module.customSections.
+  // The name section is NOT parsed: a malformed one is a custom section's business, and the
+  // output is copied from the input bytes, not from this read (upstream checks it no deeper).
   const readOpts: ReadBinaryOptions = { readDebugNames: false };
   if (opts.filename !== undefined) readOpts.filename = opts.filename;
 
@@ -168,12 +169,6 @@ function removeCustomSections(
 // CLI
 // ---------------------------------------------------------------------------
 
-/**
- * CLI entry point for `wasm-strip`, registered in the top-level command dispatcher.
- *
- * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
- * pass `args` explicitly to drive it from a test or another tool.
- */
 const HELP: ToolHelp = {
   usage: 'wasm-strip [options] <input.wasm>',
   description:
@@ -188,6 +183,12 @@ const HELP: ToolHelp = {
   ],
 };
 
+/**
+ * CLI entry point for `wasm-strip`, registered in the top-level command dispatcher.
+ *
+ * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
+ * pass `args` explicitly to drive it from a test or another tool.
+ */
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   if (wantsHelp(args)) {
     console.log(helpText(HELP));
@@ -197,18 +198,34 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   let input: string | undefined;
   let output: string | undefined;
   const stripSections: string[] = [];
+  let bad = false;
 
+  // Code lens pass 2 (2026-10-28): every option this tool does not recognise was SKIPPED, so
+  // `wasm-strip in.wasm --output=out.wasm` (upstream's documented spelling) stripped `in.wasm`
+  // IN PLACE and never wrote `out.wasm`; `-k first` took `first` as the input. Now
+  // `--output=FILE` is understood, a missing value is refused, and anything else is an error
+  // (workspace contract S2) — this tool overwrites its input by default, so a guess costs data.
   for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '-o' || arg === '--output') {
-      output = args[++i];
-    } else if (arg === '-s' || arg === '--section') {
-      const s = args[++i];
-      if (s) stripSections.push(s);
-    } else if (arg && !arg.startsWith('-')) {
+    const arg = args[i]!;
+    if (arg === '-o' || arg === '--output' || arg === '-s' || arg === '--section') {
+      const value = args[++i];
+      if (value === undefined) {
+        console.error(`wasm-strip: ${arg} needs a value`);
+        bad = true;
+      } else if (arg === '-o' || arg === '--output') output = value;
+      else stripSections.push(value);
+    } else if (arg.startsWith('--output=')) {
+      output = arg.slice('--output='.length);
+    } else if (arg.startsWith('--section=')) {
+      stripSections.push(arg.slice('--section='.length));
+    } else if (!arg.startsWith('-')) {
       input = arg;
+    } else {
+      console.error(`wasm-strip: unknown option ${arg}`);
+      bad = true;
     }
   }
+  if (bad) cliExit(1);
 
   if (!input) {
     console.error('usage: wasm-strip <input.wasm> [-o <output.wasm>] [-s <section-name>]');

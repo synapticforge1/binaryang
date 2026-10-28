@@ -405,6 +405,15 @@ function writeMemArg(
         `(opcode 0x${opcode.toString(16)})`,
     );
   }
+  // Bit 6 of the flags is "a memory index follows", so an exponent of 64 or more is not an
+  // alignment the format can carry: written, it became that flag and the bytes read back as
+  // another memory and offset (code lens pass 2, 2026-10-28; upstream wabt refuses the text).
+  if (alignLog2 >= 64) {
+    throw new Error(
+      `memarg alignment 2^${alignLog2} cannot be encoded (the exponent must be below 64; ` +
+        `opcode 0x${opcode.toString(16)})`,
+    );
+  }
   const idx = requireIndex(memidx, 'memarg memory index');
   if (idx !== 0) {
     s.writeU32Leb(alignLog2 | 0x40); // bit 6 set = explicit memidx follows

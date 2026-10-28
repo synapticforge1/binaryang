@@ -289,12 +289,6 @@ function extKindName(kind: ExternalKind): string {
 // CLI
 // ---------------------------------------------------------------------------
 
-/**
- * CLI entry point for `wasm-objdump`, registered in the top-level command dispatcher.
- *
- * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
- * pass `args` explicitly to drive it from a test or another tool.
- */
 const HELP: ToolHelp = {
   usage: 'wasm-objdump [options] <input.wasm> [...]',
   description: 'Print information about the contents of WebAssembly binaries.',
@@ -308,6 +302,12 @@ const HELP: ToolHelp = {
   ],
 };
 
+/**
+ * CLI entry point for `wasm-objdump`, registered in the top-level command dispatcher.
+ *
+ * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
+ * pass `args` explicitly to drive it from a test or another tool.
+ */
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   if (wantsHelp(args)) {
     console.log(helpText(HELP));
@@ -317,17 +317,25 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   const inputs: string[] = [];
   let details = false;
   let headers: boolean | undefined;
+  let bad = false;
 
   for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     if (arg === '-d' || arg === '--details') {
       details = true;
     } else if (arg === '-h' || arg === '--headers') {
       headers = true;
-    } else if (arg && !arg.startsWith('-')) {
+    } else if (!arg.startsWith('-')) {
       inputs.push(arg);
+    } else {
+      // An option this tool does not have is an ERROR, never skipped (workspace contract S2:
+      // "an error in syntax of the CLI options or commands throws"; code lens pass 2,
+      // 2026-10-28: `-x`, upstream's details flag, silently printed the headers instead).
+      console.error(`wasm-objdump: unknown option ${arg}`);
+      bad = true;
     }
   }
+  if (bad) cliExit(1);
   // Show what was asked for, as upstream does: `-d` alone is the details
   // alone, `-h -d` both, and no flag the headers. (`headers` started `true`
   // here, so `-h` re-set a default and could never mean anything.)

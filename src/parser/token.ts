@@ -416,35 +416,10 @@ export declare namespace TokenType {
   type Exn = typeof TokenType.Exn;
 }
 
-// Group boundaries (inclusive ranges matching token.def)
-const FIRST_BARE = TokenType.Invalid;
-const LAST_BARE = TokenType.F64X2;
-const FIRST_LITERAL = TokenType.Float;
-const LAST_LITERAL = TokenType.Nat;
-const FIRST_OPCODE = TokenType.AtomicFence;
-const LAST_OPCODE = TokenType.Unreachable;
-const FIRST_STRING = TokenType.AlignEqNat;
-const LAST_STRING = TokenType.Var;
-const FIRST_TYPE = TokenType.ValueType;
-const LAST_TYPE = TokenType.ValueType;
+// The refkind group's boundaries (an inclusive range matching token.def)
 const FIRST_REFKIND = TokenType.Func;
 const LAST_REFKIND = TokenType.Exn;
 
-export function isBareToken(t: TokenType): boolean {
-  return t >= FIRST_BARE && t <= LAST_BARE;
-}
-export function isLiteralToken(t: TokenType): boolean {
-  return t >= FIRST_LITERAL && t <= LAST_LITERAL;
-}
-export function isOpcodeToken(t: TokenType): boolean {
-  return t >= FIRST_OPCODE && t <= LAST_OPCODE;
-}
-export function isStringToken(t: TokenType): boolean {
-  return t >= FIRST_STRING && t <= LAST_STRING;
-}
-export function isTypeToken(t: TokenType): boolean {
-  return t >= FIRST_TYPE && t <= LAST_TYPE;
-}
 export function isRefKindToken(t: TokenType): boolean {
   return t >= FIRST_REFKIND && t <= LAST_REFKIND;
 }

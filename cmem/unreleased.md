@@ -1,9 +1,32 @@
 # Unreleased on `main` — what the next release note must say
 
 **As of 2026-10-28 (UTC): the last release is `v2.2.2`, on JSR and npm, both with provenance;
-nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
+code lens pass 2 is unreleased on `main`** (below; check it rather than trust this line: `git log
 --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the version
 line arms a release, so the next bump is the owner's decision, never a side effect of work.
+
+**Unreleased — code lens pass 2** (open-work 49, [hardening.md](hardening.md) § "Code lens, pass
+2"). The compatibility floor decides the bump; all five read as patch-level fixes, but CL2 makes
+a command line that used to run now exit 1:
+
+- **Behaviour (refuses more) — an unknown CLI option is an error** in `wasm-strip`, `wasm2wat`
+  and `wasm-objdump` (CL2): each SKIPPED it before. The dangerous case: `wasm-strip in.wasm
+  --output=out.wasm`, upstream's spelling, stripped `in.wasm` IN PLACE and never wrote
+  `out.wasm`. Now `--output=FILE` works in `wat2wasm`, `wasm2wat` and `wasm-strip`,
+  `--section=NAME` in `wasm-strip`, and `-o` / `-s` with no value is refused. **For a script:** a
+  flag these tools never had (`wasm2wat --disable-simd`, `wasm-objdump -x`) now exits 1 instead
+  of being ignored — divergence CL14 for `wasm2wat`'s missing feature flags.
+- **Behaviour (refuses more) + Silent fix — a `struct.new_desc` descriptor in a constant
+  expression must be constant** (CL1): only the fields were checked. No valid module changes.
+- **Behaviour (refuses more) — the writer refuses a memarg alignment exponent ≥ 64** (CL4), which
+  the binary's flags field cannot hold; it was written anyway, as bytes that do not say it.
+- **Behaviour (output) — `wasm-interp` prints a float result with its sign and NaN payload**
+  (CL5): `-0` was printed `0`, and every NaN alike; now `-0` and `nan:0x<payload>` (`-` when the
+  sign bit is set).
+- **Behaviour (diagnostics only) — SIMD lane, load-lane, store-lane and shuffle mismatches name
+  the instruction** (CL3), in upstream wabt's words.
+- **No behaviour:** comments corrected in eleven files; dead internal code removed (nothing on
+  the published surface; `api-surface.json` unchanged).
 
 **Shipped in 2.2.2** (kept here until the next release; CHANGELOG § 2.2.2 is the public note):
 

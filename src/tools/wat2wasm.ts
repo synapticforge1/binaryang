@@ -169,10 +169,11 @@ function assemble(source: string | Uint8Array, opts: Wat2WasmOptions): Wat2WasmR
     // What the writer cannot represent is usually what the validator refuses
     // (`(memory 0x1_0000_0000)` was the first case, reported only as "u32
     // LEB128 out of range"; since limits are written as u64 it is WRITTEN, and
-    // `wasm-validate` rejects the bytes). This tool does not validate a module
-    // it CAN write; one it cannot, the validator explains first — upstream's
-    // diagnostic, with the writer's after it. With EVERY
-    // feature on: this tool gates none, and the default set blamed a feature
+    // `wasm-validate` rejects the bytes). A module the writer cannot write is
+    // explained by the validator first — upstream's diagnostic, with the
+    // writer's after it — and that explaining run has EVERY feature on (the
+    // caller's own feature gate, when validating, ran before the write): the
+    // default set blamed a feature
     // for a module the writer failed on for another reason (a GC type in a
     // `call_indirect` typeuse: five "enable the functionReferences feature"
     // lines before the real one — wasmtk, 2026-09-28).
@@ -195,12 +196,6 @@ function assemble(source: string | Uint8Array, opts: Wat2WasmOptions): Wat2WasmR
 // CLI
 // ---------------------------------------------------------------------------
 
-/**
- * CLI entry point for `wat2wasm`, registered in the top-level command dispatcher.
- *
- * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
- * pass `args` explicitly to drive it from a test or another tool.
- */
 const HELP: ToolHelp = {
   usage: 'wat2wasm [options] <input.wat>',
   description:
@@ -220,6 +215,12 @@ const HELP: ToolHelp = {
   features: true,
 };
 
+/**
+ * CLI entry point for `wat2wasm`, registered in the top-level command dispatcher.
+ *
+ * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
+ * pass `args` explicitly to drive it from a test or another tool.
+ */
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   if (wantsHelp(args)) {
     console.log(helpText(HELP));
@@ -238,6 +239,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     const arg = args[i]!;
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
+      if (output === undefined) {
+        console.error(`wat2wasm: ${arg} needs a file`);
+        bad = true;
+      }
+    } else if (arg.startsWith('--output=')) {
+      // Upstream's documented spelling (`-o, --output=FILE`); refused as unknown until code
+      // lens pass 2 (2026-10-28).
+      output = arg.slice('--output='.length);
     } else if (arg === '--no-text-form') {
       textForm = false;
     } else if (arg === '--no-check') {

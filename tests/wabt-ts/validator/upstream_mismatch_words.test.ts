@@ -101,6 +101,33 @@ const CASES: [string, string, string[]][] = [
     '(module (func (local i32) (local.set 0 (i64.const 1))))',
     ['type mismatch in local.set, expected [i32] but got [i64]'],
   ],
+  // Code lens pass 2 (2026-10-28): the SIMD lane and shuffle instructions named an IR kind
+  // (`replace_lane`, `simd.load_store_lane`) or a non-existent `v128.shuffle`.
+  [
+    'replace_lane of the wrong lane type',
+    '(module (func (result v128) (i32x4.replace_lane 1 (v128.const i32x4 0 0 0 0) (i64.const 1))))',
+    ['type mismatch in i32x4.replace_lane, expected [v128, i32] but got [v128, i64]'],
+  ],
+  [
+    'extract_lane of a non-vector',
+    '(module (func (result i32) (i32x4.extract_lane 1 (i32.const 0))))',
+    ['type mismatch in i32x4.extract_lane, expected [v128] but got [i32]'],
+  ],
+  [
+    'load8_lane of a non-vector',
+    '(module (memory 1) (func (result v128) (v128.load8_lane 0 (i32.const 0) (i32.const 0))))',
+    ['type mismatch in v128.load8_lane, expected [i32, v128] but got [i32, i32]'],
+  ],
+  [
+    'store16_lane of a non-vector',
+    '(module (memory 1) (func (v128.store16_lane 0 (i32.const 0) (i32.const 0))))',
+    ['type mismatch in v128.store16_lane, expected [i32, v128] but got [i32, i32]'],
+  ],
+  [
+    'shuffle of a non-vector',
+    '(module (func (result v128) (i8x16.shuffle 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 (v128.const i32x4 0 0 0 0) (i32.const 0))))',
+    ['type mismatch in i8x16.shuffle, expected [v128, v128] but got [v128, i32]'],
+  ],
 ];
 
 describe("DG7 — type-mismatch messages are upstream wabt's, word for word", () => {

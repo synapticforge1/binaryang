@@ -200,21 +200,6 @@ export declare namespace NameSectionSubsection {
 /** Name of the name custom section. */
 export const CUSTOM_SECTION_NAME_NAME = 'name';
 
-/** Name prefix for relocation custom sections. */
-export const CUSTOM_SECTION_NAME_RELOC = 'reloc';
-
-/** Name of the linking metadata custom section. */
-export const CUSTOM_SECTION_NAME_LINKING = 'linking';
-
-/** Name of the target features custom section (used by LLVM toolchain). */
-export const CUSTOM_SECTION_NAME_TARGET_FEATURES = 'target_features';
-
-/** Name of the dylink custom section (v1). */
-export const CUSTOM_SECTION_NAME_DYLINK = 'dylink';
-
-/** Name of the dylink custom section (v2). */
-export const CUSTOM_SECTION_NAME_DYLINK0 = 'dylink.0';
-
 /** Name prefix for code metadata custom sections. */
 export const CUSTOM_SECTION_NAME_CODE_METADATA = 'metadata.code.';
 
@@ -247,21 +232,3 @@ export declare namespace ExternalKind {
  * using it is malformed.
  */
 export const IMPORT_KIND_EXACT_FUNC = 0x20;
-
-/** The text format's keyword for an external kind: `func`, `table`, `memory`, `global`, `tag`. */
-export function externalKindKeyword(
-  kind: ExternalKind,
-): 'func' | 'table' | 'memory' | 'global' | 'tag' {
-  switch (kind) {
-    case ExternalKind.Func:
-      return 'func';
-    case ExternalKind.Table:
-      return 'table';
-    case ExternalKind.Memory:
-      return 'memory';
-    case ExternalKind.Global:
-      return 'global';
-    case ExternalKind.Tag:
-      return 'tag';
-  }
-}

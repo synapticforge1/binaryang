@@ -737,7 +737,7 @@ export class ModuleBuilder {
    * @param internalName - Name used inside the module to reference this table.
    * @param module - External module name.
    * @param base - External table name.
-   * @param type - Element type (`FuncRef` or `ExternRef`).
+   * @param elemType - Element type (`FuncRef` or `ExternRef`).
    * @param initial - Minimum element count.
    * @param max - Maximum element count, or `null` for unbounded.
    */

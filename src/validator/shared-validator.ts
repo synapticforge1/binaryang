@@ -191,10 +191,6 @@ export class SharedValidator {
     return Result.Error;
   }
 
-  setCurrentLoc(loc: Location): void {
-    this.currentLoc = loc;
-  }
-
   // ---------------------------------------------------------------------------
   // Index helpers
   // ---------------------------------------------------------------------------
@@ -2474,7 +2470,7 @@ export class SharedValidator {
       r,
       this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
     );
-    r = combineResults(r, this.tc.onSimdLoadLane(mt?.limits.is64 ?? false));
+    r = combineResults(r, this.tc.onSimdLoadLane(mt?.limits.is64 ?? false, opcode));
     return r;
   }
 
@@ -2500,7 +2496,7 @@ export class SharedValidator {
       r,
       this.checkMemArgOffset(loc, offset, mt?.limits.is64 ?? false),
     );
-    r = combineResults(r, this.tc.onSimdStoreLane(mt?.limits.is64 ?? false));
+    r = combineResults(r, this.tc.onSimdStoreLane(mt?.limits.is64 ?? false, opcode));
     return r;
   }
 
@@ -2509,7 +2505,7 @@ export class SharedValidator {
    * operands concatenated, so it must be < 32. The mask was not checked at
    * all; `i8x16.shuffle … 255` validated clean.
    */
-  onSimdShuffleOp(loc: Location, _opcode: number, lanes?: Uint8Array): Result {
+  onSimdShuffleOp(loc: Location, opcode: number, lanes?: Uint8Array): Result {
     this.currentLoc = loc;
     let r: Result = Result.Ok;
     if (lanes !== undefined) {
@@ -2520,7 +2516,7 @@ export class SharedValidator {
         }
       }
     }
-    return combineResults(r, this.tc.onSimdShuffleOp());
+    return combineResults(r, this.tc.onSimdShuffleOp(opcode));
   }
 
   /**

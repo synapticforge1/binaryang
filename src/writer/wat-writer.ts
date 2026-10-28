@@ -1985,13 +1985,14 @@ class WatWriter extends ModuleContext {
    * falls back to the linear renderer — which is always correct, just less
    * folded.
    *
-   * ⚠️ **A placeholder operand makes a node unfoldable.** `operandPlaceholder`
-   * marks "the value is already on the stack"; linear WAT spells that by writing
-   * nothing, and folded form has no way to spell it at all. Such nodes decline.
+   * A placeholder operand (`operandPlaceholder`, "the value is already on the
+   * stack") folds when the placeholders form a PREFIX: they are omitted, and an
+   * all-placeholder node folds to its head alone. Only a SCATTERED mix declines
+   * (see the end of this function). (Until 2026-09-01 every placeholder declined;
+   * this comment said so until code lens pass 2, 2026-10-28.)
    *
-   * Control flow (block / loop / if / try) is deliberately absent for now: it
-   * folds around a BODY rather than operands, and declining keeps the output
-   * correct while that is built.
+   * Control flow (block / loop / if / try / try_table) is not in this table: it
+   * folds around a BODY rather than operands, in `writeFoldedControl`.
    */
   private foldSpec(
     e: Expr,
@@ -2099,9 +2100,9 @@ class WatWriter extends ModuleContext {
         // that gets shipped.
         //
         // Reverting cost the folded form nothing it can express correctly: a
-        // stack-carried value has no folded spelling, which is the same reason
-        // `placeholder` operands decline. Corpus equivalence went 4/421 back to
-        // 421/421.
+        // stack-carried value has no folded spelling here (placeholder operands
+        // fold only as an omitted prefix, see `foldSpec`). Corpus equivalence went
+        // 4/421 back to 421/421.
         // ---- branch and return -----------------------------------------------
         //
         // All four carry `values: Expr[]` — the operands pushed before the

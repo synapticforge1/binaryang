@@ -70,12 +70,10 @@ export interface Features {
   /**
    * Wide arithmetic proposal — `i64.add128`, `i64.sub128`, `i64.mul_wide_s/u`.
    *
-   * ✅ Implemented in wabt-ts: decoded, validated, written, and byte-identical
-   * on a round trip.
-   *
-   * ⚠️ NOT implemented in binaryen-ts's binary reader, which refuses the
-   * sub-opcodes loudly (`unsupported bulk-memory/table opcode: 0xFC 0x13`).
-   * That asymmetry is deliberate for now and tracked in `cmem/open-work.md`.
+   * ✅ Implemented: decoded (as `QuaternaryExpr` / `BinaryExpr`), validated,
+   * written, and byte-identical on a round trip. (Until code lens pass 2,
+   * 2026-10-28, this said binaryen-ts's reader refused the sub-opcodes; there is
+   * one reader since the IR convergence, and it decodes them.)
    */
   wideArithmetic: boolean;
   /**

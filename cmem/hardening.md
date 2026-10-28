@@ -294,3 +294,54 @@ silently instantiated). **Measured after** (same corpus, same stride): the inter
 nothing escaped untyped, nothing ran away", exit 0. The other 3 that moved, from ok to typed, were
 the deferred case: modules that instantiated with a missing value and only LOOKED fine. The interp
 gate is unchanged.
+
+## Code lens, pass 2 — 2026-10-28 (owner: "look for code issues")
+
+**The question**, as pass 1: is it WRONG on valid input, plus the workspace trigger's checklist
+(workarounds, grep-verified dead code, silent fall-throughs, comments that lie), over tested and
+untested paths. Read-only investigators per area (validator and reader, CLI tools, dead code,
+silent paths); every claim then reproduced here before it was fixed or recorded.
+
+**The instruments**, pass 1's scripts ported from Deno to `node:` / Bun with their logic unchanged
+(scratch `code2/`), over the prepared core corpus (5,924 modules, every 7th = 847):
+
+| run | inputs | result on `406d98277` (2.2.2 + record) |
+| --- | --- | --- |
+| valid-mutants | 29,901 (2,872 valid) | one kind: `br_on_cast.4` (original and 2 mutants), V8 lagging the spec — classified in pass 1 |
+| behaviour-mutants | 19,737; 4,830 export calls, 1,578 optimized runs | NOTHING FOUND |
+
+**Positive control:** the same two scripts on v1.12.1's source (before pass 1's fixes):
+valid-mutants found 13 kinds (C1 `RESULT-DISAGREES-WITH-ERRORS`, C5, C8, C9, C11, C12, C16 …, and
+the C7 `INTERP-INVALID` rows); behaviour-mutants found C13 (`type-equivalence.12`, ours values,
+V8 `TypeError`). So the instruments still see what they saw, and today's tree gives them nothing.
+**What the mutants did not reach, the reading did** — every defect below was found by reading and
+then reproduced, none by the instruments.
+
+**Found and fixed** (branch `fix/code-lens-2`, one commit each, a test red on the old code):
+
+| # | defect | commit |
+| --- | --- | --- |
+| CL1 | `struct.new_desc` in a constant expression: the descriptor operand was never checked for constness (`isConstExpr` looked at the fields only) | `ac0efc668` |
+| CL2 | `wasm-strip`, `wasm2wat`, `wasm-objdump` SKIPPED an option they did not know; `wasm-strip in.wasm --output=out.wasm` (upstream's spelling) stripped `in.wasm` IN PLACE and never wrote `out.wasm`. Now unknown options exit 1, `--output=FILE` (and strip's `--section=`) work, `-o` / `-s` with no value is refused | `0c8595baf` |
+| CL3 | SIMD lane, load-lane, store-lane and shuffle mismatches named no instruction (or the wrong one); now upstream's words | `3989cf65b` |
+| CL4 | the writer encoded a memarg alignment exponent ≥ 64 (the flags field cannot hold it) — now refused loudly | `36bef4488` |
+| CL5 | `wasm-interp` printed `-0.0` as `0` and every NaN alike; now `-0` and `nan:0x<payload>`, signed | `1619bbfb0` |
+| — | comments that no longer described the code (eleven files) | `76faf9d8b` |
+| — | dead code removed, each symbol grep-verified, none on the published surface; the reader's section `default` (a silent skip, unreachable today) now REPORTS | `cc8a0ca1e` |
+
+**Found and recorded, not fixed** (open-work 50; the CLI ones are divergences CL6–CL13):
+
+- `branch-hints.ts:93` — a branch hint is checked only by the byte at its offset, so an offset
+  inside an immediate whose value is 4 or 13 passes as `if` / `br_if` (`(func i32.const 4 drop)`,
+  hint at 2: OK). wasm-tools accepts both; our own rule, failing on some inputs.
+- `validator.ts:902` `tagTypeIndex` — a library-built tag with no `typeVar` falls back to the first
+  matching type, else type 0, and is checked against THAT. Functions with no `typeVar` are refused
+  instead. Not reachable from the CLI (text fills `typeVar`, binary always has it).
+- The CLI differences from upstream: divergences CL6–CL13.
+- The 2^63 alignment: upstream wabt writes it as `align=1`; we print it imprecisely (the test
+  pins the exponent byte instead).
+
+**Ruled out** (classified): `i64.add128` refused with wide arithmetic off (upstream is the lax
+one); binary diagnostic offsets (DG7's residue); label names (N2, N8); inline exports and folding
+(S7); `--disable-mutable-globals` refusing an exported mutable global (wasm-tools agrees; only the
+message lacks a location — open-work 50).

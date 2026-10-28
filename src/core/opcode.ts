@@ -686,14 +686,6 @@ for (const d of OPCODE_DEFINITIONS.entries) {
 }
 
 /**
- * Returns the WAT mnemonic for an extended (prefixed) opcode.
- * The `combined` value is `(prefix << 16) | sub` as stored in Expr nodes.
- */
-export function extendedOpcodeName(combined: number): string | undefined {
-  return EXTENDED_OPCODE_NAMES.get(combined);
-}
-
-/**
  * Returns the WAT mnemonic for any opcode value (core or extended).
  * Falls back to `<opcode:0xXXXX>` if the opcode is unknown.
  */
