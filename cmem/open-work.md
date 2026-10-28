@@ -14,6 +14,17 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**State, 2026-10-28 (supersedes the paragraphs below where they differ).** **`binaryang@2.2.2`
+RELEASED** (owner: "We will release the delegate fix as 2.2.2") — JSR Rekor `3541668152`, npm
+SLSA provenance, [publishing.md](publishing.md) § "2.2.2": the legacy `delegate` fix (item 47,
+C12) and upstream wabt's mismatch words (item 48, DG7). Before it, the same day, **the second
+history purge** (item 46): the five path-bearing benchmark blobs cleaned in all public history,
+383 commits re-hashed, 14 tags moved, force-pushed; wasmtk and the siblings told (ledger C26).
+Also: C20 / C21 answered in the exit guide; C9 closed; the predecessors retired (local, GitHub,
+JSR yanked); ★ 6.1 re-copied (C8). **Open for the owner:** the GitHub Support request (old
+commits of both purges served by hash). **Next by the owner's order:** 31, from 138,410; then 13,
+14, 15, 43.
+
 **Later, 2026-10-26: `binaryang@2.2.1` RELEASED** (owner: "we should bump and release the fix
 for wasm-strip") — the `wasm-strip` fix on JSR (Rekor `3490805794`) and npm (SLSA provenance),
 [publishing.md](publishing.md) § "2.2.1". And the predecessors' local material taken over before
@@ -91,7 +102,7 @@ removed record went to a topic file, and the full text is one `git show` away:
 ## Defects and gaps — the owner's first
 
 48. ✅ **The validator's type-mismatch messages are upstream wabt's** (divergence DG7) — FIXED
-    on `main` 2026-10-28 (owner: "fix item 46 and divergence DG7"), to ship in 2.2.2. Every
+    on `main` 2026-10-28 (owner: "fix item 46 and divergence DG7"), SHIPPED in 2.2.2. Every
     signature and stack-end check prints upstream's `PrintStackIfFailedV` words, with upstream's
     descriptions; a missing operand fails like a wrong type; a one-armed `if` is modelled as an
     empty `else` (one message, not two). Measured on 13 shapes against wabt 1.0.41, all equal;
@@ -102,8 +113,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     DG7.
 
 47. ✅ **A legacy `delegate`'s label was never checked, and nothing after a `try … delegate` was
-    type-checked** — FIXED on `main` 2026-10-28 (owner: "fix C12 and C21"), unreleased
-    ([unreleased.md](unreleased.md)). Reported by wasmtk (workspace correspondence C12, its
+    type-checked** — FIXED on `main` 2026-10-28 (owner: "fix C12 and C21"), SHIPPED in **2.2.2**
+    the same day ([publishing.md](publishing.md) § "2.2.2"). Reported by wasmtk (workspace correspondence C12, its
     2026-10-23 pin letter): its mirror of the soundness guard found `legacy/try_delegate.wast`'s
     `(assert_invalid (module (func (try (do) (delegate 1)))) "unknown label")` accepted, on 1.15.0
     and still on 2.2.0. Reproduced on 2.2.1 against upstream wabt 1.0.41 and wasm-tools 1.262 (both

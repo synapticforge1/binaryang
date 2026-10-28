@@ -1,12 +1,11 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-10-28: the last release is `v2.2.1`, on JSR and npm, both with provenance; ONE
-user-visible change is unreleased on `main` — the `delegate` fix below** (check it rather than
-trust this line: `git log --oneline v2.2.1..main -- src/ main.ts jsr.json README.md`).
-`jsr.json` reads 2.2.1; the version line arms a release, so the next bump is the owner's
-decision, never a side effect of work.
+**As of 2026-10-28 (UTC): the last release is `v2.2.2`, on JSR and npm, both with provenance;
+nothing user-visible is unreleased on `main`** (check it rather than trust this line: `git log
+--oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the version
+line arms a release, so the next bump is the owner's decision, never a side effect of work.
 
-**For the next release (open-work 47, on `main` 2026-10-28):**
+**Shipped in 2.2.2** (kept here until the next release; CHANGELOG § 2.2.2 is the public note):
 
 - **Behaviour (refuses more) + Silent fix — the validator checks a legacy `delegate`.**
   `wasm-validate`, `wasmValidate` and `wat2wasm` (which validates by default) accepted a
@@ -15,8 +14,8 @@ decision, never a side effect of work.
   ending with an empty stack, validated. Both are refused now, the first in upstream wabt's words
   (`invalid depth: 2 (max 1)`); upstream wabt, wasm-tools and V8 refuse both. **What a user may
   have shipped:** a module with legacy exception handling that binaryang called valid and an
-  engine refuses — re-validate it. Modules that were valid stay valid. Precedent for the level:
-  2.1.0 and 2.2.0 shipped validator fixes that refuse more as minors; the owner's call. Reported by
+  engine refuses — re-validate it. Modules that were valid stay valid. Shipped as a PATCH (owner:
+  "release the delegate fix as 2.2.2"; the compatibility floor said patch). Reported by
   wasmtk (C12). `wasm-bundle`'s doc also gains the address-0 caveat (no behaviour change).
 - **Behaviour (diagnostics only) — validation errors read as upstream wabt's** (open-work 48,
   divergence DG7, 2026-10-28). Every type-mismatch message now uses upstream's words: `type
@@ -35,7 +34,8 @@ decision, never a side effect of work.
 **Repo-only since 2.2.0 (nothing in either package; no release-note line):** the benchmark
 modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
 [optimizer.md](optimizer.md) § "State 2026-10-26"); the upstream reference clones moved into the
-repo's gitignored `upstream/` ([project.md](project.md) § "The predecessors' local checkouts").
+repo's gitignored `upstream/` ([project.md](project.md) § "The predecessors' local checkouts");
+the second history purge (open-work 46, [publishing.md](publishing.md) § "The second purge").
 
 **Folded away** under the cleanup policy ([INDEX.md](INDEX.md)): every entry this file held since
 1.5.4 shipped — in **1.6.0** (One front end, `./binary` and `./encoder` removed, the IR record
