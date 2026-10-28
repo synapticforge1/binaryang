@@ -1335,6 +1335,7 @@ export class BinaryReader {
     const count = this.readU32Leb();
     for (let i = 0; i < count && this.ok(); i++) {
       if (this.pos >= end) return this.shortSection();
+      const loc = this.loc();
       const name = this.readName();
       const kindByte = this.readU8();
       // The `as ExternalKind` cast this replaced asserted a fact about the byte
@@ -1357,7 +1358,7 @@ export class BinaryReader {
       }
       const kind = kindByte as ExternalKind;
       const idx = this.readU32Leb();
-      m.exports.push({ name, kind, var: varIndex(idx) });
+      m.exports.push({ name, kind, var: varIndex(idx), loc });
     }
   }
 

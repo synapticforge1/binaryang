@@ -579,7 +579,7 @@ class ModuleValidator implements ExprVisitorDelegate {
 
     // Exports
     for (const exp of m.exports) {
-      this.acc(this.sv.onExport(loc, exp.kind, varIdx(exp.var), exp.name));
+      this.acc(this.sv.onExport(exp.loc ?? loc, exp.kind, varIdx(exp.var), exp.name));
     }
 
     // Start
