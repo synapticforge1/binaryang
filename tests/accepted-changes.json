@@ -1,11 +1,17 @@
 {
-  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba).",
+  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;.",
   "entries": [
     {
-      "file": "tests/wabt-ts/validator/feature_gates.test.ts",
-      "name": "gates a concrete (ref $T) on functionReferences",
-      "since": "2.2.0",
-      "reason": "D2's type rule is wasm-tools' (owner, 2026-10-24: \"wasm-tools' rule\"; open-work 42): a concrete (ref $t) needs function references OR gc, so with gc still on, switching function references off no longer refuses it. The 2.2.0 test checks both: valid with only function references off, refused with both off."
+      "file": "tests/binaryen-ts/text_route/wat_parser.test.ts",
+      "name": "WAT: a missing operand with an empty stack is caught by validation",
+      "since": "2.2.2",
+      "reason": "Divergence DG7 (open-work 48, owner: \"fix … divergence DG7\"): the validator's type-mismatch messages are upstream wabt's. The module is still refused; the 2.2.1 test pinned the old words \"expected 1 elements on the stack but got 0\", which are now \"type mismatch in drop, expected [any] but got []\" (the 2.2.2 test asserts those)."
+    },
+    {
+      "file": "tests/wabt-ts/ir/const_expr_region.test.ts",
+      "name": "the validator sees an EMPTY initializer as one — a non-null table is not &quot;missing&quot; it",
+      "since": "2.2.2",
+      "reason": "Divergence DG7 (open-work 48): the same change of words. The empty initializer is still the one error; the 2.2.1 test pinned \"expected 1 elements on the stack\", now upstream's \"type mismatch in initializer expression, expected [(ref func)] but got []\"."
     }
   ]
 }
