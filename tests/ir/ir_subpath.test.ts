@@ -13,6 +13,7 @@ import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { denoCommand } from '../../scripts/deno.ts';
 import * as ir from '../../src/ir/index.ts';
 import * as binaryenView from '../../src/ir/binaryen-ts.ts';
 import * as wabtView from '../../src/ir/wabt-ts.ts';
@@ -31,8 +32,9 @@ function exported(entry: string): Map<string, string> {
   const path = new URL(entry, import.meta.url);
   // `deno doc` lists a module's exports, types included, as JSR sees them: a JSR question, so
   // Deno answers it (owner, 2026-10-12: Deno for JSR) whichever runtime runs the tests — Deno
-  // from npm, pinned as in publish.ts, so none need be installed (owner, 2026-10-28).
-  const out = spawnSync('bun', ['x', 'deno@2.9.6', 'doc', '--json', path.href], {
+  // from npm, pinned in scripts/deno.ts, so none need be installed (owner, 2026-10-28).
+  const [denoBin, denoArgv] = denoCommand(['doc', '--json', path.href]);
+  const out = spawnSync(denoBin, denoArgv, {
     encoding: 'utf8',
     maxBuffer: 64 << 20,
   });

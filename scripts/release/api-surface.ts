@@ -42,6 +42,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { denoCommand } from '../deno.ts';
 
 /** The bump levels, lowest first. */
 export const LEVELS = ['patch', 'minor', 'major'] as const;
@@ -195,10 +196,10 @@ export async function surfaceOf(root: string): Promise<Surface> {
     string,
     string
   >;
-  // Deno from npm, pinned as in publish.ts: no installed Deno needed (owner, 2026-10-28). Its
+  // Deno from npm, pinned in scripts/deno.ts: no installed Deno needed (owner, 2026-10-28). Its
   // output was byte-identical to an installed Deno 2.9.8's on all 19 entries, measured.
-  const docArgs = ['x', 'deno@2.9.6', 'doc', '--json', ...Object.values(exportsMap)];
-  const doc = JSON.parse(run('bun', docArgs, root)) as {
+  const [denoBin, docArgs] = denoCommand(['doc', '--json', ...Object.values(exportsMap)]);
+  const doc = JSON.parse(run(denoBin, docArgs, root)) as {
     nodes: Record<string, { symbols?: DocSymbol[] }>;
   };
   const rootUrl = pathToFileURL(root.endsWith('/') || root.endsWith('\\') ? root : `${root}/`).href;

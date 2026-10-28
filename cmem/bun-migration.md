@@ -646,8 +646,14 @@ run by Bun: `bun x deno@2.9.6 …`. Measured against the installed Deno 2.9.8:
 five pass. **Why not `bunx jsr publish`:** finding 2 — it forces `--no-check`, and the cold run
 exists to catch what CI's `deno publish` type check would fail after the tag is public.
 **Not changed:** `publish.yml` (`setup-deno` + `deno publish` directly, for provenance) and the
-CI `runtimes` Deno leg — CI runners, not this machine. **Left:** the pin itself (four sites:
-`package.json`, `publish.ts`, `api-surface.ts`, `ir_subpath.test.ts`) — open-work 51.
+CI `runtimes` Deno leg — CI runners, not this machine. **Then, the same day** (owner: "fix the
+four files. yes the CI should use npm's deno leg"): the pin, written in four files, is one
+constant in `scripts/deno.ts` (code imports `denoCommand`; `package.json`, CI and the smoke run
+the file as a launcher), guarded by `tests/wabt-ts/scripts/deno_pin.test.ts`; and CI installs no
+Deno: the gates job lost its `setup-deno`, and the runtimes Deno leg is `setup: bun`, `invoke: bun
+scripts/deno.ts run -A`. **publish.yml alone keeps `setup-deno`** — its `deno publish` is called
+directly, for provenance (finding 2's subprocess lesson). Bumping Deno: one edit, then
+`surface:check` and the dry run.
 
 **Then the comparison suite, PORTED off Deno the same day** (owner: "then port it so it also is
 deno free"; not npm's Deno — no Deno at all). Bun 1.4.4 resolves no `npm:` specifier (measured:

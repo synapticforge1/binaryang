@@ -27,11 +27,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # Deno for the JSR dry run below only (owner, 2026-10-12: Deno for JSR).
-      - name: Install Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
+      # No Deno is installed (owner, 2026-10-28: "the CI should use npm's deno"): the JSR dry run
+      # and `deno doc` run Deno's npm package through `bun scripts/deno.ts`, its one pin.
 
       # Bun runs the project's scripts (owner, 2026-10-12): `bun run <name>`, from package.json.
       # Installed first, with the dev dependencies (Biome, TypeScript), because the lint and the
@@ -191,9 +188,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Deno from npm, run by Bun through its one pin (owner, 2026-10-28: "the CI should use
+          # npm's deno"). The leg still runs the CLI, and cli-smoke itself, ON Deno.
           - name: Deno
-            setup: deno
-            invoke: deno run -A
+            setup: bun
+            bun: '1.4.3'
+            invoke: bun scripts/deno.ts run -A
           # EVERY current Node LTS line, plus the floor (owner, 2026-10-12: "We should
           # support and test all currently available lts versions"). As of 2026-10:
           # 22 "Jod" (maintenance to 2027-04-30) and 24 "Krypton", and 26, which
@@ -223,12 +223,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Install Deno
-        if: matrix.setup == 'deno'
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
 
       - name: Install Node
         if: matrix.setup == 'node'

@@ -39,7 +39,7 @@
     "lint": "biome lint --error-on-warnings && bun scripts/check-lint-canary.ts",
     "fmt": "dprint fmt",
     "fmt:check": "dprint check && bun scripts/check-fmt-canary.ts",
-    "publish:dry": "bun x deno@2.9.6 publish --dry-run --allow-dirty",
+    "publish:dry": "bun scripts/deno.ts publish --dry-run --allow-dirty",
     "comparison": "bun install --cwd comparison --frozen-lockfile && bun check -p comparison/tsconfig.json && bun scripts/v8.ts --v8=--test comparison/tests/asyncify_vs_wasm_opt.compare.ts comparison/tests/binaryen_interop.compare.ts comparison/tests/upstream_wasm_opt.compare.ts",
     "browsers": "bun scripts/check-browsers.ts"
   },
