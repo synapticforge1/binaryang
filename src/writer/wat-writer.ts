@@ -8,8 +8,9 @@
  * IR-to-WAT pretty printer.
  *
  * Converts a decoded {@link Module} IR into WebAssembly Text Format (WAT).
- * Output is linear (non-folded) WAT — each instruction on its own line,
- * children written before their parent (matching the stack-machine model).
+ * Output is folded WAT by default (since 1.5.4; {@link WriteWatOptions.fold}); with `fold: false`
+ * it is linear — each instruction on its own line, children written before their parent (the
+ * stack-machine model).
  *
  * Usage:
  * ```ts
@@ -63,6 +64,7 @@ import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/op
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import { BARE, type Form, writtenForms } from '../ir/text-form.ts';
+import { withEmptyRecGroups } from '../ir/fidelity.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { Result } from '../core/result.ts';
 
@@ -107,7 +109,7 @@ interface WrittenItem {
 export interface WriteWatOptions {
   /**
    * Emit folded s-expressions where possible instead of a flat instruction
-   * sequence. Default: `false` (linear).
+   * sequence. Default: `true` (folded) — see the 1.5.4 note below.
    *
    * Both spellings assemble to identical bytes — folding is text-layer only —
    * so this changes readability, not the module.
@@ -2982,7 +2984,14 @@ class WatWriter extends ModuleContext {
     //    declarations, so a wasm2wat round-trip silently lost the recursion
     //    and the subtype relations. It still REPARSED, which is why a
     //    "does it round-trip" check did not catch it.
-    for (const g of recGroups(this.module.types)) {
+    //    An EMPTY `(rec)`, which only the fidelity table holds, is written
+    //    where it was (CL23).
+    const typeGroups = withEmptyRecGroups(
+      recGroups(this.module.types),
+      this.module.fidelity,
+      this.module.types.length,
+    );
+    for (const g of typeGroups) {
       if (g.explicit) {
         this.openSpace('rec');
         for (let i = g.start; i < g.start + g.count; i++) {
@@ -3094,7 +3103,7 @@ function constExprOperands(e: Expr): Expr[] | null {
     case 'ref.null':
     case 'ref.func':
     case 'global.get':
-      // struct.new's operands are its field values; the default form has none.
+      // Leaves: no operands.
       return [];
     case 'ref.i31':
     case 'any.convert_extern':

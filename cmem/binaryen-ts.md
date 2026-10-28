@@ -302,7 +302,9 @@ representation details and all the runtime rules are superseded.
   `WebAssembly/binaryen/src/js/binaryen.js-post.js`, not the C-API shape). [open] the hybrid path feeds
   `Module.toWat()` output, which is invalid WAT → divergences.md K4.
 - [decision] **`./compat/binaryen`** (`src/compat/binaryen-compat.ts`): migrating code changes only its
-  import; upstream numeric constants mirrored exactly; `Module.optimize()` runs the in-tree `PassRunner` (bytes may
+  import; upstream numeric constants mirrored exactly (⚠️ **not true today** for the reference-type
+  IDs, `auto` and the Features bits — measured against binaryen.js 132, 2026-10-28, divergence
+  CL17; open-work 52 (a)); `Module.optimize()` runs the in-tree `PassRunner` (bytes may
   differ from upstream, both valid); unrecognised type IDs throw (`_idToValTypeStrict`). SIMD/GC/EH factories and
   Relooper are omitted. `else_` there is a public parameter — do not rename it with the IR field.
 - [baseline] **WASM kernels** (`src/binaryen-ts/wasm/`, `wasm-runtime.ts`): per-call boundary tax ~2–3 ns (WASM

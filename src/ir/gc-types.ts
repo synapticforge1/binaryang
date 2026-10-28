@@ -261,11 +261,6 @@ export type TypeDef = W.TypeEntry;
 // ---------------------------------------------------------------------------
 
 /**
- * Returns `true` if the value is a {@link RefType} object.
- *
- * Useful to narrow `ValType | RefType` unions.
- */
-/**
  * Stable string form of one value type, for map keys and diagnostics.
  *
  * `RefType` is an object, so `String(t)` / `join(",")` would render every
@@ -292,6 +287,11 @@ export function funcTypeKey(params: readonly ValueType[], results: readonly Valu
   return params.map(valueTypeKey).join(',') + '->' + results.map(valueTypeKey).join(',');
 }
 
+/**
+ * Returns `true` if the value is a {@link RefType} object.
+ *
+ * Useful to narrow `ValType | RefType` unions.
+ */
 export function isRefType(t: unknown): t is RefType {
   return (
     typeof t === 'object' &&

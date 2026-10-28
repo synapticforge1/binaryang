@@ -51,6 +51,32 @@
 import type { FuncSignature, TypeUse, ValueType } from './ir.ts';
 
 /**
+ * `groups` (from `recGroups`) with the table's recorded EMPTY rec groups put back where they
+ * were written: each before the group starting at its recorded type index, or at the end. An
+ * empty one is `{ start, count: 0, explicit: true }`, so a writer that loops over a group's
+ * members writes just its `(rec)` / `0x4e 0x00`.
+ */
+export function withEmptyRecGroups<G extends { start: number; count: number; explicit: boolean }>(
+  groups: readonly G[],
+  table: FidelityTable,
+  typeCount: number,
+): Array<G | { start: number; count: number; explicit: boolean }> {
+  const empties = table.emptyRecGroups;
+  if (empties.length === 0) return [...groups];
+  const out: Array<G | { start: number; count: number; explicit: boolean }> = [];
+  let k = 0;
+  for (const g of groups) {
+    while (k < empties.length && empties[k]! <= g.start) {
+      out.push({ start: g.start, count: 0, explicit: true });
+      k++;
+    }
+    out.push(g);
+  }
+  for (; k < empties.length; k++) out.push({ start: typeCount, count: 0, explicit: true });
+  return out;
+}
+
+/**
  * An opaque handle identifying one expression node across immutable rebuilds.
  *
  * Branded so it cannot be confused with the many other numbers in this IR —
@@ -140,6 +166,25 @@ export interface FidelityEntry {
 export class FidelityTable {
   #next = 1;
   readonly #entries = new Map<NodeId, FidelityEntry>();
+  /**
+   * Where the input had an EMPTY `(rec)` group: for each one, the type index it came before
+   * (`types.length` for one at the end), in section order. An empty group defines no type and
+   * takes no index, so the tree — which records a group on its first member — cannot hold it;
+   * it occupies a type-section slot all the same, so it is kept here, the as-written place.
+   * 🔧 Dropped on the text and the binary path until code lens pass 3 (2026-10-28,
+   * divergence CL23). Optimization resets the table, and with it these.
+   */
+  #emptyRecGroups: number[] = [];
+
+  /** Record an empty rec group written before type `beforeType`. */
+  addEmptyRecGroup(beforeType: number): void {
+    this.#emptyRecGroups.push(beforeType);
+  }
+
+  /** The empty rec groups, as {@link addEmptyRecGroup} recorded them, in section order. */
+  get emptyRecGroups(): readonly number[] {
+    return this.#emptyRecGroups;
+  }
 
   /** A fresh id, unique within this table. */
   mint(): NodeId {
@@ -183,6 +228,7 @@ export class FidelityTable {
     const copy = new FidelityTable();
     copy.#next = this.#next;
     for (const [id, entry] of this.#entries) copy.#entries.set(id, entry);
+    copy.#emptyRecGroups = [...this.#emptyRecGroups];
     return copy;
   }
 }

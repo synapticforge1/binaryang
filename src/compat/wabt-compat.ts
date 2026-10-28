@@ -114,15 +114,22 @@ export interface WabtFeatures {
 
 /** Options accepted by `readWasm`. */
 export interface ReadWasmOptions {
-  /** Read the optional `name` custom section. Default: true (matching upstream). */
+  /**
+   * Read the optional `name` custom section. Default: true — binaryang's decision (names.md § 4);
+   * libwabt.js's default is false.
+   */
   readDebugNames?: boolean;
 }
 
 /** Options accepted by `toText`. */
 export interface ToTextOptions {
-  /** Currently a no-op — wabt-ts emits linear-form WAT regardless. Accepted for shape compatibility. */
+  /**
+   * Fold the instructions into s-expressions. Default: true (folded, this writer's default since
+   * 1.5.4; libwabt.js's default is false). `false` writes linear WAT. 🔧 It was ignored, and its
+   * doc said the output was linear regardless — the output was folded (code lens pass 3).
+   */
   foldExprs?: boolean;
-  /** Emit `(export "..." (...))` inline inside the defining item. Default: true. */
+  /** Emit `(export "..." (...))` inline inside the defining item. Default: true (libwabt.js: false). */
   inlineExport?: boolean;
 }
 
@@ -225,10 +232,13 @@ function makeWasmModuleHandle(ir: WabtIrModule | null): WabtWasmModule {
 
     toText(opts: ToTextOptions = {}): string {
       const m = checkAlive('toText');
-      // `foldExprs` is accepted for shape compatibility; wabt-ts's writer
-      // emits linear form regardless. `inlineExport` is honored.
+      // Both options honoured; each defaults to true (see `ToTextOptions`). NAMING a form asks
+      // for it everywhere, as wasm2wat's `--fold` / `--linear`: as-written (S7) only when
+      // `foldExprs` is not given.
       return writeWatModule(m, {
         inlineExport: opts.inlineExport !== false,
+        fold: opts.foldExprs !== false,
+        asWritten: opts.foldExprs === undefined,
       });
     },
 

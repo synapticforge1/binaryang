@@ -69,10 +69,16 @@ import {
   UnaryOp,
 } from '../ir/expressions.ts';
 import { elemFuncNames, type Local, type WasmFunction, type WasmModule } from '../ir/module.ts';
-import type { ExprType } from '../ir/ir.ts';
+import type { ExprType, Var } from '../ir/ir.ts';
 import { isRef, None, Unreachable, ValType } from '../ir/types.ts';
 import { isRefType, type ValueType } from '../ir/gc-types.ts';
-import { mapExpression, mapWithSequences, type Sequence, walkExpression } from '../ir/walk.ts';
+import {
+  mapExpression,
+  mapWithSequences,
+  type Sequence,
+  visitChildren,
+  walkExpression,
+} from '../ir/walk.ts';
 import { operandsInOrder } from '../ir/phantoms.ts';
 import { slots } from '../ir/derive-types.ts';
 import { optimizeNode } from './optimize-instructions.ts';
@@ -646,7 +652,15 @@ function substituteBody(
   localMapping: number[],
   returnLabel: string,
   rewriteReturns = true,
+  frameLabel: string | undefined = undefined,
 ): Expression {
+  // A branch to the callee's FUNCTION FRAME (`bodyFrameLabel`: `br_if 0` at the top of its body)
+  // leaves the callee; inlined, it must leave the wrapper block instead. Copied as it was it
+  // named a label the caller does not have, and -O2 and above refused a valid module: "cfg:
+  // branch to "$l0_frame", which no enclosing construct declares" (code lens pass 3, 2026-10-28).
+  // At a tail-call site the wrapper is returned, so the wrapper is the right target there too.
+  const retarget = (v: Var): Var =>
+    frameLabel !== undefined && labelName(v) === frameLabel ? varName(returnLabel) : v;
   // A callee local with no slot in the caller used to remap to `undefined`,
   // producing a `local.get`/`local.set` whose index is not a number. Nothing
   // downstream checks that, so it reached the encoder and was written as
@@ -684,10 +698,70 @@ function substituteBody(
         return makeBreak(returnLabel, undefined, e.values);
       }
 
+      case ExpressionKind.Break:
+      case ExpressionKind.BrOn:
+      case ExpressionKind.Rethrow:
+        return frameLabel === undefined ? e : { ...e, target: retarget(e.target) };
+      case ExpressionKind.Switch:
+        return frameLabel === undefined
+          ? e
+          : { ...e, targets: e.targets.map(retarget), defaultTarget: retarget(e.defaultTarget) };
+      case ExpressionKind.TryTable:
+        return frameLabel === undefined
+          ? e
+          : { ...e, catches: e.catches.map((c) => ({ ...c, target: retarget(c.target) })) };
+      case ExpressionKind.Try:
+        return frameLabel === undefined || e.delegate === undefined
+          ? e
+          : { ...e, delegate: retarget(e.delegate) };
+
+      // A TAIL call in the callee returns from the CALLEE: inlined at a plain call site, it must
+      // become an ordinary call whose results leave the wrapper block, like a `return`. Copied as
+      // it was, it returned from the CALLER instead — skipping the rest of the caller's code
+      // (`(i32.add (call $tailer x) (global.get $g))` lost the add: 1000 for 1007), or, for a
+      // void callee inside a caller with results, writing an invalid module (code lens pass 3,
+      // 2026-10-28; upstream's inliner does this conversion too). Under a `try` the conversion
+      // is NOT equivalent — see `tailCallUnderTry`, which keeps such a callee out.
+      case ExpressionKind.Call:
+      case ExpressionKind.CallIndirect:
+      case ExpressionKind.CallRef: {
+        if (!rewriteReturns || !(e as { isReturn?: true }).isReturn) return e;
+        const plain = { ...e } as Expression & { isReturn?: true };
+        delete plain.isReturn;
+        return typeOf(plain) === None
+          ? makeBlock([plain, makeBreak(returnLabel)], null, None)
+          : makeBreak(returnLabel, undefined, [plain]);
+      }
+
       default:
         return e;
     }
   });
+}
+
+/**
+ * Whether `fn` has a tail call inside a `try` / `try_table`. Such a call has LEFT the `try` when
+ * its callee runs, so the `try` never catches what that callee throws; inlining `fn` at a plain
+ * call site turns the tail call into an ordinary call, which the `try` WOULD catch. So `fn` is not
+ * inlined there (the mirror of the `hasTry` rule in `inlineCallsIn`, for the caller's side).
+ */
+function tailCallUnderTry(fn: WasmFunction): boolean {
+  let found = false;
+  const visit = (e: Expression, inTry: boolean): void => {
+    if (found) return;
+    const isTry = e.kind === ExpressionKind.Try || e.kind === ExpressionKind.TryTable;
+    if (
+      inTry && (e.kind === ExpressionKind.Call || e.kind === ExpressionKind.CallIndirect ||
+        e.kind === ExpressionKind.CallRef) &&
+      (e as { isReturn?: true }).isReturn
+    ) {
+      found = true;
+      return;
+    }
+    visitChildren(e, (c) => visit(c, inTry || isTry));
+  };
+  visit(fn.body, false);
+  return found;
 }
 
 // ---------------------------------------------------------------------------
@@ -778,7 +852,9 @@ function inlineCallSite(
   // its values came from several instructions, and an `unreachable` was
   // appended when the body ended in `none` or `unreachable` (a callee
   // returning only through `return` → `br`). Declaring the results is both.
-  const body = asRegion(substituteBody(bodyCopy, mapping, label, !call.isReturn));
+  const body = asRegion(
+    substituteBody(bodyCopy, mapping, label, !call.isReturn, callee.bodyFrameLabel),
+  );
   const substituted = asStatement(body, retType);
   children.push(substituted);
 
@@ -868,6 +944,9 @@ function inlineIntoFunction(
     if (requireName(call.func, 'call target') === fn.name) return e; // skip recursive calls
     const callee = inlineable.get(requireName(call.func, 'call target'));
     if (!callee) return e;
+    // At a plain call site the callee's tail calls become ordinary calls (`substituteBody`),
+    // which is not equivalent under a `try` in the callee.
+    if (!call.isReturn && tailCallUnderTry(callee)) return e;
     // 🔧 An operand that takes a value FROM THE STACK — a `pop`, the extra
     // result of a multi-result call before it — would become a `local.set`
     // inside the wrapper block, which cannot reach the stack outside it: -O3

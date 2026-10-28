@@ -90,11 +90,10 @@ class ResolveContext {
   private elemSegScope = new NameScope();
   private dataSegScope = new NameScope();
 
-  // Note: no per-function `localScope` field — see resolveLocalVar.
-  // wabt-ts's IR has no slot for param/local names, so resolveNames can't
-  // do anything useful with name-vars in local refs. The WAT parser
-  // resolves these at parse time; the binary reader produces only
-  // index-vars.
+  // Note: no per-function `localScope` field — see resolveLocalVar. The WAT
+  // parser resolves every declared local name at parse time and the binary
+  // reader produces only index-vars, so a name-var left in a local ref names
+  // no local: resolveLocalVar reports it.
   private labelStack: string[] = [];
 
   constructor(module: Module, errors: ErrorList) {
@@ -1245,19 +1244,16 @@ class ResolveContext {
    * through unchanged. Name-vars produce a directive error: the IR has no
    * slot for param/local names (FuncSignature.params is Type[], LocalDecl is
    * { type, count }), so there's nowhere for resolveNames to look the name up.
-   * The WAT parser resolves these at parse time; the binary reader produces
-   * only index-vars. A name-var reaching here means hand-constructed IR
-   * referencing names that aren't recoverable.
+   * The WAT parser resolves every local name the function DECLARES; the binary
+   * reader produces only index-vars. So a name-var reaching here is a name no
+   * local has — from text (`local.get $nope`) or hand-built IR — and the
+   * message is upstream wabt's for it. 🔧 It said "cannot be resolved at IR
+   * level — wabt-ts's IR has no slot for param/local names…", a library's
+   * internals, to a user who misspelled a local (code lens pass 3, 2026-10-28).
    */
   private resolveLocalVar(v: Var, loc: Location = unknownLocation()): Var {
     if (v.kind === 'index') return v;
-    addError(
-      this.errors,
-      loc,
-      `local "${v.name}" cannot be resolved at IR level — wabt-ts's IR has ` +
-        `no slot for param/local names. Use the WAT parser (which resolves at ` +
-        `parse time) or pass index-vars instead.`,
-    );
+    addError(this.errors, loc, `undefined local variable "${v.name}"`);
     this.hadError = true;
     return v;
   }
