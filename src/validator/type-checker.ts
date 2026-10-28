@@ -57,6 +57,18 @@ type OpType = ValType | typeof Type.Void;
  */
 type StackType = ValueType | typeof Type.Any;
 
+/** What upstream wabt calls each construct at its `end` (`s_label_type_name`, `OnEnd`). */
+const END_DESC: Record<LabelType, string> = {
+  func: 'function',
+  block: 'block',
+  loop: 'loop',
+  if: 'if',
+  else: '`if false` branch',
+  try: 'try',
+  catch: 'try catch',
+  try_table: 'try table',
+};
+
 /** An operand slot the opcode tables fill: never `Void` where it is popped. */
 function operand(t: OpType): ValType {
   if (t === Type.Void) throw new Error('type checker: an opcode table popped a Void operand');
@@ -1074,46 +1086,32 @@ export class TypeChecker {
   }
 
   private popAndCheck1Type(expected: StackType, desc: string): Result {
-    const actual = this.peekType(0);
-    const r = this.checkType(actual, expected);
-    if (r === Result.Error) {
-      this.printError(
-        `type mismatch in ${desc}, expected [${valueTypeName(expected)}] but got [${
-          valueTypeName(actual)
-        }]`,
-      );
-    }
-    return combineResults(r, this.dropTypes(1));
+    return this.popAndCheckTypes([expected], desc);
   }
 
   private popAndCheck2Types(exp1: StackType, exp2: StackType, desc: string): Result {
-    const a2 = this.peekType(0);
-    const a1 = this.peekType(1);
-    let r = this.checkType(a1, exp1);
-    r = combineResults(r, this.checkType(a2, exp2));
-    if (r === Result.Error) {
-      this.printError(
-        `type mismatch in ${desc}, expected [${valueTypeName(exp1)}, ${
-          valueTypeName(exp2)
-        }] but got [${valueTypeName(a1)}, ${valueTypeName(a2)}]`,
-      );
-    }
-    return combineResults(r, this.dropTypes(2));
+    return this.popAndCheckTypes([exp1, exp2], desc);
   }
 
-  /** {@link popAndCheck3Types} for any number of operands, bottom of the stack first. */
+  /**
+   * Pop `exps` (bottom of the stack first), as upstream wabt's `PeekAndCheckType` + `DropTypes`:
+   * an operand MISSING from a reachable frame fails the same check a wrong type does, and either
+   * way one message is printed, wabt's (`type mismatch in i32.add, expected [i32, i32] but got
+   * [i32]`). Until DG7 (2026-10-28) a missing operand read as `any`, passed, and the drop then
+   * reported "expected 2 elements on the stack but got 1" instead.
+   */
   private popAndCheckTypes(exps: StackType[], desc: string): Result {
-    const got = exps.map((_, i) => this.peekType(exps.length - 1 - i));
+    const label = this.topLabel();
     let r: Result = Result.Ok;
-    for (let i = 0; i < exps.length; i++) r = combineResults(r, this.checkType(got[i]!, exps[i]!));
-    if (r === Result.Error) {
-      this.printError(
-        `type mismatch in ${desc}, expected [${exps.map(valueTypeName).join(', ')}] but got [${
-          got.map(valueTypeName).join(', ')
-        }]`,
-      );
+    if (label && !label.unreachable && this.available() < exps.length) {
+      r = Result.Error;
+    } else {
+      for (let i = 0; i < exps.length; i++) {
+        r = combineResults(r, this.checkType(this.peekType(exps.length - 1 - i), exps[i]!));
+      }
     }
-    return combineResults(r, this.dropTypes(exps.length));
+    if (r === Result.Error) this.printStackMismatch(desc, exps, false);
+    return combineResults(r, this.dropTypes(exps.length, r === Result.Error));
   }
 
   private popAndCheck3Types(
@@ -1122,20 +1120,31 @@ export class TypeChecker {
     exp3: StackType,
     desc: string,
   ): Result {
-    const a3 = this.peekType(0);
-    const a2 = this.peekType(1);
-    const a1 = this.peekType(2);
-    let r = this.checkType(a1, exp1);
-    r = combineResults(r, this.checkType(a2, exp2));
-    r = combineResults(r, this.checkType(a3, exp3));
-    if (r === Result.Error) {
-      this.printError(
-        `type mismatch in ${desc}, expected [${valueTypeName(exp1)}, ${valueTypeName(exp2)}, ${
-          valueTypeName(exp3)
-        }] but got [${valueTypeName(a1)}, ${valueTypeName(a2)}, ${valueTypeName(a3)}]`,
-      );
-    }
-    return combineResults(r, this.dropTypes(3));
+    return this.popAndCheckTypes([exp1, exp2, exp3], desc);
+  }
+
+  /** wabt's `TypesToString`: `[i32, i64]`, with `prefix` (`... `) after the bracket. */
+  private typesToString(types: readonly StackType[], prefix = ''): string {
+    return `[${prefix}${types.map((t) => valueTypeName(t)).join(', ')}]`;
+  }
+
+  /**
+   * Upstream wabt's `PrintStackIfFailedV`, word for word (DG7, 2026-10-28): `type mismatch in
+   * <desc>, expected [<types>] but got [<types>]` — or `type mismatch at end of <desc>, …` for
+   * values left over at a block's end. As many values of the frame's stack are printed as were
+   * expected (up to 4 when none were); `... ` marks a stack deeper than what is printed.
+   */
+  private printStackMismatch(desc: string, expected: readonly StackType[], isEnd: boolean): void {
+    const label = this.topLabel();
+    const maxDepth = Math.max(0, this.typeStack.length - (label ? label.typeStackLimit : 0));
+    const size = Math.min(expected.length === 0 ? 4 : expected.length, maxDepth);
+    const actual: StackType[] = [];
+    for (let i = 0; i < size; i++) actual.push(this.peekType(size - i - 1));
+    this.printError(
+      `${isEnd ? 'type mismatch at end of ' : 'type mismatch in '}${desc}, expected ${
+        this.typesToString(expected)
+      } but got ${this.typesToString(actual, size !== maxDepth ? '... ' : '')}`,
+    );
   }
 
   private checkSignature(sig: ValueType[], desc: string): Result {
@@ -1147,9 +1156,7 @@ export class TypeChecker {
     // there the missing operands really are polymorphic.
     const label = this.topLabel();
     if (label && !label.unreachable && this.available() < sig.length) {
-      this.printError(
-        `type mismatch in ${desc}, expected ${sig.length} elements on the stack but got ${this.available()}`,
-      );
+      this.printStackMismatch(desc, sig, false);
       return Result.Error;
     }
     let r: Result = Result.Ok;
@@ -1158,9 +1165,7 @@ export class TypeChecker {
       const actual = this.peekType(sig.length - i - 1);
       r = combineResults(r, this.checkType(actual, expected));
     }
-    if (r === Result.Error) {
-      this.printError(`type mismatch in ${desc}`);
-    }
+    if (r === Result.Error) this.printStackMismatch(desc, sig, false);
     return r;
   }
 
@@ -1205,7 +1210,7 @@ export class TypeChecker {
     const label = this.topLabel();
     if (!label) return Result.Error;
     if (this.typeStack.length !== label.typeStackLimit) {
-      this.printError(`type mismatch at end of ${desc}`);
+      this.printStackMismatch(desc, [], true);
       return Result.Error;
     }
     return Result.Ok;
@@ -1260,11 +1265,12 @@ export class TypeChecker {
     return Result.Ok;
   }
 
-  endFunction(): Result {
+  /** wabt's `EndFunction`: the results as an "implicit return", leftovers at the "function" end. */
+  endFunction(sigDesc = 'implicit return', endDesc = 'function'): Result {
     const label = this.topLabel();
     if (!label) return Result.Error;
-    let r = this.popAndCheckSignature(label.resultTypes, 'function');
-    r = combineResults(r, this.checkTypeStackEnd('function'));
+    let r = this.popAndCheckSignature(label.resultTypes, sigDesc);
+    r = combineResults(r, this.checkTypeStackEnd(endDesc));
     r = combineResults(r, this.popLabel());
     return r;
   }
@@ -1277,7 +1283,8 @@ export class TypeChecker {
   }
 
   endInitExpr(): Result {
-    return this.endFunction();
+    // wabt's `EndInitExpr` names both "initializer expression".
+    return this.endFunction('initializer expression', 'initializer expression');
   }
 
   // ---------------------------------------------------------------------------
@@ -1421,8 +1428,8 @@ export class TypeChecker {
       this.printError('else outside of if block');
       r = Result.Error;
     } else {
-      r = combineResults(r, this.popAndCheckSignature(label.resultTypes, 'if block'));
-      r = combineResults(r, this.checkTypeStackEnd('if block'));
+      r = combineResults(r, this.popAndCheckSignature(label.resultTypes, '`if true` branch'));
+      r = combineResults(r, this.checkTypeStackEnd('`if true` branch'));
       this.resetTypeStackToLabel(label);
       label.labelType = LabelType.Else;
       label.unreachable = false;
@@ -1434,9 +1441,15 @@ export class TypeChecker {
   onEnd(): Result {
     const label = this.topLabel();
     if (!label) return Result.Error;
+    // As upstream wabt's `OnEnd`: an `if` with no `else` passes its params through, so it ends as
+    // if an empty `else` were there — the true branch is closed first, then the (empty) false
+    // branch is checked against the results. (Until DG7, 2026-10-28, a separate rule in the
+    // validator caught that case in words of its own, and the function end reported it again.)
+    let r: Result = label.labelType === LabelType.If ? this.onElse() : Result.Ok;
     this.rollbackInit(label);
-    let r = this.popAndCheckSignature(label.resultTypes, 'end');
-    r = combineResults(r, this.checkTypeStackEnd('end'));
+    const desc = END_DESC[label.labelType];
+    r = combineResults(r, this.popAndCheckSignature(label.resultTypes, desc));
+    r = combineResults(r, this.checkTypeStackEnd(desc));
     this.resetTypeStackToLabel(label);
     this.pushTypes(label.resultTypes);
     r = combineResults(r, this.popLabel());
@@ -1787,7 +1800,8 @@ export class TypeChecker {
   }
 
   onDrop(): Result {
-    return this.dropTypes(1);
+    // wabt: `type mismatch in drop, expected [any] but got []`.
+    return this.popAndCheckTypes([Type.Any], 'drop');
   }
 
   onSelect(resultTypes: ValueType[]): Result {

@@ -44,11 +44,9 @@ function v8Accepts(binary: Uint8Array): boolean {
   return WebAssembly.validate(buf);
 }
 
-// [name, WAT, the words we must report]. The first two are upstream wabt's exactly. The third is
-// only the class: binaryang words EVERY short function end "type mismatch in function, expected 1
-// elements on the stack but got 0" where wabt says "type mismatch in implicit return, expected
-// [i32] but got []" — measured the same day on `(module (func (result i32)))`, with no delegate
-// involved, so it is a wording divergence of its own (divergences.md DG7), not this defect.
+// [name, WAT, upstream wabt's message]. All three are upstream's exactly — the third since DG7
+// (2026-10-28) aligned every signature message with wabt's; before it, binaryang worded a short
+// function end "type mismatch in function, expected 1 elements on the stack but got 0".
 const INVALID: [string, string, string][] = [
   [
     'delegate 1 in a function with no label outside the try',
@@ -63,7 +61,7 @@ const INVALID: [string, string, string][] = [
   [
     'a function that ends with nothing after a try … delegate',
     '(module (func (result i32) (try (do) (delegate 0))))',
-    'type mismatch in function',
+    'type mismatch in implicit return, expected [i32] but got []',
   ],
 ];
 

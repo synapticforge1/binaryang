@@ -18,6 +18,16 @@ decision, never a side effect of work.
   engine refuses — re-validate it. Modules that were valid stay valid. Precedent for the level:
   2.1.0 and 2.2.0 shipped validator fixes that refuse more as minors; the owner's call. Reported by
   wasmtk (C12). `wasm-bundle`'s doc also gains the address-0 caveat (no behaviour change).
+- **Behaviour (diagnostics only) — validation errors read as upstream wabt's** (open-work 48,
+  divergence DG7, 2026-10-28). Every type-mismatch message now uses upstream's words: `type
+  mismatch in implicit return, expected [i32] but got []` where binaryang said `type mismatch in
+  function, expected 1 elements on the stack but got 0`; `type mismatch at end of block, expected
+  [] but got [i32, i32]` where it said `type mismatch at end of end`; `type mismatch in drop,
+  expected [any] but got []`; a one-armed `if` with a result is reported once, as `` type mismatch
+  in `if false` branch ``, not twice. A function-end error points at the body's last
+  instruction. No module changes verdict. **For a consumer that matches message TEXT:** the old
+  wordings are gone; every message still starts `type mismatch` (D3, `./definitions`' verdict
+  data, holds trap messages only and is untouched).
 - **Docs — the README's JSR install note for npm 12** (C21, 2026-10-28): npm 12.2.0, bundled with
   Node 24.21, refuses the alias `npx jsr add` installs; the README now says so and gives the
   `.npmrc` line (`allow-remote=all`) that lets it through, or the npm package instead. Measured.
