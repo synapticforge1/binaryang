@@ -55,6 +55,12 @@ as an `npm:@jsr/jrmarcum__binaryang` alias in `package.json` and write an `.npmr
 and need no `.npmrc`. On Deno, `import … from 'jsr:@jrmarcum/binaryang/wat2wasm'` also works with
 no install.
 
+**npm 12** (the npm bundled with Node 24.21) refuses the alias that `npx jsr add` installs:
+`Refusing to fetch "@jrmarcum/binaryang@https://npm.jsr.io/…tgz"`, because its `allow-remote`
+setting no longer allows a package to resolve to another registry's tarball. npm 10 and 11 install
+it. Allow it for the project by adding `allow-remote=all` to the `.npmrc` before `npx jsr add`, or
+install from npm instead (above), which needs neither.
+
 Either way, Node and Bun receive compiled JavaScript with type declarations, so no TypeScript setup
 is needed. **The examples below use the JSR name; from npm, write `@synapticforge1/binaryang`
 where they say `@jrmarcum/binaryang`.**

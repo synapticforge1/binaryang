@@ -18,6 +18,9 @@ decision, never a side effect of work.
   engine refuses — re-validate it. Modules that were valid stay valid. Precedent for the level:
   2.1.0 and 2.2.0 shipped validator fixes that refuse more as minors; the owner's call. Reported by
   wasmtk (C12). `wasm-bundle`'s doc also gains the address-0 caveat (no behaviour change).
+- **Docs — the README's JSR install note for npm 12** (C21, 2026-10-28): npm 12.2.0, bundled with
+  Node 24.21, refuses the alias `npx jsr add` installs; the README now says so and gives the
+  `.npmrc` line (`allow-remote=all`) that lets it through, or the npm package instead. Measured.
 
 **Repo-only since 2.2.0 (nothing in either package; no release-note line):** the benchmark
 modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
