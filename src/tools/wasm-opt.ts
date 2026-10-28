@@ -389,7 +389,11 @@ function _nativeOptimize(
   const passOpts: PassOptions = {
     optimizeLevel: opts.optimizeLevel,
     shrinkLevel: opts.shrinkLevel,
-    debugInfo: opts.debugInfo,
+    // TEXT output keeps the names, as upstream's printer does: `-g` governs the name SECTION of a
+    // binary, and debugInfo decides nothing else here (it only keeps that section, `pass.ts`).
+    // 🔧 `-S` read its text back from bytes optimized without names, so `wasm-opt x.wasm --dce -S`
+    // printed `(func (;0;) …)` where upstream prints `$add` (open-work 50, divergence CL9).
+    debugInfo: opts.debugInfo || opts.emitText,
     closedWorld: opts.closedWorld,
     passArgs: opts.passArgs,
     partialInliningIfs: opts.partialInliningIfs,
