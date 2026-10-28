@@ -629,7 +629,10 @@ class ModuleValidator implements ExprVisitorDelegate {
         this.acc(this.sv.onLocalDecl(locOf(func), 1, local.type));
       }
       this.acc(visitor.visitExprList(func.body.children));
-      this.acc(this.sv.endFunctionBody(locOf(func)));
+      // Reported where upstream wabt reports it: at the body's LAST instruction, or at the
+      // function when the body is empty (wabt's `body_end`, validator.cc; DG7).
+      const last = func.body.children[func.body.children.length - 1];
+      this.acc(this.sv.endFunctionBody(last ? locOf(last) : locOf(func)));
     }
 
     // Data segments (init offsets)
@@ -993,13 +996,8 @@ class ModuleValidator implements ExprVisitorDelegate {
   }
   beginIfExpr(e: IfExpr): Result {
     this.labels.push(e.label);
-    let r = combineResults(this.checkCarrierHeader(e), this.sv.onIf(locOf(e), blockTypeOf(e)));
-    // A missing `else` is not modelled anywhere else, so the arity rule for a
-    // one-armed if has to be checked from the IR.
-    if (e.ifFalse === null) {
-      r = combineResults(r, this.sv.onOneArmedIf(locOf(e), blockTypeOf(e)));
-    }
-    return r;
+    // A missing `else` is modelled by the type checker's `onEnd`, as upstream wabt does (DG7).
+    return combineResults(this.checkCarrierHeader(e), this.sv.onIf(locOf(e), blockTypeOf(e)));
   }
   afterIfTrueExpr(e: IfExpr): Result {
     return e.ifFalse !== null ? this.sv.onElse(locOf(e)) : Result.Ok;

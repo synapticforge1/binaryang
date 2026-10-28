@@ -984,31 +984,6 @@ export class SharedValidator {
     );
   }
 
-  /**
-   * A one-armed `if` — no `else` — falls through producing whatever it was
-   * given, so its block type's PARAMS and RESULTS must match. `(if (result
-   * i32) (then …))` with no else has nothing to produce on the false path.
-   * Nothing checked this; the missing else was simply not modelled.
-   */
-  onOneArmedIf(loc: Location, blockType: BlockType): Result {
-    const { params, results } = this.resolveBlockType(blockType, loc);
-    if (params.length !== results.length) {
-      return this.printError(
-        loc,
-        'type mismatch: a one-armed if must start and end with the same arity',
-      );
-    }
-    for (const [i, p] of params.entries()) {
-      if (!this.isSubtype(p, results[i]!)) {
-        return this.printError(
-          loc,
-          'type mismatch: a one-armed if must start and end with the same types',
-        );
-      }
-    }
-    return Result.Ok;
-  }
-
   onIf(loc: Location, blockType: BlockType): Result {
     this.currentLoc = loc;
     const { params, results } = this.resolveBlockType(blockType, loc);

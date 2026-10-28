@@ -91,6 +91,17 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
+48. ✅ **The validator's type-mismatch messages are upstream wabt's** (divergence DG7) — FIXED
+    on `main` 2026-10-28 (owner: "fix item 46 and divergence DG7"), to ship in 2.2.2. Every
+    signature and stack-end check prints upstream's `PrintStackIfFailedV` words, with upstream's
+    descriptions; a missing operand fails like a wrong type; a one-armed `if` is modelled as an
+    empty `else` (one message, not two). Measured on 13 shapes against wabt 1.0.41, all equal;
+    `tests/wabt-ts/validator/upstream_mismatch_words.test.ts`, red on the old code 11 of 13, 3
+    mutants killed (one shows the `if` modelling is load-bearing: without it a one-armed `if`
+    with a result is ACCEPTED, the old rule being gone). No verdict changes. Three tests that
+    pinned the old words updated. What stays different (positions, five items): divergences.md
+    DG7.
+
 47. ✅ **A legacy `delegate`'s label was never checked, and nothing after a `try … delegate` was
     type-checked** — FIXED on `main` 2026-10-28 (owner: "fix C12 and C21"), unreleased
     ([unreleased.md](unreleased.md)). Reported by wasmtk (workspace correspondence C12, its

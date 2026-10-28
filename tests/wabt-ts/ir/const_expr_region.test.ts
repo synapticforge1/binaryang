@@ -121,7 +121,13 @@ test('the validator sees an EMPTY initializer as one — a non-null table is not
   const errors = makeErrorList();
   validateModule(m, errors, { features: allFeatures() });
   assertEquals(errors.length, 1, formatErrors(errors));
-  assert(errors[0]!.message.includes('expected 1 elements on the stack'), errors[0]!.message);
+  // Upstream wabt's words since DG7 (2026-10-28); "expected 1 elements on the stack" before.
+  assert(
+    errors[0]!.message.includes(
+      'type mismatch in initializer expression, expected [(ref func)] but got []',
+    ),
+    errors[0]!.message,
+  );
 });
 
 test('a passive segment read from BINARY has no offset field', () => {
