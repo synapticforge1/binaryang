@@ -94,7 +94,7 @@ from cmem stays recoverable through commits, merge messages and `git log -S`.
 | [open-work.md](open-work.md) | **What is outstanding**, and nothing else: one numbered list, each item pointing at its record; the one current state line |
 | [working-rules.md](working-rules.md) | **The owner's standing rules**: git flow, messages by file, nothing pushed, the gate on the committed tree, tools, records |
 | [unreleased.md](unreleased.md) | **What a release note must say** for everything on `main` since the last release, and how to classify an entry |
-| [divergences.md](divergences.md) | **Every divergence from upstream and from engines, classified** — read BEFORE refactoring, optimizing or porting a pass |
+| [divergences.md](divergences.md) | **Every divergence from upstream and from engines, classified** — read BEFORE refactoring, optimizing or porting a pass; with § "Numeric IDs — the register" (every ID difference, old → new) and its "Overlaps with the specification" (what must match the spec, and what was measured against it) — read BEFORE any change made to meet the spec documents |
 | [portability.md](portability.md) | **One profile every widely used engine runs** (open-work 34, closed): the owner's decisions, the engine and version floor, passes 1–3, the lowerings, the target and D4, the committed probe (`bun run probe`; tail calls portable) |
 | [ir-convergence.md](ir-convergence.md) | **The IR convergence, S1–S7 and One front end**: one tree, two verb sets; status at the top; the merge log |
 | [../docs/ir-map.html](../docs/ir-map.html) | **The IR's layout as a page**, for this repo and its siblings (a snapshot at `cfe7da2c7`; update it when `src/ir` changes) |

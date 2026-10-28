@@ -1,7 +1,8 @@
 # Unreleased on `main` — what the next release note must say
 
 **As of 2026-10-28 (UTC): the last release is `v2.2.2`, on JSR and npm, both with provenance;
-code lens passes 2 and 3 are unreleased on `main`** (below; check it rather than trust this line:
+code lens passes 2 and 3, and open-work 50 and 52, are unreleased on `main` — at least a MINOR**
+(below; check it rather than trust this line:
 `git log --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of work.
 
