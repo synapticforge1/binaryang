@@ -688,7 +688,7 @@ export class BinaryReader {
   // applied to the WAT parser and never to the binary path.
   //
   // Do NOT make `core/leb128.ts` stop throwing to fix this — its callers
-  // include the WAT parser and the bridge, where a throw is the right signal.
+  // include the WAT parser, where a throw is the right signal.
   // The conversion belongs at THIS boundary.
   private lebError(e: unknown): void {
     this.err(e instanceof Error ? e.message : String(e));

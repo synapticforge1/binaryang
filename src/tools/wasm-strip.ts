@@ -87,7 +87,8 @@ export interface WasmStripResult {
 export function wasmStrip(binary: Uint8Array, opts: WasmStripOptions = {}): WasmStripResult {
   const errors = makeErrorList();
 
-  // Read without parsing the name section so it stays in module.customSections.
+  // The name section is NOT parsed: a malformed one is a custom section's business, and the
+  // output is copied from the input bytes, not from this read (upstream checks it no deeper).
   const readOpts: ReadBinaryOptions = { readDebugNames: false };
   if (opts.filename !== undefined) readOpts.filename = opts.filename;
 
@@ -168,12 +169,6 @@ function removeCustomSections(
 // CLI
 // ---------------------------------------------------------------------------
 
-/**
- * CLI entry point for `wasm-strip`, registered in the top-level command dispatcher.
- *
- * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
- * pass `args` explicitly to drive it from a test or another tool.
- */
 const HELP: ToolHelp = {
   usage: 'wasm-strip [options] <input.wasm>',
   description:
@@ -188,6 +183,12 @@ const HELP: ToolHelp = {
   ],
 };
 
+/**
+ * CLI entry point for `wasm-strip`, registered in the top-level command dispatcher.
+ *
+ * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
+ * pass `args` explicitly to drive it from a test or another tool.
+ */
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   if (wantsHelp(args)) {
     console.log(helpText(HELP));

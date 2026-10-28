@@ -934,7 +934,7 @@ export interface TernaryExpr {
   readonly type?: ExprType;
   readonly loc?: Location;
 }
-/** Four-operand numeric op (rare; placeholder for relaxed-SIMD quaternary instructions). */
+/** Four-operand numeric op: wide arithmetic's `i64.add128` / `i64.sub128`. */
 export interface QuaternaryExpr {
   readonly kind: 'quaternary';
   readonly opcode: Opcode;
@@ -2019,13 +2019,15 @@ export function isRefValueType(vt: ValueType | Type): vt is RefValueType {
 }
 
 /**
- * Collapse a {@link ValueType} to a single abstract {@link Type}.
+ * Collapse a {@link ValueType} to a single abstract {@link Type}: a non-reference type is
+ * returned as is, and EVERY typed reference becomes `structref` — whatever its heap type
+ * (a `(ref $func)` too) and nullability. It is NOT the reference's abstract supertype.
  *
- * For consumers that cannot yet represent a concrete heap type — the
- * type-checker's operand stack and the binaryen bridge. A typed ref becomes
- * its nullable abstract supertype, which is what the whole IR used to store.
- * Encoders must NOT use this: emitting the coarsened byte is precisely the
- * bug this type exists to fix.
+ * Kept for compatibility; nothing in this package calls it any more (the type checker stopped
+ * coarsening at T9.3, and the binaryen bridge it served is gone). Encoders must NOT use it:
+ * emitting the coarsened byte is the bug typed references exist to fix. (Until code lens pass 2,
+ * 2026-10-28, this said a typed ref became its nullable abstract supertype, which the body never
+ * did.)
  */
 export function coarsenValueType(vt: ValueType): ValType {
   return isRefValueType(vt) ? Type.StructRef : vt;

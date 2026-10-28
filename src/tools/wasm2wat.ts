@@ -177,12 +177,6 @@ function disassemble(binary: Uint8Array, opts: Wasm2WatOptions): Wasm2WatResult 
 // CLI
 // ---------------------------------------------------------------------------
 
-/**
- * CLI entry point for `wasm2wat`, registered in the top-level command dispatcher.
- *
- * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
- * pass `args` explicitly to drive it from a test or another tool.
- */
 const HELP: ToolHelp = {
   usage: 'wasm2wat [options] <input.wasm>',
   description:
@@ -202,6 +196,12 @@ const HELP: ToolHelp = {
   ],
 };
 
+/**
+ * CLI entry point for `wasm2wat`, registered in the top-level command dispatcher.
+ *
+ * Reads `process.argv` by default so it runs unchanged on Deno, Node and Bun;
+ * pass `args` explicitly to drive it from a test or another tool.
+ */
 export async function main(args: string[] = cliProcess().argv.slice(2)): Promise<void> {
   if (wantsHelp(args)) {
     console.log(helpText(HELP));

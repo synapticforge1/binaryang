@@ -283,11 +283,10 @@ export function valueTypeKey(t: ValueType): string {
 }
 
 /**
- * The key two function signatures share exactly when they are the same
- * signature. ONE definition, used by the encoder to find a signature's type
- * index and by the WAT parser to decide whether a type use needs an implicit
- * type — if the two compared differently, the parser would add an entry the
- * encoder cannot find, or skip one it needs.
+ * A key two function signatures share exactly when they are the same signature (params and
+ * results by {@link valueTypeKey}). Public and kept for compatibility; nothing in this package
+ * calls it any more — the encoder and the WAT parser that once shared it now key signatures in
+ * `synthesize-types.ts` (code lens pass 2, 2026-10-28: this said it was their one definition).
  */
 export function funcTypeKey(params: readonly ValueType[], results: readonly ValueType[]): string {
   return params.map(valueTypeKey).join(',') + '->' + results.map(valueTypeKey).join(',');

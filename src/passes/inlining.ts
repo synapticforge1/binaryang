@@ -17,8 +17,11 @@
  * Inlineability heuristics (size = instruction node count in body):
  *
  * - Always inline if `size <= 2` (trivially small).
- * - Inline single-caller functions if `size <= 10` and not exported/global.
- * - With `optimizeLevel >= 3`: inline multi-caller functions if `size <= 20`.
+ * - Inline a single-caller function that is not exported or used globally, at ANY size
+ *   (`ONE_CALLER_INLINE_MAX_SIZE` is unbounded, as upstream's default; `--pass-arg
+ *   one-caller-inline-max-size@N` bounds it).
+ * - Otherwise, only with `optimizeLevel >= 3` and `shrinkLevel` 0: a function with no calls and
+ *   no loops, if `size <= 20`.
  *
  * Guarded exclusions:
  * - Recursive calls (callee === caller) are never inlined.
