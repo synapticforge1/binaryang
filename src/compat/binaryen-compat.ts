@@ -715,16 +715,12 @@ export class I32Ops {
  */
 export class I64Ops {
   /**
-   * `i64.const value` (bigint). ONE argument, as binaryen.js since it took bigints: the old
-   * `i64.const(low, high)` form is refused, as upstream refuses it ("i64.const now takes a single
-   * argument"). 🔧 A second argument was dropped silently, so old-style code got `low` as the
-   * whole constant (open-work 52 (a), divergence CL19, 2026-10-28).
+   * `i64.const value` (bigint). ⚠️ The old two-argument form `i64.const(low, high)` is NOT
+   * refused: a second argument is dropped silently, where binaryen.js aborts ("i64.const now takes
+   * a single argument"). Detecting it needs either a changed signature or a lint suppression —
+   * open, the owner's to choose (open-work 52 (a), divergence CL19).
    */
   const(value: bigint | number): Expression {
-    // `arguments`, not a rest parameter: a rest parameter changes the published signature (the
-    // surface gate classes it MAJOR), and the signature must stay binaryen.js's one argument.
-    // biome-ignore lint/complexity/noArguments: counting the CALLER's arguments is the point
-    if (arguments.length > 1) throw new Error('i64.const now takes a single argument');
     return makeI64Const(typeof value === 'number' ? BigInt(value) : value);
   }
   /** `i64.add`. */

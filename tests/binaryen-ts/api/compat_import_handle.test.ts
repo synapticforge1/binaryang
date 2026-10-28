@@ -4,11 +4,11 @@
 // Open-work 52 (a), divergence CL19 (2026-10-28), measured against binaryen.js 132:
 // - `getFunction` on an IMPORTED function returned null; binaryen.js returns a handle whose
 //   `getFunctionInfo` has its `module` and `base`.
-// - `i64.const(low, high)` dropped `high` silently; binaryen.js aborts ("i64.const now takes a
-//   single argument"). (exnref's ID, the third CL19 item, is in the ID register: a1618195c.)
+// (exnref's ID, another CL19 item, is in the ID register: a1618195c. The two-argument
+// `i64.const` stays open: refusing it needs a changed signature or a lint suppression.)
 
 import { describe, it } from 'node:test';
-import { assertEquals, assertThrows } from '@std/assert';
+import { assertEquals } from '@std/assert';
 
 import * as binaryen from '../../../src/compat/binaryen-compat.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
@@ -18,7 +18,7 @@ const BYTES = wat2wasm(
     ' (func (export "f") (result i32) (call $imp (i32.const 1))))',
 ).binary;
 
-describe('open-work 52 — binaryen facade: import handles, a one-argument i64.const', () => {
+describe('open-work 52 — binaryen facade: an imported function has a handle', () => {
   it('getFunction gives an imported function a handle with its module and base', () => {
     const m = binaryen.readBinary(BYTES);
     const handle = m.getFunction('$imp');
@@ -37,15 +37,5 @@ describe('open-work 52 — binaryen facade: import handles, a one-argument i64.c
     const defined = m.getFunction(m._inner.functions[0]!.name)!;
     const info = binaryen.getFunctionInfo(defined);
     assertEquals([info.module, info.base], ['', '']);
-  });
-
-  it('i64.const refuses the old two-argument form, and takes one', () => {
-    const m = new binaryen.Module();
-    assertThrows(
-      () => (m.i64.const as (...a: unknown[]) => unknown)(1, 2),
-      Error,
-      'i64.const now takes a single argument',
-    );
-    assertEquals(m.i64.const(5n) !== undefined, true);
   });
 });
