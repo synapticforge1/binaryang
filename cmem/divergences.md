@@ -131,6 +131,56 @@ class. "Valid either way" is not a class.
 | CL22 | wasm-tools | a table's LINEAR initializer, `(table 1 funcref ref.null func)` or `… struct.new_default $s`, is refused ("expected ), got ref.null"); the folded form works, and a global's linear initializer does. wasm-tools accepts it (and `wasm-tools print` writes it, so 8 of ~85 smith modules did not re-parse); upstream wabt 1.0.41 refuses it too | DEFECT (against the spec's text grammar) | found 2026-10-28, code lens pass 3. ✅ **FIXED the same day** (owner: "fix the two text-format gaps"; `0fcbba54f`): the initializer is read as an instruction list, as a global's; linear and folded give the same bytes, which are wasm-tools' (`table_init_linear.test.ts`). Upstream wabt stays the one that refuses |
 | CL23 | wasm-tools | an EMPTY `(rec)` group is dropped, by the parser and by the binary path: `(rec) (type $t (func)) (rec)` gives a type section of one group (`01 04 01 60 00 00`) where wasm-tools writes three (`4e 00 … 4e 00`). Type indices are unchanged | DEFECT (bytes and the group count, not meaning) | found 2026-10-28, code lens pass 3; upstream wabt has no `rec`. ✅ **FIXED the same day** (owner: "fix the two text-format gaps"; `2c1fc41b4`): kept in the fidelity table as the type index it preceded (no public IR change), written back in place as `(rec)` / `4e 00`; optimization resets the table and still drops it — upstream binaryen's choice too, an empty group meaning nothing (`empty_rec_group.test.ts`) |
 
+## Numeric IDs — the register (owner, 2026-10-28)
+
+**The rule** (owner, 2026-10-28): "make notations for differences in IDs from here on out. it will
+be very important when we start making changes to meet wasm specification documents." Every
+difference between a numeric identifier binaryang uses and one an authority uses — a library's
+type IDs or feature bits, an opcode, a kind, a section id, any enum value that crosses a boundary —
+gets a row here, ours and theirs (or old → new), with the authority, the date and how it was
+measured. **Why a register of its own:** `api-surface.json` hashes a `const x: number`'s TYPE,
+not its value, so a constant that changes value passes the compatibility gate unseen (it did:
+`89a2fcef3`). **The precedent** is the owner's opcode question: D1's opcode set was re-derived from
+the specification documents and every one of the 582 attested ([definitions.md](definitions.md)
+§ "D1 against the specification", 2026-10-23) — the spec, not a port, is the authority.
+
+**Changed, 2026-10-28** — the binaryen facade (`./compat/binaryen`) mirrored to binaryen.js
+132, read from the real package (`comparison/node_modules/binaryen`); commit `a1618195c`
+(open-work 52 (a), divergence CL17):
+
+| ID | before | now = binaryen.js 132 | note |
+| --- | --- | --- | --- |
+| `funcref` | 7 | 18 | |
+| `externref` | 8 | 10 | |
+| `anyref` | 9 | 34 | |
+| `eqref` | 10 | 42 | |
+| `i31ref` | 11 | 50 | |
+| `structref` | 12 | 58 | |
+| `arrayref` | 13 | 66 | |
+| `stringref` | 14 | 82 | |
+| `nullref` | (reported as `anyref`) | 90 | new export |
+| `nullexternref` | (reported as `externref`) | 98 | new export |
+| `nullfuncref` | (reported as `funcref`) | 106 | new export |
+| `exnref` | (reported as `externref`) | 74 | internal: binaryen.js reports it, exports no constant |
+| `nullexnref` | (reported as `externref`) | 122 | internal, likewise |
+| `auto` | 15 | −1 | |
+| `none` … `v128` | 0 … 6 | 0 … 6 | already equal |
+| `Features.MutableGlobals` | 4 | 2 | |
+| `Features.NontrappingFPToInt` | 8 | 4 | |
+| `Features.SIMD128` | 32 | 8 | |
+| `Features.BulkMemory` | 2 | 16 | |
+| `Features.SignExt` | 16 | 32 | |
+| `Features.StackSwitching` … `RelaxedAtomics` | absent | 65536 … 134217728 | ten flags added (bits 16–20, 22, 23, 25–27) |
+| `Features.All` | 0x7fffffff | 268435455 | |
+| a new `Module`'s features | `All` | `MVP` (0) | as `getFeatures()` upstream |
+| the other Features flags, `ExpressionId`s, `External*` kinds | — | equal | measured the same day |
+
+**Measured equal, not changed** (where the IDs come from): opcodes are the wire bytes, every one
+attested against the spec (D1); the IR's `ValType` codes ARE the binary encoding bytes (`i32` 127
+= `0x7f`, so `v128.const`'s node shows 123 = `0x7b`); `ExternalKind` 0–4 and `BinarySection` ids
+are the binary format's. **Open:** the wabt.js facade's numeric values have not been measured
+against libwabt.js; do it before the spec work relies on them.
+
 **N1 — names** (found 2026-09-10, BUILT in both halves 2026-09-11; merged `b9ee4fb75`, `6dc071475`).
 Its owner decisions — wabt-ts ALWAYS keeps names, reading and writing without optimization keeps
 them over both upstreams' defaults, optimized output follows `debugInfo`, export and import names
