@@ -714,8 +714,17 @@ export class I32Ops {
  * `mod.i64.*` namespace — factories for `i64`-typed expressions. Singleton.
  */
 export class I64Ops {
-  /** `i64.const value` (bigint). */
+  /**
+   * `i64.const value` (bigint). ONE argument, as binaryen.js since it took bigints: the old
+   * `i64.const(low, high)` form is refused, as upstream refuses it ("i64.const now takes a single
+   * argument"). 🔧 A second argument was dropped silently, so old-style code got `low` as the
+   * whole constant (open-work 52 (a), divergence CL19, 2026-10-28).
+   */
   const(value: bigint | number): Expression {
+    // `arguments`, not a rest parameter: a rest parameter changes the published signature (the
+    // surface gate classes it MAJOR), and the signature must stay binaryen.js's one argument.
+    // biome-ignore lint/complexity/noArguments: counting the CALLER's arguments is the point
+    if (arguments.length > 1) throw new Error('i64.const now takes a single argument');
     return makeI64Const(typeof value === 'number' ? BigInt(value) : value);
   }
   /** `i64.add`. */
@@ -1174,9 +1183,21 @@ export class Module {
     return exp;
   }
 
-  /** Returns an opaque handle to the function named `name`, or `null` if absent. */
+  /**
+   * Returns an opaque handle to the function named `name` — defined OR imported, as binaryen.js
+   * — or `null` if absent. 🔧 An imported function returned `null`; binaryen.js returns a handle
+   * whose {@link getFunctionInfo} has its `module` / `base` (open-work 52 (a), divergence CL19).
+   */
   getFunction(name: string): WasmFunction | null {
-    return this._inner.functions.find((f) => f.name === name) ?? null;
+    const defined = this._inner.functions.find((f) => f.name === name);
+    if (defined !== undefined) return defined;
+    for (const imp of this._inner.imports) {
+      if (imp.kind === ExternalKind.Func && imp.func.name === name) {
+        _importedFunctions.set(imp.func, { module: imp.module, base: imp.field });
+        return imp.func;
+      }
+    }
+    return null;
   }
 
   // -------------------------------------------------------------------------
@@ -1678,8 +1699,11 @@ export interface FunctionInfo {
   body: Expression;
 }
 
+/** The `module` / `base` of each imported function a handle was given out for. */
+const _importedFunctions = new WeakMap<WasmFunction, { module: string; base: string }>();
+
 /**
- * Returns inspection info for a locally-defined function handle, shaped as
+ * Returns inspection info for a function handle, defined or imported, shaped as
  * binaryen.js's: `params` and `results` each ONE packed type ({@link createType}
  * — `none`, a single type, or an array standing in for a tuple ID).
  *
@@ -1689,17 +1713,17 @@ export interface FunctionInfo {
  * saw it; binaryen.js@132 was measured: `results` 0 for a void function, 2
  * for an i32 one, `vars` an array.
  *
- * Note: this surfaces locally-DEFINED functions only (the handle from
- * {@link Module.getFunction}). Imported functions live in a separate list and
- * carry no `WasmFunction` handle, so their `module`/`base` are not reported
- * here; `module`/`base` are therefore always `""` for any handle this accepts.
+ * An IMPORTED function's handle (from {@link Module.getFunction}) reports its `module` and
+ * `base`, as binaryen.js; a defined function's are `""`. (Until 2026-10-28 an import had no
+ * handle at all, so these were always `""` — open-work 52 (a).)
  */
 export function getFunctionInfo(func: WasmFunction): FunctionInfo {
   const results = func.sig.results.map(_valTypeToId);
+  const imported = _importedFunctions.get(func);
   return {
     name: func.name,
-    module: '',
-    base: '',
+    module: imported?.module ?? '',
+    base: imported?.base ?? '',
     type: createType(results),
     params: createType(func.sig.params.map(_valTypeToId)),
     results: createType(results),
