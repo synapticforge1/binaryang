@@ -960,6 +960,46 @@ Neither reports a binaryang defect; nothing is asked of us. Source: each runtime
   **0 of 6,860** after one wasmrt fix (an `exact` reference skipped the type rule; 2 → 0). Its
   memory still called § 44 "drafted, not yet sent"; corrected on its side (`cd8081f`, 2026-10-26).
 
+### § 46 — from wasmtk: two letters, through the workspace ledger C12 (received 2026-10-26)
+
+Full text: `../../wasmtk/scripts/binaryang-report.md`, the two sections headed `SENT 2026-10-26 (via
+the workspace ledger, C12)`. (1) **2026-10-23, the pin report** (answers § 41): 1.15.0, 1.16.1, then
+2.2.0 pinned; wast 64,506 / 0 / 16, guard 0, `go_asyncify` 12 / 12, the 43 moved golden WATs all
+merged `-Oz` libraries; and **a defect: a legacy `delegate`'s label depth is not validated** (found
+by their mirror of the soundness guard). (2) **2026-10-26, `wasmtk wasmbundle` now runs on our
+`bundle()`** through `compat/binaryen` `readBinary(…)._inner`: right wherever theirs was right and in
+five places theirs was wrong; their wasic pass (one heap, one tag) around it. **One question**: may
+they rely on `Module._inner` + `bundle()` as a stable contract across minors, or should a public
+read / write pair on `./ir` be pinned instead? **One hazard** for our caveats: wasic's empty array
+reads address 0, which belongs to the FIRST image in a bundle.
+
+### § 47 — reply to wasmtk: § 46 answered (2026-10-28; the answer is in the workspace ledger's C12 row, which wasmtk, as the creator, closes)
+
+> **1. The `delegate` defect — fixed, and a second one with it** (open-work 47; on `main`,
+> unreleased). Reproduced on 2.2.1 against upstream wabt 1.0.41 and wasm-tools 1.262. Our
+> `onDelegate` dropped the depth; it also set the enclosing frame unreachable, so nothing after a
+> `try … delegate` was type-checked — `(func (result i32) (try (do) (delegate 0)))` validated.
+> Both fixed as upstream wabt's `OnDelegate` (label at `depth + 1`; the code after it reachable),
+> with upstream's words. Your `KNOWN_ACCEPTED_INVALID` pin for `try_delegate.wast` can go to 0
+> once you pin the release that carries it; on that release the 7 V8-refused
+> `(module definition …)`s can be asked of our validator. A module you produce that this now
+> refuses would be one an engine refuses too.
+>
+> **2. Your question: yes, rely on `Module._inner` and `bundle()`.** Both are public surface, not
+> an escape hatch: `api-surface.json` lists `Module._inner` (on `compat/binaryen`'s `Module`,
+> documented "Use this to drop down to the native API"), `bundle`, `BundleOptions.unmarked`, and
+> `new Module(ir).emitBinary()` is the documented way back. The compatibility gate refuses to
+> release a change to any of them below a MAJOR, and a major is announced with a Breaking Changes
+> row first. So across minors and patches they hold; you pin exactly, so nothing reaches you
+> without your own bump either. No new `./ir` read / write pair is needed for this; ask if you
+> want one anyway. You are now recorded as a known consumer of these three, which our release
+> pattern's consumer step covers.
+>
+> **3. The address-0 hazard — recorded** in `wasm-bundle`'s own doc and our `bundle.md` § Known
+> gaps, as yours: address 0 belongs to the FIRST image, and neither a relocation entry nor
+> `unmarked: 'guess'` can tell a null-like 0 from an address. The way out on your side is to lay a
+> wasic module out first, or give the empty array a non-zero sentinel.
+
 Letters addressed to binaryang in `../../cmem/handoffs.md`, acted on in this repo. The workspace
 closes its own rows; nothing is written there from here.
 

@@ -124,6 +124,12 @@ shrink, the sections stay) is refused at its second entry, which is exactly Tiny
 - Not measured on wasmtk's own bundle / merge projects: they are built by `wasic`, which emits no
   marks yet. The letter asks for that measurement once wasic marks its addresses.
 - Cross-module function pointers; GC; memory64; threads.
+- **Address 0 belongs to the FIRST image** (from wasmtk, workspace correspondence C12, 2026-10-26;
+  their reasoning, not measured here or there). A producer that uses the literal address 0 as a
+  real location — wasic's empty array is the pointer 0, read as a zero header AT address 0 — reads
+  whatever the first input's image holds there once it is not the first input. Neither a marked
+  relocation nor `unmarked: 'guess'` can tell a null-like 0 from an address, so the bundler leaves
+  it alone. Lay such a module out first, or give it a non-zero empty-array sentinel.
 
 ## For the owner
 
