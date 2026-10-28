@@ -106,6 +106,8 @@ function _sinkRound(fn: WasmFunction): boolean {
   const sunkEffects = new Map<LocalSetExpr, Effects>();
   const sinkables = new Map<number, Sinkable>();
   const clear = () => sinkables.clear();
+  /** How many `try` / `try_table` the walk is inside (see the call rule in `visit`). */
+  let tryDepth = 0;
   const invalidate = (by: Effects) => {
     for (const [i, s] of sinkables) if (invalidates(s.effects, by)) sinkables.delete(i);
   };
@@ -138,7 +140,9 @@ function _sinkRound(fn: WasmFunction): boolean {
       case ExpressionKind.Try:
       case ExpressionKind.TryTable:
         clear();
+        tryDepth++;
         visitChildren(e, visit);
+        tryDepth--;
         clear();
         return;
     }
@@ -164,7 +168,13 @@ function _sinkRound(fn: WasmFunction): boolean {
     const own = shallowEffects(e);
     // Stated outright, though {@link invalidates} would agree: every sinkable
     // writes its local, and a branch conflicts with any effect.
-    if (own.branches || own.unknown) {
+    // 🔧 Inside a `try` a CALL is a branch too: it may throw to a catch in this function, which
+    // then sees the locals as they were at the call. A set sunk past it (into a tee after the
+    // call) was not done yet when the handler read it: `f(1)` returned 0 where the module returns
+    // 1, at --simplify-locals, -O2, -O3 and -Oz (code lens pass 3, 2026-10-28; upstream does
+    // not move a local write across a throwing call in a try). Outside every `try` a throw leaves
+    // the function, and its locals with it, so nothing changes there.
+    if (own.branches || own.unknown || (tryDepth > 0 && own.calls)) {
       clear();
     } else {
       invalidate(own);
