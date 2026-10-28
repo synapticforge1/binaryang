@@ -1968,7 +1968,11 @@ export class TypeChecker {
   onMemoryCopy(dst64: boolean, src64: boolean): Result {
     const dstAddr = dst64 ? _I64 : _I32;
     const srcAddr = src64 ? _I64 : _I32;
-    return this.popAndCheck3Types(dstAddr, srcAddr, dstAddr, 'memory.copy');
+    // The COUNT is typed at the smaller of the two address types, as `onTableCopy`'s: it was the
+    // destination's, so a valid copy from a 32-bit memory into a 64-bit one was refused (code
+    // lens pass 3, 2026-10-28; upstream wabt and wasm-tools accept it, V8 runs it).
+    const n = dst64 && src64 ? _I64 : _I32;
+    return this.popAndCheck3Types(dstAddr, srcAddr, n, 'memory.copy');
   }
 
   onMemoryFill(is64: boolean): Result {
