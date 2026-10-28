@@ -1390,6 +1390,16 @@ export class WastLexer {
         this.newlineChar();
         continue;
       }
+      // The spec's string characters exclude U+00–U+1F and U+7F: a tab, a carriage return or any
+      // other control character must be written as an escape (`\t`, `\u{d}`). wasm-tools refuses
+      // it ("invalid character in string"); upstream wabt 1.0.41 accepts it, and so did this
+      // (open-work 52 (d), 2026-10-28).
+      if (c < 0x20 || c === 0x7f) {
+        this.tokenStart = this.cursor - 1;
+        this.error('invalid character in string');
+        hasError = true;
+        continue;
+      }
       if (c === 0x22) { // closing '"'
         if (this.peek() === 0x22) {
           this.error('invalid string token');
