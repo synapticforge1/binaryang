@@ -44,11 +44,28 @@ Versions: Deno 2.9.7, Bun 1.4.3, Node 24.21.0, npm's `jsr` CLI as of that date, 
 **F1. `jsr.json` works with Deno, but only by name while a `deno.json` exists.** If `deno.json`
 has no `name`, `deno publish` fails with `Missing 'name' field in deno.json`, whether or not
 `jsr.json` is present and with or without `workspace`. `deno publish --config jsr.json` succeeds
-and publishes the same files, except that the manifest file itself is `jsr.json`. Once
-`deno.json` is deleted, `jsr.json` is found automatically.
-→ Move `name` / `version` / `license` / `exports` / `publish` into `jsr.json`, remove them from
-`deno.json`, and pass `--config jsr.json` to every publish command (CI and dry runs) until
-`deno.json` is gone. Keep **one** version source. A copy left in `deno.json` WINS.
+and publishes the same files, except that the manifest file itself is `jsr.json` — **for a package
+with NO dependencies only** (binaryang, where this was measured). Once `deno.json` is deleted,
+`jsr.json` is found automatically.
+⚠️ **With dependencies, `--config jsr.json` beside a `deno.json` SILENTLY corrupts the upload**
+(measured by s3d-reportcompiler, Deno 2.9.8, 2026-10-26; workspace correspondence C20): it prints
+"Successfully published", but every trailing-slash import-map entry (`"pkg/": "npm:pkg@x/"`) — and,
+when the dependencies are only in `package.json`, every bare dependency — is rewritten in the
+uploaded files to a RELATIVE path (`./pkg/…`) that cannot load. Of S3D's eight variants, only one
+equalled the real registry's bytes: `jsr.json` carrying `imports` + `nodeModulesDir`, NO
+`deno.json`, no `--config`. A dry run cannot show it (it does not print the rewritten files), and
+binaryang cannot reproduce it (no import map to corrupt) — **the check is S3D's**: publish each
+variant to a fake JSR on `127.0.0.1` (`JSR_URL=http://127.0.0.1:<port>/`, a dummy `--token`,
+`--no-provenance`), save the uploaded tarball and read its import specifiers; positive control =
+the baseline upload equals what the real registry serves. Record:
+`../S3D-ReportCompiler/cmem/bun-migration.md` § "Step 1, measured".
+→ **No dependencies:** move `name` / `version` / `license` / `exports` / `publish` into `jsr.json`,
+remove them from `deno.json`, and pass `--config jsr.json` to every publish command (CI and dry
+runs) until `deno.json` is gone. **With dependencies:** do NOT publish through `--config jsr.json`
+beside a `deno.json`; move the manifest, the import map and `nodeModulesDir` into `jsr.json` and
+delete `deno.json` in the SAME step (§ 4, step 1 folded into step 7, as S3D did), then prove the
+upload's specifiers with the fake-registry check. Either way, keep **one** version source. A copy
+left in `deno.json` WINS.
 
 **F2. Publishing to JSR still runs Deno, even from Bun or Node.** `npx jsr publish` /
 `bunx jsr publish` downloads a Deno binary and runs `deno publish` as a subprocess
@@ -166,6 +183,11 @@ version is permanent.
    bump script, the release script, any entry check, the release-file list, and the
    tag/publish workflows. Add a test that fails if `deno.json` carries `name` or `version` again.
    Done in binaryang (merge `8c00be4b1`). A dry run must list the same files as before.
+   ⚠️ **A package with dependencies cannot take this step alone** (F1's caveat, C20): publishing
+   through `--config jsr.json` while `deno.json` exists rewrites its import-map dependencies into
+   broken relative paths and still reports success. Fold this step into step 7 — the manifest,
+   the import map and `nodeModulesDir` move into `jsr.json` and `deno.json` goes, in one step —
+   and prove it by the UPLOAD (the fake-registry check in F1), not by the exit code or a dry run.
 2. **Bun/Node project files next to Deno's:** `package.json` (dev dependencies only),
    `.npmrc` or `bunfig.toml` for `@jsr`, `tsconfig.json` copying `deno.json`'s
    `compilerOptions`, and a lockfile. **Done when** `tsc --noEmit` accepts what `deno check`
@@ -181,8 +203,12 @@ version is permanent.
 6. **CI and the release path:** gate with Bun (and Node, § 5). Keep `setup-deno` +
    `deno publish --config jsr.json` for publishing (F2). Keep a Deno leg in the runtime-support
    matrix while consumers use Deno. Prove it with one real release, checking that provenance was
-   recorded (`rekorLogId` from `api.jsr.io`).
-7. **Delete `deno.json` and `deno.lock`.** Drop `--config jsr.json`.
+   recorded (`rekorLogId` from `api.jsr.io`). **For a package with dependencies, the release gate
+   reads the UPLOAD:** keep the fake-registry capture (F1) as a committed check that compares every
+   rewritten import specifier with the expected list before a tag — a green `deno publish` is not
+   evidence that the package loads.
+7. **Delete `deno.json` and `deno.lock`.** Drop `--config jsr.json`. (With dependencies, this is
+   where step 1 happens too — see step 1's caveat.)
 
 ## 5. Decided: code that runs on both Bun and Node, with Bun as the main runtime
 
@@ -521,7 +547,8 @@ decides for itself; binaryang's choice is not a rule for the others. What carrie
   provenance on that first publish rather than assume it.
 - Per package: **universal-wasm-loader** is the easiest (JS + `.d.ts`, one export, no imports).
   **wasmtk** needs its runtime port (§ 6) and its `jsr:@std` / `npm:binaryen` imports settled
-  first, and binaryang on npm. **s3d-reportcompiler**: not surveyed. Repos that are not JSR
+  first, and binaryang on npm. **s3d-reportcompiler**: its own plan
+  (`../S3D-ReportCompiler/cmem/bun-migration.md`). Repos that are not JSR
   packages (the Rust and Zig runtimes) are a different registry question, not covered here.
 
 ## 6. Notes per package
@@ -558,12 +585,19 @@ implementation for nine sibling loaders, which have no JSR packages.
 
 ### s3d-reportcompiler (1.0.4 on JSR)
 
-Not in this workspace and not surveyed. Start with the two questions in § 2, then the steps in
-§ 4.
+In the workspace since 2026-10-26 and MIGRATING under this guide; its own record supersedes any
+survey here: `../S3D-ReportCompiler/cmem/bun-migration.md`. It is the first package with
+dependencies (8, `npm:` and `jsr:`) to take these steps, and it found what binaryang could not:
+F1's `--config jsr.json` corrupts dependency imports silently (§ "Step 1, measured" there; C20),
+so it folded step 1 into step 7; and six more traps from its steps 2–4 (workspace correspondence
+C21) — read its record before § 4 step 2 onward.
 
 ## 7. Pitfalls already met
 
 - A copy of `version` left in `deno.json` silently wins over `jsr.json` (F1).
+- `deno publish --config jsr.json` beside a `deno.json` publishes a package whose dependency
+  imports point at relative paths that do not exist, and reports success (F1's caveat; measured
+  by s3d-reportcompiler, C20). Read the upload, not the exit code.
 - A `package.json` turns `npx jsr publish` into a publish without a type check (F2).
 - `"bin"` in `package.json` does nothing for a JSR package (F4).
 - `@std/testing/bdd` imports fine on Bun and then fails when the tests run (F5).
