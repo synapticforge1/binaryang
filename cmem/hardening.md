@@ -358,30 +358,40 @@ Today's own new code (the Deno pin, the comparison port, CI) was reviewed separa
 **Fixed** (branch `fix/code-lens-3`, one commit each, a test red on the old code, green on Node
 and Bun):
 
+The labels are P3.n — not L*n*, which the divergence register already uses (L1–L4).
+
 | # | defect | how it showed | commit |
 | --- | --- | --- | --- |
-| L1 | an integer-spelled `f32.const` rounded twice (`Number(n)` to f64, then f32): `18014399583223809` → 0x1p+54, not 0x1.000002p+54; just below FLT_MAX's midpoint refused | upstream wabt and wasm-tools bytes; then 2,000 literals against an independent single rounding (divergence F4: both oracles truncate some HEX integers) | `72980b421` |
-| L2 | `memory.copy`'s count typed at the destination's address type — a valid copy between 64- and 32-bit memories refused everywhere | upstream accepts, V8 runs | `c23454efa` |
-| L3 | compat `align` 0 (binaryen.js's natural alignment) could not be written | the real binaryen.js; now byte-identical on twelve forms | `43b697eb9` |
-| L4 | **Inlining copied a callee's `return_call` / `_indirect` / `_ref` as it was — it returned from the CALLER**: `(i32.add (call $tailer x) (global.get $g))` lost the add at -O2 / -Oz / --inlining (-O3 for two forms); a void tail call into a caller with results was an invalid module. Now an ordinary call leaving the wrapper; a callee with a tail call under a `try` is not inlined at a plain call site (that conversion would let the try catch) — a mutant without the guard returned 78 for −1 | V8 | `863665701` |
-| L5 | **SimplifyLocals sank a local write past a CALL inside a `try`**: the catch saw the old value (`f(1)` 0 for 1) at --simplify-locals, -O2, -O3, -Oz, try_table and legacy try. Inside a try a call now ends every pending sink | V8 | `99ee4a71f` |
-| L6 | Inlining left a branch to the callee's FUNCTION FRAME (`br_if 0`) naming a label the caller lacks: -O2 and up refused a valid module ("cfg: branch to "$l0_frame"…"); the fuzzer met it 3 times in ~390 | upstream optimizes it; V8 equal | `233cf6fce` |
-| L7 | `wasm-ctor-eval`: a cut constructor set `ref.null` into a non-nullable local (invalid); repacked data segments renumbered under a `data.drop` (invalid); an empty constructor kept its export | upstream wabt's validator; upstream ctor-eval 133 | `44abe120a` |
-| L8 | `wasm-interp --argument` read by `Number()` / `BigInt()` (NaN for `inf`, `0x1p3`, `nan:0x1`, unreadable text; double-rounded f32; `4294967296` → 0) and `--fuel=abc` = unlimited, all exit 0 | upstream wasm-interp; now the WAT literal parsers, range checks, the typed form (CL15) | `27d09fb07` |
-| L9 | `./api` `if` / `block` declared no result: a value-producing one wrote an invalid module silently; the module's doc example threw | wasm-tools | `91710d52b` |
-| L10 | an unknown local name got "cannot be resolved at IR level — wabt-ts's IR…", not upstream's `undefined local variable` | upstream wabt | `13fc3549a` |
-| L11 | wabt compat `toText({ foldExprs })` ignored; false comments in both facades, the writer and gc-types | — | `1add56c72` |
+| P3.1 | an integer-spelled `f32.const` rounded twice (`Number(n)` to f64, then f32): `18014399583223809` → 0x1p+54, not 0x1.000002p+54; just below FLT_MAX's midpoint refused | upstream wabt and wasm-tools bytes; then 2,000 literals against an independent single rounding (divergence F4: both oracles truncate some HEX integers) | `72980b421` |
+| P3.2 | `memory.copy`'s count typed at the destination's address type — a valid copy between 64- and 32-bit memories refused everywhere | upstream accepts, V8 runs | `c23454efa` |
+| P3.3 | compat `align` 0 (binaryen.js's natural alignment) could not be written | the real binaryen.js; now byte-identical on twelve forms | `43b697eb9` |
+| P3.4 | **Inlining copied a callee's `return_call` / `_indirect` / `_ref` as it was — it returned from the CALLER**: `(i32.add (call $tailer x) (global.get $g))` lost the add at -O2 / -Oz / --inlining (-O3 for two forms); a void tail call into a caller with results was an invalid module. Now an ordinary call leaving the wrapper; a callee with a tail call under a `try` is not inlined at a plain call site (that conversion would let the try catch) — a mutant without the guard returned 78 for −1 | V8 | `863665701` |
+| P3.5 | **SimplifyLocals sank a local write past a CALL inside a `try`**: the catch saw the old value (`f(1)` 0 for 1) at --simplify-locals, -O2, -O3, -Oz, try_table and legacy try. Inside a try a call now ends every pending sink | V8 | `99ee4a71f` |
+| P3.6 | Inlining left a branch to the callee's FUNCTION FRAME (`br_if 0`) naming a label the caller lacks: -O2 and up refused a valid module ("cfg: branch to "$l0_frame"…"); the fuzzer met it 3 times in ~390 | upstream optimizes it; V8 equal | `233cf6fce` |
+| P3.7 | `wasm-ctor-eval`: a cut constructor set `ref.null` into a non-nullable local (invalid); repacked data segments renumbered under a `data.drop` (invalid); an empty constructor kept its export | upstream wabt's validator; upstream ctor-eval 133 | `44abe120a` |
+| P3.8 | `wasm-interp --argument` read by `Number()` / `BigInt()` (NaN for `inf`, `0x1p3`, `nan:0x1`, unreadable text; double-rounded f32; `4294967296` → 0) and `--fuel=abc` = unlimited, all exit 0 | upstream wasm-interp; now the WAT literal parsers, range checks, the typed form (CL15) | `27d09fb07` |
+| P3.9 | `./api` `if` / `block` declared no result: a value-producing one wrote an invalid module silently; the module's doc example threw | wasm-tools | `91710d52b` |
+| P3.10 | an unknown local name got "cannot be resolved at IR level — wabt-ts's IR…", not upstream's `undefined local variable` | upstream wabt | `13fc3549a` |
+| P3.11 | wabt compat `toText({ foldExprs })` ignored (now honoured both ways: `false` linear, an explicit `true` FORCES folding where it printed the as-written mix); false comments in both facades, the writer and gc-types | — | `1add56c72` |
+| P3.12 | a table's LINEAR initializer (`(table 1 funcref ref.null func)`, as `wasm-tools print` writes it) refused: the parser read one parenthesised instruction, not an `expr` (owner: "fix the two text-format gaps"; CL22) | wasm-tools bytes, custom sections stripped; our round trip | `0fcbba54f` |
+| P3.13 | an EMPTY `(rec)` group dropped by the parser and the binary reader (CL23): kept in the fidelity table as the type index it preceded, written back in place by both writers; optimization still drops it | wasm-tools bytes; a wasm-tools binary round-trips unchanged | `2c1fc41b4` |
 
-(`4cf3dfd64` made L1's test type-check: the commit after it is the gate's subject.) **Measured
-around L4–L6:** the six benchmark modules' -Oz output is byte-identical from the commit before L4
-(`43b697eb9`) to the branch tip, and across L5 and L6 singly — none of the six uses tail calls,
-exceptions or frame branches in an inlined callee.
+(`4cf3dfd64` made P3.1's test type-check: the commit after it is the gate's subject.) **Measured
+around P3.4–P3.6:** the six benchmark modules' -Oz output is byte-identical from the commit before
+P3.4 (`43b697eb9`) to the branch tip, and across P3.5 and P3.6 singly — none of the six uses tail
+calls, exceptions or frame branches in an inlined callee. P3.12 and P3.13 leave the 421-file byte
+baseline identical.
 
-**Recorded, not fixed** — open-work 52 and divergences CL16–CL19, CL21–CL23: the binaryen.js
-facade's public numeric values and defaults (a compatibility decision); the wabt.js facade's
-missing `validate()`; `wasm-opt` judging its output with the host engine; three passes that
-swallow every exception; LowerBlockParams' refusal of a catch to a parametrised loop; two text
-grammar gaps (a table's linear initializer, empty `rec` groups); `parseS32Literal`'s wrap.
+**Recorded, not fixed** — open-work 52 and divergences CL16–CL19, CL21, CL24: the binaryen.js
+facade's public numeric values (mirroring them is already decided; the release level is open)
+and defaults; the wabt.js facade's missing `validate()` and its ignored `parseWat` features;
+`wasm-opt` judging its output with the host engine; three passes that swallow every exception;
+LowerBlockParams' refusal of a catch to a parametrised loop; `parseS32Literal`'s wrap. CL16 (the
+facade's defaults) is DESIGN, three owner rulings, not open. **The compat records were reviewed
+against the earlier decisions the same day** (owner: "please review these decisions and report
+any that still conflict"): none reverses a ruling; CL16's citation, CL17's missing citation (and
+the stale decision line in binaryen-ts.md), a stale range in open-work 52 and these labels'
+collision with L1–L4 were corrected, and CL24 added.
 
 **Checked clean** (the investigators' lists, in their reports): the interpreter core against V8
 bit for bit — memory and table bounds at 2^32 / 2^64, integer edge cases, float conversions and

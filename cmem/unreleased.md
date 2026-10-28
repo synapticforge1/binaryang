@@ -11,25 +11,29 @@ version line arms a release, so the next bump is the owner's decision, never a s
 - **Silent fix — `-O2` / `-Oz` / `--inlining` (and `-O3` for two forms) inlined a callee's tail
   call so that it returned from the CALLER**, skipping the rest of the caller; a void one could
   write an invalid module. **What a user may have shipped:** an optimized module whose code
-  after a call to a tail-calling function never ran — re-optimize it. (L4)
+  after a call to a tail-calling function never ran — re-optimize it. (P3.4)
 - **Silent fix — SimplifyLocals moved a local write past a call that may throw inside a `try`**,
   so the catch saw the old value (`--simplify-locals`, `-O2`, `-O3`, `-Oz`). **What a user may
   have shipped:** an optimized module with exception handling whose handler read a stale local —
-  re-optimize it. (L5)
+  re-optimize it. (P3.5)
 - **Silent fix — `wat2wasm` wrote the wrong value for an integer-spelled `f32.const` of more than
   53 bits** (`f32.const 18014399583223809`), and refused one just below FLT_MAX's rounding
   midpoint. Rounded once now; a hex integer near a midpoint is rounded to nearest, where upstream
-  wabt and wasm-tools truncate (divergence F4). (L1)
-- **Behaviour (accepts more):** a `memory.copy` between a 64- and a 32-bit memory (L2); `-O2` and
-  up on a callee that branches to its own frame, which they refused (L6).
+  wabt and wasm-tools truncate (divergence F4). (P3.1)
+- **Behaviour (accepts more):** a `memory.copy` between a 64- and a 32-bit memory (P3.2); `-O2`
+  and up on a callee that branches to its own frame, which they refused (P3.6); a table's linear
+  initializer, `(table 1 funcref ref.null func)` (P3.12).
 - **Behaviour (output):** `wasm-ctor-eval` no longer writes invalid modules (a null in a
-  non-nullable local; renumbered data segments) and removes an empty constructor's export (L7);
-  `./api`'s `if` / `block` are typed from their contents, so a value-producing one is valid (L9);
-  binaryen facade `align` 0 is natural alignment (L3); wabt facade `toText({ foldExprs: false })`
-  is linear (L11).
+  non-nullable local; renumbered data segments) and removes an empty constructor's export (P3.7);
+  `./api`'s `if` / `block` are typed from their contents, so a value-producing one is valid
+  (P3.9); binaryen facade `align` 0 is natural alignment (P3.3); wabt facade
+  `toText({ foldExprs: false })` is linear, and an explicit `foldExprs: true` now forces folding
+  where it printed each function as written (P3.11); an empty `(rec)` group is kept, in text and
+  in bytes, where it was dropped — the type section's group count changes for such a module
+  (P3.13).
 - **Behaviour (refuses more):** `wasm-interp --argument` and `--fuel` (and `wasm-ctor-eval
-  --fuel`) refuse what they cannot read — they guessed (L8); the typed form `f32:8` is taken.
-- **Diagnostics:** an unknown local is `undefined local variable "$x"`, as upstream (L10).
+  --fuel`) refuse what they cannot read — they guessed (P3.8); the typed form `f32:8` is taken.
+- **Diagnostics:** an unknown local is `undefined local variable "$x"`, as upstream (P3.10).
 
 **Unreleased — code lens pass 2** (open-work 49, [hardening.md](hardening.md) § "Code lens, pass
 2"). The compatibility floor decides the bump; all five read as patch-level fixes, but CL2 makes

@@ -119,18 +119,24 @@ removed record went to a topic file, and the full text is one `git show` away:
     data segments). Refused valid input, fixed: a cross-memory `memory.copy`; inlining a callee
     that branches to its own frame. Also: compat `align` 0, `./api` `if` / `block` types,
     `wasm-interp` `--argument` / `--fuel`, `ctor-eval` with an empty constructor, an unknown
-    local's message, wabt compat `foldExprs`, and comments. Each with a test red on the old code.
-    [unreleased.md](unreleased.md).
+    local's message, wabt compat `foldExprs`, and comments. Then (owner: "fix the two
+    text-format gaps"): a table's linear initializer, and empty `(rec)` groups kept (P3.12,
+    P3.13). Each with a test red on the old code. [unreleased.md](unreleased.md).
 
 52. **Code lens pass 3: found and recorded, not fixed** (2026-10-28). The owner's to order;
     none is reachable as wrong output from the CLI's default paths.
-    (a) **The binaryen.js facade's public values differ from binaryen.js** (CL17–CL20): the
+    (a) **The binaryen.js facade's public values differ from binaryen.js** (CL17–CL19): the
     reference-type IDs and `auto`, five Features bits and `All`, the default shrink level (0,
     upstream 1), `getFunction` on an import (null, upstream a handle), `exnref` reported as
-    `externref`, `i64.const(low, high)` silently dropping `high` (upstream aborts). Changing a
-    public value is a compatibility question (wasmtk consumes `./compat/binaryen`).
-    (b) **The wabt.js facade** (CL16, CL21): no `WasmModule.validate()`, `toBinary()` has no
-    `log`, `toText`'s defaults folded / inline-export where libwabt.js's are off.
+    `externref`, `i64.const(low, high)` silently dropping `high` (upstream aborts). Mirroring
+    upstream's constants is ALREADY decided ([binaryen-ts.md](binaryen-ts.md) "[decision]
+    `./compat/binaryen` … upstream numeric constants mirrored exactly"); only the release level is
+    open — the precedent is C7, released as a PATCH (1.8.1) "by the owner's decision". wasmtk
+    consumes `./compat/binaryen`.
+    (b) **The wabt.js facade** (CL21, CL24): no `WasmModule.validate()`, `toBinary()` has no
+    `log`, `parseWat` ignores its features bag. NOT open: `toText`'s folded / inline-export and
+    `readWasm`'s names defaults (CL16) are three owner rulings; changing them for the facade
+    would reverse those.
     (c) **The optimizer:** `wasm-opt` checks its output with the HOST engine (`wasm-opt.ts:184`),
     so on Bun (JavaScriptCore) a valid memory64 module fails "optimized module failed
     validation" with no pass run, and an input JSC refuses is blamed on the optimizer — the
@@ -139,9 +145,9 @@ removed record went to a topic file, and the full text is one `git show` away:
     `stack-ir.ts:64`), so a pass bug shows only as lost size; LowerBlockParams refuses a
     `try_table` catch (and a `br_on_*`) to a loop with parameters (`lower-block-params.ts:426`),
     so `-O1`, `-O2`, even `--vacuum` exit 1 on a valid module.
-    (d) **The text format** (CL22, CL23): a table's linear initializer (`(table 1 funcref ref.null
-    func)`) is refused, which wasm-tools accepts (upstream wabt refuses too); empty `(rec)` groups
-    are dropped on both the text and binary paths; a data / elem segment with no offset is
+    (d) **The text format:** ✅ the table's linear initializer (CL22) and empty `(rec)` groups
+    (CL23) FIXED the same day (owner: "fix the two text-format gaps"; item 53, P3.12 / P3.13).
+    Left: a data / elem segment with no offset is
     refused by the validator, not the parser, with a misleading message; a raw tab in a string
     is accepted (as upstream wabt; the spec excludes control characters).
     (e) `parseS32Literal` (`core/literal.ts:115`) wraps a negative past −2^31 (`-2147483649` →
