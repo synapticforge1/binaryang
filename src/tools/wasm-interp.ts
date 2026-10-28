@@ -28,9 +28,11 @@ import { readValidForPasses } from '../ir/prepare.ts';
 import { readValidWat, WatInputError } from './read-wat.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
-import { f32BitsOf, f64BitsOf, literalFloat } from '../ir/expressions.ts';
+import { literalFloat } from '../ir/expressions.ts';
 import { ExternalKind } from '../core/binary.ts';
-import { funcAt, type ValueType, varIndex } from '../ir/ir.ts';
+import { parseF32Literal, parseF64Literal } from '../core/literal.ts';
+import { Result } from '../core/result.ts';
+import { funcAt, type ValueType, valueTypeName, varIndex } from '../ir/ir.ts';
 import {
   type HostImport,
   Interpreter,
@@ -77,18 +79,57 @@ export interface Invocation {
   outcome: { values: Value[] } | { trap: string } | { stop: string } | { exception: string };
 }
 
-/** A written argument as a value of `type`; zero when `text` is absent. */
+/**
+ * An integer argument: decimal or `0x` hex, signed or unsigned, within the type's range —
+ * `[-2^(n-1), 2^n)`, as upstream's `--argument` takes either reading.
+ */
+function intArg(t: string, width: 32 | 64): bigint {
+  const m = /^([+-]?)(0x[0-9a-f]+|[0-9]+)$/i.exec(t.replaceAll('_', ''));
+  if (m === null) throw new Error(`--argument: "${t}" is not an i${width}`);
+  const n = (m[1] === '-' ? -1n : 1n) * BigInt(m[2]!);
+  if (n < -(1n << BigInt(width - 1)) || n >= 1n << BigInt(width)) {
+    throw new Error(`--argument: ${t} is out of range for i${width}`);
+  }
+  return BigInt.asIntN(width, n);
+}
+
+/**
+ * A written argument as a value of `type`; zero when `text` is absent. Upstream's typed form
+ * `<type>:<value>` (`--argument=f32:8`) is taken too, its type checked against the parameter.
+ *
+ * 🔧 Floats went through `Number(text)` and integers through `BigInt(text)`, which GUESSED:
+ * text it could not read became NaN or a crash ("Failed to parse String to BigInt"),
+ * `inf` / `0x1p3` / `nan:0x1` were NaN, `-nan` lost its sign, an f32 was rounded twice, and
+ * `4294967296` wrapped to 0 — every one with exit 0 (code lens pass 3, 2026-10-28). Floats now
+ * go through the WAT literal parsers (one rounding, every NaN and hex form), and anything
+ * unreadable or out of range is an error.
+ */
 function argValue(type: ValueType, text: string | undefined): Value {
-  const t = text ?? '0';
+  let t = text ?? '0';
+  const typed = /^(i32|i64|f32|f64|v128):(.*)$/.exec(t);
+  if (typed !== null) {
+    if (typed[1] !== valueTypeName(type)) {
+      throw new Error(
+        `--argument: ${t} is a ${typed[1]}, but the parameter is ${valueTypeName(type)}`,
+      );
+    }
+    t = typed[2]!;
+  }
   switch (type) {
     case ValType.I32:
-      return { type, value: Number(BigInt.asIntN(32, BigInt(t))) };
+      return { type, value: Number(intArg(t, 32)) };
     case ValType.I64:
-      return { type, value: BigInt.asIntN(64, BigInt(t)) };
-    case ValType.F32:
-      return { type, bits: f32BitsOf(Number(t)) };
-    case ValType.F64:
-      return { type, bits: f64BitsOf(Number(t)) };
+      return { type, value: intArg(t, 64) };
+    case ValType.F32: {
+      const [r, bits] = parseF32Literal(t);
+      if (r !== Result.Ok) throw new Error(`--argument: "${t}" is not an f32`);
+      return { type, bits };
+    }
+    case ValType.F64: {
+      const [r, bits] = parseF64Literal(t);
+      if (r !== Result.Ok) throw new Error(`--argument: "${t}" is not an f64`);
+      return { type, bits };
+    }
     // 🔧 A v128 zero. It fell to the reference default below, so every export
     // taking a v128 — and every stand-in import returning one — got `ref.null`,
     // and the run stopped as `invalid: expected a v128 operand` on a valid module
@@ -278,8 +319,15 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     else if (a.startsWith('--run-export=')) options.runExport = a.slice(13);
     else if (a.startsWith('--argument=')) options.args!.push(a.slice(11));
     else if (a === '--dummy-import-func') options.dummyImportFunc = true;
-    else if (a.startsWith('--fuel=')) options.fuel = Number(a.slice(7));
-    else if (a.startsWith('--hang-check=')) {
+    else if (a.startsWith('--fuel=')) {
+      // 🔧 `Number('abc')` is NaN, and `fuel < 0` is never true for NaN: the fuel became
+      // unlimited without a word (code lens pass 3, 2026-10-28).
+      if (!/^[0-9]+$/.test(a.slice(7))) {
+        console.error(`wasm-interp: --fuel takes a number of instructions, not "${a.slice(7)}"`);
+        cliExit(1);
+      }
+      options.fuel = Number(a.slice(7));
+    } else if (a.startsWith('--hang-check=')) {
       const seconds = Number(a.slice(13));
       if (!Number.isFinite(seconds) || seconds < 0) {
         console.error(`wasm-interp: --hang-check takes a number of seconds, not "${a.slice(13)}"`);

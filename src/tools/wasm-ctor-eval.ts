@@ -643,8 +643,15 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     else if (a.startsWith('--kept-exports=')) {
       options.keptExports = a.slice(15).split(',').filter(Boolean);
     } else if (a === '--ignore-external-input') options.ignoreExternalInput = true;
-    else if (a.startsWith('--fuel=')) options.fuel = Number(a.slice(7));
-    else if (a === '-q' || a === '--quiet') options.log = undefined;
+    else if (a.startsWith('--fuel=')) {
+      // 🔧 `Number('abc')` is NaN, which no fuel check ever stops: unlimited, without a word
+      // (code lens pass 3, 2026-10-28).
+      if (!/^[0-9]+$/.test(a.slice(7))) {
+        console.error(`wasm-ctor-eval: --fuel takes a number of instructions, not "${a.slice(7)}"`);
+        cliExit(1);
+      }
+      options.fuel = Number(a.slice(7));
+    } else if (a === '-q' || a === '--quiet') options.log = undefined;
     else if (a === '-S') options.emitText = true;
     else if (a.startsWith('-')) {
       console.error(`wasm-ctor-eval: unknown option ${a}`);
