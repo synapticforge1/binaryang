@@ -130,9 +130,10 @@ function validate(binary: Uint8Array, opts: WasmValidateOptions): WasmValidateRe
     validateModule(module, errors, valOpts),
     opts.features?.multiValue === false ? refuseIndexedBlockTypes(module, errors) : Result.Ok,
   );
-  // Code metadata the reader keeps raw: a branch hint must point at a branch.
+  // Code metadata the reader keeps raw: a branch hint must point at a branch INSTRUCTION — one
+  // the reader decoded there, not a byte that happens to equal one (open-work 50).
   const before = errors.length;
-  checkBranchHints(binary, countImports(module, ExternalKind.Func), errors);
+  checkBranchHints(binary, countImports(module, ExternalKind.Func), errors, branchOffsets(module));
   const hintResult = errors.length > before ? Result.Error : Result.Ok;
 
   return { errors, result: combineResults(valResult, hintResult) };
@@ -147,6 +148,28 @@ const CARRIERS: ReadonlySet<string> = new Set(['block', 'loop', 'if', 'try', 'tr
  * path's rule only: upstream `wat2wasm` accepts `(block (type $t))` naming a one-result type, so it
  * lives here and not in the shared validator.
  */
+/** The file offsets where an `if` or a `br_if` instruction starts, as the reader decoded them. */
+function branchOffsets(module: object): Set<number> {
+  const out = new Set<number>();
+  const seen = new Set<object>();
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== 'object' || seen.has(node)) return;
+    seen.add(node);
+    const rec = node as Record<string, unknown>;
+    const isBranch = rec['kind'] === 'if' ||
+      (rec['kind'] === 'br' && rec['condition'] !== undefined);
+    if (isBranch) {
+      const offset = (rec['loc'] as { offset?: number } | undefined)?.offset;
+      if (offset !== undefined) out.add(offset);
+    }
+    for (const value of Object.values(rec)) {
+      if (value !== null && typeof value === 'object') visit(value);
+    }
+  };
+  visit(module);
+  return out;
+}
+
 function refuseIndexedBlockTypes(module: object, errors: ErrorList): Result {
   let result: Result = Result.Ok;
   const seen = new Set<object>();

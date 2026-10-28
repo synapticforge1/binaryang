@@ -50,8 +50,18 @@ const at = (offset: number) => ({ filename: '', line: 0, column: 0, offset });
  * `br_if`. `funcImports` is the number of imported functions (the reader's
  * count), so a hint's function index finds its body. A binary with no such
  * section is left alone; framing this cannot follow is the reader's to report.
+ *
+ * `branches`: the file offsets at which an `if` or a `br_if` INSTRUCTION starts, from the
+ * decoded module. 🔧 Without it only the byte at the offset was read, so a hint landing INSIDE
+ * an immediate whose value is 4 or 13 passed as an `if` / `br_if` — `(func i32.const 4 drop)`
+ * hinted at its `04` (open-work 50, 2026-10-28). With it, the offset must be an instruction's.
  */
-export function checkBranchHints(binary: Uint8Array, funcImports: number, errors: ErrorList): void {
+export function checkBranchHints(
+  binary: Uint8Array,
+  funcImports: number,
+  errors: ErrorList,
+  branches?: ReadonlySet<number>,
+): void {
   const bodies: { start: number; end: number }[] = [];
   const hints: { section: number; data: Uint8Array }[] = [];
   try {
@@ -92,7 +102,8 @@ export function checkBranchHints(binary: Uint8Array, funcImports: number, errors
           s = u + len;
           const pos = body === undefined ? undefined : body.start + offset;
           const op = pos !== undefined && pos < body!.end ? binary[pos] : undefined;
-          if (op !== IF && op !== BR_IF) {
+          const isInstruction = branches === undefined || (pos !== undefined && branches.has(pos));
+          if ((op !== IF && op !== BR_IF) || !isInstruction) {
             addError(
               errors,
               at(pos ?? section),
