@@ -238,6 +238,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     const arg = args[i]!;
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
+      if (output === undefined) {
+        console.error(`wat2wasm: ${arg} needs a file`);
+        bad = true;
+      }
+    } else if (arg.startsWith('--output=')) {
+      // Upstream's documented spelling (`-o, --output=FILE`); refused as unknown until code
+      // lens pass 2 (2026-10-28).
+      output = arg.slice('--output='.length);
     } else if (arg === '--no-text-form') {
       textForm = false;
     } else if (arg === '--no-check') {

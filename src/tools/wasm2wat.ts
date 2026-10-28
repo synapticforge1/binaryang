@@ -213,11 +213,20 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   let fold = true;
   let asWritten = true;
   let generateNames = false;
+  let bad = false;
 
   for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
+      if (output === undefined) {
+        console.error(`wasm2wat: ${arg} needs a file`);
+        bad = true;
+      }
+    } else if (arg.startsWith('--output=')) {
+      // Upstream's documented spelling (`-o, --output=FILENAME`); until code lens pass 2
+      // (2026-10-28) it was skipped and the text went to stdout.
+      output = arg.slice('--output='.length);
     } else if (arg === '--generate-names') {
       generateNames = true;
     } else if (arg === '--fold' || arg === '-f') {
@@ -233,10 +242,15 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       // unchanged. Every function, as `--fold`.
       fold = false;
       asWritten = false;
-    } else if (arg && !arg.startsWith('-')) {
+    } else if (!arg.startsWith('-')) {
       input = arg;
+    } else {
+      // An option this tool does not have is an ERROR, never skipped (workspace contract S2).
+      console.error(`wasm2wat: unknown option ${arg}`);
+      bad = true;
     }
   }
+  if (bad) cliExit(1);
 
   if (!input) {
     console.error(
