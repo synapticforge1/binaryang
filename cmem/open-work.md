@@ -14,6 +14,18 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**State, end of 2026-10-28 (supersedes the paragraphs below where they differ).** On local
+`main` (`fdb1b4384`), 61 commits ahead of GitHub, NOT pushed and not released — both the owner's
+word: code lens passes 2 and 3 (items 49, 53), Deno off this machine and CI (51), the
+comparison suite on Bun, and items 50 and 52 fixed but four (owner: "fix the 52 and 50 items"):
+**for the owner** — CL7 (what `wasm-objdump -d` means), CL12 (the 2026-10-24 "recorded, not
+enforced" ruling), `i64.const`'s two-argument form (a signature change the gate calls MAJOR);
+**mine** — LowerBlockParams' catch to a parametrised loop. New owner rules, in
+[working-rules.md](working-rules.md) § "Tests, measurements and records": the numeric-ID register
+and the spec-overlap list ([divergences.md](divergences.md)), and no ignore statements. The next
+release is at least a MINOR ([unreleased.md](unreleased.md)). Correspondence C26 answered,
+open for S3D to close. **Next by the owner's order:** the four above, then 31, 13, 14, 15, 43.
+
 **Later still, 2026-10-28: code lens pass 3** (owner: "look for code issues", again) — item
 53 fixed (thirteen commits, among them two `-O2` miscompiles and an `f32.const` parser
 miscount), item 52 recorded; correspondence C26 (S3D) answered in the exit guide. NOT pushed.

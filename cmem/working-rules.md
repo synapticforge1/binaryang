@@ -246,6 +246,23 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   history purge rewrites paths and other personal facts, not that address.
 - **Owner calls stay owner calls.** Where a record says 🗓️ OWNER or "future discussion", gather the
   evidence and stop.
+- **Every numeric-ID difference is written down, old → new, with its authority** (owner,
+  2026-10-28: "make notations for differences in IDs from here on out. it will be very important
+  when we start making changes to meet wasm specification documents"). A library's type IDs or
+  feature bits, an opcode, a kind, a section id — any enum value that crosses a boundary — goes in
+  [divergences.md](divergences.md) § "Numeric IDs — the register", in the same commit series as
+  the change or the measurement. `api-surface.json` does NOT catch it (it hashes a constant's type,
+  not its value). The same section's "Overlaps with the specification" lists what must match the
+  spec documents and what was measured against them (owner, the same day: "If there are any other
+  overlapping items, that should match the spec also, lets note those also"); keep its rows
+  current. The precedent is D1's opcodes, re-derived from the spec ([definitions.md](definitions.md)).
+- **A change that needs an ignore statement is not a fix** (owner, 2026-10-28: "if it needs an
+  ignore statement it is not a fix"). No `biome-ignore`, `@ts-ignore`, `eslint-disable` or other
+  suppression to get a change through lint or the type checker: change the design, or leave the
+  item OPEN and give the owner the options with their costs. (`052e8f5fa` reverted the one that
+  was made.) This is about suppressing a check to pass it; a test's `@ts-expect-error` that
+  ASSERTS a state is unrepresentable (the compile-time inversion above) is an assertion, not a
+  suppression.
 
 ## Tools
 
