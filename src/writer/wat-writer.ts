@@ -8,8 +8,9 @@
  * IR-to-WAT pretty printer.
  *
  * Converts a decoded {@link Module} IR into WebAssembly Text Format (WAT).
- * Output is linear (non-folded) WAT — each instruction on its own line,
- * children written before their parent (matching the stack-machine model).
+ * Output is folded WAT by default (since 1.5.4; {@link WriteWatOptions.fold}); with `fold: false`
+ * it is linear — each instruction on its own line, children written before their parent (the
+ * stack-machine model).
  *
  * Usage:
  * ```ts
@@ -107,7 +108,7 @@ interface WrittenItem {
 export interface WriteWatOptions {
   /**
    * Emit folded s-expressions where possible instead of a flat instruction
-   * sequence. Default: `false` (linear).
+   * sequence. Default: `true` (folded) — see the 1.5.4 note below.
    *
    * Both spellings assemble to identical bytes — folding is text-layer only —
    * so this changes readability, not the module.
@@ -3094,7 +3095,7 @@ function constExprOperands(e: Expr): Expr[] | null {
     case 'ref.null':
     case 'ref.func':
     case 'global.get':
-      // struct.new's operands are its field values; the default form has none.
+      // Leaves: no operands.
       return [];
     case 'ref.i31':
     case 'any.convert_extern':

@@ -166,7 +166,10 @@ export function listPasses(): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Numeric type IDs — same values as upstream binaryen.js
+// Numeric type IDs — `none` … `v128` have upstream binaryen.js's values; the reference types and
+// `auto` do NOT (binaryen.js 132: funcref 18, externref 10, anyref 34, eqref 42, i31ref 50,
+// structref 58, arrayref 66, stringref 82, auto -1 — measured 2026-10-28, code lens pass 3). Use
+// them by NAME; a number written down, or shared with the real binaryen.js, means another type.
 // ---------------------------------------------------------------------------
 
 /** Type ID for the empty (void) result. */
@@ -245,7 +248,9 @@ const _ID_TO_VAL: Record<number, ValType> = {
  * Upstream interns a concrete typed reference (`(ref null $T)`) as an opaque
  * type ID allocated by its own type table, which this facade does not model.
  * Such a type is therefore reported as its nearest abstract supertype
- * (`anyref` / `funcref` / `externref`).
+ * (`anyref` / `funcref` / `externref`). ⚠️ Not for `exnref` / `nullexnref`: exn is under no
+ * other hierarchy, and this facade has no `exnref` ID, so they are reported as `externref` — a
+ * caller testing `=== externref` is fooled (code lens pass 3, 2026-10-28; open-work 52).
  *
  * This is an APPROXIMATION, and it is only safe because it is confined to the
  * read-only introspection direction: nothing turns the result back into bytes.
@@ -354,7 +359,10 @@ export function createType(types: number[]): number | number[] {
 }
 
 // ---------------------------------------------------------------------------
-// Features bitflags (matches upstream binaryen.js Features enum)
+// Features bitflags — NOT upstream binaryen.js's values: BulkMemory, MutableGlobals,
+// NontrappingFPToInt, SignExt and SIMD128 sit at other bits there, `All` differs, and upstream has
+// flags this has not (CustomPageSizes, WideArithmetic, FP16, …) (binaryen.js 132, measured
+// 2026-10-28). Use them by NAME.
 // ---------------------------------------------------------------------------
 
 /**
