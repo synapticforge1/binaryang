@@ -64,6 +64,7 @@ import { anyOpcodeName, naturalAlignForOpcode, PREFIX_THREADS } from '../core/op
 import { LabelType, ModuleContext } from '../ir/ir-util.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
 import { BARE, type Form, writtenForms } from '../ir/text-form.ts';
+import { withEmptyRecGroups } from '../ir/fidelity.ts';
 import type { ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { Result } from '../core/result.ts';
 
@@ -2983,7 +2984,14 @@ class WatWriter extends ModuleContext {
     //    declarations, so a wasm2wat round-trip silently lost the recursion
     //    and the subtype relations. It still REPARSED, which is why a
     //    "does it round-trip" check did not catch it.
-    for (const g of recGroups(this.module.types)) {
+    //    An EMPTY `(rec)`, which only the fidelity table holds, is written
+    //    where it was (CL23).
+    const typeGroups = withEmptyRecGroups(
+      recGroups(this.module.types),
+      this.module.fidelity,
+      this.module.types.length,
+    );
+    for (const g of typeGroups) {
       if (g.explicit) {
         this.openSpace('rec');
         for (let i = g.start; i < g.start + g.count; i++) {

@@ -2939,11 +2939,11 @@ export class WastParser {
     }
     this.expect(TokenType.Rpar);
     const head = module.types[first];
-    // An empty `(rec)` has no member to hang the marker on. It is legal but
-    // contributes nothing to the type index space, so it is simply dropped —
-    // re-emitting it would need a group representation that does not depend
-    // on a member existing.
+    // An empty `(rec)` has no member to hang the marker on: it is recorded in the
+    // fidelity table, before the type that follows it (it was dropped until code
+    // lens pass 3, divergence CL23).
     if (head !== undefined) head.recGroupSize = count;
+    else module.fidelity.addEmptyRecGroup(first);
     return Result.Ok;
   }
 

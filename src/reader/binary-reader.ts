@@ -1076,9 +1076,12 @@ export class BinaryReader {
           if (this.pos >= end) return this.shortSection();
           this.readSubType(m);
         }
-        // Mark the group on its first entry so the writer can re-emit it.
+        // Mark the group on its first entry so the writer can re-emit it — or,
+        // for an EMPTY group, in the fidelity table (dropped until code lens
+        // pass 3, divergence CL23).
         const head = m.types[first];
         if (head !== undefined) head.recGroupSize = n;
+        else if (n === 0) m.fidelity.addEmptyRecGroup(first);
       } else {
         this.readSubType(m);
       }

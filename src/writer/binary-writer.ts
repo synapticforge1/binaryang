@@ -95,7 +95,7 @@ import type {
   ValueType,
   Var,
 } from '../ir/ir.ts';
-import type { FidelityTable } from '../ir/fidelity.ts';
+import { type FidelityTable, withEmptyRecGroups } from '../ir/fidelity.ts';
 import {
   isRefValueType,
   recGroups,
@@ -1439,13 +1439,15 @@ class BinaryWriter {
 
   private writeTypeSection(): void {
     const { m, s } = this;
-    if (m.types.length === 0) return;
+    // The section is a vector of REC GROUPS, not of types: an explicit
+    // `(rec …)` spanning N types occupies ONE vector slot while consuming N
+    // type indices. Writing m.types.length was right only while every type
+    // was its own singleton group. An EMPTY group, which only the fidelity
+    // table holds, occupies a slot too (CL23) — a module of nothing else still
+    // has a type section.
+    const groups = withEmptyRecGroups(recGroups(m.types), m.fidelity, m.types.length);
+    if (groups.length === 0) return;
     s.writeSection(BinarySection.Type, () => {
-      // The section is a vector of REC GROUPS, not of types: an explicit
-      // `(rec …)` spanning N types occupies ONE vector slot while consuming N
-      // type indices. Writing m.types.length was right only while every type
-      // was its own singleton group.
-      const groups = recGroups(m.types);
       s.writeU32Leb(groups.length);
       for (const g of groups) {
         if (g.explicit) {
