@@ -4652,7 +4652,8 @@ stage-2 item, the M-series and post-M8 tables, the pre-bump items): `git show
 
 ### R15 — why the block-param lowering is POSITIONAL (merge `f3008cbd6`)
 
-🔑 The first attempt (`wip/r15-tree-pass`, never merged; its commit message keeps the traps) rewrote
+🔑 The first attempt (never merged; recorded in full below, § "The first attempt, as its commit
+recorded it") rewrote
 each entry `pop` into a read of its local and failed 6 of 8: a `pop` is only "already on the stack"
 — an entry value may be consumed deep in an operand, pass straight through (`if.0`'s arm is
 `[(pop), (pop)]`: nothing to rewrite), or be carried back by a `br_if` whose values a multi-result
@@ -4666,6 +4667,40 @@ trampoline. Its behaviour check found Q1–Q3; the same check over the whole tes
 🔑 Two guards in the phantom fix (Q4) exist because a first version broke `fac.0`: a region's
 statements are not operands, and a bare `pop` statement is not a phantom — the `fac-ssa` route-A
 fixture caught the pair.
+
+#### The first attempt, as its commit recorded it (folded 2026-11-05, open-work 43)
+
+Its only record was the commit message of the local branch `wip/r15-tree-pass` (2026-09-20; id
+`91dfb6cc2` after the 2026-10-26 re-parent, `ade9019d6` before; never pushed). What the message
+alone held is here; the branch was then deleted on the owner's word (2026-11-05: "proceed with
+item 43 then delete the branch after the merge is accomplished"). Its patch survives only in the
+machine-local backup bundles under `cmem/local/backups/` (the pre-item-46 bundle holds the
+`91dfb6cc2` ref, the pre-H19 bundle the `ade9019d6` one).
+
+- **What it changed** (3 files, +263 / −66): `lower-block-params.ts` rewritten as a tree pass —
+  entry values to fresh locals, each `pop` standing for parameter `i` rewritten to read slot `i`, a
+  loop back-edge that writes those slots and carries nothing (the values put BACK after a `br_if`
+  for the fall-through path), the `else` a one-armed `if` needs once its parameters are locals, and
+  a loud refusal for a `br_table` mixing a parametrised loop with other targets;
+  `derive-types.ts`: an origin became `{entry: i}` instead of `'entry'`, so a `pop` says WHICH
+  parameter it stands for (the message called this part sound, the enabler of any tree pass);
+  `spill-stack-values.ts`: `regionPops` exported, the same question asked of a carrier's region.
+- **What failed, with the lowering run ALONE** (no pass after it): `spec/fac/fac.0.wasm` — "not
+  enough arguments on the stack for local.set", the back-edge rewrite wrong the same way the
+  decoder's was; `spec/if/if.0.wasm` f44 and `spec/block/block.0.wasm` f49 — "expected 2 elements
+  on the stack for fallthru, found 1", the multi-value constructs (the wrapper block's arity, or the
+  synthesized `else`, does not hold for a tuple). `spec/try_table/try_table.1.wasm` was VALID
+  before and after `-O2` on both routes.
+- **Trap 1 — `mapExpression` calls back with a REBUILT node, so identity survives only for
+  LEAVES.** A first version looked a construct up and replaced it by identity; it never matched,
+  nothing was lowered, the guard loop ran its 1,000 iterations and the function came back with
+  ~800 locals. The fix in that attempt: lower inside one bottom-up `mapExpression`, which also
+  lowers a nested construct before the one that holds it. **How to apply:** never key a rewrite on
+  the identity of a non-leaf node inside a `mapExpression` callback.
+- **Trap 2 — a no-op passes every test that only asks "is it valid?"**: with nothing lowered the
+  module stayed valid (the encoder writes parameters as written). Recorded as a practice in
+  [best-practices.md](best-practices.md) § "A no-op passes every test that only asks 'is it
+  valid?'".
 
 ### Flatten — decided KEPT, then completed (2026-09-28)
 
