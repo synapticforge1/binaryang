@@ -1032,7 +1032,8 @@ classified them first:
   the old tree carried the path back in through that file. Its fate was
   [open-work.md](open-work.md) item 43: **deleted 2026-11-05** (owner), after its message was
   folded into [ir-convergence.md](ir-convergence.md) § R15 and both citations pointed there. No
-  local branch besides `main` remains; the patch is only in the machine-local backup bundles.
+  local branch holds an unmerged commit any more (`git branch --no-merged main` is empty; the
+  others are merged work branches); the patch is only in the machine-local backup bundles.
 
 After the deletion, a scan of every local branch, every tag and `origin` finds **0** commits with a
 drive path. The frozen predecessors' remote-tracking refs (`wabt-ts/*`, `binaryen-ts/*`) reach 2,
