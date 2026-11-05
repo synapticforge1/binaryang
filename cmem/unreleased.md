@@ -6,6 +6,29 @@ code lens passes 2 and 3, and open-work 50 and 52, are unreleased on `main` — 
 `git log --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of work.
 
+**Unreleased — CL7, `wasm-objdump`'s details as upstream's** (2026-11-05, owner: "I agree with
+your C7 suggested workflow"). A MINOR on its own (a new option):
+
+- **New option:** `wasm-objdump -x` / `--details`, upstream's details flag (it was refused).
+- **Deprecated:** `-d` for details. It still prints them, with a warning on stderr; in the next
+  major release `-d` becomes upstream's `--disassemble` (below, "Queued for the next MAJOR").
+- **Behaviour (CLI output) — upstream wabt 1.0.41's `-x` lines, character for character:** a
+  `Section Details:` heading and no blank line between sections; results `nil`, `i32` or
+  `(f64, i32)`; `sig=N` for every function and tag; names without `$`, an import's
+  `module.field` and an export's name for an unnamed function, and the function's name on an
+  export line; limits with `max=`, `shared`, `i64` and `(pagesize N)`; `mutable=0|1`; `tag[N]`.
+  Library: `wasmObjdump(bytes, { details: true })`'s text changes the same way.
+
+**Queued for the next MAJOR** (owner's decisions; neither is on `main` — each lands only when the
+owner decides to cut a major):
+
+- **`wasm-objdump -d` becomes upstream's `--disassemble`** (CL7, 2026-11-05) — refused with a
+  clear message until binaryang has a disassembler; never silently another meaning.
+- **binaryen facade `i64.const(value, high?: never)`** (CL19, 2026-11-05: "the clean way") — a
+  second argument, binaryen.js's pre-132 `(low, high)` form, throws as upstream's "i64.const now
+  takes a single argument" does, instead of being dropped silently. A changed signature: the
+  surface gate calls it MAJOR.
+
 **Unreleased — open-work 50 and 52, fixed** (2026-10-28, owner: "fix the 52 and 50 items"). The
 surface gate says **at least a MINOR**: new CLI options and library options and exports. Several
 lines change what a script or a consumer sees, so the note should say so plainly:

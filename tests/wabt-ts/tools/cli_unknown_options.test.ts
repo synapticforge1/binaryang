@@ -44,11 +44,13 @@ describe('code lens 2 — an unknown option is an error, never skipped', () => {
     });
   }
 
-  it("wasm-objdump refuses -x (upstream's details flag) instead of printing the headers", async () => {
+  // `-x` was refused here until CL7 (owner, 2026-11-05) made it the details flag, as upstream's.
+  it("wasm-objdump -x is upstream's details flag, not the headers", async () => {
     const f = await fixture();
     const r = await run(['wasm-objdump', '-x', f.wasm]);
-    assertEquals(r.code, 1);
-    assert(r.stderr.includes('unknown option -x'), r.stderr);
+    assertEquals(r.code, 0, r.stderr);
+    assert(r.stdout.includes('Section Details:'), r.stdout);
+    assert(!r.stdout.includes('Sections:'), r.stdout);
   });
 });
 

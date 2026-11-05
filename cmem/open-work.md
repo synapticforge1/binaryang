@@ -18,9 +18,12 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
 NOT released; the next release is at least a MINOR. Correspondence: every row binaryang opened is
 closed (C3 and C26 on 2026-11-05, after re-measuring wasmtk's re-clone and the id translations in
-wasmtk, wazmrt and S3D). Item 43 closed and `wip/r15-tree-pass` deleted (owner). **For the
-owner:** CL7, CL12, `i64.const`'s two-argument form, the release, the GitHub Support request.
-**Mine:** LowerBlockParams' catch to a parametrised loop. **Next by the owner's order:** 31, 13,
+wasmtk, wazmrt and S3D). Item 43 closed and `wip/r15-tree-pass` deleted (owner), with every
+other merged work branch. Owner decisions the same day: CL12 → DESIGN; CL7 step 1 done on `main`
+(`wasm-objdump -x`, upstream's lines); CL7's `-d` → `--disassemble` and `i64.const`'s `high?:
+never` QUEUED for the next MAJOR ([unreleased.md](unreleased.md)). **For the owner:** the release
+(at least a MINOR), when to cut a major, the GitHub Support request. **Mine:** LowerBlockParams'
+catch to a parametrised loop; CL7's unprinted sections. **Next by the owner's order:** 31, 13,
 14, 15.
 
 **State, end of 2026-10-28 (superseded where the paragraph above differs).** On local
@@ -157,6 +160,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     (`458af6c10`). **Open:** ⬚ `i64.const(low, high)` (CL19) — the check needed a lint
     suppression and was reverted (`052e8f5fa`; owner: "if it needs an ignore statement it is
     not a fix"): a second parameter (surface gate: MAJOR) or leave it, the owner's to choose.
+    **Decided 2026-11-05 (owner): the second parameter**, `high?: never`, throwing — queued for
+    the next MAJOR ([unreleased.md](unreleased.md)), not on `main`.
     ⬚ LowerBlockParams refuses a `try_table` catch (and a `br_on_*`) to a loop with parameters
     (`lower-block-params.ts:426`): `-O1`, `-O2`, even `--vacuum` exit 1 on a valid module — not
     yet done (a lowering to design: the catch's values must reach the loop's parameters).
@@ -186,6 +191,11 @@ removed record went to a topic file, and the full text is one `git show` away:
     NOT ENFORCED … nothing turns a feature on or off with another"); ⚖️ CL7 — upstream's `-x` is
     details and its `-d` a disassembly binaryang lacks, so matching it changes what our `-d`
     means (a CLI-contract decision), and upstream's details cover every section.
+    **Decided 2026-11-05 (owner):** CL12 → DESIGN, the ruling kept, no code. CL7 → upstream's
+    flags in two steps: ✅ `-x` / `--details`, `-d` deprecated with a warning, and the printed
+    lines upstream's character for character (on `main`, a MINOR); ⬚ the sections not yet printed
+    (Table, Memory, Global, Start, Elem, Code, Data, Tag, Custom) — mine; ⬚ `-d` as
+    `--disassemble` — queued for the next MAJOR ([unreleased.md](unreleased.md)).
 
 49. ✅ **Code lens pass 2 — five defects fixed, comments corrected, dead code removed**
     (2026-10-28, owner: "look for code issues"; branch `fix/code-lens-2`). CL1 a `struct.new_desc`

@@ -22,8 +22,9 @@ function objdump(wat: string): string {
 describe('wasm-objdump prints only REAL function names', () => {
   it('a named function by its name, an unnamed one by its index alone', () => {
     const text = objdump('(module (func $named) (func))');
-    assert(text.includes(' - func[0] <$named>'), text);
-    assert(/ - func\[1\]\n/.test(text), text);
+    // Without the text format's `$`, as upstream prints a name-section entry (CL7).
+    assert(text.includes(' - func[0] sig=0 <named>'), text);
+    assert(/^ - func\[1\] sig=0$/m.test(text), text);
     assert(!text.includes('$func1'), text);
   });
 });

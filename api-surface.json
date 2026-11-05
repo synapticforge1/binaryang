@@ -2415,13 +2415,15 @@
   "wasm-objdump": {
    "flags": [
     "--details",
+    "--disassemble",
     "--headers",
     "--help",
     "--version",
     "-d",
-    "-h"
+    "-h",
+    "-x"
    ],
-   "usage": "f5d15331da26"
+   "usage": "cbe8b9728b78"
   },
   "wasm-strip": {
    "flags": [
