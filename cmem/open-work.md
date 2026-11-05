@@ -14,7 +14,16 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
-**State, end of 2026-10-28 (supersedes the paragraphs below where they differ).** On local
+**State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
+2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
+NOT released; the next release is at least a MINOR. Correspondence: every row binaryang opened is
+closed (C3 and C26 on 2026-11-05, after re-measuring wasmtk's re-clone and the id translations in
+wasmtk, wazmrt and S3D). Item 43 closed and `wip/r15-tree-pass` deleted (owner). **For the
+owner:** CL7, CL12, `i64.const`'s two-argument form, the release, the GitHub Support request.
+**Mine:** LowerBlockParams' catch to a parametrised loop. **Next by the owner's order:** 31, 13,
+14, 15.
+
+**State, end of 2026-10-28 (superseded where the paragraph above differs).** On local
 `main` (`fdb1b4384`), 61 commits ahead of GitHub, NOT pushed and not released — both the owner's
 word: code lens passes 2 and 3 (items 49, 53), Deno off this machine and CI (51), the
 comparison suite on Bun, and items 50 and 52 fixed but four (owner: "fix the 52 and 50 items"):
@@ -89,7 +98,7 @@ wazmrt notified by the owner, 2026-10-24). Everything pushed with the 2.2.0 reco
   138,410 since 2026-10-26, [optimizer.md](optimizer.md) § "State 2026-10-26" — and the corpus
   811,071, then attribute simplify-locals-nostructure per function), 13 (a hardening re-run until
   clean, then the code lens), 14 (security, after 13), 15 (blocked on wasmtk), 43 (the kept
-  `wip/r15-tree-pass` branch: fold its message into the record, then the owner decides). 44 is
+  `wip/r15-tree-pass` branch; closed 2026-11-05). 44 is
   DONE at HEAD (below); what remains of it is the owner's: the purge of the old blobs from public
   history and the force-push. 45 is FIXED and released in 2.2.1 (2026-10-26).
 - **Awaiting replies:** wasmtk's optional answer to § 19. (The runtimes' matrices on 2.2.0
@@ -665,22 +674,13 @@ kept free.)
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
-43. ⬚ **The one kept local branch, `wip/r15-tree-pass`** (owner, 2026-10-26: "add that to the open
-    items list so that it is not forgotten"). The 2026-09-20 first attempt at R15's block-param
-    lowering, as a tree pass; it failed 6 of 8 modules and was never merged. R15 landed another way
-    (positional, merge `f3008cbd6`). It was kept when the other 398 local branches were deleted
-    ([publishing.md](publishing.md) § "Local branches deleted") because two places send readers to
-    its commit message for the traps it records: [ir-convergence.md](ir-convergence.md) § R15 and
-    `src/passes/lower-block-params.ts:33`. It is local only: never pushed, not in any clone.
-    ⚠️ Its id is now `91dfb6cc2` (re-parented 2026-10-26). The pre-purge bundle holds the OLD id,
-    `ade9019d6`, with the same patch and message, so the branch's content is backed up, but under
-    another id.
-    **To close:** (1) fold what the message alone holds into [ir-convergence.md](ir-convergence.md)
-    § R15. That is the failures it measured per module and trap 1: `mapExpression` calls back with
-    a REBUILT node, so identity survives only for leaves; a lookup by identity never matched, nothing
-    was lowered, and the guard loop ran 1,000 times. Trap 2, "a no-op passes every validity test",
-    is already in [best-practices.md](best-practices.md). (2) Point both citations at that record
-    instead of the branch. (3) The owner decides: delete the branch, or keep it.
+(Item 43 closed 2026-11-05 (owner: "proceed with item 43 then delete the branch after the merge is
+accomplished"): the kept local branch `wip/r15-tree-pass` (`91dfb6cc2`) — its commit message
+folded into [ir-convergence.md](ir-convergence.md) § R15, "The first attempt, as its commit
+recorded it"; the two citations (that section and `src/passes/lower-block-params.ts`) point there;
+the branch deleted after the merge ([publishing.md](publishing.md) § "Local branches deleted"). Its
+number is kept free.)
+
 (Item 25 closed 2026-10-13: the deprecated IR subpaths and names are removed on `main`, for the next
 minor, 1.12.0 — [unreleased.md](unreleased.md), the letter [handoffs.md](handoffs.md) § 32. The
 premise "wasmtk does not import the IR subpaths" was checked in their repo before relying on it: true

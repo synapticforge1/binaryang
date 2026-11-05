@@ -1029,8 +1029,10 @@ classified them first:
   **re-parented** onto the map's new parent `1729de2a5`. The result, `91dfb6cc2` (was `ade9019d6`,
   in the bundle), keeps the message bytes, names, dates and the same patch (3 files). Its tree took
   the parent's `scripts/spec-prepare.ts`, which the commit never touched; a first attempt that kept
-  the old tree carried the path back in through that file. Its fate is
-  [open-work.md](open-work.md) item 43.
+  the old tree carried the path back in through that file. Its fate was
+  [open-work.md](open-work.md) item 43: **deleted 2026-11-05** (owner), after its message was
+  folded into [ir-convergence.md](ir-convergence.md) § R15 and both citations pointed there. No
+  local branch besides `main` remains; the patch is only in the machine-local backup bundles.
 
 After the deletion, a scan of every local branch, every tag and `origin` finds **0** commits with a
 drive path. The frozen predecessors' remote-tracking refs (`wabt-ts/*`, `binaryen-ts/*`) reach 2,

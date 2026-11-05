@@ -30,8 +30,9 @@
  * carried back to a loop by a branch whose values are produced INSIDE its own
  * condition by a multi-result call (`fac.0`'s `br_if`). No rewrite of
  * individual `pop`s covers all three, and a first attempt that tried
- * (`wip/r15-tree-pass`) failed on six of the eight modules. So the lowering
- * works where the stack is explicit, and never renames a `pop`:
+ * (recorded in `cmem/ir-convergence.md` § R15) failed on six of the eight
+ * modules. So the lowering works where the stack is explicit, and never
+ * renames a `pop`:
  *
  * - **Entry**: the entry values go into fresh locals just before the
  *   construct, and each of its regions STARTS by reading them back — so every
