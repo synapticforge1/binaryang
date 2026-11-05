@@ -16,7 +16,9 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
-NOT released; the next release is at least a MINOR. Correspondence: every row binaryang opened is
+NOT released; the next release is at least a MINOR. Today's work (item 43, CL7) is on local
+`main` (merge `7472620c6`, full gate 29 / 29 on a fresh clone), NOT pushed — the owner's word.
+Correspondence: every row binaryang opened is
 closed (C3 and C26 on 2026-11-05, after re-measuring wasmtk's re-clone and the id translations in
 wasmtk, wazmrt and S3D). Item 43 closed and `wip/r15-tree-pass` deleted (owner), with every
 other merged work branch. Owner decisions the same day: CL12 → DESIGN; CL7 step 1 done on `main`
