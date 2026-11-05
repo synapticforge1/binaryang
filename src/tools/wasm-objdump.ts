@@ -47,7 +47,7 @@ import {
 } from '../core/error.ts';
 import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
-import type { Module, SectionMeta } from '../ir/ir.ts';
+import type { Limits, Module, SectionMeta, ValueType, Var } from '../ir/ir.ts';
 import { cliExit, cliProcess, cliRead } from '../cli/io.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { countImports } from '../ir/ir.ts';
@@ -132,6 +132,8 @@ function dump(binary: Uint8Array, opts: WasmObjdumpOptions): WasmObjdumpResult {
   }
 
   if (showDetails) {
+    lines.push('Section Details:');
+    lines.push('');
     appendDetails(lines, module);
   }
 
@@ -142,58 +144,64 @@ function dump(binary: Uint8Array, opts: WasmObjdumpOptions): WasmObjdumpResult {
 // Detail output
 // ---------------------------------------------------------------------------
 
+// Upstream's `-x` lines, field for field (`binary-reader-objdump.cc`, wabt 1.0.41): a function or
+// tag result list is `nil`, one type, or `(a, b)`; limits print `max=` only when there is one and
+// ` i64` for a 64-bit table or memory; a global says `mutable=0|1`; a function and a tag carry
+// their type index as `sig=`. CL7 (2026-11-05) — the lines were `-> ()`, `sig=?`, `<$add>`, and
+// limits without their maximum or address type.
 function appendDetails(lines: string[], m: Module): void {
+  const funcNames = functionNames(m);
+  const tagNames = tagNamesOf(m);
+
   // Type section
   if (m.types.length > 0) {
     lines.push(`Type[${m.types.length}]:`);
     for (const [i, t] of m.types.entries()) {
       if (t.kind === 'func') {
         const params = t.sig.params.map(valueTypeName).join(', ');
-        const results = t.sig.results.map(valueTypeName).join(', ');
-        lines.push(` - type[${i}] (${params}) -> (${results})`);
+        lines.push(` - type[${i}] (${params}) -> ${resultList(t.sig.results)}`);
       } else {
         lines.push(` - type[${i}] (${t.kind})`);
       }
     }
-    lines.push('');
   }
 
   // Import section
   if (m.imports.length > 0) {
     lines.push(`Import[${m.imports.length}]:`);
-    let fi = 0, ti = 0, mi = 0, gi = 0;
+    let fi = 0, ti = 0, mi = 0, gi = 0, tgi = 0;
     for (const imp of m.imports) {
+      const from = ` <- ${imp.module}.${imp.field}`;
       switch (imp.kind) {
-        case ExternalKind.Func:
-          lines.push(
-            ` - func[${fi++}] sig=? <${imp.module}.${imp.field}> <- ${imp.module}.${imp.field}`,
-          );
+        case ExternalKind.Func: {
+          const i = fi++;
+          lines.push(` - func[${i}] sig=${sigOf(imp.func.typeVar)}${named(funcNames[i])}${from}`);
           break;
+        }
         case ExternalKind.Table:
           lines.push(
-            ` - table[${ti++}] type=${
-              valueTypeName(imp.table.elemType)
-            } <- ${imp.module}.${imp.field}`,
+            ` - table[${ti++}] type=${valueTypeName(imp.table.elemType)} initial=${
+              limitsText(imp.table.limits)
+            }${from}`,
           );
           break;
         case ExternalKind.Memory:
-          lines.push(
-            ` - memory[${mi++}] pages: initial=${imp.memory.limits.initial} <- ${imp.module}.${imp.field}`,
-          );
+          lines.push(` - memory[${mi++}] pages: initial=${limitsText(imp.memory.limits)}${from}`);
           break;
         case ExternalKind.Global:
           lines.push(
-            ` - global[${gi++}] ${valueTypeName(imp.global.type)}${
-              imp.global.mutable ? ' mutable' : ''
-            } <- ${imp.module}.${imp.field}`,
+            ` - global[${gi++}] ${valueTypeName(imp.global.type)} mutable=${
+              imp.global.mutable ? 1 : 0
+            }${from}`,
           );
           break;
-        case ExternalKind.Tag:
-          lines.push(` - tag <- ${imp.module}.${imp.field}`);
+        case ExternalKind.Tag: {
+          const i = tgi++;
+          lines.push(` - tag[${i}] sig=${sigOf(imp.tag.typeVar)}${named(tagNames[i])}${from}`);
           break;
+        }
       }
     }
-    lines.push('');
   }
 
   // Function section
@@ -201,25 +209,91 @@ function appendDetails(lines: string[], m: Module): void {
   if (m.functions.length > 0) {
     lines.push(`Function[${m.functions.length}]:`);
     for (const [i, f] of m.functions.entries()) {
-      // Only a REAL name (owner decision 4; M7c3b b1b): the reader makes one up
-      // for every function the name section did not name.
-      const real = isRealName(m.explicitNames, m.explicitNames?.functions, f.name);
-      const name = real ? ` <${f.name}>` : '';
-      lines.push(` - func[${totalFuncImports + i}]${name}`);
+      const index = totalFuncImports + i;
+      lines.push(` - func[${index}] sig=${sigOf(f.typeVar)}${named(funcNames[index])}`);
     }
-    lines.push('');
   }
 
-  // Export section
+  // Export section: upstream names only an exported FUNCTION.
   if (m.exports.length > 0) {
     lines.push(`Export[${m.exports.length}]:`);
     for (const exp of m.exports) {
       const kindStr = extKindName(exp.kind);
-      const idx = indexOf(exp.var) ?? '?';
-      lines.push(` - ${kindStr}[${idx}] -> "${exp.name}"`);
+      const idx = indexOf(exp.var);
+      const name = exp.kind === ExternalKind.Func && idx !== undefined ? named(funcNames[idx]) : '';
+      lines.push(` - ${kindStr}[${idx ?? '?'}]${name} -> "${exp.name}"`);
     }
-    lines.push('');
   }
+}
+
+/**
+ * Every function's name as upstream's prepass sets it, a later source overriding an earlier: an
+ * import is `module.field`, an export its export name, and the name section has the last word.
+ * Only a REAL name-section name counts (owner decision 4; M7c3b b1b) — the reader makes one up for
+ * every function the section did not name, and that one is not the module's.
+ */
+function functionNames(m: Module): (string | undefined)[] {
+  const names: (string | undefined)[] = [];
+  const all = [
+    ...m.imports.flatMap((imp) => (imp.kind === ExternalKind.Func ? [imp.func] : [])),
+    ...m.functions,
+  ];
+  let fi = 0;
+  for (const imp of m.imports) {
+    if (imp.kind === ExternalKind.Func) names[fi++] = `${imp.module}.${imp.field}`;
+  }
+  for (const exp of m.exports) {
+    const idx = indexOf(exp.var);
+    if (exp.kind === ExternalKind.Func && idx !== undefined) names[idx] = exp.name;
+  }
+  for (const [i, f] of all.entries()) {
+    if (isRealName(m.explicitNames, m.explicitNames?.functions, f.name)) names[i] = bare(f.name);
+  }
+  return names;
+}
+
+/** Each imported tag's name: `module.field`, or the name section's real name. */
+function tagNamesOf(m: Module): (string | undefined)[] {
+  const names: (string | undefined)[] = [];
+  let ti = 0;
+  for (const imp of m.imports) {
+    if (imp.kind !== ExternalKind.Tag) continue;
+    const real = isRealName(m.explicitNames, m.explicitNames?.tags, imp.tag.name);
+    names[ti++] = real ? bare(imp.tag.name) : `${imp.module}.${imp.field}`;
+  }
+  return names;
+}
+
+/** An IR name without the text format's `$`, as upstream prints a name-section entry. */
+function bare(name: string): string {
+  return name.startsWith('$') ? name.slice(1) : name;
+}
+
+function named(name: string | undefined): string {
+  return name === undefined || name === '' ? '' : ` <${name}>`;
+}
+
+function sigOf(typeVar: Var | undefined): string {
+  const i = typeVar === undefined ? undefined : indexOf(typeVar);
+  return i === undefined ? '?' : String(i);
+}
+
+function resultList(results: readonly ValueType[]): string {
+  if (results.length === 0) return 'nil';
+  if (results.length === 1) return valueTypeName(results[0]!);
+  return `(${results.map(valueTypeName).join(', ')})`;
+}
+
+/** `initial[ max=N][ shared][ i64][ (pagesize N)]`, the text after upstream's `initial=`. */
+function limitsText(l: Limits): string {
+  let s = String(l.initial);
+  if (l.max !== undefined) s += ` max=${l.max}`;
+  if (l.isShared) s += ' shared';
+  if (l.is64) s += ' i64';
+  if (l.pageSizeLog2 !== undefined && l.pageSizeLog2 !== 16) {
+    s += ` (pagesize ${2 ** l.pageSizeLog2})`;
+  }
+  return s;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,11 +372,16 @@ const HELP: ToolHelp = {
   description: 'Print information about the contents of WebAssembly binaries.',
   examples: [
     ['the section headers', 'wasm-objdump test.wasm'],
-    ['the headers and every section in detail', 'wasm-objdump -h -d test.wasm'],
+    ['the headers and every section in detail', 'wasm-objdump -h -x test.wasm'],
   ],
   options: [
     ['-h, --headers', 'Print the section headers (the default when no other option is given)'],
-    ['-d, --details', 'Print the contents of every section'],
+    ['-x, --details', 'Print the contents of every section'],
+    [
+      '-d',
+      'DEPRECATED: the same as -x, with a warning. In the next major release -d becomes ' +
+      "upstream's --disassemble",
+    ],
   ],
 };
 
@@ -325,7 +404,15 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    if (arg === '-d' || arg === '--details') {
+    if (arg === '-x' || arg === '--details') {
+      details = true;
+    } else if (arg === '-d') {
+      // CL7 (owner, 2026-11-05: upstream's flags): upstream's `-d` is `--disassemble`, its
+      // details flag `-x`. `-d` was ours for details since 2.2, so it keeps working, with a
+      // warning, until the next major release makes it upstream's.
+      console.error(
+        "wasm-objdump: warning: -d is deprecated for details; use -x. In the next major release -d becomes upstream's --disassemble.",
+      );
       details = true;
     } else if (arg === '-h' || arg === '--headers') {
       headers = true;
@@ -334,19 +421,19 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     } else {
       // An option this tool does not have is an ERROR, never skipped (workspace contract S2:
       // "an error in syntax of the CLI options or commands throws"; code lens pass 2,
-      // 2026-10-28: `-x`, upstream's details flag, silently printed the headers instead).
+      // 2026-10-28: `-x`, upstream's details flag and not yet ours, silently printed the headers).
       console.error(`wasm-objdump: unknown option ${arg}`);
       bad = true;
     }
   }
   if (bad) cliExit(1);
-  // Show what was asked for, as upstream does: `-d` alone is the details
-  // alone, `-h -d` both, and no flag the headers. (`headers` started `true`
+  // Show what was asked for, as upstream does: `-x` alone is the details
+  // alone, `-h -x` both, and no flag the headers. (`headers` started `true`
   // here, so `-h` re-set a default and could never mean anything.)
   headers ??= !details;
 
   if (inputs.length === 0) {
-    console.error('usage: wasm-objdump [-h] [-d] <input.wasm> [...]');
+    console.error('usage: wasm-objdump [-h] [-x] <input.wasm> [...]');
     cliExit(1);
   }
 
