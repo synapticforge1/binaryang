@@ -34,16 +34,37 @@
 # diagnostic below checks a PREREQUISITE, not the outcome — wasmtk got ten releases of false
 # assurance from exactly that step. The verification step at the end is the real gate.
 #
-# Required permissions (each job asks for its own, no more):
-#   - publish: id-token: write → OIDC token for JSR provenance; contents: read → checkout
-#   - release: contents: write → create the GitHub Release page, in a job that checks out only
-#     its script and jsr.json and installs nothing (workspace letters H30 and H32, C30)
+# ## The jobs (restructured 2026-11-09, open-work 54; workspace correspondence C30 / C34)
+#
+# `id-token: write` IS the publishing credential: JSR and npm trusted publishing both take this
+# workflow's OIDC token, and every step of a job holding it can mint one. So the two jobs that
+# hold it (`jsr`, `npm`) run only pinned actions, `deno publish` / `npm publish`, and the
+# standalone `scripts/release/registry.ts` — they check out what they publish and that script,
+# and install NOTHING. Everything that runs dependencies is in a job without the token:
+#
+#   checks     no token  tag = jsr.json, compatibility gate, type check, both test legs,
+#                        `deno publish --dry-run` on exactly the files `jsr` checks out, and
+#                        npm's record of the number (npm never reuses one, an unpublished one
+#                        included — so a burned number stops HERE, before JSR's immutable step)
+#   jsr        id-token  skips the upload if JSR already has the version (a re-run), writes
+#                        `uploaded` BEFORE `deno publish` — which uploads, THEN signs, so a
+#                        failure after the upload (1.13.2) must not strand the jobs after it —
+#                        then publishes and reads provenance back
+#   release    contents  waits for JSR to serve the version, then the GitHub Release page
+#              : write   (workspace letters H30 / H32; scripts/release/github.ts)
+#   npm-build  no token  builds and PROVES the npm package, packs it, uploads the tarball
+#   npm        id-token  waits for JSR, checks the tarball's manifest (ours, this version, no
+#                        scripts, provenance on), skips if npm already serves it, publishes
+#                        the PROVEN tarball with --ignore-scripts, reads provenance back
+#
+# Every action is pinned to a commit hash (the comment names its release); move a pin by
+# reading the release tag's commit with `git ls-remote`. A non-tag dispatch runs `checks` only.
 #
 # JSR side: link the package (`@jrmarcum/binaryang`) to this GitHub repo in the JSR UI
 # under "Settings → GitHub Actions". No JSR token is needed when OIDC is configured.
 
 name: Publish to JSR
-# (and to npm, in the `npm` job below, once switched on: open-work 29)
+# (and to npm, in the `npm` job below, while the repository variable NPM_PUBLISH is `true`)
 
 on:
   push:
@@ -51,36 +72,31 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# One run per tag at a time, QUEUED, never cancelled: a cancelled run after `deno publish` and
+# before the jobs that follow it would leave a version on JSR that the rest never get (C30 (2)).
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  publish:
-    name: Publish ${{ github.ref_name }}
+  checks:
+    name: Checks ${{ github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
-    # Whether `deno publish` itself succeeded: the `release` job keys off this, not off the whole
-    # job, so a failed provenance read-back (the last step) still gets its Release page, as when
-    # the page was a step in this job.
-    outputs:
-      published: ${{ steps.deno.outcome == 'success' }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           # The release tags: the compatibility gate compares this tag with the previous one.
           fetch-depth: 0
+          persist-credentials: false
 
-      # Deno ONLY for `deno publish` (owner, 2026-10-12: Deno for JSR). Everything else is the CI
-      # gate's tooling (Bun migration B6 / B7, 2026-10-13):
-      # Bun with the dev dependencies, and Node 24, the V8 referee the suite's verdict comes from.
-      - name: Install Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-
+      # The CI gate's tooling (Bun migration B6 / B7, 2026-10-13): Bun with the dev dependencies,
+      # and Node 24, the V8 referee the suite's verdict comes from.
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.4'
 
@@ -88,12 +104,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Node (the V8 referee)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
 
-      # The checks and the read-back poll in this file are scripts/release/workflow.ts, not bash
-      # (owner rule, 2026-10-21: a condition or a loop goes in a .ts file; the shell only launches).
+      # The checks in this file are scripts/release/*.ts, not bash (owner rule, 2026-10-21: a
+      # condition or a loop goes in a .ts file; the shell only launches).
       - name: Verify jsr.json version matches tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: bun scripts/release/workflow.ts tag-matches "$GITHUB_REF_NAME"
@@ -115,66 +131,152 @@ jobs:
       - name: Test (Bun, against the known JavaScriptCore differences)
         run: bun run test:bun
 
-      # Checks the PREREQUISITE only: are the OIDC env vars present on the runner?
-      # This is a diagnostic, NOT evidence — see the header. It is here because when
-      # it DOES fail it names the cause immediately (org/enterprise Actions OIDC policy),
-      # which is otherwise invisible.
-      - name: Check OIDC availability (prerequisite, not proof)
-        run: bun scripts/release/workflow.ts oidc-check
+      # Deno ONLY for `deno publish` (owner, 2026-10-12: Deno for JSR).
+      - name: Install Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.x
+
+      # The `jsr` job publishes from a checkout of jsr.json's `publish.include` alone — no
+      # package.json, no lockfile, no node_modules. Rehearse exactly that tree here (measured
+      # 2026-11-09: the same 136 files, and the slow-types check passes, as from the full tree).
+      - name: Checkout the published files only (as the jsr job does)
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          path: jsr-tree
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /jsr.json
+            /main.ts
+            /src/
+            /README.md
+            /LICENSE
+            /LICENSE-MIT
+            /LICENSE-APACHE
+            /NOTICE.md
 
       # No `--allow-slow-types`. binaryen-ts needed it for `interop/binaryen-js.ts`'s
       # runtime-configurable `await import(path)`; measured 2026-08-26, the merged tree
       # passes the slow-types check WITHOUT it. Keeping the flag is not neutral — JSR
       # warns that a slow-types package ships NO .d.ts for Node users, and Node support
-      # is one of binaryang's published capabilities. `bun run publish:dry` runs the
-      # identical command so the gate tests what actually ships.
-      # jsr.json is the package manifest; with no deno.json (B7, 2026-10-13) Deno finds it by
-      # itself, so `--config jsr.json` came off. Still `deno publish` called DIRECTLY: `bunx jsr publish` downloads Deno and runs this same command as a
-      # subprocess, which is the indirection this header warns can lose provenance.
+      # is one of binaryang's published capabilities.
+      - name: JSR dry run, on the tree the jsr job publishes
+        working-directory: jsr-tree
+        run: deno publish --dry-run
+
+      # npm never reuses a number, an unpublished one included: a number npm has used before
+      # stops the release here, before JSR's immutable step publishes it (C34 (2)).
+      - name: npm has not used this number before
+        if: vars.NPM_PUBLISH == 'true' && startsWith(github.ref, 'refs/tags/v')
+        run: bun scripts/release/registry.ts npm-state "${GITHUB_REF_NAME#v}"
+
+  jsr:
+    name: Publish ${{ github.ref_name }} to JSR
+    needs: checks
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    # Written BEFORE `deno publish`: the jobs after it run on this, not on `deno publish`'s exit,
+    # and each first waits for JSR to serve the version (C34 (1); 1.13.2 failed after its upload
+    # and stranded everything gated on it).
+    outputs:
+      uploaded: ${{ steps.attempt.outputs.uploaded }}
+
+    steps:
+      # What jsr.json publishes, and the one script this job runs. Nothing else, nothing installed.
+      - name: Checkout the published files and the registry script
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /jsr.json
+            /main.ts
+            /src/
+            /README.md
+            /LICENSE
+            /LICENSE-MIT
+            /LICENSE-APACHE
+            /NOTICE.md
+            /scripts/release/registry.ts
+
+      - name: Install Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.x
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      # A re-run after a failure past the upload finds the version there and skips the upload.
+      - name: Does JSR already have this version?
+        id: jsr
+        run: bun scripts/release/registry.ts jsr-has "${GITHUB_REF_NAME#v}"
+
+      # Checks the PREREQUISITE only: are the OIDC env vars present on the runner? A diagnostic,
+      # NOT evidence — see the header. When it DOES fail it names the cause immediately
+      # (org/enterprise Actions OIDC policy), which is otherwise invisible.
+      - name: Check OIDC availability (prerequisite, not proof)
+        run: bun scripts/release/registry.ts oidc-check
+
+      - name: Record the upload attempt (before the upload)
+        id: attempt
+        run: echo "uploaded=true" >> "$GITHUB_OUTPUT"
+
+      # jsr.json is the package manifest; Deno finds it by itself. Still `deno publish` called
+      # DIRECTLY: `bunx jsr publish` downloads Deno and runs this same command as a subprocess,
+      # which is the indirection this header warns can lose provenance. scripts/** is outside
+      # jsr.json's include, so the registry script is not published.
       - name: Publish to JSR (with provenance)
-        id: deno
+        if: steps.jsr.outputs.present == 'false'
         run: deno publish
 
-      # THE actual evidence. Runs LAST on purpose: JSR versions are immutable, so by the
-      # time this runs the version exists either way — failing here surfaces the problem
-      # loudly without blocking the publish or the GitHub release (the `release` job reads
-      # `published`, not this job's result). Design taken from wasmtk, which added it after
-      # ten releases of silent absence.
+      # THE actual evidence. JSR versions are immutable, so the version exists either way —
+      # failing here surfaces the problem loudly without blocking the jobs that follow. Design
+      # taken from wasmtk, which added it after ten releases of silent absence.
       - name: Verify provenance was recorded on JSR
-        if: startsWith(github.ref, 'refs/tags/v')
         # JSR ingests attestation asynchronously AND caches this endpoint, so the poll
-        # cache-busts each read (the measurement is in workflow.ts).
-        run: bun scripts/release/workflow.ts provenance jsr "${GITHUB_REF_NAME#v}"
+        # cache-busts each read (the measurement is in registry.ts).
+        run: bun scripts/release/registry.ts provenance jsr "${GITHUB_REF_NAME#v}"
 
   # The GitHub Release page, made by CI after the registry upload (owner, 2026-11-09, workspace
-  # letter H32; no GitHub CLI, H30). Its own job so the write token sits beside nothing else: only
-  # scripts/release/github.ts and jsr.json are checked out, nothing is installed, and the
-  # checkout keeps no credential. The script refuses unless the tag is on GitHub and peels to this
-  # run's commit (POST /releases would CREATE a missing tag), treats an existing page as done, and
-  # reads the page back. Only tags cut after this job landed get a page (owner: no backfill).
+  # letter H32; no GitHub CLI, H30). Only scripts/release/{github,registry}.ts and jsr.json are
+  # checked out, nothing is installed, and the checkout keeps no credential. github.ts refuses
+  # unless the tag is on GitHub and peels to this run's commit (POST /releases would CREATE a
+  # missing tag), treats an existing page as done, and reads the page back. Only tags cut after
+  # this job landed get a page (owner: no backfill).
   release:
     name: GitHub Release ${{ github.ref_name }}
-    needs: publish
-    if: ${{ !cancelled() && needs.publish.outputs.published == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+    needs: jsr
+    if: ${{ !cancelled() && needs.jsr.outputs.uploaded == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
 
     steps:
-      - name: Checkout the release script and the manifest only
-        uses: actions/checkout@v6
+      - name: Checkout the release scripts and the manifest only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
-          sparse-checkout: |
-            scripts/release/github.ts
-            jsr.json
           sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /jsr.json
+            /scripts/release/github.ts
+            /scripts/release/registry.ts
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.4'
+
+      - name: Wait until JSR serves the version
+        run: bun scripts/release/registry.ts jsr-wait "${GITHUB_REF_NAME#v}"
 
       - name: Create the GitHub Release (REST API)
         env:
@@ -182,28 +284,28 @@ jobs:
         run: bun scripts/release/github.ts release "$GITHUB_REF_NAME"
 
   # npm, the SECOND registry (open-work 29; owner, 2026-10-20: `@synapticforge1/binaryang`, JSR
-  # staying the source). After JSR's job, from the same tag. OFF until the repository variable
-  # NPM_PUBLISH is `true` (Settings → Secrets and variables → Actions → Variables), which the owner
-  # sets once npm's trusted publisher for this package names this repository and this workflow
-  # file. No token: npm trusted publishing takes the workflow's OIDC identity and records
-  # provenance (`publishConfig.provenance`). Versions are immutable on npm too: a failed run of
-  # this job is RE-RUN alone, never re-tagged. Before switching it on, check npm's current docs
-  # for the npm version trusted publishing needs; the step below prints the one in use.
-  npm:
-    name: Publish ${{ github.ref_name }} to npm
-    needs: publish
+  # staying the source). ON while the repository variable NPM_PUBLISH is `true` (Settings →
+  # Secrets and variables → Actions → Variables), with npm's trusted publisher naming this
+  # repository and this workflow file. No token: npm trusted publishing takes the workflow's OIDC
+  # identity and records provenance (`publishConfig.provenance`). Versions are immutable on npm.
+  #
+  # Built and proven WITHOUT the credential; only the proven tarball crosses to the job that has it.
+  npm-build:
+    name: Build ${{ github.ref_name }} for npm
+    needs: checks
     if: vars.NPM_PUBLISH == 'true' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.4'
 
@@ -211,15 +313,9 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: npm version (trusted publishing needs a recent one)
-        run: |
-          npm install -g npm@11
-          npm --version
 
       - name: Verify jsr.json version matches tag
         run: bun scripts/release/workflow.ts tag-matches "$GITHUB_REF_NAME"
@@ -228,9 +324,81 @@ jobs:
       - name: Build and prove the npm package
         run: bun run npm:prove
 
-      - name: Publish to npm (trusted publishing, provenance)
+      - name: Pack the proven package
         working-directory: dist
-        run: npm publish
+        run: npm pack --pack-destination ../npm-pack
+
+      - name: Upload the tarball
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-package
+          path: npm-pack/*.tgz
+          if-no-files-found: error
+          # A re-run of this job uploads again under the same name.
+          overwrite: true
+          retention-days: 7
+
+  npm:
+    name: Publish ${{ github.ref_name }} to npm
+    needs: [jsr, npm-build]
+    if: ${{ !cancelled() && needs.jsr.outputs.uploaded == 'true' && needs.npm-build.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout the registry script and the manifest only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /jsr.json
+            /scripts/release/registry.ts
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      # npm 11, as every release since 1.13.3 (trusted publishing needs a recent one); its own
+      # package, with no install scripts run.
+      - name: npm version (trusted publishing needs a recent one)
+        run: |
+          npm install -g npm@11 --ignore-scripts
+          npm --version
+
+      - name: Download the proven tarball
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: npm-pack
+
+      # npm after JSR, the source: only once JSR serves the version.
+      - name: Wait until JSR serves the version
+        run: bun scripts/release/registry.ts jsr-wait "${GITHUB_REF_NAME#v}"
+
+      - name: Check the tarball (ours, this version, no scripts, provenance on)
+        id: tgz
+        run: bun scripts/release/registry.ts npm-tarball npm-pack "${GITHUB_REF_NAME#v}"
+
+      # `published` = a re-run after npm already took it: nothing to upload.
+      - name: Does npm already serve this version?
+        id: state
+        run: bun scripts/release/registry.ts npm-state "${GITHUB_REF_NAME#v}"
+
+      - name: Publish to npm (trusted publishing, provenance)
+        if: steps.state.outputs.state == 'free'
+        env:
+          TARBALL: ${{ steps.tgz.outputs.tarball }}
+        run: npm publish "$TARBALL" --ignore-scripts
 
       - name: Verify provenance was recorded on npm
-        run: bun scripts/release/workflow.ts provenance npm "${GITHUB_REF_NAME#v}"
+        run: bun scripts/release/registry.ts provenance npm "${GITHUB_REF_NAME#v}"

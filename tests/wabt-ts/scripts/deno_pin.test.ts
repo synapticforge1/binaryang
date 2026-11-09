@@ -30,7 +30,8 @@ describe('the Deno pin is written once', () => {
     const hits: string[] = [];
     for (const f of files) {
       const text = await fsx.readTextFile(f);
-      for (const m of text.matchAll(/\bdeno@[\d^~]/g)) hits.push(`${f}@${m.index}`);
+      // `deno` as its own name: `setup-deno@<commit>` (an action pinned by hash) is not a pin.
+      for (const m of text.matchAll(/(?<![\w-])deno@[\d^~]/g)) hits.push(`${f}@${m.index}`);
     }
     expect(hits).toEqual([]);
   });

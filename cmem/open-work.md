@@ -18,8 +18,9 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 H30 (no `gh`, in CI too), H31 (Bun pins and the floor → 1.4.4) and H32 (the CI-made Release page,
 its own job) done: `06618265d`, merge `fb9457451`, gate 14 / 14 on Bun 1.4.4; answers in the
 five workspace ledger rows (H30, H31, H32, C30, C34), which their creators close. The raised Bun
-floor is a release-note line ([unreleased.md](unreleased.md)). Item 54 (C30 / C34): the owner
-said restructure (2026-11-09). No release since 2.2.2; the next is at least a MINOR.
+floor is a release-note line ([unreleased.md](unreleased.md)). Pushed 2026-11-09 (`origin/main`
+= `a72fc6b18`, `ls-remote`). Then item 54 — `publish.yml` restructured (owner), which the next
+tag run proves. No release since 2.2.2; the next is at least a MINOR.
 
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
@@ -143,16 +144,13 @@ removed record went to a topic file, and the full text is one `git show` away:
 
 ## Defects and gaps — the owner's first
 
-54. 🗓️ **OWNER — the publishing credential runs beside third-party code** (workspace ledger C30
-    and C34, from S3D, read 2026-11-09; [handoffs.md](handoffs.md), the 2026-11-09 entry).
-    `publish.yml`'s `publish` job holds `id-token: write` (JSR's and npm's trusted-publishing
-    credential) while it runs `bun install` and the whole test suite; the `npm` job holds it
-    while it installs and builds. Any dev dependency could mint the token. **Options:** (a) as
-    S3D did — the checks move to a job without the token, the publish job installs with
-    `--ignore-scripts` and publishes a built artifact, every action pinned to a commit hash, and
-    an `uploaded` output written before `deno publish` so the jobs after it run even when it
-    fails after the upload (1.13.2's case) — a release-workflow restructure, landed BEFORE a
-    release and proven only by the next tag run; (b) keep as is, recorded. Not started.
+54. ✅ **The publishing credential no longer runs beside third-party code** — DONE 2026-11-09
+    (owner: "restructure the publish workflow"; workspace ledger C30 / C34). `publish.yml` is
+    five jobs; only `jsr` and `npm` hold `id-token: write`, and they install nothing; `uploaded`
+    is written before `deno publish`; npm's record of the number is read before JSR's immutable
+    step; every action hash-pinned. Record: [publishing.md](publishing.md) § "The publish
+    workflow's jobs". ⚠️ **Still to prove: the first tag run after it** — read every job, and
+    record the run here when it lands.
 
 53. ✅ **Code lens pass 3 — thirteen fixes** (2026-10-28, owner: "look for code issues"; branch
     `fix/code-lens-3`; [hardening.md](hardening.md) § "Code lens, pass 3"). Wrong OUTPUT on

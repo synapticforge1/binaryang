@@ -31,7 +31,11 @@ B3):
    `previous-tests.ts`, `tests/accepted-changes.json`). `version_sync` green.
 5. `bun run release` — its guards, then `bump to vX.Y.Z`, `main` + tag in ONE push as a user;
    `publish.yml` repeats the floor check on the tag (`api-surface.ts --release-check`) and
-   publishes to JSR, then npm.
+   publishes to JSR, then npm. **Five jobs since 2026-11-09** (open-work 54, § "The publish
+   workflow's jobs" below): `checks` (no token) → `jsr` (credential) → `release` (the page);
+   `checks` → `npm-build` (no token) → `npm` (credential). ⚠️ **UNMEASURED on GitHub until the
+   first tag after it** — read every job of that run, and on a failure past JSR's upload use
+   "Re-run failed jobs" (the jobs skip what is already published), never a new tag.
 6. Read both registries back (Rekor id on JSR, the attestation on npm), run the package as a user
    from each, record it here as § X.Y.Z, newest first.
 
@@ -279,6 +283,49 @@ The structural requirements are already met and worth stating once so they are n
   subprocess
 - no `--token` / `DENO_AUTH_TOKEN` (their presence disables OIDC), and no `--no-provenance`
 - the JSR package linked to the GitHub repo — ✅ verified for `@jrmarcum/binaryang`
+
+🔧 **The jobs WERE restructured on 2026-11-09** (next section) — for the credential's exposure,
+not for provenance. Every requirement above still holds in the `jsr` job, which is where
+`deno publish` now runs.
+
+## The publish workflow's jobs (open-work 54, 2026-11-09)
+
+The owner's call ("restructure the publish workflow"), on workspace correspondence C30 and C34
+from S3D. **Why:** `id-token: write` IS the publishing credential — JSR and npm trusted
+publishing both take the workflow's OIDC token, and every step of a job that holds it can mint
+one. Until then the one `publish` job held it while `bun install` and the whole test suite ran,
+and `npm` held it while it installed and built: every dev dependency ran beside it.
+
+| job | token | what it runs |
+| --- | --- | --- |
+| `checks` | none | tag = `jsr.json`; `api-surface.ts --release-check`; `check`, both test legs; `deno publish --dry-run` on a sparse checkout of `jsr.json`'s include list (the `jsr` job's tree); `registry.ts npm-state` (a number npm used before, unpublished included, stops HERE — npm never reuses one, C34 (2)) |
+| `jsr` | id-token | sparse checkout of the published files + `registry.ts`, nothing installed; `jsr-has` (a re-run skips the upload); `oidc-check`; **`uploaded=true` written BEFORE** `deno publish`; provenance read-back |
+| `release` | contents: write | `jsr-wait`, then `github.ts release` (H32) |
+| `npm-build` | none | `bun install`, `npm:prove`, `npm pack` → the tarball as an artifact |
+| `npm` | id-token | sparse checkout of `registry.ts` + `jsr.json`; npm 11 (`--ignore-scripts`); the artifact; `jsr-wait`; `npm-tarball` (ours, this version, no `scripts`, provenance on); `npm-state` (served → skip); `npm publish <tgz> --ignore-scripts`; provenance read-back |
+
+- **`uploaded`, not `deno publish`'s exit** (C34 (1)): `deno publish` uploads, THEN signs. 1.13.2
+  failed after its upload (§ "1.13.2"), and everything gated on the step was skipped. Now
+  `release` and `npm` run on `uploaded` and each first waits for JSR to answer 200.
+- **Re-runs are safe in every job**: `jsr` skips an upload JSR already has, `npm` one npm already
+  serves, `release` an existing page; `upload-artifact` overwrites. Queued per tag, never
+  cancelled (`concurrency`, C30 (2)).
+- **Every action pinned to a commit hash** (the comment names its release, read with
+  `git ls-remote` on 2026-11-09: checkout v6.1.0, setup-bun v2.2.0, setup-deno v2.0.5 — its `v2`
+  is a branch at that commit — setup-node v4.4.0, upload-artifact v7.0.2, download-artifact
+  v8.0.2).
+- **Measured before landing:** `deno publish --dry-run` on the sparse tree publishes the same 136
+  files as the full tree, slow-types check included (Deno 2.9.6); `registry.ts` against the real
+  registries — JSR has 2.2.2 / not 9.9.9, npm 2.2.2 published / 9.9.9 free, provenance on both
+  (Rekor `3541668152`), a real tarball of 2.2.2 accepted and refused as 2.2.3.
+- **Held by tests** (`publish_preflight_wiring.test.ts`, `workflow_steps.test.ts`): a
+  credentialed job's `run:` lines, its one sparse credential-less checkout, the `jsr` sparse list
+  equal to `jsr.json`'s include, `uploaded` before the upload, `jsr-wait` first, the npm check
+  before JSR, every action hash-pinned; the registry logic on a mock network. Nine mutants, each
+  caught by its own test.
+- **A non-tag dispatch runs `checks` only** (it used to run `deno publish` from any ref).
+- ⚠️ **UNMEASURED on GitHub until the first tag after it**; the artifact hand-off and npm's
+  provenance on a tarball publish are what that run proves.
 
 ⚠️ The inherited version of this comment cited **wasmtk** as precedent for calling `deno publish`
 directly. wasmtk has **no provenance on any published version**, so it was never evidence for
@@ -640,7 +687,9 @@ The tag push fires `publish.yml`, which verifies the tag matches `jsr.json`, run
 `bun run test` and `bun run test:bun` (since B6), then calls `deno publish` **directly** — never through `deno task`, because that indirection
 spawns a subprocess and loses OIDC — then checks provenance. The GitHub Release page is the
 `release` job's, after it (since 2026-11-09, `scripts/release/github.ts release`, REST API, no
-`gh`; it runs whenever `deno publish` itself succeeded, and an existing page is done).
+`gh`; an existing page is done). Since the same day the checks, the JSR publish, the page and
+npm are five jobs, and the credential sits only in two that install nothing (§ "The publish
+workflow's jobs").
 
 ⚠️ **A DISPATCHED release needs a manual step**, because `RELEASE_PAT` is not set (and will not
 be — closed as not needed, 2026-09-29: this flow never dispatches). See § "The auto-tag dispatch path does not publish" above. 🔧 This first said "a release currently needs a manual step"; 1.5.4
