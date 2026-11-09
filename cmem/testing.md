@@ -405,8 +405,8 @@ The step list is in [working-rules.md](working-rules.md) § "The gate", read fro
 B1, 2026-09-20: this section listed `deno task test` while the rules required `deno task ci`).
 Three jobs: **Gates** (format, lint, `bun run check`, `bun run test` and `test:bun`, the binding
 rules, browser bundles, baseline, `publish:dry`, the npm proof), **Browsers** (the library in
-every browser), and a CLI matrix on Deno, Node 22.18 (the floor), Node 22, 24 and 26, and Bun 1.4.0
-(the floor).
+every browser), and a CLI matrix on Deno, Node 22.18 (the floor), Node 22, 24 and 26, and Bun 1.4.4
+(the floor, the latest installed Bun — workspace letter H31; 1.4.0 until 2026-11-09).
 
 **Test files ARE type-checked** (`bun run check` covers `tests/` with its own two tsconfigs), and
 that was once a real gap: `deno task test` ran `--no-check` and `check` once covered only `src/`, so test files were type-checked by no task at all. Closing it

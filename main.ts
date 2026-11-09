@@ -6,7 +6,7 @@
  *
  * ## CLI
  *
- * Runs on Deno, Node 22.18+, and Bun 1.4+:
+ * Runs on Deno, Node 22.18+, and Bun 1.4.4+:
  *
  * ```sh
  * # Deno — no install, straight from JSR

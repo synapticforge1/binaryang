@@ -695,7 +695,8 @@ the CLI's, and every `api-surface.json` hash would have to be shown unchanged fi
 - **Workers:** `check-spec-behaviour` and `check-direct-behaviour` kill a `Worker` on timeout.
   Bun has web Workers. Re-measure that `terminate()` really stops a hung module there (the
   "harnesses need fuel" lesson, [best-practices.md](best-practices.md)).
-- **Windows:** this machine is Windows. `bun` 1.4.3 is installed (2026-10-12); confirm CRLF
+- **Windows:** this machine is Windows. `bun` 1.4.4 is installed (measured 2026-11-09; it was
+  1.4.3 when this was written, 2026-10-12); confirm CRLF
   handling in `dprint` matches `deno fmt` here ([`local/environment.md`](local/environment.md)).
 - **Sibling repos** (wasmtk, wazmrt's TS tooling, the TS loaders) face the same deadline. That
   belongs to the workspace session's [handoffs](../../cmem/handoffs.md). Nothing is written to

@@ -8,6 +8,20 @@ items are queued for the next MAJOR, not on `main`**
 `git log --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the
 version line arms a release, so the next bump is the owner's decision, never a side effect of work.
 
+**Unreleased — the Bun floor is 1.4.4** (2026-11-09, owner, workspace letter H31: "the minimum
+supported version will be updated to the latest version currently installed"). No code change;
+the release note must say it, because it reaches users:
+
+- **Support change — Bun 1.4.0 – 1.4.3 are no longer supported** (the CLI and the library are
+  tested on Bun 1.4.4 only; README § "Runtime support", `main.ts`'s module doc). Nothing known
+  breaks on them — nothing was removed that they need — but they are no longer tested. Under the
+  workspace's SemVer rule a dropped runtime version can be read as BREAKING; the level is the
+  owner's call, and the other entries here already make this release at least a MINOR. The floor
+  will move again with each newer Bun the owner installs.
+- **Repo-only, no release-note line:** CI and publish pin Bun 1.4.4; the workflows no longer call
+  the GitHub CLI — auto-tag's dispatch and the GitHub Release page go through the REST API
+  (`scripts/release/github.ts`), the page in its own `release` job (letters H30 / H32).
+
 **Unreleased — CL7, `wasm-objdump`'s details as upstream's** (2026-11-05, owner: "I agree with
 your C7 suggested workflow"). A MINOR on its own (a new option):
 

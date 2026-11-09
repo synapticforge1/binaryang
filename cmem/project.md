@@ -55,7 +55,8 @@ gives 19 and 24 commits respectively. Both "preserve history"; only one keeps it
   against a measured-empty set is cost without cover. The break is safe because **JSR never deletes
   a version**: every existing wasmtk release keeps resolving what it pinned; the break only declines
   future resolution of the old names.
-- **Runtime floors — Node 22.18.0 and Bun 1.4.0**, for two DIFFERENT reasons, recorded as such:
+- **Runtime floors — Node 22.18.0 and Bun 1.4.4** (Bun's 1.4.0 until 2026-11-09), for two
+  DIFFERENT reasons, recorded as such:
   - **Node: not end-of-life is the policy** (owner corrected "latest LTS" to that intent). Read from
     `nodejs/Release/schedule.json` on 2026-08-26: nothing before v22 is alive (v18 EOL 2025-04-30,
     v20 2026-04-30; v22 EOL 2027-04-30). The floor carries the minor because `import.meta.main` was
@@ -63,16 +64,21 @@ gives 19 and 24 commits respectively. Both "preserve history"; only one keeps it
     `CHANGELOG_V22.md`) — "Node 22+" would admit 22.0–22.17, which lack it. 📅 **Calendar, not
     decisions**: Node 26 becoming LTS on 2026-10-28 changes nothing; the floor next moves to 24 at
     Node 22's EOL, 2027-04-30.
-  - **Bun: 1.4.0, a deliberate EXCEPTION to not-EOL** (owner). Bun 1.3.x is not end-of-life; it is
-    excluded because 1.4.0 (2026-08-20) is the first release written in Rust, and supporting 1.3
-    would mean owning behaviour on two separate runtime implementations. Kept against it for the
-    record: on `import.meta.main`, 1.3.14 (Zig) and 1.4.0 (Rust) behave identically. An exception
-    with its reason attached is a decision; the same exception without one is a bug in the policy.
+  - **Bun: the latest Bun installed on the maintainer's machine — 1.4.4, measured 2026-11-09 on
+    Windows and in WSL** (owner, 2026-11-09, workspace letter H31 / `../cmem/working-rules.md`
+    § Tooling rule 10: "the minimum supported version will be updated to the latest version
+    currently installed"). It moves, with every other Bun pin, at the first session after the
+    owner installs a newer Bun, gate run first; the release that carries a raised floor says so.
+    🔧 **This rule REPLACED the floor's old reason** (the rule says so): until 2026-11-09 the
+    floor was 1.4.0, a deliberate exception to not-EOL because 1.4.0 (2026-08-20) is the first
+    release written in Rust and supporting 1.3 would mean owning two runtime implementations
+    (on `import.meta.main`, 1.3.14 and 1.4.0 measured identical). 1.3 stays unsupported either way.
   - JSON import attributes were verified on Node 24, Bun and Deno but not on 22.18; nothing in the
     tree depends on them (re-checked 2026-10-23: no JSON import in `src/` or `main.ts`). **The floor
     itself is exercised on every push** (drift B6, closed 2026-10-23): CI's runtimes job runs
-    `scripts/cli-smoke.ts` on **Node 22.18** and **Bun 1.4.0** beside Node 22 / 24 / 26 and Deno —
-    green on the 1.15.0 release commit `bc97aa573`. Each job only PRINTS its output hash to the run
+    `scripts/cli-smoke.ts` on **Node 22.18** and **the Bun floor** (1.4.0 then; 1.4.4 since
+    2026-11-09) beside Node 22 / 24 / 26 and Deno — green on the 1.15.0 release commit
+    `bc97aa573`. Each job only PRINTS its output hash to the run
     summary; nothing in CI compares them across jobs (locally, `bun run lts` does, for the LTS lines). If a JSON
     import is ever added, that job is what will say whether 22.18 takes it.
 - **Adopt wabt-ts's `compilerOptions`** (measured at exactly 4 errors in binaryen-ts's `src/`), with

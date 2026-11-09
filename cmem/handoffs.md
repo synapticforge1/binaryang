@@ -1174,6 +1174,47 @@ closes its own rows; nothing is written there from here.
   checked against our `publish.yml`). npm 12 hits binaryang's own README install line, which now
   carries the fix. Answers written into the two ledger rows; S3D, the creator, closes them.
 
+- **H30, H31, H32 done; C30, C34 read (2026-11-09**, owner: "review workspace for items needing
+  this project's attention and make the requested fixes"). Branch `h30-h31-no-gh-bun-144`; the
+  answers are in the five ledger rows, which their creators close.
+  - **H30 (no `gh`, CI too):** the three lines are gone — `auto-tag.yml`'s dispatch (and its
+    header comment) and `publish.yml`'s `gh release create`. Both writes are
+    `scripts/release/github.ts` (REST, `GITHUB_TOKEN`, a time limit per request), mock-API tested
+    in `workflow_steps.test.ts` (9 cases; two mutants — the tag-commit check and the
+    existing-page check removed — each caught by its own case). `git grep -w gh -- .github`: 0.
+    The rule is in [working-rules.md](working-rules.md) § Git; the tools table re-worded.
+  - **H32 (CI makes the Release page):** binaryang already had a CI-made page per tag (loader-py's
+    survey: 30 tags / 29 pages, all `github-actions[bot]`); H30 changed HOW. The page is now its
+    own `release` job in H32's order (tag on GitHub peeling to `github.sha` → existing page done →
+    POST with generated notes + the JSR link → read back), `contents: write` only, a sparse
+    checkout of the script and `jsr.json` with no credential kept, nothing installed. The
+    `publish` job dropped to `contents: read`. The job keys off `deno publish`'s own outcome, so a
+    failed provenance read-back still gets its page, as the old step order did. **UNMEASURED on
+    GitHub until the next tag run**; that run's page `author.login` goes in the ledger row.
+  - **H31 (Bun = latest installed, 1.4.4 on both hosts, measured 2026-11-09):** every pin (six
+    in three workflows), the FLOOR 1.4.0 → 1.4.4 (ci.yml's floor leg — kept: it is the one leg
+    that runs the CLI on Bun — `main.ts:9`, README's table and floor paragraph,
+    [project.md](project.md) § "Runtime floors", [testing.md](testing.md)), and the current-tense
+    lines ([bun-migration.md](bun-migration.md) "is installed", [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md)'s
+    pin note). Dated measurements stay. The raised floor is a release-note line in
+    [unreleased.md](unreleased.md) (level: the owner's). Rule in [working-rules.md](working-rules.md) § Tools.
+  - **C30 (record-only) — (1) APPLIES here, not changed:** `publish` holds `id-token: write`
+    while it runs `bun install` and the whole test suite, and `npm` holds it while it installs and
+    builds (`npm:prove`), so third-party dev dependencies run beside the publishing credential.
+    S3D's fix (checks in token-less jobs, `--ignore-scripts` in the publish job, publish from a
+    built artifact, actions pinned to commit hashes — ours are tag-pinned, `@v6`) is a release
+    workflow restructure: 🗓️ OWNER, [open-work.md](open-work.md). (2) n/a: `publish.yml` has no
+    `concurrency` block. (3) n/a: the formatter is dprint, not `bun fmt` (whether dprint skips
+    ignored files is unmeasured; the fmt canary's files are tracked).
+  - **C34 (record-only) — (1) MEASURED here already: 1.13.2** ([publishing.md](publishing.md)
+    § 1.13.2) — `deno publish` failed after the upload, everything gated on it was skipped, and
+    the version was released again as 1.13.3. With the new `release` job keyed on that step's
+    outcome, the same failure still skips the page and npm; S3D's `uploaded`-output fix is part
+    of the C30 item. (2) applies in principle (npm job, no `time` read) — same item. (3) n/a:
+    `deno-version: v2.x` is literal, not handed between jobs. (4) the two YAML-reading tests
+    (`publish_preflight_wiring`, `deno_pin`) match `run:` lines and pins, not permissions or job
+    keys; 17 / 17 on the changed workflows.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the
