@@ -94,6 +94,13 @@ export function previousTests(ref = lastReleaseTag()): number {
     extract('HEAD');
     rmSync(join(dir, 'tests'), { recursive: true, force: true });
     extract(ref, 'tests');
+    // A git work tree with the extracted files staged: some tests read the TRACKED files
+    // (`deno_pin.test.ts` runs `git ls-files`), and outside a repository git lists nothing —
+    // 3.0.1's bump failed v3.0.0's copy that way, a harness defect, not a behaviour change.
+    for (const g of [['init', '-q'], ['add', '-A']]) {
+      const r = spawnSync('git', g, { cwd: dir, encoding: 'utf8' });
+      if (r.status !== 0) throw new Error(`git ${g.join(' ')}: ${r.stderr.slice(0, 300)}`);
+    }
     symlinkSync(join(REPO, 'node_modules'), join(dir, 'node_modules'), 'junction');
     const report = join(dir, 'junit.xml');
     const flags = ['--test', '--test-reporter=junit', `--test-reporter-destination=${report}`];
