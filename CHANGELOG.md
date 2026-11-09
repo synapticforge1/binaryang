@@ -1,11 +1,16 @@
 # Changelog
 
+## 3.0.2
+
+The same package as 3.0.0 and 3.0.1, released again so that **npm** gets it: neither reached npm
+(both are on JSR), so npm goes from 2.2.2 to 3.0.2. **Coming from npm's 2.2.2, read 3.0.0
+below** — a major release with breaking changes. Nothing in the package changed.
+
 ## 3.0.1
 
-The same package as 3.0.0, released again so that **npm** gets it: 3.0.0 reached JSR, but its
-npm publish failed in the release workflow, so npm went from 2.2.2 straight to 3.0.1 and has no
-3.0.0. **Coming from npm's 2.2.2, read 3.0.0 below** — it is a major release with breaking
-changes. Nothing in the package changed.
+The same package as 3.0.0, released again for **npm**: 3.0.0 reached JSR, but its npm publish
+failed in the release workflow. 3.0.1's npm publish failed too, so 3.0.1 is on JSR only and npm's
+first 3.x is 3.0.2 (above). Nothing in the package changed.
 
 ## 3.0.0
 
