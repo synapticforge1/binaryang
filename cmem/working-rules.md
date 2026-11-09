@@ -12,7 +12,16 @@ not survive a clone is not a project rule. The lessons behind them are in
   changes follow the same rule.
 - **Workflow logic is TypeScript too** (owner, 2026-10-21): a GitHub workflow `run:` block only
   launches; any condition, loop or poll is a subcommand of `scripts/release/workflow.ts` (or a
-  script like it), tested in `tests/wabt-ts/scripts/workflow_steps.test.ts`. A plain command
+  script like it: `registry.ts`, `github.ts`), tested in
+  `tests/wabt-ts/scripts/workflow_steps.test.ts`.
+- 🔒 **The publishing credential sits beside nothing** (owner, 2026-11-09: "restructure the
+  publish workflow"; open-work 54, C30 / C34). In `publish.yml` only `jsr` and `npm` hold
+  `id-token: write`; they run pinned actions, `deno publish` / `npm publish`, and the standalone
+  `scripts/release/registry.ts` — a sparse checkout without a stored credential, nothing
+  installed. Anything that runs a dependency goes in `checks` or `npm-build`. Every action is
+  pinned to a commit hash. `publish_preflight_wiring.test.ts` holds this; a change it refuses is
+  a design question, not a test to loosen ([publishing.md](publishing.md) § "The publish
+  workflow's jobs"). A plain command
   sequence (tag and push) stays in the workflow.
 - 🔒 **No `gh` — not here, not in CI** (owner, 2026-11-08, workspace letter H30 /
   `../cmem/working-rules.md` § Tooling rule 9: "just checking the repo is easier"; "yes change

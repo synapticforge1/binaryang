@@ -20,7 +20,10 @@ the release note must say it, because it reaches users:
   will move again with each newer Bun the owner installs.
 - **Repo-only, no release-note line:** CI and publish pin Bun 1.4.4; the workflows no longer call
   the GitHub CLI — auto-tag's dispatch and the GitHub Release page go through the REST API
-  (`scripts/release/github.ts`), the page in its own `release` job (letters H30 / H32).
+  (`scripts/release/github.ts`), the page in its own `release` job (letters H30 / H32); and
+  `publish.yml` is five jobs with the publishing credential only in two that install nothing
+  (open-work 54). The packages' bytes are built as before; ⚠️ the release that carries this is
+  the workflow's first real run, so read every job of it.
 
 **Unreleased — CL7, `wasm-objdump`'s details as upstream's** (2026-11-05, owner: "I agree with
 your C7 suggested workflow"). A MINOR on its own (a new option):

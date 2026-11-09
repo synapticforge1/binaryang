@@ -594,10 +594,13 @@ says whether binaryang RE-MEASURED it (2026-10-28: Deno 2.9.8, Bun 1.4.4, Node 2
    For binaryang's `publish.yml`, by reading: until 2026-11-09 the next step, `gh release
    create`, failed on the release that exists, so a re-run stopped LOUD there and the npm job
    (`needs: publish`) did not start. Since then (letters H30 / H32) the page is its own `release`
-   job, which treats an existing page as done, so a whole-workflow re-run passes `publish` and
-   `release` and reaches the npm job, whose `npm publish` refuses a version npm already has
-   (loud, and the right place: it completes npm when only npm was missing). Check a workflow's
-   steps AFTER the publish for what a re-run does.
+   job, which treats an existing page as done. Since the restructure the same day (open-work
+   54) no job relies on that skip: `jsr` asks JSR first and does not run `deno publish` for a
+   version JSR has, `npm` asks npm and does not run `npm publish` for one npm serves, so every
+   job of a re-run completes only what is missing ([publishing.md](publishing.md) § "The publish
+   workflow's jobs"). Check a workflow's steps AFTER the publish for what a re-run does — and,
+   for a package that publishes from CI with OIDC, **which jobs hold `id-token: write` and what
+   they run**: the token is the publishing credential (S3D's finding, C30).
 
 ### The web: every export must LOAD in a browser
 

@@ -1214,6 +1214,13 @@ closes its own rows; nothing is written there from here.
     `deno-version: v2.x` is literal, not handed between jobs. (4) the two YAML-reading tests
     (`publish_preflight_wiring`, `deno_pin`) match `run:` lines and pins, not permissions or job
     keys; 17 / 17 on the changed workflows.
+  - **Update, the same day — C30 (1) and C34 (1)–(2) FIXED** (owner: "restructure the publish
+    workflow"; open-work 54): five jobs, the credential only in `jsr` and `npm`, which install
+    nothing; `uploaded` before `deno publish` with `jsr-wait` first in the jobs after it; npm's
+    `time` read in `checks`, before JSR's immutable step; the npm job publishes the proven
+    tarball with `--ignore-scripts` after checking its manifest; every action hash-pinned;
+    `concurrency` queues per tag. Record: [publishing.md](publishing.md) § "The publish
+    workflow's jobs". Answers added to the two ledger rows.
 
 ## Lessons the correspondence paid for
 

@@ -186,12 +186,13 @@ describe('the release workflows, off Deno except for the publish itself', () => 
 
   it('publishes with deno publish, directly, from jsr.json', () => {
     // Bare since B7: with no deno.json, Deno finds jsr.json itself, and a `--config` naming any
-    // other file would publish from it.
+    // other file would publish from it. The one other form is the checks job's dry run.
     expect(runs(PUBLISH_YML)).toContain('deno publish');
-    expect(runs(PUBLISH_YML).filter((r) => /^deno publish\b/.test(r) && r !== 'deno publish'))
-      .toEqual(
-        [],
-      );
+    expect(
+      runs(PUBLISH_YML).filter((r) =>
+        /^deno publish\b/.test(r) && r !== 'deno publish' && r !== 'deno publish --dry-run'
+      ),
+    ).toEqual([]);
     expect(code(PUBLISH_YML).filter((l) => /\b(bunx|npx) jsr\b/.test(l))).toEqual([]);
     expect(code(PUBLISH_YML).filter((l) => /\b(deno task|bun run) release\b/.test(l))).toEqual([]);
   });
@@ -215,12 +216,101 @@ describe('the release workflows, off Deno except for the publish itself', () => 
       gate >= 0 && gate < r.indexOf('deno publish'),
       'the release check runs before the publish',
     ).toBe(true);
-    expect(PUBLISH_YML).toMatch(
-      /uses: actions\/checkout@v\d+\n\s+with:\n(?:\s+#[^\n]*\n)*\s+fetch-depth: 0/,
+    expect(jobs['checks']).toMatch(
+      /uses: actions\/checkout@[0-9a-f]{40}[^\n]*\n\s+with:\n(?:\s+#[^\n]*\n)*\s+fetch-depth: 0/,
     );
   });
 
   it('auto-tag needs no Deno', () => {
     expect(code(AUTO_TAG_YML).filter((l) => /\bdeno\b/i.test(l))).toEqual([]);
+  });
+
+  // Open-work 54 (2026-11-09; workspace correspondence C30 / C34). `id-token: write` IS the
+  // publishing credential, and every step of a job that holds it can mint one, so those jobs
+  // install nothing and run nothing from the dependency tree.
+  /** Each job's text, by its key under `jobs:`. */
+  const jobs: Record<string, string> = {};
+  {
+    const body = PUBLISH_YML.slice(PUBLISH_YML.indexOf('\njobs:\n') + 7);
+    const parts = body.split(/^ {2}(?=[A-Za-z0-9_-]+:\s*$)/m).filter((p) => p.trim() !== '');
+    for (const p of parts) {
+      const key = /^([A-Za-z0-9_-]+):/.exec(p)?.[1];
+      if (key !== undefined) jobs[key] = p;
+    }
+  }
+  const credentialed = Object.keys(jobs).filter((k) => /id-token:\s*['"]?write/.test(jobs[k]!));
+  /** One job's checkout steps' `sparse-checkout` path lists. */
+  const sparse = (job: string) =>
+    [...jobs[job]!.matchAll(/sparse-checkout: \|\n((?:\s+\/[^\n]*\n)+)/g)].map((m) =>
+      m[1]!.trim().split(/\s+/)
+    );
+
+  it('reads the five jobs, two of them holding the credential', () => {
+    expect(Object.keys(jobs).sort()).toEqual(['checks', 'jsr', 'npm', 'npm-build', 'release']);
+    expect(credentialed.sort()).toEqual(['jsr', 'npm']);
+  });
+
+  it('a credentialed job installs nothing and runs only the registry script and the publish', () => {
+    for (const job of credentialed) {
+      const r = runs(jobs[job]!);
+      const allowed = (cmd: string) =>
+        cmd === 'deno publish' ||
+        /^bun scripts\/release\/registry\.ts [a-z-]+( |$)/.test(cmd) ||
+        /^echo "uploaded=true" >> "\$GITHUB_OUTPUT"$/.test(cmd) ||
+        /^npm publish "\$TARBALL" --ignore-scripts$/.test(cmd) ||
+        cmd === '|'; // the npm-version block, checked below
+      expect(r.filter((c) => !allowed(c)), `${job}: run lines`).toEqual([]);
+      expect(jobs[job]).not.toMatch(
+        /\bbun (install|run|x)\b|\bnpm (ci|install)(?! -g npm@\d+ --ignore-scripts)/,
+      );
+      // Every checkout is sparse and keeps no credential.
+      const checkouts = jobs[job]!.split('uses: actions/checkout@').slice(1);
+      expect(checkouts.length, `${job}: one checkout`).toBe(1);
+      expect(checkouts[0]).toContain('persist-credentials: false');
+      expect(checkouts[0]).toContain('sparse-checkout: |');
+    }
+  });
+
+  it('the jsr job checks out exactly what jsr.json publishes, plus the registry script', () => {
+    const include = (JSON.parse(fsx.readTextFileSync('jsr.json')) as {
+      publish: { include: string[] };
+    }).publish.include.map((p) => `/${p.replace(/\/\*\*.*$/, '/').replace(/\/\*\.json$/, '/')}`);
+    // A directory already listed covers what is under it (`src/definitions/*.json` under `src/`).
+    const want = [...new Set(include)].filter((p, _, all) =>
+      !all.some((q) => q !== p && q.endsWith('/') && p.startsWith(q))
+    ).sort();
+    expect([...sparse('jsr')[0]!].sort()).toEqual(
+      [...want, '/scripts/release/registry.ts'].sort(),
+    );
+    // …and the checks job rehearses `deno publish --dry-run` on that same tree.
+    expect([...sparse('checks')[0]!].sort()).toEqual(want);
+  });
+
+  it('runs on uploaded, not on the publish exit, and writes uploaded BEFORE the upload', () => {
+    const r = runs(jobs['jsr']!);
+    const record = r.indexOf('echo "uploaded=true" >> "$GITHUB_OUTPUT"');
+    expect(record, 'the jsr job records the upload attempt').toBeGreaterThanOrEqual(0);
+    expect(record).toBeLessThan(r.indexOf('deno publish'));
+    expect(jobs['jsr']).toMatch(/uploaded: \$\{\{ steps\.attempt\.outputs\.uploaded \}\}/);
+    for (const job of ['release', 'npm']) {
+      expect(jobs[job]).toContain("needs.jsr.outputs.uploaded == 'true'");
+      // The first thing it asks or writes is whether JSR serves the version.
+      const acts = runs(jobs[job]!).filter((c) => /registry\.ts|github\.ts|npm publish/.test(c));
+      expect(acts[0], `${job} waits for JSR first`).toMatch(/registry\.ts jsr-wait /);
+    }
+  });
+
+  it("asks npm whether the number is free BEFORE JSR's immutable step", () => {
+    expect(
+      runs(jobs['checks']!).some((c) =>
+        /^bun scripts\/release\/registry\.ts npm-state "\$\{GITHUB_REF_NAME#v\}"$/.test(c)
+      ),
+    ).toBe(true);
+  });
+
+  it('pins every action to a commit hash', () => {
+    const uses = [...PUBLISH_YML.matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)/gm)].map((m) => m[1]!);
+    expect(uses.length).toBeGreaterThan(10);
+    expect(uses.filter((u) => !/@[0-9a-f]{40}$/.test(u))).toEqual([]);
   });
 });

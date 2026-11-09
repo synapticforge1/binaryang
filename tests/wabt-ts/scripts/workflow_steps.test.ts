@@ -2,19 +2,26 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 import { describe, it } from 'node:test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
+import { gzipSync } from 'node:zlib';
 import { expect } from '@std/expect';
-import {
-  jsrRekor,
-  main,
-  npmProvenance,
-  provenanceUrl,
-  tagVersion,
-} from '../../../scripts/release/workflow.ts';
+import { main, tagVersion } from '../../../scripts/release/workflow.ts';
 import { dispatch, main as githubMain, peelTag, release } from '../../../scripts/release/github.ts';
+import {
+  jsrHas,
+  jsrRekor,
+  jsrWait,
+  main as registryMain,
+  NPM_NAME as REGISTRY_NPM_NAME,
+  npmProvenance,
+  npmState,
+  provenanceUrl,
+  tarballProblems,
+} from '../../../scripts/release/registry.ts';
+import { NPM_NAME } from '../../../scripts/npm/build.ts';
 
 // The workflows' decisions moved out of bash into scripts/release/workflow.ts (owner rule,
 // 2026-10-21: a condition or a loop goes in a .ts file, the shell only launches it). These pin
@@ -24,7 +31,11 @@ import { dispatch, main as githubMain, peelTag, release } from '../../../scripts
 const jsr = JSON.parse(readFileSync('jsr.json', 'utf8')) as { name: string; version: string };
 
 /** Runs a subcommand with GITHUB_OUTPUT pointed at a scratch file; its exit code and outputs. */
-async function run(args: string[], env: Record<string, string | undefined> = {}) {
+async function run(
+  args: string[],
+  env: Record<string, string | undefined> = {},
+  entry: (argv: string[]) => Promise<number> = main,
+) {
   const dir = mkdtempSync(join(tmpdir(), 'workflow-steps-'));
   const out = join(dir, 'out');
   const saved: Record<string, string | undefined> = {};
@@ -37,7 +48,7 @@ async function run(args: string[], env: Record<string, string | undefined> = {})
   const log = console.log;
   console.log = () => {};
   try {
-    const code = await main(args);
+    const code = await entry(args);
     let text = '';
     try {
       text = readFileSync(out, 'utf8');
@@ -82,17 +93,151 @@ describe("the workflows' decisions, in TypeScript", () => {
     expect(JSON.stringify(yes.outputs)).not.toContain('s3cret');
   });
 
+  it('an unknown subcommand is a usage error; the registry questions moved to registry.ts', async () => {
+    expect((await run(['nope'])).code).toBe(2);
+    expect((await run(['oidc-check'])).code).toBe(2);
+    expect((await run(['provenance', 'jsr', '1.0.0'])).code).toBe(2);
+  });
+});
+
+// scripts/release/registry.ts (open-work 54, 2026-11-09): what publish.yml asks JSR and npm. It is
+// standalone so the jobs holding the publishing credential install nothing; these tests run its
+// functions against a mock network, with no waiting.
+
+/** A fetch that answers from `routes` (URL prefix → status and body), recording each URL. */
+function mockNet(routes: Record<string, { status: number; body?: unknown }[]>) {
+  const urls: string[] = [];
+  const f = ((input: string | URL | Request) => {
+    const url = String(input);
+    urls.push(url);
+    const key = Object.keys(routes).find((k) => url.startsWith(k));
+    const queue = key === undefined ? undefined : routes[key];
+    const next = queue && (queue.length > 1 ? queue.shift() : queue[0]);
+    const r = next ?? { status: 500 };
+    const body = r.body === undefined ? null : JSON.stringify(r.body);
+    return Promise.resolve(new Response(body, { status: r.status }));
+  }) as typeof fetch;
+  return { net: { fetch: f, sleep: () => Promise.resolve() }, urls };
+}
+
+const JSR_V = 'https://api.jsr.io/scopes/jrmarcum/packages/binaryang/versions/9.9.9';
+const NPM_DOC = 'https://registry.npmjs.org/@synapticforge1%2Fbinaryang';
+
+/** A gzipped tarball holding one `package/package.json`. */
+function tgz(manifest: Record<string, unknown>): Uint8Array {
+  const body = new TextEncoder().encode(JSON.stringify(manifest));
+  const header = new Uint8Array(512);
+  header.set(new TextEncoder().encode('package/package.json'), 0);
+  header.set(new TextEncoder().encode(`${body.length.toString(8).padStart(11, '0')}\0`), 124);
+  const data = new Uint8Array(Math.ceil(body.length / 512) * 512);
+  data.set(body);
+  const tar = new Uint8Array(512 + data.length + 1024);
+  tar.set(header, 0);
+  tar.set(data, 512);
+  return new Uint8Array(gzipSync(tar));
+}
+
+const goodManifest = {
+  name: NPM_NAME,
+  version: '9.9.9',
+  publishConfig: { access: 'public', provenance: true },
+};
+
+describe('registry.ts: what the publish jobs ask JSR and npm', () => {
+  it('names the same npm package as scripts/npm/build.ts (it may not import it)', () => {
+    expect(REGISTRY_NPM_NAME).toBe(NPM_NAME);
+  });
+
+  it('jsr-has: 200 → present, 404 → absent, anything else throws (never "absent")', async () => {
+    expect(await jsrHas(mockNet({ [JSR_V]: [{ status: 200, body: {} }] }).net, jsr.name, '9.9.9'))
+      .toBe(true);
+    expect(await jsrHas(mockNet({ [JSR_V]: [{ status: 404 }] }).net, jsr.name, '9.9.9')).toBe(
+      false,
+    );
+    await expect(jsrHas(mockNet({ [JSR_V]: [{ status: 503 }] }).net, jsr.name, '9.9.9')).rejects
+      .toThrow('HTTP 503');
+  });
+
+  it('jsr-wait: rides out 404s and errors until 200; gives up after 12 tries', async () => {
+    const late = mockNet({
+      [JSR_V]: [{ status: 404 }, { status: 503 }, { status: 404 }, { status: 200, body: {} }],
+    });
+    expect(await jsrWait(late.net, jsr.name, '9.9.9')).toBe(true);
+    expect(late.urls.length).toBe(4);
+    const never = mockNet({ [JSR_V]: [{ status: 404 }] });
+    expect(await jsrWait(never.net, jsr.name, '9.9.9')).toBe(false);
+    expect(never.urls.length).toBe(12);
+  });
+
+  it('npm-state: served → published; in `time` only → burned (npm never reuses); else free', async () => {
+    const doc = (versions: string[], time: string[]) => ({
+      [NPM_DOC]: [{
+        status: 200,
+        body: {
+          versions: Object.fromEntries(versions.map((v) => [v, {}])),
+          time: Object.fromEntries(time.map((v) => [v, '2026-01-01T00:00:00Z'])),
+        },
+      }],
+    });
+    expect(await npmState(mockNet(doc(['9.9.9'], ['9.9.9'])).net, '9.9.9')).toBe('published');
+    expect(await npmState(mockNet(doc([], ['9.9.9'])).net, '9.9.9')).toBe('burned');
+    expect(await npmState(mockNet(doc(['1.0.0'], ['1.0.0'])).net, '9.9.9')).toBe('free');
+    expect(await npmState(mockNet({ [NPM_DOC]: [{ status: 404 }] }).net, '9.9.9')).toBe('free');
+    await expect(npmState(mockNet({ [NPM_DOC]: [{ status: 502 }] }).net, '9.9.9')).rejects
+      .toThrow('HTTP 502');
+  });
+
+  it('npm-state: a burned number fails the step (exit 1) before JSR publishes it', async () => {
+    const burned = mockNet({ [NPM_DOC]: [{ status: 200, body: { time: { '9.9.9': 'x' } } }] });
+    const r = await run(['npm-state', '9.9.9'], {}, (a) => registryMain(a, burned.net));
+    expect(r.code).toBe(1);
+    expect(r.outputs).toEqual({ state: 'burned' });
+    const free = mockNet({ [NPM_DOC]: [{ status: 404 }] });
+    const ok = await run(['npm-state', '9.9.9'], {}, (a) => registryMain(a, free.net));
+    expect(ok.code).toBe(0);
+    expect(ok.outputs).toEqual({ state: 'free' });
+  });
+
+  it('npm-tarball: the built manifest must be ours, this version, script-free, provenance on', () => {
+    expect(tarballProblems(tgz(goodManifest), '9.9.9')).toEqual([]);
+    expect(tarballProblems(tgz({ ...goodManifest, scripts: {} }), '9.9.9')).toEqual([]);
+    expect(tarballProblems(tgz({ ...goodManifest, scripts: { postinstall: 'x' } }), '9.9.9'))
+      .toEqual(['the manifest has scripts (postinstall)']);
+    expect(tarballProblems(tgz(goodManifest), '9.9.8')).toEqual(['version is 9.9.9, not 9.9.8']);
+    expect(tarballProblems(tgz({ ...goodManifest, name: 'other' }), '9.9.9').length).toBe(1);
+    expect(tarballProblems(tgz({ ...goodManifest, publishConfig: {} }), '9.9.9')).toEqual([
+      'publishConfig.provenance is not true',
+    ]);
+    expect(tarballProblems(new Uint8Array([1, 2, 3]), '9.9.9')[0]).toContain('no readable');
+  });
+
+  it('npm-tarball: exactly one .tgz in the folder; its path becomes the output', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'registry-tgz-'));
+    try {
+      expect((await run(['npm-tarball', dir, '9.9.9'], {}, registryMain)).code).toBe(1);
+      writeFileSync(join(dir, 'a.tgz'), tgz(goodManifest));
+      const ok = await run(['npm-tarball', dir, '9.9.9'], {}, registryMain);
+      expect(ok.code).toBe(0);
+      expect(ok.outputs['tarball']).toBe(join(dir, 'a.tgz'));
+      mkdirSync(join(dir, 'sub'));
+      writeFileSync(join(dir, 'b.tgz'), tgz(goodManifest));
+      expect((await run(['npm-tarball', dir, '9.9.9'], {}, registryMain)).code).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('oidc-check: a diagnostic that never fails the job', async () => {
     const none = {
       ACTIONS_ID_TOKEN_REQUEST_URL: undefined,
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined,
     };
-    expect((await run(['oidc-check'], none)).code).toBe(0);
+    expect((await run(['oidc-check'], none, registryMain)).code).toBe(0);
     expect(
       (await run(['oidc-check'], {
         ACTIONS_ID_TOKEN_REQUEST_URL: 'u',
         ACTIONS_ID_TOKEN_REQUEST_TOKEN: 't',
-      })).code,
+      }, registryMain)).code,
     )
       .toBe(0);
   });
@@ -117,10 +262,12 @@ describe("the workflows' decisions, in TypeScript", () => {
     );
   });
 
-  it('an unknown subcommand, or provenance without a registry and version, is a usage error', async () => {
-    expect((await run(['nope'])).code).toBe(2);
-    expect((await run(['provenance', 'pypi', '1.0.0'])).code).toBe(2);
-    expect((await run(['provenance', 'jsr'])).code).toBe(2);
+  it('an unknown subcommand, a registry it does not know, or no version is a usage error', async () => {
+    expect((await run(['nope'], {}, registryMain)).code).toBe(2);
+    expect((await run(['provenance', 'pypi', '1.0.0'], {}, registryMain)).code).toBe(2);
+    expect((await run(['provenance', 'jsr'], {}, registryMain)).code).toBe(2);
+    expect((await run(['jsr-has', 'v1.0.0'], {}, registryMain)).code).toBe(2);
+    expect((await run(['npm-state'], {}, registryMain)).code).toBe(2);
   });
 });
 
