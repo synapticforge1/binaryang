@@ -1687,7 +1687,7 @@
    "I64Ops.add": "method#a2c4c25472c2",
    "I64Ops.and": "method#92f264e4efed",
    "I64Ops.clz": "method#a5438f1a9e9b",
-   "I64Ops.const": "method#4aa0c5569e6d",
+   "I64Ops.const": "method#4e435ab105a3",
    "I64Ops.ctz": "method#afa80478c136",
    "I64Ops.div_s": "method#69dda8b0422d",
    "I64Ops.div_u": "method#48bf5c83d686",
@@ -2423,7 +2423,7 @@
     "-h",
     "-x"
    ],
-   "usage": "cbe8b9728b78"
+   "usage": "d604be77e9f8"
   },
   "wasm-strip": {
    "flags": [
