@@ -5,11 +5,11 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-11-09 UTC): 3.0.1 on JSR ONLY** (Rekor `3770874199`; GitHub Release `v3.0.1` by
-`github-actions[bot]`), after **3.0.0, also JSR only** (Rekor `3770400455`). npm got neither: 3.0.0's
-`npm-build` failed at `npm pack`, 3.0.1's `npm publish` read the tarball path as a GitHub
-shorthand (§ "3.0.0", § "3.0.1"). npm still serves 2.2.2; **3.0.2 follows** (owner: "Release
-3.0.2, tarball path"). Before them: 2.2.2 on BOTH registries, both with provenance (§ "2.2.2"). **The history was rewritten a second
+**Latest (2026-11-09 UTC): 3.0.2 on BOTH registries, both with provenance** — JSR
+`@jrmarcum/binaryang@3.0.2` (Rekor `3771557608`) and npm `@synapticforge1/binaryang@3.0.2`
+(`latest`, SLSA provenance), GitHub Release `v3.0.2` by `github-actions[bot]` — § "3.0.2", the
+restructured workflow's first fully green run. **3.0.0 and 3.0.1 are on JSR only** (npm went from
+2.2.2 to 3.0.2; § "3.0.0", § "3.0.1"). **The history was rewritten a second
 time on 2026-10-28** (§ "The second purge"): every hash from 2026-10-13 on changed again. **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
@@ -335,9 +335,9 @@ and `npm` held it while it installed and built: every dev dependency ran beside 
   --pack-destination` needs the folder to exist (fixed for 3.0.1, a test holds it).
 - **Second run, 3.0.1 (42704308757):** `npm-build` and the artifact hand-off ✅; `npm` ❌ — the
   tarball path `npm-pack/x.tgz` is a GitHub shorthand to npm (fixed for 3.0.2: an absolute path,
-  a test holds it). ⚠️ Still UNMEASURED: npm's OIDC trusted publishing and provenance from a
-  TARBALL (every earlier npm release published a folder) — 3.0.2's run. If that fails too, the
-  next step is to unpack the proven tarball and publish the folder.
+  a test holds it).
+- ✅ **Third run, 3.0.2 (42712133150): every job green** — npm's OIDC trusted publishing and SLSA
+  provenance from the proven tarball MEASURED. The workflow is proven end to end.
 
 ⚠️ The inherited version of this comment cited **wasmtk** as precedent for calling `deno publish`
 directly. wasmtk has **no provenance on any published version**, so it was never evidence for
@@ -1110,6 +1110,36 @@ was found in it: 424 checked, 0 missing. The control, today's `main` tip, was co
 **Old ids now resolve only through that bundle** (`cmem/local/backups/`, with a name → hash list
 of the deleted branches). The same run found two old ids the purge had missed in `working-rules.md`
 (step 16's), rewritten through the map.
+
+## 3.0.2 — a PATCH from `main` (2026-11-09 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
+
+The owner's go: "Release 3.0.2, tarball path". No package change from 3.0.0; npm's first 3.x.
+
+1. The tarball-path fix and the 3.0.1 record (`6616820a1`, merge `bed204bab`); `CHANGELOG.md`
+   § 3.0.2 on `release/3.0.2` (`128ac06ab`), gated 18 / 18, merged (`0281417fd`), pushed
+   unbumped: CI (Browsers included) and auto-tag GREEN; a FRESH CLONE: 18 / 18.
+2. No tag, neither registry had 3.0.2. `bun run bump patch`: floor PATCH; **v3.0.1's tests on
+   this tree: 6,509, 0 failed, 0 accepted**; `version_sync` 3 / 3; `surface:check` matches;
+   `bun run release`: `bump to v3.0.2` (`0d59e5c62`), `main` + `v3.0.2` in one push.
+3. **publish.yml run 42712133150 — ALL FIVE JOBS GREEN** (open-work 54 measured end to end):
+   **JSR** 3.0.2 at 22:33:53Z, `latest`, **Rekor `3771557608`**; **npm** 3.0.2, `latest`, **SLSA
+   provenance** (read back by `registry.ts provenance npm`) — published by the credentialed `npm`
+   job from the PROVEN tarball by its absolute path, through OIDC trusted publishing; **GitHub
+   Release `v3.0.2`** by `github-actions[bot]`, the tag still `0d59e5c62`. CI 42712133212 and
+   auto-tag green.
+4. **As a user:** `npx @synapticforge1/binaryang@3.0.2 --version` and `deno run -A
+   jsr:@jrmarcum/binaryang@3.0.2 --version` (`--minimum-dependency-age=0`) print `binaryang
+   3.0.2`; npm's `wasm-objdump -d` is refused ("-d (disassembly) is not supported yet; use -x
+   …", exit 1) and `-x` prints upstream's lines (`type[0] () -> nil`, `func[0] sig=0`) — the
+   3.0 changes, as published.
+
+**What the three releases cost, and the lesson** (one day, 3.0.0 → 3.0.2): two defects in the
+new workflow's npm half — a missing pack folder, a tarball path npm reads as a GitHub repo —
+each reachable only on GitHub, each costing a version, because a re-run runs the TAG's
+workflow and scripts. Both were invisible to the dry runs here, which created the folder by hand
+and passed absolute paths. **Rule: rehearse a changed release job with the exact commands, in a
+fresh folder laid out as the runner's, before landing it** — the dry-run `npm publish` of the
+path `registry.ts` outputs (done for 3.0.2) is the check that would have caught both.
 
 ## 3.0.1 — a PATCH from `main` (2026-11-09 UTC) — 🚀 on JSR with provenance; ❌ NOT on npm again
 
