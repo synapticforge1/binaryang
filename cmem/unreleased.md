@@ -1,12 +1,21 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-05 (UTC): the last release is `v2.2.2`, on JSR and npm, both with provenance;
-code lens passes 2 and 3, open-work 50 and 52, and CL7's `wasm-objdump -x` are unreleased on
-`main` (41 commits touching `src/` and the manifests since the tag) — at least a MINOR; two
-items are queued for the next MAJOR, not on `main`**
-(below; check it rather than trust this line:
-`git log --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`). `jsr.json` reads 2.2.2; the
-version line arms a release, so the next bump is the owner's decision, never a side effect of work.
+**As of 2026-11-09 (UTC): the last release is `v2.2.2`; the next is 3.0.0, a MAJOR** — measured
+with `bun run surface:floor` on 2026-11-09: `[major] ./compat/binaryen: Features changed` (open-work
+52's binaryen.js 132 values). 🔧 The line here said "at least a MINOR" from 2026-10-28 to
+2026-11-09: it was judged from the list below, never measured — the floor is the measurement.
+Owner, 2026-11-09: "Land queued, then 3.0.0" — the two breaks queued for the next major landed
+first, so one major carries every known break. (Check rather than trust this line:
+`git log --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`.)
+
+**Unreleased — the two queued breaks, LANDED for 3.0.0** (owner, 2026-11-09):
+
+- ⚠️ **BREAKING (CLI) — `wasm-objdump -d` is upstream's `--disassemble`, REFUSED** (exit 1, "use
+  -x for the section details") until binaryang has a disassembler; `--disassemble` the same. In
+  2.2.x `-d` printed the details. (CL7 step 2.)
+- ⚠️ **BREAKING (library) — binaryen facade `i64.const(value, high?: never)`**: a second argument
+  throws binaryen.js 132's "i64.const now takes a single argument (which can be a bigint)" where
+  it was dropped silently, building the wrong constant. A changed signature. (CL19.)
 
 **Unreleased — the Bun floor is 1.4.4** (2026-11-09, owner, workspace letter H31: "the minimum
 supported version will be updated to the latest version currently installed"). No code change;
@@ -15,9 +24,9 @@ the release note must say it, because it reaches users:
 - **Support change — Bun 1.4.0 – 1.4.3 are no longer supported** (the CLI and the library are
   tested on Bun 1.4.4 only; README § "Runtime support", `main.ts`'s module doc). Nothing known
   breaks on them — nothing was removed that they need — but they are no longer tested. Under the
-  workspace's SemVer rule a dropped runtime version can be read as BREAKING; the level is the
-  owner's call, and the other entries here already make this release at least a MINOR. The floor
-  will move again with each newer Bun the owner installs.
+  workspace's SemVer rule a dropped runtime version can be read as BREAKING; it ships in 3.0.0,
+  a major anyway, and is listed with its breaks. The floor will move again with each newer Bun
+  the owner installs.
 - **Repo-only, no release-note line:** CI and publish pin Bun 1.4.4; the workflows no longer call
   the GitHub CLI — auto-tag's dispatch and the GitHub Release page go through the REST API
   (`scripts/release/github.ts`), the page in its own `release` job (letters H30 / H32); and
@@ -29,8 +38,9 @@ the release note must say it, because it reaches users:
 your C7 suggested workflow"). A MINOR on its own (a new option):
 
 - **New option:** `wasm-objdump -x` / `--details`, upstream's details flag (it was refused).
-- **Deprecated:** `-d` for details. It still prints them, with a warning on stderr; in the next
-  major release `-d` becomes upstream's `--disassemble` (below, "Queued for the next MAJOR").
+- ~~**Deprecated:** `-d` for details, with a warning~~ — superseded before any release: 3.0.0
+  refuses `-d` (above). The release note says `-d` stopped printing details; there was never a
+  release in which it warned.
 - **Behaviour (CLI output) — upstream wabt 1.0.41's `-x` lines, character for character:** a
   `Section Details:` heading and no blank line between sections; results `nil`, `i32` or
   `(f64, i32)`; `sig=N` for every function and tag; names without `$`, an import's
@@ -38,19 +48,11 @@ your C7 suggested workflow"). A MINOR on its own (a new option):
   export line; limits with `max=`, `shared`, `i64` and `(pagesize N)`; `mutable=0|1`; `tag[N]`.
   Library: `wasmObjdump(bytes, { details: true })`'s text changes the same way.
 
-**Queued for the next MAJOR** (owner's decisions; neither is on `main` — each lands only when the
-owner decides to cut a major):
-
-- **`wasm-objdump -d` becomes upstream's `--disassemble`** (CL7, 2026-11-05) — refused with a
-  clear message until binaryang has a disassembler; never silently another meaning.
-- **binaryen facade `i64.const(value, high?: never)`** (CL19, 2026-11-05: "the clean way") — a
-  second argument, binaryen.js's pre-132 `(low, high)` form, throws as upstream's "i64.const now
-  takes a single argument" does, instead of being dropped silently. A changed signature: the
-  surface gate calls it MAJOR.
-
-**Unreleased — open-work 50 and 52, fixed** (2026-10-28, owner: "fix the 52 and 50 items"). The
-surface gate says **at least a MINOR**: new CLI options and library options and exports. Several
-lines change what a script or a consumer sees, so the note should say so plainly:
+**Unreleased — open-work 50 and 52, fixed** (2026-10-28, owner: "fix the 52 and 50 items"). 🔧
+This said "the surface gate says at least a MINOR"; measured 2026-11-09 the gate says **MAJOR**,
+for (a) below — the binaryen facade's `Features` bits changed value (⚠️ BREAKING for code that
+compares the numbers). Several lines change what a script or a consumer sees, so the note
+should say so plainly:
 
 - **Behaviour (CLI output) — upstream's forms:**
   - `wasm-validate` prints nothing on success, and no `INVALID` line after errors: scripts must
