@@ -21,7 +21,12 @@ not survive a clone is not a project rule. The lessons behind them are in
   installed. Anything that runs a dependency goes in `checks` or `npm-build`. Every action is
   pinned to a commit hash. `publish_preflight_wiring.test.ts` holds this; a change it refuses is
   a design question, not a test to loosen ([publishing.md](publishing.md) § "The publish
-  workflow's jobs"). A plain command
+  workflow's jobs").
+- **Rehearse a changed release job exactly, before it lands** (3.0.0 → 3.0.2, 2026-11-09: two
+  versions spent on two defects only GitHub saw). A re-run runs the TAG's workflow and scripts,
+  so a release-job bug costs a version. Run the job's own commands, with the outputs one step
+  hands the next, in a fresh folder laid out as the runner's (no folder made by hand, no path
+  typed by hand); for npm, a dry-run `npm publish` of the exact path `registry.ts` outputs. A plain command
   sequence (tag and push) stays in the workflow.
 - 🔒 **No `gh` — not here, not in CI** (owner, 2026-11-08, workspace letter H30 /
   `../cmem/working-rules.md` § Tooling rule 9: "just checking the repo is easier"; "yes change

@@ -1,23 +1,16 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-09 (UTC): the last release is `v3.0.1`, on JSR only** (Rekor `3770874199`),
-after 3.0.0, also JSR only: npm got neither ([publishing.md](publishing.md) § "3.0.0",
-§ "3.0.1"). Owner: "Release 3.0.2, tarball path" — the next release is **3.0.2**, a PATCH, so
-npm gets the 3.x line. (Check: `git log --oneline v3.0.1..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-09 (UTC): the last release is `v3.0.2`, on JSR AND npm, both with provenance**
+([publishing.md](publishing.md) § "3.0.2"); 3.0.0 and 3.0.1 are on JSR only. Nothing is
+unreleased on `main`. (Check: `git log --oneline v3.0.2..main -- src/ main.ts jsr.json README.md`.)
 
-**Unreleased — 3.0.2** (no package change; the same code as 3.0.0 and 3.0.1):
+**Shipped in 3.0.2 and 3.0.1** (kept here until the next release): no package change — 3.0.0
+again, for npm, which 3.0.0 and 3.0.1 did not reach; npm went from 2.2.2 to 3.0.2. Repo-only:
+`npm-build` creates the `npm pack` destination; `registry.ts npm-tarball` hands `npm publish` an
+absolute path; `previous-tests.ts` runs the old tests in a git work tree; `publish.ts` prints
+the five jobs. CHANGELOG § 3.0.1, § 3.0.2.
 
-- **For npm users:** 3.0.2 is the first 3.x on npm; npm has no 3.0.0 or 3.0.1. Its notes are
-  3.0.0's (CHANGELOG § 3.0.0) — the breaks included, for anyone coming from npm's 2.2.2.
-- **Repo-only:** `registry.ts npm-tarball` hands `npm publish` an ABSOLUTE path (npm read
-  `npm-pack/x.tgz` as a GitHub shorthand); a test holds it. Since 3.0.0 also: `npm-build`
-  creates the `npm pack` destination; `previous-tests.ts` runs the old tests in a git work tree;
-  `publish.ts` prints the five jobs.
-
-**Shipped in 3.0.1** (JSR only): nothing new in the package — 3.0.0 again, for npm, which it did
-not reach. CHANGELOG § 3.0.1.
-
-**Shipped in 3.0.0** (JSR only; CHANGELOG § 3.0.0 is the public note): the binaryen facade's
+**Shipped in 3.0.0** (CHANGELOG § 3.0.0 is the public note): the binaryen facade's
 binaryen.js 132 numbers, `i64.const` refusing `(low, high)`, `wasm-objdump -d` refused, Bun 1.4.4
 the minimum, `wasm2wat` validating, unknown options refused, the `parseWat` feature bag; the two
 optimizer fixes (tail-call inlining, SimplifyLocals in a `try`) and the integer-spelled
@@ -96,6 +89,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 3.0.0
+## Since 3.0.2
 
-The 3.0.1 entry above.
+Nothing yet.
