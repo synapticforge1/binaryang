@@ -1175,7 +1175,7 @@ closes its own rows; nothing is written there from here.
   carries the fix. Answers written into the two ledger rows; S3D, the creator, closes them.
 
 - **H30, H31, H32 done; C30, C34 read (2026-11-09**, owner: "review workspace for items needing
-  this project's attention and make the requested fixes"). Branch `h30-h31-no-gh-bun-144`; the
+  this project's attention and make the requested fixes"). `06618265d`, merge `fb9457451`; the
   answers are in the five ledger rows, which their creators close.
   - **H30 (no `gh`, CI too):** the three lines are gone — `auto-tag.yml`'s dispatch (and its
     header comment) and `publish.yml`'s `gh release create`. Both writes are

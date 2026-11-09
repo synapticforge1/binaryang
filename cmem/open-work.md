@@ -16,9 +16,10 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 
 **State, 2026-11-09 (supersedes the paragraphs below where they differ).** Workspace letters
 H30 (no `gh`, in CI too), H31 (Bun pins and the floor → 1.4.4) and H32 (the CI-made Release page,
-its own job) done on branch `h30-h31-no-gh-bun-144`, NOT pushed; the raised Bun floor is a
-release-note line ([unreleased.md](unreleased.md)). C30 / C34 read: item 54, the owner's.
-Local `main` was 9 ahead of `origin/main` before this work. Unchanged otherwise.
+its own job) done: `06618265d`, merge `fb9457451`, gate 14 / 14 on Bun 1.4.4; answers in the
+five workspace ledger rows (H30, H31, H32, C30, C34), which their creators close. The raised Bun
+floor is a release-note line ([unreleased.md](unreleased.md)). Item 54 (C30 / C34): the owner
+said restructure (2026-11-09). No release since 2.2.2; the next is at least a MINOR.
 
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
