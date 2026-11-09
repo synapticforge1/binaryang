@@ -380,7 +380,10 @@ const HELP: ToolHelp = {
     [
       '-d, --disassemble',
       "Upstream's disassembly of the code section — NOT SUPPORTED YET: refused (exit 1). " +
-      'Until 3.0.0 -d printed the details; use -x',
+      'In 2.2.x -d printed the details; use -x',
+      // No version of this package in the text: the surface fingerprint replaces the tree's own
+      // version, so a help line naming the NEXT release reads as changed at its bump (1.16.0's
+      // trap, again on 2026-11-09).
     ],
   ],
 };
