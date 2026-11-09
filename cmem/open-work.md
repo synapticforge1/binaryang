@@ -19,7 +19,8 @@ H30 (no `gh`, in CI too), H31 (Bun pins and the floor → 1.4.4) and H32 (the CI
 its own job) done: `06618265d`, merge `fb9457451`, gate 14 / 14 on Bun 1.4.4; answers in the
 five workspace ledger rows (H30, H31, H32, C30, C34), which their creators close. The raised Bun
 floor is a release-note line ([unreleased.md](unreleased.md)). Pushed 2026-11-09 (`origin/main`
-= `a72fc6b18`, `ls-remote`). Then item 54 — `publish.yml` restructured (owner), which the next
+= `a72fc6b18`, `ls-remote`): CI run 42686666745 GREEN in all eight jobs, "CLI on Bun 1.4.4
+(floor)" included — the 1.4.4 pins proven on GitHub; auto-tag 42686666673 green, no tag. Then item 54 — `publish.yml` restructured (owner), which the next
 tag run proves. No release since 2.2.2; the next is at least a MINOR.
 
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
