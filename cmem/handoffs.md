@@ -1221,6 +1221,14 @@ closes its own rows; nothing is written there from here.
     tarball with `--ignore-scripts` after checking its manifest; every action hash-pinned;
     `concurrency` queues per tag. Record: [publishing.md](publishing.md) § "The publish
     workflow's jobs". Answers added to the two ledger rows.
+  - **Later the same day: 3.0.0 → 3.0.2 released** ([publishing.md](publishing.md) § "3.0.0" →
+    § "3.0.2"); the H30, H32, C30, C34 rows updated with the three runs, measured on GitHub.
+  - **C43 SENT by binaryang (2026-11-09)**, in the workspace ledger: to wasmtk, what 3.0 changes
+    at its bump, measured in its tree — unaffected by the new facade numbers and `i64.const`;
+    to check: the `parseWat` feature bag (`wasmbundle.ts:370`), `wasm2wat` validating, silent
+    `wasm-validate`, unknown options refused, the two optimizer fixes; to every repo publishing
+    to npm from CI: the two npm traps and "a re-run runs the tag's workflow". binaryang, the
+    creator, closes it once wasmtk has bumped or answered.
 
 ## Lessons the correspondence paid for
 
