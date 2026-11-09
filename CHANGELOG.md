@@ -1,5 +1,95 @@
 # Changelog
 
+## 3.0.0
+
+A major release. **The binaryen facade's numbers are now binaryen.js 132's**, `i64.const` refuses
+its old two-argument form, `wasm-objdump -d` is upstream's disassembly flag (refused for now),
+and the minimum Bun is 1.4.4 — README § "Breaking Changes" has the migration. It also fixes **two
+optimizer defects that changed what optimized code computes**, makes many tools behave as
+upstream wabt's (`wasm2wat` validates, `wasm-validate` is silent on success, `wasm-objdump -x`
+prints upstream's details), and refuses several inputs it used to accept or guess at.
+
+### ⚠️ Breaking
+
+- **`./compat/binaryen`: the type IDs, `Features` bits, a new module's features and the default
+  shrink level are binaryen.js 132's.** A new module starts with the MVP features, and the
+  default shrink level is 1, as binaryen.js. Code that names them (`binaryen.i32`,
+  `binaryen.Features.GC`) is unaffected; **code that compares or stores the NUMBERS sees new
+  values.** `getFunction` now returns an imported function too (its info has `module` / `base`),
+  and `getFeatures()` exists.
+- **`i64.const(low, high)` throws** "i64.const now takes a single argument (which can be a
+  bigint)", as binaryen.js 132 does. It dropped `high` silently, so a JavaScript caller using the
+  pre-132 form built the wrong constant. Pass one `bigint` (or a `number`).
+- **`wasm-objdump -d` is upstream's `--disassemble`, and is refused** (exit 1) until binaryang has
+  a disassembler. In 2.2.x `-d` printed the section details: use **`-x`** (`--details`), upstream's
+  flag, new in this release.
+- **Bun 1.4.4 is the minimum Bun** (it was 1.4.0). Nothing known fails on 1.4.0 – 1.4.3, but they
+  are no longer tested. The minimum follows the newest Bun the project tests on.
+- **`wasm2wat` validates by default**, with upstream's default features: an invalid module, or one
+  using a feature outside the defaults without its flag, is refused where it was printed. It takes
+  upstream's feature flags and `--no-check`; the library's `wasm2wat()` takes `validate` and
+  `features`.
+- **An unknown option is an error** in `wasm-strip`, `wasm2wat` and `wasm-objdump`; they skipped
+  it. The dangerous case: `wasm-strip in.wasm --output=out.wasm` (upstream's spelling) stripped
+  `in.wasm` IN PLACE and never wrote `out.wasm`. `--output=FILE` now works in `wat2wasm`,
+  `wasm2wat` and `wasm-strip`, and `--section=NAME` in `wasm-strip`.
+- **The wabt facade's `parseWat` feature bag gates**: a partial bag means upstream's default
+  features plus the keys given (it enabled only the keys given).
+
+### Fixes — re-optimize what you shipped
+
+- **Inlining a function that ends in a tail call returned from the CALLER** (`-O2`, `-Oz`,
+  `--inlining`, and `-O3` for two forms), skipping the rest of the caller; a void one could
+  produce an invalid module. If you optimized a module that uses tail calls, re-optimize it.
+- **SimplifyLocals moved a local write past a call that may throw inside a `try`** (`-O2`, `-O3`,
+  `-Oz`, `--simplify-locals`), so the handler read the old value. If you optimized a module with
+  exception handling, re-optimize it.
+- **`wat2wasm` wrote the wrong value for an integer-spelled `f32.const` of more than 53 bits**
+  (`f32.const 18014399583223809`) — it rounded twice — and refused one just below the largest
+  float's rounding midpoint.
+- `wasm-ctor-eval` could write invalid modules (a null in a non-nullable local, renumbered data
+  segments), and now removes an empty constructor's export.
+- `wasm-opt` judged its output with the host engine, so a valid memory64 module would not
+  optimize on Bun; it uses binaryang's validator now. MergeLocals, SSANoMerge and StackIR no
+  longer hide a failure.
+
+### Changed — output as upstream wabt's
+
+- `wasm-validate` prints nothing on success and no `INVALID` line after errors: read the exit
+  code.
+- `wasm-objdump -x` prints upstream wabt 1.0.41's lines, character for character (a `Section
+  Details:` heading, `nil` / `i32` results, `sig=N`, names without `$`, limits with `max=`); the
+  library's `wasmObjdump(bytes, { details: true })` the same. The type section is counted in rec
+  groups.
+- `wasm-interp` prints integers unsigned (`i32:4294967295`) and floats with their sign and NaN
+  payload (`-0`, `nan:0x…`); `--run-all-exports` runs only exports that take no arguments; an
+  import nothing supplies is refused before anything runs.
+- `--generate-names` uses upstream's names (`$env.imp`, export names, `$p0` / `$l2`, labels `$B` /
+  `$L` / `$I` / `$T`); `wasm-opt <pass> -S` keeps the names.
+- Diagnostics: an unknown local is `undefined local variable "$x"`; SIMD lane and shuffle
+  mismatches name the instruction.
+- The wabt facade's `toText({ foldExprs: false })` is linear, and `foldExprs: true` forces folding.
+  An empty `(rec)` group is kept, in text and in bytes.
+
+### Changed — refuses what it guessed at
+
+- A raw control character inside a WAT string; a segment with no offset; a branch hint not on an
+  `if` / `br_if`; a library-built tag with no type index; a memory alignment exponent ≥ 64 (it was
+  written as bytes that do not say it); a non-constant `struct.new_desc` descriptor in a constant
+  expression; `wasm-interp --argument` / `--fuel` and `wasm-ctor-eval --fuel` values they cannot
+  read (the typed form `f32:8` is taken).
+
+### Changed — accepts what it refused
+
+- A `memory.copy` between a 64-bit and a 32-bit memory; `-O2` and up on a function that branches
+  to its own frame; a table's initializer, `(table 1 funcref ref.null func)`; `./api`'s `if` /
+  `block` producing a value; binaryen facade `align` 0 (natural alignment).
+
+### New
+
+- `wasm-objdump -x` / `--details`; `wasm2wat`'s feature flags and `--no-check`; the wabt facade's
+  `validate()` and `toBinary().log`; `Export.loc` in `./ir`.
+
 ## 2.2.2
 
 A patch release: the validator now checks a legacy `delegate` properly, and its type-mismatch
