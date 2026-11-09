@@ -5,10 +5,11 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-11-09 UTC): 3.0.0 on JSR ONLY** (Rekor `3770400455`; GitHub Release `v3.0.0`
-by `github-actions[bot]`) — npm did not get it: the restructured workflow's `npm-build` failed at
-`npm pack` (§ "3.0.0"). npm still serves 2.2.2; **3.0.1 follows, to both registries** (owner).
-Before it: 2.2.2 on BOTH registries, both with provenance (§ "2.2.2"). **The history was rewritten a second
+**Latest (2026-11-09 UTC): 3.0.1 on JSR ONLY** (Rekor `3770874199`; GitHub Release `v3.0.1` by
+`github-actions[bot]`), after **3.0.0, also JSR only** (Rekor `3770400455`). npm got neither: 3.0.0's
+`npm-build` failed at `npm pack`, 3.0.1's `npm publish` read the tarball path as a GitHub
+shorthand (§ "3.0.0", § "3.0.1"). npm still serves 2.2.2; **3.0.2 follows** (owner: "Release
+3.0.2, tarball path"). Before them: 2.2.2 on BOTH registries, both with provenance (§ "2.2.2"). **The history was rewritten a second
 time on 2026-10-28** (§ "The second purge"): every hash from 2026-10-13 on changed again. **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
@@ -331,8 +332,12 @@ and `npm` held it while it installed and built: every dev dependency ran beside 
 - **A non-tag dispatch runs `checks` only** (it used to run `deno publish` from any ref).
 - **First run, 3.0.0 (run 42699750914):** `checks`, `jsr` (provenance), `release` (the page, by
   `github-actions[bot]`, no tag made) ✅ — measured on GitHub. `npm-build` ❌: `npm pack
-  --pack-destination` needs the folder to exist (fixed for 3.0.1, a test holds it). ⚠️ Still
-  UNMEASURED: the artifact hand-off and npm's provenance on a tarball publish — 3.0.1's run.
+  --pack-destination` needs the folder to exist (fixed for 3.0.1, a test holds it).
+- **Second run, 3.0.1 (42704308757):** `npm-build` and the artifact hand-off ✅; `npm` ❌ — the
+  tarball path `npm-pack/x.tgz` is a GitHub shorthand to npm (fixed for 3.0.2: an absolute path,
+  a test holds it). ⚠️ Still UNMEASURED: npm's OIDC trusted publishing and provenance from a
+  TARBALL (every earlier npm release published a folder) — 3.0.2's run. If that fails too, the
+  next step is to unpack the proven tarball and publish the folder.
 
 ⚠️ The inherited version of this comment cited **wasmtk** as precedent for calling `deno publish`
 directly. wasmtk has **no provenance on any published version**, so it was never evidence for
@@ -1105,6 +1110,33 @@ was found in it: 424 checked, 0 missing. The control, today's `main` tip, was co
 **Old ids now resolve only through that bundle** (`cmem/local/backups/`, with a name → hash list
 of the deleted branches). The same run found two old ids the purge had missed in `working-rules.md`
 (step 16's), rewritten through the map.
+
+## 3.0.1 — a PATCH from `main` (2026-11-09 UTC) — 🚀 on JSR with provenance; ❌ NOT on npm again
+
+The owner's go: "Release 3.0.1", so npm gets 3.x by CI. No package change from 3.0.0.
+
+1. The `npm pack` fix and the 3.0.0 record (`d8a5ea6b2`, merge `826156885`); `CHANGELOG.md`
+   § 3.0.1 on `release/3.0.1` (`e321d1f89`), gated 18 / 18, merged (`1ea65a6b1`), pushed
+   unbumped: CI (Browsers included) and auto-tag GREEN; a FRESH CLONE: 18 / 18.
+2. **`bun run bump patch` stopped, rightly, on a harness defect:** v3.0.0's `deno_pin.test.ts`
+   runs `git ls-files`, and `previous-tests.ts` ran the old tests in a temp folder that was no
+   git repository (exit 128, no files). First seen now: the test arrived after 2.2.2 and 3.0.0
+   was a major. Fixed, not listed as accepted (`6a69598da`, merge `b9243b420`: the folder is
+   `git init` + `git add -A`); v3.0.0's tests: 6,508, 0 failed. Pushed unbumped: CI and
+   auto-tag green; FRESH CLONE of `b9243b420`: 18 / 18.
+3. `bun run bump patch`: floor PATCH; **v3.0.0's tests on this tree: 6,508, 0 failed, 0
+   accepted** (two stale 2.2.2 entries reported, harmless); `version_sync` 3 / 3;
+   `surface:check` matches; `bun run release`: `bump to v3.0.1` (`1d31887ce`), `main` + tag.
+4. **publish.yml run 42704308757:** `checks` ✅, `jsr` ✅ (**JSR 3.0.1** 21:43:39Z, `latest`,
+   **Rekor `3770874199`**), `release` ✅ (**GitHub Release `v3.0.1`** by `github-actions[bot]`),
+   `npm-build` ✅ (the tarball packed and uploaded — the artifact hand-off MEASURED), **`npm` ❌ at
+   "Publish to npm"** after every check passed (artifact downloaded, JSR 200, manifest checked,
+   npm `free`): `npm publish npm-pack/<file>.tgz` — npm reads `dir/name.tgz` as a GitHub
+   shorthand and runs `git ls-remote ssh://git@github.com/npm-pack/….git` (reproduced with npm
+   11; `./…` or an absolute path is read as the file). npm has no 3.0.1 and the number is unused.
+   CI and auto-tag green. Fixed: `registry.ts npm-tarball` outputs an ABSOLUTE path
+   (`tarballSpec`), tested and inverted; proven end to end here with a dry-run publish of the
+   path it outputs. Owner: "Release 3.0.2, tarball path".
 
 ## 3.0.0 — a MAJOR from `main` (2026-11-09 UTC) — 🚀 on JSR with provenance; ❌ NOT on npm
 
