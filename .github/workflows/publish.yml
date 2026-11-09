@@ -34,9 +34,10 @@
 # diagnostic below checks a PREREQUISITE, not the outcome — wasmtk got ten releases of false
 # assurance from exactly that step. The verification step at the end is the real gate.
 #
-# Required permissions:
-#   - id-token: write   → OIDC token for JSR provenance
-#   - contents: write   → checkout + create GitHub Release after publish
+# Required permissions (each job asks for its own, no more):
+#   - publish: id-token: write → OIDC token for JSR provenance; contents: read → checkout
+#   - release: contents: write → create the GitHub Release page, in a job that checks out only
+#     its script and jsr.json and installs nothing (workspace letters H30 and H32, C30)
 #
 # JSR side: link the package (`@jrmarcum/binaryang`) to this GitHub repo in the JSR UI
 # under "Settings → GitHub Actions". No JSR token is needed when OIDC is configured.
@@ -55,8 +56,13 @@ jobs:
     name: Publish ${{ github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       id-token: write
+    # Whether `deno publish` itself succeeded: the `release` job keys off this, not off the whole
+    # job, so a failed provenance read-back (the last step) still gets its Release page, as when
+    # the page was a step in this job.
+    outputs:
+      published: ${{ steps.deno.outcome == 'success' }}
 
     steps:
       - name: Checkout
@@ -76,7 +82,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.4.3'
+          bun-version: '1.4.4'
 
       - name: Install dev dependencies
         run: bun install --frozen-lockfile
@@ -126,27 +132,54 @@ jobs:
       # itself, so `--config jsr.json` came off. Still `deno publish` called DIRECTLY: `bunx jsr publish` downloads Deno and runs this same command as a
       # subprocess, which is the indirection this header warns can lose provenance.
       - name: Publish to JSR (with provenance)
+        id: deno
         run: deno publish
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "binaryang $GITHUB_REF_NAME" \
-            --generate-notes \
-            --verify-tag
 
       # THE actual evidence. Runs LAST on purpose: JSR versions are immutable, so by the
       # time this runs the version exists either way — failing here surfaces the problem
-      # loudly without blocking the publish or the GitHub release. Design taken from
-      # wasmtk, which added it after ten releases of silent absence.
+      # loudly without blocking the publish or the GitHub release (the `release` job reads
+      # `published`, not this job's result). Design taken from wasmtk, which added it after
+      # ten releases of silent absence.
       - name: Verify provenance was recorded on JSR
         if: startsWith(github.ref, 'refs/tags/v')
         # JSR ingests attestation asynchronously AND caches this endpoint, so the poll
         # cache-busts each read (the measurement is in workflow.ts).
         run: bun scripts/release/workflow.ts provenance jsr "${GITHUB_REF_NAME#v}"
+
+  # The GitHub Release page, made by CI after the registry upload (owner, 2026-11-09, workspace
+  # letter H32; no GitHub CLI, H30). Its own job so the write token sits beside nothing else: only
+  # scripts/release/github.ts and jsr.json are checked out, nothing is installed, and the
+  # checkout keeps no credential. The script refuses unless the tag is on GitHub and peels to this
+  # run's commit (POST /releases would CREATE a missing tag), treats an existing page as done, and
+  # reads the page back. Only tags cut after this job landed get a page (owner: no backfill).
+  release:
+    name: GitHub Release ${{ github.ref_name }}
+    needs: publish
+    if: ${{ !cancelled() && needs.publish.outputs.published == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout the release script and the manifest only
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/release/github.ts
+            jsr.json
+          sparse-checkout-cone-mode: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+
+      - name: Create the GitHub Release (REST API)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun scripts/release/github.ts release "$GITHUB_REF_NAME"
 
   # npm, the SECOND registry (open-work 29; owner, 2026-10-20: `@synapticforge1/binaryang`, JSR
   # staying the source). After JSR's job, from the same tag. OFF until the repository variable
@@ -172,7 +205,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.4.3'
+          bun-version: '1.4.4'
 
       - name: Install dev dependencies
         run: bun install --frozen-lockfile

@@ -14,6 +14,12 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**State, 2026-11-09 (supersedes the paragraphs below where they differ).** Workspace letters
+H30 (no `gh`, in CI too), H31 (Bun pins and the floor → 1.4.4) and H32 (the CI-made Release page,
+its own job) done on branch `h30-h31-no-gh-bun-144`, NOT pushed; the raised Bun floor is a
+release-note line ([unreleased.md](unreleased.md)). C30 / C34 read: item 54, the owner's.
+Local `main` was 9 ahead of `origin/main` before this work. Unchanged otherwise.
+
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
 NOT released; the next release is at least a MINOR. Today's work (item 43, CL7) is on local
@@ -135,6 +141,17 @@ removed record went to a topic file, and the full text is one `git show` away:
 | everything else: M-series and post-M8 tables, the pre-bump items         | `git show 3bd64ece7:cmem/open-work.md`                                                               |
 
 ## Defects and gaps — the owner's first
+
+54. 🗓️ **OWNER — the publishing credential runs beside third-party code** (workspace ledger C30
+    and C34, from S3D, read 2026-11-09; [handoffs.md](handoffs.md), the 2026-11-09 entry).
+    `publish.yml`'s `publish` job holds `id-token: write` (JSR's and npm's trusted-publishing
+    credential) while it runs `bun install` and the whole test suite; the `npm` job holds it
+    while it installs and builds. Any dev dependency could mint the token. **Options:** (a) as
+    S3D did — the checks move to a job without the token, the publish job installs with
+    `--ignore-scripts` and publishes a built artifact, every action pinned to a commit hash, and
+    an `uploaded` output written before `deno publish` so the jobs after it run even when it
+    fails after the upload (1.13.2's case) — a release-workflow restructure, landed BEFORE a
+    release and proven only by the next tag run; (b) keep as is, recorded. Not started.
 
 53. ✅ **Code lens pass 3 — thirteen fixes** (2026-10-28, owner: "look for code issues"; branch
     `fix/code-lens-3`; [hardening.md](hardening.md) § "Code lens, pass 3"). Wrong OUTPUT on

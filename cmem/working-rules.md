@@ -13,7 +13,19 @@ not survive a clone is not a project rule. The lessons behind them are in
 - **Workflow logic is TypeScript too** (owner, 2026-10-21): a GitHub workflow `run:` block only
   launches; any condition, loop or poll is a subcommand of `scripts/release/workflow.ts` (or a
   script like it), tested in `tests/wabt-ts/scripts/workflow_steps.test.ts`. A plain command
-  sequence (tag and push, `gh release create`) stays in the workflow.
+  sequence (tag and push) stays in the workflow.
+- 🔒 **No `gh` — not here, not in CI** (owner, 2026-11-08, workspace letter H30 /
+  `../cmem/working-rules.md` § Tooling rule 9: "just checking the repo is easier"; "yes change
+  those"). The GitHub CLI is not installed and will not be. Check the repo instead: `git
+  ls-remote origin` against `origin/*`, `git fetch`, a registry's public API. A workflow writes
+  to GitHub through the REST API with its own `GITHUB_TOKEN` from a Bun step —
+  `scripts/release/github.ts` (`dispatch`, `release`), mock-API tested in `workflow_steps.test.ts`
+  (since 2026-11-09). A task only GitHub's web UI can do is an OWNER item, never "blocked on gh".
+- 🔒 **Every Release page is made by CI** (owner, 2026-11-09, letter H32): publish.yml's
+  `release` job, after the registry upload, `contents: write` only, checking out nothing but its
+  script and `jsr.json`; tag on GitHub and peeling to `github.sha` first, an existing page is
+  done, then create and read back. Never by hand. Only tags cut after the job landed get a page
+  (owner: no backfill).
 - **Messages go through a file**: `git commit -F <file>` and `git merge --no-ff -F <file>`. Write
   the file with a file-writing tool, never a heredoc or a double-quoted `-m` (see "Do not author
   file CONTENT through a shell heredoc" in [best-practices.md](best-practices.md), which lists all
@@ -313,6 +325,16 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
     `cmem/local/environment.md`). `sed -i` is fine for one regex on one file.
 - **After any scripted edit, read back the lines it changed**, and treat "0 replacements" as a
   failure, not a no-op.
+- 🔒 **Every Bun-version notation is the latest INSTALLED Bun** (owner, 2026-11-09, workspace
+  letter H31 / `../cmem/working-rules.md` § Tooling rule 10: "update any notations on bun version
+  to the latest installed version always"; "the minimum supported version will be updated to the
+  latest version currently installed"). At the first session after the owner installs a newer
+  Bun, run `bun --version` (Windows and WSL), run the gate on it, then move every pin
+  (`bun-version:` in all three workflows, the CI matrix), the FLOOR (ci.yml's floor leg,
+  `main.ts`'s "Bun X+", README's runtime table and floor paragraph, [project.md](project.md)
+  § "Runtime floors") and every current-tense "is installed" line; the release that carries a
+  raised floor says so. A DATED measurement ("measured on Bun 1.4.3, 2026-10-12") stays as
+  written until that test is re-run. 1.4.4 since 2026-11-09.
 - ⚠️ **`cmem/` is outside `deno fmt`'s `include`, and naming a file formats it anyway.** The gate's
   `deno fmt --check` never reads cmem, so nothing requires it to be formatted — and
   [wabt-ts.md](wabt-ts.md) / [binaryen-ts.md](binaryen-ts.md) use long lines by design. 2026-09-14:
@@ -326,7 +348,8 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
 | upstream wabt        | 1.0.41  | `wat2wasm` · `wasm2wat` · `wasm-validate` · `wasm-interp` · `wast2json` (installed 2026-09-02)                                       |
 | upstream binaryen    | 133     | `wasm-opt` · `wasm-as` · `wasm-dis` · `wasm-ctor-eval` (installed 2026-09-02 as 132; the scoop shim read 133 on 2026-10-08 — its -Oz is 6.5 KB better on the corpus, so a gap figure names the version) |
 | wasm-tools           | 1.259.0 | `parse` · `print` · `validate` · `json-from-wast` (installed 2026-09-11) — reaches GC text, label and field names, which wabt cannot |
-| `gh`                 | —       | ⬚ NOT installed                                                                                                                      |
+| `gh`                 | —       | ⬚ not installed and never will be (owner, 2026-11-08, § Git above): `git ls-remote`, the REST API                                   |
+| Bun                  | 1.4.4   | Windows and WSL, `bun --version` 2026-11-09 — the version every pin and the floor carry (rule below)                                 |
 | the wider wasmtk set | —       | `.../wasmtk/tests` — 532 `.wat`, 511 `.wasm`, 288 `.wast`                                                                            |
 
 What each oracle can and cannot judge is in [testing.md](testing.md) § "Independent oracles".

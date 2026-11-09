@@ -223,7 +223,7 @@ Runs on **Deno, Node.js, Bun and modern browsers** from a single source tree.
 | -------- | ----------- | ------------------------------------------------------ | --------------------------------- |
 | Deno     | 2.x         | 2.x                                                    |                                   |
 | Node.js  | **22.18.0** | 22.18.0, latest 22, 24, 26                             | no flags¹                         |
-| Bun      | **1.4.0**   | 1.4.0                                                  |                                   |
+| Bun      | **1.4.4**   | 1.4.4                                                  |                                   |
 | browsers | modern      | Chromium, Chrome, Edge, Brave, Opera, Firefox, WebKit² | library surface only, not the CLI |
 
 ¹ Node users receive compiled JavaScript: the npm package's, or JSR's own build. binaryang's
@@ -404,10 +404,10 @@ const { instance } = await WebAssembly.instantiate(bytes, imports);
 2026-04-30, so neither is supported. Node 22 is in maintenance until 2027-04-30. The floor is
 **22.18.0** rather than 22.0 because `import.meta.main` was backported to the v22 line in 22.18.0.
 
-**Bun: 1.4.0 is the Zig → Rust rewrite.** The floor sits on that boundary so binaryang never spans
-two different implementations of the same runtime. Bun 1.3 is not end-of-life and is still not
-supported here — the one place the two runtimes are governed differently, said plainly rather than
-buried.
+**Bun: the floor is the latest Bun release, 1.4.4 as of 2026-11-09**, and it moves up with each
+new Bun the project adopts — the one place the runtimes are governed differently, said plainly
+rather than buried. Bun 1.3 (the last before the Zig → Rust rewrite in 1.4.0) has never been
+supported.
 
 ## Migrating
 

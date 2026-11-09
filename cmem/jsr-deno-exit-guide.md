@@ -303,7 +303,8 @@ How to adopt it, and the trap:
   `bun --check` reaches the checker, but `bun --check -p x` reads `-p` as Bun's "print". Inside
   the `check` script itself `bun check` IS the checker (Bun's docs say so; measured: no
   recursion). On a Bun without the checker (before 1.4.3) such a script calls itself forever, so
-  pin Bun ≥ 1.4.3 everywhere it runs (binaryang's CI and publish pin `1.4.3`).
+  pin Bun ≥ 1.4.3 everywhere it runs (binaryang's CI and publish pin `1.4.4` since 2026-11-09:
+  the latest installed Bun, workspace letter H31).
 - One `-p` per project: binaryang's script is
   `bun check -p tsconfig.json && bun check -p scripts/binaryen-ts/tsconfig.json && …` (or `-b`
   with `references`). `bun check` exits 1 on an error AND when it finds nothing to check, so a job
@@ -590,10 +591,13 @@ says whether binaryang RE-MEASURED it (2026-10-28: Deno 2.9.8, Bun 1.4.4, Node 2
    project in the user's home folder — undone with `npm uninstall`).
 6. **`deno publish` of a version that already exists SKIPS with exit 0**, so a re-run tag
    workflow carries on past the publish step. Read, not re-measured (it needs a real re-publish).
-   For binaryang's `publish.yml`, by reading: the next step, `gh release create`, fails on the
-   release that exists, so a re-run stops LOUD there and the npm job (`needs: publish`) does not
-   start; if the first run died before creating the release, a re-run completes only the missing
-   part. Check a workflow's steps AFTER the publish for what a re-run does.
+   For binaryang's `publish.yml`, by reading: until 2026-11-09 the next step, `gh release
+   create`, failed on the release that exists, so a re-run stopped LOUD there and the npm job
+   (`needs: publish`) did not start. Since then (letters H30 / H32) the page is its own `release`
+   job, which treats an existing page as done, so a whole-workflow re-run passes `publish` and
+   `release` and reaches the npm job, whose `npm publish` refuses a version npm already has
+   (loud, and the right place: it completes npm when only npm was missing). Check a workflow's
+   steps AFTER the publish for what a re-run does.
 
 ### The web: every export must LOAD in a browser
 

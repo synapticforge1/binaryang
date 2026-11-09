@@ -15,9 +15,10 @@
 # Why the explicit dispatch: GitHub does not fire workflows in response to
 # pushes (tag or branch) authored by `GITHUB_TOKEN`. This is GitHub's recursion
 # guard — without it, a workflow that pushes could trigger itself. So pushing
-# `v1.0.8` here would not start `publish.yml` on its own; the `gh workflow run`
-# call uses the same token with `actions: write` permission to dispatch the
-# publish workflow on the freshly pushed tag.
+# `v1.0.8` here would not start `publish.yml` on its own; the dispatch step
+# calls GitHub's REST API (`scripts/release/github.ts dispatch`, no GitHub CLI —
+# workspace letter H30) with the same token and its `actions: write` permission
+# to dispatch the publish workflow on the freshly pushed tag.
 #
 # ⚠️ The dispatched publish FAILS, by cause, not by chance: JSR authorises the OIDC token's
 # actor, and a dispatched run's actor is `github-actions[bot]`, which is not a member of the
@@ -72,7 +73,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.4.3'
+          bun-version: '1.4.4'
 
       # The decisions below are scripts/release/workflow.ts, not bash (owner rule, 2026-10-21: a
       # condition or a loop goes in a .ts file; the shell only launches it).
@@ -106,12 +107,11 @@ jobs:
       - name: Dispatch publish workflow (fallback — no RELEASE_PAT)
         if: steps.check.outputs.exists == 'false' && steps.cred.outputs.pat == 'no'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ steps.check.outputs.version }}"
           echo "::warning::RELEASE_PAT is not set, so the tag was pushed by GITHUB_TOKEN and cannot trigger publish.yml. Falling back to workflow_dispatch, which JSR rejects: the dispatched run's actor is github-actions[bot], not a scope member (actorNotScopeMember). Release with bun run release instead, or re-push this tag by hand: git push origin :refs/tags/$TAG && git push origin $TAG"
-          gh workflow run publish.yml --ref "$TAG"
-          echo "Dispatched publish.yml on ref $TAG (fallback path)"
+          bun scripts/release/github.ts dispatch publish.yml "$TAG"
 
       - name: Release triggered by tag push (RELEASE_PAT set)
         if: steps.check.outputs.exists == 'false' && steps.cred.outputs.pat == 'yes'

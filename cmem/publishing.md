@@ -271,7 +271,9 @@ the variable, and editing permissions or restructuring the job is motion without
 
 The structural requirements are already met and worth stating once so they are not re-litigated:
 
-- `permissions: id-token: write` (plus `contents: write` for checkout and the GitHub Release)
+- `permissions: id-token: write` (plus `contents: read` for checkout; `contents: write` for the
+  GitHub Release until 2026-11-09, when the page moved to its own `release` job — letters H30 /
+  H32; `id-token` was not touched)
 - `deno publish` called **directly**, never through `deno task publish` — the task wraps a script
   that spawns `deno publish` via `Deno.Command`, and OIDC detection does not propagate into the
   subprocess
@@ -636,7 +638,9 @@ the guard (no blockers), then restored.
 
 The tag push fires `publish.yml`, which verifies the tag matches `jsr.json`, runs `bun run check`,
 `bun run test` and `bun run test:bun` (since B6), then calls `deno publish` **directly** — never through `deno task`, because that indirection
-spawns a subprocess and loses OIDC — and finally creates a GitHub Release.
+spawns a subprocess and loses OIDC — then checks provenance. The GitHub Release page is the
+`release` job's, after it (since 2026-11-09, `scripts/release/github.ts release`, REST API, no
+`gh`; it runs whenever `deno publish` itself succeeded, and an existing page is done).
 
 ⚠️ **A DISPATCHED release needs a manual step**, because `RELEASE_PAT` is not set (and will not
 be — closed as not needed, 2026-09-29: this flow never dispatches). See § "The auto-tag dispatch path does not publish" above. 🔧 This first said "a release currently needs a manual step"; 1.5.4

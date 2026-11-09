@@ -37,7 +37,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.4.3'
+          bun-version: '1.4.4'
 
       - name: Install dev dependencies
         run: bun install --frozen-lockfile
@@ -155,7 +155,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: '1.4.3'
+          bun-version: '1.4.4'
 
       - name: Install dev dependencies
         run: bun install --frozen-lockfile
@@ -192,7 +192,7 @@ jobs:
           # npm's deno"). The leg still runs the CLI, and cli-smoke itself, ON Deno.
           - name: Deno
             setup: bun
-            bun: '1.4.3'
+            bun: '1.4.4'
             invoke: bun scripts/deno.ts run -A
           # EVERY current Node LTS line, plus the floor (owner, 2026-10-12: "We should
           # support and test all currently available lts versions"). As of 2026-10:
@@ -216,9 +216,12 @@ jobs:
             setup: node
             node: '26'
             invoke: node
-          - name: Bun 1.4.0 (floor)
+          # The Bun floor is the latest Bun installed on the maintainer's machine (owner,
+          # 2026-11-09, workspace letter H31), so it equals the other pins; this is still the one
+          # leg that runs the CLI ON Bun (the Deno leg only launches Deno with it).
+          - name: Bun 1.4.4 (floor)
             setup: bun
-            bun: '1.4.0'
+            bun: '1.4.4'
             invoke: bun
     steps:
       - name: Checkout
