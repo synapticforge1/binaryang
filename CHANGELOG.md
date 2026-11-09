@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.1
+
+The same package as 3.0.0, released again so that **npm** gets it: 3.0.0 reached JSR, but its
+npm publish failed in the release workflow, so npm went from 2.2.2 straight to 3.0.1 and has no
+3.0.0. **Coming from npm's 2.2.2, read 3.0.0 below** — it is a major release with breaking
+changes. Nothing in the package changed.
+
 ## 3.0.0
 
 A major release. **The binaryen facade's numbers are now binaryen.js 132's**, `i64.const` refuses
