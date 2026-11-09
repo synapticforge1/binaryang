@@ -5,9 +5,10 @@ Merged topic file, **both halves**: the provenance half at A16, the release proc
 process" below). The wing files it merged are summarized in [binaryen-ts.md](binaryen-ts.md) and
 [wabt-ts.md](wabt-ts.md), each with its `git show` command.
 
-**Latest (2026-10-28 UTC): 2.2.2 on BOTH registries, both with provenance** — JSR
-`@jrmarcum/binaryang@2.2.2` (Rekor `3541668152`) and npm `@synapticforge1/binaryang@2.2.2`
-(published by GitHub Actions, SLSA provenance) — § "2.2.2". **The history was rewritten a second
+**Latest (2026-11-09 UTC): 3.0.0 on JSR ONLY** (Rekor `3770400455`; GitHub Release `v3.0.0`
+by `github-actions[bot]`) — npm did not get it: the restructured workflow's `npm-build` failed at
+`npm pack` (§ "3.0.0"). npm still serves 2.2.2; **3.0.1 follows, to both registries** (owner).
+Before it: 2.2.2 on BOTH registries, both with provenance (§ "2.2.2"). **The history was rewritten a second
 time on 2026-10-28** (§ "The second purge"): every hash from 2026-10-13 on changed again. **The repo is
 `synapticforge1/binaryang` since 2026-10-20** (§ "The move to `synapticforge`"; the JSR package name
 is unchanged), and **its history was rewritten on 2026-10-22, pushed 2026-10-23** — every commit
@@ -59,7 +60,11 @@ B3):
   `surface:check` went red on `d81463f32` — every bump would have. The publish was NOT stopped
   (publish.yml runs only `--release-check`, which passed). Fixed 2026-10-24: `usageText` replaces
   the tree's OWN version (its `jsr.json`) by `<version>` before fingerprinting; re-baselined once
-  in its own commit.
+  in its own commit. 🔧 **The other half of that trap, 2026-11-09:** a help line that names the
+  NEXT release ("Until 3.0.0 …") reads as changed at the bump that reaches it. The 3.0.0 bump
+  found it (§ "3.0.0"). **Rule: no help or usage text names a version of this package**; check
+  with the version set to the target before bumping — `bun run bump <level>`, then
+  `surface:check`, and undo the bump if it fails.
 - **Rule 4, deprecate before removing**, and the README's `### ⚠️ Breaking Changes` table — written
   when the deprecation lands, with the migration.
 
@@ -324,8 +329,10 @@ and `npm` held it while it installed and built: every dev dependency ran beside 
   before JSR, every action hash-pinned; the registry logic on a mock network. Nine mutants, each
   caught by its own test.
 - **A non-tag dispatch runs `checks` only** (it used to run `deno publish` from any ref).
-- ⚠️ **UNMEASURED on GitHub until the first tag after it**; the artifact hand-off and npm's
-  provenance on a tarball publish are what that run proves.
+- **First run, 3.0.0 (run 42699750914):** `checks`, `jsr` (provenance), `release` (the page, by
+  `github-actions[bot]`, no tag made) ✅ — measured on GitHub. `npm-build` ❌: `npm pack
+  --pack-destination` needs the folder to exist (fixed for 3.0.1, a test holds it). ⚠️ Still
+  UNMEASURED: the artifact hand-off and npm's provenance on a tarball publish — 3.0.1's run.
 
 ⚠️ The inherited version of this comment cited **wasmtk** as precedent for calling `deno publish`
 directly. wasmtk has **no provenance on any published version**, so it was never evidence for
@@ -1098,6 +1105,45 @@ was found in it: 424 checked, 0 missing. The control, today's `main` tip, was co
 **Old ids now resolve only through that bundle** (`cmem/local/backups/`, with a name → hash list
 of the deleted branches). The same run found two old ids the purge had missed in `working-rules.md`
 (step 16's), rewritten through the map.
+
+## 3.0.0 — a MAJOR from `main` (2026-11-09 UTC) — 🚀 on JSR with provenance; ❌ NOT on npm
+
+The owner's go: "update the project memory files, commit, push and then release". Measured
+first: the compatibility floor since `v2.2.2` was **MAJOR** (`./compat/binaryen: Features
+changed`, open-work 52) — the records said "at least a MINOR", judged, never measured. Owner:
+"Land queued, then 3.0.0": CL7 step 2 (`wasm-objdump -d` refused) and CL19 (`i64.const(value,
+high?: never)`) landed first (`d8cc83115`, surface `2ae40df52`, merge `592df5f8d`; full gate
+30 / 30). CHANGELOG § 3.0.0.
+
+1. `CHANGELOG.md` § 3.0.0 on `release/3.0.0` (`b24fbf91c`), gated 18 / 18 (`surface:check` joined
+   the session runner's CI half), merged (`bf7909807`), pushed unbumped: CI (Browsers included)
+   and auto-tag GREEN; a FRESH CLONE of `bf7909807` from GitHub: 18 / 18.
+2. **`bun run bump major` found a defect, and was undone before any commit:** the new `-d` help
+   line said "Until 3.0.0 …", and the fingerprint replaces the tree's own version, so the bump
+   read as "usage text changed" — **1.16.0's trap again** (§ "The compatibility gate"). Fixed
+   (`894ee8bcd`, surface `8e05a71f3`, merge `7fa877606`; full gate 30 / 30; `surface:check`
+   proven with the version set to 3.0.0). Pushed unbumped: auto-tag green; CI green but
+   **Browsers CANCELLED at its 20-minute limit inside "Install the browsers"** (Playwright's
+   download, no test run — 2.2.1's case); the fresh clone's browsers step passed, and the bump
+   commit's CI re-ran it green. FRESH CLONE of `7fa877606`: 18 / 18.
+3. **The consumer step:** wasmtk pins 2.2.0 exactly, so nothing reaches it before its own bump.
+   Read in its tree: it names the facade's types and features (`binaryen.i32`,
+   `Features.All`), sets its shrink level, calls `i64.const` with one argument, and runs no
+   `wasm-objdump -d`; `wasmbundle.ts`'s partial `parseWat` feature bag is the one change to tell
+   it (the workspace ledger). The workspace's `tools/assembler-parity/diag4.ts` runs upstream's
+   `wasm-objdump -d`, not ours.
+4. No tag; neither registry had 3.0.0. `bun run bump major`: floor MAJOR (a major runs no
+   previous-release tests); `version_sync` 3 / 3; `surface:check` matches; `bun run release`:
+   `bump to v3.0.0` (`1222e78d5`), `main` + `v3.0.0` in one push.
+5. **The restructured publish.yml's first run** (42699750914; open-work 54): `checks` ✅, `jsr` ✅
+   (**JSR 3.0.0** created 21:14:41Z, `latest`, not yanked, **Rekor `3770400455`**), `release` ✅
+   (**GitHub Release `v3.0.0` by `github-actions[bot]`**, not a draft, the JSR link on top, the
+   tag still `1222e78d5` — H32 measured), **`npm-build` ❌ at "Pack the proven package"** —
+   `npm pack --pack-destination ../npm-pack` into a folder that did not exist (ENOENT, exit 38,
+   reproduced here; my pre-landing check had made the folder first) — so **`npm` was skipped:
+   npm has no 3.0.0**, and the number stays unused (`time` has no 3.0.0). CI (Browsers
+   included) and auto-tag green on `1222e78d5`. A re-run cannot help: it runs the tag's
+   workflow. Owner: "Release 3.0.1" (§ "3.0.1").
 
 ## 2.2.2 — a PATCH from `main` (2026-10-28 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 

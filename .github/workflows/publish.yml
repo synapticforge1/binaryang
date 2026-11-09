@@ -324,9 +324,13 @@ jobs:
       - name: Build and prove the npm package
         run: bun run npm:prove
 
+      # `--pack-destination` must exist: npm does not create it (ENOENT, exit 38 — what failed
+      # 3.0.0's npm-build, the restructured workflow's first run, 2026-11-09).
       - name: Pack the proven package
         working-directory: dist
-        run: npm pack --pack-destination ../npm-pack
+        run: |
+          mkdir -p ../npm-pack
+          npm pack --pack-destination ../npm-pack
 
       - name: Upload the tarball
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

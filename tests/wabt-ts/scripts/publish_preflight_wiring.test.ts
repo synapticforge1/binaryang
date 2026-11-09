@@ -308,6 +308,16 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     ).toBe(true);
   });
 
+  // 3.0.0's npm-build failed here on GitHub: npm does not create `--pack-destination`.
+  it('npm-build creates the pack destination before npm pack writes into it', () => {
+    const job = jobs['npm-build']!;
+    const dest = /npm pack --pack-destination (\S+)/.exec(job)?.[1];
+    expect(dest, 'npm pack names its destination').toBeDefined();
+    const mk = job.indexOf(`mkdir -p ${dest}`);
+    expect(mk, `mkdir -p ${dest}`).toBeGreaterThanOrEqual(0);
+    expect(mk).toBeLessThan(job.indexOf('npm pack --pack-destination'));
+  });
+
   it('pins every action to a commit hash', () => {
     const uses = [...PUBLISH_YML.matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)/gm)].map((m) => m[1]!);
     expect(uses.length).toBeGreaterThan(10);
