@@ -715,12 +715,16 @@ export class I32Ops {
  */
 export class I64Ops {
   /**
-   * `i64.const value` (bigint). ⚠️ The old two-argument form `i64.const(low, high)` is NOT
-   * refused: a second argument is dropped silently, where binaryen.js aborts ("i64.const now takes
-   * a single argument"). Decided (owner, 2026-11-05): a second parameter `high?: never` that
-   * throws — a changed signature, so it is queued for the next major release (divergence CL19).
+   * `i64.const value` (bigint). The old two-argument form `i64.const(low, high)` (binaryen.js
+   * before 132) THROWS, as binaryen.js does, with its message — a JavaScript caller passing two
+   * numbers would otherwise build the wrong constant silently (divergence CL19; owner,
+   * 2026-11-05: "the clean way"; since 3.0.0 — before, `high` was dropped). `never` makes a
+   * second argument a TypeScript error too.
    */
-  const(value: bigint | number): Expression {
+  const(value: bigint | number, high?: never): Expression {
+    if (high !== undefined) {
+      throw new Error('i64.const now takes a single argument (which can be a bigint)');
+    }
     return makeI64Const(typeof value === 'number' ? BigInt(value) : value);
   }
   /** `i64.add`. */

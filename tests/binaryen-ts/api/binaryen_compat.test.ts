@@ -414,6 +414,26 @@ test('i32 / i64 / f32 / f64 namespaces produce correct expression types', () => 
   assertEquals(f64Sqrt.kind, 'unary');
 });
 
+// CL19 (owner, 2026-11-05: "the clean way"; 3.0.0): binaryen.js before 132 took
+// `i64.const(low, high)`; 132 aborts on a second argument, and so do we — dropping it built
+// the wrong constant silently.
+test('i64.const refuses the old (low, high) form, as binaryen.js 132 does', () => {
+  const mod = new binaryen.Module();
+  // A JavaScript caller, which no type stops.
+  const untyped = mod.i64.const as unknown as (low: number, high: number) => unknown;
+  assertThrows(
+    () => untyped.call(mod.i64, 1, 2),
+    Error,
+    'i64.const now takes a single argument (which can be a bigint)',
+  );
+  // One argument still works, a number or a bigint.
+  assertEquals(mod.i64.const(5).kind, 'const');
+  assertEquals(mod.i64.const(2n ** 40n).kind, 'const');
+  // A TypeScript caller is refused at compile time: the assertion is that this IS an error.
+  // @ts-expect-error — `high?: never`
+  assertThrows(() => mod.i64.const(1, 2));
+});
+
 test('local.get with non-i32 type respects the type ID', () => {
   const mod = new binaryen.Module();
   const lg = mod.local.get(0, binaryen.f64);

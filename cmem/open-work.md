@@ -23,7 +23,9 @@ floor is a release-note line ([unreleased.md](unreleased.md)). Pushed 2026-11-09
 (floor)" included — the 1.4.4 pins proven on GitHub; auto-tag 42686666673 green, no tag. Then item 54 — `publish.yml` restructured (owner), which the next
 tag run proves — and `7e1971d8a`, no `gh` word left outside memory (H30's re-grep). Owner, the
 same day: "update the project memory files, commit, push and then release" — the release after
-2.2.2 is next ([publishing.md](publishing.md) for its record).
+2.2.2 is next ([publishing.md](publishing.md) for its record). Measured then: the floor is
+**MAJOR** (the binaryen facade's `Features` values), not the MINOR the records said; owner:
+"Land queued, then 3.0.0" — CL7 step 2 and CL19 landed first, then 3.0.0.
 
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
@@ -181,8 +183,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     (`458af6c10`). **Open:** ⬚ `i64.const(low, high)` (CL19) — the check needed a lint
     suppression and was reverted (`052e8f5fa`; owner: "if it needs an ignore statement it is
     not a fix"): a second parameter (surface gate: MAJOR) or leave it, the owner's to choose.
-    **Decided 2026-11-05 (owner): the second parameter**, `high?: never`, throwing — queued for
-    the next MAJOR ([unreleased.md](unreleased.md)), not on `main`.
+    **Decided 2026-11-05 (owner): the second parameter**, `high?: never`, throwing. ✅ **LANDED
+    2026-11-09 for 3.0.0** (owner: "Land queued, then 3.0.0"; divergence CL19, closed).
     ⬚ LowerBlockParams refuses a `try_table` catch (and a `br_on_*`) to a loop with parameters
     (`lower-block-params.ts:426`): `-O1`, `-O2`, even `--vacuum` exit 1 on a valid module — not
     yet done (a lowering to design: the catch's values must reach the loop's parameters).
@@ -215,8 +217,8 @@ removed record went to a topic file, and the full text is one `git show` away:
     **Decided 2026-11-05 (owner):** CL12 → DESIGN, the ruling kept, no code. CL7 → upstream's
     flags in two steps: ✅ `-x` / `--details`, `-d` deprecated with a warning, and the printed
     lines upstream's character for character (on `main`, a MINOR); ⬚ the sections not yet printed
-    (Table, Memory, Global, Start, Elem, Code, Data, Tag, Custom) — mine; ⬚ `-d` as
-    `--disassemble` — queued for the next MAJOR ([unreleased.md](unreleased.md)).
+    (Table, Memory, Global, Start, Elem, Code, Data, Tag, Custom) — mine; ✅ `-d` as
+    `--disassemble`, refused until there is a disassembler — LANDED 2026-11-09 for 3.0.0.
 
 49. ✅ **Code lens pass 2 — five defects fixed, comments corrected, dead code removed**
     (2026-10-28, owner: "look for code issues"; branch `fix/code-lens-2`). CL1 a `struct.new_desc`

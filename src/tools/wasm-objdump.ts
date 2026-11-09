@@ -378,9 +378,9 @@ const HELP: ToolHelp = {
     ['-h, --headers', 'Print the section headers (the default when no other option is given)'],
     ['-x, --details', 'Print the contents of every section'],
     [
-      '-d',
-      'DEPRECATED: the same as -x, with a warning. In the next major release -d becomes ' +
-      "upstream's --disassemble",
+      '-d, --disassemble',
+      "Upstream's disassembly of the code section — NOT SUPPORTED YET: refused (exit 1). " +
+      'Until 3.0.0 -d printed the details; use -x',
     ],
   ],
 };
@@ -406,14 +406,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     const arg = args[i]!;
     if (arg === '-x' || arg === '--details') {
       details = true;
-    } else if (arg === '-d') {
-      // CL7 (owner, 2026-11-05: upstream's flags): upstream's `-d` is `--disassemble`, its
-      // details flag `-x`. `-d` was ours for details since 2.2, so it keeps working, with a
-      // warning, until the next major release makes it upstream's.
+    } else if (arg === '-d' || arg === '--disassemble') {
+      // CL7 step 2 (owner, 2026-11-05: upstream's flags; landed in 3.0.0): `-d` is upstream's
+      // `--disassemble`. binaryang has no disassembler yet, so it is REFUSED — never silently
+      // another meaning. Before 3.0.0 `-d` printed the details, as `-x` does (2.2.x).
       console.error(
-        "wasm-objdump: warning: -d is deprecated for details; use -x. In the next major release -d becomes upstream's --disassemble.",
+        `wasm-objdump: ${arg} (disassembly) is not supported yet; use -x for the section details`,
       );
-      details = true;
+      bad = true;
     } else if (arg === '-h' || arg === '--headers') {
       headers = true;
     } else if (!arg.startsWith('-')) {
