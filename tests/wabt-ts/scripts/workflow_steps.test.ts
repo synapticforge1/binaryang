@@ -272,7 +272,7 @@ describe('registry.ts: what the publish jobs ask JSR and npm', () => {
 });
 
 // scripts/release/github.ts against a mock GitHub API (workspace letters H30 and H32): the two
-// writes that replaced `gh`. Each case counts the POSTs, because the hazard is a write — a Release
+// writes that replaced the GitHub CLI. Each case counts the POSTs, because the hazard is a write — a Release
 // POSTed for a missing tag CREATES that tag.
 
 const SHA = 'c0ffee0000000000000000000000000000000001';
@@ -306,7 +306,11 @@ function mockGitHub(state: MockState) {
       if (path.endsWith('/dispatches')) return reply(state.postStatus ?? 204);
       if (state.postStatus !== undefined) return reply(state.postStatus);
       const tag = String(body['tag_name']);
-      const rel = { tag_name: tag, html_url: `https://gh/r/${tag}`, author: { login: 'bot' } };
+      const rel = {
+        tag_name: tag,
+        html_url: `https://web.test/r/${tag}`,
+        author: { login: 'bot' },
+      };
       if (!state.dropCreated) state.releases[tag] = rel;
       return reply(201, rel);
     }
@@ -328,19 +332,19 @@ function mockGitHub(state: MockState) {
     }
     return reply(500);
   }) as typeof fetch;
-  return { gh: { api: 'https://api.test', repo: 'o/r', token: 'tok', fetch: f }, posts };
+  return { hub: { api: 'https://api.test', repo: 'o/r', token: 'tok', fetch: f }, posts };
 }
 
 const rel = { tag: 'v9.9.9', sha: SHA, jsrName: '@jrmarcum/binaryang', version: '9.9.9' };
 
-describe('github.ts: the GitHub writes, through the REST API (no gh)', () => {
+describe('github.ts: the GitHub writes, through the REST API (no GitHub CLI)', () => {
   it('release: an annotated tag on the built commit, no page yet → one POST, read back', async () => {
-    const { gh, posts } = mockGitHub({
+    const { hub, posts } = mockGitHub({
       refs: { 'v9.9.9': { type: 'tag', sha: 'aaa' } },
       tagObjects: { aaa: { type: 'commit', sha: SHA } },
       releases: {},
     });
-    const out = await release(gh, rel);
+    const out = await release(hub, rel);
     expect(out.code).toBe(0);
     expect(posts.length).toBe(1);
     expect(posts[0]?.path).toBe('/releases');
@@ -354,41 +358,45 @@ describe('github.ts: the GitHub writes, through the REST API (no gh)', () => {
   });
 
   it('release: a lightweight tag peels to itself', async () => {
-    const { gh, posts } = mockGitHub({
+    const { hub, posts } = mockGitHub({
       refs: { 'v9.9.9': { type: 'commit', sha: SHA } },
       tagObjects: {},
       releases: {},
     });
-    expect((await release(gh, rel)).code).toBe(0);
+    expect((await release(hub, rel)).code).toBe(0);
     expect(posts.length).toBe(1);
   });
 
   it('release: a tag missing on GitHub is refused with NO write (POST would create the tag)', async () => {
-    const { gh, posts } = mockGitHub({ refs: {}, tagObjects: {}, releases: {} });
-    const out = await release(gh, rel);
+    const { hub, posts } = mockGitHub({ refs: {}, tagObjects: {}, releases: {} });
+    const out = await release(hub, rel);
     expect(out.code).toBe(1);
     expect(posts.length).toBe(0);
   });
 
   it('release: a tag naming another commit is refused with no write', async () => {
-    const { gh, posts } = mockGitHub({
+    const { hub, posts } = mockGitHub({
       refs: { 'v9.9.9': { type: 'tag', sha: 'aaa' } },
       tagObjects: { aaa: { type: 'commit', sha: OTHER } },
       releases: {},
     });
-    expect((await release(gh, rel)).code).toBe(1);
+    expect((await release(hub, rel)).code).toBe(1);
     expect(posts.length).toBe(0);
   });
 
   it('release: a page already there is done — exit 0, no write (re-runs are safe)', async () => {
-    const { gh, posts } = mockGitHub({
+    const { hub, posts } = mockGitHub({
       refs: { 'v9.9.9': { type: 'commit', sha: SHA } },
       tagObjects: {},
       releases: {
-        'v9.9.9': { tag_name: 'v9.9.9', html_url: 'https://gh/r/v9.9.9', author: { login: 'x' } },
+        'v9.9.9': {
+          tag_name: 'v9.9.9',
+          html_url: 'https://web.test/r/v9.9.9',
+          author: { login: 'x' },
+        },
       },
     });
-    expect((await release(gh, rel)).code).toBe(0);
+    expect((await release(hub, rel)).code).toBe(0);
     expect(posts.length).toBe(0);
   });
 
@@ -398,24 +406,24 @@ describe('github.ts: the GitHub writes, through the REST API (no gh)', () => {
       tagObjects: {},
       releases: {},
     });
-    expect((await release(mockGitHub({ ...base(), postStatus: 422 }).gh, rel)).code).toBe(1);
-    expect((await release(mockGitHub({ ...base(), dropCreated: true }).gh, rel)).code).toBe(1);
+    expect((await release(mockGitHub({ ...base(), postStatus: 422 }).hub, rel)).code).toBe(1);
+    expect((await release(mockGitHub({ ...base(), dropCreated: true }).hub, rel)).code).toBe(1);
   });
 
   it('release: a broken tag read throws — it is never taken for "absent"', async () => {
-    const { gh, posts } = mockGitHub({ refs: {}, tagObjects: {}, releases: {}, refStatus: 502 });
-    await expect(peelTag(gh, 'v9.9.9')).rejects.toThrow('HTTP 502');
+    const { hub, posts } = mockGitHub({ refs: {}, tagObjects: {}, releases: {}, refStatus: 502 });
+    await expect(peelTag(hub, 'v9.9.9')).rejects.toThrow('HTTP 502');
     expect(posts.length).toBe(0);
   });
 
   it("dispatch: POSTs the workflow's dispatch with the ref; anything but 204 fails", async () => {
     const ok = mockGitHub({ refs: {}, tagObjects: {}, releases: {} });
-    expect((await dispatch(ok.gh, 'publish.yml', 'v9.9.9')).code).toBe(0);
+    expect((await dispatch(ok.hub, 'publish.yml', 'v9.9.9')).code).toBe(0);
     expect(ok.posts).toEqual([
       { path: '/actions/workflows/publish.yml/dispatches', body: { ref: 'v9.9.9' } },
     ]);
     const no = mockGitHub({ refs: {}, tagObjects: {}, releases: {}, postStatus: 403 });
-    expect((await dispatch(no.gh, 'publish.yml', 'v9.9.9')).code).toBe(1);
+    expect((await dispatch(no.hub, 'publish.yml', 'v9.9.9')).code).toBe(1);
   });
 
   it('main: usage errors exit 2; a missing token exits 1 before any request', async () => {

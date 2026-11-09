@@ -3,8 +3,8 @@
 
 /**
  * The workflows' two GitHub writes, through GitHub's REST API with the job's own `GITHUB_TOKEN`
- * (owner, 2026-11-08, workspace letter H30: no `gh`, in CI too). It replaces `gh workflow run`
- * (auto-tag.yml) and `gh release create` (publish.yml).
+ * (owner, 2026-11-08, workspace letter H30: no GitHub CLI, in CI too). It replaces the CLI's
+ * workflow dispatch (auto-tag.yml) and its release creation (publish.yml).
  *
  * ```sh
  * bun scripts/release/github.ts dispatch <workflow-file> <ref>   # auto-tag.yml's fallback
@@ -46,19 +46,19 @@ interface Reply {
   body: Record<string, unknown> | null;
 }
 
-async function call(gh: GitHub, method: string, path: string, payload?: unknown): Promise<Reply> {
-  const f = gh.fetch ?? fetch;
-  const r = await f(`${gh.api}/repos/${gh.repo}${path}`, {
+async function call(hub: GitHub, method: string, path: string, payload?: unknown): Promise<Reply> {
+  const f = hub.fetch ?? fetch;
+  const r = await f(`${hub.api}/repos/${hub.repo}${path}`, {
     method,
     headers: {
       accept: 'application/vnd.github+json',
-      authorization: `Bearer ${gh.token}`,
+      authorization: `Bearer ${hub.token}`,
       'x-github-api-version': '2022-11-28',
       'user-agent': 'binaryang-release',
       ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
     },
     body: payload === undefined ? null : JSON.stringify(payload),
-    signal: AbortSignal.timeout(gh.timeoutMs ?? 30_000),
+    signal: AbortSignal.timeout(hub.timeoutMs ?? 30_000),
   });
   const text = await r.text();
   let body: Record<string, unknown> | null = null;
@@ -80,13 +80,13 @@ function objectOf(body: Record<string, unknown> | null): { type: string; sha: st
  * The commit a tag names on GitHub, annotated tags followed; `null` when the tag is not there.
  * Throws on anything else, so a broken read is never taken for "absent".
  */
-export async function peelTag(gh: GitHub, tag: string): Promise<string | null> {
-  const ref = await call(gh, 'GET', `/git/ref/tags/${encodeURIComponent(tag)}`);
+export async function peelTag(hub: GitHub, tag: string): Promise<string | null> {
+  const ref = await call(hub, 'GET', `/git/ref/tags/${encodeURIComponent(tag)}`);
   if (ref.status === 404) return null;
   if (ref.status !== 200) throw new Error(`reading tag ${tag}: HTTP ${ref.status}`);
   let obj = objectOf(ref.body);
   for (let depth = 0; obj !== null && obj.type === 'tag' && depth < 8; depth++) {
-    const t = await call(gh, 'GET', `/git/tags/${obj.sha}`);
+    const t = await call(hub, 'GET', `/git/tags/${obj.sha}`);
     if (t.status !== 200) throw new Error(`peeling tag ${tag}: HTTP ${t.status}`);
     obj = objectOf(t.body);
   }
@@ -104,14 +104,14 @@ export interface Outcome {
 
 /** H32's three steps, in their order. Never creates a tag. */
 export async function release(
-  gh: GitHub,
+  hub: GitHub,
   o: { tag: string; sha: string; jsrName: string; version: string },
 ): Promise<Outcome> {
   const lines: string[] = [];
   const fail = (m: string): Outcome => ({ code: 1, lines: [...lines, `::error::${m}`] });
 
   // 1. The tag is on GitHub and names the commit this run built.
-  const peeled = await peelTag(gh, o.tag);
+  const peeled = await peelTag(hub, o.tag);
   if (peeled === null) {
     return fail(`tag ${o.tag} is not on GitHub; no Release made (POST /releases would CREATE it)`);
   }
@@ -122,7 +122,7 @@ export async function release(
 
   // 2. A page already there is done.
   const path = `/releases/tags/${encodeURIComponent(o.tag)}`;
-  const before = await call(gh, 'GET', path);
+  const before = await call(hub, 'GET', path);
   if (before.status === 200) {
     lines.push(
       `Release ${o.tag} already exists: ${String(before.body?.['html_url'])} — nothing to do`,
@@ -132,18 +132,18 @@ export async function release(
   if (before.status !== 404) return fail(`reading release ${o.tag}: HTTP ${before.status}`);
 
   // 3. Create, read back, check the tag again.
-  const made = await call(gh, 'POST', '/releases', {
+  const made = await call(hub, 'POST', '/releases', {
     tag_name: o.tag,
     name: `binaryang ${o.tag}`,
     body: `JSR: https://jsr.io/${o.jsrName}@${o.version}`,
     generate_release_notes: true,
   });
   if (made.status !== 201) return fail(`creating release ${o.tag}: HTTP ${made.status}`);
-  const after = await call(gh, 'GET', path);
+  const after = await call(hub, 'GET', path);
   if (after.status !== 200 || after.body?.['tag_name'] !== o.tag) {
     return fail(`release ${o.tag} was created but does not read back (HTTP ${after.status})`);
   }
-  const again = await peelTag(gh, o.tag);
+  const again = await peelTag(hub, o.tag);
   if (again !== o.sha) return fail(`after the release, tag ${o.tag} names ${again}, not ${o.sha}`);
   const author = (after.body?.['author'] as { login?: unknown } | undefined)?.login;
   lines.push(
@@ -153,9 +153,9 @@ export async function release(
 }
 
 /** `POST …/actions/workflows/<file>/dispatches`; GitHub answers 204 when it is accepted. */
-export async function dispatch(gh: GitHub, workflow: string, ref: string): Promise<Outcome> {
+export async function dispatch(hub: GitHub, workflow: string, ref: string): Promise<Outcome> {
   const r = await call(
-    gh,
+    hub,
     'POST',
     `/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
     {
@@ -184,14 +184,14 @@ export async function main(argv: string[]): Promise<number> {
     console.error('usage: github.ts release <tag> | dispatch <workflow-file> <ref>');
     return 2;
   }
-  const gh = fromEnv();
-  if (typeof gh === 'string') {
-    console.log(`::error::${gh} is not set`);
+  const hub = fromEnv();
+  if (typeof hub === 'string') {
+    console.log(`::error::${hub} is not set`);
     return 1;
   }
   let out: Outcome;
   if (cmd === 'dispatch') {
-    out = await dispatch(gh, a, b as string);
+    out = await dispatch(hub, a, b as string);
   } else {
     const sha = process.env['GITHUB_SHA'] ?? '';
     if (sha === '') {
@@ -203,7 +203,7 @@ export async function main(argv: string[]): Promise<number> {
       console.log(`::error::tag ${a} is not jsr.json's version (${m.version})`);
       return 1;
     }
-    out = await release(gh, { tag: a, sha, jsrName: m.name, version: m.version });
+    out = await release(hub, { tag: a, sha, jsrName: m.name, version: m.version });
   }
   for (const l of out.lines) console.log(l);
   return out.code;
