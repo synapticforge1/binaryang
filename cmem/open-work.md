@@ -21,7 +21,9 @@ five workspace ledger rows (H30, H31, H32, C30, C34), which their creators close
 floor is a release-note line ([unreleased.md](unreleased.md)). Pushed 2026-11-09 (`origin/main`
 = `a72fc6b18`, `ls-remote`): CI run 42686666745 GREEN in all eight jobs, "CLI on Bun 1.4.4
 (floor)" included — the 1.4.4 pins proven on GitHub; auto-tag 42686666673 green, no tag. Then item 54 — `publish.yml` restructured (owner), which the next
-tag run proves. No release since 2.2.2; the next is at least a MINOR.
+tag run proves — and `7e1971d8a`, no `gh` word left outside memory (H30's re-grep). Owner, the
+same day: "update the project memory files, commit, push and then release" — the release after
+2.2.2 is next ([publishing.md](publishing.md) for its record).
 
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
