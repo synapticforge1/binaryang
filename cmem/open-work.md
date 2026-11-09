@@ -25,7 +25,10 @@ tag run proves — and `7e1971d8a`, no `gh` word left outside memory (H30's re-g
 same day: "update the project memory files, commit, push and then release" — the release after
 2.2.2 is next ([publishing.md](publishing.md) for its record). Measured then: the floor is
 **MAJOR** (the binaryen facade's `Features` values), not the MINOR the records said; owner:
-"Land queued, then 3.0.0" — CL7 step 2 and CL19 landed first, then 3.0.0.
+"Land queued, then 3.0.0" — CL7 step 2 and CL19 landed first, then **3.0.0 RELEASED: on JSR
+(Rekor `3770400455`) and its GitHub Release page, NOT on npm** (`npm-build` failed at `npm
+pack`). Owner: "Release 3.0.1" — the fix, then 3.0.1 to both ([publishing.md](publishing.md)
+§ "3.0.0").
 
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
@@ -154,8 +157,9 @@ removed record went to a topic file, and the full text is one `git show` away:
     five jobs; only `jsr` and `npm` hold `id-token: write`, and they install nothing; `uploaded`
     is written before `deno publish`; npm's record of the number is read before JSR's immutable
     step; every action hash-pinned. Record: [publishing.md](publishing.md) § "The publish
-    workflow's jobs". ⚠️ **Still to prove: the first tag run after it** — read every job, and
-    record the run here when it lands.
+    workflow's jobs". **3.0.0's run (42699750914):** `checks`, `jsr`, `release` ✅; `npm-build` ❌
+    at `npm pack` (the destination folder did not exist — fixed for 3.0.1). ⚠️ **Still to
+    prove: the npm half** (artifact, `npm publish <tgz>`, provenance) — 3.0.1's run.
 
 53. ✅ **Code lens pass 3 — thirteen fixes** (2026-10-28, owner: "look for code issues"; branch
     `fix/code-lens-3`; [hardening.md](hardening.md) § "Code lens, pass 3"). Wrong OUTPUT on

@@ -1,169 +1,26 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-09 (UTC): the last release is `v2.2.2`; the next is 3.0.0, a MAJOR** — measured
-with `bun run surface:floor` on 2026-11-09: `[major] ./compat/binaryen: Features changed` (open-work
-52's binaryen.js 132 values). 🔧 The line here said "at least a MINOR" from 2026-10-28 to
-2026-11-09: it was judged from the list below, never measured — the floor is the measurement.
-Owner, 2026-11-09: "Land queued, then 3.0.0" — the two breaks queued for the next major landed
-first, so one major carries every known break. (Check rather than trust this line:
-`git log --oneline v2.2.2..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-09 (UTC): the last release is `v3.0.0`, on JSR only** (Rekor `3770400455`):
+npm did not get it — the restructured publish workflow's `npm-build` failed at `npm pack`
+([publishing.md](publishing.md) § "3.0.0"). Owner, the same day: "Release 3.0.1" — the next
+release is **3.0.1**, a PATCH, so both registries carry the 3.x line. (Check:
+`git log --oneline v3.0.0..main -- src/ main.ts jsr.json README.md`.)
 
-**Unreleased — the two queued breaks, LANDED for 3.0.0** (owner, 2026-11-09):
+**Unreleased — 3.0.1** (no package change; the same code as 3.0.0):
 
-- ⚠️ **BREAKING (CLI) — `wasm-objdump -d` is upstream's `--disassemble`, REFUSED** (exit 1, "use
-  -x for the section details") until binaryang has a disassembler; `--disassemble` the same. In
-  2.2.x `-d` printed the details. (CL7 step 2.)
-- ⚠️ **BREAKING (library) — binaryen facade `i64.const(value, high?: never)`**: a second argument
-  throws binaryen.js 132's "i64.const now takes a single argument (which can be a bigint)" where
-  it was dropped silently, building the wrong constant. A changed signature. (CL19.)
+- **For npm users:** 3.0.1 is the first 3.x on npm; npm never has 3.0.0. Its notes are 3.0.0's
+  (CHANGELOG § 3.0.0) — the breaks included, for anyone coming from npm's 2.2.2.
+- **Repo-only:** `publish.yml`'s `npm-build` creates the `npm pack` destination first (npm does
+  not; ENOENT, exit 38, measured); a test holds it, inverted against 3.0.0's workflow.
+  `scripts/release/publish.ts` prints the five jobs.
 
-**Unreleased — the Bun floor is 1.4.4** (2026-11-09, owner, workspace letter H31: "the minimum
-supported version will be updated to the latest version currently installed"). No code change;
-the release note must say it, because it reaches users:
-
-- **Support change — Bun 1.4.0 – 1.4.3 are no longer supported** (the CLI and the library are
-  tested on Bun 1.4.4 only; README § "Runtime support", `main.ts`'s module doc). Nothing known
-  breaks on them — nothing was removed that they need — but they are no longer tested. Under the
-  workspace's SemVer rule a dropped runtime version can be read as BREAKING; it ships in 3.0.0,
-  a major anyway, and is listed with its breaks. The floor will move again with each newer Bun
-  the owner installs.
-- **Repo-only, no release-note line:** CI and publish pin Bun 1.4.4; the workflows no longer call
-  the GitHub CLI — auto-tag's dispatch and the GitHub Release page go through the REST API
-  (`scripts/release/github.ts`), the page in its own `release` job (letters H30 / H32); and
-  `publish.yml` is five jobs with the publishing credential only in two that install nothing
-  (open-work 54). The packages' bytes are built as before; ⚠️ the release that carries this is
-  the workflow's first real run, so read every job of it.
-
-**Unreleased — CL7, `wasm-objdump`'s details as upstream's** (2026-11-05, owner: "I agree with
-your C7 suggested workflow"). A MINOR on its own (a new option):
-
-- **New option:** `wasm-objdump -x` / `--details`, upstream's details flag (it was refused).
-- ~~**Deprecated:** `-d` for details, with a warning~~ — superseded before any release: 3.0.0
-  refuses `-d` (above). The release note says `-d` stopped printing details; there was never a
-  release in which it warned.
-- **Behaviour (CLI output) — upstream wabt 1.0.41's `-x` lines, character for character:** a
-  `Section Details:` heading and no blank line between sections; results `nil`, `i32` or
-  `(f64, i32)`; `sig=N` for every function and tag; names without `$`, an import's
-  `module.field` and an export's name for an unnamed function, and the function's name on an
-  export line; limits with `max=`, `shared`, `i64` and `(pagesize N)`; `mutable=0|1`; `tag[N]`.
-  Library: `wasmObjdump(bytes, { details: true })`'s text changes the same way.
-
-**Unreleased — open-work 50 and 52, fixed** (2026-10-28, owner: "fix the 52 and 50 items"). 🔧
-This said "the surface gate says at least a MINOR"; measured 2026-11-09 the gate says **MAJOR**,
-for (a) below — the binaryen facade's `Features` bits changed value (⚠️ BREAKING for code that
-compares the numbers). Several lines change what a script or a consumer sees, so the note
-should say so plainly:
-
-- **Behaviour (CLI output) — upstream's forms:**
-  - `wasm-validate` prints nothing on success, and no `INVALID` line after errors: scripts must
-    read the exit code.
-  - `wasm-interp` prints integers unsigned (`i32:4294967295`). `--run-all-exports` runs only the
-    exports that take no arguments. An import nothing supplies is refused before anything runs
-    ("error initializing module: invalid import …", exit 1).
-  - `--generate-names` uses upstream wabt's names: `$env.imp`, export names, `$p0` / `$l2`,
-    labels `$B` / `$L` / `$I` / `$T`.
-  - `wasm-opt <pass> -S` keeps the names.
-  - `wasm-objdump` counts the type section in rec groups.
-- **Behaviour (refuses more):**
-  - `wasm2wat` VALIDATES by default with upstream's default features. It takes the feature
-    flags and `--no-check`; an invalid module, or a feature outside the defaults without its
-    flag, is now refused where it printed.
-  - A raw control character inside a WAT string is refused (the spec's rule).
-  - A segment with no offset is refused by the parser.
-  - A branch hint must point at a real `if` / `br_if`.
-  - A library-built tag with no type index is refused.
-- **Behaviour (library):**
-  - The binaryen facade's type IDs, Features bits, a new module's features (MVP) and the default
-    shrink level (1) are binaryen.js 132's. Code comparing NUMBERS sees new values; every
-    change is in the ID register.
-  - `getFunction` returns imports, and `getFeatures()` exists.
-  - The wabt facade gains `validate()` and `toBinary().log`. Its `parseWat` feature bag GATES:
-    a partial bag means upstream's defaults plus those keys. wasmtk's `wasmbundle.ts:370` passes
-    `{ exceptions: true }`.
-  - `wasm2wat()` takes `validate` / `features`, and `Export` gains `loc`.
-- **Silent fix:**
-  - `wasm-opt` judges its output with our validator: a valid memory64 module optimizes on Bun.
-  - MergeLocals, SSANoMerge and StackIR no longer hide a failure.
-  - A 2^63 alignment prints exactly.
-
-**Unreleased — code lens pass 3** (open-work 53, [hardening.md](hardening.md) § "Code lens, pass
-3"). Two of these change what OPTIMIZED code computes, so the release note should lead with them:
-
-- **Silent fix — `-O2` / `-Oz` / `--inlining` (and `-O3` for two forms) inlined a callee's tail
-  call so that it returned from the CALLER**, skipping the rest of the caller; a void one could
-  write an invalid module. **What a user may have shipped:** an optimized module whose code
-  after a call to a tail-calling function never ran — re-optimize it. (P3.4)
-- **Silent fix — SimplifyLocals moved a local write past a call that may throw inside a `try`**,
-  so the catch saw the old value (`--simplify-locals`, `-O2`, `-O3`, `-Oz`). **What a user may
-  have shipped:** an optimized module with exception handling whose handler read a stale local —
-  re-optimize it. (P3.5)
-- **Silent fix — `wat2wasm` wrote the wrong value for an integer-spelled `f32.const` of more than
-  53 bits** (`f32.const 18014399583223809`), and refused one just below FLT_MAX's rounding
-  midpoint. Rounded once now; a hex integer near a midpoint is rounded to nearest, where upstream
-  wabt and wasm-tools truncate (divergence F4). (P3.1)
-- **Behaviour (accepts more):** a `memory.copy` between a 64- and a 32-bit memory (P3.2); `-O2`
-  and up on a callee that branches to its own frame, which they refused (P3.6); a table's linear
-  initializer, `(table 1 funcref ref.null func)` (P3.12).
-- **Behaviour (output):** `wasm-ctor-eval` no longer writes invalid modules (a null in a
-  non-nullable local; renumbered data segments) and removes an empty constructor's export (P3.7);
-  `./api`'s `if` / `block` are typed from their contents, so a value-producing one is valid
-  (P3.9); binaryen facade `align` 0 is natural alignment (P3.3); wabt facade
-  `toText({ foldExprs: false })` is linear, and an explicit `foldExprs: true` now forces folding
-  where it printed each function as written (P3.11); an empty `(rec)` group is kept, in text and
-  in bytes, where it was dropped — the type section's group count changes for such a module
-  (P3.13).
-- **Behaviour (refuses more):** `wasm-interp --argument` and `--fuel` (and `wasm-ctor-eval
-  --fuel`) refuse what they cannot read — they guessed (P3.8); the typed form `f32:8` is taken.
-- **Diagnostics:** an unknown local is `undefined local variable "$x"`, as upstream (P3.10).
-
-**Unreleased — code lens pass 2** (open-work 49, [hardening.md](hardening.md) § "Code lens, pass
-2"). The compatibility floor decides the bump; all five read as patch-level fixes, but CL2 makes
-a command line that used to run now exit 1:
-
-- **Behaviour (refuses more) — an unknown CLI option is an error** in `wasm-strip`, `wasm2wat`
-  and `wasm-objdump` (CL2): each SKIPPED it before. The dangerous case: `wasm-strip in.wasm
-  --output=out.wasm`, upstream's spelling, stripped `in.wasm` IN PLACE and never wrote
-  `out.wasm`. Now `--output=FILE` works in `wat2wasm`, `wasm2wat` and `wasm-strip`,
-  `--section=NAME` in `wasm-strip`, and `-o` / `-s` with no value is refused. **For a script:** a
-  flag these tools never had (`wasm2wat --disable-simd`, `wasm-objdump -x`) now exits 1 instead
-  of being ignored — divergence CL14 for `wasm2wat`'s missing feature flags.
-- **Behaviour (refuses more) + Silent fix — a `struct.new_desc` descriptor in a constant
-  expression must be constant** (CL1): only the fields were checked. No valid module changes.
-- **Behaviour (refuses more) — the writer refuses a memarg alignment exponent ≥ 64** (CL4), which
-  the binary's flags field cannot hold; it was written anyway, as bytes that do not say it.
-- **Behaviour (output) — `wasm-interp` prints a float result with its sign and NaN payload**
-  (CL5): `-0` was printed `0`, and every NaN alike; now `-0` and `nan:0x<payload>` (`-` when the
-  sign bit is set).
-- **Behaviour (diagnostics only) — SIMD lane, load-lane, store-lane and shuffle mismatches name
-  the instruction** (CL3), in upstream wabt's words.
-- **No behaviour:** comments corrected in eleven files; dead internal code removed (nothing on
-  the published surface; `api-surface.json` unchanged).
-
-**Shipped in 2.2.2** (kept here until the next release; CHANGELOG § 2.2.2 is the public note):
-
-- **Behaviour (refuses more) + Silent fix — the validator checks a legacy `delegate`.**
-  `wasm-validate`, `wasmValidate` and `wat2wasm` (which validates by default) accepted a
-  `delegate` naming a label that does not exist (`(func (try (do) (delegate 1)))`), and checked
-  NOTHING after a `try … delegate`: `(func (result i32) (try (do) (delegate 0)))`, a function
-  ending with an empty stack, validated. Both are refused now, the first in upstream wabt's words
-  (`invalid depth: 2 (max 1)`); upstream wabt, wasm-tools and V8 refuse both. **What a user may
-  have shipped:** a module with legacy exception handling that binaryang called valid and an
-  engine refuses — re-validate it. Modules that were valid stay valid. Shipped as a PATCH (owner:
-  "release the delegate fix as 2.2.2"; the compatibility floor said patch). Reported by
-  wasmtk (C12). `wasm-bundle`'s doc also gains the address-0 caveat (no behaviour change).
-- **Behaviour (diagnostics only) — validation errors read as upstream wabt's** (open-work 48,
-  divergence DG7, 2026-10-28). Every type-mismatch message now uses upstream's words: `type
-  mismatch in implicit return, expected [i32] but got []` where binaryang said `type mismatch in
-  function, expected 1 elements on the stack but got 0`; `type mismatch at end of block, expected
-  [] but got [i32, i32]` where it said `type mismatch at end of end`; `type mismatch in drop,
-  expected [any] but got []`; a one-armed `if` with a result is reported once, as `` type mismatch
-  in `if false` branch ``, not twice. A function-end error points at the body's last
-  instruction. No module changes verdict. **For a consumer that matches message TEXT:** the old
-  wordings are gone; every message still starts `type mismatch` (D3, `./definitions`' verdict
-  data, holds trap messages only and is untouched).
-- **Docs — the README's JSR install note for npm 12** (C21, 2026-10-28): npm 12.2.0, bundled with
-  Node 24.21, refuses the alias `npx jsr add` installs; the README now says so and gives the
-  `.npmrc` line (`allow-remote=all`) that lets it through, or the npm package instead. Measured.
+**Shipped in 3.0.0** (JSR only; CHANGELOG § 3.0.0 is the public note): the binaryen facade's
+binaryen.js 132 numbers, `i64.const` refusing `(low, high)`, `wasm-objdump -d` refused, Bun 1.4.4
+the minimum, `wasm2wat` validating, unknown options refused, the `parseWat` feature bag; the two
+optimizer fixes (tail-call inlining, SimplifyLocals in a `try`) and the integer-spelled
+`f32.const`; upstream wabt's output in `wasm-validate`, `wasm-objdump -x`, `wasm-interp`,
+`--generate-names`; code lens passes 2 and 3, open-work 50 and 52, CL7. The full notes as
+gathered: `git show 1222e78d5:cmem/unreleased.md`.
 
 **Repo-only since 2.2.0 (nothing in either package; no release-note line):** the benchmark
 modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
@@ -209,14 +66,17 @@ default features; `return_call_ref` under function references, D1 1.0.1; two val
 checks; D2 `requires` and `presets`, 2.1.0; tail calls portable, D4 1.1.0) or **2.2.0** (the
 reference-type rule as wasm-tools has it; four validator gaps; D2 `typeRules` / `encodingRules`,
 2.2.0) or **2.2.1** (`wasm-strip` copies the sections it keeps, as upstream; a partial strip of
-a relocatable or DWARF module had left stale offsets). The public summary of each is
+a relocatable or DWARF module had left stale offsets) or **2.2.2** (the legacy `delegate`
+checked; type-mismatch messages as upstream wabt's; the npm 12 install note) or **3.0.0** (above,
+until 3.0.1 ships). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
 `fd5e96acf` (1.11.0), at `a86765385` (1.12.0), at `926d3e4e3` (1.12.1), at `9d065cf17`
 (1.13.0), at `09e0c7d9d` (1.13.1), at `b86b1b66a` (1.13.2), at `5d812889a` (1.13.3), and at
 `99c60dee0` (1.14.0), at `bc97aa573` (1.15.0), at `d81463f32` (1.16.0), at `e19525bb0`
-(1.17.0), at `0ee193d95` (2.0.0), at `e3af69711` (2.1.0), at `7e1e272e8` (2.2.0), and at `59ba8fde2` (2.2.1).
+(1.17.0), at `0ee193d95` (2.0.0), at `e3af69711` (2.1.0), at `7e1e272e8` (2.2.0), at `59ba8fde2` (2.2.1),
+at `88a0e7c6f` (2.2.2), and at `1222e78d5` (3.0.0).
 
 ## How to use this file
 
@@ -233,6 +93,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 2.2.0
+## Since 3.0.0
 
-Nothing yet.
+The 3.0.1 entry above.
