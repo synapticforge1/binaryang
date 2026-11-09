@@ -4,7 +4,7 @@
 import { describe, it } from 'node:test';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { gzipSync } from 'node:zlib';
 import { expect } from '@std/expect';
@@ -20,6 +20,7 @@ import {
   npmState,
   provenanceUrl,
   tarballProblems,
+  tarballSpec,
 } from '../../../scripts/release/registry.ts';
 import { NPM_NAME } from '../../../scripts/npm/build.ts';
 
@@ -209,6 +210,13 @@ describe('registry.ts: what the publish jobs ask JSR and npm', () => {
       'publishConfig.provenance is not true',
     ]);
     expect(tarballProblems(new Uint8Array([1, 2, 3]), '9.9.9')[0]).toContain('no readable');
+  });
+
+  // 3.0.1's npm job failed here: `npm publish npm-pack/x.tgz` is read as a GitHub shorthand.
+  it('npm-tarball: the path handed to npm publish is absolute, never `dir/name.tgz`', () => {
+    const spec = tarballSpec('npm-pack/synapticforge1-binaryang-9.9.9.tgz');
+    expect(isAbsolute(spec)).toBe(true);
+    expect(spec.endsWith(join('npm-pack', 'synapticforge1-binaryang-9.9.9.tgz'))).toBe(true);
   });
 
   it('npm-tarball: exactly one .tgz in the folder; its path becomes the output', async () => {

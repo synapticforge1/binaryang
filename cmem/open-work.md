@@ -27,8 +27,9 @@ same day: "update the project memory files, commit, push and then release" — t
 **MAJOR** (the binaryen facade's `Features` values), not the MINOR the records said; owner:
 "Land queued, then 3.0.0" — CL7 step 2 and CL19 landed first, then **3.0.0 RELEASED: on JSR
 (Rekor `3770400455`) and its GitHub Release page, NOT on npm** (`npm-build` failed at `npm
-pack`). Owner: "Release 3.0.1" — the fix, then 3.0.1 to both ([publishing.md](publishing.md)
-§ "3.0.0").
+pack`). Owner: "Release 3.0.1" — **3.0.1 RELEASED, JSR only again** (Rekor `3770874199`): its
+`npm publish` read the tarball path as a GitHub shorthand. Owner: "Release 3.0.2, tarball path"
+([publishing.md](publishing.md) § "3.0.0", § "3.0.1").
 
 **State, 2026-11-05 (supersedes the paragraphs below where they differ).** Everything of
 2026-10-28 is PUSHED (`62b546e2a`, CI green, the first run on npm's Deno; no tag, still 2.2.2) —
@@ -158,8 +159,10 @@ removed record went to a topic file, and the full text is one `git show` away:
     is written before `deno publish`; npm's record of the number is read before JSR's immutable
     step; every action hash-pinned. Record: [publishing.md](publishing.md) § "The publish
     workflow's jobs". **3.0.0's run (42699750914):** `checks`, `jsr`, `release` ✅; `npm-build` ❌
-    at `npm pack` (the destination folder did not exist — fixed for 3.0.1). ⚠️ **Still to
-    prove: the npm half** (artifact, `npm publish <tgz>`, provenance) — 3.0.1's run.
+    at `npm pack` (the destination folder did not exist — fixed for 3.0.1). **3.0.1's run:**
+    `npm-build` and the artifact ✅; `npm` ❌ (the tarball path read as a GitHub shorthand —
+    fixed for 3.0.2). ⚠️ **Still to prove: npm's OIDC publish and provenance from a tarball** —
+    3.0.2's run.
 
 53. ✅ **Code lens pass 3 — thirteen fixes** (2026-10-28, owner: "look for code issues"; branch
     `fix/code-lens-3`; [hardening.md](hardening.md) § "Code lens, pass 3"). Wrong OUTPUT on

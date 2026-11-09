@@ -22,7 +22,7 @@
  */
 
 import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import process from 'node:process';
 import { gunzipSync } from 'node:zlib';
 
@@ -186,6 +186,15 @@ export function tarballProblems(tgz: Uint8Array, version: string): string[] {
 }
 
 /**
+ * The tarball as `npm publish` must be given it: an ABSOLUTE path. npm reads `dir/name.tgz` as a
+ * GitHub shorthand (`dir/<repo>`) and runs `git ls-remote` against github.com — what failed
+ * 3.0.1's npm job (reproduced with npm 11: "git … ls-remote ssh://git@github.com/npm-pack/…").
+ */
+export function tarballSpec(file: string): string {
+  return resolve(file);
+}
+
+/**
  * Polls a registry until the version records provenance: 12 tries, 15 s apart, each read
  * cache-busted. JSR ingests attestation asynchronously AND caches the endpoint, so a plain re-read
  * can keep returning the pre-attestation record for minutes (measured 2026-08-27: wabt-ts@1.5.1
@@ -287,7 +296,7 @@ export async function main(argv: string[], net: Net = {}): Promise<number> {
         console.log(`::error::expected one .tgz in ${a}, found ${tgzs.length}`);
         return 1;
       }
-      const file = join(a, tgzs[0] as string);
+      const file = tarballSpec(join(a, tgzs[0] as string));
       const problems = tarballProblems(new Uint8Array(readFileSync(file)), b);
       for (const p of problems) console.log(`::error::${file}: ${p}`);
       if (problems.length > 0) return 1;

@@ -1,18 +1,21 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-09 (UTC): the last release is `v3.0.0`, on JSR only** (Rekor `3770400455`):
-npm did not get it — the restructured publish workflow's `npm-build` failed at `npm pack`
-([publishing.md](publishing.md) § "3.0.0"). Owner, the same day: "Release 3.0.1" — the next
-release is **3.0.1**, a PATCH, so both registries carry the 3.x line. (Check:
-`git log --oneline v3.0.0..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-09 (UTC): the last release is `v3.0.1`, on JSR only** (Rekor `3770874199`),
+after 3.0.0, also JSR only: npm got neither ([publishing.md](publishing.md) § "3.0.0",
+§ "3.0.1"). Owner: "Release 3.0.2, tarball path" — the next release is **3.0.2**, a PATCH, so
+npm gets the 3.x line. (Check: `git log --oneline v3.0.1..main -- src/ main.ts jsr.json README.md`.)
 
-**Unreleased — 3.0.1** (no package change; the same code as 3.0.0):
+**Unreleased — 3.0.2** (no package change; the same code as 3.0.0 and 3.0.1):
 
-- **For npm users:** 3.0.1 is the first 3.x on npm; npm never has 3.0.0. Its notes are 3.0.0's
-  (CHANGELOG § 3.0.0) — the breaks included, for anyone coming from npm's 2.2.2.
-- **Repo-only:** `publish.yml`'s `npm-build` creates the `npm pack` destination first (npm does
-  not; ENOENT, exit 38, measured); a test holds it, inverted against 3.0.0's workflow.
-  `scripts/release/publish.ts` prints the five jobs.
+- **For npm users:** 3.0.2 is the first 3.x on npm; npm has no 3.0.0 or 3.0.1. Its notes are
+  3.0.0's (CHANGELOG § 3.0.0) — the breaks included, for anyone coming from npm's 2.2.2.
+- **Repo-only:** `registry.ts npm-tarball` hands `npm publish` an ABSOLUTE path (npm read
+  `npm-pack/x.tgz` as a GitHub shorthand); a test holds it. Since 3.0.0 also: `npm-build`
+  creates the `npm pack` destination; `previous-tests.ts` runs the old tests in a git work tree;
+  `publish.ts` prints the five jobs.
+
+**Shipped in 3.0.1** (JSR only): nothing new in the package — 3.0.0 again, for npm, which it did
+not reach. CHANGELOG § 3.0.1.
 
 **Shipped in 3.0.0** (JSR only; CHANGELOG § 3.0.0 is the public note): the binaryen facade's
 binaryen.js 132 numbers, `i64.const` refusing `(low, high)`, `wasm-objdump -d` refused, Bun 1.4.4
@@ -67,8 +70,8 @@ checks; D2 `requires` and `presets`, 2.1.0; tail calls portable, D4 1.1.0) or **
 reference-type rule as wasm-tools has it; four validator gaps; D2 `typeRules` / `encodingRules`,
 2.2.0) or **2.2.1** (`wasm-strip` copies the sections it keeps, as upstream; a partial strip of
 a relocatable or DWARF module had left stale offsets) or **2.2.2** (the legacy `delegate`
-checked; type-mismatch messages as upstream wabt's; the npm 12 install note) or **3.0.0** (above,
-until 3.0.1 ships). The public summary of each is
+checked; type-mismatch messages as upstream wabt's; the npm 12 install note) or **3.0.0** and **3.0.1**
+(above, until 3.0.2 ships). The public summary of each is
 `CHANGELOG.md` § that version; the full notes as gathered, BREAKING items field by field:
 `git show 3bd64ece7:cmem/unreleased.md` (to 1.7.0), this file at `706dac230` (1.7.1 → 1.7.2), at
 `575edc0fb` (1.8.0), at `a547a9533` (1.8.1), at `b536bc2be` (1.9.0), at `48586b485` (1.10.0), at
