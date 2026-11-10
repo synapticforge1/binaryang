@@ -14,6 +14,11 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**Later, 2026-11-10 (memory only):** the release workflow, as 3.0.2 ran it, written to the
+workspace for JS/TS projects on the owner's word — `../../cmem/release-process.md` (workspace
+INDEX line added) — and ledger **C44** opened by binaryang, asking the workspace to adapt it for
+the other languages. binaryang verifies and closes C44. The paragraph below otherwise stands.
+
 **State, 2026-11-09 (supersedes the paragraphs below where they differ).** Workspace letters
 H30 (no `gh`, in CI too), H31 (Bun pins and the floor → 1.4.4) and H32 (the CI-made Release page,
 its own job) done: `06618265d`, merge `fb9457451`, gate 14 / 14 on Bun 1.4.4; answers in the
