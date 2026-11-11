@@ -23,12 +23,11 @@ Ledger **C43** and **C44**, binaryang's, closed ([handoffs.md](handoffs.md), 202
 **3.0.3 RELEASED** (owner: "release"; 3.0.2's package) — the first release in D1's order, all six
 jobs green (run 43061998593), CI's tag publishing to JSR measured ([release.md](release.md)
 § "3.0.3"). Still open from H33 here: U9's Bun / Deno pinned by version only, not sha256.
-**Open, mine next (owner, 2026-11-11): ci.yml's Browsers job** — GitHub's runners could not
-resolve the Ubuntu mirrors all day (26.04 and 24.04 alike), so Playwright's `install --with-deps`
-(181 packages) timed out or hit a stale index; owner's two speed-ups, on their own branch,
-rehearsed: (1) fail fast — an apt config (1 retry, 15 s timeouts) before Playwright's install;
-(2) run the job in Playwright's own container `mcr.microsoft.com/playwright:<version>-noble`
-(system packages and browsers baked in), Chrome and Edge from Google's / Microsoft's apt repos.
+**Done the same day: ci.yml's browser check, sped up** (owner: fail fast + Playwright's
+container) — GitHub's runners could not resolve the Ubuntu mirrors all day, and `--with-deps`
+(181 packages) timed out the job. Now two jobs, green in CI run 43068985025 (~2 min, in
+parallel): Playwright's engines in its image with nothing installed; Chrome / Edge / Brave /
+Opera on the runner, apt failing fast ([run-everywhere.md](run-everywhere.md) § open-work 28.3).
 
 **Later, 2026-11-10 (memory only):** the release workflow, as 3.0.2 ran it, written to the
 workspace for JS/TS projects on the owner's word — `../../cmem/release-process.md` (workspace
