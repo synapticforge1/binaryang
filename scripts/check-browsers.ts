@@ -226,11 +226,18 @@ if (import.meta.main) {
     string,
     KnownDifference[]
   >;
-  const files = spawnSync('git', ['ls-files', 'tests/wabt-ts/wasmtk'], {
+  // A failed `git` is an error, never an empty list (2026-11-11: in Playwright's container git
+  // refused the root-owned run's workspace, and this read "only 0 corpus modules").
+  const ls = spawnSync('git', ['ls-files', 'tests/wabt-ts/wasmtk'], {
     cwd: root,
     encoding: 'utf8',
-  }).stdout
-    .split('\n').filter((f) => f.endsWith('.wat'));
+  });
+  if (ls.status !== 0) {
+    throw new Error(
+      `git ls-files failed (${ls.error?.message ?? `exit ${ls.status}`}): ${ls.stderr?.trim()}`,
+    );
+  }
+  const files = ls.stdout.split('\n').filter((f) => f.endsWith('.wat'));
   if (files.length < 100) throw new Error(`only ${files.length} corpus modules found`);
 
   const dir = mkdtempSync(join(tmpdir(), 'binaryang-browsers-'));

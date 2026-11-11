@@ -64,6 +64,16 @@ async function open(spec: BrowserSpec): Promise<{
   }
 }
 
+/**
+ * A browser's error, bounded: its head and its TAIL. A failed launch's message is Playwright's
+ * summary, the whole launch command line, and only then the browser's own log — so a plain cut at
+ * 400 characters kept the command and dropped the cause (Opera on CI, 2026-11-11).
+ */
+function errorReport(e: unknown, head = 300, tail = 2000): string {
+  const m = e instanceof Error ? e.message : String(e);
+  return m.length <= head + tail ? m : `${m.slice(0, head)} … ${m.slice(-tail)}`;
+}
+
 for (const spec of JSON.parse(specsJson) as BrowserSpec[]) {
   try {
     const { page, version, close } = await open(spec);
@@ -97,11 +107,6 @@ for (const spec of JSON.parse(specsJson) as BrowserSpec[]) {
       await within(close(), 30_000, 'close').catch(() => {});
     }
   } catch (e) {
-    console.log(
-      JSON.stringify({
-        name: spec.name,
-        error: (e instanceof Error ? e.message : String(e)).slice(0, 400),
-      }),
-    );
+    console.log(JSON.stringify({ name: spec.name, error: errorReport(e) }));
   }
 }

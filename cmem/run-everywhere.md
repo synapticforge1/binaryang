@@ -268,7 +268,19 @@ browser run was "planned" — CI has run one since 2026-10-13 (`92f0be45e`, firs
       headless (a new context's `newPage()` never settled; in its default context the launch never
       settled). **Vivaldi REMOVED** (owner: "lets remove vivaldi from the checks. most of the other
       chromium distributions are applicable"): the job runs chromium, Chrome, Edge, Brave, Opera,
-      Firefox and WebKit. DuckDuckGo's browser
+      Firefox and WebKit. 🔧 **TWO jobs since 2026-11-11** (owner: "speed this up" → fail fast +
+      Playwright's container): that day GitHub's runners could not resolve Ubuntu's mirrors, and
+      `--with-deps` (181 packages, 114 MB) timed out the one job. Now **`browsers-engines`** runs
+      Chromium, Firefox and WebKit in `mcr.microsoft.com/playwright:v1.63.0-noble` (by digest; tag =
+      package.json's Playwright, a test holds it) and INSTALLS NOTHING — Bun from npm (no `unzip` in
+      the image), `HOME=/root` (Firefox refuses a $HOME not its user's), git's `safe.directory`
+      (root vs the runner's workspace); **`browsers`** runs Chrome and Edge as GitHub's image has
+      them, Brave and Opera from their vendors plus Opera's UNDECLARED `gsettings-desktop-schemas`
+      (without it: "Settings schema 'org.gnome.desktop.background' is not installed", SIGABRT),
+      apt failing fast (one retry, 15 s). Seven rehearsals on a branch; green in CI run 43068985025:
+      engines job 108 s (image 25 s, no install, check 74 s), installed job 165 s (install 22 s),
+      in parallel. A launch failure now keeps the browser's own log (head 300 + tail 2,000
+      characters; the 400 cut had dropped Opera's cause). DuckDuckGo's browser
       cannot be automated (no protocol; it is WebView2 on Windows, WebKit on macOS): Safari's engine
       replaced it. *What (as scoped):* a static page, served locally by Bun, that loads the
       browser bundle of EVERY export and runs, through the library (no CLI): (a) the cli-smoke
