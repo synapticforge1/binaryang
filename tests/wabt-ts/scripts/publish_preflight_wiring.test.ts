@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
+import { existsSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
@@ -40,7 +41,9 @@ function gitCalls(src: string): { sub: string; at: number }[] {
 // Anything not on this list is assumed to CHANGE something. New git
 // subcommands are opted in deliberately: if you add one and it is read-only,
 // add it here and say so; if it mutates, it belongs after the guard.
-const READ_ONLY = new Set(['status', 'ls-remote', 'rev-parse', 'diff', 'config', 'log']);
+// `fetch` (2026-11-10, the `main`-contains-`origin/main` guard) moves only the
+// remote-tracking ref: no branch, no tag, no tree.
+const READ_ONLY = new Set(['status', 'ls-remote', 'rev-parse', 'diff', 'config', 'log', 'fetch']);
 
 describe('T13.44 — the release preflight stays wired in', () => {
   it('imports and calls the guard', () => {
@@ -69,8 +72,39 @@ describe('T13.44 — the release preflight stays wired in', () => {
     // And the mutations really do exist afterwards -- otherwise this test
     // passes vacuously on a script that no longer releases anything.
     const after = calls.filter((c) => c.at > call).map((c) => c.sub);
-    for (const sub of ['add', 'commit', 'tag', 'push']) {
+    for (const sub of ['add', 'commit', 'push']) {
       expect(after).toContain(sub);
+    }
+  });
+
+  // 🔒 The owner's order (2026-11-10, workspace letter H33, D1): CI tags, after its checks. The
+  // script pushes `main` and nothing else, and reads it back; it never makes, forces or pushes a
+  // tag (it force-wrote one with `tag -f` until that day).
+  it('pushes main ONLY, makes no tag, and reads the push back', () => {
+    const calls = gitCalls(PUBLISH).map((c) => c.sub);
+    expect(calls).not.toContain('tag');
+    expect(PUBLISH).not.toMatch(/'tag',\s*'-f'/);
+    const pushes = [...PUBLISH.matchAll(/\[\s*'git'\s*,\s*'push'([^\]]*)\]/g)].map((m) =>
+      m[1]!.trim()
+    );
+    expect(pushes).toEqual([", 'origin', 'main'"]);
+    const push = PUBLISH.indexOf("['git', 'push', 'origin', 'main']");
+    expect(PUBLISH.slice(push)).toContain("['git', 'ls-remote', 'origin', 'refs/heads/main']");
+  });
+
+  it('refuses a local tag, a tag on origin, and a number either registry knows, before mutating', () => {
+    const firstMutation = gitCalls(PUBLISH).find((c) => !READ_ONLY.has(c.sub))!.at;
+    for (
+      const probe of [
+        "['rev-parse', '-q', '--verify', `refs/tags/",
+        "'ls-remote', '--tags', 'origin', tag",
+        'jsrHas(',
+        'npmState(',
+      ]
+    ) {
+      const at = PUBLISH.indexOf(probe);
+      expect(at, probe).toBeGreaterThan(-1);
+      expect(at, probe).toBeLessThan(firstMutation);
     }
   });
 
@@ -178,7 +212,6 @@ describe('T13.44 — the release preflight stays wired in', () => {
 // through), and everything before it is the CI gate's tooling, so a release is judged as CI is.
 describe('the release workflows, off Deno except for the publish itself', () => {
   const PUBLISH_YML = fsx.readTextFileSync('.github/workflows/publish.yml');
-  const AUTO_TAG_YML = fsx.readTextFileSync('.github/workflows/auto-tag.yml');
   /** `run:` commands, in order. */
   const runs = (yml: string) => [...yml.matchAll(/^\s*run:\s*(.+)$/gm)].map((m) => m[1]!.trim());
   /** The lines that are not YAML comments. */
@@ -221,8 +254,35 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     );
   });
 
-  it('auto-tag needs no Deno', () => {
-    expect(code(AUTO_TAG_YML).filter((l) => /\bdeno\b/i.test(l))).toEqual([]);
+  // 🔒 The owner's order (2026-11-10, workspace letter H33, D1): "the CI to check first, then push
+  // the tag, and then create the release page from the tag, then publish the package to the
+  // registry". publish.yml runs on a push of `main` (never on a tag), CI makes the tag, and
+  // auto-tag.yml — which tagged from a separate run — is retired.
+  it('runs on a push of main only; auto-tag.yml is gone', () => {
+    expect(PUBLISH_YML).toMatch(/\non:\n {2}push:\n {4}branches:\n {6}- main\n\n/);
+    expect(code(PUBLISH_YML).filter((l) => /\btags:|workflow_dispatch|workflow_call/.test(l)))
+      .toEqual([]);
+    expect(existsSync('.github/workflows/auto-tag.yml')).toBe(false);
+    expect(PUBLISH_YML).toMatch(/\npermissions: \{\}\n/);
+  });
+
+  it('orders the jobs checks → tag → release → jsr → npm', () => {
+    const needs = (job: string) => /\n {4}needs: ([^\n]+)/.exec(jobs[job]!)?.[1];
+    expect(needs('tag')).toBe('checks');
+    expect(jobs['tag']).toContain("if: needs.checks.outputs.release == 'true'");
+    expect(needs('release')).toBe('[checks, tag]');
+    expect(needs('jsr')).toBe('[checks, release]');
+    expect(needs('npm')).toBe('[checks, jsr, npm-build]');
+    // Each write is its own script call, and the tag is made by CI, through the REST API.
+    expect(runs(jobs['tag']!)).toEqual(['bun scripts/release/github.ts tag "$TAG"']);
+    expect(runs(jobs['release']!)).toEqual(['bun scripts/release/github.ts release "$TAG"']);
+    for (const job of ['tag', 'release']) {
+      expect(jobs[job]).toMatch(/permissions:\n\s+contents: write\n/);
+      expect(sparse(job)).toEqual([['/jsr.json', '/scripts/release/github.ts']]);
+    }
+    // `checks` decides first, and holds no write.
+    expect(runs(jobs['checks']!)[0]).toBe('bun scripts/release/workflow.ts release-state');
+    expect(jobs['checks']).not.toMatch(/: write/);
   });
 
   // Open-work 54 (2026-11-09; workspace correspondence C30 / C34). `id-token: write` IS the
@@ -245,8 +305,15 @@ describe('the release workflows, off Deno except for the publish itself', () => 
       m[1]!.trim().split(/\s+/)
     );
 
-  it('reads the five jobs, two of them holding the credential', () => {
-    expect(Object.keys(jobs).sort()).toEqual(['checks', 'jsr', 'npm', 'npm-build', 'release']);
+  it('reads the six jobs, two of them holding the credential', () => {
+    expect(Object.keys(jobs).sort()).toEqual([
+      'checks',
+      'jsr',
+      'npm',
+      'npm-build',
+      'release',
+      'tag',
+    ]);
     expect(credentialed.sort()).toEqual(['jsr', 'npm']);
   });
 
@@ -292,20 +359,22 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     expect(record, 'the jsr job records the upload attempt').toBeGreaterThanOrEqual(0);
     expect(record).toBeLessThan(r.indexOf('deno publish'));
     expect(jobs['jsr']).toMatch(/uploaded: \$\{\{ steps\.attempt\.outputs\.uploaded \}\}/);
-    for (const job of ['release', 'npm']) {
-      expect(jobs[job]).toContain("needs.jsr.outputs.uploaded == 'true'");
-      // The first thing it asks or writes is whether JSR serves the version.
-      const acts = runs(jobs[job]!).filter((c) => /registry\.ts|github\.ts|npm publish/.test(c));
-      expect(acts[0], `${job} waits for JSR first`).toMatch(/registry\.ts jsr-wait /);
-    }
+    // npm runs on it, and the first thing it asks is whether JSR serves the version. (The page
+    // comes BEFORE the publish since D1, so `release` no longer waits for JSR.)
+    expect(jobs['npm']).toContain("needs.jsr.outputs.uploaded == 'true'");
+    const acts = runs(jobs['npm']!).filter((c) => /registry\.ts|npm publish/.test(c));
+    expect(acts[0], 'npm waits for JSR first').toMatch(/registry\.ts jsr-wait /);
   });
 
-  it("asks npm whether the number is free BEFORE JSR's immutable step", () => {
-    expect(
-      runs(jobs['checks']!).some((c) =>
-        /^bun scripts\/release\/registry\.ts npm-state "\$\{GITHUB_REF_NAME#v\}"$/.test(c)
-      ),
-    ).toBe(true);
+  it("asks both registries whether a NEW number is free BEFORE the tag and JSR's immutable step", () => {
+    expect(runs(jobs['checks']!)).toContain('bun scripts/release/registry.ts free "$VERSION"');
+    expect(jobs['checks']).toContain("if: steps.release.outputs.state == 'new'");
+  });
+
+  // The ref is `main` now, so no step may read a version out of GITHUB_REF_NAME.
+  it('takes the version from checks, never from the ref name', () => {
+    expect(code(PUBLISH_YML).filter((l) => /GITHUB_REF_NAME|github\.ref_name/.test(l)))
+      .toEqual([]);
   });
 
   // 3.0.0's npm-build failed here on GitHub: npm does not create `--pack-destination`.

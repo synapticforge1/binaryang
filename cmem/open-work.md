@@ -14,6 +14,17 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**State, 2026-11-11 (supersedes the paragraphs below where they differ).** Workspace letter **H33**
+converged on branch `h33-release-order` (NOT merged or pushed — the owner's "push"): the owner's
+D1 order — `bun run release` pushes `main` only; `publish.yml` runs on that push, `checks` → CI's
+`tag` → the `release` page → `jsr` / `npm`; `auto-tag.yml` retired — and D3, every release
+record in [release.md](release.md) § "Release History" (moved from [publishing.md](publishing.md)).
+**H34** (the owner's "commit" / "push" / "release") committed in [working-rules.md](working-rules.md).
+Ledger **C43** and **C44**, binaryang's, closed ([handoffs.md](handoffs.md), 2026-11-11 entry).
+**For the owner:** "push" lands it; the first release after it measures U6 on GitHub (CI's tag
+publishing to JSR — S3D measured it green 2026-11-10). Still open from H33 here: U9's Bun / Deno
+pinned by version only, not sha256.
+
 **Later, 2026-11-10 (memory only):** the release workflow, as 3.0.2 ran it, written to the
 workspace for JS/TS projects on the owner's word — `../../cmem/release-process.md` (workspace
 INDEX line added) — and ledger **C44** opened by binaryang, asking the workspace to adapt it for

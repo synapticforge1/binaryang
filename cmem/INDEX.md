@@ -106,7 +106,8 @@ from cmem stays recoverable through commits, merge messages and `git log -S`.
 | --- | --- |
 | [best-practices.md](best-practices.md) | **The rules paid for**: the convergent rules (both origin stories), the workspace's ★ rules and checklist (stamped copies), then binaryang's own |
 | [testing.md](testing.md) | **How binaryang is tested**: the gates and what each can see, the corpora, the oracles, the spec-testsuite harness |
-| [publishing.md](publishing.md) | **Releases and provenance**: the settled release pattern (read first), the history purge, one section per release, newest first |
+| [release.md](release.md) | 🔒 **The one release record** (owner, 2026-11-10, H33 D3): § "How a release is made" — the owner's D1 order (push `main`; CI checks → tags → page → JSR / npm) with this repo's commands and jobs; § "Release History" — every version, newest first, with what changed |
+| [publishing.md](publishing.md) | **Provenance and the release machinery**: the settled release pattern (read first), the workflow's jobs, npm as the second registry, the history purges, recovery recipes (the per-release records moved to release.md, 2026-11-11) |
 | [definitions.md](definitions.md) | **`./definitions` (D1–D4)**: what shipped, the decisions, the proof; every D1 opcode attested by the specification, checked in CI (`spec_opcodes.test.ts`); D2's `requires` (recorded only) and `presets`; `return_call_ref` (items 40–41) |
 | [optimizer.md](optimizer.md) | **The optimizer against upstream `wasm-opt`** (items 2, 30, 31): every step with its commit and numbers, the instruments, the lessons |
 | [hardening.md](hardening.md) | **The hardening round** (item 13): the contract, the instruments, passes 1–2, the hang check, the code lens pass 1 |

@@ -3,13 +3,21 @@
 
 /**
  * The workflows' two GitHub writes, through GitHub's REST API with the job's own `GITHUB_TOKEN`
- * (owner, 2026-11-08, workspace letter H30: no GitHub CLI, in CI too). It replaces the CLI's
- * workflow dispatch (auto-tag.yml) and its release creation (publish.yml).
+ * (owner, 2026-11-08, workspace letter H30: no GitHub CLI, in CI too).
  *
  * ```sh
- * bun scripts/release/github.ts dispatch <workflow-file> <ref>   # auto-tag.yml's fallback
- * bun scripts/release/github.ts release <tag>                    # publish.yml's `release` job
+ * bun scripts/release/github.ts tag <tag>       # publish.yml's `tag` job: CI tags the commit
+ * bun scripts/release/github.ts release <tag>   # publish.yml's `release` job: the page
  * ```
+ *
+ * 🔒 The owner's order (2026-11-10, workspace letter H33, D1): checks, then CI pushes the tag,
+ * then the Release page from the tag, then the publish. `tag`:
+ *   1. the tag already on GitHub at `GITHUB_SHA` is done (a re-run); on any other commit it is
+ *      refused — a published tag never moves;
+ *   2. otherwise `POST /git/tags` (an annotated tag object on `GITHUB_SHA`) and `POST /git/refs`,
+ *      then read the tag back and require it to peel to `GITHUB_SHA`.
+ * A tag made with `GITHUB_TOKEN` starts no workflow run, so publish.yml runs the page and the
+ * publish in the SAME run (`needs:`).
  *
  * `release` follows the workspace's order (letter H32, owner 2026-11-09), and keeps it:
  *   1. the tag EXISTS on GitHub and peels (annotated tags followed) to `GITHUB_SHA` — because
@@ -20,8 +28,8 @@
  * Every request has its own time limit.
  *
  * Standalone on purpose: `node:` builtins and `fetch`, no import from this repository, and only
- * `jsr.json` read. The `release` job checks out THIS file and `jsr.json` alone and installs
- * nothing, so no package code runs beside the write token (workspace correspondence C30).
+ * `jsr.json` read. The `tag` and `release` jobs check out THIS file and `jsr.json` alone and
+ * install nothing, so no package code runs beside the write token (workspace correspondence C30).
  * Reads `GITHUB_API_URL`, `GITHUB_REPOSITORY`, `GITHUB_SHA` and `GITHUB_TOKEN`.
  */
 
@@ -152,19 +160,37 @@ export async function release(
   return { code: 0, lines };
 }
 
-/** `POST …/actions/workflows/<file>/dispatches`; GitHub answers 204 when it is accepted. */
-export async function dispatch(hub: GitHub, workflow: string, ref: string): Promise<Outcome> {
-  const r = await call(
-    hub,
-    'POST',
-    `/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
-    {
-      ref,
-    },
-  );
-  return r.status === 204
-    ? { code: 0, lines: [`Dispatched ${workflow} on ref ${ref}`] }
-    : { code: 1, lines: [`::error::dispatching ${workflow} on ${ref}: HTTP ${r.status}`] };
+/** CI's annotated tag on the commit `checks` passed (D1). Never moves a tag. */
+export async function tag(hub: GitHub, o: { tag: string; sha: string }): Promise<Outcome> {
+  const fail = (m: string): Outcome => ({ code: 1, lines: [`::error::${m}`] });
+
+  // 1. Already there: done at this commit, refused anywhere else.
+  const at = await peelTag(hub, o.tag);
+  if (at === o.sha) {
+    return { code: 0, lines: [`Tag ${o.tag} is already on ${o.sha} — nothing to do`] };
+  }
+  if (at !== null) {
+    return fail(`tag ${o.tag} is on ${at}, not this run's ${o.sha}; a published tag never moves`);
+  }
+
+  // 2. The tag object, then the ref naming it, then read back.
+  const obj = await call(hub, 'POST', '/git/tags', {
+    tag: o.tag,
+    message: `Release ${o.tag}`,
+    object: o.sha,
+    type: 'commit',
+  });
+  const objSha = obj.body?.['sha'];
+  if (obj.status !== 201 || typeof objSha !== 'string') {
+    return fail(`creating the tag object ${o.tag}: HTTP ${obj.status}`);
+  }
+  const ref = await call(hub, 'POST', '/git/refs', { ref: `refs/tags/${o.tag}`, sha: objSha });
+  if (ref.status !== 201) return fail(`creating refs/tags/${o.tag}: HTTP ${ref.status}`);
+  const again = await peelTag(hub, o.tag);
+  if (again !== o.sha) {
+    return fail(`tag ${o.tag} was created but reads back as ${again ?? 'absent'}, not ${o.sha}`);
+  }
+  return { code: 0, lines: [`Tag ${o.tag} created on ${o.sha} (object ${objSha}), read back`] };
 }
 
 /** The runner's GitHub settings, or the name of the first one missing. */
@@ -179,9 +205,9 @@ function fromEnv(): GitHub | string {
 
 /** The subcommand's exit code. */
 export async function main(argv: string[]): Promise<number> {
-  const [cmd, a, b] = argv;
-  if (!((cmd === 'release' && a) || (cmd === 'dispatch' && a && b))) {
-    console.error('usage: github.ts release <tag> | dispatch <workflow-file> <ref>');
+  const [cmd, a] = argv;
+  if (!((cmd === 'release' || cmd === 'tag') && a && argv.length === 2)) {
+    console.error('usage: github.ts tag <tag> | release <tag>');
     return 2;
   }
   const hub = fromEnv();
@@ -189,22 +215,20 @@ export async function main(argv: string[]): Promise<number> {
     console.log(`::error::${hub} is not set`);
     return 1;
   }
-  let out: Outcome;
-  if (cmd === 'dispatch') {
-    out = await dispatch(hub, a, b as string);
-  } else {
-    const sha = process.env['GITHUB_SHA'] ?? '';
-    if (sha === '') {
-      console.log('::error::GITHUB_SHA is not set');
-      return 1;
-    }
-    const m = JSON.parse(readFileSync('jsr.json', 'utf8')) as { name: string; version: string };
-    if (`v${m.version}` !== a) {
-      console.log(`::error::tag ${a} is not jsr.json's version (${m.version})`);
-      return 1;
-    }
-    out = await release(hub, { tag: a, sha, jsrName: m.name, version: m.version });
+  const sha = process.env['GITHUB_SHA'] ?? '';
+  if (sha === '') {
+    console.log('::error::GITHUB_SHA is not set');
+    return 1;
   }
+  // Both writes name jsr.json's version and nothing else.
+  const m = JSON.parse(readFileSync('jsr.json', 'utf8')) as { name: string; version: string };
+  if (`v${m.version}` !== a) {
+    console.log(`::error::tag ${a} is not jsr.json's version (${m.version})`);
+    return 1;
+  }
+  const out = cmd === 'tag'
+    ? await tag(hub, { tag: a, sha })
+    : await release(hub, { tag: a, sha, jsrName: m.name, version: m.version });
   for (const l of out.lines) console.log(l);
   return out.code;
 }

@@ -4,21 +4,25 @@
 /**
  * The GitHub workflows' LOGIC, in TypeScript (owner rule: "any logic with a loop, a condition,
  * polling or result collection goes in a `.ts` file", and the shell only launches it — which
- * reaches the workflows' `run:` blocks too; 2026-10-21). Each workflow step that decided or polled
- * in bash is one subcommand here; the step is now a single `bun scripts/release/workflow.ts …`.
- * `node:` builtins and `fetch` only, so it runs on Bun and Node alike.
+ * reaches the workflows' `run:` blocks too; 2026-10-21). Each workflow step that decides is one
+ * subcommand here. `node:` builtins only, so it runs on Bun and Node alike.
  *
  * ```sh
- * bun scripts/release/workflow.ts tag-matches <ref-name>        # publish.yml: jsr.json version = tag
- * bun scripts/release/workflow.ts tag-check                     # auto-tag.yml: version, tag exists?
- * bun scripts/release/workflow.ts release-cred                  # auto-tag.yml: RELEASE_PAT present?
+ * bun scripts/release/workflow.ts release-state   # publish.yml `checks`: is this push a release?
  * ```
  *
- * What publish.yml asks the registries (the OIDC check, the provenance poll, JSR's and npm's
- * version state) moved to `registry.ts` on 2026-11-09, standalone, for the jobs that hold the
- * publishing credential (open-work 54).
+ * 🔒 The owner's order (2026-11-10, workspace letter H33, `release-process.md` § 5 / § 8 D1): "the
+ * CI to check first, then push the tag, and then create the release page from the tag, then
+ * publish the package to the registry". `bun run release` pushes `main` only; publish.yml runs on
+ * every push to `main` and asks THIS question first. Until 2026-11-10 a tag pushed from the
+ * owner's machine started publish.yml, and auto-tag.yml (retired) tagged a bump `bun run release`
+ * had not.
  *
- * Outputs go to `$GITHUB_OUTPUT`, as the bash did; unset (a local run), they are printed instead.
+ * What publish.yml asks the registries (the OIDC check, the provenance poll, JSR's and npm's
+ * version state) is `registry.ts`, standalone, for the jobs that hold the publishing credential
+ * (open-work 54).
+ *
+ * Outputs go to `$GITHUB_OUTPUT`; unset (a local run), they are printed instead.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -37,9 +41,40 @@ function output(key: string, value: string): void {
   else console.log(`(output) ${key}=${value}`);
 }
 
-/** The version a `vX.Y.Z` ref names, or null when it is not a version tag. */
-export function tagVersion(refName: string): string | null {
-  return /^v\d+\.\d+\.\d+$/.test(refName) ? refName.slice(1) : null;
+/**
+ * What a push of `main` is, from the manifest's version and where its tag stands on GitHub:
+ * - `new` — no `v<version>` tag yet: a release, CI tags this commit;
+ * - `rerun` — the tag is on THIS commit: a re-run of a release (each job skips what is done);
+ * - `released` — the tag is on another commit: an ordinary push, nothing to release.
+ */
+export type ReleaseState = 'new' | 'rerun' | 'released';
+
+/** {@link ReleaseState} from the commit the tag peels to on GitHub (`null`: no tag). */
+export function releaseState(tagCommit: string | null, sha: string): ReleaseState {
+  if (tagCommit === null) return 'new';
+  return tagCommit === sha ? 'rerun' : 'released';
+}
+
+/** A release version is a plain `major.minor.patch` (SemVer 2.0.0, no suffix). */
+export function isReleaseVersion(v: string): boolean {
+  return /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(v);
+}
+
+/**
+ * The commit `tag` peels to on `origin` (annotated tags followed: `^{}` wins), `null` when the
+ * tag is not there. Read with `git ls-remote`, never the local tags: GitHub is what CI tags. A
+ * failed read throws — it is never taken for "no tag".
+ */
+export function lsRemoteTagCommit(lsRemoteOutput: string, tag: string): string | null {
+  let direct: string | null = null;
+  let peeled: string | null = null;
+  for (const line of lsRemoteOutput.split('\n')) {
+    const [sha, ref] = line.trim().split(/\s+/);
+    if (sha === undefined || ref === undefined) continue;
+    if (ref === `refs/tags/${tag}^{}`) peeled = sha;
+    else if (ref === `refs/tags/${tag}`) direct = sha;
+  }
+  return peeled ?? direct;
 }
 
 /** The subcommand's exit code (a Promise, as every release script's `main`, for the tests). */
@@ -48,51 +83,42 @@ export function main(argv: string[]): Promise<number> {
 }
 
 function decide(argv: string[]): number {
-  const [cmd, a] = argv;
-  switch (cmd) {
-    case 'tag-matches': {
-      // publish.yml: a tag publishes from any branch, so the manifest must name the tag's version.
-      const tag = tagVersion(a ?? '');
-      const v = jsrManifest().version;
-      if (tag !== v) {
-        console.log(`::error::Tag version (${tag ?? a}) does not match jsr.json version (${v})`);
-        return 1;
-      }
-      console.log(`Versions match: ${v}`);
+  const [cmd] = argv;
+  if (cmd === 'release-state' && argv.length === 1) {
+    const sha = process.env['GITHUB_SHA'] ?? '';
+    if (sha === '') {
+      console.log('::error::GITHUB_SHA is not set');
+      return 1;
+    }
+    const version = jsrManifest().version;
+    const tag = `v${version}`;
+    const r = spawnSync(
+      'git',
+      ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`],
+      { encoding: 'utf8' },
+    );
+    if (r.status !== 0) {
+      console.log(`::error::git ls-remote origin failed (exit ${r.status}): ${r.stderr.trim()}`);
+      return 1;
+    }
+    const at = lsRemoteTagCommit(r.stdout, tag);
+    const state = releaseState(at, sha);
+    console.log(`jsr.json ${version}; tag ${tag} on GitHub: ${at ?? '(absent)'} -> ${state}`);
+    if (state === 'released') {
+      output('release', 'false');
       return 0;
     }
-    case 'tag-check': {
-      // auto-tag.yml: the version, and whether `v<version>` already exists (needs fetch-depth: 0).
-      const v = jsrManifest().version;
-      const tag = `v${v}`;
-      output('version', v);
-      console.log(`jsr.json version: ${v}`);
-      const r = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
-        stdio: 'ignore',
-      });
-      const exists = r.status === 0;
-      output('exists', String(exists));
-      console.log(
-        exists
-          ? `Tag ${tag} already exists — nothing to do.`
-          : `Tag ${tag} does not exist — will create + push + dispatch publish.`,
-      );
-      return 0;
+    if (!isReleaseVersion(version)) {
+      console.log(`::error::jsr.json's version ${version} is not a release version`);
+      return 1;
     }
-    case 'release-cred': {
-      // auto-tag.yml: `secrets` is not dependably readable in a step-level `if:`, so the presence
-      // of RELEASE_PAT becomes a yes/no output. The secret itself is never printed.
-      const pat = (process.env['RELEASE_PAT'] ?? '') !== '';
-      output('pat', pat ? 'yes' : 'no');
-      console.log(
-        pat
-          ? 'RELEASE_PAT is configured — tag push will trigger publish.yml directly.'
-          : 'RELEASE_PAT is not configured — will fall back to workflow_dispatch.',
-      );
-      return 0;
-    }
+    output('release', 'true');
+    output('state', state);
+    output('version', version);
+    output('tag', tag);
+    return 0;
   }
-  console.error('usage: workflow.ts tag-matches <ref> | tag-check | release-cred');
+  console.error('usage: workflow.ts release-state');
   return 2;
 }
 
