@@ -28,6 +28,8 @@ container) — GitHub's runners could not resolve the Ubuntu mirrors all day, an
 (181 packages) timed out the job. Now two jobs, green in CI run 43068985025 (~2 min, in
 parallel): Playwright's engines in its image with nothing installed; Chrome / Edge / Brave /
 Opera on the runner, apt failing fast ([run-everywhere.md](run-everywhere.md) § open-work 28.3).
+**3.0.4 RELEASED** with it (owner: "release 3.0.4"; the package unchanged) — run 43072390794, all
+six jobs green ([release.md](release.md) § "3.0.4").
 
 **Later, 2026-11-10 (memory only):** the release workflow, as 3.0.2 ran it, written to the
 workspace for JS/TS projects on the owner's word — `../../cmem/release-process.md` (workspace
