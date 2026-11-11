@@ -162,19 +162,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.4.4'
-
-      - name: Install dev dependencies
-        run: bun install --frozen-lockfile
-
       # Playwright's driver runs on Node (the referee major, as the tests).
       - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+
+      # Bun from npm, Bun's own package (its prebuilt binary): setup-bun unpacks a zip, and the
+      # image has no `unzip` (measured 2026-11-11), which apt would have to fetch from the mirrors.
+      - name: Install Bun
+        run: npm install -g bun@1.4.4
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
 
       - name: Install the browsers
         run: bun scripts/ci/install-browsers.ts

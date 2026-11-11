@@ -41,6 +41,14 @@ describe("ci.yml's Browsers job: Playwright's container", () => {
     expect(script).not.toMatch(/'install',\s*'(chromium|firefox|webkit)'/);
   });
 
+  // The image has no `unzip`, which setup-bun needs (measured on GitHub, 2026-11-11).
+  it('installs Bun from npm, at the pinned version, after Node', () => {
+    expect(job).not.toContain('uses: oven-sh/setup-bun');
+    const bun = job.indexOf('npm install -g bun@1.4.4');
+    expect(bun).toBeGreaterThan(job.indexOf('actions/setup-node'));
+    expect(bun).toBeLessThan(job.indexOf('bun install --frozen-lockfile'));
+  });
+
   it('tells apt to fail fast, before any apt run', () => {
     expect(APT_FAIL_FAST).toContain('Acquire::Retries "1";');
     expect(APT_FAIL_FAST).toContain('Acquire::https::Timeout "15";');
