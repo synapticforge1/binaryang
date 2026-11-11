@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.3
+
+The same package as 3.0.2 — **nothing in it changed**. This is the first release made in the
+project's new release order: CI checks the commit first, then CI creates the tag, then the GitHub
+Release page, then the publish to JSR and npm, all in one run. Until now the tag was pushed by
+hand before CI had checked anything.
+
 ## 3.0.2
 
 The same package as 3.0.0 and 3.0.1, released again so that **npm** gets it: neither reached npm
