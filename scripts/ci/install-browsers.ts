@@ -2,24 +2,38 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * CI only (Ubuntu): installs the browsers `bun run browsers --require-all` runs (open-work 28.3).
- * Playwright's own Chromium, Firefox and WebKit (with their system libraries); Brave and Opera
- * from each vendor's apt repository. Chrome and Edge come with GitHub's Ubuntu image, and
- * the job fails loudly (`--require-all`) if either is ever missing.
+ * CI only: installs what `bun run browsers --require-all` runs (open-work 28.3), INSIDE
+ * Playwright's own container (`mcr.microsoft.com/playwright:v<our version>-noble`, ci.yml's
+ * Browsers job; owner, 2026-11-11). The image already holds Playwright's Chromium, Firefox and
+ * WebKit and every system package they need, so nothing of theirs is downloaded here and no
+ * Ubuntu mirror is asked for them. What the image lacks:
+ *
+ *   - Chrome and Edge (the stable channels): Playwright's own installers (`playwright install
+ *     chrome msedge`), which fetch Google's and Microsoft's packages;
+ *   - Brave and Opera: each vendor's apt repository.
+ *
+ * Why (2026-11-11): all day GitHub's runners could not resolve the Ubuntu mirrors, and on the
+ * hosted image `playwright install --with-deps` asked them for 181 packages (114 MB), waiting
+ * out the job's 20-minute limit. So apt is also told to FAIL FAST (one retry, 15 s per request):
+ * an outage now fails this step in about a minute instead of hanging.
  *
  * Logic in TypeScript, not in the workflow's shell (the working rules): each step is one command,
- * run in order, and the first failure stops the script with its exit code.
+ * run in order, and the first failure stops the script with its exit code. The container runs as
+ * root, and the image need not have `sudo`, `curl` or `gpg`: keys are fetched here, and an
+ * ASCII-armored key is written as `.asc`, which apt reads as it is.
  *
  *   bun scripts/ci/install-browsers.ts
  */
 
 import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import process from 'node:process';
 
 /** An apt repository: its signing key, its source line, and the package to install from it. */
 interface AptBrowser {
   name: string;
   key: string;
+  /** Without extension: `.gpg` (binary) or `.asc` (armored) is added by what the key is. */
   keyring: string;
   source: string;
   list: string;
@@ -30,7 +44,7 @@ const APT: AptBrowser[] = [
   {
     name: 'brave',
     key: 'https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg',
-    keyring: '/usr/share/keyrings/brave-browser-archive-keyring.gpg',
+    keyring: '/usr/share/keyrings/brave-browser-archive-keyring',
     source: 'https://brave-browser-apt-release.s3.brave.com/ stable main',
     list: '/etc/apt/sources.list.d/brave-browser-release.list',
     pkg: 'brave-browser',
@@ -38,18 +52,31 @@ const APT: AptBrowser[] = [
   {
     name: 'opera',
     key: 'https://deb.opera.com/archive.key',
-    keyring: '/usr/share/keyrings/opera-browser.gpg',
+    keyring: '/usr/share/keyrings/opera-browser',
     source: 'https://deb.opera.com/opera-stable/ stable non-free',
     list: '/etc/apt/sources.list.d/opera-stable.list',
     pkg: 'opera-stable',
   },
 ];
 
-function step(label: string, cmd: string, args: string[], input?: string | Buffer): void {
+/** apt's network settings for every apt run here, Playwright's installers' included. */
+export const APT_FAIL_FAST = [
+  'Acquire::Retries "1";',
+  'Acquire::http::Timeout "15";',
+  'Acquire::https::Timeout "15";',
+  '',
+].join('\n');
+
+/** The keyring file for a fetched key: binary keys as `.gpg`, armored ones as `.asc`. */
+export function keyringPath(base: string, key: Uint8Array): string {
+  const head = new TextDecoder('latin1').decode(key.subarray(0, 64));
+  return `${base}${head.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----') ? '.asc' : '.gpg'}`;
+}
+
+function step(label: string, cmd: string, args: string[]): void {
   console.log(`$ ${label}`);
   const r = spawnSync(cmd, args, {
-    stdio: [input === undefined ? 'inherit' : 'pipe', 'inherit', 'inherit'],
-    input,
+    stdio: 'inherit',
     env: { ...process.env, DEBIAN_FRONTEND: 'noninteractive' },
   });
   if (r.status !== 0) {
@@ -58,57 +85,46 @@ function step(label: string, cmd: string, args: string[], input?: string | Buffe
   }
 }
 
-if (process.platform !== 'linux') {
-  console.error('install-browsers.ts is for CI (Linux); locally, install browsers yourself');
-  process.exit(2);
-}
-step('playwright install --with-deps chromium firefox webkit', 'node', [
-  'node_modules/playwright/cli.js',
-  'install',
-  '--with-deps',
-  'chromium',
-  'firefox',
-  'webkit',
-]);
-for (const b of APT) {
-  // The key, dearmored where it is ASCII-armored (gpg reads either and writes binary).
-  const key = spawnSync('curl', ['-fsSL', b.key], { maxBuffer: 1 << 20 });
-  if (key.status !== 0) {
-    console.error(`✗ ${b.name}: could not fetch its signing key`);
-    process.exit(1);
+async function main(): Promise<void> {
+  if (process.platform !== 'linux' || process.getuid?.() !== 0) {
+    console.error('install-browsers.ts runs in CI, as root in the Playwright container');
+    process.exit(2);
   }
-  // Brave publishes a binary keyring, Opera an ASCII-armored key: only an armored one
-  // go through `gpg --dearmor`; a binary one is written as it is.
-  const armored = key.stdout.subarray(0, 32).toString('latin1').includes('-----BEGIN');
-  step(
-    `${b.name}: keyring`,
-    'sudo',
-    armored ? ['gpg', '--batch', '--yes', '--dearmor', '-o', b.keyring] : ['tee', b.keyring],
-    key.stdout,
-  );
-  step(
-    `${b.name}: source`,
-    'sudo',
-    ['tee', b.list],
-    `deb [arch=amd64 signed-by=${b.keyring}] ${b.source}\n`,
-  );
+  // 1. Fail fast, before ANY apt run (Playwright's installers run apt too).
+  writeFileSync('/etc/apt/apt.conf.d/99-binaryang-fail-fast', APT_FAIL_FAST);
+  console.log('apt: one retry, 15 s timeouts');
+
+  // 2. The vendors' repositories.
+  for (const b of APT) {
+    const r = await fetch(b.key, { signal: AbortSignal.timeout(30_000) });
+    if (!r.ok) {
+      console.error(`✗ ${b.name}: its signing key answered HTTP ${r.status}`);
+      process.exit(1);
+    }
+    const key = new Uint8Array(await r.arrayBuffer());
+    const keyring = keyringPath(b.keyring, key);
+    writeFileSync(keyring, key);
+    writeFileSync(b.list, `deb [arch=amd64 signed-by=${keyring}] ${b.source}\n`);
+    console.log(`${b.name}: ${keyring}, ${b.list}`);
+  }
+  step('apt-get update', 'apt-get', ['update', '-q']);
+
+  // 3. Chrome and Edge, by Playwright's installers (they fetch and install the vendor packages).
+  step('playwright install chrome msedge', 'node', [
+    'node_modules/playwright/cli.js',
+    'install',
+    'chrome',
+    'msedge',
+  ]);
+
+  // 4. Brave and Opera.
+  step(`apt-get install ${APT.map((b) => b.pkg).join(' ')}`, 'apt-get', [
+    'install',
+    '-y',
+    '-q',
+    ...APT.map((b) => b.pkg),
+  ]);
+  console.log('browsers installed');
 }
-// A slow mirror is dropped after 30 s and retried, not waited on (owner, 2026-10-24).
-const APT_NET = [
-  '-o',
-  'Acquire::Retries=3',
-  '-o',
-  'Acquire::http::Timeout=30',
-  '-o',
-  'Acquire::https::Timeout=30',
-];
-step('apt-get update', 'sudo', ['apt-get', ...APT_NET, 'update', '-q']);
-step(`apt-get install ${APT.map((b) => b.pkg).join(' ')}`, 'sudo', [
-  'apt-get',
-  ...APT_NET,
-  'install',
-  '-y',
-  '-q',
-  ...APT.map((b) => b.pkg),
-]);
-console.log('browsers installed');
+
+if (import.meta.main) await main();

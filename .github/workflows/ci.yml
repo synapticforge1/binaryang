@@ -144,6 +144,16 @@ jobs:
   browsers:
     name: Browsers
     runs-on: ubuntu-latest
+    # Playwright's own image (owner, 2026-11-11): its Chromium, Firefox and WebKit and all their
+    # system packages are in it, so the job no longer downloads them or asks Ubuntu's mirrors for
+    # 181 packages (on 2026-11-11 GitHub's runners could not resolve those mirrors all day, and the
+    # install waited out the limit below). The tag is package.json's Playwright version — a test
+    # holds the two equal — and the digest is read from mcr.microsoft.com with the tag. Chrome,
+    # Edge, Brave and Opera are installed into it (scripts/ci/install-browsers.ts, apt failing fast).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      # Chromium in a container wants the host's IPC namespace (Playwright's Docker guide).
+      options: --ipc=host
     # A stalled browser download failed nothing: it waited (1 h 1 m on 1.15.0's push, 30 min+ on
     # 1.16.0's) under GitHub's 6-hour default. The job takes ~3 min; a stall now fails, to re-run
     # (owner, 2026-10-24).
@@ -165,15 +175,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-
-      # Playwright's own Chromium, Firefox and WebKit, kept between runs: the largest download. The
-      # key follows the lockfile, so a Playwright upgrade fetches new builds. (The system libraries
-      # and Brave / Opera live in system folders and still install every run.)
-      - name: Cache Playwright's browsers
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
 
       - name: Install the browsers
         run: bun scripts/ci/install-browsers.ts
