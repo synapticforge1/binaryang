@@ -1,17 +1,41 @@
 {
-  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;.",
+  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2; 2.2.2's two, DG7's words, dropped at 3.0.3). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;.",
   "entries": [
     {
-      "file": "tests/binaryen-ts/text_route/wat_parser.test.ts",
-      "name": "WAT: a missing operand with an empty stack is caught by validation",
-      "since": "2.2.2",
-      "reason": "Divergence DG7 (open-work 48, owner: \"fix … divergence DG7\"): the validator's type-mismatch messages are upstream wabt's. The module is still refused; the 2.2.1 test pinned the old words \"expected 1 elements on the stack but got 0\", which are now \"type mismatch in drop, expected [any] but got []\" (the 2.2.2 test asserts those)."
+      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
+      "name": "runs no state-changing git command before the guard",
+      "since": "3.0.3",
+      "reason": "The owner's release order D1 (workspace letter H33, 2026-11-10): `bun run release` pushes `main` only and makes NO tag. The 3.0.2 test required a `tag` call after the guard and counted the new `fetch` (the `main`-contains-`origin/main` guard) as a mutation; the 3.0.3 test requires add / commit / push, no tag, and lists `fetch` as read-only. Release tooling only; nothing in either package."
     },
     {
-      "file": "tests/wabt-ts/ir/const_expr_region.test.ts",
-      "name": "the validator sees an EMPTY initializer as one — a non-null table is not &quot;missing&quot; it",
-      "since": "2.2.2",
-      "reason": "Divergence DG7 (open-work 48): the same change of words. The empty initializer is still the one error; the 2.2.1 test pinned \"expected 1 elements on the stack\", now upstream's \"type mismatch in initializer expression, expected [(ref func)] but got []\"."
+      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
+      "name": "checks the remote tag before mutating anything",
+      "since": "3.0.3",
+      "reason": "D1 (H33): the same reason — the 3.0.2 test reads the guards' `git fetch` as the first mutation. Release tooling only."
+    },
+    {
+      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
+      "name": "runs a cold type check, in a fresh DENO_DIR, before mutating anything",
+      "since": "3.0.3",
+      "reason": "D1 (H33): the same reason (`fetch` read as a mutation by the 3.0.2 test). Release tooling only."
+    },
+    {
+      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
+      "name": "checks the package root is the CLI, before mutating anything",
+      "since": "3.0.3",
+      "reason": "D1 (H33): the same reason (`fetch` read as a mutation by the 3.0.2 test). Release tooling only."
+    },
+    {
+      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
+      "name": "the release workflows, off Deno except for the publish itself",
+      "since": "3.0.3",
+      "reason": "D1 (H33): `.github/workflows/auto-tag.yml` is retired and publish.yml runs on a push of `main` with six jobs; the 3.0.2 suite reads auto-tag.yml and expects five tag-triggered jobs. The 3.0.3 suite holds the new order. Release tooling only."
+    },
+    {
+      "file": "tests/wabt-ts/scripts/workflow_steps.test.ts",
+      "name": "tests\\wabt-ts\\scripts\\workflow_steps.test.ts",
+      "since": "3.0.3",
+      "reason": "D1 (H33): the 3.0.2 file imports `tagVersion` (workflow.ts) and `dispatch` (github.ts), retired with the tag trigger and auto-tag.yml, so it fails to load (the reporter names the file, with this host's separators — the bump runs on the owner's Windows machine). The 3.0.3 file tests `release-state`, `free` and `github.ts tag`. Release tooling only."
     }
   ]
 }
