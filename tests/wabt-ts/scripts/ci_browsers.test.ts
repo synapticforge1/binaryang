@@ -4,7 +4,7 @@
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
-import { APT_FAIL_FAST, keyringPath } from '../../../scripts/ci/install-browsers.ts';
+import { APT_FAIL_FAST, keyringPath, UNDECLARED } from '../../../scripts/ci/install-browsers.ts';
 import { browserSpecs } from '../../../scripts/check-browsers.ts';
 
 // ci.yml's browser check is two jobs (owner, 2026-11-11). On that day GitHub's runners could not
@@ -75,6 +75,8 @@ describe("ci.yml's browser check: Playwright's engines in its image, the rest on
     expect(SCRIPT).not.toMatch(/cli\.js|'--with-deps'|playwright install/);
     expect(SCRIPT).toContain("pkg: 'brave-browser'");
     expect(SCRIPT).toContain("pkg: 'opera-stable'");
+    // Opera's undeclared dependency (it aborts without the schema), and nothing else from Ubuntu.
+    expect(UNDECLARED).toEqual(['gsettings-desktop-schemas']);
   });
 
   it('tells apt to fail fast, before any apt run', () => {

@@ -52,6 +52,14 @@ const APT: AptBrowser[] = [
   },
 ];
 
+/**
+ * Ubuntu packages a browser needs but does not declare. Opera aborts at start without
+ * `gsettings-desktop-schemas` ("GLib-GIO-ERROR: Settings schema 'org.gnome.desktop.background' is
+ * not installed", SIGABRT — measured on GitHub, 2026-11-11); `playwright install --with-deps`
+ * used to install it, among its 181. The one thing here that still asks Ubuntu's mirrors.
+ */
+export const UNDECLARED: readonly string[] = ['gsettings-desktop-schemas'];
+
 /** apt's network settings for every apt run here: one retry, 15 s per request. */
 export const APT_FAIL_FAST = [
   'Acquire::Retries "1";',
@@ -115,13 +123,8 @@ async function main(): Promise<void> {
 
   // 3. Brave and Opera.
   step('apt-get update', 'sudo', ['apt-get', 'update', '-q']);
-  step(`apt-get install ${APT.map((b) => b.pkg).join(' ')}`, 'sudo', [
-    'apt-get',
-    'install',
-    '-y',
-    '-q',
-    ...APT.map((b) => b.pkg),
-  ]);
+  const pkgs = [...APT.map((b) => b.pkg), ...UNDECLARED];
+  step(`apt-get install ${pkgs.join(' ')}`, 'sudo', ['apt-get', 'install', '-y', '-q', ...pkgs]);
   // 4. Each starts at all, here, where its error names what is missing (2026-11-11: Opera closed
   // at launch inside the check with no reason, once `--with-deps` no longer installed 181 system
   // packages before it).
