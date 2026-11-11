@@ -1,8 +1,9 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-09 (UTC): the last release is `v3.0.2`, on JSR AND npm, both with provenance**
-([publishing.md](publishing.md) § "3.0.2"); 3.0.0 and 3.0.1 are on JSR only. Nothing is
-unreleased on `main`. (Check: `git log --oneline v3.0.2..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-11 (UTC): the last release is `v3.0.3`, on JSR AND npm, both with provenance**
+([release.md](release.md) § "3.0.3" — 3.0.2's package, the first release in the owner's D1
+order); 3.0.0 and 3.0.1 are on JSR only. Nothing is unreleased on `main`. (Check: `git log
+--oneline v3.0.3..main -- src/ main.ts jsr.json README.md`.)
 
 **Shipped in 3.0.2 and 3.0.1** (kept here until the next release): no package change — 3.0.0
 again, for npm, which 3.0.0 and 3.0.1 did not reach; npm went from 2.2.2 to 3.0.2. Repo-only:
@@ -18,7 +19,7 @@ optimizer fixes (tail-call inlining, SimplifyLocals in a `try`) and the integer-
 `--generate-names`; code lens passes 2 and 3, open-work 50 and 52, CL7. The full notes as
 gathered: `git show 1222e78d5:cmem/unreleased.md`.
 
-**Repo-only since 3.0.2 (nothing in either package; no release-note line):** the release ORDER
+**Shipped in 3.0.3 (no package change; CHANGELOG § 3.0.3), repo-only:** the release ORDER
 is the owner's D1 (workspace letter H33, 2026-11-10/11) — `bun run release` pushes `main` only,
 `publish.yml` runs on that push (checks → CI's tag → page → JSR / npm), `auto-tag.yml` retired;
 every release record in [release.md](release.md) § "Release History" (D3).

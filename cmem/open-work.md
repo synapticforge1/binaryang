@@ -15,15 +15,20 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
 **State, 2026-11-11 (supersedes the paragraphs below where they differ).** Workspace letter **H33**
-converged on branch `h33-release-order` (NOT merged or pushed — the owner's "push"): the owner's
-D1 order — `bun run release` pushes `main` only; `publish.yml` runs on that push, `checks` → CI's
-`tag` → the `release` page → `jsr` / `npm`; `auto-tag.yml` retired — and D3, every release
-record in [release.md](release.md) § "Release History" (moved from [publishing.md](publishing.md)).
-**H34** (the owner's "commit" / "push" / "release") committed in [working-rules.md](working-rules.md).
+converged and PUSHED: the owner's D1 order — `bun run release` pushes `main` only; `publish.yml`
+runs on that push, `checks` → CI's `tag` → the `release` page → `jsr` / `npm`; `auto-tag.yml`
+retired — and D3, every release record in [release.md](release.md) § "Release History" (moved
+from [publishing.md](publishing.md)). **H34** committed in [working-rules.md](working-rules.md).
 Ledger **C43** and **C44**, binaryang's, closed ([handoffs.md](handoffs.md), 2026-11-11 entry).
-**For the owner:** "push" lands it; the first release after it measures U6 on GitHub (CI's tag
-publishing to JSR — S3D measured it green 2026-11-10). Still open from H33 here: U9's Bun / Deno
-pinned by version only, not sha256.
+**3.0.3 RELEASED** (owner: "release"; 3.0.2's package) — the first release in D1's order, all six
+jobs green (run 43061998593), CI's tag publishing to JSR measured ([release.md](release.md)
+§ "3.0.3"). Still open from H33 here: U9's Bun / Deno pinned by version only, not sha256.
+**Open, mine next (owner, 2026-11-11): ci.yml's Browsers job** — GitHub's runners could not
+resolve the Ubuntu mirrors all day (26.04 and 24.04 alike), so Playwright's `install --with-deps`
+(181 packages) timed out or hit a stale index; owner's two speed-ups, on their own branch,
+rehearsed: (1) fail fast — an apt config (1 retry, 15 s timeouts) before Playwright's install;
+(2) run the job in Playwright's own container `mcr.microsoft.com/playwright:<version>-noble`
+(system packages and browsers baked in), Chrome and Edge from Google's / Microsoft's apt repos.
 
 **Later, 2026-11-10 (memory only):** the release workflow, as 3.0.2 ran it, written to the
 workspace for JS/TS projects on the owner's word — `../../cmem/release-process.md` (workspace

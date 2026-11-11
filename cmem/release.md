@@ -46,8 +46,9 @@ twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that f
 A tag made with `GITHUB_TOKEN` starts no workflow run, which is why it is all one run. The run's
 actor is whoever pushed `main` — the owner, a member of the `@jrmarcum` JSR scope. The bot-actor
 refusal (`actorNotScopeMember`) belonged to auto-tag.yml's DISPATCHED runs; auto-tag.yml is retired.
-⚠️ **UNMEASURED here until the first release in this order**; S3D-ReportCompiler measured the same
-shape publishing to JSR and npm with provenance on 2026-11-10 (its 1.4.0). **U9:** top-level
+✅ **MEASURED by 3.0.3 (2026-11-11, run 43061998593):** CI's tag `v3.0.3` (made by
+`github-actions[bot]` inside the run) and JSR's OIDC publish with provenance, in one run that the
+owner's push started. **U9:** top-level
 `permissions: {}`, every action pinned to a commit hash, a per-commit concurrency group that
 queues and never cancels; Bun and Deno come through their setup actions by version, **not
 sha256-pinned** — a gap kept, as wasmtk's.
@@ -69,6 +70,45 @@ Read-only against the real GitHub and registries: `release-state` on this branch
 with the needs above, 0 unpinned actions.
 
 ## Release History
+
+### 3.0.3 — a PATCH from `main` (2026-11-11 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both — the FIRST release in the owner's order (D1)
+
+**What changed** (`CHANGELOG.md` § 3.0.3): The same package as 3.0.2 — **nothing in it changed**.
+This is the first release made in the project's new release order: CI checks the commit first,
+then CI creates the tag, then the GitHub Release page, then the publish to JSR and npm, all in one
+run. Until now the tag was pushed by hand before CI had checked anything.
+
+The owner's go: "release", level patch (asked: the package is 3.0.2's; the release proves the new
+order on GitHub).
+
+1. "push" first: the D1 work (`c62d32bd9`, merge `ea9c824a8`) pushed; `publish.yml`'s first runs
+   on `ea9c824a8` and `ec5675757` stopped in `checks` (`released`), every other job skipped — the
+   non-release path, as designed. `CHANGELOG.md` § 3.0.3 on `release/3.0.3` (`163bbc566`, merge
+   `ec5675757`), pushed unbumped.
+2. `bun run bump patch` REFUSED first: v3.0.2's tests of the release scripts fail against the new
+   ones (no local tag, `fetch` among the guards, auto-tag.yml gone). The six listed in
+   `tests/accepted-changes.json` with the reason (`0d1d9d84c`, merge `71cb51e60`; DG7's two 2.2.2
+   entries dropped as stale), then: floor PATCH, **v3.0.2's tests on this tree: 6,476, 6 failed,
+   6 accepted**; `version_sync` 3 / 3; `surface:check` matches.
+3. ⚠️ **CI's Browsers job could not pass — a GitHub runner outage, not this change.** Three runs
+   (43052056661, 43052419072, 43058379392) and the bump's (43061998594): apt on the runners could
+   not resolve the Ubuntu mirrors (`azure.archive.ubuntu.com`, `archive.ubuntu.com`,
+   `security.ubuntu.com`; `packages.microsoft.com` answered), on Ubuntu 26.04 AND 24.04, so
+   Playwright's `install --with-deps` (181 packages, 114 MB) timed out at 20 minutes; the last run,
+   half-recovered, failed on a stale index (`libsoup-3.0` 404, exit 100). Every other CI job
+   green. A pin to 24.04 (`b5a747f39`) was the wrong diagnosis and was reverted (`90a0c1cad`).
+   **Owner: release through the outage** — 3.0.3's package is 3.0.2's, which passed Browsers on
+   2026-11-09. The job's speed-ups (fail fast; Playwright's container) follow on their own branch.
+4. `bun run release`: the guards, cold dry run, `bun run check`, the entry check; `bump to v3.0.3`
+   (`4281a2521`); **`main` ONLY pushed**, read back. No tag from this machine.
+5. **publish.yml run 43061998593 — ALL SIX JOBS GREEN, in the owner's order:** `checks` (new, both
+   registries free, the gate) → **`tag`: `v3.0.3` created by CI** (annotated `cb27aec1e`, peels to
+   `4281a2521`, `ls-remote`) → **`release`: page `v3.0.3` by `github-actions[bot]`**, published
+   16:54:51Z, not a draft → **`jsr`: 3.0.3 at 16:55:21Z, Rekor `3814264552`** — JSR accepted the
+   OIDC publish in a run whose tag the bot made (U6, measured) → **`npm`: 3.0.3 at 16:58:54Z, SLSA
+   provenance**. JSR `latest` and npm `latest` = 3.0.3.
+6. **As a user:** `npx @synapticforge1/binaryang@3.0.3 --version` (Node 24.21.0) and `deno run -A
+   jsr:@jrmarcum/binaryang@3.0.3 --version` (`--minimum-dependency-age=0`) print `binaryang 3.0.3`.
 
 ### 3.0.2 — a PATCH from `main` (2026-11-09 UTC) — 🚀 PUBLISHED to JSR AND npm by the workflow, provenance on both
 
