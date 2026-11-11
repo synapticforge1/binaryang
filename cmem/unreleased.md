@@ -18,6 +18,11 @@ optimizer fixes (tail-call inlining, SimplifyLocals in a `try`) and the integer-
 `--generate-names`; code lens passes 2 and 3, open-work 50 and 52, CL7. The full notes as
 gathered: `git show 1222e78d5:cmem/unreleased.md`.
 
+**Repo-only since 3.0.2 (nothing in either package; no release-note line):** the release ORDER
+is the owner's D1 (workspace letter H33, 2026-11-10/11) — `bun run release` pushes `main` only,
+`publish.yml` runs on that push (checks → CI's tag → page → JSR / npm), `auto-tag.yml` retired;
+every release record in [release.md](release.md) § "Release History" (D3).
+
 **Repo-only since 2.2.0 (nothing in either package; no release-note line):** the benchmark
 modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
 [optimizer.md](optimizer.md) § "State 2026-10-26"); the upstream reference clones moved into the
