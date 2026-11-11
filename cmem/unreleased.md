@@ -19,9 +19,9 @@ optimizer fixes (tail-call inlining, SimplifyLocals in a `try`) and the integer-
 `--generate-names`; code lens passes 2 and 3, open-work 50 and 52, CL7. The full notes as
 gathered: `git show 1222e78d5:cmem/unreleased.md`.
 
-**Repo-only since 3.0.3 (nothing in either package; no release-note line):** CI's browser check
-in two jobs, apt failing fast (2026-11-11; [run-everywhere.md](run-everywhere.md)). Owner, the
-same day: no release for it — it ships with the next package change.
+**Shipped in 3.0.4 (no package change; CHANGELOG § 3.0.4), repo-only:** CI's browser check in
+two jobs, apt failing fast (2026-11-11; [run-everywhere.md](run-everywhere.md)). The owner first
+held it for the next package change, then released it the same day ("release 3.0.4").
 
 **Shipped in 3.0.3 (no package change; CHANGELOG § 3.0.3), repo-only:** the release ORDER
 is the owner's D1 (workspace letter H33, 2026-11-10/11) — `bun run release` pushes `main` only,
