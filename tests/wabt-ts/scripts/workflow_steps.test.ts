@@ -8,8 +8,13 @@ import { isAbsolute, join } from 'node:path';
 import process from 'node:process';
 import { gzipSync } from 'node:zlib';
 import { expect } from '@std/expect';
-import { main, tagVersion } from '../../../scripts/release/workflow.ts';
-import { dispatch, main as githubMain, peelTag, release } from '../../../scripts/release/github.ts';
+import {
+  isReleaseVersion,
+  lsRemoteTagCommit,
+  main,
+  releaseState,
+} from '../../../scripts/release/workflow.ts';
+import { main as githubMain, peelTag, release, tag } from '../../../scripts/release/github.ts';
 import {
   jsrHas,
   jsrRekor,
@@ -26,8 +31,8 @@ import { NPM_NAME } from '../../../scripts/npm/build.ts';
 
 // The workflows' decisions moved out of bash into scripts/release/workflow.ts (owner rule,
 // 2026-10-21: a condition or a loop goes in a .ts file, the shell only launches it). These pin
-// what the bash did: the outputs auto-tag.yml's `if:`s read, the exit codes publish.yml stops on,
-// and the two registries' provenance fields. The poll's network loop is not run here.
+// the outputs publish.yml's `if:`s read, the exit codes it stops on, and the two registries'
+// provenance fields. The poll's network loop is not run here.
 
 const jsr = JSON.parse(readFileSync('jsr.json', 'utf8')) as { name: string; version: string };
 
@@ -69,33 +74,39 @@ async function run(
 }
 
 describe("the workflows' decisions, in TypeScript", () => {
-  it('tag-matches: the tag must name jsr.json version, or publish.yml stops', async () => {
-    expect((await run(['tag-matches', `v${jsr.version}`])).code).toBe(0);
-    expect((await run(['tag-matches', 'v0.0.1'])).code).toBe(1);
-    expect((await run(['tag-matches', jsr.version])).code).toBe(1); // no `v`: not a version tag
-    expect(tagVersion('v1.13.2')).toBe('1.13.2');
-    expect(tagVersion('main')).toBe(null);
+  // D1 (owner, 2026-11-10): publish.yml runs on every push of main and asks this first.
+  it('release-state: no tag = new, the tag on this commit = rerun, elsewhere = released', () => {
+    expect(releaseState(null, 'aaa')).toBe('new');
+    expect(releaseState('aaa', 'aaa')).toBe('rerun');
+    expect(releaseState('bbb', 'aaa')).toBe('released');
   });
 
-  it("tag-check: outputs the version, and whether its tag exists (auto-tag.yml's if:)", async () => {
-    const r = await run(['tag-check']);
-    expect(r.code).toBe(0);
-    expect(r.outputs['version']).toBe(jsr.version);
-    expect(['true', 'false']).toContain(r.outputs['exists']);
+  it('release-state: reads the peeled commit of an annotated tag from ls-remote', () => {
+    const annotated = 'tagobj\trefs/tags/v9.9.9\ncommit1\trefs/tags/v9.9.9^{}\n';
+    expect(lsRemoteTagCommit(annotated, 'v9.9.9')).toBe('commit1');
+    expect(lsRemoteTagCommit('commit2\trefs/tags/v9.9.9\n', 'v9.9.9')).toBe('commit2');
+    expect(lsRemoteTagCommit('', 'v9.9.9')).toBe(null);
+    // A longer tag with the same prefix is another tag.
+    expect(lsRemoteTagCommit('x\trefs/tags/v9.9.90\n', 'v9.9.9')).toBe(null);
   });
 
-  it('release-cred: yes / no from RELEASE_PAT, never the secret itself', async () => {
-    expect((await run(['release-cred'], { RELEASE_PAT: undefined })).outputs).toEqual({
-      pat: 'no',
-    });
-    expect((await run(['release-cred'], { RELEASE_PAT: '' })).outputs).toEqual({ pat: 'no' });
-    const yes = await run(['release-cred'], { RELEASE_PAT: 's3cret' });
-    expect(yes.outputs).toEqual({ pat: 'yes' });
-    expect(JSON.stringify(yes.outputs)).not.toContain('s3cret');
+  it('release-state: a release version is a plain major.minor.patch', () => {
+    expect(isReleaseVersion('3.0.2')).toBe(true);
+    expect(isReleaseVersion('3.0.2-rc.1')).toBe(false);
+    expect(isReleaseVersion('03.0.2')).toBe(false);
   });
 
-  it('an unknown subcommand is a usage error; the registry questions moved to registry.ts', async () => {
+  it('release-state: refuses without GITHUB_SHA, before reading anything', async () => {
+    expect((await run(['release-state'], { GITHUB_SHA: undefined })).code).toBe(1);
+  });
+
+  it('an unknown subcommand is a usage error; the retired ones are gone', async () => {
     expect((await run(['nope'])).code).toBe(2);
+    expect((await run(['release-state', 'extra'])).code).toBe(2);
+    // auto-tag.yml's and the tag trigger's subcommands, retired with them (D1, 2026-11-10).
+    for (const old of ['tag-check', 'release-cred', 'tag-matches']) {
+      expect((await run([old, `v${jsr.version}`])).code, old).toBe(2);
+    }
     expect((await run(['oidc-check'])).code).toBe(2);
     expect((await run(['provenance', 'jsr', '1.0.0'])).code).toBe(2);
   });
@@ -199,6 +210,22 @@ describe('registry.ts: what the publish jobs ask JSR and npm', () => {
     expect(ok.outputs).toEqual({ state: 'free' });
   });
 
+  it('free: a NEW number must be unknown to JSR AND npm, or checks stops before the tag', async () => {
+    const both = (jsrStatus: number, npmDoc: { status: number; body?: unknown }) =>
+      mockNet({ [JSR_V]: [{ status: jsrStatus, body: {} }], [NPM_DOC]: [npmDoc] }).net;
+    const free = (net: ReturnType<typeof both>) =>
+      run(['free', '9.9.9'], {}, (a) => registryMain(a, net)).then((r) => r.code);
+    expect(await free(both(404, { status: 404 }))).toBe(0);
+    expect(await free(both(200, { status: 404 }))).toBe(1); // on JSR already
+    const burned = { status: 200, body: { time: { '9.9.9': 'x' } } };
+    expect(await free(both(404, burned))).toBe(1);
+    const published = { status: 200, body: { versions: { '9.9.9': {} }, time: { '9.9.9': 'x' } } };
+    expect(await free(both(404, published))).toBe(1);
+    // A broken read is never "free".
+    await expect(free(both(503, { status: 404 }))).rejects.toThrow('HTTP 503');
+    expect((await run(['free', 'v9.9.9'], {}, registryMain)).code).toBe(2);
+  });
+
   it('npm-tarball: the built manifest must be ours, this version, script-free, provenance on', () => {
     expect(tarballProblems(tgz(goodManifest), '9.9.9')).toEqual([]);
     expect(tarballProblems(tgz({ ...goodManifest, scripts: {} }), '9.9.9')).toEqual([]);
@@ -291,8 +318,13 @@ interface MockState {
   refs: Record<string, { type: string; sha: string }>;
   tagObjects: Record<string, { type: string; sha: string }>;
   releases: Record<string, { tag_name: string; html_url: string; author: { login: string } }>;
-  /** Status to answer a POST /releases or a dispatch with; 201 / 204 when unset. */
+  /** Status to answer a POST /releases with; 201 when unset. */
   postStatus?: number;
+  /** Status to answer POST /git/tags or POST /git/refs with; 201 when unset. */
+  tagObjectStatus?: number;
+  refPostStatus?: number;
+  /** A created ref points somewhere else (it "does not read back"). */
+  refLands?: string;
   /** A created release is not stored (it "does not read back"). */
   dropCreated?: boolean;
   /** Status for GET /git/ref, when not the state's own answer. */
@@ -311,7 +343,20 @@ function mockGitHub(state: MockState) {
     if (method === 'POST') {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       posts.push({ path, body });
-      if (path.endsWith('/dispatches')) return reply(state.postStatus ?? 204);
+      if (path === '/git/tags') {
+        if (state.tagObjectStatus !== undefined) return reply(state.tagObjectStatus);
+        const sha = `obj-${String(body['tag'])}`;
+        state.tagObjects[sha] = { type: String(body['type']), sha: String(body['object']) };
+        return reply(201, { sha });
+      }
+      if (path === '/git/refs') {
+        if (state.refPostStatus !== undefined) return reply(state.refPostStatus);
+        const name = String(body['ref']).replace('refs/tags/', '');
+        state.refs[name] = state.refLands === undefined
+          ? { type: 'tag', sha: String(body['sha']) }
+          : { type: 'commit', sha: state.refLands };
+        return reply(201, { ref: body['ref'] });
+      }
       if (state.postStatus !== undefined) return reply(state.postStatus);
       const tag = String(body['tag_name']);
       const rel = {
@@ -424,14 +469,61 @@ describe('github.ts: the GitHub writes, through the REST API (no GitHub CLI)', (
     expect(posts.length).toBe(0);
   });
 
-  it("dispatch: POSTs the workflow's dispatch with the ref; anything but 204 fails", async () => {
-    const ok = mockGitHub({ refs: {}, tagObjects: {}, releases: {} });
-    expect((await dispatch(ok.hub, 'publish.yml', 'v9.9.9')).code).toBe(0);
-    expect(ok.posts).toEqual([
-      { path: '/actions/workflows/publish.yml/dispatches', body: { ref: 'v9.9.9' } },
+  // D1 (owner, 2026-11-10): CI pushes the tag, after checks, before the page.
+  it('tag: no tag yet → an annotated tag object on the commit, its ref, read back', async () => {
+    const state: MockState = { refs: {}, tagObjects: {}, releases: {} };
+    const { hub, posts } = mockGitHub(state);
+    const out = await tag(hub, { tag: 'v9.9.9', sha: SHA });
+    expect(out.code).toBe(0);
+    expect(posts).toEqual([
+      {
+        path: '/git/tags',
+        body: { tag: 'v9.9.9', message: 'Release v9.9.9', object: SHA, type: 'commit' },
+      },
+      { path: '/git/refs', body: { ref: 'refs/tags/v9.9.9', sha: 'obj-v9.9.9' } },
     ]);
-    const no = mockGitHub({ refs: {}, tagObjects: {}, releases: {}, postStatus: 403 });
-    expect((await dispatch(no.hub, 'publish.yml', 'v9.9.9')).code).toBe(1);
+    expect(await peelTag(hub, 'v9.9.9')).toBe(SHA);
+  });
+
+  it('tag: already on this commit is done — exit 0, no write (re-runs are safe)', async () => {
+    const { hub, posts } = mockGitHub({
+      refs: { 'v9.9.9': { type: 'tag', sha: 'aaa' } },
+      tagObjects: { aaa: { type: 'commit', sha: SHA } },
+      releases: {},
+    });
+    expect((await tag(hub, { tag: 'v9.9.9', sha: SHA })).code).toBe(0);
+    expect(posts.length).toBe(0);
+  });
+
+  it('tag: on another commit is refused with no write (a published tag never moves)', async () => {
+    const { hub, posts } = mockGitHub({
+      refs: { 'v9.9.9': { type: 'commit', sha: OTHER } },
+      tagObjects: {},
+      releases: {},
+    });
+    expect((await tag(hub, { tag: 'v9.9.9', sha: SHA })).code).toBe(1);
+    expect(posts.length).toBe(0);
+  });
+
+  it('tag: a refused write, or a tag that does not read back, fails the job', async () => {
+    const base = (): MockState => ({ refs: {}, tagObjects: {}, releases: {} });
+    const noObj = mockGitHub({ ...base(), tagObjectStatus: 403 });
+    expect((await tag(noObj.hub, { tag: 'v9.9.9', sha: SHA })).code).toBe(1);
+    expect(noObj.posts.length).toBe(1); // no ref written after a failed object
+    expect(
+      (await tag(mockGitHub({ ...base(), refPostStatus: 422 }).hub, { tag: 'v9.9.9', sha: SHA }))
+        .code,
+    ).toBe(1);
+    expect(
+      (await tag(mockGitHub({ ...base(), refLands: OTHER }).hub, { tag: 'v9.9.9', sha: SHA }))
+        .code,
+    ).toBe(1);
+  });
+
+  it('tag: a broken tag read throws before any write — never taken for "absent"', async () => {
+    const { hub, posts } = mockGitHub({ refs: {}, tagObjects: {}, releases: {}, refStatus: 502 });
+    await expect(tag(hub, { tag: 'v9.9.9', sha: SHA })).rejects.toThrow('HTTP 502');
+    expect(posts.length).toBe(0);
   });
 
   it('main: usage errors exit 2; a missing token exits 1 before any request', async () => {
@@ -443,9 +535,12 @@ describe('github.ts: the GitHub writes, through the REST API (no GitHub CLI)', (
     try {
       expect(await githubMain([])).toBe(2);
       expect(await githubMain(['release'])).toBe(2);
-      expect(await githubMain(['dispatch', 'publish.yml'])).toBe(2);
+      expect(await githubMain(['tag'])).toBe(2);
+      expect(await githubMain(['tag', 'v1.0.0', 'extra'])).toBe(2);
+      // The retired auto-tag dispatch (D1, 2026-11-10).
+      expect(await githubMain(['dispatch', 'publish.yml', 'v1.0.0'])).toBe(2);
       delete process.env['GITHUB_TOKEN'];
-      expect(await githubMain(['dispatch', 'publish.yml', 'v1.0.0'])).toBe(1);
+      expect(await githubMain(['tag', 'v1.0.0'])).toBe(1);
     } finally {
       console.error = err;
       console.log = log;

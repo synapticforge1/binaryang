@@ -145,6 +145,6 @@ console.log('Next step:');
 console.log('  bun run release');
 console.log('');
 console.log(
-  `That commits the bump, tags v${next}, and pushes both. The tag push triggers`,
+  `That commits the bump and pushes main ONLY. publish.yml then checks that commit, CI tags`,
 );
-console.log('publish.yml on GitHub, which runs deno publish with OIDC provenance.');
+console.log(`v${next}, makes the Release page, and publishes to JSR and npm, in that order.`);

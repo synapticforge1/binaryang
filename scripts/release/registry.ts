@@ -7,6 +7,7 @@
  *
  * ```sh
  * bun scripts/release/registry.ts oidc-check                     # OIDC env present? (diagnostic)
+ * bun scripts/release/registry.ts free <version>                 # neither registry has it, or exit 1
  * bun scripts/release/registry.ts jsr-has <version>              # output present=true|false
  * bun scripts/release/registry.ts jsr-wait <version>             # until JSR answers 200
  * bun scripts/release/registry.ts npm-state <version>            # state=free|published; burned → exit 1
@@ -233,7 +234,7 @@ async function provenance(net: Net, registry: 'jsr' | 'npm', version: string): P
 }
 
 const USAGE =
-  'usage: registry.ts oidc-check | jsr-has <v> | jsr-wait <v> | npm-state <v> | npm-tarball <dir> <v> | provenance jsr|npm <v>';
+  'usage: registry.ts oidc-check | free <v> | jsr-has <v> | jsr-wait <v> | npm-state <v> | npm-tarball <dir> <v> | provenance jsr|npm <v>';
 
 /** The subcommand's exit code. */
 export async function main(argv: string[], net: Net = {}): Promise<number> {
@@ -275,6 +276,23 @@ export async function main(argv: string[], net: Net = {}): Promise<number> {
       }
       console.log(`::error::JSR never answered 200 for ${a}: the upload did not happen`);
       return 1;
+    }
+    case 'free': {
+      // publish.yml `checks`, for a NEW release, before CI tags anything (D1): neither registry
+      // may know the number. JSR versions are immutable; npm never reuses one (C34 (2)).
+      if (!isVersion(a)) break;
+      const onJsr = await jsrHas(net, jsrManifest().name, a);
+      const s = await npmState(net, a);
+      console.log(`${a}: JSR ${onJsr ? 'HAS it' : 'free'}; npm ${s}`);
+      if (onJsr || s !== 'free') {
+        console.log(
+          `::error::${a} is not free on both registries (JSR ${
+            onJsr ? 'has it' : 'free'
+          }, npm ${s}): refused before the tag. Bump the version.`,
+        );
+        return 1;
+      }
+      return 0;
     }
     case 'npm-state': {
       if (!isVersion(a)) break;

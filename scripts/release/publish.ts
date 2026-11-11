@@ -1,29 +1,30 @@
 /**
  * @module scripts/release/publish
  *
- * Local release driver. Commits and tags whatever `jsr.json` currently says,
- * then pushes commit + tag in a single atomic `git push origin main vX.Y.Z`.
- * The tag push triggers `.github/workflows/publish.yml` on GitHub: developer
- * pushes are authenticated with a PAT (not GITHUB_TOKEN), so the tag push
- * fires the workflow directly without going through the auto-tag detour.
+ * Local release driver (U4 of the workspace's `release-process.md` § 5). Commits the bump that
+ * `jsr.json` and `main.ts` carry as `bump to vX.Y.Z`, then pushes `main` ONLY and reads it back
+ * with `git ls-remote`. It makes and pushes NO tag: 🔒 the owner's order (2026-11-10, workspace
+ * letter H33, D1) is "the CI to check first, then push the tag, and then create the release page
+ * from the tag, then publish the package to the registry". `.github/workflows/publish.yml` runs
+ * on the push: `checks` → CI's `tag` → the `release` page → `jsr` / `npm`. Until 2026-11-10 this
+ * script force-wrote the tag locally and pushed `main` and the tag together.
  *
  * Typical flow:
- *   1. bun run bump        # writes the next version into jsr.json
- *   2. bun run release     # commits + tags + pushes (this script)
+ *   1. bun run bump <level>   # writes the next version into jsr.json and main.ts
+ *   2. bun run release        # guards, commits the bump, pushes main (this script)
+ *   3. Watch the Actions tab — publish.yml's six jobs; a failure past the tag is
+ *      "Re-run failed jobs", never a new tag.
  *
  * Named `release`, not `publish`, deliberately: `bun run publish:dry` runs
  * `deno publish --dry-run`, which checks the JSR manifest and is NOT a dry run
  * of this script. Two names one keystroke apart, doing unrelated things, with
  * only one of them irreversible.
- *   3. Watch the Actions tab — JSR publish + GitHub Release are both
- *      produced by publish.yml.
  *
  * Why this script does NOT call `deno publish` itself: JSR provenance
  * requires the GitHub-issued OIDC token, which is only available inside the
  * GitHub Actions workflow. A local `deno publish` succeeds but the resulting
- * version is permanently flagged "No provenance" on JSR. So the local script
- * stops at "push the tag" — `deno publish` runs only inside `publish.yml`,
- * and only there.
+ * version is permanently flagged "No provenance" on JSR. So `deno publish`
+ * runs only inside `publish.yml`, and only there.
  *
  * The single release path for binaryang. binaryen-ts and wabt-ts each shipped
  * their own near-identical copy; this is the union of the two, keeping every
@@ -36,8 +37,9 @@ import { readCurrentVersion } from './version.ts';
 import { RELEASE_FILES, releaseBlockers } from './release-guard.ts';
 import { checkEntry } from './entry-check.ts';
 import { DENO, denoCommand } from '../deno.ts';
+import { jsrHas, npmState } from './registry.ts';
 
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -102,19 +104,57 @@ if (dirty.length > 0) {
   process.exit(1);
 }
 
-// 0b. GUARD: refuse if the tag is already on the remote.
+// 0a. GUARD: on `main`, and `main` holds everything GitHub's `main` has.
 //
-// A local tag is re-creatable, and step 3 deliberately force-writes it for
-// retry safety. A REMOTE tag is not: it has already triggered publish.yml, so
-// that version is either live on JSR (immutable) or failed for a reason a
-// re-push will not change. Bump instead.
+// publish.yml releases from `main` only; a push from another branch would push nothing CI tags.
+// `fetch` only moves the remote-tracking ref, never a branch or the tree.
+const branch = (await capture(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+if (branch !== 'main') {
+  console.error(`Refusing to release ${tag}: on '${branch}', not 'main'. Merge first (U2).`);
+  process.exit(1);
+}
+await capture(['git', 'fetch', '-q', 'origin', 'main']);
+const behind = spawnSync('git', ['merge-base', '--is-ancestor', 'origin/main', 'HEAD'], {
+  stdio: 'ignore',
+}).status;
+if (behind !== 0) {
+  console.error(`Refusing to release ${tag}: local main does not contain origin/main.`);
+  console.error('  Bring main up to date with GitHub first; a push here would be refused.');
+  process.exit(1);
+}
+
+// 0b. GUARD: the tag exists NOWHERE — not here, not on origin.
+//
+// CI makes the tag (D1). A local tag would be one this script never pushes, and one on origin
+// means the version was released already (its JSR version is immutable): bump instead. Never
+// `git tag -f`, never a forced tag push — a published tag never moves.
+const localTag = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
+  stdio: 'ignore',
+}).status;
+if (localTag === 0) {
+  console.error(`Refusing to release ${tag}: a LOCAL tag ${tag} exists. CI makes the tag;`);
+  console.error(`  delete the local one (git tag -d ${tag}) if it was never pushed.`);
+  process.exit(1);
+}
 const remoteTag = await capture(['git', 'ls-remote', '--tags', 'origin', tag]);
 if (remoteTag.trim() !== '') {
   console.error(`Refusing to release ${tag}: that tag already exists on origin.`);
   console.error('');
-  console.error('  It has already triggered publish.yml, so the version is either live on');
-  console.error('  JSR (immutable) or failed for a reason a re-push will not change.');
-  console.error('  Run `bun run bump` for the next version.');
+  console.error('  The version was released (JSR versions are immutable) or its run failed for a');
+  console.error('  reason a new push will not change ("Re-run failed jobs" on that run).');
+  console.error('  Run `bun run bump <level>` for the next version.');
+  process.exit(1);
+}
+
+// 0b2. GUARD: neither registry knows the number (publish.yml's `checks` asks again).
+// npm never reuses a number, an unpublished one included (C34 (2)).
+const manifestName = (JSON.parse(await readFile('jsr.json', 'utf8')) as { name: string }).name;
+const onJsr = await jsrHas({}, manifestName, version);
+const onNpm = await npmState({}, version);
+if (onJsr || onNpm !== 'free') {
+  console.error(
+    `Refusing to release ${tag}: JSR ${onJsr ? 'has it' : 'free'}, npm ${onNpm}. Bump again.`,
+  );
   process.exit(1);
 }
 
@@ -194,21 +234,21 @@ if (diffCode !== 0) {
   console.log('(the bump is already committed — skipping commit)\n');
 }
 
-// 3. Force-tag locally for re-run safety: if a previous publish attempt got
-//    as far as creating the tag but failed before pushing, this overwrites
-//    the stale local tag instead of erroring.
-await run(['git', 'tag', '-f', tag]);
+// 3. Push `main` ONLY, as a user (the run's actor is who JSR authorises), and read it back.
+await run(['git', 'push', 'origin', 'main']);
+const head = (await capture(['git', 'rev-parse', 'HEAD'])).trim();
+const remoteMain =
+  (await capture(['git', 'ls-remote', 'origin', 'refs/heads/main'])).split(/\s/)[0];
+if (remoteMain !== head) {
+  console.error(`\nThe push did not read back: origin main is ${remoteMain}, HEAD is ${head}.`);
+  process.exit(1);
+}
 
-// 4. Push commit + tag in a single operation. Atomic from git's perspective,
-//    which avoids racing `auto-tag.yml` (it sees the tag already exists when
-//    it fires on the main push and no-ops).
-await run(['git', 'push', 'origin', 'main', tag]);
-
-console.log(`\nPushed ${tag}. publish.yml will run:`);
+console.log(`\nPushed main = ${head} (read back). publish.yml releases ${tag} from it:`);
 console.log(`  https://github.com/synapticforge1/binaryang/actions`);
 console.log('');
-console.log('Its jobs: checks (version, compatibility gate, check, both test legs, JSR dry');
-console.log('run, npm number) -> jsr (deno publish with OIDC provenance, read back) ->');
-console.log('release (the GitHub Release page); checks -> npm-build -> npm (the proven');
-console.log('tarball, provenance read back). Read every job; a failure past the upload is');
-console.log('re-run with "Re-run failed jobs", never a new tag.');
+console.log("Its jobs, in the owner's order: checks (is it a release, both registries free,");
+console.log('compatibility gate, check, both test legs, JSR dry run) -> tag (CI tags this');
+console.log('commit) -> release (the GitHub Release page) -> jsr (deno publish, provenance read');
+console.log('back) -> npm (the proven tarball, provenance read back). Read every job; a failure');
+console.log('is "Re-run failed jobs", never a new tag.');

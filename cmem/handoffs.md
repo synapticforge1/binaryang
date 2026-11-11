@@ -1230,6 +1230,36 @@ closes its own rows; nothing is written there from here.
     to npm from CI: the two npm traps and "a re-run runs the tag's workflow". binaryang, the
     creator, closes it once wasmtk has bumped or answered.
 
+- **H33 converged, H34 recorded; C43 and C44 CLOSED (2026-11-11**, owner: "review workspace for
+  items needing this project's attention and make the requested fixes and report back to the
+  workspace to close the issues found"). Branch `h33-release-order`, NOT merged or pushed (the
+  owner's words "push" / "release"); answers in the ledger rows.
+  - **H33 (the uniform release shape; D1 the order, D3 one record):** binaryang's card asked only
+    U11's file name, but D1 changed the reference itself. `bun run release` now pushes `main`
+    ONLY (new guards: on `main`, `main` contains `origin/main`, no local tag, no tag on origin,
+    neither registry knows the number; no `tag -f`, no tag push; the push read back with
+    `ls-remote`). `publish.yml` runs on a push of `main`: `checks` (`workflow.ts release-state`,
+    `registry.ts free` for a new number, the gate) → `tag` (`github.ts tag`, CI's annotated tag
+    via REST, read back) → `release` (the page, from the tag, before the publish) → `jsr` /
+    `npm`. `auto-tag.yml` retired, with `github.ts dispatch` and `workflow.ts tag-check` /
+    `release-cred` / `tag-matches`. D3: the 31 release records moved from
+    [publishing.md](publishing.md) to [release.md](release.md) § "Release History", newest first,
+    each opened by its `CHANGELOG.md` summary. Proof: 75 / 75, six mutants each caught by its own
+    case, read-only rehearsal against GitHub / JSR / npm ([release.md](release.md) § "How a
+    release is made"). ⚠️ U6's JSR question is UNMEASURED here until the first release in this
+    order (S3D measured it green on 2026-11-10). Gap kept: Bun / Deno by version through their
+    setup actions, not sha256 (U9), as wasmtk.
+  - **H34 (the owner's three words):** the workspace's section in
+    [working-rules.md](working-rules.md) is kept where it was written, unchanged, and committed
+    with this branch.
+  - **C43 (binaryang's) — CLOSED:** wasmtk answered (`ce8af1ef`, on its `origin/main`): the
+    3.0 predictions are in its `cmem/workflow.md` § "Bumping the binaryang backend" for its own
+    bump, which waits on the owner; the workspace (best-practices 7.22), loader-js and S3D read
+    the npm traps. Verified: JSR and npm `latest` = 3.0.2.
+  - **C44 (binaryang's) — CLOSED:** the workspace's `release-process.md` §§ 5–8 exist (the
+    uniform shape, the per-ecosystem table with a reference repo per registry, every project's
+    card, the owner's D1–D3), and letter H33 carries it to every repo; §§ 1–4 kept as written.
+
 ## Lessons the correspondence paid for
 
 The ones that became general rules live in [best-practices.md](best-practices.md): hand over the

@@ -33,13 +33,24 @@ not survive a clone is not a project rule. The lessons behind them are in
   those"). The GitHub CLI is not installed and will not be. Check the repo instead: `git
   ls-remote origin` against `origin/*`, `git fetch`, a registry's public API. A workflow writes
   to GitHub through the REST API with its own `GITHUB_TOKEN` from a Bun step —
-  `scripts/release/github.ts` (`dispatch`, `release`), mock-API tested in `workflow_steps.test.ts`
-  (since 2026-11-09). A task only GitHub's web UI can do is an OWNER item, never "blocked on gh".
+  `scripts/release/github.ts` (`tag`, `release`; `dispatch` until 2026-11-10), mock-API tested in
+  `workflow_steps.test.ts` (since 2026-11-09). A task only GitHub's web UI can do is an OWNER item,
+  never "blocked on gh".
+- 🔒 **The release order is the owner's (2026-11-10, workspace letter H33, D1): "the CI to check
+  first, then push the tag, and then create the release page from the tag, then publish the
+  package to the registry".** `bun run release` pushes `main` ONLY — no tag is made, forced or
+  pushed from a machine, ever; publish.yml runs on that push: `checks` → `tag` (CI's annotated
+  tag, REST) → `release` (the page) → `jsr` / `npm`, one run. `auto-tag.yml` is retired.
+  `publish_preflight_wiring.test.ts` holds the order. [release.md](release.md) § "How a release
+  is made".
 - 🔒 **Every Release page is made by CI** (owner, 2026-11-09, letter H32): publish.yml's
-  `release` job, after the registry upload, `contents: write` only, checking out nothing but its
-  script and `jsr.json`; tag on GitHub and peeling to `github.sha` first, an existing page is
-  done, then create and read back. Never by hand. Only tags cut after the job landed get a page
-  (owner: no backfill).
+  `release` job, FROM CI's tag and BEFORE the publish (D1; after the registry upload until
+  2026-11-10), `contents: write` only, checking out nothing but its script and `jsr.json`; tag on
+  GitHub and peeling to `github.sha` first, an existing page is done, then create and read back.
+  Never by hand. Only tags cut after the job landed get a page (owner: no backfill).
+- 🔒 **Every release is recorded in ONE place** (owner, 2026-11-10, H33 D3):
+  [release.md](release.md) § "Release History", newest first, each version with a summary of what
+  changed, its run id and read-backs.
 - **Messages go through a file**: `git commit -F <file>` and `git merge --no-ff -F <file>`. Write
   the file with a file-writing tool, never a heredoc or a double-quoted `-m` (see "Do not author
   file CONTENT through a shell heredoc" in [best-practices.md](best-practices.md), which lists all
@@ -65,10 +76,11 @@ not survive a clone is not a project rule. The lessons behind them are in
 - **`jsr.json` stays at the released version** — the package manifest since B1 of the Bun
   migration (2026-10-12, [bun-migration.md](bun-migration.md)); `deno.json` before that, and
   `deno.json` is gone since B7 (2026-10-13), so `deno publish` reads `jsr.json` by itself (read
-  the version there, and the latest release in [publishing.md](publishing.md)'s current-state line
-  — a number quoted here went stale for two weeks). The version line is what ARMS a release —
-  `auto-tag` publishes whenever `v<version>` has no tag. See [publishing.md](publishing.md); the unreleased changes waiting for it are in
-  [unreleased.md](unreleased.md).
+  the version there, and the latest release at the top of [release.md](release.md) § "Release
+  History" — a number quoted here went stale for two weeks). The version line is what ARMS a
+  release — publish.yml releases whenever a push of `main` carries a version with no tag (until
+  2026-11-10 `auto-tag` did). See [release.md](release.md); the unreleased changes waiting for it
+  are in [unreleased.md](unreleased.md).
 - **Docs and memory land in the SAME commit as the code they describe** (workspace floor,
   `../cmem/working-rules.md` § Git, adopted here 2026-10-22, owner: "yes"): the cmem record,
   `unreleased.md` and `CHANGELOG.md` § Unreleased lines for a change go in that change's commit,
@@ -384,3 +396,22 @@ in one parent directory (its absolute path is in the private `cmem/local/environ
 - **The predecessors are FROZEN** (owner, 2026-09-02): no further change to the `binaryen-ts` or
   `wabt-ts` GitHub repos or JSR packages. Do not re-open their descriptions. The freeze does not
   cover binaryang.
+
+## Owner commands: "commit", "push", "release" (owner, 2026-11-10)
+
+🔒 Written into every project by the workspace session on the owner's direction (2026-11-10:
+"please write that into each project"; workspace `cmem/working-rules.md` Tooling rule 12, letter
+H34). When the owner says:
+
+- **"commit"** — first run "update the project memory files" (re-derive this repo's `cmem/` from
+  its current state), then commit to the branch being worked on. Nothing is pushed.
+- **"push"** — perform "commit", then merge the branch into `main`, then push `main` (and the
+  working branch) to GitHub (`origin`) and read it back with `git ls-remote`.
+- **"release"** — perform "push", then the release process: the workspace's
+  `cmem/release-process.md` §§ 5–8 — CI checks first, then CI pushes the tag, then the GitHub
+  Release page from the tag, then the publish to the registry — recorded in `cmem/release.md`
+  § "Release History" (newest first, a summary of what changed). The level (patch / minor /
+  major) is the owner's: ask if it was not given.
+
+Each command includes the one before it, and none goes further than its own word (a "commit"
+never pushes, a "push" never releases). This repo's own gate and merge rules apply at each step.
