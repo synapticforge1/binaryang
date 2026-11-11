@@ -179,6 +179,12 @@ jobs:
       - name: Install the browsers
         run: bun scripts/ci/install-browsers.ts
 
+      # The container runs as root and the workspace belongs to the runner's user, so git refuses
+      # it ("dubious ownership") once actions/checkout has removed its own exception; the check
+      # lists its corpus with `git ls-files`.
+      - name: Let git read the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Run the library in every browser
         run: bun run browsers --require-all
 
