@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.4
+
+The same package as 3.0.3 — **nothing in it changed**. The project's own checks changed: the
+test that runs the library in real browsers is now two faster jobs (Chromium, Firefox and WebKit
+in Playwright's own container image; Chrome, Edge, Brave and Opera on GitHub's runner), so a
+broken package mirror on GitHub's side no longer stalls it.
+
 ## 3.0.3
 
 The same package as 3.0.2 — **nothing in it changed**. This is the first release made in the
