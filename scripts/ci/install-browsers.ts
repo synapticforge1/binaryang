@@ -2,31 +2,24 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * CI only: installs what `bun run browsers --require-all` runs (open-work 28.3), INSIDE
- * Playwright's own container (`mcr.microsoft.com/playwright:v<our version>-noble`, ci.yml's
- * Browsers job; owner, 2026-11-11). The image already holds Playwright's Chromium, Firefox and
- * WebKit and every system package they need, so nothing of theirs is downloaded here and no
- * Ubuntu mirror is asked for them. What the image lacks:
+ * CI only: installs Brave and Opera for ci.yml's "Browsers (installed)" job, on GitHub's hosted
+ * Ubuntu runner, from each vendor's apt repository. That runner already has Chrome and Edge, so
+ * nothing else is installed: Playwright's own Chromium, Firefox and WebKit are checked by the
+ * other Browsers job, inside Playwright's container, where they are part of the image.
  *
- *   - Chrome and Edge (the stable channels): Playwright's own installers (`playwright install
- *     chrome msedge`), which fetch Google's and Microsoft's packages;
- *   - Brave and Opera: each vendor's apt repository.
- *
- * Why (2026-11-11): all day GitHub's runners could not resolve the Ubuntu mirrors, and on the
- * hosted image `playwright install --with-deps` asked them for 181 packages (114 MB), waiting
- * out the job's 20-minute limit. So apt is also told to FAIL FAST (one retry, 15 s per request):
- * an outage now fails this step in about a minute instead of hanging.
+ * Why the split (owner, 2026-11-11): all day GitHub's runners could not resolve the Ubuntu
+ * mirrors. On the hosted runner `playwright install --with-deps` asked them for 181 packages
+ * (114 MB) and waited out the job's 20-minute limit; inside the container, Chrome's package could
+ * not get its one missing dependency (`xdg-utils`). Each job now asks the mirrors for nothing it
+ * can avoid, and apt FAILS FAST (one retry, 15 s per request) for what is left.
  *
  * Logic in TypeScript, not in the workflow's shell (the working rules): each step is one command,
- * run in order, and the first failure stops the script with its exit code. The container runs as
- * root, and the image need not have `sudo`, `curl` or `gpg`: keys are fetched here, and an
- * ASCII-armored key is written as `.asc`, which apt reads as it is.
+ * run in order, and the first failure stops the script with its exit code.
  *
  *   bun scripts/ci/install-browsers.ts
  */
 
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
 import process from 'node:process';
 
 /** An apt repository: its signing key, its source line, and the package to install from it. */
@@ -59,7 +52,7 @@ const APT: AptBrowser[] = [
   },
 ];
 
-/** apt's network settings for every apt run here, Playwright's installers' included. */
+/** apt's network settings for every apt run here: one retry, 15 s per request. */
 export const APT_FAIL_FAST = [
   'Acquire::Retries "1";',
   'Acquire::http::Timeout "15";',
@@ -67,16 +60,17 @@ export const APT_FAIL_FAST = [
   '',
 ].join('\n');
 
-/** The keyring file for a fetched key: binary keys as `.gpg`, armored ones as `.asc`. */
+/** The keyring file for a fetched key: binary keys as `.gpg`, armored ones as `.asc` (apt reads both). */
 export function keyringPath(base: string, key: Uint8Array): string {
   const head = new TextDecoder('latin1').decode(key.subarray(0, 64));
   return `${base}${head.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----') ? '.asc' : '.gpg'}`;
 }
 
-function step(label: string, cmd: string, args: string[]): void {
+function step(label: string, cmd: string, args: string[], input?: string | Uint8Array): void {
   console.log(`$ ${label}`);
   const r = spawnSync(cmd, args, {
-    stdio: 'inherit',
+    stdio: [input === undefined ? 'inherit' : 'pipe', 'inherit', 'inherit'],
+    input,
     env: { ...process.env, DEBIAN_FRONTEND: 'noninteractive' },
   });
   if (r.status !== 0) {
@@ -85,16 +79,24 @@ function step(label: string, cmd: string, args: string[]): void {
   }
 }
 
+/** Writes a root-owned file through `sudo tee` (output discarded). */
+function writeRoot(label: string, path: string, content: string | Uint8Array): void {
+  step(label, 'sh', ['-c', `sudo tee "$0" > /dev/null`, path], content);
+}
+
 async function main(): Promise<void> {
-  if (process.platform !== 'linux' || process.getuid?.() !== 0) {
-    console.error('install-browsers.ts runs in CI, as root in the Playwright container');
+  if (process.platform !== 'linux') {
+    console.error('install-browsers.ts is for CI (Linux); locally, install browsers yourself');
     process.exit(2);
   }
-  // 1. Fail fast, before ANY apt run (Playwright's installers run apt too).
-  writeFileSync('/etc/apt/apt.conf.d/99-binaryang-fail-fast', APT_FAIL_FAST);
-  console.log('apt: one retry, 15 s timeouts');
+  // 1. Fail fast, before ANY apt run.
+  writeRoot(
+    'apt: one retry, 15 s timeouts',
+    '/etc/apt/apt.conf.d/99-binaryang-fail-fast',
+    APT_FAIL_FAST,
+  );
 
-  // 2. The vendors' repositories.
+  // 2. The vendors' repositories (keys fetched here: no curl or gpg needed).
   for (const b of APT) {
     const r = await fetch(b.key, { signal: AbortSignal.timeout(30_000) });
     if (!r.ok) {
@@ -103,28 +105,24 @@ async function main(): Promise<void> {
     }
     const key = new Uint8Array(await r.arrayBuffer());
     const keyring = keyringPath(b.keyring, key);
-    writeFileSync(keyring, key);
-    writeFileSync(b.list, `deb [arch=amd64 signed-by=${keyring}] ${b.source}\n`);
-    console.log(`${b.name}: ${keyring}, ${b.list}`);
+    writeRoot(`${b.name}: keyring ${keyring}`, keyring, key);
+    writeRoot(
+      `${b.name}: source`,
+      b.list,
+      `deb [arch=amd64 signed-by=${keyring}] ${b.source}\n`,
+    );
   }
-  step('apt-get update', 'apt-get', ['update', '-q']);
 
-  // 3. Chrome and Edge, by Playwright's installers (they fetch and install the vendor packages).
-  step('playwright install chrome msedge', 'node', [
-    'node_modules/playwright/cli.js',
-    'install',
-    'chrome',
-    'msedge',
-  ]);
-
-  // 4. Brave and Opera.
-  step(`apt-get install ${APT.map((b) => b.pkg).join(' ')}`, 'apt-get', [
+  // 3. Brave and Opera.
+  step('apt-get update', 'sudo', ['apt-get', 'update', '-q']);
+  step(`apt-get install ${APT.map((b) => b.pkg).join(' ')}`, 'sudo', [
+    'apt-get',
     'install',
     '-y',
     '-q',
     ...APT.map((b) => b.pkg),
   ]);
-  console.log('browsers installed');
+  console.log('Brave and Opera installed');
 }
 
 if (import.meta.main) await main();

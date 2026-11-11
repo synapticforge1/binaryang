@@ -141,22 +141,22 @@ jobs:
   # ran headless here). Every export loads,
   # the smoke hash and the corpus hashes equal the host's, and each engine's refusals match
   # tests/browser-known-differences.json. `--require-all`: a browser that cannot launch fails.
-  browsers:
-    name: Browsers
+  #
+  # Two jobs (owner, 2026-11-11), so neither asks Ubuntu's mirrors for what it can avoid: on that
+  # day GitHub's runners could not resolve them, and the one job waited out its limit asking for
+  # 181 packages. The two `--only` lists together are every browser check-browsers.ts knows (a
+  # test holds that). A stalled install fails at 20 minutes, to re-run (owner, 2026-10-24).
+  #
+  # 1. Playwright's own engines, in Playwright's own image: Chromium, Firefox and WebKit and all
+  #    their system packages are in it, so NOTHING is installed. The tag is package.json's
+  #    Playwright version (a test holds the two equal); the digest is read from mcr.microsoft.com.
+  browsers-engines:
+    name: Browsers (Playwright's Chromium, Firefox, WebKit)
     runs-on: ubuntu-latest
-    # Playwright's own image (owner, 2026-11-11): its Chromium, Firefox and WebKit and all their
-    # system packages are in it, so the job no longer downloads them or asks Ubuntu's mirrors for
-    # 181 packages (on 2026-11-11 GitHub's runners could not resolve those mirrors all day, and the
-    # install waited out the limit below). The tag is package.json's Playwright version — a test
-    # holds the two equal — and the digest is read from mcr.microsoft.com with the tag. Chrome,
-    # Edge, Brave and Opera are installed into it (scripts/ci/install-browsers.ts, apt failing fast).
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
       # Chromium in a container wants the host's IPC namespace (Playwright's Docker guide).
       options: --ipc=host
-    # A stalled browser download failed nothing: it waited (1 h 1 m on 1.15.0's push, 30 min+ on
-    # 1.16.0's) under GitHub's 6-hour default. The job takes ~3 min; a stall now fails, to re-run
-    # (owner, 2026-10-24).
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -176,17 +176,45 @@ jobs:
       - name: Install dev dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install the browsers
-        run: bun scripts/ci/install-browsers.ts
-
       # The container runs as root and the workspace belongs to the runner's user, so git refuses
       # it ("dubious ownership") once actions/checkout has removed its own exception; the check
       # lists its corpus with `git ls-files`.
       - name: Let git read the workspace
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Run the library in every browser
-        run: bun run browsers --require-all
+      - name: Run the library in Chromium, Firefox and WebKit
+        run: bun run browsers --require-all --only=chromium,firefox,safari
+
+  # 2. The installed browsers, on GitHub's hosted runner: Chrome and Edge come with its image;
+  #    Brave and Opera from their vendors' apt repositories (scripts/ci/install-browsers.ts, apt
+  #    failing fast). No Playwright browser is downloaded and no `--with-deps` runs.
+  browsers:
+    name: Browsers (Chrome, Edge, Brave, Opera)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      # Playwright's driver runs on Node (the referee major, as the tests).
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Brave and Opera
+        run: bun scripts/ci/install-browsers.ts
+
+      - name: Run the library in Chrome, Edge, Brave and Opera
+        run: bun run browsers --require-all --only=chrome,edge,brave,opera
 
   runtimes:
     name: CLI on ${{ matrix.name }}
