@@ -13,7 +13,8 @@ pushes `main` ONLY; `publish.yml` runs on that push — `checks` → CI's `tag` 
 Below, wherever a section says the tag is pushed from this machine, "the tag push publishes", or
 auto-tag tags and dispatches, it is history.
 
-**Latest (2026-11-11 UTC): 3.0.3 on BOTH registries, both with provenance** — the first release
+**Latest (2026-11-11 UTC): 3.0.4 on BOTH registries, both with provenance** (run 43072390794,
+JSR Rekor `3815373888`; release.md § "3.0.4"). Before it, **3.0.3** — the first release
 in D1's order (run 43061998593: CI's tag, the page, JSR Rekor `3814264552`, npm SLSA); release.md
 § "3.0.3". Before it, **3.0.2 on BOTH registries, both with provenance** — JSR
 `@jrmarcum/binaryang@3.0.2` (Rekor `3771557608`) and npm `@synapticforge1/binaryang@3.0.2`

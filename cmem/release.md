@@ -71,6 +71,30 @@ with the needs above, 0 unpinned actions.
 
 ## Release History
 
+### 3.0.4 — a PATCH from `main` (2026-11-11 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
+
+**What changed** (`CHANGELOG.md` § 3.0.4): The same package as 3.0.3 — **nothing in it changed**.
+The project's own checks changed: the test that runs the library in real browsers is now two
+faster jobs (Chromium, Firefox and WebKit in Playwright's own container image; Chrome, Edge, Brave
+and Opera on GitHub's runner), so a broken package mirror on GitHub's side no longer stalls it.
+
+The owner's go: "release 3.0.4" (after first holding the CI change for the next package change).
+
+1. `CHANGELOG.md` § 3.0.4 on `release/3.0.4` (`df9b58e97`, merge `bf8bf0678`). `bun run bump patch`
+   refused first: v3.0.3's `browsers_wiring.test.ts` requires the one-job line the two jobs
+   replaced. Listed in `tests/accepted-changes.json` (`accept-3.0.4`, merge `c33726764`; 3.0.3's
+   six entries dropped as stale), then: floor PATCH, **v3.0.3's tests on this tree: 6,520, 1
+   failed, 1 accepted**. Pushed unbumped: **CI 43071399979 green in all nine jobs**, both browser
+   jobs included.
+2. `bun run release`: the guards, cold dry run, `bun run check`, the entry check; `bump to v3.0.4`
+   (`ba20ef1f4`); `main` only pushed, read back.
+3. **publish.yml run 43072390794 — all six jobs green:** CI's tag `v3.0.4` (annotated `f9300fc05`,
+   peels to `ba20ef1f4`, `ls-remote`) → page `v3.0.4` by `github-actions[bot]` (17:58:27Z, not a
+   draft) → **JSR 3.0.4, Rekor `3815373888`** (17:58:53Z) → **npm 3.0.4, SLSA provenance**
+   (18:02:02Z). JSR and npm `latest` = 3.0.4. CI 43072390963 on the bump commit: all nine green.
+4. **As a user:** `npx @synapticforge1/binaryang@3.0.4 --version` (Node 24) and `deno run -A
+   jsr:@jrmarcum/binaryang@3.0.4 --version` print `binaryang 3.0.4`.
+
 ### 3.0.3 — a PATCH from `main` (2026-11-11 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both — the FIRST release in the owner's order (D1)
 
 **What changed** (`CHANGELOG.md` § 3.0.3): The same package as 3.0.2 — **nothing in it changed**.

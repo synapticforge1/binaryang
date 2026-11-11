@@ -1,9 +1,9 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-11 (UTC): the last release is `v3.0.3`, on JSR AND npm, both with provenance**
-([release.md](release.md) § "3.0.3" — 3.0.2's package, the first release in the owner's D1
-order); 3.0.0 and 3.0.1 are on JSR only. Nothing is unreleased on `main`. (Check: `git log
---oneline v3.0.3..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-11 (UTC): the last release is `v3.0.4`, on JSR AND npm, both with provenance**
+([release.md](release.md) § "3.0.4" — 3.0.2's package again, with the two-job browser check);
+3.0.0 and 3.0.1 are on JSR only. Nothing is unreleased on `main`. (Check: `git log --oneline
+v3.0.4..main -- src/ main.ts jsr.json README.md`.)
 
 **Shipped in 3.0.2 and 3.0.1** (kept here until the next release): no package change — 3.0.0
 again, for npm, which 3.0.0 and 3.0.1 did not reach; npm went from 2.2.2 to 3.0.2. Repo-only:
