@@ -13,7 +13,9 @@ pushes `main` ONLY; `publish.yml` runs on that push — `checks` → CI's `tag` 
 Below, wherever a section says the tag is pushed from this machine, "the tag push publishes", or
 auto-tag tags and dispatches, it is history.
 
-**Latest (2026-11-09 UTC): 3.0.2 on BOTH registries, both with provenance** — JSR
+**Latest (2026-11-11 UTC): 3.0.3 on BOTH registries, both with provenance** — the first release
+in D1's order (run 43061998593: CI's tag, the page, JSR Rekor `3814264552`, npm SLSA); release.md
+§ "3.0.3". Before it, **3.0.2 on BOTH registries, both with provenance** — JSR
 `@jrmarcum/binaryang@3.0.2` (Rekor `3771557608`) and npm `@synapticforge1/binaryang@3.0.2`
 (`latest`, SLSA provenance), GitHub Release `v3.0.2` by `github-actions[bot]` — release.md
 § "3.0.2", the restructured workflow's first fully green run. **3.0.0 and 3.0.1 are on JSR only**
@@ -44,9 +46,9 @@ B3):
    **six jobs** (§ "The publish workflow's jobs" below) — `checks` (no token; is it a release, both
    registries free, the floor check `api-surface.ts --release-check`, check, tests, dry run) →
    `tag` (CI's tag) → `release` (the page) → `jsr` (credential); `checks` → `npm-build` → `npm`
-   (credential). ⚠️ **UNMEASURED on GitHub until the first release in this order** — read every
-   job of that run, and on a failure use "Re-run failed jobs" (the jobs skip what is done), never
-   a new tag.
+   (credential). ✅ **Measured by 3.0.3** (run 43061998593, all six green) — read every job of a
+   release run, and on a failure use "Re-run failed jobs" (the jobs skip what is done), never a
+   new tag.
 6. Read both registries back (Rekor id on JSR, the attestation on npm), run the package as a user
    from each, record it in [release.md](release.md) § "Release History", newest first.
 

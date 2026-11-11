@@ -1259,6 +1259,10 @@ closes its own rows; nothing is written there from here.
   - **C44 (binaryang's) — CLOSED:** the workspace's `release-process.md` §§ 5–8 exist (the
     uniform shape, the per-ecosystem table with a reference repo per registry, every project's
     card, the owner's D1–D3), and letter H33 carries it to every repo; §§ 1–4 kept as written.
+  - **Later the same day (owner: "release"):** the work pushed (`ea9c824a8`), then **3.0.3
+    released in D1's order** — publish.yml run 43061998593, all six jobs green: CI's tag
+    `v3.0.3`, the page by `github-actions[bot]`, JSR Rekor `3814264552`, npm SLSA provenance —
+    U6 MEASURED here ([release.md](release.md) § "3.0.3"). The H33 ledger row updated.
 
 ## Lessons the correspondence paid for
 
