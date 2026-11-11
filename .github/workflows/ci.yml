@@ -157,6 +157,10 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
       # Chromium in a container wants the host's IPC namespace (Playwright's Docker guide).
       options: --ipc=host
+    # Firefox refuses to start when $HOME is not the current user's (the container is root; GitHub
+    # sets HOME to the runner's home) — Playwright's own message, measured 2026-11-11.
+    env:
+      HOME: /root
     timeout-minutes: 20
     steps:
       - name: Checkout

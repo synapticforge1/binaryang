@@ -122,6 +122,11 @@ async function main(): Promise<void> {
     '-q',
     ...APT.map((b) => b.pkg),
   ]);
+  // 4. Each starts at all, here, where its error names what is missing (2026-11-11: Opera closed
+  // at launch inside the check with no reason, once `--with-deps` no longer installed 181 system
+  // packages before it).
+  step('brave-browser --version', 'brave-browser', ['--version']);
+  step('opera --version', 'opera', ['--version']);
   console.log('Brave and Opera installed');
 }
 
