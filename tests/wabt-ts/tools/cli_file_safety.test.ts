@@ -57,35 +57,35 @@ async function same(path: string, bytes: Uint8Array): Promise<boolean> {
   return now.length === bytes.length && now.every((b, i) => b === bytes[i]);
 }
 
-describe('security round 1 â€” a tool that changes the format never writes over its input', () => {
-  const refusals: [string, (dir: string) => Promise<{ args: string[]; victim: string }>][] = [
+describe('security round 1 — a tool that changes the format never writes over its input', () => {
+  const refusals: [string, (dir: string) => { args: string[]; victim: string }][] = [
     [
       'wat2wasm a.wat -o a.wat',
-      async () => ({ args: ['wat2wasm', 'a.wat', '-o', 'a.wat'], victim: 'a.wat' }),
+      () => ({ args: ['wat2wasm', 'a.wat', '-o', 'a.wat'], victim: 'a.wat' }),
     ],
-    ['wat2wasm a.wat -o <hard link to a.wat>', async (dir) => {
+    ['wat2wasm a.wat -o <hard link to a.wat>', (dir) => {
       linkSync(join(dir, 'a.wat'), join(dir, 'link.wat'));
       return { args: ['wat2wasm', 'a.wat', '-o', 'link.wat'], victim: 'a.wat' };
     }],
     [
       'wasm2wat a.wasm -o a.wasm',
-      async () => ({ args: ['wasm2wat', 'a.wasm', '-o', 'a.wasm'], victim: 'a.wasm' }),
+      () => ({ args: ['wasm2wat', 'a.wasm', '-o', 'a.wasm'], victim: 'a.wasm' }),
     ],
     [
       'wasm-opt a.wat -o a.wat (binary over text)',
-      async () => ({ args: ['wasm-opt', 'a.wat', '-o', 'a.wat'], victim: 'a.wat' }),
+      () => ({ args: ['wasm-opt', 'a.wat', '-o', 'a.wat'], victim: 'a.wat' }),
     ],
     [
       'wasm-opt a.wasm -S -o a.wasm (text over binary)',
-      async () => ({ args: ['wasm-opt', 'a.wasm', '-S', '-o', 'a.wasm'], victim: 'a.wasm' }),
+      () => ({ args: ['wasm-opt', 'a.wasm', '-S', '-o', 'a.wasm'], victim: 'a.wasm' }),
     ],
     [
       'wasm-ctor-eval a.wat -o a.wat',
-      async () => ({ args: ['wasm-ctor-eval', 'a.wat', '-o', 'a.wat'], victim: 'a.wat' }),
+      () => ({ args: ['wasm-ctor-eval', 'a.wat', '-o', 'a.wat'], victim: 'a.wat' }),
     ],
     [
       'wasm-bundle a.wasm b.wasm -o b.wasm',
-      async () => ({
+      () => ({
         args: [
           'wasm-bundle',
           'a.wasm',
@@ -150,7 +150,7 @@ describe('security round 1 â€” a tool that changes the format never writes 
   });
 });
 
-describe('security round 1 â€” a bad output path is a one-line refusal, not a stack trace', () => {
+describe('security round 1 — a bad output path is a one-line refusal, not a stack trace', () => {
   for (const tool of ['wasm-opt', 'wasm-ctor-eval', 'wasm-bundle']) {
     it(`${tool}`, async () => {
       await inDir(async (dir) => {
@@ -164,7 +164,7 @@ describe('security round 1 â€” a bad output path is a one-line refusal, not
   }
 });
 
-describe('security round 1 â€” fsWrite replaces a file whole, never in place', () => {
+describe('security round 1 — fsWrite replaces a file whole, never in place', () => {
   it("a new file takes the old one's place (a new inode), leaving no temporary file", async () => {
     await inDir(async (dir) => {
       const path = join(dir, 'out.wasm');
@@ -235,7 +235,7 @@ describe('security round 1 â€” fsWrite replaces a file whole, never in plac
   });
 });
 
-describe('security round 1 â€” fsRead refuses what is not a module-sized file', () => {
+describe('security round 1 — fsRead refuses what is not a module-sized file', () => {
   it('refuses a file over the limit, by its size', async () => {
     await inDir(async (dir) => {
       const path = join(dir, 'big.wasm');
@@ -271,7 +271,7 @@ describe('security round 1 â€” fsRead refuses what is not a module-sized fi
   });
 });
 
-describe("security round 1 â€” a module's names cannot write WIT through a comment", () => {
+describe("security round 1 — a module's names cannot write WIT through a comment", () => {
   it('a line break in an export name stays inside the comment', () => {
     const m = readWat(
       '(module (func (export "x\\0a  export evil: func() -> s32;") (result i32) (i32.const 1)))',
@@ -289,7 +289,7 @@ describe("security round 1 â€” a module's names cannot write WIT through a 
 
   it('commentSafe escapes the backslash, so an escape cannot be forged, and leaves the rest', () => {
     assertEquals(commentSafe('a\\u000ab'), 'a\\u005cu000ab');
-    assertEquals(commentSafe('aÃ±â‚¬ðŸ˜€'), 'aÃ±â‚¬ðŸ˜€');
+    assertEquals(commentSafe('añ€😀'), 'añ€😀');
     assertEquals(commentSafe('\u0085\u007f'), '\\u0085\\u007f');
   });
 });

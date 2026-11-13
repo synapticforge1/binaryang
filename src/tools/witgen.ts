@@ -120,9 +120,9 @@ export function commentSafe(name: string): string {
   let out = '';
   for (const c of name) {
     const u = c.codePointAt(0)!;
-    const escape = c === '\\' || u <= 0x1f || (u >= 0x7f && u <= 0x9f) || u === 0x2028 ||
+    const control = c === '\\' || u <= 0x1f || (u >= 0x7f && u <= 0x9f) || u === 0x2028 ||
       u === 0x2029;
-    out += escape ? `\\u${u.toString(16).padStart(4, '0')}` : c;
+    out += control ? `\\u${u.toString(16).padStart(4, '0')}` : c;
   }
   return out;
 }
