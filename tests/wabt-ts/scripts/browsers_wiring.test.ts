@@ -18,6 +18,7 @@ import {
   browserSpecs,
   guarded,
   isVendorBinary,
+  judgeDriverOutput,
   parseOnly,
   parseReports,
   reportKind,
@@ -168,6 +169,38 @@ describe('the real-browser job', () => {
     expect(unreadable).toEqual(['{not json', '{"no":"name"}']);
   });
 
+  // Round 7 (2026-11-13, run): a good edge report followed by a failing one passed (the first
+  // won); a stray `{junk` line next to good reports passed; a report for a browser not run vanished.
+  // Round 8: and each such problem is the BROWSER's failure — its line reads ✗, never ✓.
+  it("a browser's driver output must be exactly its one report; anything else fails it", () => {
+    const edge = '{"name":"edge","error":"x"}';
+    expect(judgeDriverOutput('edge', edge)).toEqual({
+      report: { name: 'edge', error: 'x' },
+      problems: [],
+    });
+    expect(judgeDriverOutput('edge', `${edge}\n${edge}`).problems).toEqual([
+      '2 reports for edge; the driver prints one',
+    ]);
+    expect(judgeDriverOutput('edge', `${edge}\n{junk`).problems).toEqual([
+      'a driver line that is not a report: {junk',
+    ]);
+    expect(judgeDriverOutput('edge', `${edge}\n{"name":"safari"}`).problems).toEqual([
+      'a report naming another browser: "safari"',
+    ]);
+    expect(judgeDriverOutput('edge', '{"name":"chrome"}').report).toBeUndefined();
+    // The verdict starts each browser's problems from them, and never skips one that has any.
+    const src = readFileSync(
+      new URL('../../../scripts/check-browsers.ts', import.meta.url),
+      'utf8',
+    );
+    expect(src).toContain(
+      "const { report: r, problems } = judgeDriverOutput(spec.name, outputs.get(spec.name) ?? '');",
+    );
+    expect(src).toContain('const bad: string[] = [...problems];');
+    expect(src).toContain('if (notInstalled && !requireAll && problems.length === 0) {');
+    expect(src).not.toContain('reportSetProblems');
+  });
+
   it("a judgement that throws becomes that browser's failure", () => {
     const bad: string[] = [];
     guarded(bad, () => {
@@ -186,7 +219,7 @@ describe('the real-browser job', () => {
       new URL('../../../scripts/check-browsers.ts', import.meta.url),
       'utf8',
     );
-    expect(src).toContain('const { reports, unreadable } = parseReports(out);');
+    expect(src).toContain('const { reports, unreadable } = parseReports(out);'); // judgeDriverOutput
     expect(src).not.toMatch(/\.map\(\(l\) =>\s*JSON\.parse\(l\)/);
     expect(src).toMatch(/guarded\(bad, \(\) => \{\n\s*const res = r!\.result!;/);
   });

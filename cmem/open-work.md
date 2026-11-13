@@ -22,8 +22,13 @@ fix as its class with a test that fails without it, inverted by mutants (19, 9, 
 in rounds 1–6; the round commits list each finding). Every round found something; the owner
 chose every fix; all on
 branch **`review-r1`** (from `main` 400367144; the gate 12 / 12 after each round), **merged into
-`main` and pushed** (owner: "push", 2026-11-13) — no release. Round 7 in progress (its fetch-advice reviewer found nothing; the
-verdict-loop reviewer still running) — the review stops at the first empty round. What changed:
+`main` and pushed** (owner: "push", 2026-11-13; CI run 43499218821 green in all nine jobs,
+publish.yml 43499218797 `checks` only) — no release. Rounds 7–8 on branch **`review-r2`**, merged
+and pushed the same way (owner: "commit and push"): round 7's fetch-advice reviewer found nothing,
+its verdict-loop reviewer found a class (driver output not exactly one report per browser); round
+8 found no defect, three cosmetic notes the owner chose to fix (a ✓ beside a run-level problem) —
+now each browser's driver output is judged on its own (`judgeDriverOutput`); mutants 4 / 4 each.
+Round 9 in progress — the review stops at the first empty round. What changed:
 the release script's guards are `scripts/release/release-run.ts`, held by RUNNING them; `tag`
 waits for `npm-build`; exact npm / Deno; job time limits; stale accepted entries fail the gate;
 `--only` / vendor / report checks in `check-browsers.ts`; the records in
