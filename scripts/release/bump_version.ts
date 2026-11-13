@@ -27,10 +27,12 @@ import {
   MANIFEST_URL,
   nextVersion,
   readCurrentVersion,
+  releaseBaseProblem,
   replaceOnce,
   writeAtomic,
 } from './version.ts';
 
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
@@ -72,6 +74,13 @@ if (dryRun) {
 // GATE: "backward compatible" is a gate result, never a judgment made at bump time
 // (../../cmem/layout-and-packaging.md § "The compatibility gate", rules 2 and 5).
 {
+  // CI makes the tags (D1), so a clone has them only once it fetches them: fetch first, and gate
+  // only against `v<current>` (review round 1, 2026-11-13).
+  const fetched = spawnSync('git', ['fetch', '-q', '--tags', 'origin'], { stdio: 'inherit' });
+  if (fetched.status !== 0) {
+    console.error('bump: could not fetch the tags from origin; nothing was written.');
+    process.exit(1);
+  }
   const { LEVELS, floorSinceRelease, snapshotDrift } = await import('./api-surface.ts');
   const drift = await snapshotDrift();
   if (drift.length > 0) {
@@ -86,6 +95,11 @@ if (dryRun) {
     process.exit(1);
   }
   const f = await floorSinceRelease();
+  const base = releaseBaseProblem(f.ref, current);
+  if (base !== null) {
+    console.error(`bump: ${base}; nothing was written.`);
+    process.exit(1);
+  }
   console.log(`compatibility floor since ${f.ref}: ${f.floor}`);
   for (const r of f.reasons) console.log(`  [${r.level}] ${r.what}`);
   if (LEVELS.indexOf(level) < LEVELS.indexOf(f.floor)) {

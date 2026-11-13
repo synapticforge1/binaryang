@@ -21,26 +21,31 @@ twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that f
 1. **U2 Merge first.** The release notes (`CHANGELOG.md` § X.Y.Z, from
    [unreleased.md](unreleased.md)) on a `release/X.Y.Z` branch, gated, merged `--no-ff` into
    `main`; push `main` unbumped and let CI go green.
-2. **U3 `bun run bump <level>`** — the level is an argument; it refuses a stale `api-surface.json`,
-   computes the FLOOR from the surface diff since the last tag and refuses a lower level, and for a
-   patch or a minor runs the previous release's tests against this tree
-   (`scripts/release/previous-tests.ts`). It writes `jsr.json` and `main.ts`.
-3. **U4 `bun run release`** (`scripts/release/publish.ts`) — guards first: a clean tree (untracked
-   files count), on `main`, `main` contains `origin/main`, the tag absent locally AND on origin,
-   neither JSR nor npm knows the number, a cold `deno publish --dry-run` in an empty `DENO_DIR`,
-   `bun run check`, the package root a working CLI. Then it commits `bump to vX.Y.Z` and pushes
-   **`main` only**, reading it back with `git ls-remote`. **No tag, ever** (until 2026-11-10 it
-   force-wrote the tag and pushed it with `main`).
+2. **U3 `bun run bump <level>`** — fetches GitHub's tags first (CI makes them) and refuses unless
+   the last release tag reachable from HEAD is `v<jsr.json's version>`; refuses a stale
+   `api-surface.json`; computes the FLOOR from the surface diff since that tag and refuses a lower
+   level; for a patch or a minor runs that release's tests against this tree
+   (`scripts/release/previous-tests.ts`) — an unlisted failure OR a stale
+   `tests/accepted-changes.json` entry stops it. It writes `jsr.json` and `main.ts`.
+3. **U4 `bun run release`** (`scripts/release/publish.ts`, its logic `release-run.ts`) — guards
+   first, each a refusal that changes nothing (held by running them, review round 1): a clean tree
+   (untracked files count), on `main`, `fetch` of `main` AND the tags, `main` contains
+   `origin/main`, the tag absent locally AND on origin, neither JSR nor npm knows the number, a
+   cold `deno publish --dry-run` in an empty `DENO_DIR`, `bun run check`, the package root a
+   working CLI, and **something to push** (a second `bun run release` after a failed run is
+   refused: use "Re-run failed jobs"). Then it commits `bump to vX.Y.Z` and pushes **`main` only**,
+   reading it back with `git ls-remote`. **No tag, ever** (until 2026-11-10 it force-wrote the tag
+   and pushed it with `main`).
 
 **CI — `.github/workflows/publish.yml`, on every push of `main`, one run (U5–U9):**
 
 | job | holds | does |
 | --- | --- | --- |
 | `checks` (U5) | `contents: read` | `workflow.ts release-state`: jsr.json's version with no tag on GitHub = NEW, its tag on THIS commit = a re-run, elsewhere = not a release (stops). For a NEW one, `registry.ts free` (JSR and npm). Then the compatibility gate (`api-surface.ts --release-check`), `bun run check`, both test legs, `deno publish --dry-run` on the sparse tree `jsr` publishes |
-| `tag` (U6) | `contents: write` | `github.ts tag`: the annotated tag `vX.Y.Z` on this commit through the REST API, read back; at this commit already = done, elsewhere = refused |
+| `tag` (U6) | `contents: write` | only once `checks` AND `npm-build` are green (`npm-build` may be skipped only while npm publishing is off — review round 1): `github.ts tag`, the annotated tag `vX.Y.Z` on this commit through the REST API, read back; at this commit already = done, elsewhere = refused |
 | `release` (U7) | `contents: write` | `github.ts release`: the GitHub Release page FROM the tag (H32's order), BEFORE the publish |
 | `jsr` (U8) | `id-token: write` | skip if JSR has it; `uploaded` written first; `deno publish` direct; Rekor read back, FATAL |
-| `npm-build` | `contents: read` | `npm:prove`, pack, artifact |
+| `npm-build` | `contents: read` | `npm:prove`, pack, artifact — BEFORE the tag |
 | `npm` (U8) | `id-token: write` | waits for JSR; the proven tarball checked; skip if npm serves it; `npm publish`; provenance read back, FATAL |
 
 A tag made with `GITHUB_TOKEN` starts no workflow run, which is why it is all one run. The run's
@@ -50,8 +55,12 @@ refusal (`actorNotScopeMember`) belonged to auto-tag.yml's DISPATCHED runs; auto
 `github-actions[bot]` inside the run) and JSR's OIDC publish with provenance, in one run that the
 owner's push started. **U9:** top-level
 `permissions: {}`, every action pinned to a commit hash, a per-commit concurrency group that
-queues and never cancels; Bun and Deno come through their setup actions by version, **not
-sha256-pinned** — a gap kept, as wasmtk's.
+queues and never cancels, a time limit on every job; Bun (1.4.4), Deno (2.9.6, as
+`scripts/deno.ts`) and npm (11.21.2) at EXACT versions (review round 1, 2026-11-13; `v2.x` and
+`npm@11` floated until then), Bun and Deno through their setup actions, **not sha256-pinned** — a
+gap kept, as wasmtk's. ⚠️ The round-1 changes to the job graph (`tag` waiting for `npm-build`,
+the explicit `if:`s) are proven by the tests and by Bun.YAML, **UNMEASURED on GitHub until the
+next release**.
 
 **After (U10–U12):** install as a user — `npx @synapticforge1/binaryang@X.Y.Z --version` and
 `deno run -A jsr:@jrmarcum/binaryang@X.Y.Z --version` — and record the version below, newest first,

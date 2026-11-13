@@ -23,11 +23,14 @@ not survive a clone is not a project rule. The lessons behind them are in
   a design question, not a test to loosen ([publishing.md](publishing.md) § "The publish
   workflow's jobs").
 - **Rehearse a changed release job exactly, before it lands** (3.0.0 → 3.0.2, 2026-11-09: two
-  versions spent on two defects only GitHub saw). A re-run runs the TAG's workflow and scripts,
-  so a release-job bug costs a version. Run the job's own commands, with the outputs one step
-  hands the next, in a fresh folder laid out as the runner's (no folder made by hand, no path
-  typed by hand); for npm, a dry-run `npm publish` of the exact path `registry.ts` outputs. A plain command
-  sequence (tag and push) stays in the workflow.
+  versions spent on two defects only GitHub saw). A re-run runs the workflow and scripts of the
+  commit that STARTED the run — the bump commit since D1 (2026-11-10; the tag's, while a tag
+  started it) — so a release-job bug costs a version. Run the job's own commands, with the
+  outputs one step hands the next, in a fresh folder laid out as the runner's (no folder made by
+  hand, no path typed by hand); for npm, a dry-run `npm publish` of the exact path `registry.ts`
+  outputs. 🔁 2026-11-13 (review round 1): this said "the TAG's workflow" and "a plain command
+  sequence (tag and push) stays in the workflow" — both from before D1; CI's tag is
+  `github.ts tag`, a tested script.
 - 🔒 **No `gh` — not here, not in CI** (owner, 2026-11-08, workspace letter H30 /
   `../cmem/working-rules.md` § Tooling rule 9: "just checking the repo is easier"; "yes change
   those"). The GitHub CLI is not installed and will not be. Check the repo instead: `git

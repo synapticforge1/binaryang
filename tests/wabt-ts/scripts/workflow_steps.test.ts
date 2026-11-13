@@ -9,6 +9,7 @@ import process from 'node:process';
 import { gzipSync } from 'node:zlib';
 import { expect } from '@std/expect';
 import {
+  decideRelease,
   isReleaseVersion,
   lsRemoteTagCommit,
   main,
@@ -97,7 +98,63 @@ describe("the workflows' decisions, in TypeScript", () => {
   });
 
   it('release-state: refuses without GITHUB_SHA, before reading anything', async () => {
-    expect((await run(['release-state'], { GITHUB_SHA: undefined })).code).toBe(1);
+    let asked = 0;
+    const r = await run(['release-state'], { GITHUB_SHA: undefined }, (a) =>
+      main(a, () => {
+        asked++;
+        return { status: 0, stdout: '', stderr: '' };
+      }));
+    expect(r.code).toBe(1);
+    expect(asked).toBe(0);
+    expect(r.outputs).toEqual({});
+  });
+
+  // The outputs publish.yml's `if:`s read, for every state (review round 1, 2026-11-13).
+  const SHA_A = 'a'.repeat(40);
+  const SHA_B = 'b'.repeat(40);
+  const ls = (stdout: string) => ({ status: 0, stdout, stderr: '' });
+
+  it('release-state outputs: no tag → a NEW release, every output written', () => {
+    expect(decideRelease('9.9.9', SHA_A, ls('')).outputs).toEqual({
+      release: 'true',
+      state: 'new',
+      version: '9.9.9',
+      tag: 'v9.9.9',
+    });
+  });
+
+  it('release-state outputs: the tag on this commit → a RE-RUN', () => {
+    const d = decideRelease(
+      '9.9.9',
+      SHA_A,
+      ls(`t\trefs/tags/v9.9.9\n${SHA_A}\trefs/tags/v9.9.9^{}\n`),
+    );
+    expect([d.code, d.outputs]).toEqual([
+      0,
+      { release: 'true', state: 'rerun', version: '9.9.9', tag: 'v9.9.9' },
+    ]);
+  });
+
+  it('release-state outputs: the tag elsewhere → NOT a release, and nothing else written', () => {
+    const d = decideRelease('9.9.9', SHA_A, ls(`${SHA_B}\trefs/tags/v9.9.9\n`));
+    expect([d.code, d.outputs]).toEqual([0, { release: 'false' }]);
+  });
+
+  it('release-state outputs: a failed ls-remote or a non-release version refuses, writing nothing', () => {
+    expect(decideRelease('9.9.9', SHA_A, { status: 128, stdout: '', stderr: 'x' }))
+      .toMatchObject({ code: 1, outputs: {} });
+    expect(decideRelease('9.9.9-rc.1', SHA_A, ls(''))).toMatchObject({ code: 1, outputs: {} });
+  });
+
+  it('release-state: the subcommand writes exactly the decision to GITHUB_OUTPUT', async () => {
+    const r = await run(['release-state'], { GITHUB_SHA: SHA_A }, (a) => main(a, () => ls('')));
+    expect(r.code).toBe(0);
+    expect(r.outputs).toEqual({
+      release: 'true',
+      state: 'new',
+      version: jsr.version,
+      tag: `v${jsr.version}`,
+    });
   });
 
   it('an unknown subcommand is a usage error; the retired ones are gone', async () => {

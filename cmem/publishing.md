@@ -649,9 +649,14 @@ curl -s https://api.jsr.io/scopes/jrmarcum/packages/binaryang | jq .githubReposi
 `provenance: true` is **not** a `deno.json` field — it was removed when JSR went OIDC-only. Delete
 it if you see `unknown field provenance`.
 
-**Pin actions to the major-version tag** (`actions/checkout@v6`, `denoland/setup-deno@v2`,
-`actions/setup-node@v4`, `oven-sh/setup-bun@v2`): mutable, auto-flows patches, guards the major
-boundary. Moving checkout from v4 to v6 was forced by GitHub's Node 20 runtime deprecation.
+**Pin actions — `publish.yml` by COMMIT HASH, `ci.yml` by major-version tag.** The release
+workflow pins every action to a commit hash (open-work 54, 2026-11-09; a test refuses anything
+else), because a moved tag there runs new code beside the publishing credential; `ci.yml`, which
+holds no credential, keeps major-version tags (`actions/checkout@v6`, `actions/setup-node@v4`,
+`oven-sh/setup-bun@v2`), which auto-flow patches and guard the major boundary. Moving checkout
+from v4 to v6 was forced by GitHub's Node 20 runtime deprecation. 🔁 2026-11-13 (review round 1):
+this said "pin to the major-version tag" for all, which a maintainer would have applied to
+`publish.yml`.
 
 ## Recovery recipes
 
