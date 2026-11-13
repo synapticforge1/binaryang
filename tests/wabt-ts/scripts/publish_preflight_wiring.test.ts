@@ -5,184 +5,227 @@ import { existsSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
+import {
+  exitText,
+  fetchAdvice,
+  READ_ONLY_GIT,
+  runRelease,
+} from '../../../scripts/release/release-run.ts';
+import { RELEASE_FILES } from '../../../scripts/release/release-guard.ts';
+import { releaseBaseProblem } from '../../../scripts/release/version.ts';
 
-// T13.44. `release_guard.test.ts` proves `releaseBlockers` returns the right
-// answer. It does NOT prove `scripts/release/publish.ts` asks the question -- delete
-// the whole guard block and every one of those tests still passes.
-//
-// That gap is exactly how T13.43 happened: two documents described a
-// dirty-tree refusal, the pure logic for it was obvious, and the script simply
-// did not do it. So this file gates the WIRING, structurally, by reading the
-// source:
-//
-//   1. the guard is imported and called;
-//   2. NOTHING that mutates git state runs before it;
-//   3. the guard actually exits rather than warning;
-//   4. `release-guard.ts` stays side-effect free, so it stays importable by a
-//      test -- the property whose absence made `publish.ts` untestable;
-//   5. `scripts/` stays inside the gate.
-//
-// A source-text gate is blunt, and it is the right tool here: the alternative
-// is executing a release. Same shape as `token_type_reachability.test.ts` and
-// `const_expr_head_coupling.test.ts`.
+// T13.44, then review round 1 (2026-11-13). `release_guard.test.ts` proves `releaseBlockers`
+// returns the right answer; it does not prove the release ASKS. That gap is how T13.43 happened:
+// two documents described a dirty-tree refusal and the script did not do it. Until 2026-11-13 this
+// file read `publish.ts`'s SOURCE for the guards' positions, and removing most refusals left it
+// green. Now the release is `runRelease` (scripts/release/release-run.ts) with git, the registries
+// and the checks handed in, and these tests RUN every refusal: each must exit 1 and run NO git
+// command that changes anything. `publish.ts` only wires in the real ones.
 
 const PUBLISH = await fsx.readTextFile('scripts/release/publish.ts');
 const GUARD = await fsx.readTextFile('scripts/release/release-guard.ts');
 
-/** Every `git` subcommand invoked in `publish.ts`, in source order. */
-function gitCalls(src: string): { sub: string; at: number }[] {
-  const out: { sub: string; at: number }[] = [];
-  for (const m of src.matchAll(/\[\s*'git'\s*,\s*'([a-z-]+)'/g)) {
-    out.push({ sub: m[1]!, at: m.index! });
-  }
-  return out;
+/** A scripted world for one release: what git, the registries and the checks answer. */
+interface World {
+  porcelain: string;
+  branch: string;
+  fetchFails: boolean;
+  /** git's exit status for a failed fetch: 1 = a tag it will not clobber, 128 = offline etc. */
+  fetchStatus?: number;
+  containsOriginMain: boolean;
+  localTag: 0 | 1 | 128;
+  remoteTag: string;
+  lsRemoteTagsFails: boolean;
+  jsr: boolean;
+  npm: 'free' | 'published' | 'burned';
+  cold: boolean;
+  check: boolean;
+  entry: string[];
+  /** The release files differ from HEAD (a bump not yet committed). */
+  bumpPending: boolean;
+  head: string;
+  originMain: string;
+  pushFails: boolean;
+  /** What origin's main reads back as after the push (undefined: HEAD). */
+  readBack?: string;
 }
 
-// Anything not on this list is assumed to CHANGE something. New git
-// subcommands are opted in deliberately: if you add one and it is read-only,
-// add it here and say so; if it mutates, it belongs after the guard.
-// `fetch` (2026-11-10, the `main`-contains-`origin/main` guard) moves only the
-// remote-tracking ref: no branch, no tag, no tree.
-const READ_ONLY = new Set(['status', 'ls-remote', 'rev-parse', 'diff', 'config', 'log', 'fetch']);
+const READY: World = {
+  porcelain: ' M jsr.json\n M main.ts\n',
+  branch: 'main',
+  fetchFails: false,
+  containsOriginMain: true,
+  localTag: 1,
+  remoteTag: '',
+  lsRemoteTagsFails: false,
+  jsr: false,
+  npm: 'free',
+  cold: true,
+  check: true,
+  entry: [],
+  bumpPending: true,
+  head: 'a'.repeat(40),
+  originMain: 'b'.repeat(40),
+  pushFails: false,
+};
 
-describe('T13.44 — the release preflight stays wired in', () => {
-  it('imports and calls the guard', () => {
-    expect(PUBLISH).toContain('release-guard.ts');
-    expect(/releaseBlockers\s*\(/.test(PUBLISH)).toBe(true);
+/** Runs a release in `world`; the exit code, every git command, and what was printed. */
+async function release(over: Partial<World> = {}) {
+  const w: World = { ...READY, ...over };
+  const calls: string[][] = [];
+  const out: string[] = [];
+  let committed = false;
+  const ok = (stdout = '') => ({ status: 0, stdout, stderr: '' });
+  const fail = (status = 1) => ({ status, stdout: '', stderr: 'scripted failure' });
+  const code = await runRelease({
+    version: '9.9.9',
+    git(args) {
+      calls.push(args);
+      const [sub, a1] = args;
+      switch (sub) {
+        case 'status':
+          return ok(w.porcelain);
+        case 'rev-parse':
+          if (a1 === '--abbrev-ref') return ok(`${w.branch}\n`);
+          if (a1 === '-q') return w.localTag === 0 ? ok('t\n') : fail(w.localTag);
+          if (a1 === 'origin/main') return ok(`${w.originMain}\n`);
+          return ok(`${committed ? 'c'.repeat(40) : w.head}\n`);
+        case 'fetch':
+          return w.fetchFails ? fail(w.fetchStatus ?? 128) : ok();
+        case 'merge-base':
+          return w.containsOriginMain ? ok() : fail();
+        case 'ls-remote':
+          if (a1 === '--tags') return w.lsRemoteTagsFails ? fail(128) : ok(w.remoteTag);
+          return ok(`${w.readBack ?? (committed ? 'c'.repeat(40) : w.head)}\trefs/heads/main\n`);
+        case 'diff':
+          // `diff --quiet HEAD -- files` (the bump pending) and `diff --cached --quiet` (staged).
+          return w.bumpPending ? fail(1) : ok();
+        case 'add':
+          return ok();
+        case 'commit':
+          committed = true;
+          return ok();
+        case 'push':
+          return w.pushFails ? fail() : ok();
+      }
+      throw new Error(`unscripted git ${args.join(' ')}`);
+    },
+    jsrHas: () => Promise.resolve(w.jsr),
+    npmState: () => Promise.resolve(w.npm),
+    coldDryRun: () => w.cold,
+    typeCheck: () => w.check,
+    entryProblems: () => Promise.resolve(w.entry),
+    log: (l) => out.push(l),
+    error: (l) => out.push(l),
+  });
+  const mutated = calls.filter((c) => !READ_ONLY_GIT.has(c[0]!)).map((c) => c[0]);
+  return { code, calls, mutated, out: out.join('\n') };
+}
+
+describe('the release: every refusal runs, and changes nothing', () => {
+  it('a ready tree: commits the bump, pushes main ONLY, reads it back; no tag anywhere', async () => {
+    const r = await release();
+    expect(r.code).toBe(0);
+    expect(r.mutated).toEqual(['add', 'commit', 'push']);
+    expect(r.calls).toContainEqual(['add', ...RELEASE_FILES]);
+    expect(r.calls).toContainEqual(['commit', '-m', 'bump to v9.9.9']);
+    expect(r.calls.filter((c) => c[0] === 'push')).toEqual([['push', 'origin', 'main']]);
+    expect(r.calls.some((c) => c[0] === 'tag' || c.includes('v9.9.9') && c[0] === 'push'))
+      .toBe(false);
+    expect(r.calls.at(-1)).toEqual(['ls-remote', 'origin', 'refs/heads/main']);
   });
 
-  it('refuses rather than warns', () => {
-    const call = PUBLISH.indexOf('releaseBlockers(');
-    expect(call).toBeGreaterThan(-1);
-    // An exit must follow the call, or the script prints a complaint and
-    // releases anyway -- which is worse than no guard, because the output
-    // looks like it was checked.
-    expect(PUBLISH.slice(call)).toContain('process.exit(1)');
+  it("fetches GitHub's main AND its tags (CI makes the tags) before reading any tag", async () => {
+    const r = await release();
+    const fetch = r.calls.findIndex((c) => c[0] === 'fetch');
+    // Not `-q`: without it git says why a fetch is refused (round 2, 2026-11-13).
+    expect(r.calls[fetch]).toEqual(['fetch', '--tags', 'origin', 'main']);
+    expect(fetch).toBeLessThan(r.calls.findIndex((c) => c[0] === 'rev-parse' && c[1] === '-q'));
   });
 
-  it('runs no state-changing git command before the guard', () => {
-    const call = PUBLISH.indexOf('releaseBlockers(');
-    const calls = gitCalls(PUBLISH);
-    expect(calls.length).toBeGreaterThan(0);
+  const refusals: [string, Partial<World>, string][] = [
+    ['an untracked file', { porcelain: '?? new.ts\n M jsr.json\n' }, 'not clean'],
+    ['a modified file outside the release files', { porcelain: ' M src/x.ts\n' }, 'not clean'],
+    ['a branch other than main', { branch: 'feature' }, "not 'main'"],
+    ['a detached HEAD', { branch: 'HEAD' }, "not 'main'"],
+    // …and says what fits: the network for exit 128 (round 4: the tag advice followed every
+    // failure), the local tag for exit 1, git's "would clobber" (round 3).
+    ['a failed fetch (offline)', { fetchFails: true }, 'Check the network'],
+    ['a fetch refusing to move a local tag', { fetchFails: true, fetchStatus: 1 }, 'git tag -d'],
+    ['a main that lacks origin/main', { containsOriginMain: false }, 'does not contain'],
+    ['a local tag', { localTag: 0 }, 'LOCAL tag'],
+    ['an unreadable local tag list', { localTag: 128 }, 'could not read the local tags'],
+    ['a tag on origin', { remoteTag: 'x\trefs/tags/v9.9.9\n' }, 'already exists on origin'],
+    ["a failed read of origin's tags", { lsRemoteTagsFails: true }, "could not read origin's tags"],
+    ['a version JSR has', { jsr: true }, 'JSR has it'],
+    ['a version npm serves', { npm: 'published' }, 'npm published'],
+    ['a number npm burned', { npm: 'burned' }, 'npm burned'],
+    ['a failed cold dry run', { cold: false }, 'cold publish dry run failed'],
+    ['a failed type check', { check: false }, 'type check failed'],
+    ['a root that is not a CLI', { entry: ['--help printed nothing'] }, 'not a working CLI'],
+    [
+      'nothing to push (the bump committed and already on GitHub)',
+      { porcelain: '', bumpPending: false, head: 'b'.repeat(40) },
+      'nothing to push',
+    ],
+  ];
+  for (const [what, world, says] of refusals) {
+    it(`refuses ${what}, changing nothing`, async () => {
+      const r = await release(world);
+      expect(r.code).toBe(1);
+      expect(r.mutated).toEqual([]);
+      expect(r.out).toContain(says);
+    });
+  }
 
-    const before = calls.filter((c) => c.at < call).map((c) => c.sub);
-    const mutatingBefore = before.filter((s) => !READ_ONLY.has(s));
-    expect(mutatingBefore).toEqual([]);
-
-    // And the mutations really do exist afterwards -- otherwise this test
-    // passes vacuously on a script that no longer releases anything.
-    const after = calls.filter((c) => c.at > call).map((c) => c.sub);
-    for (const sub of ['add', 'commit', 'push']) {
-      expect(after).toContain(sub);
-    }
+  it('a refused push, or a push that does not read back, is a failure, not a release', async () => {
+    expect((await release({ pushFails: true })).code).toBe(1);
+    const r = await release({ readBack: 'd'.repeat(40) });
+    expect(r.code).toBe(1);
+    expect(r.out).toContain('did not read back');
   });
 
-  // 🔒 The owner's order (2026-11-10, workspace letter H33, D1): CI tags, after its checks. The
-  // script pushes `main` and nothing else, and reads it back; it never makes, forces or pushes a
-  // tag (it force-wrote one with `tag -f` until that day).
-  it('pushes main ONLY, makes no tag, and reads the push back', () => {
-    const calls = gitCalls(PUBLISH).map((c) => c.sub);
-    expect(calls).not.toContain('tag');
-    expect(PUBLISH).not.toMatch(/'tag',\s*'-f'/);
-    const pushes = [...PUBLISH.matchAll(/\[\s*'git'\s*,\s*'push'([^\]]*)\]/g)].map((m) =>
-      m[1]!.trim()
-    );
-    expect(pushes).toEqual([", 'origin', 'main'"]);
-    const push = PUBLISH.indexOf("['git', 'push', 'origin', 'main']");
-    expect(PUBLISH.slice(push)).toContain("['git', 'ls-remote', 'origin', 'refs/heads/main']");
+  it('a bump committed but not yet pushed is released without a second commit', async () => {
+    const r = await release({ porcelain: '', bumpPending: false });
+    expect(r.code).toBe(0);
+    expect(r.mutated).toEqual(['add', 'push']);
   });
+});
 
-  it('refuses a local tag, a tag on origin, and a number either registry knows, before mutating', () => {
-    const firstMutation = gitCalls(PUBLISH).find((c) => !READ_ONLY.has(c.sub))!.at;
-    for (
-      const probe of [
-        "['rev-parse', '-q', '--verify', `refs/tags/",
-        "'ls-remote', '--tags', 'origin', tag",
-        'jsrHas(',
-        'npmState(',
-      ]
-    ) {
-      const at = PUBLISH.indexOf(probe);
-      expect(at, probe).toBeGreaterThan(-1);
-      expect(at, probe).toBeLessThan(firstMutation);
-    }
-  });
-
-  // The guard exempts RELEASE_FILES because this script stages them. If the
-  // stage names its own list, the two drift apart again: staging deno.json
-  // alone after a bump that also rewrote main.ts is the 2026-09-14 refusal,
-  // and exempting main.ts without staging it would tag the old CLI version.
-  it('stages exactly the list the guard exempts', () => {
-    const adds = [...PUBLISH.matchAll(/\[\s*'git'\s*,\s*'add'\s*,([^\]]*)\]/g)].map((m) =>
-      m[1]!.trim()
-    );
-    expect(adds).toEqual(['...RELEASE_FILES']);
-  });
-
-  it('checks the remote tag before mutating anything', () => {
-    const calls = gitCalls(PUBLISH);
-    const lsRemote = calls.find((c) => c.sub === 'ls-remote');
-    const firstMutation = calls.find((c) => !READ_ONLY.has(c.sub));
-    expect(lsRemote).toBeDefined();
-    expect(firstMutation).toBeDefined();
-    expect(lsRemote!.at).toBeLessThan(firstMutation!.at);
-  });
-
-  // The cold type check (2026-09-28): publish.yml checks with no cache, so a
-  // stale local cache used to pass what CI then failed — after the tag was
-  // public (binaryen-ts v1.2.4). It must run in a FRESH `DENO_DIR` (`--reload`
-  // does not re-resolve a pinned version), before any git mutation, and refuse.
-  it('runs a cold type check, in a fresh DENO_DIR, before mutating anything', () => {
-    // Since Bun migration B7 the Deno type check is the one inside `deno publish` (no deno.json,
-    // no `deno check`), so the cold run is the publish DRY RUN; `bun run check` (`bun check`) follows it.
-    // Deno from npm, pinned in scripts/deno.ts (2026-10-28), and never with `--no-check`: jsr's
-    // wrapper adds it.
-    const at = PUBLISH.indexOf("denoCommand(['publish', '--dry-run', '--allow-dirty'])");
-    expect(PUBLISH).not.toContain("'--no-check'");
-    expect(at).toBeGreaterThan(-1);
-    expect(PUBLISH.slice(at)).toMatch(/spawnSync\(denoBin, denoArgv, \{/);
-    const tsc = PUBLISH.indexOf("spawnSync('bun', ['run', 'check']");
-    expect(tsc).toBeGreaterThan(at);
-    // The parent environment spread in: node:child_process REPLACES `env` (Deno.Command merged
-    // it), and a cold check without PATH cannot even find `deno` (Bun migration B4).
+describe('publish.ts wires in the real checks', () => {
+  // The cold type check (2026-09-28): publish.yml checks with no cache, so a stale local cache
+  // passed what CI then failed — after the tag was public (binaryen-ts v1.2.4). It must run in a
+  // FRESH `DENO_DIR`, with the parent environment spread in, and never with `--no-check`.
+  it('the cold dry run: a fresh DENO_DIR, the environment kept, never --no-check', () => {
+    expect(PUBLISH).toContain("denoCommand(['publish', '--dry-run', '--allow-dirty'])");
     expect(PUBLISH).toContain('env: { ...process.env, DENO_DIR: coldDir }');
-    expect(PUBLISH).toContain('mkdtemp(');
-    const firstMutation = gitCalls(PUBLISH).find((c) => !READ_ONLY.has(c.sub));
-    expect(firstMutation).toBeDefined();
-    expect(at).toBeLessThan(firstMutation!.at);
-    expect(PUBLISH.slice(at, firstMutation!.at)).toContain('process.exit(1)');
+    expect(PUBLISH).toContain('mkdtempSync(');
+    expect(PUBLISH).not.toContain("'--no-check'");
+    expect(PUBLISH).toContain("spawnSync('bun', ['run', 'check']");
+    expect(PUBLISH).toContain('checkEntry(process.cwd())');
+    expect(PUBLISH).toContain('runRelease({');
+    // publish.ts itself runs no git command of its own.
+    expect(PUBLISH).not.toMatch(/\[\s*'(add|commit|push|tag)'/);
+    // git's stdin and stderr pass through, live (round 2, 2026-11-13).
+    expect(PUBLISH).toContain("stdio: ['inherit', 'pipe', 'inherit']");
+    // …so "(printed above)" only when git printed: not when it did not start or was killed.
+    expect(PUBLISH).toMatch(/r\.error\s+\? String\(r\.error\)\s+: r\.signal/);
   });
 
-  // The entry check (1.6.1): through 1.6.0 the package root was not the CLI,
-  // and nothing ran the entry a user runs. Before any git mutation, and refuse.
-  it('checks the package root is the CLI, before mutating anything', () => {
-    expect(PUBLISH).toContain("from './entry-check.ts'");
-    const at = PUBLISH.indexOf('await checkEntry(');
-    expect(at).toBeGreaterThan(-1);
-    const firstMutation = gitCalls(PUBLISH).find((c) => !READ_ONLY.has(c.sub));
-    expect(firstMutation).toBeDefined();
-    expect(at).toBeLessThan(firstMutation!.at);
-    expect(PUBLISH.slice(at, firstMutation!.at)).toContain('process.exit(1)');
-  });
-
-  // The property that made `publish.ts` untestable in the first place. If the
-  // guard module ever gains a side effect, importing it from a test starts
-  // doing something, and the next person moves the logic back inline.
+  // The property that made `publish.ts` untestable in the first place. If the guard module ever
+  // gains a side effect, importing it from a test starts doing something.
   it('keeps release-guard.ts free of side effects', () => {
     expect(GUARD).not.toContain('Deno.Command');
     expect(GUARD).not.toContain('Deno.exit');
     expect(GUARD).not.toContain('child_process');
     expect(GUARD).not.toContain('process.exit');
-    // No top-level await: every export must be a plain function.
     expect(/^await /m.test(GUARD)).toBe(false);
     expect(/^const \w+ = await/m.test(GUARD)).toBe(false);
   });
 
   it('keeps scripts/ inside the gate', () => {
-    // T13.43 found `scripts/` type-checked, linted and formatted by nothing --
-    // including the file that publishes immutable artifacts.
-    // Since Bun migration B3 / B7 the three are Biome, dprint and the tsconfig.json type check
-    // (deno.json is gone): each config's scope must name scripts/. Line comments stripped: none of their strings holds `//`.
+    // T13.43 found `scripts/` type-checked, linted and formatted by nothing -- including the file
+    // that publishes immutable artifacts. Each config's scope must name scripts/.
     const jsonc = (path: string) =>
       JSON.parse(
         fsx.readTextFileSync(path).replace(/^\s*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1'),
@@ -195,14 +238,70 @@ describe('T13.44 — the release preflight stays wired in', () => {
     expect(ts.include).toContain('scripts/**/*.ts');
   });
 
-  it('documents where the guards live, so the docs cannot drift silently', () => {
-    // The T13.43 root cause was prose describing a guard that did not exist.
-    // Naming the module in the release docs means a rewrite has to look at it.
-    // The release docs are the merged cmem/publishing.md since the wabt-ts wing
-    // was summarized (2026-09-14).
-    return fsx.readTextFile('cmem/publishing.md').then((doc) => {
-      expect(doc).toContain('release-guard.ts');
-    });
+  it('documents where the guards live, so the docs cannot drift silently', async () => {
+    const doc = await fsx.readTextFile('cmem/publishing.md');
+    expect(doc).toContain('release-guard.ts');
+  });
+});
+
+// The bump's base (review round 1, 2026-11-13): CI makes the tags, so a clone that has not fetched
+// them would gate a bump against an older release.
+describe('the bump gates against the release jsr.json names', () => {
+  it('the base must be v<current>; anything else is a refusal that says why', () => {
+    expect(releaseBaseProblem('v3.0.4', '3.0.4')).toBe(null);
+    expect(releaseBaseProblem('v3.0.3', '3.0.4')).toContain('fetch the tags');
+    expect(releaseBaseProblem('', '3.0.4')).toContain('(none)');
+  });
+
+  it('bump_version.ts fetches the tags, finds the base, refuses a wrong one, THEN the floor', () => {
+    const bump = fsx.readTextFileSync('scripts/release/bump_version.ts');
+    const fetch = bump.indexOf("['fetch', '--tags', 'origin']");
+    const tag = bump.indexOf('ref = lastReleaseTag();');
+    const base = bump.indexOf('releaseBaseProblem(ref, current)');
+    const floor = bump.indexOf('floorSinceRelease(ref)');
+    expect([fetch, tag, base, floor].every((i) => i > -1)).toBe(true);
+    expect(fetch < tag && tag < base && base < floor).toBe(true);
+    expect(bump.slice(fetch, tag)).toContain('process.exit(1)');
+    expect(bump.slice(base, floor)).toContain('process.exit(1)');
+    // No release tag reachable (round 2): lastReleaseTag throws; that is a refusal, not a crash —
+    // and git's own words go with it (round 3: a corrupt repository read as "no release").
+    expect(bump.slice(tag, base)).toMatch(/catch \(e\)/);
+    expect(bump.slice(base, floor)).toContain('git describe: ');
+    expect(bump.slice(base, floor)).toContain('describeError');
+    expect(bump).not.toContain("'-q', '--tags'");
+    // A fetch that fails says why (git did not start, or was killed — rounds 3–4) and gives the
+    // advice for its exit status, as the release does.
+    expect(bump.slice(fetch, tag)).toContain('fetched.error');
+    // The CONDITION, not just the word (round 4: the word also sits inside the message text).
+    expect(bump.slice(fetch, tag)).toMatch(/:\s*fetched\.signal\s*\?\s*`/);
+    expect(bump.slice(fetch, tag)).toContain('fetchAdvice(fetched.status)');
+  });
+
+  it('fetch advice fits the exit status: a refused ref update, the network, git not running', () => {
+    // Exit 1 (round 5, run): a clobbered tag, a held or stale lock, a non-fast-forward.
+    const one = fetchAdvice(1).join(' ');
+    for (const cause of ['would clobber existing tag', 'cannot lock ref', 'non-fast-forward']) {
+      expect(one).toContain(cause);
+    }
+    expect(one).toContain('its reason is above');
+    // Round 6: a lock is removed only when no git process runs; the force fetch is spelt out.
+    expect(one).toContain('only once NO git process');
+    expect(one).toContain('`git fetch --force origin main`');
+    expect(fetchAdvice(128).join(' ')).toContain('Check the network');
+    expect(fetchAdvice(128).join(' ')).not.toContain('git tag -d');
+    // No status: git did not start or was killed — not a network problem (round 5).
+    expect(fetchAdvice(null).join(' ')).toContain('did not run to completion');
+    expect(fetchAdvice(null).join(' ')).not.toContain('network');
+    // `(exit N: why)` — or "git's reason above" when it was printed live, never nested text.
+    expect(exitText({ status: 1, stdout: '', stderr: '' })).toBe("(exit 1; git's reason above)");
+    expect(exitText({ status: null, stdout: '', stderr: 'Error: spawn git ENOENT' })).toBe(
+      '(exit null: Error: spawn git ENOENT)',
+    );
+    expect(fsx.readTextFileSync('scripts/release/publish.ts')).not.toContain('(printed above)');
+    // No review notes in the text a maintainer reads.
+    expect(fsx.readTextFileSync('scripts/release/release-run.ts')).not.toMatch(
+      /'[^'\n]*\(review round \d[^'\n]*'/,
+    );
   });
 });
 
@@ -212,8 +311,38 @@ describe('T13.44 — the release preflight stays wired in', () => {
 // through), and everything before it is the CI gate's tooling, so a release is judged as CI is.
 describe('the release workflows, off Deno except for the publish itself', () => {
   const PUBLISH_YML = fsx.readTextFileSync('.github/workflows/publish.yml');
-  /** `run:` commands, in order. */
-  const runs = (yml: string) => [...yml.matchAll(/^\s*run:\s*(.+)$/gm)].map((m) => m[1]!.trim());
+  /**
+   * `run:` commands, in order — a block scalar (`run: |`) expanded into each of its lines, so
+   * nothing in a block escapes the checks below (review round 1, 2026-11-13: a block read as the
+   * one token `|`, and `curl … | sh` inside the `jsr` job's block passed the credential test).
+   */
+  const runs = (yml: string): string[] => {
+    const out: string[] = [];
+    const lines = yml.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const m = /^(\s*)(?:-\s+)?run:\s*(.*)$/.exec(lines[i]!);
+      if (!m) continue;
+      const value = m[2]!.trim();
+      if (!/^[|>][+-]?$/.test(value)) {
+        out.push(value);
+        continue;
+      }
+      const indent = m[1]!.length;
+      for (i++; i < lines.length; i++) {
+        const l = lines[i]!;
+        if (l.trim() !== '' && l.length - l.trimStart().length <= indent) break;
+        if (l.trim() !== '' && !/^\s*#/.test(l)) out.push(l.trim());
+      }
+      i--;
+    }
+    return out;
+  };
+
+  it('reads a run: block line by line (the parser the credential checks rely on)', () => {
+    const yml =
+      '      - run: |\n          a b\n          # c\n\n          d\n      - run: e\n    f:\n';
+    expect(runs(yml)).toEqual(['a b', 'd', 'e']);
+  });
   /** The lines that are not YAML comments. */
   const code = (yml: string) => yml.split('\n').filter((l) => !/^\s*#/.test(l));
 
@@ -268,10 +397,23 @@ describe('the release workflows, off Deno except for the publish itself', () => 
 
   it('orders the jobs checks → tag → release → jsr → npm', () => {
     const needs = (job: string) => /\n {4}needs: ([^\n]+)/.exec(jobs[job]!)?.[1];
-    expect(needs('tag')).toBe('checks');
-    expect(jobs['tag']).toContain("if: needs.checks.outputs.release == 'true'");
+    /** A job's `if:` — the expression inside its `${{ … }}`. */
+    const cond = (job: string) => /\n {4}if: \$\{\{ ([^\n]+) \}\}\n/.exec(jobs[job]!)?.[1];
+    // The npm package is proven BEFORE CI tags (review round 1, 2026-11-13). `tag` decides on
+    // npm-build's RESULT only (round 2: reading `vars.NPM_PUBLISH` again could skip the release
+    // silently if the variable changed between the two jobs or before a re-run).
+    expect(needs('tag')).toBe('[checks, npm-build]');
+    expect(cond('tag')).toBe(
+      "!cancelled() && needs.checks.result == 'success' && needs.checks.outputs.release == 'true' && (needs.npm-build.result == 'success' || needs.npm-build.result == 'skipped')",
+    );
+    for (const job of ['tag', 'release', 'jsr']) {
+      expect(cond(job), `${job} reads no variable`).not.toContain('vars.');
+    }
     expect(needs('release')).toBe('[checks, tag]');
+    // Explicit, because a default condition skips a job when ANY job upstream was skipped.
+    expect(cond('release')).toBe("!cancelled() && needs.tag.result == 'success'");
     expect(needs('jsr')).toBe('[checks, release]');
+    expect(cond('jsr')).toBe("!cancelled() && needs.release.result == 'success'");
     expect(needs('npm')).toBe('[checks, jsr, npm-build]');
     // Each write is its own script call, and the tag is made by CI, through the REST API.
     expect(runs(jobs['tag']!)).toEqual(['bun scripts/release/github.ts tag "$TAG"']);
@@ -319,17 +461,27 @@ describe('the release workflows, off Deno except for the publish itself', () => 
 
   it('a credentialed job installs nothing and runs only the registry script and the publish', () => {
     for (const job of credentialed) {
+      // Every command, block lines included; anything not on this list fails.
       const r = runs(jobs[job]!);
       const allowed = (cmd: string) =>
         cmd === 'deno publish' ||
         /^bun scripts\/release\/registry\.ts [a-z-]+( |$)/.test(cmd) ||
         /^echo "uploaded=true" >> "\$GITHUB_OUTPUT"$/.test(cmd) ||
         /^npm publish "\$TARBALL" --ignore-scripts$/.test(cmd) ||
-        cmd === '|'; // the npm-version block, checked below
+        // npm itself, an EXACT version, its install scripts off (review round 1, 2026-11-13)
+        (job === 'npm' && /^npm install -g npm@\d+\.\d+\.\d+ --ignore-scripts$/.test(cmd)) ||
+        (job === 'npm' && cmd === 'npm --version');
       expect(r.filter((c) => !allowed(c)), `${job}: run lines`).toEqual([]);
-      expect(jobs[job]).not.toMatch(
-        /\bbun (install|run|x)\b|\bnpm (ci|install)(?! -g npm@\d+ --ignore-scripts)/,
-      );
+      // Only these actions run beside the credential, each pinned (checked below).
+      const uses = [...jobs[job]!.matchAll(/uses: ([\w./-]+)@/g)].map((m) => m[1]);
+      const ok = [
+        'actions/checkout',
+        'actions/setup-node',
+        'actions/download-artifact',
+        'denoland/setup-deno',
+        'oven-sh/setup-bun',
+      ];
+      expect(uses.filter((u) => !ok.includes(u!)), `${job}: actions`).toEqual([]);
       // Every checkout is sparse and keeps no credential.
       const checkouts = jobs[job]!.split('uses: actions/checkout@').slice(1);
       expect(checkouts.length, `${job}: one checkout`).toBe(1);
@@ -385,6 +537,88 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     const mk = job.indexOf(`mkdir -p ${dest}`);
     expect(mk, `mkdir -p ${dest}`).toBeGreaterThanOrEqual(0);
     expect(mk).toBeLessThan(job.indexOf('npm pack --pack-destination'));
+  });
+
+  // Review round 1 (2026-11-13): each of these could be removed with every test still green.
+  /** One job's lines that are not comments, joined. */
+  const live = (job: string) => code(jobs[job]!).join('\n');
+
+  it('the jsr job: skips an upload JSR has, and reads provenance back AFTER the publish', () => {
+    const r = runs(jobs['jsr']!);
+    const has = r.indexOf('bun scripts/release/registry.ts jsr-has "$VERSION"');
+    const publish = r.indexOf('deno publish');
+    const prov = r.indexOf('bun scripts/release/registry.ts provenance jsr "$VERSION"');
+    // Each present (an absent one reads -1 and would pass an order check — round 2).
+    expect([has, publish, prov].every((i) => i >= 0)).toBe(true);
+    expect(has < publish && publish < prov).toBe(true);
+    expect(live('jsr')).toMatch(
+      /if: steps\.jsr\.outputs\.present == 'false'\n\s+run: deno publish\n/,
+    );
+  });
+
+  it('the npm job: checks the tarball, skips a version npm serves, reads provenance back', () => {
+    const r = runs(jobs['npm']!);
+    const at = (c: string) => r.indexOf(c);
+    const tgz = at('bun scripts/release/registry.ts npm-tarball npm-pack "$VERSION"');
+    const state = at('bun scripts/release/registry.ts npm-state "$VERSION"');
+    const publish = at('npm publish "$TARBALL" --ignore-scripts');
+    const prov = at('bun scripts/release/registry.ts provenance npm "$VERSION"');
+    expect([tgz, state, publish, prov].every((i) => i >= 0)).toBe(true);
+    expect(tgz < publish && state < publish && prov > publish).toBe(true);
+    expect(live('npm')).toMatch(
+      /if: steps\.state\.outputs\.state == 'free'\n(?:\s+env:\n\s+TARBALL: [^\n]+\n)?\s+run: npm publish/,
+    );
+  });
+
+  it('checks: after release-state, every step runs only for a release', () => {
+    const steps = live('checks').split(/\n\s+- name: /).slice(1);
+    const after = steps.slice(steps.findIndex((s) => s.includes('release-state')) + 1);
+    expect(after.length).toBeGreaterThan(5);
+    for (const s of after) {
+      expect(s, s.split('\n')[0]).toMatch(
+        /\n\s+if: steps\.release\.outputs\.(release == 'true'|state == 'new')\n/,
+      );
+    }
+    expect(runs(jobs['checks']!)).toContain('deno publish --dry-run');
+  });
+
+  it('no checkout keeps a credential; every job has a time limit; runs queue, never cancel', () => {
+    const checkouts = PUBLISH_YML.split('uses: actions/checkout@').slice(1);
+    expect(checkouts.length).toBeGreaterThan(5);
+    for (const c of checkouts) {
+      expect(c.split(/\n\s+- name: /)[0]).toContain('persist-credentials: false');
+    }
+    // A limit on every job, each long enough for its measured work (round 2: any number passed).
+    // `checks` runs both test legs and a dry run; `jsr` / `npm` poll provenance ~3 min each.
+    const least: Record<string, number> = {
+      checks: 30,
+      tag: 5,
+      release: 5,
+      jsr: 15,
+      'npm-build': 20,
+      npm: 15,
+    };
+    expect(Object.keys(jobs).sort()).toEqual(Object.keys(least).sort());
+    for (const job of Object.keys(jobs)) {
+      const m = /\n {4}timeout-minutes: (\d+)\n/.exec(live(job));
+      expect(m, `${job}: timeout-minutes`).not.toBe(null);
+      expect(Number(m![1]), `${job}: at least ${least[job]}`).toBeGreaterThanOrEqual(least[job]!);
+      expect(Number(m![1]), `${job}: at most an hour`).toBeLessThanOrEqual(60);
+    }
+    expect(PUBLISH_YML).toMatch(
+      /\nconcurrency:\n {2}group: publish-\$\{\{ github\.sha \}\}\n {2}cancel-in-progress: false\n/,
+    );
+  });
+
+  it('the tools are exact versions: Bun as the repo pins it, Deno as scripts/deno.ts pins it', () => {
+    const deno = /DENO = 'deno@(\d+\.\d+\.\d+)'/.exec(fsx.readTextFileSync('scripts/deno.ts'))?.[1];
+    expect(deno).toBeDefined();
+    const denoPins = [...PUBLISH_YML.matchAll(/deno-version: (\S+)/g)].map((m) => m[1]);
+    expect(denoPins.length).toBe(2);
+    expect(denoPins.every((p) => p === `v${deno}`)).toBe(true);
+    const bunPins = [...PUBLISH_YML.matchAll(/bun-version: (\S+)/g)].map((m) => m[1]);
+    expect(bunPins.length).toBeGreaterThan(4);
+    expect(new Set(bunPins)).toEqual(new Set(["'1.4.4'"]));
   });
 
   it('pins every action to a commit hash', () => {

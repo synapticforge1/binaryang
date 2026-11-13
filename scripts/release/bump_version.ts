@@ -27,10 +27,13 @@ import {
   MANIFEST_URL,
   nextVersion,
   readCurrentVersion,
+  releaseBaseProblem,
   replaceOnce,
   writeAtomic,
 } from './version.ts';
+import { fetchAdvice } from './release-run.ts';
 
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
@@ -72,7 +75,42 @@ if (dryRun) {
 // GATE: "backward compatible" is a gate result, never a judgment made at bump time
 // (../../cmem/layout-and-packaging.md § "The compatibility gate", rules 2 and 5).
 {
-  const { LEVELS, floorSinceRelease, snapshotDrift } = await import('./api-surface.ts');
+  // CI makes the tags (D1), so a clone has them only once it fetches them: fetch first, and gate
+  // only against `v<current>` (review round 1, 2026-11-13).
+  // Not `-q`: git says why it refused (a tag moved upstream) only without it (round 2).
+  const fetched = spawnSync('git', ['fetch', '--tags', 'origin'], { stdio: 'inherit' });
+  if (fetched.status !== 0) {
+    // Its reason: git's own (printed above), why git did not start, or the signal that killed it
+    // (rounds 3–4); then the advice that fits the exit status (release-run.ts's fetchAdvice).
+    const why = fetched.error
+      ? ` (${fetched.error.message})`
+      : fetched.signal
+      ? ` (git was killed by ${fetched.signal})`
+      : ` (exit ${fetched.status}, git's reason above)`;
+    console.error(`bump: could not fetch the tags from origin${why}; nothing was written.`);
+    for (const l of fetchAdvice(fetched.status)) console.error(l);
+    process.exit(1);
+  }
+  const { LEVELS, floorSinceRelease, lastReleaseTag, snapshotDrift } = await import(
+    './api-surface.ts'
+  );
+  // The base, found HERE, before anything uses it: no release tag reachable from HEAD is a
+  // refusal with a reason, not a crash inside the floor (review round 2, 2026-11-13).
+  let ref = '';
+  let describeError = '';
+  try {
+    ref = lastReleaseTag();
+  } catch (e) {
+    // None reachable, or git itself failing: releaseBaseProblem refuses, and git's own words go
+    // with it, so a corrupt repository does not read as "no release" (review round 3).
+    describeError = (e instanceof Error ? e.message : String(e)).split('\n')[0]!;
+  }
+  const base = releaseBaseProblem(ref, current);
+  if (base !== null) {
+    console.error(`bump: ${base}; nothing was written.`);
+    if (describeError !== '') console.error(`  git describe: ${describeError}`);
+    process.exit(1);
+  }
   const drift = await snapshotDrift();
   if (drift.length > 0) {
     console.error(
@@ -85,7 +123,7 @@ if (dryRun) {
     console.error('Nothing was written.');
     process.exit(1);
   }
-  const f = await floorSinceRelease();
+  const f = await floorSinceRelease(ref);
   console.log(`compatibility floor since ${f.ref}: ${f.floor}`);
   for (const r of f.reasons) console.log(`  [${r.level}] ${r.what}`);
   if (LEVELS.indexOf(level) < LEVELS.indexOf(f.floor)) {

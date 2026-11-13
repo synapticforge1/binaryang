@@ -99,6 +99,9 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 3.0.2
+## Since 3.0.4
 
-Nothing yet.
+Nothing in either package yet. Repo-only: review rounds 1–2's fixes (2026-11-13) to the release
+scripts, the workflows and their tests ([release.md](release.md) § "How a release is made").
+⚠️ The next bump refuses until `tests/accepted-changes.json` lists v3.0.4's 11 source-reading
+release tests and drops its stale 3.0.4 entry — the steps are in release.md, step 2.

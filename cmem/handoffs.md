@@ -1228,7 +1228,9 @@ closes its own rows; nothing is written there from here.
     to check: the `parseWat` feature bag (`wasmbundle.ts:370`), `wasm2wat` validating, silent
     `wasm-validate`, unknown options refused, the two optimizer fixes; to every repo publishing
     to npm from CI: the two npm traps and "a re-run runs the tag's workflow". binaryang, the
-    creator, closes it once wasmtk has bumped or answered.
+    creator, closes it once wasmtk has bumped or answered. 🔁 2026-11-13 (review round 1): true
+    while a tag started the run; since D1 a re-run runs the workflow of the commit that started
+    it (the bump commit). The lesson — rehearse a changed release job before it lands — stands.
 
 - **H33 converged, H34 recorded; C43 and C44 CLOSED (2026-11-11**, owner: "review workspace for
   items needing this project's attention and make the requested fixes and report back to the

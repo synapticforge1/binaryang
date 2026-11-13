@@ -1,11 +1,13 @@
 # Continuous integration.
 #
-# Two jobs, because they answer different questions:
+# Four jobs, because they answer different questions:
 #
-#   gates     — is the tree correct? fmt/lint/types/tests, the two binding rules,
-#               the emitted-byte baseline, and the publish manifest.
-#   runtimes  — does the CLI actually run where we say it does? The support
-#               claim in the README is a promise, and a promise wants a job.
+#   gates             — is the tree correct? fmt/lint/types/tests, the two binding rules,
+#                       the emitted-byte baseline, and the publish manifest.
+#   browsers-engines  — does the library run in Playwright's Chromium, Firefox and WebKit?
+#   browsers          — … and in Chrome, Edge, Brave and Opera? (the two since 2026-11-11)
+#   runtimes          — does the CLI actually run where we say it does? The support
+#                       claim in the README is a promise, and a promise wants a job.
 #
 # An exit code is not evidence in this codebase. `bun run test` proves the
 # suites ran; `bun run baseline` proves the emitted bytes did not move, which

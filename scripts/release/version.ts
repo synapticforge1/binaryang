@@ -47,6 +47,18 @@ export async function readCurrentVersion(): Promise<string> {
   return v;
 }
 
+/**
+ * Why the compatibility gate's base is wrong, or `null` when it is right: the last release tag
+ * reachable from HEAD must be `v<current>`, the version jsr.json carries. Since 2026-11-10 CI makes
+ * the tags, so a clone that has not fetched them gates a bump against an OLDER release — its floor
+ * and its previous-release tests (review round 1, 2026-11-13).
+ */
+export function releaseBaseProblem(lastTag: string, current: string): string | null {
+  if (lastTag === `v${current}`) return null;
+  return `the last release tag reachable from HEAD is ${lastTag || '(none)'}, but jsr.json says ` +
+    `${current}: fetch the tags (git fetch --tags origin), or ${current} was never released`;
+}
+
 /** Which component a bump raises. */
 export type BumpLevel = 'patch' | 'minor' | 'major';
 export const BUMP_LEVELS: readonly BumpLevel[] = ['patch', 'minor', 'major'];

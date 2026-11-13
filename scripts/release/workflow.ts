@@ -77,46 +77,75 @@ export function lsRemoteTagCommit(lsRemoteOutput: string, tag: string): string |
   return peeled ?? direct;
 }
 
-/** The subcommand's exit code (a Promise, as every release script's `main`, for the tests). */
-export function main(argv: string[]): Promise<number> {
-  return Promise.resolve(decide(argv));
+/** What `git ls-remote` answered: its exit status, stdout and stderr. */
+export interface LsRemote {
+  status: number | null;
+  stdout: string;
+  stderr: string;
 }
 
-function decide(argv: string[]): number {
+/** The decision and everything it writes: the exit code, the outputs, the lines printed. */
+export interface Decision {
+  code: number;
+  outputs: Record<string, string>;
+  lines: string[];
+}
+
+/**
+ * The whole `release-state` decision, with git's answer handed in, so the tests hold the outputs
+ * publish.yml's `if:`s read, not only the helpers (review round 1, 2026-11-13: a `released`
+ * state writing `release=true` stayed green).
+ */
+export function decideRelease(version: string, sha: string, ls: LsRemote): Decision {
+  const tag = `v${version}`;
+  if (sha === '') return { code: 1, outputs: {}, lines: ['::error::GITHUB_SHA is not set'] };
+  if (ls.status !== 0) {
+    return {
+      code: 1,
+      outputs: {},
+      lines: [`::error::git ls-remote origin failed (exit ${ls.status}): ${ls.stderr.trim()}`],
+    };
+  }
+  const at = lsRemoteTagCommit(ls.stdout, tag);
+  const state = releaseState(at, sha);
+  const lines = [`jsr.json ${version}; tag ${tag} on GitHub: ${at ?? '(absent)'} -> ${state}`];
+  if (state === 'released') return { code: 0, outputs: { release: 'false' }, lines };
+  if (!isReleaseVersion(version)) {
+    return {
+      code: 1,
+      outputs: {},
+      lines: [...lines, `::error::jsr.json's version ${version} is not a release version`],
+    };
+  }
+  return { code: 0, outputs: { release: 'true', state, version, tag }, lines };
+}
+
+/** The subcommand's exit code (a Promise, as every release script's `main`, for the tests). */
+export function main(argv: string[], lsRemote = gitLsRemote): Promise<number> {
+  return Promise.resolve(decide(argv, lsRemote));
+}
+
+/** `git ls-remote origin <tag> <tag>^{}`, as the runner's checkout answers it. */
+function gitLsRemote(tag: string): LsRemote {
+  const r = spawnSync('git', ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`], {
+    encoding: 'utf8',
+  });
+  return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? String(r.error ?? '') };
+}
+
+function decide(argv: string[], lsRemote: (tag: string) => LsRemote): number {
   const [cmd] = argv;
   if (cmd === 'release-state' && argv.length === 1) {
     const sha = process.env['GITHUB_SHA'] ?? '';
-    if (sha === '') {
-      console.log('::error::GITHUB_SHA is not set');
-      return 1;
-    }
     const version = jsrManifest().version;
-    const tag = `v${version}`;
-    const r = spawnSync(
-      'git',
-      ['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`],
-      { encoding: 'utf8' },
+    const d = decideRelease(
+      version,
+      sha,
+      sha === '' ? { status: 0, stdout: '', stderr: '' } : lsRemote(`v${version}`),
     );
-    if (r.status !== 0) {
-      console.log(`::error::git ls-remote origin failed (exit ${r.status}): ${r.stderr.trim()}`);
-      return 1;
-    }
-    const at = lsRemoteTagCommit(r.stdout, tag);
-    const state = releaseState(at, sha);
-    console.log(`jsr.json ${version}; tag ${tag} on GitHub: ${at ?? '(absent)'} -> ${state}`);
-    if (state === 'released') {
-      output('release', 'false');
-      return 0;
-    }
-    if (!isReleaseVersion(version)) {
-      console.log(`::error::jsr.json's version ${version} is not a release version`);
-      return 1;
-    }
-    output('release', 'true');
-    output('state', state);
-    output('version', version);
-    output('tag', tag);
-    return 0;
+    for (const l of d.lines) console.log(l);
+    for (const [k, v] of Object.entries(d.outputs)) output(k, v);
+    return d.code;
   }
   console.error('usage: workflow.ts release-state');
   return 2;

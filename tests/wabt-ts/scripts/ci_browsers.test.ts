@@ -79,6 +79,29 @@ describe("ci.yml's browser check: Playwright's engines in its image, the rest on
     expect(UNDECLARED).toEqual(['gsettings-desktop-schemas']);
   });
 
+  // Each was measured on GitHub on 2026-11-11, and each could be removed with every test green
+  // (review round 1, 2026-11-13).
+  it("keeps the fixes measured on GitHub: Firefox's HOME, Chromium's IPC, the git exception", () => {
+    expect(ENGINES).toMatch(/\n {4}env:\n {6}HOME: \/root\n/);
+    expect(ENGINES).toMatch(/\n {6}options: --ipc=host\n/);
+    expect(ENGINES).toContain('run: git config --global --add safe.directory "$GITHUB_WORKSPACE"');
+  });
+
+  it('both jobs: a time limit, Node for the driver, the lockfile exactly; installs before the check', () => {
+    for (const [name, job] of [['engines', ENGINES], ['installed', INSTALLED]] as const) {
+      expect(job, name).toMatch(/\n {4}timeout-minutes: 20\n/);
+      expect(job, name).toMatch(/uses: actions\/setup-node@\S+\n\s+with:\n\s+node-version: '24'/);
+      expect(job, name).toContain('run: bun install --frozen-lockfile');
+      expect(job, name).not.toMatch(/run: bun install(?! --frozen-lockfile)/);
+    }
+    expect(INSTALLED.indexOf('run: bun scripts/ci/install-browsers.ts')).toBeLessThan(
+      INSTALLED.indexOf('run: bun run browsers'),
+    );
+    expect(INSTALLED.indexOf('bun install --frozen-lockfile')).toBeLessThan(
+      INSTALLED.indexOf('run: bun scripts/ci/install-browsers.ts'),
+    );
+  });
+
   it('tells apt to fail fast, before any apt run', () => {
     expect(APT_FAIL_FAST).toContain('Acquire::Retries "1";');
     expect(APT_FAIL_FAST).toContain('Acquire::https::Timeout "15";');

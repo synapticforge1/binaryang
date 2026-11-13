@@ -26,7 +26,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -51,13 +51,47 @@ const env = process.env;
 const LOCALAPP = env['LOCALAPPDATA'] ?? '';
 const firstExisting = (...paths: (string | undefined)[]) => paths.find((p) => p && existsSync(p));
 
+/**
+ * Whether an executable is the named vendor's: its REAL path (symlinks resolved, as the apt
+ * wrappers in /usr/bin are) names the vendor. Chrome and Edge are found by Playwright's channels,
+ * which resolve to the vendor's install; Brave and Opera are found by path, or by an environment
+ * variable that could name any binary (review round 1, 2026-11-13: nothing checked that the binary
+ * launched was the browser named).
+ */
+export function isVendorBinary(path: string, vendor: string): boolean {
+  let real = path;
+  try {
+    real = realpathSync(path);
+  } catch { /* the path as given */ }
+  // The FILE's name, exactly one the vendor's installs use (review rounds 2–3, 2026-11-13: a
+  // substring of the path passed `/home/brave/chrome`; a prefix passed `bravery`, `operabeta`).
+  const file = real.replace(/\\/g, '/').split('/').pop()!.toLowerCase();
+  return VENDOR_FILES[vendor]?.includes(file) ?? false;
+}
+
+/**
+ * The executables' file names, per vendor, as their installs name them (Brave's deb: `brave`, the
+ * `brave-browser` launcher, `brave-browser-stable`; Opera's deb: `opera`; Windows: `.exe`).
+ */
+export const VENDOR_FILES: Readonly<Record<string, readonly string[]>> = {
+  brave: ['brave', 'brave-browser', 'brave-browser-stable', 'brave.exe'],
+  opera: ['opera', 'opera.exe'],
+};
+
 /** The browsers, in the owner's words, and how each is found. */
 export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
   const path = (name: string, envVar: string, ...candidates: string[]) => {
     const p = firstExisting(env[envVar], ...candidates);
-    return p
-      ? { name, engine: 'chromium' as const, executablePath: p }
-      : { name, engine: 'chromium' as const, missing: `not installed (or set ${envVar})` };
+    if (!p) {
+      return { name, engine: 'chromium' as const, missing: `not installed (or set ${envVar})` };
+    }
+    return isVendorBinary(p, name) ? { name, engine: 'chromium' as const, executablePath: p } : {
+      name,
+      engine: 'chromium' as const,
+      missing: `${p} is not a ${name} executable (its file name is none of ${
+        (VENDOR_FILES[name] ?? []).join(', ')
+      })`,
+    };
   };
   return [
     { name: 'chromium', engine: 'chromium' },
@@ -76,7 +110,9 @@ export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
       'BINARYANG_OPERA',
       `${LOCALAPP}/Programs/Opera/opera.exe`,
       '/usr/bin/opera',
-      '/usr/lib/x86_64-linux-gnu/opera/opera',
+      // The opera-stable package installs here (its deb, listed in review round 3, 2026-11-13);
+      // `/usr/bin/opera` is a symlink to it. An `opera/` directory never existed.
+      '/usr/lib/x86_64-linux-gnu/opera-stable/opera',
     ),
     // No Vivaldi (owner, 2026-10-13: "lets remove vivaldi from the checks. most of the other
     // chromium distributions are applicable"): headless under Playwright on CI's Linux it never
@@ -215,11 +251,125 @@ function runDriver(
   });
 }
 
+/**
+ * The browsers `--only=` names, each exactly once; every name must be a known browser. An unknown
+ * or empty list is an ERROR, never a run of nothing (review round 1, 2026-11-13: `--only=chrom,edgee
+ * --require-all` checked no browser and exited 0 — CI's two jobs each name their browsers).
+ */
+export function selectSpecs<S extends { name: string }>(specs: S[], only?: string[]): S[] {
+  if (only === undefined) return specs;
+  const names = new Set(specs.map((s) => s.name));
+  const unknown = only.filter((n) => !names.has(n));
+  if (only.length === 0 || unknown.length > 0) {
+    throw new Error(
+      `--only names no known browser: ${
+        unknown.map((n) => JSON.stringify(n)).join(', ') || '(empty)'
+      } — known: ${[...names].join(', ')}`,
+    );
+  }
+  if (new Set(only).size !== only.length) throw new Error(`--only names a browser twice: ${only}`);
+  return specs.filter((s) => only.includes(s.name));
+}
+
+/**
+ * What a driver report is: none at all, an error, a result — or EMPTY, neither, which is a
+ * failure, never a pass (review round 4, 2026-11-13: an empty report added nothing to the
+ * browser's problems, so it counted as passed).
+ */
+export function reportKind(
+  r?: { error?: string; result?: unknown },
+): 'none' | 'error' | 'result' | 'malformed' | 'empty' {
+  if (!r) return 'none';
+  if (r.error) return 'error';
+  if (!r.result) return 'empty';
+  // A result without the harness's lists would crash the verdict loop — and a crash on one
+  // browser hid the verdict on every browser after it (review round 5, 2026-11-13).
+  const res = r.result as Partial<Record<'loaded' | 'loadFailed' | 'modules', unknown>>;
+  return typeof r.result === 'object' && Array.isArray(res.loaded) &&
+      Array.isArray(res.loadFailed) && Array.isArray(res.modules)
+    ? 'result'
+    : 'malformed';
+}
+
+/** One browser's report, as the driver prints it (one JSON line). */
+export interface DriverReport {
+  name: string;
+  version?: string;
+  result?: HarnessResult;
+  error?: string;
+  consoleErrors?: string[];
+}
+
+/**
+ * The driver reports in `out`, one per line — and the lines that are not a report (not JSON, or
+ * no string `name`), set aside instead of thrown: one bad line used to stop the verdict on EVERY
+ * browser (review round 6, 2026-11-13, run). A browser whose line was unreadable has no report,
+ * which fails it.
+ */
+export function parseReports(out: string): { reports: DriverReport[]; unreadable: string[] } {
+  const reports: DriverReport[] = [];
+  const unreadable: string[] = [];
+  for (const l of out.split('\n').filter((x) => x.startsWith('{'))) {
+    try {
+      const r = JSON.parse(l) as Partial<DriverReport> | null;
+      if (r !== null && typeof r === 'object' && typeof r.name === 'string') {
+        reports.push(r as DriverReport);
+      } else unreadable.push(l);
+    } catch {
+      unreadable.push(l);
+    }
+  }
+  return { reports, unreadable };
+}
+
+/**
+ * Runs one browser's judgement; anything it throws becomes THAT browser's failure, so every other
+ * browser is still judged (review round 6, 2026-11-13, run: a malformed result crashed the loop).
+ */
+export function guarded(bad: string[], judge: () => void): void {
+  try {
+    judge();
+  } catch (e) {
+    bad.push(`the report could not be judged: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * The `--only=` list from the arguments: `undefined` when there is none. ONE `--only=` flag only,
+ * and only in its `=` form: a second flag used to be ignored silently, so `--only=chrome
+ * --only=edge` tested Chrome alone (review round 2, 2026-11-13); a bare `--only` or the space form
+ * (`--only chrome`) ran every browser. Any OTHER argument is refused too (review round 3: a
+ * mistyped `--onlyx=chrome` was ignored, and every browser ran).
+ */
+export function parseOnly(argv: string[]): string[] | undefined {
+  const flags = argv.filter((a) =>
+    a === '--only' || a.startsWith('--only=') || a.startsWith('--only ')
+  );
+  if (flags.length > 1) throw new Error(`--only is given ${flags.length} times; give one list`);
+  const flag = flags[0];
+  if (flag !== undefined && !flag.startsWith('--only=')) {
+    throw new Error(`write --only=<names>, not ${JSON.stringify(flag)}`);
+  }
+  const unknown = argv.filter((a) => a !== '--require-all' && !a.startsWith('--only='));
+  if (unknown.length > 0) {
+    throw new Error(
+      `unknown argument(s): ${
+        unknown.map((a) => JSON.stringify(a)).join(', ')
+      } — usage: [--require-all] [--only=<names>]`,
+    );
+  }
+  return flag === undefined
+    ? undefined
+    : flag.slice('--only='.length).split(',').filter((n) => n !== '');
+}
+
 if (import.meta.main) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const argv = process.argv.slice(2);
   const requireAll = argv.includes('--require-all');
-  const only = argv.find((a) => a.startsWith('--only='))?.slice('--only='.length).split(',');
+  const only = parseOnly(argv);
+  // Before anything is built: a wrong `--only` must not cost a bundle and a server first.
+  selectSpecs(browserSpecs(), only);
   const known = JSON.parse(
     readFileSync(join(root, 'tests/browser-known-differences.json'), 'utf8'),
   ) as Record<
@@ -305,7 +455,7 @@ if (import.meta.main) {
     const port = (server.address() as AddressInfo).port;
 
     // 3. The browsers, through the driver on Node.
-    const all = browserSpecs().filter((s) => !only || only.includes(s.name));
+    const all = selectSpecs(browserSpecs(), only);
     const skipped = all.filter((s) => s.missing);
     const toRun = all.filter((s) => !s.missing);
     // One driver process PER BROWSER: the first CI run lost Vivaldi (since removed), Firefox and
@@ -327,16 +477,12 @@ if (import.meta.main) {
     }
     server.close();
 
-    // 4. The verdict.
-    const reports = out.split('\n').filter((l) => l.startsWith('{')).map((l) =>
-      JSON.parse(l) as {
-        name: string;
-        version?: string;
-        result?: HarnessResult;
-        error?: string;
-        consoleErrors?: string[];
-      }
-    );
+    // 4. The verdict. A line that is not a report cannot stop the verdict on any browser; its
+    // browser then has no report, which fails it (review round 6, 2026-11-13).
+    const { reports, unreadable } = parseReports(out);
+    for (const l of unreadable) {
+      console.log(`! a driver line that is not a report: ${l.slice(0, 200)}`);
+    }
     for (const s of skipped) {
       console.log(`- ${s.name}: SKIPPED, ${s.missing}`);
       if (requireAll && env['GITHUB_ACTIONS'] === 'true') {
@@ -347,54 +493,73 @@ if (import.meta.main) {
     for (const spec of toRun) {
       const r = reports.find((x) => x.name === spec.name);
       const bad: string[] = [];
-      if (!r) bad.push('no report from the driver');
-      else if (r.error) {
-        const notInstalled = /is not found|not installed|Executable doesn't exist/i.test(r.error);
+      let summarized = false;
+      const kind = reportKind(r);
+      if (kind === 'none') bad.push('no report from the driver');
+      else if (kind === 'empty') {
+        // Review round 4 (2026-11-13): a report with neither added nothing to `bad` — a pass.
+        bad.push('the driver reported neither a result nor an error');
+      } else if (kind === 'malformed') {
+        bad.push(
+          `the driver's result is not a harness result: ${JSON.stringify(r!.result).slice(0, 200)}`,
+        );
+      } else if (kind === 'error') {
+        const error = r!.error!;
+        const notInstalled = /is not found|not installed|Executable doesn't exist/i.test(error);
         if (notInstalled && !requireAll) {
           console.log(`- ${spec.name}: SKIPPED, not installed`);
           continue;
         }
-        bad.push(`could not run: ${r.error}`);
-      } else if (r.result) {
-        const res = r.result;
-        if (res.error) bad.push(`harness error: ${res.error}`);
-        for (const [sub, why] of res.loadFailed) bad.push(`export ${sub} does not load: ${why}`);
-        if (res.smoke !== expected.smoke) {
-          bad.push(`smoke hash ${res.smoke} != host ${expected.smoke}`);
-        }
-        if (res.modules.length !== files.length) {
-          bad.push(`ran ${res.modules.length} of ${files.length} modules`);
-        }
-        const refusals: string[] = [];
-        for (const m of res.modules) {
-          const want = expected.modules.get(m.file);
-          if (m.wat2wasm !== want?.wat2wasm) {
-            bad.push(`${m.file}: wat2wasm hash differs from the host`);
-          } else if (m.opt !== want?.opt) bad.push(`${m.file}: wasmOpt hash differs from the host`);
-          if (!m.valid) refusals.push(`${m.file} :: valid`);
-          if (m.opt && !m.opt.startsWith('error') && !m.optValid) {
-            refusals.push(`${m.file} :: optValid`);
+        bad.push(`could not run: ${error}`);
+      } else {
+        // Judged GUARDED: any shape the checks below do not expect fails THIS browser, and every
+        // other browser is still judged (review round 6: `modules: [null]`, a `loadFailed` entry
+        // that is not a pair, `recipe: {}` each crashed the loop).
+        guarded(bad, () => {
+          const res = r!.result!;
+          if (res.error) bad.push(`harness error: ${res.error}`);
+          for (const [sub, why] of res.loadFailed) bad.push(`export ${sub} does not load: ${why}`);
+          if (res.smoke !== expected.smoke) {
+            bad.push(`smoke hash ${res.smoke} != host ${expected.smoke}`);
           }
-        }
-        const listed = (known[spec.name] ?? []).map((k) => `${k.file} :: ${k.check}`);
-        for (const x of refusals.filter((x) => !listed.includes(x))) {
-          bad.push(`engine refuses, not listed: ${x}`);
-        }
-        for (const x of listed.filter((x) => !refusals.includes(x))) {
-          bad.push(`listed, but accepted now (delete it): ${x}`);
-        }
-        bad.push(...recipeProblems(res.recipe, expectedRecipe));
-        const shrunk = res.recipe?.runs.filter((x) => x.first.optimized).length ?? 0;
-        console.log(
-          `${bad.length === 0 ? '✓' : '✗'} ${spec.name} ${
-            r.version ?? ''
-          }: ${res.loaded.length} exports loaded, ` +
-            `${res.modules.length} modules, ${refusals.length} engine refusals (${listed.length} listed), ` +
-            `recipe ${shrunk} of ${res.recipe?.runs.length ?? 0} shrunk, ${
-              res.recipe?.kept.length ?? 0
-            } kept`,
-        );
+          if (res.modules.length !== files.length) {
+            bad.push(`ran ${res.modules.length} of ${files.length} modules`);
+          }
+          const refusals: string[] = [];
+          for (const m of res.modules) {
+            const want = expected.modules.get(m.file);
+            if (m.wat2wasm !== want?.wat2wasm) {
+              bad.push(`${m.file}: wat2wasm hash differs from the host`);
+            } else if (m.opt !== want?.opt) {
+              bad.push(`${m.file}: wasmOpt hash differs from the host`);
+            }
+            if (!m.valid) refusals.push(`${m.file} :: valid`);
+            if (m.opt && !m.opt.startsWith('error') && !m.optValid) {
+              refusals.push(`${m.file} :: optValid`);
+            }
+          }
+          const listed = (known[spec.name] ?? []).map((k) => `${k.file} :: ${k.check}`);
+          for (const x of refusals.filter((x) => !listed.includes(x))) {
+            bad.push(`engine refuses, not listed: ${x}`);
+          }
+          for (const x of listed.filter((x) => !refusals.includes(x))) {
+            bad.push(`listed, but accepted now (delete it): ${x}`);
+          }
+          bad.push(...recipeProblems(res.recipe, expectedRecipe));
+          const shrunk = res.recipe?.runs.filter((x) => x.first.optimized).length ?? 0;
+          console.log(
+            `${bad.length === 0 ? '✓' : '✗'} ${spec.name} ${
+              r!.version ?? ''
+            }: ${res.loaded.length} exports loaded, ` +
+              `${res.modules.length} modules, ${refusals.length} engine refusals (${listed.length} listed), ` +
+              `recipe ${shrunk} of ${res.recipe?.runs.length ?? 0} shrunk, ${
+                res.recipe?.kept.length ?? 0
+              } kept`,
+          );
+          summarized = true;
+        });
       }
+      if (bad.length > 0 && !summarized) console.log(`✗ ${spec.name}`);
       // On GitHub Actions each failure is ALSO an annotation: the job log needs admin rights to read
       // through the API, annotations do not (the first CI run failed with nothing else to go on).
       if (env['GITHUB_ACTIONS'] === 'true') {

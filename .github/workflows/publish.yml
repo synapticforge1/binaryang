@@ -12,15 +12,17 @@
 #                        must be free on JSR and npm (npm never reuses one, C34 (2)); the
 #                        compatibility gate, the type check, both test legs, and
 #                        `deno publish --dry-run` on exactly the files `jsr` checks out
-#   tag        contents  CI's annotated tag `vX.Y.Z` on this commit (REST API), read back; at this
-#              : write   commit already = done, anywhere else = refused (scripts/release/github.ts)
+#   npm-build  no token  builds and PROVES the npm package, packs it, uploads the tarball — BEFORE
+#                        the tag (skipped while the NPM_PUBLISH variable is not `true`)
+#   tag        contents  once `checks` is green and `npm-build` green or skipped: CI's annotated
+#              : write   tag `vX.Y.Z` on this commit (REST API), read back; at this commit already
+#                        = done, anywhere else = refused (scripts/release/github.ts)
 #   release    contents  the GitHub Release page FROM the tag (workspace letters H30 / H32): the tag
 #              : write   peels to this commit, an existing page is done, created, read back
 #   jsr        id-token  skips the upload if JSR already has the version (a re-run), writes
 #                        `uploaded` BEFORE `deno publish` — which uploads, THEN signs, so a failure
 #                        after the upload (1.13.2) must not strand npm — publishes, reads
 #                        provenance back
-#   npm-build  no token  builds and PROVES the npm package, packs it, uploads the tarball
 #   npm        id-token  waits for JSR, checks the tarball's manifest (ours, this version, no
 #                        scripts, provenance on), skips if npm already serves it, publishes the
 #                        PROVEN tarball with --ignore-scripts, reads provenance back
@@ -28,9 +30,14 @@
 # A tag pushed with the job's GITHUB_TOKEN starts NO workflow run, so the page and the publish are
 # in THIS run (`needs:`). The run's actor is whoever pushed `main` — the owner, a member of the
 # `@jrmarcum` JSR scope — which is what JSR authorises (the dispatched runs auto-tag.yml started had
-# the bot as actor and were refused, `actorNotScopeMember`; auto-tag.yml is retired). S3D measured
-# this order publishing to JSR and npm on 2026-11-10 (its 1.4.0); here it is UNMEASURED until the
-# first release in it.
+# the bot as actor and were refused, `actorNotScopeMember`; auto-tag.yml is retired). The order
+# checks → tag → page → JSR → npm was MEASURED by 3.0.3 (run 43061998593) and 3.0.4 (run
+# 43072390794), all six jobs green; `npm-build` BEFORE the tag and the explicit `if:`s (review,
+# 2026-11-13) are UNMEASURED until the next release.
+#
+# The npm package is built and PROVEN (`npm-build`) BEFORE CI tags: a package npm would never get
+# must not leave a tag, a page and a JSR version behind (review round 1, 2026-11-13). Every job has
+# a time limit, and the tools the credentialed jobs install are exact versions (npm, Deno).
 #
 # Failure (U12): "Re-run failed jobs" — every job skips what is done (a tag at this commit, a
 # page, a version a registry serves). Never a new tag for the same code, never a moved tag.
@@ -81,6 +88,7 @@ jobs:
   checks:
     name: Checks (is this a release?)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
     outputs:
@@ -151,7 +159,7 @@ jobs:
         if: steps.release.outputs.release == 'true'
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
-          deno-version: v2.x
+          deno-version: v2.9.6
 
       # The `jsr` job publishes from a checkout of jsr.json's `publish.include` alone — no
       # package.json, no lockfile, no node_modules. Rehearse exactly that tree here (measured
@@ -180,11 +188,16 @@ jobs:
         working-directory: jsr-tree
         run: deno publish --dry-run
 
-  # CI pushes the tag, only after `checks` is green on THIS commit (D1, U6).
+  # CI pushes the tag, only after `checks` is green on THIS commit (D1, U6) AND the npm package is
+  # built and proven (review round 1, 2026-11-13: a package that cannot build for npm used to get
+  # its tag, its page and its JSR version first). A SKIPPED `npm-build` means npm publishing was
+  # off when `npm-build` was decided; `tag` reads that RESULT, never the variable again (review
+  # round 2, 2026-11-13: the variable switched on between the two, or before a re-run, skipped
+  # `tag` — and everything after it — in a run that ended green, releasing nothing).
   tag:
     name: Tag ${{ needs.checks.outputs.tag }}
-    needs: checks
-    if: needs.checks.outputs.release == 'true'
+    needs: [checks, npm-build]
+    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.checks.outputs.release == 'true' && (needs.npm-build.result == 'success' || needs.npm-build.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -218,6 +231,9 @@ jobs:
   release:
     name: GitHub Release ${{ needs.checks.outputs.tag }}
     needs: [checks, tag]
+    # Explicit: a default condition skips this job when ANY job upstream was skipped — and
+    # `npm-build` is skipped whenever npm publishing is off.
+    if: ${{ !cancelled() && needs.tag.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -247,7 +263,9 @@ jobs:
   jsr:
     name: Publish ${{ needs.checks.outputs.tag }} to JSR
     needs: [checks, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
@@ -279,7 +297,7 @@ jobs:
       - name: Install Deno
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
-          deno-version: v2.x
+          deno-version: v2.9.6
 
       - name: Install Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -323,6 +341,7 @@ jobs:
     needs: checks
     if: vars.NPM_PUBLISH == 'true' && needs.checks.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
 
@@ -372,6 +391,7 @@ jobs:
     needs: [checks, jsr, npm-build]
     if: ${{ !cancelled() && needs.jsr.outputs.uploaded == 'true' && needs.npm-build.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
@@ -400,10 +420,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # npm 11, as every release since 1.13.3 (trusted publishing needs a recent one); its own
-      # package, with no install scripts run.
+      # package, with no install scripts run. An EXACT version (review round 1, 2026-11-13): the
+      # floating `npm@11` resolved to whatever was newest, inside the job holding the credential.
+      # 11.21.2 is what `npm@11` was in the 3.0.3 and 3.0.4 runs (newest 11.x since 2026-11-04).
       - name: npm version (trusted publishing needs a recent one)
         run: |
-          npm install -g npm@11 --ignore-scripts
+          npm install -g npm@11.21.2 --ignore-scripts
           npm --version
 
       - name: Download the proven tarball

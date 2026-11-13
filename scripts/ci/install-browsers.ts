@@ -2,7 +2,7 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 /**
- * CI only: installs Brave and Opera for ci.yml's "Browsers (installed)" job, on GitHub's hosted
+ * CI only: installs Brave and Opera for ci.yml's "Browsers (Chrome, Edge, Brave, Opera)" job, on GitHub's hosted
  * Ubuntu runner, from each vendor's apt repository. That runner already has Chrome and Edge, so
  * nothing else is installed: Playwright's own Chromium, Firefox and WebKit are checked by the
  * other Browsers job, inside Playwright's container, where they are part of the image.

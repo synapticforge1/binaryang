@@ -14,7 +14,24 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
-**State, 2026-11-11 (supersedes the paragraphs below where they differ).** Workspace letter **H33**
+**State, 2026-11-13 (supersedes the paragraphs below where they differ).** The owner's **"review"**
+(workspace `review-process.md` § 2, letter H35): a change review of `v3.0.2..main` — the D1 release
+path (`bun run release`, `bump`, `publish.yml`) and the two-job browser check; no `src/` change.
+Fresh read-only reviewers, Sonnet from round 2 on (owner), every finding re-run before a fix, each
+fix as its class with a test that fails without it, inverted by mutants (19, 9, 7, 6, 4, 4 caught
+in rounds 1–6; the round commits list each finding). Every round found something; the owner
+chose every fix; all on
+branch **`review-r1`** (from `main` 400367144; the gate 12 / 12 after each round), **merged into
+`main` and pushed** (owner: "push", 2026-11-13) — no release. Round 7 in progress (its fetch-advice reviewer found nothing; the
+verdict-loop reviewer still running) — the review stops at the first empty round. What changed:
+the release script's guards are `scripts/release/release-run.ts`, held by RUNNING them; `tag`
+waits for `npm-build`; exact npm / Deno; job time limits; stale accepted entries fail the gate;
+`--only` / vendor / report checks in `check-browsers.ts`; the records in
+[release.md](release.md) § "How a release is made". ⚠️ The next bump refuses first by design
+(release.md step 2). **Open:** workspace letter **H35** — binaryang's review slots and the
+release guard that both reviews are recorded — not started.
+
+**State, 2026-11-11 (superseded where the paragraph above differs).** Workspace letter **H33**
 converged and PUSHED: the owner's D1 order — `bun run release` pushes `main` only; `publish.yml`
 runs on that push, `checks` → CI's `tag` → the `release` page → `jsr` / `npm`; `auto-tag.yml`
 retired — and D3, every release record in [release.md](release.md) § "Release History" (moved
