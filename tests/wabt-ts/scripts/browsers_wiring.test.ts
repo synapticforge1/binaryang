@@ -131,7 +131,13 @@ describe('the real-browser job', () => {
   it('a driver report with neither a result nor an error is a failure, never a pass', () => {
     expect(reportKind(undefined)).toBe('none');
     expect(reportKind({ error: 'x' })).toBe('error');
-    expect(reportKind({ result: { modules: [] } })).toBe('result');
+    expect(reportKind({ result: { loaded: [], loadFailed: [], modules: [] } })).toBe('result');
+    // Round 5: a result without the harness's lists crashed the loop, hiding later browsers.
+    for (
+      const result of [{}, { modules: [] }, { loaded: [], loadFailed: 'x', modules: [] }, 1, 'x']
+    ) {
+      expect(reportKind({ result } as never), JSON.stringify(result)).toBe('malformed');
+    }
     for (const r of [{}, { result: null }, { result: '' }, { error: '' }] as never[]) {
       expect(reportKind(r), JSON.stringify(r)).toBe('empty');
     }
@@ -142,6 +148,7 @@ describe('the real-browser job', () => {
     expect(src).toMatch(
       /kind === 'empty'\) \{\n(?:\s*\/\/[^\n]*\n)*\s*bad\.push\('the driver reported neither a result nor an error'\)/,
     );
+    expect(src).toMatch(/kind === 'malformed'\) \{\n\s*bad\.push\(/);
   });
 
   // Two CI jobs since 2026-11-11 (owner): Playwright's engines in its image, the installed

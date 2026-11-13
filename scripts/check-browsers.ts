@@ -278,11 +278,17 @@ export function selectSpecs<S extends { name: string }>(specs: S[], only?: strin
  */
 export function reportKind(
   r?: { error?: string; result?: unknown },
-): 'none' | 'error' | 'result' | 'empty' {
+): 'none' | 'error' | 'result' | 'malformed' | 'empty' {
   if (!r) return 'none';
   if (r.error) return 'error';
-  if (r.result) return 'result';
-  return 'empty';
+  if (!r.result) return 'empty';
+  // A result without the harness's lists would crash the verdict loop — and a crash on one
+  // browser hid the verdict on every browser after it (review round 5, 2026-11-13).
+  const res = r.result as Partial<Record<'loaded' | 'loadFailed' | 'modules', unknown>>;
+  return typeof r.result === 'object' && Array.isArray(res.loaded) &&
+      Array.isArray(res.loadFailed) && Array.isArray(res.modules)
+    ? 'result'
+    : 'malformed';
 }
 
 /**
@@ -453,6 +459,10 @@ if (import.meta.main) {
       else if (kind === 'empty') {
         // Review round 4 (2026-11-13): a report with neither added nothing to `bad` — a pass.
         bad.push('the driver reported neither a result nor an error');
+      } else if (kind === 'malformed') {
+        bad.push(
+          `the driver's result is not a harness result: ${JSON.stringify(r!.result).slice(0, 200)}`,
+        );
       } else if (kind === 'error') {
         const error = r!.error!;
         const notInstalled = /is not found|not installed|Executable doesn't exist/i.test(error);
