@@ -26,7 +26,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -51,13 +51,33 @@ const env = process.env;
 const LOCALAPP = env['LOCALAPPDATA'] ?? '';
 const firstExisting = (...paths: (string | undefined)[]) => paths.find((p) => p && existsSync(p));
 
+/**
+ * Whether an executable is the named vendor's: its REAL path (symlinks resolved, as the apt
+ * wrappers in /usr/bin are) names the vendor. Chrome and Edge are found by Playwright's channels,
+ * which resolve to the vendor's install; Brave and Opera are found by path, or by an environment
+ * variable that could name any binary (review round 1, 2026-11-13: nothing checked that the binary
+ * launched was the browser named).
+ */
+export function isVendorBinary(path: string, vendor: string): boolean {
+  let real = path;
+  try {
+    real = realpathSync(path);
+  } catch { /* the path as given */ }
+  return real.toLowerCase().replace(/\\/g, '/').includes(vendor);
+}
+
 /** The browsers, in the owner's words, and how each is found. */
 export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
   const path = (name: string, envVar: string, ...candidates: string[]) => {
     const p = firstExisting(env[envVar], ...candidates);
-    return p
-      ? { name, engine: 'chromium' as const, executablePath: p }
-      : { name, engine: 'chromium' as const, missing: `not installed (or set ${envVar})` };
+    if (!p) {
+      return { name, engine: 'chromium' as const, missing: `not installed (or set ${envVar})` };
+    }
+    return isVendorBinary(p, name) ? { name, engine: 'chromium' as const, executablePath: p } : {
+      name,
+      engine: 'chromium' as const,
+      missing: `${p} is not a ${name} executable (its real path does not name ${name})`,
+    };
   };
   return [
     { name: 'chromium', engine: 'chromium' },
@@ -215,11 +235,34 @@ function runDriver(
   });
 }
 
+/**
+ * The browsers `--only=` names, each exactly once; every name must be a known browser. An unknown
+ * or empty list is an ERROR, never a run of nothing (review round 1, 2026-11-13: `--only=chrom,edgee
+ * --require-all` checked no browser and exited 0 — CI's two jobs each name their browsers).
+ */
+export function selectSpecs<S extends { name: string }>(specs: S[], only?: string[]): S[] {
+  if (only === undefined) return specs;
+  const names = new Set(specs.map((s) => s.name));
+  const unknown = only.filter((n) => !names.has(n));
+  if (only.length === 0 || unknown.length > 0) {
+    throw new Error(
+      `--only names no known browser: ${
+        unknown.map((n) => JSON.stringify(n)).join(', ') || '(empty)'
+      } — known: ${[...names].join(', ')}`,
+    );
+  }
+  if (new Set(only).size !== only.length) throw new Error(`--only names a browser twice: ${only}`);
+  return specs.filter((s) => only.includes(s.name));
+}
+
 if (import.meta.main) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const argv = process.argv.slice(2);
   const requireAll = argv.includes('--require-all');
-  const only = argv.find((a) => a.startsWith('--only='))?.slice('--only='.length).split(',');
+  const onlyArg = argv.find((a) => a.startsWith('--only='))?.slice('--only='.length);
+  const only = onlyArg === undefined ? undefined : onlyArg.split(',').filter((n) => n !== '');
+  // Before anything is built: a wrong `--only` must not cost a bundle and a server first.
+  selectSpecs(browserSpecs(), only);
   const known = JSON.parse(
     readFileSync(join(root, 'tests/browser-known-differences.json'), 'utf8'),
   ) as Record<
@@ -305,7 +348,7 @@ if (import.meta.main) {
     const port = (server.address() as AddressInfo).port;
 
     // 3. The browsers, through the driver on Node.
-    const all = browserSpecs().filter((s) => !only || only.includes(s.name));
+    const all = selectSpecs(browserSpecs(), only);
     const skipped = all.filter((s) => s.missing);
     const toRun = all.filter((s) => !s.missing);
     // One driver process PER BROWSER: the first CI run lost Vivaldi (since removed), Firefox and

@@ -12,7 +12,9 @@
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { readFileSync } from 'node:fs';
-import { browserSpecs } from '../../../scripts/check-browsers.ts';
+import { resolve } from 'node:path';
+import process from 'node:process';
+import { browserSpecs, isVendorBinary, selectSpecs } from '../../../scripts/check-browsers.ts';
 
 describe('the real-browser job', () => {
   it("runs the owner's browsers, each on its engine", () => {
@@ -24,6 +26,38 @@ describe('the real-browser job', () => {
     expect(byName.get('firefox')).toBe('firefox');
     for (const n of ['chromium', 'chrome', 'edge', 'brave', 'opera']) {
       expect([n, byName.get(n)]).toEqual([n, 'chromium']);
+    }
+  });
+
+  // Review round 1 (2026-11-13): `--only=chrom,edgee --require-all` checked NO browser, exit 0.
+  it('--only refuses an unknown, an empty or a repeated name; it never selects nothing', () => {
+    const specs = browserSpecs();
+    expect(selectSpecs(specs).length).toBe(specs.length);
+    expect(selectSpecs(specs, ['chrome', 'edge']).map((s) => s.name)).toEqual(['chrome', 'edge']);
+    expect(() => selectSpecs(specs, ['chrom', 'edgee'])).toThrow('"chrom", "edgee"');
+    expect(() => selectSpecs(specs, ['chrome', 'operaa'])).toThrow('"operaa"');
+    expect(() => selectSpecs(specs, [])).toThrow('(empty)');
+    expect(() => selectSpecs(specs, ['chrome', 'chrome'])).toThrow('twice');
+  });
+
+  // Review round 1 (2026-11-13): Brave and Opera are found by PATH or an environment variable, and
+  // nothing checked that the binary launched was the browser named.
+  it('a Brave or Opera binary must be that vendor\'s: another binary is "missing", with why', () => {
+    expect(isVendorBinary('/opt/brave.com/brave/brave', 'brave')).toBe(true);
+    expect(isVendorBinary('C:\\Program Files\\BraveSoftware\\Brave-Browser\\brave.exe', 'brave'))
+      .toBe(true);
+    expect(isVendorBinary('/usr/lib/x86_64-linux-gnu/opera/opera', 'opera')).toBe(true);
+    const other = resolve('package.json');
+    expect(isVendorBinary(other, 'brave')).toBe(false);
+    const saved = process.env['BINARYANG_BRAVE'];
+    process.env['BINARYANG_BRAVE'] = other;
+    try {
+      const brave = browserSpecs().find((s) => s.name === 'brave')!;
+      expect(brave.executablePath).toBeUndefined();
+      expect(brave.missing).toContain('is not a brave executable');
+    } finally {
+      if (saved === undefined) delete process.env['BINARYANG_BRAVE'];
+      else process.env['BINARYANG_BRAVE'] = saved;
     }
   });
 
