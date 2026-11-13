@@ -311,6 +311,7 @@ describe('the bump gates against the release jsr.json names', () => {
 // through), and everything before it is the CI gate's tooling, so a release is judged as CI is.
 describe('the release workflows, off Deno except for the publish itself', () => {
   const PUBLISH_YML = fsx.readTextFileSync('.github/workflows/publish.yml');
+  const INSTALLER = fsx.readTextFileSync('.github/actions/install-pinned/action.yml');
   /**
    * `run:` commands, in order — a block scalar (`run: |`) expanded into each of its lines, so
    * nothing in a block escapes the checks below (review round 1, 2026-11-13: a block read as the
@@ -420,7 +421,9 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     expect(runs(jobs['release']!)).toEqual(['bun scripts/release/github.ts release "$TAG"']);
     for (const job of ['tag', 'release']) {
       expect(jobs[job]).toMatch(/permissions:\n\s+contents: write\n/);
-      expect(sparse(job)).toEqual([['/jsr.json', '/scripts/release/github.ts']]);
+      expect(sparse(job)).toEqual([
+        ['/jsr.json', '/scripts/release/github.ts', '/.github/actions/install-pinned/'],
+      ]);
     }
     // `checks` decides first, and holds no write.
     expect(runs(jobs['checks']!)[0]).toBe('bun scripts/release/workflow.ts release-state');
@@ -468,19 +471,17 @@ describe('the release workflows, off Deno except for the publish itself', () => 
         /^bun scripts\/release\/registry\.ts [a-z-]+( |$)/.test(cmd) ||
         /^echo "uploaded=true" >> "\$GITHUB_OUTPUT"$/.test(cmd) ||
         /^npm publish "\$TARBALL" --ignore-scripts$/.test(cmd) ||
-        // npm itself, an EXACT version, its install scripts off (review round 1, 2026-11-13)
-        (job === 'npm' && /^npm install -g npm@\d+\.\d+\.\d+ --ignore-scripts$/.test(cmd)) ||
-        (job === 'npm' && cmd === 'npm --version');
+        // npm is Node's own (security round 1, B7): only its version is read and held to 11.5.1.
+        (job === 'npm' && [
+          'v=$(npm --version)',
+          'echo "npm $v"',
+          `printf '11.5.1\\n%s\\n' "$v" | sort -V -C || { echo "::error::npm $v is older than 11.5.1"; exit 1; }`,
+        ].includes(cmd));
       expect(r.filter((c) => !allowed(c)), `${job}: run lines`).toEqual([]);
-      // Only these actions run beside the credential, each pinned (checked below).
+      // Only these actions run beside the credential, each pinned (checked below); the tools come
+      // from the repo's own sha256-checked installer, never a setup action.
       const uses = [...jobs[job]!.matchAll(/uses: ([\w./-]+)@/g)].map((m) => m[1]);
-      const ok = [
-        'actions/checkout',
-        'actions/setup-node',
-        'actions/download-artifact',
-        'denoland/setup-deno',
-        'oven-sh/setup-bun',
-      ];
+      const ok = ['actions/checkout', 'actions/download-artifact'];
       expect(uses.filter((u) => !ok.includes(u!)), `${job}: actions`).toEqual([]);
       // Every checkout is sparse and keeps no credential.
       const checkouts = jobs[job]!.split('uses: actions/checkout@').slice(1);
@@ -499,7 +500,7 @@ describe('the release workflows, off Deno except for the publish itself', () => 
       !all.some((q) => q !== p && q.endsWith('/') && p.startsWith(q))
     ).sort();
     expect([...sparse('jsr')[0]!].sort()).toEqual(
-      [...want, '/scripts/release/registry.ts'].sort(),
+      [...want, '/scripts/release/registry.ts', '/.github/actions/install-pinned/'].sort(),
     );
     // …and the checks job rehearses `deno publish --dry-run` on that same tree.
     expect([...sparse('checks')[0]!].sort()).toEqual(want);
@@ -559,7 +560,15 @@ describe('the release workflows, off Deno except for the publish itself', () => 
   it('the npm job: checks the tarball, skips a version npm serves, reads provenance back', () => {
     const r = runs(jobs['npm']!);
     const at = (c: string) => r.indexOf(c);
-    const tgz = at('bun scripts/release/registry.ts npm-tarball npm-pack "$VERSION"');
+    const tgz = at('bun scripts/release/registry.ts npm-tarball npm-pack "$VERSION" "$SHA256"');
+    // …with the digest npm-build packed, handed through its job output (security round 1, C12).
+    // (A GitHub expression is `$` + `{{ … }}`; written in two parts, as it is no template.)
+    expect(live('npm')).toContain('SHA256: $' + '{{ needs.npm-build.outputs.sha256 }}');
+    expect(live('npm-build')).toContain('sha256: $' + '{{ steps.digest.outputs.sha256 }}');
+    const build = runs(jobs['npm-build']!);
+    expect(build.indexOf('bun scripts/release/registry.ts npm-digest npm-pack')).toBeGreaterThan(
+      build.indexOf('npm pack --pack-destination ../npm-pack'),
+    );
     const state = at('bun scripts/release/registry.ts npm-state "$VERSION"');
     const publish = at('npm publish "$TARBALL" --ignore-scripts');
     const prov = at('bun scripts/release/registry.ts provenance npm "$VERSION"');
@@ -613,17 +622,67 @@ describe('the release workflows, off Deno except for the publish itself', () => 
   it('the tools are exact versions: Bun as the repo pins it, Deno as scripts/deno.ts pins it', () => {
     const deno = /DENO = 'deno@(\d+\.\d+\.\d+)'/.exec(fsx.readTextFileSync('scripts/deno.ts'))?.[1];
     expect(deno).toBeDefined();
+    // The jobs without a credential use the setup actions; the installer the others use pins the
+    // same versions, by URL.
     const denoPins = [...PUBLISH_YML.matchAll(/deno-version: (\S+)/g)].map((m) => m[1]);
-    expect(denoPins.length).toBe(2);
-    expect(denoPins.every((p) => p === `v${deno}`)).toBe(true);
+    expect(denoPins).toEqual([`v${deno}`]);
     const bunPins = [...PUBLISH_YML.matchAll(/bun-version: (\S+)/g)].map((m) => m[1]);
-    expect(bunPins.length).toBeGreaterThan(4);
-    expect(new Set(bunPins)).toEqual(new Set(["'1.4.4'"]));
+    expect(bunPins).toEqual(["'1.4.4'", "'1.4.4'"]);
+    expect(INSTALLER).toContain(`/download/v${deno}/deno-x86_64-unknown-linux-gnu.zip`);
+    expect(INSTALLER).toContain('/download/bun-v1.4.4/bun-linux-x64.zip');
+    // Node: the referee's major, as every setup-node in the workflows.
+    const nodeMajors = [...PUBLISH_YML.matchAll(/node-version: '(\d+)'/g)].map((m) => m[1]);
+    expect(new Set(nodeMajors)).toEqual(new Set(['24']));
+    expect(INSTALLER).toMatch(
+      /nodejs\.org\/dist\/v24\.\d+\.\d+\/node-v24\.\d+\.\d+-linux-x64\.tar\.xz/,
+    );
   });
 
-  it('pins every action to a commit hash', () => {
+  it('pins every action to a commit hash, or to this repo', () => {
     const uses = [...PUBLISH_YML.matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)/gm)].map((m) => m[1]!);
     expect(uses.length).toBeGreaterThan(10);
-    expect(uses.filter((u) => !/@[0-9a-f]{40}$/.test(u))).toEqual([]);
+    expect(
+      uses.filter((u) => !/@[0-9a-f]{40}$/.test(u) && u !== './.github/actions/install-pinned'),
+    )
+      .toEqual([]);
+  });
+
+  // Security review round 1 (2026-11-13), B7: the setup actions check no digest, so whatever their
+  // URL served ran beside the credential. Every job holding one — `id-token: write` or
+  // `contents: write` — takes its tools from the repo's installer, which checks a pinned sha256.
+  it('every job that can publish or push gets its tools by exact URL and sha256', () => {
+    const writers = Object.keys(jobs).filter((k) =>
+      /(?:id-token|contents):\s*write/.test(jobs[k]!)
+    );
+    expect(writers.sort()).toEqual(['jsr', 'npm', 'release', 'tag']);
+    for (const job of writers) {
+      expect(live(job), `${job}: a setup action`).not.toMatch(
+        /uses: [\w-]+\/setup-(bun|deno|node)@/,
+      );
+      expect(live(job), `${job}: the installer`).toContain(
+        'uses: ./.github/actions/install-pinned',
+      );
+      expect(sparse(job)[0], `${job}: checks the installer out`).toContain(
+        '/.github/actions/install-pinned/',
+      );
+    }
+  });
+
+  it('the installer: each download has a pinned sha256, checked before it is unpacked', () => {
+    const fetches = [...INSTALLER.matchAll(/fetch (https:\/\/\S+) \\\n\s+([0-9a-f]+) (\S+)/g)];
+    expect(fetches.map((m) => m[3])).toEqual(['bun.zip', 'deno.zip', 'node.tar.xz']);
+    for (const [, url, digest] of fetches) {
+      expect(digest, url).toMatch(/^[0-9a-f]{64}$/);
+      expect(url, 'an exact version in the URL').toMatch(/\d+\.\d+\.\d+/);
+    }
+    expect(INSTALLER).toContain('sha256sum -c --strict -');
+    expect(INSTALLER).toContain("curl -fsSL --retry 3 --proto '=https'");
+    expect(INSTALLER).toContain('set -euo pipefail');
+    // The check comes before every unpack, inside `fetch`, which each tool calls first.
+    const body = INSTALLER.slice(INSTALLER.indexOf('fetch() {'));
+    expect(body.indexOf('sha256sum')).toBeLessThan(body.indexOf('unzip'));
+    expect(INSTALLER).toMatch(
+      /\*\)\n\s+echo "::error::install-pinned: unknown tool '\$tool'"\n\s+exit 1/,
+    );
   });
 });

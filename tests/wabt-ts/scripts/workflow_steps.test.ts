@@ -25,6 +25,7 @@ import {
   npmProvenance,
   npmState,
   provenanceUrl,
+  sha256,
   tarballProblems,
   tarballSpec,
 } from '../../../scripts/release/registry.ts';
@@ -305,15 +306,49 @@ describe('registry.ts: what the publish jobs ask JSR and npm', () => {
 
   it('npm-tarball: exactly one .tgz in the folder; its path becomes the output', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'registry-tgz-'));
+    const bytes = tgz(goodManifest);
+    const digest = sha256(bytes);
     try {
-      expect((await run(['npm-tarball', dir, '9.9.9'], {}, registryMain)).code).toBe(1);
-      writeFileSync(join(dir, 'a.tgz'), tgz(goodManifest));
-      const ok = await run(['npm-tarball', dir, '9.9.9'], {}, registryMain);
+      expect((await run(['npm-tarball', dir, '9.9.9', digest], {}, registryMain)).code).toBe(1);
+      writeFileSync(join(dir, 'a.tgz'), bytes);
+      const ok = await run(['npm-tarball', dir, '9.9.9', digest], {}, registryMain);
       expect(ok.code).toBe(0);
       expect(ok.outputs['tarball']).toBe(join(dir, 'a.tgz'));
       mkdirSync(join(dir, 'sub'));
-      writeFileSync(join(dir, 'b.tgz'), tgz(goodManifest));
-      expect((await run(['npm-tarball', dir, '9.9.9'], {}, registryMain)).code).toBe(1);
+      writeFileSync(join(dir, 'b.tgz'), bytes);
+      expect((await run(['npm-tarball', dir, '9.9.9', digest], {}, registryMain)).code).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Security review round 1 (2026-11-13), C12: the npm job publishes the bytes npm-build PACKED.
+  // The artifact is found by name, and a manifest check alone passed any tarball with the same
+  // name, version and fields.
+  it('npm-digest / npm-tarball: the packed sha256 is required, and another tarball is refused', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'registry-digest-'));
+    const packed = tgz(goodManifest);
+    // The same manifest, other bytes: what a swapped artifact would look like to the old check.
+    const other = tgz({ ...goodManifest, description: 'not what was proven' });
+    try {
+      writeFileSync(join(dir, 'a.tgz'), packed);
+      const d = await run(['npm-digest', dir], {}, registryMain);
+      expect(d.code).toBe(0);
+      expect(d.outputs['sha256']).toBe(sha256(packed));
+      expect(d.outputs['sha256']).toMatch(/^[0-9a-f]{64}$/);
+      // without the digest, or a malformed one: the usage, exit 2
+      expect((await run(['npm-tarball', dir, '9.9.9'], {}, registryMain)).code).toBe(2);
+      expect((await run(['npm-tarball', dir, '9.9.9', 'abc'], {}, registryMain)).code).toBe(2);
+      // the packed bytes pass; other bytes with a manifest just as good do not
+      expect(tarballProblems(other, '9.9.9')).toEqual([]);
+      writeFileSync(join(dir, 'a.tgz'), other);
+      const swapped = await run(
+        ['npm-tarball', dir, '9.9.9', d.outputs['sha256']!],
+        {},
+        registryMain,
+      );
+      expect(swapped.code).toBe(1);
+      expect(swapped.outputs['tarball']).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

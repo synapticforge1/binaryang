@@ -8,6 +8,8 @@
     "test:bun": "bun scripts/test.ts --bun",
     "naming": "bun scripts/check-naming.ts",
     "portability": "bun scripts/check-portability.ts",
+    "privacy": "bun scripts/check-privacy.ts",
+    "audit": "bun audit",
     "collisions": "bun scripts/count-collisions.ts",
     "diagnostics": "bun scripts/measure-diagnostics.ts",
     "bump": "bun scripts/release/bump_version.ts",

@@ -26,6 +26,7 @@ import { Result } from '../core/result.ts';
 import type { Func, Module } from '../ir/ir.ts';
 import { makeModuleNames } from '../ir/apply-names.ts';
 import type { ModuleNames, NameMap } from '../ir/apply-names.ts';
+import { pushAll } from '../core/arrays.ts';
 
 /** A name section's content, and whether all of it had a place in {@link ModuleNames}. */
 export interface ParsedNameSection {
@@ -227,11 +228,11 @@ export function applyNameSection(m: Module, names: ModuleNames): boolean {
     else if (imp.kind === ExternalKind.Global) globals.push(imp.global);
     else if (imp.kind === ExternalKind.Tag) tags.push(imp.tag);
   }
-  funcs.push(...m.functions);
-  tables.push(...m.tables);
-  memories.push(...m.memories);
-  globals.push(...m.globals);
-  tags.push(...m.tags);
+  pushAll(funcs, m.functions);
+  pushAll(tables, m.tables);
+  pushAll(memories, m.memories);
+  pushAll(globals, m.globals);
+  pushAll(tags, m.tags);
 
   /** Name `items` from `map`, unique among themselves. */
   const give = (items: readonly { name: string }[], map: NameMap): void => {

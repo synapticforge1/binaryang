@@ -1,0 +1,74 @@
+# The tools a job holding a credential runs, by EXACT URL, each checked against a pinned sha256
+# before it is unpacked (security review round 1, B7, 2026-11-13).
+#
+# `setup-bun`, `setup-deno` and `setup-node` download what they are asked for and check no digest:
+# whatever the URL served ran inside the job that can mint the publishing token (`id-token: write`)
+# or push a tag (`contents: write`). Here a different file fails the job before it runs.
+#
+# Each digest was read from the vendor's own published checksums AND measured on the downloaded
+# file, the two equal (2026-11-13):
+#   Bun 1.4.4      bun-linux-x64.zip, SHASUMS256.txt of release bun-v1.4.4; and `bun-npm`, npm's
+#                  @oven/bun-linux-x64@1.4.4 tarball, its registry sha512 equal to the measured
+#   Deno 2.9.6     deno-x86_64-unknown-linux-gnu.zip, its .sha256sum
+#   Node 24.22.3   node-v24.22.3-linux-x64.tar.xz, SHASUMS256.txt (LTS "Krypton", 2026-11-10;
+#                  bundles npm 11.19.1, which trusted publishing accepts — it needs 11.5.1 or later)
+# A version moves here, with both digests re-read and compared; a test holds the versions equal to
+# the rest of the tree's pins.
+
+name: Install pinned tools
+description: Bun, Deno and Node by exact URL, sha256-checked, put on PATH.
+inputs:
+  tools:
+    description: 'Space-separated: any of bun, bun-npm, deno, node'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Download, check and unpack
+      shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+      run: |
+        set -euo pipefail
+        dir="$RUNNER_TEMP/pinned"
+        mkdir -p "$dir"
+        fetch() { # url sha256 file
+          curl -fsSL --retry 3 --proto '=https' -o "$dir/$3" "$1"
+          echo "$2  $dir/$3" | sha256sum -c --strict -
+        }
+        for tool in $TOOLS; do
+          case "$tool" in
+            bun)
+              fetch https://github.com/oven-sh/bun/releases/download/bun-v1.4.4/bun-linux-x64.zip \
+                bf8ccbfb2b0b80159e0f9a6d15c55317add8077534dbc6130a3edb52fccb395c bun.zip
+              unzip -q "$dir/bun.zip" -d "$dir/bun"
+              echo "$dir/bun/bun-linux-x64" >> "$GITHUB_PATH"
+              ;;
+            deno)
+              fetch https://github.com/denoland/deno/releases/download/v2.9.6/deno-x86_64-unknown-linux-gnu.zip \
+                394f07f4da2bebe6ce6f1e7ce0fa16429b29b08c35e3fac3fe25972676dff4b2 deno.zip
+              unzip -q "$dir/deno.zip" -d "$dir/deno"
+              echo "$dir/deno" >> "$GITHUB_PATH"
+              ;;
+            bun-npm)
+              # The same Bun from npm's own package of it, for an image with no `unzip` (the
+              # Playwright container): `npm pack` fetches the tarball and runs nothing; it holds
+              # `package/bin/bun` and no install script (listed 2026-11-13).
+              (cd "$dir" && npm pack @oven/bun-linux-x64@1.4.4 --silent > /dev/null)
+              echo "93ca5a2abe45f3bcac6dd55baff8bb06c4ac824b70f89650b54e5c8b80dbef18  $dir/oven-bun-linux-x64-1.4.4.tgz" |
+                sha256sum -c --strict -
+              tar -xzf "$dir/oven-bun-linux-x64-1.4.4.tgz" -C "$dir"
+              echo "$dir/package/bin" >> "$GITHUB_PATH"
+              ;;
+            node)
+              fetch https://nodejs.org/dist/v24.22.3/node-v24.22.3-linux-x64.tar.xz \
+                4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb node.tar.xz
+              tar -xJf "$dir/node.tar.xz" -C "$dir"
+              echo "$dir/node-v24.22.3-linux-x64/bin" >> "$GITHUB_PATH"
+              ;;
+            *)
+              echo "::error::install-pinned: unknown tool '$tool'"
+              exit 1
+              ;;
+          esac
+        done

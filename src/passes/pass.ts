@@ -39,6 +39,7 @@ import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
 import { CUSTOM_SECTION_NAME_CODE_METADATA } from '../core/binary.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import { recGroups, requireIndex } from '../ir/ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 /**
  * Whether a node's written type index is only FORM (7c) — droppable because the
@@ -515,7 +516,7 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     passes.push('DCE', 'PickLoadSigns', 'Vacuum');
   }
   if (opts.optimizeLevel >= 2) {
-    passes.push(...functionPasses(opts));
+    pushAll(passes, functionPasses(opts));
     // Inlining where upstream schedules it — after the function passes, at
     // every level from -O2 (`inlining-optimizing` in the post passes) — and
     // the function passes AGAIN after it, as `addUsefulPassesAfterInlining`
@@ -532,7 +533,9 @@ function getDefaultOptimizationPasses(opts: PassOptions): string[] {
     // three rounds over one; a fourth, −71 bytes, not kept). Upstream's
     // inlining-optimizing iterates the same way.
     for (let round = 0; round < 3; round++) {
-      passes.push('DeadArgumentElimination', 'Inlining', ...functionPasses(opts), 'Vacuum');
+      passes.push('DeadArgumentElimination', 'Inlining');
+      pushAll(passes, functionPasses(opts));
+      passes.push('Vacuum');
     }
     // Functions that differ only in constants, merged — at -Oz, after inlining
     // reduced the functions, as upstream's global post passes place it

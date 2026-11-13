@@ -36,6 +36,7 @@ import { type Expression, ExpressionKind, makeConst, makeRegion } from '../ir/ex
 import type { WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { walkExpression } from '../ir/walk.ts';
+import { replaceAll } from '../core/arrays.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { type DataSegment, varIndex } from '../ir/ir.ts';
 import { packMemory } from '../tools/wasm-ctor-eval.ts';
@@ -105,6 +106,6 @@ export function packModule(module: WasmModule): boolean {
     offset: makeRegion([makeConst({ type: ValType.I32, value: offset })]),
     data,
   }));
-  module.dataSegments.splice(0, module.dataSegments.length, ...packed);
+  replaceAll(module.dataSegments, packed);
   return true;
 }

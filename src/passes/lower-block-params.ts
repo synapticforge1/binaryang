@@ -91,6 +91,7 @@ import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { mapChildrenShallow, walkExpression } from '../ir/walk.ts';
 import { operandsInOrder } from '../ir/phantoms.ts';
 import { type Var, varIndex } from '../ir/ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 /** Whether any construct in `e` keeps block parameters. */
 export function hasBlockParams(e: Expression): boolean {
@@ -138,7 +139,7 @@ class Lowering {
   sequence(children: readonly Expression[]): Expression[] {
     const out: Expression[] = [];
     for (const c of children) {
-      if (this.needs(c)) out.push(...this.split(c));
+      if (this.needs(c)) pushAll(out, this.split(c));
       else out.push(this.inside(c));
     }
     return out;
@@ -181,7 +182,7 @@ class Lowering {
     const replaced = new Map<Expression, Expression>();
     ops.forEach((c, i) => {
       if (i > last) return;
-      out.push(...this.hoist(c));
+      pushAll(out, this.hoist(c));
       replaced.set(c, c.kind === ExpressionKind.Pop ? c : popFor(c));
     });
     out.push(mapChildrenShallow(e, (c) => replaced.get(c) ?? this.inside(c)));
@@ -222,14 +223,15 @@ class Lowering {
       return { out: [...out, ...this.hoist(last)], last: popFor(last) };
     }
     const out: Expression[] = [];
-    for (const v of values) out.push(...this.hoist(v));
+    for (const v of values) pushAll(out, this.hoist(v));
     let lastRead: Expression | undefined;
     if (last !== undefined) {
       // The TOP value: `if.0`'s condition is a call returning `(i64 i32)`, whose
       // first value is the parameter and whose last is the condition.
       const type = (popFor(last) as { type: ValueType }).type;
       const temp = this.local(type);
-      out.push(...this.hoist(last), makeLocalSet(varIndex(temp), makePop(type)));
+      pushAll(out, this.hoist(last));
+      out.push(makeLocalSet(varIndex(temp), makePop(type)));
       lastRead = makeLocalGet(varIndex(temp), type);
     }
     for (let i = into.slots.length - 1; i >= 0; i--) {
@@ -299,7 +301,7 @@ class Lowering {
       out.push({ ...n, values: [], ...(hasCondition ? { condition: last! } : {}) } as Expression);
       // Not taken, a `br_if` leaves its values: they are what it just wrote.
       if (hasCondition) {
-        out.push(...loop.slots.map((s, i) => makeLocalGet(varIndex(s), loop.types[i]!)));
+        pushAll(out, loop.slots.map((s, i) => makeLocalGet(varIndex(s), loop.types[i]!)));
       }
       return out;
     }
@@ -378,7 +380,8 @@ class Lowering {
     // The last case needs no block of its own: nothing branches past it.
     const lastLabel = labels[cases.length - 1]!;
     chain = [makeBlock(chain, lastLabel, None)];
-    out.push(...chain, ...branchTo(cases[cases.length - 1]!));
+    pushAll(out, chain);
+    pushAll(out, branchTo(cases[cases.length - 1]!));
     return out;
   }
 

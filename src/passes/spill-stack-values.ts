@@ -103,6 +103,7 @@ import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { mapExpression, mapWithSequences, visitChildren, walkExpression } from '../ir/walk.ts';
 import { collapsePhantomConsumers, evaluated, operandsInOrder } from '../ir/phantoms.ts';
 import { varIndex } from '../ir/ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 /** Every sequence of instructions in `e`'s subtree, each with its own stack. */
 function regionsIn(e: Expression): { children: readonly Expression[] }[] {
@@ -145,7 +146,7 @@ function regionsIn(e: Expression): { children: readonly Expression[] }[] {
 /** `e`'s operands — its children other than the instruction sequences it owns. */
 function operandsIn(e: Expression): Expression[] {
   const out: Expression[] = [];
-  if ('params' in e && e.params) out.push(...e.params.values);
+  if ('params' in e && e.params) pushAll(out, e.params.values);
   switch (e.kind) {
     case ExpressionKind.Block:
     case ExpressionKind.Loop:

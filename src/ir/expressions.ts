@@ -142,6 +142,7 @@ import type {
   UnaryExpr,
   UnreachableExpr,
 } from './ir.ts';
+import { pushAll } from '../core/arrays.ts';
 export type {
   ArrayCopyExpr,
   ArrayFillExpr,
@@ -1280,7 +1281,7 @@ export function valuesType(values: readonly Expression[]): ExprType {
   for (const v of values) {
     const t = typeOf(v);
     if (t === Unreachable) return Unreachable;
-    if (Array.isArray(t)) parts.push(...t);
+    if (Array.isArray(t)) pushAll(parts, t);
     else if (t !== None) parts.push(t);
   }
   return parts.length === 1 ? parts[0]! : parts;

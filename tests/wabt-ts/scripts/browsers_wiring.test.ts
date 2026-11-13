@@ -76,7 +76,7 @@ describe('the real-browser job', () => {
     // Not the vendor's binary: the name elsewhere in the path (round 2), or only a prefix (round 3).
     for (
       const [p, v] of [
-        ['/home/brave/google-chrome', 'brave'],
+        ['/srv/brave/google-chrome', 'brave'],
         ['/usr/bin/cooperative', 'opera'],
         ['/opt/opera/chrome', 'opera'],
         ['/usr/bin/bravery', 'brave'],

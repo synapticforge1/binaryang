@@ -1,3 +1,11 @@
+// Based on WebAssembly/binaryen (https://github.com/WebAssembly/binaryen)
+// Original source: src/ir/type-updating.cpp, src/ir/LocalStructuralDominance.cpp
+// Copyright 2021, 2022 WebAssembly Community Group participants
+// Licensed under the Apache License, Version 2.0
+
+// Copyright (c) 2026 Jon Marcum
+// Licensed under the MIT License. See LICENSE-MIT in the repository root.
+
 /**
  * @module passes/non-nullable-locals
  *

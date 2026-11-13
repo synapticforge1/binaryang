@@ -57,7 +57,14 @@ import {
   unknownLocation,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliExit, cliProcess, cliRead, cliWrite, writeStdout } from '../cli/io.ts';
+import {
+  cliExit,
+  cliProcess,
+  cliRead,
+  cliRefuseOverwritingInput,
+  cliWrite,
+  writeStdout,
+} from '../cli/io.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
@@ -289,6 +296,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   }
 
   if (output) {
+    await cliRefuseOverwritingInput('wat2wasm', [input], output);
     await cliWrite('wat2wasm', output, binary);
   } else {
     await writeStdout(binary);

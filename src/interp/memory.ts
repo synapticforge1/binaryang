@@ -62,7 +62,16 @@ export class MemoryCell {
     return BigInt(this.bytes.length) / this.pageSize;
   }
 
-  /** Grows by `delta` pages; the old size, or −1 where the spec allows refusal. */
+  /**
+   * Grows by `delta` pages; the old size, or −1 where the spec allows refusal.
+   *
+   * The storage behind {@link bytes} has room to spare, doubled when outgrown (up to the
+   * declared maximum and {@link ALLOCATION_LIMIT}), and `bytes` is the part in use. A new buffer
+   * per grow, copied whole, made growth by one page at a time cost the square of the final size:
+   * 16,384 grows to 1 GiB copied terabytes (security review round 1, 2026-11-13). Doubling copies
+   * under twice the final size, all told. The spare room is zero and never written, as every
+   * access is checked against `bytes.length`.
+   */
   grow(delta: bigint): bigint {
     const old = this.pages;
     const next = old + delta;
@@ -70,10 +79,19 @@ export class MemoryCell {
     const size = next * this.pageSize;
     if (size > ALLOCATION_LIMIT) throw new TooLarge(`memory of ${next} pages`);
     if (delta === 0n) return old;
-    const bytes = new Uint8Array(Number(size));
-    bytes.set(this.bytes);
-    this.bytes = bytes;
-    this.view = new DataView(bytes.buffer);
+    const store = new Uint8Array(this.bytes.buffer);
+    let room = store;
+    if (size > BigInt(store.length)) {
+      const most = [ALLOCATION_LIMIT, this.maxPages * this.pageSize].reduce((a, b) =>
+        a < b ? a : b
+      );
+      const doubled = BigInt(store.length) * 2n;
+      const capacity = doubled < size ? size : doubled > most ? most : doubled;
+      room = new Uint8Array(Number(capacity));
+      room.set(this.bytes);
+    }
+    this.bytes = room.subarray(0, Number(size));
+    this.view = new DataView(room.buffer, 0, Number(size));
     return old;
   }
 

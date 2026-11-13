@@ -164,6 +164,7 @@ import { isFuncIdxElemSegment } from '../ir/elem-form.ts';
 import { isRealName } from '../ir/made-up-names.ts';
 import { encodeTextForm, hasWrittenForms, TEXT_FORM_SECTION } from '../ir/text-form.ts';
 import { stackOmissions } from '../passes/stack-ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -2138,11 +2139,11 @@ class BinaryWriter {
           break;
       }
     }
-    funcs.push(...m.functions);
-    tables.push(...m.tables);
-    memories.push(...m.memories);
-    globals.push(...m.globals);
-    tags.push(...m.tags);
+    pushAll(funcs, m.functions);
+    pushAll(tables, m.tables);
+    pushAll(memories, m.memories);
+    pushAll(globals, m.globals);
+    pushAll(tags, m.tags);
 
     /** A flat name map: `vec(index, name)` over the named entries only. */
     const r = m.explicitNames;

@@ -76,6 +76,7 @@ import { evalBinary, evalUnary } from './numeric.ts';
 import { MemoryCell, OutOfBounds, TooLarge } from './memory.ts';
 import { TableCell, TableOutOfBounds, TableTooLarge } from './table.ts';
 import { inHeap, ModuleTypes, type RefShape, type ResolvedHeap, type RttType } from './types.ts';
+import { pushAll } from '../core/arrays.ts';
 
 export { MemoryCell } from './memory.ts';
 export { TableCell } from './table.ts';
@@ -335,6 +336,13 @@ export interface InterpreterOptions {
   imports?: (module: string, field: string) => HostImport | undefined;
   /** Nested calls before `call stack exhausted`. Default 1,000. */
   maxDepth?: number;
+  /**
+   * Locals, parameters included, that every active call together may hold before
+   * `call stack exhausted`, as an engine's stack runs out. Default 4,000,000. The depth limit
+   * alone let 1,000 nested calls of a function declaring 1,000,000 locals ask for 10^9 slots
+   * (security review round 1, 2026-11-13).
+   */
+  maxStackLocals?: number;
   /** Instructions to run before stopping with `fuel`. Default: unlimited. */
   fuel?: number;
   /**
@@ -834,6 +842,9 @@ export class Interpreter {
   /** This module's types, canonical across every module (E3d-2). */
   readonly types: ModuleTypes;
   private depth = 0;
+  private readonly maxStackLocals: number;
+  /** The locals every active call holds, together: held to {@link maxStackLocals}. */
+  private stackLocals = 0;
   private fuel: number;
 
   // --- The hang check (see `backEdge`) --------------------------------------
@@ -862,6 +873,7 @@ export class Interpreter {
   constructor(module: WasmModule, options: InterpreterOptions = {}) {
     this.module = module;
     this.maxDepth = options.maxDepth ?? 1000;
+    this.maxStackLocals = options.maxStackLocals ?? 4_000_000;
     this.types = typesOf(module.types);
     this.fuel = options.fuel ?? Infinity;
     this.hangInterval = options.hangCheck === undefined ? 2_000 : options.hangCheck;
@@ -1038,14 +1050,7 @@ export class Interpreter {
     if (f === undefined) throw invalid(`no function ${index}`);
     if (f.kind === 'host') throw new Stop('host', f.name);
     const { fn, sig } = f;
-    const locals: Value[] = [...args];
-    for (let i = sig.params.length; i < fn.locals.length; i++) {
-      const z = zeroOf(fn.locals[i]!.type);
-      if (z === undefined) {
-        throw new Stop('unsupported', `a local of type ${String(fn.locals[i]!.type)}`);
-      }
-      locals.push(z);
-    }
+    const locals = this.frame(fn, sig, args);
     const base = this.stack.length;
     const n = sig.results.length;
     this.depth++;
@@ -1068,6 +1073,7 @@ export class Interpreter {
       }
     } finally {
       this.depth--;
+      this.stackLocals -= locals.length;
     }
     const results = this.stack.splice(this.stack.length - n, n);
     this.stack.length = base;
@@ -1077,6 +1083,46 @@ export class Interpreter {
   /** Sets the instructions left to run before a {@link Stop} with `fuel` — per call, for a caller that wants it. */
   refuel(fuel: number): void {
     this.fuel = fuel;
+  }
+
+  /**
+   * Charges fuel for an instruction's WORK beyond the one unit every instruction costs: one unit
+   * per element a table or array operation touches, per local a call makes, and per 8 bytes a
+   * memory operation touches (an `i64` store, the cheapest loop doing it by hand). Fuel counted
+   * instructions only, so one `memory.fill` of 1 GiB cost what an `i32.add` did, and a fuel
+   * bound did not bound the time (security review round 1, 2026-11-13). Charged once the
+   * operation succeeds, so an access out of bounds is still the spec's trap.
+   */
+  private burn(units: number): void {
+    this.fuel -= units; // unlimited fuel stays Infinity
+    if (this.fuel < 0) throw new Stop('fuel', 'out of fuel');
+  }
+
+  /**
+   * A call's locals: its arguments, then each declared local's zero. Counted against
+   * {@link InterpreterOptions.maxStackLocals} — past it, `call stack exhausted`, before a slot is
+   * made — and charged as fuel, one unit a local. The caller releases them
+   * (`stackLocals -= locals.length`) however the call ends.
+   */
+  private frame(fn: WasmFunction, sig: FuncSignature, args: Value[]): Value[] {
+    const width = Math.max(fn.locals.length, args.length);
+    if (this.stackLocals + width > this.maxStackLocals) throw new Trap('call stack exhausted');
+    this.burn(width - args.length);
+    const locals: Value[] = [...args];
+    for (let i = sig.params.length; i < fn.locals.length; i++) {
+      const z = zeroOf(fn.locals[i]!.type);
+      if (z === undefined) {
+        throw new Stop('unsupported', `a local of type ${String(fn.locals[i]!.type)}`);
+      }
+      locals.push(z);
+    }
+    this.stackLocals += locals.length;
+    return locals;
+  }
+
+  /** {@link burn} for `n` bytes. */
+  private burnBytes(n: bigint): void {
+    this.burn(Number((n + 7n) / 8n));
   }
 
   /** The current value of the exported global `name`. */
@@ -1194,14 +1240,12 @@ export class Interpreter {
         throw new Trap('call stack exhausted');
       }
       const { fn, sig } = f;
-      const locals: Value[] = [...args];
-      for (let i = sig.params.length; i < fn.locals.length; i++) {
-        const z = zeroOf(fn.locals[i]!.type);
-        if (z === undefined) {
-          this.depth--;
-          throw new Stop('unsupported', `a local of type ${String(fn.locals[i]!.type)}`);
-        }
-        locals.push(z);
+      let locals: Value[];
+      try {
+        locals = this.frame(fn, sig, args);
+      } catch (t) {
+        this.depth--;
+        throw t;
       }
       const base = this.stack.length;
       const n = sig.results.length;
@@ -1234,6 +1278,10 @@ export class Interpreter {
           if (t instanceof RangeError && t.message.includes('call stack')) throw this.exhausted();
           throw t;
         }
+      } finally {
+        // Every way out — the end, a `return`, a throw, a tail call's `continue` — releases
+        // this frame's locals.
+        this.stackLocals -= locals.length;
       }
       this.depth--;
       const results = this.stack.splice(this.stack.length - n, n);
@@ -1299,7 +1347,7 @@ export class Interpreter {
     }
     const results = this.stack.splice(this.stack.length - arity, arity);
     this.stack.length = base;
-    this.stack.push(...results);
+    pushAll(this.stack, results);
   }
 
   /**
@@ -1420,7 +1468,7 @@ export class Interpreter {
           const signed = e.opcode === BinaryOp.MulWideSInt64;
           const x = signed ? BigInt.asIntN(64, a.value) : BigInt.asUintN(64, a.value);
           const y = signed ? BigInt.asIntN(64, b.value) : BigInt.asUintN(64, b.value);
-          s.push(...halves(x * y));
+          pushAll(s, halves(x * y));
           return;
         }
         const r = evalBinary(e.opcode, a, b);
@@ -1439,7 +1487,7 @@ export class Interpreter {
         this.exec(e.d, locals);
         const yh = this.i64(), yl = this.i64(), xh = this.i64(), xl = this.i64();
         const x = wide(xl, xh), y = wide(yl, yh);
-        s.push(...halves(e.opcode === QuaternaryOp.Add128 ? x + y : x - y));
+        pushAll(s, halves(e.opcode === QuaternaryOp.Add128 ? x + y : x - y));
         return;
       }
 
@@ -1545,7 +1593,7 @@ export class Interpreter {
             // Back to the top, with the loop's parameters.
             const carried = s.splice(s.length - params, params);
             s.length = base;
-            s.push(...carried);
+            pushAll(s, carried);
             if (this.hangArmed || this.hangWatch !== null) this.backEdge(e, locals);
             continue;
           }
@@ -1553,7 +1601,7 @@ export class Interpreter {
         }
         const out = s.splice(s.length - results, results);
         s.length = base;
-        s.push(...out);
+        pushAll(s, out);
         return;
       }
 
@@ -1681,7 +1729,9 @@ export class Interpreter {
         this.exec(e.delta, locals);
         const table = this.table(e.table);
         const delta = address(this.pop()), init = this.pop();
-        s.push(sizeValue(tableOp(() => table.grow(delta, init)), table.is64));
+        const old = tableOp(() => table.grow(delta, init));
+        if (old !== -1n) this.burn(Number(delta));
+        s.push(sizeValue(old, table.is64));
         return;
       }
       case ExpressionKind.TableFill: {
@@ -1691,6 +1741,7 @@ export class Interpreter {
         const table = this.table(e.table);
         const n = address(this.pop()), v = this.pop(), dest = address(this.pop());
         tableOp(() => table.fill(dest, v, n));
+        this.burn(Number(n));
         return;
       }
       case ExpressionKind.TableCopy: {
@@ -1700,6 +1751,7 @@ export class Interpreter {
         const to = this.table(e.destTable), from = this.table(e.sourceTable);
         const n = address(this.pop()), src = address(this.pop()), dest = address(this.pop());
         tableOp(() => TableCell.copy(to, dest, from, src, n));
+        this.burn(Number(n));
         return;
       }
       case ExpressionKind.TableInit: {
@@ -1715,6 +1767,7 @@ export class Interpreter {
         );
         const n = address(this.pop()), src = address(this.pop()), dest = address(this.pop());
         tableOp(() => table.init(dest, refs, src, n));
+        this.burn(Number(n));
         return;
       }
       case ExpressionKind.ElemDrop: {
@@ -1790,6 +1843,7 @@ export class Interpreter {
           rtt,
           elems: new Array<Value>(n).fill(packField(field.type, v)),
         });
+        this.burn(n);
         return;
       }
       case ExpressionKind.ArrayNewFixed: {
@@ -1812,6 +1866,7 @@ export class Interpreter {
           (_, k) => readElement(data, off + k * z, field.type),
         );
         s.push({ type: 'ref', kind: 'array', rtt, elems });
+        this.burn(n);
         return;
       }
       case ExpressionKind.ArrayNewElem: {
@@ -1822,6 +1877,7 @@ export class Interpreter {
         const seg = this.elemSegment(e.elemVar);
         if (off + n > seg.length) throw new Trap('out of bounds table access');
         s.push({ type: 'ref', kind: 'array', rtt, elems: seg.slice(off, off + n) });
+        this.burn(n);
         return;
       }
       case ExpressionKind.ArrayGet: {
@@ -1860,6 +1916,7 @@ export class Interpreter {
         const a = this.array();
         if (off + n > a.elems.length) throw new Trap('out of bounds array access');
         a.elems.fill(packField(field.type, v), off, off + n);
+        this.burn(n);
         return;
       }
       case ExpressionKind.ArrayCopy: {
@@ -1878,6 +1935,7 @@ export class Interpreter {
         // Overlapping ranges copy as if through a buffer.
         const moved = src.elems.slice(so, so + n);
         for (let k = 0; k < n; k++) dest.elems[d + k] = moved[k]!;
+        this.burn(n);
         return;
       }
       case ExpressionKind.ArrayInitData: {
@@ -1893,6 +1951,7 @@ export class Interpreter {
         if (d + n > a.elems.length) throw new Trap('out of bounds array access');
         if (so + n * z > data.length) throw new Trap('out of bounds memory access');
         for (let k = 0; k < n; k++) a.elems[d + k] = readElement(data, so + k * z, field.type);
+        this.burn(n);
         return;
       }
       case ExpressionKind.ArrayInitElem: {
@@ -1906,6 +1965,7 @@ export class Interpreter {
         if (d + n > a.elems.length) throw new Trap('out of bounds array access');
         if (so + n > seg.length) throw new Trap('out of bounds table access');
         for (let k = 0; k < n; k++) a.elems[d + k] = seg[so + k]!;
+        this.burn(n);
         return;
       }
       case ExpressionKind.RefTest: {
@@ -2001,7 +2061,7 @@ export class Interpreter {
           // mutant that skipped a reset here was equivalent).
           for (const c of e.catches) {
             if (c.tag !== undefined && this.tag(c.tag) !== t.tag) continue;
-            if (c.tag !== undefined) s.push(...t.values);
+            if (c.tag !== undefined) pushAll(s, t.values);
             if (c.isRef) s.push({ type: 'ref', kind: 'exn', exn: t });
             throw new Branch(labelName(c.target));
           }
@@ -2028,7 +2088,7 @@ export class Interpreter {
               // The handler starts from the try's own stack, the payload on it
               // for the handler's `pop`s.
               s.length = base;
-              if (c.tag !== undefined) s.push(...exn.values);
+              if (c.tag !== undefined) pushAll(s, exn.values);
               if (c.isRef) s.push({ type: 'ref', kind: 'exn', exn });
               this.handling.push({ label: e.label, exn });
               try {
@@ -2082,7 +2142,9 @@ export class Interpreter {
         this.exec(e.delta, locals);
         const mem = this.memory(e.memidx);
         const delta = address(this.pop());
-        s.push(sizeValue(memoryOp(() => mem.grow(delta)), mem.is64));
+        const old = memoryOp(() => mem.grow(delta));
+        if (old !== -1n) this.burnBytes(delta * mem.pageSize);
+        s.push(sizeValue(old, mem.is64));
         return;
       }
       case ExpressionKind.MemoryFill: {
@@ -2092,6 +2154,7 @@ export class Interpreter {
         const mem = this.memory(e.memidx);
         const n = address(this.pop()), value = this.i32(), dest = address(this.pop());
         memoryOp(() => mem.fill(dest, value, n));
+        this.burnBytes(n);
         return;
       }
       case ExpressionKind.MemoryCopy: {
@@ -2102,6 +2165,7 @@ export class Interpreter {
         // The size is in the SMALLER address type of the two (memory64).
         const n = address(this.pop()), src = address(this.pop()), dest = address(this.pop());
         memoryOp(() => MemoryCell.copy(to, dest, from, src, n));
+        this.burnBytes(n);
         return;
       }
       case ExpressionKind.MemoryInit: {
@@ -2112,6 +2176,7 @@ export class Interpreter {
         const data = resolve(e.segment, this.data, this.dataNames(), 'data segment');
         const n = address(this.pop()), src = address(this.pop()), dest = address(this.pop());
         memoryOp(() => mem.init(dest, data, src, n));
+        this.burnBytes(n);
         return;
       }
       case ExpressionKind.DataDrop: {

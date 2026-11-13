@@ -183,6 +183,7 @@ import {
 import { BrOnOp, locOf } from '../ir/ir.ts';
 import { countImports } from '../ir/ir.ts';
 import type { RelocMark } from '../ir/ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // WAST Script types
@@ -1146,7 +1147,7 @@ function pushStmt(ctx: ExprCtx, expr: Expr): void {
   const held = ctx.stack.filter((e) => e.kind === 'pop');
   for (const e of ctx.stack) if (e.kind !== 'pop') ctx.stmts.push(e);
   ctx.stack.length = 0;
-  ctx.stack.push(...held);
+  pushAll(ctx.stack, held);
   ctx.stmts.push(expr);
 }
 
@@ -2036,8 +2037,8 @@ export class WastParser {
     }
     const entry = this.lookupFuncTypeEntry(module, typeVar);
     if (entry === null) return typeVar;
-    sig.params.push(...entry.params);
-    sig.results.push(...entry.results);
+    pushAll(sig.params, entry.params);
+    pushAll(sig.results, entry.results);
     return 'resolved';
   }
 
@@ -3823,7 +3824,7 @@ export class WastParser {
           // expect(Rpar) below reports the real error.
           if (this.parseOneInstr(ctx) !== Result.Ok) break;
           flushStack(ctx);
-          itemExprs.push(...ctx.stmts);
+          pushAll(itemExprs, ctx.stmts);
         }
         inits.push(itemExprs);
       }
@@ -3883,8 +3884,8 @@ export class WastParser {
     if (typeVar !== null && sig.params.length === 0 && sig.results.length === 0) {
       const entry = this.lookupFuncTypeEntry(module, typeVar);
       if (entry !== null) {
-        sig.params.push(...entry.params);
-        sig.results.push(...entry.results);
+        pushAll(sig.params, entry.params);
+        pushAll(sig.results, entry.results);
       }
     }
     return typeVar !== null ? { typeVar, sig } : { sig };
@@ -4018,7 +4019,7 @@ export class WastParser {
     const ctx = newCtx();
     this.parseInstrList(ctx);
     flushStack(ctx);
-    outExprs.push(...ctx.stmts);
+    pushAll(outExprs, ctx.stmts);
   }
 
   private parseOneInstr(ctx: ExprCtx): Result {
@@ -4621,14 +4622,14 @@ export class WastParser {
       if (this.match(TokenType.Else)) {
         this.matchClosingLabel(label);
         flushStack(then_Ctx);
-        ifTrue.push(...then_Ctx.stmts);
+        pushAll(ifTrue, then_Ctx.stmts);
         const else_Ctx = newCtx();
         this.parseInstrList(else_Ctx);
         flushStack(else_Ctx);
-        ifFalse.push(...else_Ctx.stmts);
+        pushAll(ifFalse, else_Ctx.stmts);
       } else {
         flushStack(then_Ctx);
-        ifTrue.push(...then_Ctx.stmts);
+        pushAll(ifTrue, then_Ctx.stmts);
       }
       this.leaveLabel();
 

@@ -139,6 +139,7 @@ import { BrOnOp, locOf } from '../ir/ir.ts';
 import { countImports, totalFuncs } from '../ir/ir.ts';
 import { nameEveryEntity } from '../ir/made-up-names.ts';
 import { applyTextForm, decodeTextForm, TEXT_FORM_SECTION } from '../ir/text-form.ts';
+import { pushAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -324,7 +325,7 @@ function pushStmt(stack: Expr[], stmts: Expr[], expr: Expr): void {
   const held = stack.filter((e) => e.kind === 'pop');
   for (const pending of stack) if (pending.kind !== 'pop') stmts.push(pending);
   stack.length = 0;
-  stack.push(...held);
+  pushAll(stack, held);
   stmts.push(expr);
 }
 
@@ -611,9 +612,23 @@ const SIMD_UNARY_OPS: ReadonlySet<number> = new Set([
  */
 export const MAX_MATERIALIZED_LOCALS = 1_000_000;
 
+/**
+ * The most locals a whole module may declare and still be decoded: {@link MAX_MATERIALIZED_LOCALS}
+ * plus one per byte of the module. The per-function cap alone let 36 bytes declare two functions
+ * of 1,000,000 locals each, 549 MB to decode, and 100 such functions ran the heap out with a bare
+ * RangeError (security review round 1, 2026-11-13). Real code declares fewer locals than it has
+ * bytes, so this refuses nothing a compiler writes, and what decoding can cost now grows with the
+ * input's size, not with the counts written in it.
+ */
+export function maxModuleLocals(moduleBytes: number): number {
+  return MAX_MATERIALIZED_LOCALS + moduleBytes;
+}
+
 export class BinaryReader {
   private data: Uint8Array;
   private pos = 0;
+  /** The locals made so far, every function: held to {@link maxModuleLocals}. */
+  private moduleLocals = 0;
   private errors: ErrorList;
   private filename: string;
   private hadError = false;
@@ -1591,6 +1606,15 @@ export class BinaryReader {
       if (totalLocals > MAX_MATERIALIZED_LOCALS) {
         this.err(
           `too many locals: ${totalLocals} exceeds this decoder's limit of ${MAX_MATERIALIZED_LOCALS}`,
+        );
+        return;
+      }
+      this.moduleLocals += totalLocals;
+      if (this.moduleLocals > maxModuleLocals(this.data.length)) {
+        this.err(
+          `too many locals: ${this.moduleLocals} in the module so far exceeds this decoder's ` +
+            `limit of ${maxModuleLocals(this.data.length)} for a module of ` +
+            `${this.data.length} bytes`,
         );
         return;
       }

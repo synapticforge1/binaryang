@@ -20,6 +20,7 @@ import {
 } from '../core/opcode.ts';
 import { LabelType } from '../ir/ir-util.ts';
 import { heapAbstract } from '../ir/ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // FuncType — shared with SharedValidator
@@ -842,7 +843,7 @@ function heapSatisfies(a: Heap, e: Heap, types: ReadonlyMap<number, HeapTypeInfo
       const info = types.get(i);
       if (!info) continue;
       if (ec !== undefined && info.canon === ec) return true;
-      work.push(...info.supers);
+      pushAll(work, info.supers);
     }
     return false;
   }

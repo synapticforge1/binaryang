@@ -11,7 +11,8 @@
  * bun scripts/release/registry.ts jsr-has <version>              # output present=true|false
  * bun scripts/release/registry.ts jsr-wait <version>             # until JSR answers 200
  * bun scripts/release/registry.ts npm-state <version>            # state=free|published; burned → exit 1
- * bun scripts/release/registry.ts npm-tarball <dir> <version>    # the one .tgz, checked; output tarball=
+ * bun scripts/release/registry.ts npm-digest <dir>              # the one .tgz's sha256; output sha256=
+ * bun scripts/release/registry.ts npm-tarball <dir> <v> <sha256> # that .tgz, checked; output tarball=
  * bun scripts/release/registry.ts provenance jsr|npm <version>   # the read-back poll
  * ```
  *
@@ -22,6 +23,7 @@
  * Every request has its own time limit.
  */
 
+import { createHash } from 'node:crypto';
 import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
@@ -234,11 +236,26 @@ async function provenance(net: Net, registry: 'jsr' | 'npm', version: string): P
 }
 
 const USAGE =
-  'usage: registry.ts oidc-check | free <v> | jsr-has <v> | jsr-wait <v> | npm-state <v> | npm-tarball <dir> <v> | provenance jsr|npm <v>';
+  'usage: registry.ts oidc-check | free <v> | jsr-has <v> | jsr-wait <v> | npm-state <v> | npm-digest <dir> | npm-tarball <dir> <v> <sha256> | provenance jsr|npm <v>';
+
+/** The sha256 of `bytes`, hex. */
+export function sha256(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+/** The one `.tgz` in `dir`, as an absolute path, or `undefined` having said why. */
+function oneTarball(dir: string): string | undefined {
+  const tgzs = readdirSync(dir).filter((f) => f.endsWith('.tgz'));
+  if (tgzs.length !== 1) {
+    console.log(`::error::expected one .tgz in ${dir}, found ${tgzs.length}`);
+    return undefined;
+  }
+  return tarballSpec(join(dir, tgzs[0] as string));
+}
 
 /** The subcommand's exit code. */
 export async function main(argv: string[], net: Net = {}): Promise<number> {
-  const [cmd, a, b] = argv;
+  const [cmd, a, b, c] = argv;
   const isVersion = (v: string | undefined): v is string => /^\d+\.\d+\.\d+$/.test(v ?? '');
   switch (cmd) {
     case 'oidc-check': {
@@ -307,19 +324,31 @@ export async function main(argv: string[], net: Net = {}): Promise<number> {
       }
       return 0;
     }
+    case 'npm-digest': {
+      // npm-build, after packing: the tarball's sha256, handed to the npm job as a job output.
+      if (a === undefined) break;
+      const file = oneTarball(a);
+      if (file === undefined) return 1;
+      const digest = sha256(new Uint8Array(readFileSync(file)));
+      output('sha256', digest);
+      console.log(`${file}: sha256 ${digest}`);
+      return 0;
+    }
     case 'npm-tarball': {
-      if (a === undefined || !isVersion(b)) break;
-      const tgzs = readdirSync(a).filter((f) => f.endsWith('.tgz'));
-      if (tgzs.length !== 1) {
-        console.log(`::error::expected one .tgz in ${a}, found ${tgzs.length}`);
-        return 1;
-      }
-      const file = tarballSpec(join(a, tgzs[0] as string));
-      const problems = tarballProblems(new Uint8Array(readFileSync(file)), b);
+      if (a === undefined || !isVersion(b) || !/^[0-9a-f]{64}$/.test(c ?? '')) break;
+      const file = oneTarball(a);
+      if (file === undefined) return 1;
+      const bytes = new Uint8Array(readFileSync(file));
+      const problems = tarballProblems(bytes, b);
+      // The tarball npm-build PROVED, byte for byte (security review round 1, C12, 2026-11-13):
+      // the artifact is looked up by name, and a manifest check alone passes any other tarball
+      // with the same name, version and fields.
+      const digest = sha256(bytes);
+      if (digest !== c) problems.push(`sha256 is ${digest}, not ${c}, the one npm-build packed`);
       for (const p of problems) console.log(`::error::${file}: ${p}`);
       if (problems.length > 0) return 1;
       output('tarball', file);
-      console.log(`${file}: ${NPM_NAME}@${b}, no scripts, provenance on`);
+      console.log(`${file}: ${NPM_NAME}@${b}, the packed bytes, no scripts, provenance on`);
       return 0;
     }
     case 'provenance': {

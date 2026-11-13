@@ -67,8 +67,9 @@ import {
   type Value,
   WasmException,
 } from '../interp/interpreter.ts';
-import { cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRefuseOverwritingInput, cliWrite, fsRead } from '../cli/io.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
+import { pushAll, replaceAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // Options and report
@@ -273,9 +274,9 @@ function applyToModule(module: WasmModule, snap: Snapshot, imported: Counts): vo
       if (d.kind !== 'active') continue;
       d.data = new Uint8Array(0);
     }
-    module.dataSegments.push(...segments);
+    pushAll(module.dataSegments, segments);
   } else {
-    module.dataSegments.splice(0, module.dataSegments.length, ...segments);
+    replaceAll(module.dataSegments, segments);
   }
   // Globals: each defined one starts as the value it reached.
   module.globals.forEach((g, j) => {
@@ -679,7 +680,11 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     else cliProcess().stdout.write(result.output);
     return;
   }
-  await fsWrite(outPath, result.output);
+  // In place in the input's own format stays allowed (atomic); a change of format is refused.
+  if (input.endsWith('.wat') !== (typeof result.output === 'string')) {
+    await cliRefuseOverwritingInput('wasm-ctor-eval', [input], outPath);
+  }
+  await cliWrite('wasm-ctor-eval', outPath, result.output);
   if (options.log !== undefined) {
     console.log(
       typeof result.output === 'string'
