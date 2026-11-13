@@ -14,7 +14,12 @@ import { expect } from '@std/expect';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
-import { browserSpecs, isVendorBinary, selectSpecs } from '../../../scripts/check-browsers.ts';
+import {
+  browserSpecs,
+  isVendorBinary,
+  parseOnly,
+  selectSpecs,
+} from '../../../scripts/check-browsers.ts';
 
 describe('the real-browser job', () => {
   it("runs the owner's browsers, each on its engine", () => {
@@ -43,22 +48,55 @@ describe('the real-browser job', () => {
   // Review round 1 (2026-11-13): Brave and Opera are found by PATH or an environment variable, and
   // nothing checked that the binary launched was the browser named.
   it('a Brave or Opera binary must be that vendor\'s: another binary is "missing", with why', () => {
-    expect(isVendorBinary('/opt/brave.com/brave/brave', 'brave')).toBe(true);
+    // The real installs, Linux and Windows.
+    for (const p of ['/opt/brave.com/brave/brave', '/usr/bin/brave-browser']) {
+      expect(isVendorBinary(p, 'brave'), p).toBe(true);
+    }
     expect(isVendorBinary('C:\\Program Files\\BraveSoftware\\Brave-Browser\\brave.exe', 'brave'))
       .toBe(true);
-    expect(isVendorBinary('/usr/lib/x86_64-linux-gnu/opera/opera', 'opera')).toBe(true);
-    const other = resolve('package.json');
-    expect(isVendorBinary(other, 'brave')).toBe(false);
-    const saved = process.env['BINARYANG_BRAVE'];
-    process.env['BINARYANG_BRAVE'] = other;
-    try {
-      const brave = browserSpecs().find((s) => s.name === 'brave')!;
-      expect(brave.executablePath).toBeUndefined();
-      expect(brave.missing).toContain('is not a brave executable');
-    } finally {
-      if (saved === undefined) delete process.env['BINARYANG_BRAVE'];
-      else process.env['BINARYANG_BRAVE'] = saved;
+    for (const p of ['/usr/lib/x86_64-linux-gnu/opera/opera', '/usr/bin/opera']) {
+      expect(isVendorBinary(p, 'opera'), p).toBe(true);
     }
+    // Round 2 (2026-11-13): the vendor's name elsewhere in the path is not the vendor's binary.
+    expect(isVendorBinary('/home/brave/google-chrome', 'brave')).toBe(false);
+    expect(isVendorBinary('/usr/bin/cooperative', 'opera')).toBe(false);
+    expect(isVendorBinary('/opt/opera/chrome', 'opera')).toBe(false);
+    expect(isVendorBinary(resolve('package.json'), 'brave')).toBe(false);
+  });
+
+  /** browserSpecs() with one environment variable set, restored afterwards. */
+  const withEnv = (name: string, value: string, spec: string) => {
+    const saved = process.env[name];
+    process.env[name] = value;
+    try {
+      return browserSpecs().find((s) => s.name === spec)!;
+    } finally {
+      if (saved === undefined) delete process.env[name];
+      else process.env[name] = saved;
+    }
+  };
+
+  it('a wrong binary named by BINARYANG_BRAVE or BINARYANG_OPERA is refused, not launched', () => {
+    for (const [name, spec] of [['BINARYANG_BRAVE', 'brave'], ['BINARYANG_OPERA', 'opera']]) {
+      const s = withEnv(name!, resolve('package.json'), spec!);
+      expect(s.executablePath, name).toBeUndefined();
+      expect(s.missing, name).toContain(`is not a ${spec} executable`);
+    }
+  });
+
+  it('a BINARYANG_* path that does not exist is passed over, never launched', () => {
+    const s = withEnv('BINARYANG_OPERA', resolve('no-such-dir/opera'), 'opera');
+    expect(s.executablePath ?? '').not.toContain('no-such-dir');
+    expect(s.missing ?? '').not.toContain('is not a');
+  });
+
+  // Round 2 (2026-11-13): a second `--only=` was ignored, so `--only=chrome --only=edge` tested
+  // Chrome alone; a bare or space-separated `--only` ran everything.
+  it('one --only=<names> flag, in its = form', () => {
+    expect(parseOnly(['--require-all'])).toBeUndefined();
+    expect(parseOnly(['--only=chrome,edge,'])).toEqual(['chrome', 'edge']);
+    expect(() => parseOnly(['--only=chrome', '--only=edge'])).toThrow('2 times');
+    expect(() => parseOnly(['--only', 'chrome'])).toThrow('--only=<names>');
   });
 
   // Two CI jobs since 2026-11-11 (owner): Playwright's engines in its image, the installed

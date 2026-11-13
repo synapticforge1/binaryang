@@ -63,7 +63,11 @@ export function isVendorBinary(path: string, vendor: string): boolean {
   try {
     real = realpathSync(path);
   } catch { /* the path as given */ }
-  return real.toLowerCase().replace(/\\/g, '/').includes(vendor);
+  // The FILE's name, not any part of the path (review round 2, 2026-11-13: `/home/brave/chrome`
+  // and `.../cooperative` passed a substring test). The real installs: `brave`, `brave-browser`,
+  // `brave.exe`; `opera`, `opera.exe`.
+  const file = real.replace(/\\/g, '/').split('/').pop()!.toLowerCase();
+  return file.startsWith(vendor);
 }
 
 /** The browsers, in the owner's words, and how each is found. */
@@ -76,7 +80,7 @@ export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
     return isVendorBinary(p, name) ? { name, engine: 'chromium' as const, executablePath: p } : {
       name,
       engine: 'chromium' as const,
-      missing: `${p} is not a ${name} executable (its real path does not name ${name})`,
+      missing: `${p} is not a ${name} executable (its file name does not start with ${name})`,
     };
   };
   return [
@@ -255,12 +259,30 @@ export function selectSpecs<S extends { name: string }>(specs: S[], only?: strin
   return specs.filter((s) => only.includes(s.name));
 }
 
+/**
+ * The `--only=` list from the arguments: `undefined` when there is none. ONE `--only=` flag only,
+ * and only in its `=` form: a second flag used to be ignored silently, so `--only=chrome
+ * --only=edge` tested Chrome alone (review round 2, 2026-11-13); a bare `--only` or the space form
+ * (`--only chrome`) ran every browser.
+ */
+export function parseOnly(argv: string[]): string[] | undefined {
+  const flags = argv.filter((a) =>
+    a === '--only' || a.startsWith('--only=') || a.startsWith('--only ')
+  );
+  if (flags.length === 0) return undefined;
+  if (flags.length > 1) throw new Error(`--only is given ${flags.length} times; give one list`);
+  const flag = flags[0]!;
+  if (!flag.startsWith('--only=')) {
+    throw new Error(`write --only=<names>, not ${JSON.stringify(flag)}`);
+  }
+  return flag.slice('--only='.length).split(',').filter((n) => n !== '');
+}
+
 if (import.meta.main) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const argv = process.argv.slice(2);
   const requireAll = argv.includes('--require-all');
-  const onlyArg = argv.find((a) => a.startsWith('--only='))?.slice('--only='.length);
-  const only = onlyArg === undefined ? undefined : onlyArg.split(',').filter((n) => n !== '');
+  const only = parseOnly(argv);
   // Before anything is built: a wrong `--only` must not cost a bundle and a server first.
   selectSpecs(browserSpecs(), only);
   const known = JSON.parse(
