@@ -341,18 +341,19 @@ describe('the release workflows, off Deno except for the publish itself', () => 
 
   it('orders the jobs checks → tag → release → jsr → npm', () => {
     const needs = (job: string) => /\n {4}needs: ([^\n]+)/.exec(jobs[job]!)?.[1];
-    const cond = (job: string) => /\n {4}if: ([^\n]+)/.exec(jobs[job]!)?.[1];
+    /** A job's `if:` — the expression inside its `${{ … }}`. */
+    const cond = (job: string) => /\n {4}if: \$\{\{ ([^\n]+) \}\}\n/.exec(jobs[job]!)?.[1];
     // The npm package is proven BEFORE CI tags (review round 1, 2026-11-13); `npm-build` may be
     // skipped only while npm publishing is off.
     expect(needs('tag')).toBe('[checks, npm-build]');
     expect(cond('tag')).toBe(
-      "${{ !cancelled() && needs.checks.result == 'success' && needs.checks.outputs.release == 'true' && (needs.npm-build.result == 'success' || (vars.NPM_PUBLISH != 'true' && needs.npm-build.result == 'skipped')) }}",
+      "!cancelled() && needs.checks.result == 'success' && needs.checks.outputs.release == 'true' && (needs.npm-build.result == 'success' || (vars.NPM_PUBLISH != 'true' && needs.npm-build.result == 'skipped'))",
     );
     expect(needs('release')).toBe('[checks, tag]');
     // Explicit, because a default condition skips a job when ANY job upstream was skipped.
-    expect(cond('release')).toBe("${{ !cancelled() && needs.tag.result == 'success' }}");
+    expect(cond('release')).toBe("!cancelled() && needs.tag.result == 'success'");
     expect(needs('jsr')).toBe('[checks, release]');
-    expect(cond('jsr')).toBe("${{ !cancelled() && needs.release.result == 'success' }}");
+    expect(cond('jsr')).toBe("!cancelled() && needs.release.result == 'success'");
     expect(needs('npm')).toBe('[checks, jsr, npm-build]');
     // Each write is its own script call, and the tag is made by CI, through the REST API.
     expect(runs(jobs['tag']!)).toEqual(['bun scripts/release/github.ts tag "$TAG"']);
