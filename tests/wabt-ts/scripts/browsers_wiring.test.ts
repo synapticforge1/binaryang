@@ -18,10 +18,10 @@ import {
   browserSpecs,
   guarded,
   isVendorBinary,
+  judgeDriverOutput,
   parseOnly,
   parseReports,
   reportKind,
-  reportSetProblems,
   selectSpecs,
   VENDOR_FILES,
 } from '../../../scripts/check-browsers.ts';
@@ -171,27 +171,34 @@ describe('the real-browser job', () => {
 
   // Round 7 (2026-11-13, run): a good edge report followed by a failing one passed (the first
   // won); a stray `{junk` line next to good reports passed; a report for a browser not run vanished.
-  it('the driver output must be exactly one report per browser run', () => {
-    const ran = ['chrome', 'edge'];
-    const one = [{ name: 'chrome' }, { name: 'edge' }];
-    expect(reportSetProblems(one, [], ran)).toEqual([]);
-    expect(reportSetProblems([...one, { name: 'edge' }], [], ran)).toEqual([
+  // Round 8: and each such problem is the BROWSER's failure — its line reads ✗, never ✓.
+  it("a browser's driver output must be exactly its one report; anything else fails it", () => {
+    const edge = '{"name":"edge","error":"x"}';
+    expect(judgeDriverOutput('edge', edge)).toEqual({
+      report: { name: 'edge', error: 'x' },
+      problems: [],
+    });
+    expect(judgeDriverOutput('edge', `${edge}\n${edge}`).problems).toEqual([
       '2 reports for edge; the driver prints one',
     ]);
-    expect(reportSetProblems(one, ['{junk'], ran)).toEqual([
+    expect(judgeDriverOutput('edge', `${edge}\n{junk`).problems).toEqual([
       'a driver line that is not a report: {junk',
     ]);
-    expect(reportSetProblems([...one, { name: '' }], [], ran)).toEqual([
-      'a report for a browser not run: ""',
+    expect(judgeDriverOutput('edge', `${edge}\n{"name":"safari"}`).problems).toEqual([
+      'a report naming another browser: "safari"',
     ]);
-    // The loop fails the RUN on any of them.
+    expect(judgeDriverOutput('edge', '{"name":"chrome"}').report).toBeUndefined();
+    // The verdict starts each browser's problems from them, and never skips one that has any.
     const src = readFileSync(
       new URL('../../../scripts/check-browsers.ts', import.meta.url),
       'utf8',
     );
-    expect(src).toMatch(
-      /for \(const p of reportSetProblems\(reports, unreadable, toRun\.map\(\(s\) => s\.name\)\)\) \{[\s\S]{0,300}?failed = true;/,
+    expect(src).toContain(
+      "const { report: r, problems } = judgeDriverOutput(spec.name, outputs.get(spec.name) ?? '');",
     );
+    expect(src).toContain('const bad: string[] = [...problems];');
+    expect(src).toContain('if (notInstalled && !requireAll && problems.length === 0) {');
+    expect(src).not.toContain('reportSetProblems');
   });
 
   it("a judgement that throws becomes that browser's failure", () => {
@@ -212,7 +219,7 @@ describe('the real-browser job', () => {
       new URL('../../../scripts/check-browsers.ts', import.meta.url),
       'utf8',
     );
-    expect(src).toContain('const { reports, unreadable } = parseReports(out);');
+    expect(src).toContain('const { reports, unreadable } = parseReports(out);'); // judgeDriverOutput
     expect(src).not.toMatch(/\.map\(\(l\) =>\s*JSON\.parse\(l\)/);
     expect(src).toMatch(/guarded\(bad, \(\) => \{\n\s*const res = r!\.result!;/);
   });

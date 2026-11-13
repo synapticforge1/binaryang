@@ -323,25 +323,26 @@ export function parseReports(out: string): { reports: DriverReport[]; unreadable
 }
 
 /**
- * Every way the driver output is not EXACTLY one report per browser that ran (review round 7,
- * 2026-11-13, run): a second report for a browser was dropped (the first won, so a later failure
- * could vanish), an unreadable line only printed a note, and a report for a browser not run was
- * dropped unseen. Each is a problem of the run, which fails it.
+ * ONE browser's driver output, read on its own: its report, and every way the output is not
+ * exactly that one report — an unreadable line, a report naming another browser, a second report
+ * (review rounds 7–8, 2026-11-13, run: a second report was dropped, the first winning; an
+ * unreadable line only printed a note; and, once those failed the run, the browser's own line
+ * still read ✓). The problems become THAT browser's failure, so its line reads ✗ and says why.
  */
-export function reportSetProblems(
-  reports: { name: string }[],
-  unreadable: string[],
-  ran: string[],
-): string[] {
+export function judgeDriverOutput(
+  name: string,
+  out: string,
+): { report: DriverReport | undefined; problems: string[] } {
+  const { reports, unreadable } = parseReports(out);
   const problems = unreadable.map((l) => `a driver line that is not a report: ${l.slice(0, 200)}`);
-  const seen = new Map<string, number>();
-  for (const r of reports) seen.set(r.name, (seen.get(r.name) ?? 0) + 1);
-  for (const [name, n] of seen) {
-    if (!ran.includes(name)) {
-      problems.push(`a report for a browser not run: ${JSON.stringify(name)}`);
-    } else if (n > 1) problems.push(`${n} reports for ${name}; the driver prints one`);
+  for (const r of reports) {
+    if (r.name !== name) {
+      problems.push(`a report naming another browser: ${JSON.stringify(r.name)}`);
+    }
   }
-  return problems;
+  const own = reports.filter((r) => r.name === name);
+  if (own.length > 1) problems.push(`${own.length} reports for ${name}; the driver prints one`);
+  return { report: own[0], problems };
 }
 
 /**
@@ -483,7 +484,9 @@ if (import.meta.main) {
     // One driver process PER BROWSER: the first CI run lost Vivaldi (since removed), Firefox and
     // Safari to one process that died at Vivaldi ("no report from the driver"); now a crash costs one browser,
     // and its exit code and stderr become that browser's error.
-    let out = '';
+    // Each browser's driver output is KEPT WITH ITS BROWSER (review round 8): a problem in it is
+    // that browser's failure, never a note beside a ✓.
+    const outputs = new Map<string, string>();
     for (const spec of toRun) {
       const cmd = nodeRun(join(root, 'scripts/browsers/driver.ts'), [
         `http://127.0.0.1:${port}/`,
@@ -491,26 +494,15 @@ if (import.meta.main) {
       ]);
       if (typeof cmd === 'string') throw new Error(cmd);
       const r = await runDriver(cmd[0], cmd[1]);
-      if (r.out.split('\n').some((l) => l.startsWith('{'))) out += `${r.out}\n`;
+      if (r.out.split('\n').some((l) => l.startsWith('{'))) outputs.set(spec.name, r.out);
       else {
         const error = `driver exited ${r.code} with no report: ${r.errTail || '(no stderr)'}`;
-        out += `${JSON.stringify({ name: spec.name, error })}\n`;
+        outputs.set(spec.name, JSON.stringify({ name: spec.name, error }));
       }
     }
     server.close();
 
-    // 4. The verdict. A line that is not a report cannot stop the verdict on any browser; its
-    // browser then has no report, which fails it (review round 6, 2026-11-13).
-    const { reports, unreadable } = parseReports(out);
-    // …and the output must be exactly one report per browser run: anything else fails the run,
-    // with an annotation on GitHub (review round 7).
-    for (const p of reportSetProblems(reports, unreadable, toRun.map((s) => s.name))) {
-      console.log(`✗ ${p}`);
-      if (env['GITHUB_ACTIONS'] === 'true') {
-        console.log(`::error title=browsers::${p.replace(/\r?\n/g, ' ')}`);
-      }
-      failed = true;
-    }
+    // 4. The verdict, browser by browser: no line can stop it for another browser (round 6).
     for (const s of skipped) {
       console.log(`- ${s.name}: SKIPPED, ${s.missing}`);
       if (requireAll && env['GITHUB_ACTIONS'] === 'true') {
@@ -519,8 +511,8 @@ if (import.meta.main) {
       if (requireAll) failed = true;
     }
     for (const spec of toRun) {
-      const r = reports.find((x) => x.name === spec.name);
-      const bad: string[] = [];
+      const { report: r, problems } = judgeDriverOutput(spec.name, outputs.get(spec.name) ?? '');
+      const bad: string[] = [...problems];
       let summarized = false;
       const kind = reportKind(r);
       if (kind === 'none') bad.push('no report from the driver');
@@ -534,7 +526,8 @@ if (import.meta.main) {
       } else if (kind === 'error') {
         const error = r!.error!;
         const notInstalled = /is not found|not installed|Executable doesn't exist/i.test(error);
-        if (notInstalled && !requireAll) {
+        // A skip only when the output was otherwise clean: a problem in it is never skipped.
+        if (notInstalled && !requireAll && problems.length === 0) {
           console.log(`- ${spec.name}: SKIPPED, not installed`);
           continue;
         }
