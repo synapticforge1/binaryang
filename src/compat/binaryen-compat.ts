@@ -75,7 +75,7 @@
  * @license MIT
  */
 
-import { readForPasses } from '../ir/prepare.ts';
+import { invalidity, readForPasses } from '../ir/prepare.ts';
 import { writeWasm } from '../ir/write-wasm.ts';
 import {
   asRegion,
@@ -1563,7 +1563,7 @@ export class Module {
       shrinkLevel: _shrinkLevel as 0 | 1 | 2,
       debugInfo: _debugInfo,
     });
-    runner.addDefaultOptimizationPasses().run();
+    runTyped(this, 'optimize()', () => runner.addDefaultOptimizationPasses().run());
   }
 
   /**
@@ -1584,7 +1584,7 @@ export class Module {
     for (const name of passes) {
       runner.addPass(createPass(name));
     }
-    runner.run();
+    runTyped(this, 'runPasses()', () => runner.run());
   }
 
   /**
@@ -1632,13 +1632,53 @@ export class Module {
   }
 }
 
+/**
+ * The passes stopped because the module {@link readBinary} read is not valid — from
+ * {@link Module.optimize} or {@link Module.runPasses}. The message is the validator's
+ * diagnostics, at offsets into the bytes `readBinary` was given; the pass's own error is the
+ * `cause`. The module is left part-optimized.
+ *
+ * `readBinary` decodes structure and does not validate, so an invalid module reached the passes,
+ * and one met an index past its space and threw a bare `Error` (a fuzz of `readBinary` then
+ * `optimize()`, 22 of ~31,000 runs: "RemoveUnusedTypes: a reference to type N, which was not
+ * kept"; security review round 1, 2026-11-13). As `readForPasses` does, the validator is asked
+ * on the failure path only, so a valid module pays nothing; and when it finds the bytes valid, the
+ * failure is ours and is rethrown as it was, never disguised as the caller's.
+ */
+export class OptimizeError extends Error {
+  constructor(message: string, options: { cause: unknown }) {
+    super(message, options);
+    this.name = 'OptimizeError';
+  }
+}
+
+/** The bytes each module {@link readBinary} made was read from: what a failure is judged by. */
+const SOURCES = new WeakMap<Module, Uint8Array>();
+
+/** Runs the passes; a failure an invalid input explains becomes an {@link OptimizeError}. */
+function runTyped(module: Module, what: string, run: () => void): void {
+  try {
+    run();
+  } catch (e) {
+    const source = SOURCES.get(module);
+    const diagnostics = source === undefined ? null : invalidity(source, '<readBinary>');
+    if (diagnostics === null) throw e;
+    throw new OptimizeError(
+      `${what}: the module readBinary read is not valid, and a pass stopped on it:\n${diagnostics}`,
+      { cause: e },
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Namespace-level functions matching upstream binaryen.js
 // ---------------------------------------------------------------------------
 
 /** Parses `.wasm` bytes into a {@link Module}. */
 export function readBinary(bytes: Uint8Array): Module {
-  return new Module(readForPasses(bytes));
+  const m = new Module(readForPasses(bytes));
+  SOURCES.set(m, bytes.slice());
+  return m;
 }
 
 /** Per-export descriptor returned by {@link getExportInfo}. */

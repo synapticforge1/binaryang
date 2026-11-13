@@ -19,6 +19,7 @@ import { ExternalKind } from '../core/binary.ts';
 import { Result } from '../core/result.ts';
 import { ExprVisitor, type ExprVisitorDelegate } from './expr-visitor.ts';
 import type { ExplicitNames, Func, Module } from './ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 /** The made-up name of entity `i` in each namespace — binaryen-ts's decoder's, since N1 P4. */
 export const MADE_UP = {
@@ -179,7 +180,7 @@ function space<K extends ExternalKind>(
   for (const imp of m.imports) {
     if (imp.kind === kind) out.push(pick(imp as Extract<Module['imports'][number], { kind: K }>));
   }
-  out.push(...defined);
+  pushAll(out, defined);
   return out;
 }
 

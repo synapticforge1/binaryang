@@ -104,8 +104,16 @@ import {
   SYM_ABSOLUTE,
   SymbolKind,
 } from '../core/linking.ts';
-import { baseName, cliExit, cliProcess, fsRead, fsWrite } from '../cli/io.ts';
+import {
+  baseName,
+  cliExit,
+  cliProcess,
+  cliRefuseOverwritingInput,
+  cliWrite,
+  fsRead,
+} from '../cli/io.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
+import { pushAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // Options and report
@@ -262,11 +270,11 @@ function spacesOf(m: Module): Spaces {
     else if (imp.kind === ExternalKind.Memory) s.memories.push(imp.memory.name);
     else if (imp.kind === ExternalKind.Tag) s.tags.push(imp.tag.name);
   }
-  s.funcs.push(...m.functions.map((f) => f.name));
-  s.globals.push(...m.globals.map((g) => g.name));
-  s.tables.push(...m.tables.map((t) => t.name));
-  s.memories.push(...m.memories.map((x) => x.name));
-  s.tags.push(...m.tags.map((t) => t.name));
+  pushAll(s.funcs, m.functions.map((f) => f.name));
+  pushAll(s.globals, m.globals.map((g) => g.name));
+  pushAll(s.tables, m.tables.map((t) => t.name));
+  pushAll(s.memories, m.memories.map((x) => x.name));
+  pushAll(s.tags, m.tags.map((t) => t.name));
   return s;
 }
 
@@ -1854,7 +1862,9 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     else cliProcess().stdout.write(result.output);
     return;
   }
-  await fsWrite(output, result.output);
+  // Every input is read by now; the output must not be one of them.
+  await cliRefuseOverwritingInput('wasm-bundle', inputs, output);
+  await cliWrite('wasm-bundle', output, result.output);
   if (options.log !== undefined) {
     console.log(
       typeof result.output === 'string'

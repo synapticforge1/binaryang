@@ -21,13 +21,24 @@ on:
   pull_request:
     branches: [main]
 
+# Read-only, every job (security review round 1, B8, 2026-11-13): CI reads the tree and writes
+# nothing on GitHub, so its token can write nothing either — whatever the repository's default.
+# Every action is pinned to a commit (the comment names its release), every checkout keeps no
+# credential, and nothing installed runs an install script.
+permissions:
+  contents: read
+
 jobs:
   gates:
     name: Gates
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # The privacy check reads the commit messages this push adds.
+          fetch-depth: 0
+          persist-credentials: false
 
       # No Deno is installed (owner, 2026-10-28: "the CI should use npm's deno"): the JSR dry run
       # and `deno doc` run Deno's npm package through `bun scripts/deno.ts`, its one pin.
@@ -37,7 +48,7 @@ jobs:
       # type check below need them. `--frozen-lockfile`: a bun.lock that disagrees with
       # package.json fails.
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.4'
 
@@ -81,6 +92,21 @@ jobs:
       - name: Runtime portability
         run: bun run portability
 
+      # 🔒 The privacy rule, CHECKED (security review round 1, A3, 2026-11-13): no secret, personal
+      # address or drive path in a tracked file or in a commit message this push or pull request
+      # adds (the history before is upstream's imported commits, public). Hits print MASKED.
+      - name: Privacy (no secret, personal address or drive path)
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if git cat-file -e "$BASE^{commit}" 2>/dev/null; then range="$BASE..HEAD"; else range="HEAD^!"; fi
+          bun run privacy --commits "$range"
+
+      # Known vulnerabilities in the dependencies (Bun's npm audit; the @jsr packages have no audit
+      # endpoint and are skipped, which it says).
+      - name: Dependency audit
+        run: bun run audit
+
       # Every export loads in a BROWSER (open-work 28): each export in jsr.json
       # bundled for the browser target, failing on a bundle that does not build
       # or still imports a node: builtin at the top level. The portability rule
@@ -93,7 +119,7 @@ jobs:
       # so the suite's verdict comes from it (Bun migration B5; owner: "Node 24 authoritative, Bun
       # too"). scripts/test.ts takes `node` from PATH only if it is that major.
       - name: Install Node (the V8 referee)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
 
@@ -166,18 +192,24 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       # Playwright's driver runs on Node (the referee major, as the tests).
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
 
-      # Bun from npm, Bun's own package (its prebuilt binary): setup-bun unpacks a zip, and the
-      # image has no `unzip` (measured 2026-11-11), which apt would have to fetch from the mirrors.
-      - name: Install Bun
-        run: npm install -g bun@1.4.4
+      # Bun from npm, its prebuilt binary's own package: setup-bun unpacks a zip, and the image has
+      # no `unzip` (measured 2026-11-11), which apt would have to fetch from the mirrors. Fetched
+      # by `npm pack` and sha256-checked by the repo's installer; `npm install -g bun` ran the
+      # package's install script, unchecked (security review round 1, B8, 2026-11-13).
+      - name: Install Bun (npm's tarball, sha256-checked, no install script)
+        uses: ./.github/actions/install-pinned
+        with:
+          tools: bun-npm
 
       - name: Install dev dependencies
         run: bun install --frozen-lockfile
@@ -200,10 +232,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: '1.4.4'
 
@@ -212,7 +246,7 @@ jobs:
 
       # Playwright's driver runs on Node (the referee major, as the tests).
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
 
@@ -266,17 +300,19 @@ jobs:
             invoke: bun
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Install Node
         if: matrix.setup == 'node'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node }}
 
       - name: Install Bun
         if: matrix.setup == 'bun'
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: ${{ matrix.bun }}
 

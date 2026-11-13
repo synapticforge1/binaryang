@@ -50,7 +50,7 @@ import {
   nestingTooDeep,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliExit, cliProcess, cliRead, cliWrite } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRead, cliRefuseOverwritingInput, cliWrite } from '../cli/io.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 import { allFeatures, type Features } from '../core/feature.ts';
@@ -313,6 +313,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   }
 
   if (output) {
+    await cliRefuseOverwritingInput('wasm2wat', [input], output);
     await cliWrite('wasm2wat', output, text);
   } else {
     console.log(text);

@@ -44,6 +44,7 @@ import type {
   ValueType,
   Var,
 } from './ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 const NO_LOC = { filename: '', line: 0, column: 0, offset: 0 };
 
@@ -156,8 +157,8 @@ export function synthesizeTypes(module: Module): void {
       if (entry.kind === 'func') {
         if (sigKey(entry.sig) === sigKey(tag.sig)) return;
         if (tag.sig.params.length === 0 && tag.sig.results.length === 0) {
-          tag.sig.params.push(...entry.sig.params);
-          tag.sig.results.push(...entry.sig.results);
+          pushAll(tag.sig.params, entry.sig.params);
+          pushAll(tag.sig.results, entry.sig.results);
           return;
         }
       }
@@ -276,8 +277,8 @@ export function synthesizeTypes(module: Module): void {
       if (p.kind === 'index') item.typeVar = varIndex(p.value);
       continue;
     }
-    item.sig.params.push(...entry.sig.params);
-    item.sig.results.push(...entry.sig.results);
+    pushAll(item.sig.params, entry.sig.params);
+    pushAll(item.sig.results, entry.sig.results);
     item.typeVar = varIndex(idx);
   }
 

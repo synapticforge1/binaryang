@@ -29,6 +29,7 @@ import { Result } from '../core/result.ts';
 import { ExprVisitor, type ExprVisitorDelegate } from './expr-visitor.ts';
 import { type Expr, type Func, type Module, totalFuncs, type Var, varName } from './ir.ts';
 import { labelsOf, MADE_UP, nameEveryEntity, unique } from './made-up-names.ts';
+import { pushAll } from '../core/arrays.ts';
 
 /** A reference's name in `space`, from an index or a name as written. */
 function nameIn(space: readonly string[], v: Var, what: string): Var {
@@ -54,11 +55,11 @@ function spaces(m: Module) {
     else if (imp.kind === ExternalKind.Memory) s.memories.push(imp.memory.name);
     else if (imp.kind === ExternalKind.Tag) s.tags.push(imp.tag.name);
   }
-  s.funcs.push(...m.functions.map((f) => f.name));
-  s.globals.push(...m.globals.map((g) => g.name));
-  s.tables.push(...m.tables.map((t) => t.name));
-  s.memories.push(...m.memories.map((x) => x.name));
-  s.tags.push(...m.tags.map((t) => t.name));
+  pushAll(s.funcs, m.functions.map((f) => f.name));
+  pushAll(s.globals, m.globals.map((g) => g.name));
+  pushAll(s.tables, m.tables.map((t) => t.name));
+  pushAll(s.memories, m.memories.map((x) => x.name));
+  pushAll(s.tags, m.tags.map((t) => t.name));
   return s;
 }
 

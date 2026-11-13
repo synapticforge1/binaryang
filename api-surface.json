@@ -1787,6 +1787,8 @@
    "nullexternref": "variable#72ede4abf051",
    "nullfuncref": "variable#72ede4abf051",
    "nullref": "variable#72ede4abf051",
+   "OptimizeError": "class#d26c664ce7af",
+   "OptimizeError.constructor": "constructor#420c7d430b64",
    "readBinary": "function#9c0c2477c9e5",
    "ReturnId": "variable#72ede4abf051",
    "SelectId": "variable#72ede4abf051",

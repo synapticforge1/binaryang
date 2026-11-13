@@ -111,6 +111,23 @@ export function witWorldName(name: string): string {
 }
 
 /**
+ * A name from the module, safe inside a `//` comment: a name is any UTF-8, so a line break in
+ * one ended the comment and the rest became WIT (`export f: func();` written by an export's NAME,
+ * security review round 1, 2026-11-13). Every line terminator and other control character is
+ * written as a `\u` escape, and so is the backslash itself, so the escape cannot be forged.
+ */
+export function commentSafe(name: string): string {
+  let out = '';
+  for (const c of name) {
+    const u = c.codePointAt(0)!;
+    const control = c === '\\' || u <= 0x1f || (u >= 0x7f && u <= 0x9f) || u === 0x2028 ||
+      u === 0x2029;
+    out += control ? `\\u${u.toString(16).padStart(4, '0')}` : c;
+  }
+  return out;
+}
+
+/**
  * The `.wit` of `m`: its exported functions as a world named after `name`.
  * Non-WASI function IMPORTS are listed by name in a comment — the loader
  * must provide them — not described.
@@ -121,18 +138,19 @@ export function witFromModule(m: WasmModule, name: string): string {
   const skipped: string[] = [];
   const hostImports = m.imports
     .filter((i) => i.kind === ExternalKind.Func && i.module !== 'wasi_snapshot_preview1')
-    .map((i) => `${i.module}.${i.field}`);
+    .map((i) => `${commentSafe(i.module)}.${commentSafe(i.field)}`);
   for (const ex of m.exports) {
     if (ex.kind !== ExternalKind.Func || isInternalExport(ex.name)) continue;
     const id = toKebabCase(ex.name);
+    const name = commentSafe(ex.name);
     const sig = signatureOf(m, ex.var);
     if (sig === undefined) {
-      skipped.push(`export ${ex.name}: names no function`);
+      skipped.push(`export ${name}: names no function`);
       continue;
     }
     const s = witSig(sig);
-    if (!WIT_ID.test(id)) skipped.push(`export ${ex.name}: not a WIT identifier`);
-    else if ('why' in s) skipped.push(`export ${ex.name}: ${s.why}`);
+    if (!WIT_ID.test(id)) skipped.push(`export ${name}: not a WIT identifier`);
+    else if ('why' in s) skipped.push(`export ${name}: ${s.why}`);
     else exports.push(`  export ${id}: ${s.sig};`);
   }
   return [

@@ -120,8 +120,11 @@ export function readValidForPasses(bytes: Uint8Array, filename = '<input>'): Was
   return readForPasses(bytes, filename);
 }
 
-/** The validator's diagnostics for `bytes`, or `null` when it finds the module valid. */
-function invalidity(bytes: Uint8Array, filename: string): string | null {
+/**
+ * The validator's diagnostics for `bytes`, or `null` when it finds the module valid — for a
+ * failure path to ask whether the INPUT was at fault (here, and binaryen-compat's `optimize()`).
+ */
+export function invalidity(bytes: Uint8Array, filename: string): string | null {
   const errors = makeErrorList();
   try {
     const m = readBinaryIr(bytes, errors, { filename, readDebugNames: false });

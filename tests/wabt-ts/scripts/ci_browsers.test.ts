@@ -1,10 +1,19 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
-import { APT_FAIL_FAST, keyringPath, UNDECLARED } from '../../../scripts/ci/install-browsers.ts';
+import {
+  APT,
+  APT_FAIL_FAST,
+  dearmor,
+  keyProblem,
+  keyringPath,
+  primaryFingerprints,
+  UNDECLARED,
+} from '../../../scripts/ci/install-browsers.ts';
 import { browserSpecs } from '../../../scripts/check-browsers.ts';
 
 // ci.yml's browser check is two jobs (owner, 2026-11-11). On that day GitHub's runners could not
@@ -62,7 +71,10 @@ describe("ci.yml's browser check: Playwright's engines in its image, the rest on
     expect(ENGINES).not.toMatch(/apt-get|playwright install|--with-deps/);
     // The image has no `unzip`, which setup-bun needs (measured on GitHub, 2026-11-11).
     expect(ENGINES).not.toContain('uses: oven-sh/setup-bun');
-    const bun = ENGINES.indexOf('npm install -g bun@1.4.4');
+    // Bun is npm's tarball of it, sha256-checked, no install script (security round 1, B8): the
+    // installer's `bun-npm`, which needs npm — so after Node.
+    expect(ENGINES).not.toContain('npm install -g');
+    const bun = ENGINES.indexOf('tools: bun-npm');
     expect(bun).toBeGreaterThan(ENGINES.indexOf('actions/setup-node'));
     expect(bun).toBeLessThan(ENGINES.indexOf('bun install --frozen-lockfile'));
     // Root in the container, the workspace the runner's: git must be told it is safe.
@@ -90,7 +102,9 @@ describe("ci.yml's browser check: Playwright's engines in its image, the rest on
   it('both jobs: a time limit, Node for the driver, the lockfile exactly; installs before the check', () => {
     for (const [name, job] of [['engines', ENGINES], ['installed', INSTALLED]] as const) {
       expect(job, name).toMatch(/\n {4}timeout-minutes: 20\n/);
-      expect(job, name).toMatch(/uses: actions\/setup-node@\S+\n\s+with:\n\s+node-version: '24'/);
+      expect(job, name).toMatch(
+        /uses: actions\/setup-node@[0-9a-f]{40} # v[\d.]+\n\s+with:\n\s+node-version: '24'/,
+      );
       expect(job, name).toContain('run: bun install --frozen-lockfile');
       expect(job, name).not.toMatch(/run: bun install(?! --frozen-lockfile)/);
     }
@@ -108,6 +122,51 @@ describe("ci.yml's browser check: Playwright's engines in its image, the rest on
     const conf = SCRIPT.indexOf("'/etc/apt/apt.conf.d/99-binaryang-fail-fast'");
     expect(conf).toBeGreaterThan(-1);
     expect(conf).toBeLessThan(SCRIPT.indexOf("'apt-get'"));
+  });
+
+  // Security review round 1 (2026-11-13), C12: each vendor's signing key was trusted on first
+  // use. Its primary keys are now pinned; the fixtures are the two public key files as served on
+  // 2026-11-13, whose fingerprints `gpg --show-keys` gave the same that day.
+  const FIX = 'tests/wabt-ts/scripts/fixtures/apt-keys';
+  const braveKey = new Uint8Array(readFileSync(`${FIX}/brave-browser-archive-keyring.gpg`));
+  const operaKey = new Uint8Array(readFileSync(`${FIX}/opera-archive.key`));
+  const brave = APT.find((b) => b.name === 'brave')!;
+  const opera = APT.find((b) => b.name === 'opera')!;
+
+  it("reads a key file's primary fingerprints, binary and armored, as gpg does", () => {
+    expect(primaryFingerprints(braveKey)).toEqual([
+      'DBF1A116C220B8C7164F98230686B78420038257',
+      '47D32A74E9A9E013A4B4926C68D513D36A73CD96',
+      'B2A3DCA350E67256740DF904DE4EC67BE4B0DCA0',
+    ]);
+    expect(primaryFingerprints(operaKey)).toEqual(['6C86BE214648376680CA957B11EE8C00B693A745']);
+    expect(dearmor(braveKey)).toBe(braveKey); // binary: as given
+    expect(dearmor(operaKey)[0]! & 0x80).toBe(0x80); // armored: a packet header once decoded
+  });
+
+  it('accepts each vendor key only with exactly its pinned primary keys', () => {
+    expect(keyProblem(brave, braveKey)).toBe(null);
+    expect(keyProblem(opera, operaKey)).toBe(null);
+    // another vendor's key, a key added, a key removed
+    expect(keyProblem(brave, operaKey)).toContain('not the pinned');
+    expect(
+      keyProblem({ ...opera, fingerprints: [...opera.fingerprints, 'AB'.repeat(20)] }, operaKey),
+    )
+      .toContain('not the pinned');
+    expect(keyProblem({ ...brave, fingerprints: brave.fingerprints.slice(1) }, braveKey))
+      .toContain('not the pinned');
+    // what is not a key at all
+    expect(keyProblem(brave, new TextEncoder().encode('<html>Not Found</html>'))).toContain(
+      'does not read as OpenPGP keys',
+    );
+    expect(keyProblem(brave, braveKey.subarray(0, 100))).toContain('does not read as OpenPGP keys');
+  });
+
+  it('checks the key before writing the keyring', () => {
+    expect(SCRIPT.indexOf('keyProblem(b, key)')).toBeGreaterThan(-1);
+    expect(SCRIPT.indexOf('keyProblem(b, key)')).toBeLessThan(
+      SCRIPT.indexOf('keyringPath(b.keyring, key)'),
+    );
   });
 
   it('writes a binary key as .gpg and an armored one as .asc (no gpg needed)', () => {

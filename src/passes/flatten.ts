@@ -95,6 +95,7 @@ import { mapChildrenShallow } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { requireName, type Var, varIndex } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
+import { pushAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -390,13 +391,13 @@ function flattenOperands(
     const op = ops[i]!;
     if (op.kind === ExpressionKind.Pop) continue;
     const f = flattenExpr(op, ctx);
-    pre.push(...f.pre);
+    pushAll(pre, f.pre);
     if (f.values === undefined) {
       values[i] = f.value;
       continue;
     }
     values[i] = f.values[f.values.length - 1]!;
-    ctx.stack.push(...f.values.slice(0, -1));
+    pushAll(ctx.stack, f.values.slice(0, -1));
   }
   const pops = ops.flatMap((op, j) => op.kind === ExpressionKind.Pop ? [j] : []);
   take(pops.length, ctx, what).forEach((v, k) => values[pops[k]!] = v);
@@ -500,7 +501,7 @@ function flattenValueBreak(br: BreakExpr, ctx: Ctx): Flat {
     return fallThrough(getsOf(t));
   }
   const t = targetTemps(name, ctx);
-  pre.push(...setsOf(t, v.values));
+  pushAll(pre, setsOf(t, v.values));
   if (cond === undefined) return { pre: [...pre, makeBreak(name)], value: makeUnreachable() };
   pre.push(makeBreak(name, cond.values[0]!));
   return fallThrough(getsOf(t));
@@ -575,7 +576,7 @@ function flattenSeq(
       // model already holds it.
       if (child.kind === ExpressionKind.Pop) continue;
       const f = flattenExpr(child, ctx);
-      stmts.push(...f.pre);
+      pushAll(stmts, f.pre);
       if (neverFallsThrough(child, ctx)) {
         // A transfer or trap: keep it as a statement (a trivial `unreachable`
         // has no prelude, and would vanish), and what the stack held is
@@ -593,7 +594,7 @@ function flattenSeq(
         ctx.polymorphic = true;
         continue;
       }
-      ctx.stack.push(...valuesOf(f));
+      pushAll(ctx.stack, valuesOf(f));
     }
     if (ctx.polymorphic && ctx.stack.length < types.length) return { stmts, results: null };
     return { stmts, results: take(types.length, ctx, 'the end of a sequence') };

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Jon Marcum
+// Licensed under the MIT License. See LICENSE-MIT in the repository root.
+
 /**
  * @module ir/memory-access
  *

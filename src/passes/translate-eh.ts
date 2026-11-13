@@ -84,6 +84,7 @@ import { None, Unreachable, ValType } from '../ir/types.ts';
 import { mapChildrenShallow, visitChildren, walkExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { type BlockResult, type Var, varIndex, varName } from '../ir/ir.ts';
+import { pushAll } from '../core/arrays.ts';
 
 /** Translates legacy EH instructions into `try_table` / `throw_ref`. */
 export class TranslateToExnrefPass implements Pass {
@@ -359,7 +360,7 @@ function translateFunction(fn: WasmFunction, paramsOf: (tag: Var) => ValueType[]
         next.push(makeLocalSet(varIndex(exnLocalOf.get(t)!), makePop(ValType.ExnRef)));
       }
       const children = catchBodies[i]!.children;
-      next.push(...(i === clauses.length - 1 ? children : leave(children)));
+      pushAll(next, i === clauses.length - 1 ? children : leave(children));
       items = next;
     });
     return makeBlock(items, out, type);

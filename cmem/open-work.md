@@ -14,6 +14,33 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**State, 2026-11-13, later (supersedes the paragraphs below where they differ).** The **"review"**
+below ENDED at round 9, which found nothing (its reviewers, Sonnet, reported no finding).
+The owner's **"security review"** (workspace `review-process.md` § 3, the seven surfaces) on
+branch **`security-r1`** (from `main` 9bd99f916). **Round 1** found three groups, and the owner
+chose all three, each fixed as its class with tests and mutants:
+**A** — the CLI wrote over its input (`wat2wasm a.wat -o a.wat`, exit 0; also a case variant, a
+hard link) → a format-changing tool refuses an output that is an input (same device + inode);
+36 bytes declared 2 × 1,000,000 locals (549 MB) → a module-wide locals budget (1,000,000 + one per
+byte); the interpreter's locals unbounded across frames, fuel blind to bulk work, `memory.grow`
+copying per grow → `maxStackLocals` (4,000,000, then "call stack exhausted"), fuel per element / 8
+bytes / local, doubling storage; no privacy or audit check anywhere → `scripts/check-privacy.ts` +
+`bun audit` in CI's gates, the release's checks (commits since the previous tag) and npm-build
+(`dist/`). **B** — a line break in an export name wrote WIT (`commentSafe`); stack traces on bad
+output paths (`cliWrite` everywhere); writes in place (now atomic: temp beside, rename);
+credentialed jobs' tools unchecked (`.github/actions/install-pinned`: Bun / Deno / Node by exact URL
+and pinned sha256, rehearsed under WSL; npm is Node 24.22.3's own 11.19.1); ci.yml read-only,
+commit-pinned, no kept credential, no install script. **C** — `push(...spread)` refused 300,000
+flat instructions on V8 (`pushAll` / `replaceAll` at every call-spread site in `src/`, a scan test); compat `optimize()`'s bare Error
+(`OptimizeError` with the validator's diagnostics, the input's bytes judged); input cap 1 GiB;
+Brave / Opera key fingerprints pinned; the npm tarball's sha256 handed npm-build → npm; 10 files'
+attribution headers, 2 from their generator (a test now). Mutants: 17 + 20 + 2 + 5 + 19 + 3, all caught. **New, for round
+2:** the writer silently REPAIRS a function's out-of-range type index (C10b) — `validate()` says
+valid. The upstream history's commit messages hold 43 contributor addresses / paths (public,
+upstream's), so the scan covers only new commits. UNMEASURED until the next release: the
+credentialed jobs on the pinned installer, npm without setup-node's `.npmrc`. **Next:** security
+round 2 (Sonnet), then the hardening review, both before the next release (H35).
+
 **State, 2026-11-13 (supersedes the paragraphs below where they differ).** The owner's **"review"**
 (workspace `review-process.md` § 2, letter H35): a change review of `v3.0.2..main` — the D1 release
 path (`bun run release`, `bump`, `publish.yml`) and the two-job browser check; no `src/` change.
@@ -28,7 +55,7 @@ and pushed the same way (owner: "commit and push"): round 7's fetch-advice revie
 its verdict-loop reviewer found a class (driver output not exactly one report per browser); round
 8 found no defect, three cosmetic notes the owner chose to fix (a ✓ beside a run-level problem) —
 now each browser's driver output is judged on its own (`judgeDriverOutput`); mutants 4 / 4 each.
-Round 9 in progress — the review stops at the first empty round. What changed:
+Round 9 found nothing: the review ended there (see the paragraph above). What changed:
 the release script's guards are `scripts/release/release-run.ts`, held by RUNNING them; `tag`
 waits for `npm-build`; exact npm / Deno; job time limits; stale accepted entries fail the gate;
 `--only` / vendor / report checks in `check-browsers.ts`; the records in

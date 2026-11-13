@@ -2,8 +2,19 @@
 
 **As of 2026-11-11 (UTC): the last release is `v3.0.4`, on JSR AND npm, both with provenance**
 ([release.md](release.md) § "3.0.4" — 3.0.2's package again, with the two-job browser check);
-3.0.0 and 3.0.1 are on JSR only. Nothing is unreleased on `main`. (Check: `git log --oneline
+3.0.0 and 3.0.1 are on JSR only. Unreleased: the security fixes below. (Check: `git log --oneline
 v3.0.4..main -- src/ main.ts jsr.json README.md`.)
+
+**UNRELEASED since 3.0.4 — security review round 1 (2026-11-13, branch `security-r1`):**
+package changes, for the next release note. CLI: a tool whose output is not its input's format
+refuses to write over the input; every write atomic; a bad output path is `tool: cannot write`,
+never a stack trace; inputs over 1 GiB refused. Library: a module's locals capped at 1,000,000
+plus one per byte (`maxModuleLocals`); the interpreter's `maxStackLocals` option (default
+4,000,000) and fuel charged by bulk work; `memory.grow` no longer copies per grow; flat code of any
+length read on V8; binaryen compat's `OptimizeError`; WIT comments escape names (`commentSafe`).
+Repo-only: the privacy scan and audit, the pinned installer, ci.yml hardened, key fingerprints,
+the tarball digest. The surface may have grown (OptimizeError, the option): the compatibility gate
+decides the level.
 
 **Shipped in 3.0.2 and 3.0.1** (kept here until the next release): no package change — 3.0.0
 again, for npm, which 3.0.0 and 3.0.1 did not reach; npm went from 2.2.2 to 3.0.2. Repo-only:

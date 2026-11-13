@@ -67,6 +67,7 @@ import type { Var } from '../ir/ir.ts';
 import { None, Unreachable } from '../ir/types.ts';
 import { mapChildrenShallow, mapExpression, walkExpression } from '../ir/walk.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { pushAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // Pass class
@@ -508,7 +509,7 @@ function foldBranchTails(fn: WasmFunction): boolean {
         const children: Expression[] = [];
         for (const c of x.children) {
           children.push(rebuild(c));
-          if (c === b) children.push(...tail);
+          if (c === b) pushAll(children, tail);
         }
         return { ...x, children };
       }

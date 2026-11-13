@@ -48,7 +48,7 @@ export function helpText(h: ToolHelp): string {
     ...h.options,
     ...(h.features ? featureOptions() : []),
   ];
-  const width = Math.max(...options.map(([f]) => f.length)) + 2;
+  const width = options.reduce((w, [f]) => Math.max(w, f.length), 0) + 2;
   return [
     `usage: ${h.usage}`,
     '',

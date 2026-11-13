@@ -38,6 +38,7 @@ import {
   type SIMDTernaryExpr,
 } from './expressions.ts';
 import { None, Unreachable } from './types.ts';
+import { pushAll } from '../core/arrays.ts';
 
 // ---------------------------------------------------------------------------
 // mapExpression — bottom-up tree transform
@@ -132,7 +133,7 @@ function _mapSeq(
     const children: Expression[] = [];
     for (const c of expr.children) {
       const r = _mapSeq(c, fn);
-      if (isSequence(r)) children.push(...r.sequence);
+      if (isSequence(r)) pushAll(children, r.sequence);
       else children.push(r);
     }
     return fn({ ...expr, children, ...(params === undefined ? {} : { params }) });

@@ -64,7 +64,7 @@ export function isVendorBinary(path: string, vendor: string): boolean {
     real = realpathSync(path);
   } catch { /* the path as given */ }
   // The FILE's name, exactly one the vendor's installs use (review rounds 2–3, 2026-11-13: a
-  // substring of the path passed `/home/brave/chrome`; a prefix passed `bravery`, `operabeta`).
+  // substring of the path passed `/srv/brave/chrome`; a prefix passed `bravery`, `operabeta`).
   const file = real.replace(/\\/g, '/').split('/').pop()!.toLowerCase();
   return VENDOR_FILES[vendor]?.includes(file) ?? false;
 }
