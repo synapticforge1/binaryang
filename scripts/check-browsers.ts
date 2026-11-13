@@ -88,7 +88,9 @@ export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
     return isVendorBinary(p, name) ? { name, engine: 'chromium' as const, executablePath: p } : {
       name,
       engine: 'chromium' as const,
-      missing: `${p} is not a ${name} executable (its file name does not start with ${name})`,
+      missing: `${p} is not a ${name} executable (its file name is none of ${
+        (VENDOR_FILES[name] ?? []).join(', ')
+      })`,
     };
   };
   return [
@@ -270,6 +272,20 @@ export function selectSpecs<S extends { name: string }>(specs: S[], only?: strin
 }
 
 /**
+ * What a driver report is: none at all, an error, a result — or EMPTY, neither, which is a
+ * failure, never a pass (review round 4, 2026-11-13: an empty report added nothing to the
+ * browser's problems, so it counted as passed).
+ */
+export function reportKind(
+  r?: { error?: string; result?: unknown },
+): 'none' | 'error' | 'result' | 'empty' {
+  if (!r) return 'none';
+  if (r.error) return 'error';
+  if (r.result) return 'result';
+  return 'empty';
+}
+
+/**
  * The `--only=` list from the arguments: `undefined` when there is none. ONE `--only=` flag only,
  * and only in its `=` form: a second flag used to be ignored silently, so `--only=chrome
  * --only=edge` tested Chrome alone (review round 2, 2026-11-13); a bare `--only` or the space form
@@ -432,16 +448,21 @@ if (import.meta.main) {
     for (const spec of toRun) {
       const r = reports.find((x) => x.name === spec.name);
       const bad: string[] = [];
-      if (!r) bad.push('no report from the driver');
-      else if (r.error) {
-        const notInstalled = /is not found|not installed|Executable doesn't exist/i.test(r.error);
+      const kind = reportKind(r);
+      if (kind === 'none') bad.push('no report from the driver');
+      else if (kind === 'empty') {
+        // Review round 4 (2026-11-13): a report with neither added nothing to `bad` — a pass.
+        bad.push('the driver reported neither a result nor an error');
+      } else if (kind === 'error') {
+        const error = r!.error!;
+        const notInstalled = /is not found|not installed|Executable doesn't exist/i.test(error);
         if (notInstalled && !requireAll) {
           console.log(`- ${spec.name}: SKIPPED, not installed`);
           continue;
         }
-        bad.push(`could not run: ${r.error}`);
-      } else if (r.result) {
-        const res = r.result;
+        bad.push(`could not run: ${error}`);
+      } else {
+        const res = r!.result!;
         if (res.error) bad.push(`harness error: ${res.error}`);
         for (const [sub, why] of res.loadFailed) bad.push(`export ${sub} does not load: ${why}`);
         if (res.smoke !== expected.smoke) {
@@ -472,7 +493,7 @@ if (import.meta.main) {
         const shrunk = res.recipe?.runs.filter((x) => x.first.optimized).length ?? 0;
         console.log(
           `${bad.length === 0 ? '✓' : '✗'} ${spec.name} ${
-            r.version ?? ''
+            r!.version ?? ''
           }: ${res.loaded.length} exports loaded, ` +
             `${res.modules.length} modules, ${refusals.length} engine refusals (${listed.length} listed), ` +
             `recipe ${shrunk} of ${res.recipe?.runs.length ?? 0} shrunk, ${
@@ -480,6 +501,7 @@ if (import.meta.main) {
             } kept`,
         );
       }
+      if (bad.length > 0 && kind !== 'result') console.log(`✗ ${spec.name}`);
       // On GitHub Actions each failure is ALSO an annotation: the job log needs admin rights to read
       // through the API, annotations do not (the first CI run failed with nothing else to go on).
       if (env['GITHUB_ACTIONS'] === 'true') {

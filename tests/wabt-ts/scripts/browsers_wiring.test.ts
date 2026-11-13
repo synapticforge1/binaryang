@@ -18,7 +18,9 @@ import {
   browserSpecs,
   isVendorBinary,
   parseOnly,
+  reportKind,
   selectSpecs,
+  VENDOR_FILES,
 } from '../../../scripts/check-browsers.ts';
 
 describe('the real-browser job', () => {
@@ -99,6 +101,8 @@ describe('the real-browser job', () => {
       const s = withEnv(name!, resolve('package.json'), spec!);
       expect(s.executablePath, name).toBeUndefined();
       expect(s.missing, name).toContain(`is not a ${spec} executable`);
+      // The reason names the rule as it is (round 4: it still said "does not start with").
+      expect(s.missing, name).toContain(`is none of ${VENDOR_FILES[spec!]!.join(', ')}`);
     }
   });
 
@@ -120,6 +124,24 @@ describe('the real-browser job', () => {
       expect(() => parseOnly(['--require-all', a]), a).toThrow('unknown argument');
     }
     expect(parseOnly(['--require-all', '--only=chrome'])).toEqual(['chrome']);
+  });
+
+  // Review round 4 (2026-11-13): a report with neither a result nor an error added nothing to the
+  // browser's problems, so the browser counted as passed.
+  it('a driver report with neither a result nor an error is a failure, never a pass', () => {
+    expect(reportKind(undefined)).toBe('none');
+    expect(reportKind({ error: 'x' })).toBe('error');
+    expect(reportKind({ result: { modules: [] } })).toBe('result');
+    for (const r of [{}, { result: null }, { result: '' }, { error: '' }] as never[]) {
+      expect(reportKind(r), JSON.stringify(r)).toBe('empty');
+    }
+    const src = readFileSync(
+      new URL('../../../scripts/check-browsers.ts', import.meta.url),
+      'utf8',
+    );
+    expect(src).toMatch(
+      /kind === 'empty'\) \{\n(?:\s*\/\/[^\n]*\n)*\s*bad\.push\('the driver reported neither a result nor an error'\)/,
+    );
   });
 
   // Two CI jobs since 2026-11-11 (owner): Playwright's engines in its image, the installed
