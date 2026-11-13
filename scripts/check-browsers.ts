@@ -323,6 +323,28 @@ export function parseReports(out: string): { reports: DriverReport[]; unreadable
 }
 
 /**
+ * Every way the driver output is not EXACTLY one report per browser that ran (review round 7,
+ * 2026-11-13, run): a second report for a browser was dropped (the first won, so a later failure
+ * could vanish), an unreadable line only printed a note, and a report for a browser not run was
+ * dropped unseen. Each is a problem of the run, which fails it.
+ */
+export function reportSetProblems(
+  reports: { name: string }[],
+  unreadable: string[],
+  ran: string[],
+): string[] {
+  const problems = unreadable.map((l) => `a driver line that is not a report: ${l.slice(0, 200)}`);
+  const seen = new Map<string, number>();
+  for (const r of reports) seen.set(r.name, (seen.get(r.name) ?? 0) + 1);
+  for (const [name, n] of seen) {
+    if (!ran.includes(name)) {
+      problems.push(`a report for a browser not run: ${JSON.stringify(name)}`);
+    } else if (n > 1) problems.push(`${n} reports for ${name}; the driver prints one`);
+  }
+  return problems;
+}
+
+/**
  * Runs one browser's judgement; anything it throws becomes THAT browser's failure, so every other
  * browser is still judged (review round 6, 2026-11-13, run: a malformed result crashed the loop).
  */
@@ -480,8 +502,14 @@ if (import.meta.main) {
     // 4. The verdict. A line that is not a report cannot stop the verdict on any browser; its
     // browser then has no report, which fails it (review round 6, 2026-11-13).
     const { reports, unreadable } = parseReports(out);
-    for (const l of unreadable) {
-      console.log(`! a driver line that is not a report: ${l.slice(0, 200)}`);
+    // …and the output must be exactly one report per browser run: anything else fails the run,
+    // with an annotation on GitHub (review round 7).
+    for (const p of reportSetProblems(reports, unreadable, toRun.map((s) => s.name))) {
+      console.log(`✗ ${p}`);
+      if (env['GITHUB_ACTIONS'] === 'true') {
+        console.log(`::error title=browsers::${p.replace(/\r?\n/g, ' ')}`);
+      }
+      failed = true;
     }
     for (const s of skipped) {
       console.log(`- ${s.name}: SKIPPED, ${s.missing}`);

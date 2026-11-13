@@ -21,6 +21,7 @@ import {
   parseOnly,
   parseReports,
   reportKind,
+  reportSetProblems,
   selectSpecs,
   VENDOR_FILES,
 } from '../../../scripts/check-browsers.ts';
@@ -166,6 +167,31 @@ describe('the real-browser job', () => {
     const { reports, unreadable } = parseReports(out);
     expect(reports.map((r) => r.name)).toEqual(['chrome', 'edge']);
     expect(unreadable).toEqual(['{not json', '{"no":"name"}']);
+  });
+
+  // Round 7 (2026-11-13, run): a good edge report followed by a failing one passed (the first
+  // won); a stray `{junk` line next to good reports passed; a report for a browser not run vanished.
+  it('the driver output must be exactly one report per browser run', () => {
+    const ran = ['chrome', 'edge'];
+    const one = [{ name: 'chrome' }, { name: 'edge' }];
+    expect(reportSetProblems(one, [], ran)).toEqual([]);
+    expect(reportSetProblems([...one, { name: 'edge' }], [], ran)).toEqual([
+      '2 reports for edge; the driver prints one',
+    ]);
+    expect(reportSetProblems(one, ['{junk'], ran)).toEqual([
+      'a driver line that is not a report: {junk',
+    ]);
+    expect(reportSetProblems([...one, { name: '' }], [], ran)).toEqual([
+      'a report for a browser not run: ""',
+    ]);
+    // The loop fails the RUN on any of them.
+    const src = readFileSync(
+      new URL('../../../scripts/check-browsers.ts', import.meta.url),
+      'utf8',
+    );
+    expect(src).toMatch(
+      /for \(const p of reportSetProblems\(reports, unreadable, toRun\.map\(\(s\) => s\.name\)\)\) \{[\s\S]{0,300}?failed = true;/,
+    );
   });
 
   it("a judgement that throws becomes that browser's failure", () => {
