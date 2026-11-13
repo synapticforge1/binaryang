@@ -60,7 +60,13 @@ const code = await runRelease({
     return {
       status: r.status,
       stdout: r.stdout ?? '',
-      stderr: r.error ? String(r.error) : '(printed above)',
+      // Why it failed: git did not start; git was killed (it printed nothing); or git's own words,
+      // already printed live above (review round 3, 2026-11-13).
+      stderr: r.error
+        ? String(r.error)
+        : r.signal
+        ? `git was killed by ${r.signal}`
+        : '(printed above)',
     };
   },
   jsrHas: (v) => jsrHas({}, jsrName, v),

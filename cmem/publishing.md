@@ -46,8 +46,11 @@ B3):
    (D1, 2026-11-10; until then `main` + the tag in one push). `publish.yml` runs on that push:
    **six jobs** (§ "The publish workflow's jobs" below) — `checks` (no token; is it a release, both
    registries free, the floor check `api-surface.ts --release-check`, check, tests, dry run) →
-   `tag` (CI's tag) → `release` (the page) → `jsr` (credential); `checks` → `npm-build` → `npm`
-   (credential). ✅ **Measured by 3.0.3** (run 43061998593, all six green) — read every job of a
+   `npm-build` (the npm package proven, no token; skipped while npm publishing is off) → `tag`
+   (CI's tag, only once both are green) → `release` (the page) → `jsr` (credential) → `npm`
+   (credential). 🔁 2026-11-13 (review rounds 1–3): `npm-build` runs BEFORE the tag; until then
+   it ran beside `jsr`, after the tag. ✅ **Order measured by 3.0.3** (run 43061998593, all six
+   green); the round-1 change to it is UNMEASURED until the next release — read every job of a
    release run, and on a failure use "Re-run failed jobs" (the jobs skip what is done), never a
    new tag.
 6. Read both registries back (Rekor id on JSR, the attestation on npm), run the package as a user
@@ -123,7 +126,7 @@ owner's to publish under. Renamed before any publish. As built, against the plan
 | licence + notice files | README, LICENSE, LICENSE-MIT, LICENSE-APACHE, NOTICE.md copied in |
 | `src/definitions/*.json` | COPIED, as JSR ships them (no code imports them; consumers may) |
 | proof before any publish | `scripts/npm/prove.ts`, in CI's Gates job: pack (833 KiB, 245 files, no `.ts` source), install the tarball into a scratch consumer, every export imports and runs nothing on Node 22 / 24 / 26 and Bun, `cli-smoke.ts` on the INSTALLED `main.js` gives the source's hash on each, `npm exec binaryang --version`, the `.d.ts` type-check for a consumer with `types: []`, every export of the installed package bundles for the browser, the export list equals JSR's own npm build (`npm.jsr.io`, read from its tarball: the registry metadata omits `exports`). 7 build mutants, all caught (a wrong `types` path survived the first run: TypeScript falls back to the `.d.ts` beside the `.js`, so the proof now checks every path the manifest names) |
-| the release path | `publish.yml` job `npm`: after JSR's, same tag, `npm:prove` then `npm publish` from `dist/` (OIDC, no token), then the provenance attestation read back from the registry; **OFF until the repository variable `NPM_PUBLISH` is `true`** |
+| the release path | `publish.yml` job `npm-build` (`npm:prove`, BEFORE CI tags) and job `npm` (after JSR's, the same version, `npm publish` of the proven tarball, OIDC, no token), then the provenance attestation read back from the registry; **OFF until the repository variable `NPM_PUBLISH` is `true`** — switch it only before a push, never between a run and its re-run ([release.md](release.md)) |
 
 **Measured on the way:** npm 11's `pack --json` prints an OBJECT keyed by package name (npm 10:
 an array); `npm` on Windows is a `.cmd` shim that `fnm exec` cannot spawn ("program not found"), so
@@ -323,11 +326,11 @@ The table is the current shape; [release.md](release.md) § "How a release is ma
 | job | token | what it runs |
 | --- | --- | --- |
 | `checks` | none | `workflow.ts release-state` (no tag = new, the tag here = re-run, elsewhere = stop); for a new number `registry.ts free` (JSR AND npm — npm never reuses a number, C34 (2)); `api-surface.ts --release-check`; `check`, both test legs; `deno publish --dry-run` on a sparse checkout of `jsr.json`'s include list (the `jsr` job's tree) |
-| `tag` | contents: write | `github.ts tag` — the annotated tag on this commit (REST), read back; at this commit = done, elsewhere = refused |
+| `tag` | contents: write | only once `checks` is green and `npm-build` green or skipped (its RESULT, never the variable): `github.ts tag` — the annotated tag on this commit (REST), read back; at this commit = done, elsewhere = refused |
 | `release` | contents: write | `github.ts release` (H32), from the tag, before the publish |
 | `jsr` | id-token | sparse checkout of the published files + `registry.ts`, nothing installed; `jsr-has` (a re-run skips the upload); `oidc-check`; **`uploaded=true` written BEFORE** `deno publish`; provenance read-back |
-| `npm-build` | none | `bun install`, `npm:prove`, `npm pack` → the tarball as an artifact |
-| `npm` | id-token | sparse checkout of `registry.ts` + `jsr.json`; npm 11 (`--ignore-scripts`); the artifact; `jsr-wait`; `npm-tarball` (ours, this version, no `scripts`, provenance on); `npm-state` (served → skip); `npm publish <tgz> --ignore-scripts`; provenance read-back |
+| `npm-build` | none | BEFORE the tag, while `NPM_PUBLISH` is `true`: `bun install`, `npm:prove`, `npm pack` → the tarball as an artifact |
+| `npm` | id-token | sparse checkout of `registry.ts` + `jsr.json`; npm 11.21.2, exact (`--ignore-scripts`); the artifact; `jsr-wait`; `npm-tarball` (ours, this version, no `scripts`, provenance on); `npm-state` (served → skip); `npm publish <tgz> --ignore-scripts`; provenance read-back |
 
 - **`uploaded`, not `deno publish`'s exit** (C34 (1)): `deno publish` uploads, THEN signs. 1.13.2
   failed after its upload (release.md § "1.13.2"), and everything gated on the step was skipped.

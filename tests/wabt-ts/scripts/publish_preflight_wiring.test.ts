@@ -141,7 +141,8 @@ describe('the release: every refusal runs, and changes nothing', () => {
     ['a modified file outside the release files', { porcelain: ' M src/x.ts\n' }, 'not clean'],
     ['a branch other than main', { branch: 'feature' }, "not 'main'"],
     ['a detached HEAD', { branch: 'HEAD' }, "not 'main'"],
-    ['a failed fetch', { fetchFails: true }, 'could not fetch'],
+    // …and says what to do when a local tag differs from GitHub's (round 3).
+    ['a failed fetch', { fetchFails: true }, 'git tag -d <tag>'],
     ['a main that lacks origin/main', { containsOriginMain: false }, 'does not contain'],
     ['a local tag', { localTag: 0 }, 'LOCAL tag'],
     ['an unreadable local tag list', { localTag: 128 }, 'could not read the local tags'],
@@ -198,6 +199,8 @@ describe('publish.ts wires in the real checks', () => {
     expect(PUBLISH).not.toMatch(/\[\s*'(add|commit|push|tag)'/);
     // git's stdin and stderr pass through, live (round 2, 2026-11-13).
     expect(PUBLISH).toContain("stdio: ['inherit', 'pipe', 'inherit']");
+    // …so "(printed above)" only when git printed: not when it did not start or was killed.
+    expect(PUBLISH).toMatch(/r\.error\s+\? String\(r\.error\)\s+: r\.signal/);
   });
 
   // The property that made `publish.ts` untestable in the first place. If the guard module ever
@@ -251,9 +254,15 @@ describe('the bump gates against the release jsr.json names', () => {
     expect(fetch < tag && tag < base && base < floor).toBe(true);
     expect(bump.slice(fetch, tag)).toContain('process.exit(1)');
     expect(bump.slice(base, floor)).toContain('process.exit(1)');
-    // No release tag reachable (round 2): lastReleaseTag throws; that is a refusal, not a crash.
-    expect(bump.slice(tag, base)).toMatch(/catch/);
+    // No release tag reachable (round 2): lastReleaseTag throws; that is a refusal, not a crash —
+    // and git's own words go with it (round 3: a corrupt repository read as "no release").
+    expect(bump.slice(tag, base)).toMatch(/catch \(e\)/);
+    expect(bump.slice(base, floor)).toContain('git describe: ');
+    expect(bump.slice(base, floor)).toContain('describeError');
     expect(bump).not.toContain("'-q', '--tags'");
+    // A fetch that fails says why git did not start, and what to do about a moved tag (round 3).
+    expect(bump.slice(fetch, tag)).toContain('fetched.error');
+    expect(bump.slice(fetch, tag)).toContain('git tag -d <tag>');
   });
 });
 

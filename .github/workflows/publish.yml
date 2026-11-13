@@ -12,15 +12,17 @@
 #                        must be free on JSR and npm (npm never reuses one, C34 (2)); the
 #                        compatibility gate, the type check, both test legs, and
 #                        `deno publish --dry-run` on exactly the files `jsr` checks out
-#   tag        contents  CI's annotated tag `vX.Y.Z` on this commit (REST API), read back; at this
-#              : write   commit already = done, anywhere else = refused (scripts/release/github.ts)
+#   npm-build  no token  builds and PROVES the npm package, packs it, uploads the tarball — BEFORE
+#                        the tag (skipped while the NPM_PUBLISH variable is not `true`)
+#   tag        contents  once `checks` is green and `npm-build` green or skipped: CI's annotated
+#              : write   tag `vX.Y.Z` on this commit (REST API), read back; at this commit already
+#                        = done, anywhere else = refused (scripts/release/github.ts)
 #   release    contents  the GitHub Release page FROM the tag (workspace letters H30 / H32): the tag
 #              : write   peels to this commit, an existing page is done, created, read back
 #   jsr        id-token  skips the upload if JSR already has the version (a re-run), writes
 #                        `uploaded` BEFORE `deno publish` — which uploads, THEN signs, so a failure
 #                        after the upload (1.13.2) must not strand npm — publishes, reads
 #                        provenance back
-#   npm-build  no token  builds and PROVES the npm package, packs it, uploads the tarball
 #   npm        id-token  waits for JSR, checks the tarball's manifest (ours, this version, no
 #                        scripts, provenance on), skips if npm already serves it, publishes the
 #                        PROVEN tarball with --ignore-scripts, reads provenance back

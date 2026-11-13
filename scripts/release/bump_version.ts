@@ -79,7 +79,16 @@ if (dryRun) {
   // Not `-q`: git says why it refused (a tag moved upstream) only without it (round 2).
   const fetched = spawnSync('git', ['fetch', '--tags', 'origin'], { stdio: 'inherit' });
   if (fetched.status !== 0) {
-    console.error('bump: could not fetch the tags from origin; nothing was written.');
+    // Its reason: git's own (printed above), or why git did not start at all (round 3).
+    console.error(
+      `bump: could not fetch the tags from origin${
+        fetched.error ? ` (${fetched.error.message})` : ''
+      }; nothing was written.`,
+    );
+    console.error(
+      '  "would clobber existing tag": a LOCAL tag differs from GitHub\'s, which is the record —',
+    );
+    console.error('  delete the local one (git tag -d <tag>) and bump again.');
     process.exit(1);
   }
   const { LEVELS, floorSinceRelease, lastReleaseTag, snapshotDrift } = await import(
@@ -88,12 +97,18 @@ if (dryRun) {
   // The base, found HERE, before anything uses it: no release tag reachable from HEAD is a
   // refusal with a reason, not a crash inside the floor (review round 2, 2026-11-13).
   let ref = '';
+  let describeError = '';
   try {
     ref = lastReleaseTag();
-  } catch { /* none reachable: releaseBaseProblem says so */ }
+  } catch (e) {
+    // None reachable, or git itself failing: releaseBaseProblem refuses, and git's own words go
+    // with it, so a corrupt repository does not read as "no release" (review round 3).
+    describeError = (e instanceof Error ? e.message : String(e)).split('\n')[0]!;
+  }
   const base = releaseBaseProblem(ref, current);
   if (base !== null) {
     console.error(`bump: ${base}; nothing was written.`);
+    if (describeError !== '') console.error(`  git describe: ${describeError}`);
     process.exit(1);
   }
   const drift = await snapshotDrift();

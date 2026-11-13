@@ -93,7 +93,11 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
   // Not `-q`: git's reason for a refusal (a tag that moved upstream: "would clobber existing
   // tag") is printed only without it (review round 2, 2026-11-13: the message ended empty).
   if (!git(['fetch', '--tags', 'origin', 'main'])) {
-    return refuse(`Refusing to release ${tag}: could not fetch main and the tags from origin.`);
+    return refuse(
+      `Refusing to release ${tag}: could not fetch main and the tags from origin (git's reason above).`,
+      `  "would clobber existing tag": a LOCAL tag differs from GitHub's, which is the record —`,
+      '  delete the local one (git tag -d <tag>) and run again (review round 3, 2026-11-13).',
+    );
   }
   if (d.git(['merge-base', '--is-ancestor', 'origin/main', 'HEAD']).status !== 0) {
     return refuse(

@@ -31,10 +31,15 @@ twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that f
    v3.0.4's `publish_preflight_wiring.test.ts` read the release script's SOURCE, which review
    rounds 1–2 replaced with behaviour tests — **11 of its tests fail** on the new tree — and the
    3.0.4 entry (`browsers_wiring.test.ts`, "is a CI job that installs the browsers …") is now
-   stale. In ONE commit before the bump: drop the stale entry, and list the 11 exactly as
-   `bun scripts/release/previous-tests.ts v3.0.4` names them, `since` the new version, reason
-   "review rounds 1–2 (2026-11-13): the release script's guards are held by running them
-   (release-run.ts), not by reading publish.ts's source". Then bump again.
+   stale. Before the bump, on a branch `accept-<new version>` merged `--no-ff` into `main` (as
+   `accept-3.0.3` / `accept-3.0.4` were), ONE commit: drop the stale entry; list the 11 exactly as
+   `bun scripts/release/previous-tests.ts v3.0.4` names them, `since` the version you are about
+   to bump TO (decide the level first: a minor makes it 3.1.0, not 3.0.5), reason "review rounds
+   1–3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not
+   by reading publish.ts's source"; and update the file's `about` line (3.0.4's one entry dropped
+   at that release). In the same commit, delete this ⚠️ paragraph and the matching one in
+   [unreleased.md](unreleased.md). Then bump again. (Measured end to end in a scratch clone in
+   review round 3: the procedure takes the bump from refused to written.)
 3. **U4 `bun run release`** (`scripts/release/publish.ts`, its logic `release-run.ts`) — guards
    first, each a refusal that changes nothing (held by running them, review round 1): a clean tree
    (untracked files count), on `main`, `fetch` of `main` AND the tags, `main` contains
@@ -55,6 +60,12 @@ twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that f
 | `jsr` (U8) | `id-token: write` | skip if JSR has it; `uploaded` written first; `deno publish` direct; Rekor read back, FATAL |
 | `npm-build` | `contents: read` | `npm:prove`, pack, artifact — BEFORE the tag |
 | `npm` (U8) | `id-token: write` | waits for JSR; the proven tarball checked; skip if npm serves it; `npm publish`; provenance read back, FATAL |
+
+⚠️ **Switch the `NPM_PUBLISH` repository variable only BEFORE a push, never between a run and
+its "Re-run failed jobs"** (review round 3, 2026-11-13, reasoned from GitHub's re-run behaviour):
+a re-run keeps the `npm-build` it skipped while npm was off, so `npm` stays skipped and the run
+ends green with npm unpublished. Turned on mid-release: let that run finish, then release the next
+version with npm on.
 
 A tag made with `GITHUB_TOKEN` starts no workflow run, which is why it is all one run. The run's
 actor is whoever pushed `main` — the owner, a member of the `@jrmarcum` JSR scope. The bot-actor
