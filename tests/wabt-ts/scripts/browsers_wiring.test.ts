@@ -48,20 +48,38 @@ describe('the real-browser job', () => {
   // Review round 1 (2026-11-13): Brave and Opera are found by PATH or an environment variable, and
   // nothing checked that the binary launched was the browser named.
   it('a Brave or Opera binary must be that vendor\'s: another binary is "missing", with why', () => {
-    // The real installs, Linux and Windows.
-    for (const p of ['/opt/brave.com/brave/brave', '/usr/bin/brave-browser']) {
-      expect(isVendorBinary(p, 'brave'), p).toBe(true);
-    }
-    expect(isVendorBinary('C:\\Program Files\\BraveSoftware\\Brave-Browser\\brave.exe', 'brave'))
-      .toBe(true);
-    for (const p of ['/usr/lib/x86_64-linux-gnu/opera/opera', '/usr/bin/opera']) {
-      expect(isVendorBinary(p, 'opera'), p).toBe(true);
-    }
-    // Round 2 (2026-11-13): the vendor's name elsewhere in the path is not the vendor's binary.
-    expect(isVendorBinary('/home/brave/google-chrome', 'brave')).toBe(false);
-    expect(isVendorBinary('/usr/bin/cooperative', 'opera')).toBe(false);
-    expect(isVendorBinary('/opt/opera/chrome', 'opera')).toBe(false);
-    expect(isVendorBinary(resolve('package.json'), 'brave')).toBe(false);
+    // The real installs (round 3 listed both debs): Brave's binary and its launcher, Opera's binary
+    // under opera-stable/ (`/usr/bin/opera` is a symlink to it), and the Windows executables.
+    for (
+      const p of [
+        '/opt/brave.com/brave/brave',
+        '/opt/brave.com/brave/brave-browser',
+        '/usr/bin/brave-browser-stable',
+        'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+      ]
+    ) expect(isVendorBinary(p, 'brave'), p).toBe(true);
+    for (
+      const p of ['/usr/lib/x86_64-linux-gnu/opera-stable/opera', 'C:/x/Programs/Opera/opera.exe']
+    ) expect(isVendorBinary(p, 'opera'), p).toBe(true);
+    // browserSpecs' own candidates are each such a name.
+    const src = readFileSync(
+      new URL('../../../scripts/check-browsers.ts', import.meta.url),
+      'utf8',
+    );
+    expect(src).toContain("'/usr/lib/x86_64-linux-gnu/opera-stable/opera'");
+    expect(src).not.toContain("'/usr/lib/x86_64-linux-gnu/opera/opera'");
+    // Not the vendor's binary: the name elsewhere in the path (round 2), or only a prefix (round 3).
+    for (
+      const [p, v] of [
+        ['/home/brave/google-chrome', 'brave'],
+        ['/usr/bin/cooperative', 'opera'],
+        ['/opt/opera/chrome', 'opera'],
+        ['/usr/bin/bravery', 'brave'],
+        ['/usr/bin/operabeta', 'opera'],
+        ['/usr/bin/opera_autoupdate', 'opera'],
+        [resolve('package.json'), 'brave'],
+      ]
+    ) expect(isVendorBinary(p!, v!), p).toBe(false);
   });
 
   /** browserSpecs() with one environment variable set, restored afterwards. */
@@ -97,6 +115,11 @@ describe('the real-browser job', () => {
     expect(parseOnly(['--only=chrome,edge,'])).toEqual(['chrome', 'edge']);
     expect(() => parseOnly(['--only=chrome', '--only=edge'])).toThrow('2 times');
     expect(() => parseOnly(['--only', 'chrome'])).toThrow('--only=<names>');
+    // Round 3: an argument it does not know is refused, never ignored.
+    for (const a of ['--onlyx=chrome', '--only-foo', '--ONLY=chrome', '--requireall', 'chrome']) {
+      expect(() => parseOnly(['--require-all', a]), a).toThrow('unknown argument');
+    }
+    expect(parseOnly(['--require-all', '--only=chrome'])).toEqual(['chrome']);
   });
 
   // Two CI jobs since 2026-11-11 (owner): Playwright's engines in its image, the installed

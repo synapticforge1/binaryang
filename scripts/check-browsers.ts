@@ -63,12 +63,20 @@ export function isVendorBinary(path: string, vendor: string): boolean {
   try {
     real = realpathSync(path);
   } catch { /* the path as given */ }
-  // The FILE's name, not any part of the path (review round 2, 2026-11-13: `/home/brave/chrome`
-  // and `.../cooperative` passed a substring test). The real installs: `brave`, `brave-browser`,
-  // `brave.exe`; `opera`, `opera.exe`.
+  // The FILE's name, exactly one the vendor's installs use (review rounds 2–3, 2026-11-13: a
+  // substring of the path passed `/home/brave/chrome`; a prefix passed `bravery`, `operabeta`).
   const file = real.replace(/\\/g, '/').split('/').pop()!.toLowerCase();
-  return file.startsWith(vendor);
+  return VENDOR_FILES[vendor]?.includes(file) ?? false;
 }
+
+/**
+ * The executables' file names, per vendor, as their installs name them (Brave's deb: `brave`, the
+ * `brave-browser` launcher, `brave-browser-stable`; Opera's deb: `opera`; Windows: `.exe`).
+ */
+export const VENDOR_FILES: Readonly<Record<string, readonly string[]>> = {
+  brave: ['brave', 'brave-browser', 'brave-browser-stable', 'brave.exe'],
+  opera: ['opera', 'opera.exe'],
+};
 
 /** The browsers, in the owner's words, and how each is found. */
 export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
@@ -100,7 +108,9 @@ export function browserSpecs(): (BrowserSpec & { missing?: string })[] {
       'BINARYANG_OPERA',
       `${LOCALAPP}/Programs/Opera/opera.exe`,
       '/usr/bin/opera',
-      '/usr/lib/x86_64-linux-gnu/opera/opera',
+      // The opera-stable package installs here (its deb, listed in review round 3, 2026-11-13);
+      // `/usr/bin/opera` is a symlink to it. An `opera/` directory never existed.
+      '/usr/lib/x86_64-linux-gnu/opera-stable/opera',
     ),
     // No Vivaldi (owner, 2026-10-13: "lets remove vivaldi from the checks. most of the other
     // chromium distributions are applicable"): headless under Playwright on CI's Linux it never
@@ -263,19 +273,29 @@ export function selectSpecs<S extends { name: string }>(specs: S[], only?: strin
  * The `--only=` list from the arguments: `undefined` when there is none. ONE `--only=` flag only,
  * and only in its `=` form: a second flag used to be ignored silently, so `--only=chrome
  * --only=edge` tested Chrome alone (review round 2, 2026-11-13); a bare `--only` or the space form
- * (`--only chrome`) ran every browser.
+ * (`--only chrome`) ran every browser. Any OTHER argument is refused too (review round 3: a
+ * mistyped `--onlyx=chrome` was ignored, and every browser ran).
  */
 export function parseOnly(argv: string[]): string[] | undefined {
   const flags = argv.filter((a) =>
     a === '--only' || a.startsWith('--only=') || a.startsWith('--only ')
   );
-  if (flags.length === 0) return undefined;
   if (flags.length > 1) throw new Error(`--only is given ${flags.length} times; give one list`);
-  const flag = flags[0]!;
-  if (!flag.startsWith('--only=')) {
+  const flag = flags[0];
+  if (flag !== undefined && !flag.startsWith('--only=')) {
     throw new Error(`write --only=<names>, not ${JSON.stringify(flag)}`);
   }
-  return flag.slice('--only='.length).split(',').filter((n) => n !== '');
+  const unknown = argv.filter((a) => a !== '--require-all' && !a.startsWith('--only='));
+  if (unknown.length > 0) {
+    throw new Error(
+      `unknown argument(s): ${
+        unknown.map((a) => JSON.stringify(a)).join(', ')
+      } — usage: [--require-all] [--only=<names>]`,
+    );
+  }
+  return flag === undefined
+    ? undefined
+    : flag.slice('--only='.length).split(',').filter((n) => n !== '');
 }
 
 if (import.meta.main) {
