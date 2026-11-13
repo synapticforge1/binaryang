@@ -291,6 +291,49 @@ export function reportKind(
     : 'malformed';
 }
 
+/** One browser's report, as the driver prints it (one JSON line). */
+export interface DriverReport {
+  name: string;
+  version?: string;
+  result?: HarnessResult;
+  error?: string;
+  consoleErrors?: string[];
+}
+
+/**
+ * The driver reports in `out`, one per line — and the lines that are not a report (not JSON, or
+ * no string `name`), set aside instead of thrown: one bad line used to stop the verdict on EVERY
+ * browser (review round 6, 2026-11-13, run). A browser whose line was unreadable has no report,
+ * which fails it.
+ */
+export function parseReports(out: string): { reports: DriverReport[]; unreadable: string[] } {
+  const reports: DriverReport[] = [];
+  const unreadable: string[] = [];
+  for (const l of out.split('\n').filter((x) => x.startsWith('{'))) {
+    try {
+      const r = JSON.parse(l) as Partial<DriverReport> | null;
+      if (r !== null && typeof r === 'object' && typeof r.name === 'string') {
+        reports.push(r as DriverReport);
+      } else unreadable.push(l);
+    } catch {
+      unreadable.push(l);
+    }
+  }
+  return { reports, unreadable };
+}
+
+/**
+ * Runs one browser's judgement; anything it throws becomes THAT browser's failure, so every other
+ * browser is still judged (review round 6, 2026-11-13, run: a malformed result crashed the loop).
+ */
+export function guarded(bad: string[], judge: () => void): void {
+  try {
+    judge();
+  } catch (e) {
+    bad.push(`the report could not be judged: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 /**
  * The `--only=` list from the arguments: `undefined` when there is none. ONE `--only=` flag only,
  * and only in its `=` form: a second flag used to be ignored silently, so `--only=chrome
@@ -434,16 +477,12 @@ if (import.meta.main) {
     }
     server.close();
 
-    // 4. The verdict.
-    const reports = out.split('\n').filter((l) => l.startsWith('{')).map((l) =>
-      JSON.parse(l) as {
-        name: string;
-        version?: string;
-        result?: HarnessResult;
-        error?: string;
-        consoleErrors?: string[];
-      }
-    );
+    // 4. The verdict. A line that is not a report cannot stop the verdict on any browser; its
+    // browser then has no report, which fails it (review round 6, 2026-11-13).
+    const { reports, unreadable } = parseReports(out);
+    for (const l of unreadable) {
+      console.log(`! a driver line that is not a report: ${l.slice(0, 200)}`);
+    }
     for (const s of skipped) {
       console.log(`- ${s.name}: SKIPPED, ${s.missing}`);
       if (requireAll && env['GITHUB_ACTIONS'] === 'true') {
@@ -454,6 +493,7 @@ if (import.meta.main) {
     for (const spec of toRun) {
       const r = reports.find((x) => x.name === spec.name);
       const bad: string[] = [];
+      let summarized = false;
       const kind = reportKind(r);
       if (kind === 'none') bad.push('no report from the driver');
       else if (kind === 'empty') {
@@ -472,46 +512,54 @@ if (import.meta.main) {
         }
         bad.push(`could not run: ${error}`);
       } else {
-        const res = r!.result!;
-        if (res.error) bad.push(`harness error: ${res.error}`);
-        for (const [sub, why] of res.loadFailed) bad.push(`export ${sub} does not load: ${why}`);
-        if (res.smoke !== expected.smoke) {
-          bad.push(`smoke hash ${res.smoke} != host ${expected.smoke}`);
-        }
-        if (res.modules.length !== files.length) {
-          bad.push(`ran ${res.modules.length} of ${files.length} modules`);
-        }
-        const refusals: string[] = [];
-        for (const m of res.modules) {
-          const want = expected.modules.get(m.file);
-          if (m.wat2wasm !== want?.wat2wasm) {
-            bad.push(`${m.file}: wat2wasm hash differs from the host`);
-          } else if (m.opt !== want?.opt) bad.push(`${m.file}: wasmOpt hash differs from the host`);
-          if (!m.valid) refusals.push(`${m.file} :: valid`);
-          if (m.opt && !m.opt.startsWith('error') && !m.optValid) {
-            refusals.push(`${m.file} :: optValid`);
+        // Judged GUARDED: any shape the checks below do not expect fails THIS browser, and every
+        // other browser is still judged (review round 6: `modules: [null]`, a `loadFailed` entry
+        // that is not a pair, `recipe: {}` each crashed the loop).
+        guarded(bad, () => {
+          const res = r!.result!;
+          if (res.error) bad.push(`harness error: ${res.error}`);
+          for (const [sub, why] of res.loadFailed) bad.push(`export ${sub} does not load: ${why}`);
+          if (res.smoke !== expected.smoke) {
+            bad.push(`smoke hash ${res.smoke} != host ${expected.smoke}`);
           }
-        }
-        const listed = (known[spec.name] ?? []).map((k) => `${k.file} :: ${k.check}`);
-        for (const x of refusals.filter((x) => !listed.includes(x))) {
-          bad.push(`engine refuses, not listed: ${x}`);
-        }
-        for (const x of listed.filter((x) => !refusals.includes(x))) {
-          bad.push(`listed, but accepted now (delete it): ${x}`);
-        }
-        bad.push(...recipeProblems(res.recipe, expectedRecipe));
-        const shrunk = res.recipe?.runs.filter((x) => x.first.optimized).length ?? 0;
-        console.log(
-          `${bad.length === 0 ? '✓' : '✗'} ${spec.name} ${
-            r!.version ?? ''
-          }: ${res.loaded.length} exports loaded, ` +
-            `${res.modules.length} modules, ${refusals.length} engine refusals (${listed.length} listed), ` +
-            `recipe ${shrunk} of ${res.recipe?.runs.length ?? 0} shrunk, ${
-              res.recipe?.kept.length ?? 0
-            } kept`,
-        );
+          if (res.modules.length !== files.length) {
+            bad.push(`ran ${res.modules.length} of ${files.length} modules`);
+          }
+          const refusals: string[] = [];
+          for (const m of res.modules) {
+            const want = expected.modules.get(m.file);
+            if (m.wat2wasm !== want?.wat2wasm) {
+              bad.push(`${m.file}: wat2wasm hash differs from the host`);
+            } else if (m.opt !== want?.opt) {
+              bad.push(`${m.file}: wasmOpt hash differs from the host`);
+            }
+            if (!m.valid) refusals.push(`${m.file} :: valid`);
+            if (m.opt && !m.opt.startsWith('error') && !m.optValid) {
+              refusals.push(`${m.file} :: optValid`);
+            }
+          }
+          const listed = (known[spec.name] ?? []).map((k) => `${k.file} :: ${k.check}`);
+          for (const x of refusals.filter((x) => !listed.includes(x))) {
+            bad.push(`engine refuses, not listed: ${x}`);
+          }
+          for (const x of listed.filter((x) => !refusals.includes(x))) {
+            bad.push(`listed, but accepted now (delete it): ${x}`);
+          }
+          bad.push(...recipeProblems(res.recipe, expectedRecipe));
+          const shrunk = res.recipe?.runs.filter((x) => x.first.optimized).length ?? 0;
+          console.log(
+            `${bad.length === 0 ? '✓' : '✗'} ${spec.name} ${
+              r!.version ?? ''
+            }: ${res.loaded.length} exports loaded, ` +
+              `${res.modules.length} modules, ${refusals.length} engine refusals (${listed.length} listed), ` +
+              `recipe ${shrunk} of ${res.recipe?.runs.length ?? 0} shrunk, ${
+                res.recipe?.kept.length ?? 0
+              } kept`,
+          );
+          summarized = true;
+        });
       }
-      if (bad.length > 0 && kind !== 'result') console.log(`✗ ${spec.name}`);
+      if (bad.length > 0 && !summarized) console.log(`✗ ${spec.name}`);
       // On GitHub Actions each failure is ALSO an annotation: the job log needs admin rights to read
       // through the API, annotations do not (the first CI run failed with nothing else to go on).
       if (env['GITHUB_ACTIONS'] === 'true') {

@@ -52,10 +52,13 @@ export const READ_ONLY_GIT: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * What to do about a failed `git fetch --tags`, by its exit status. git refuses to move a LOCAL
- * tag that differs from the remote's with exit 1 ("would clobber existing tag"); offline, an
- * authentication failure or a missing remote is exit 128 (measured, review round 4, 2026-11-13: the
- * tag advice used to follow every failure, the commonest being offline).
+ * What to do about a failed `git fetch --tags origin main`, by its exit status (each measured with
+ * git 2.54, review rounds 4–6, 2026-11-13). Exit 1 is git refusing to update a local ref: a LOCAL
+ * tag that differs from the remote's ("would clobber existing tag"), a ref another git process
+ * holds or a stale lock left behind ("cannot lock ref" / "unable to update local ref"), or a
+ * remote-tracking ref that diverged under a refspec without `+` ("non-fast-forward"). Offline, an
+ * authentication failure, a missing remote or remote ref is exit 128. No status: git did not run
+ * to completion.
  */
 export function fetchAdvice(status: number | null): string[] {
   // No exit status: git did not start, or was killed (round 5: this got the network advice).
@@ -70,9 +73,10 @@ export function fetchAdvice(status: number | null): string[] {
       '  - "would clobber existing tag": a LOCAL tag differs from GitHub\'s (the record) — delete',
       '    that tag (git tag -d <name>);',
       '  - "cannot lock ref" / "unable to update local ref": another git process (an editor\'s',
-      '    background fetch) holds the ref, or a stale .lock file is left under .git — wait, or',
-      '    remove the .lock file git names;',
-      '  - "non-fast-forward": a local remote-tracking ref has diverged — fetch it with --force.',
+      '    background fetch) holds the ref — wait for it and run again; only once NO git process',
+      '    is running, remove the stale .lock file git names;',
+      '  - "non-fast-forward": the remote-tracking ref origin/main has diverged — run exactly',
+      '    `git fetch --force origin main` (it moves origin/main only, never your main).',
       '  Then run again.',
     ];
   }

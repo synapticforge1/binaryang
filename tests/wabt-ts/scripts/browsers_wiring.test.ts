@@ -16,8 +16,10 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 import {
   browserSpecs,
+  guarded,
   isVendorBinary,
   parseOnly,
+  parseReports,
   reportKind,
   selectSpecs,
   VENDOR_FILES,
@@ -149,6 +151,44 @@ describe('the real-browser job', () => {
       /kind === 'empty'\) \{\n(?:\s*\/\/[^\n]*\n)*\s*bad\.push\('the driver reported neither a result nor an error'\)/,
     );
     expect(src).toMatch(/kind === 'malformed'\) \{\n\s*bad\.push\(/);
+  });
+
+  // Review round 6 (2026-11-13, run): one bad driver line, or one malformed result, stopped the
+  // verdict on EVERY browser after it. Now each fails its own browser only.
+  it('a line that is not a report is set aside, never thrown', () => {
+    const out = [
+      '{"name":"chrome","result":{"loaded":[],"loadFailed":[],"modules":[]}}',
+      '{not json',
+      '{"no":"name"}',
+      'plain text is ignored',
+      '{"name":"edge","error":"x"}',
+    ].join('\n');
+    const { reports, unreadable } = parseReports(out);
+    expect(reports.map((r) => r.name)).toEqual(['chrome', 'edge']);
+    expect(unreadable).toEqual(['{not json', '{"no":"name"}']);
+  });
+
+  it("a judgement that throws becomes that browser's failure", () => {
+    const bad: string[] = [];
+    guarded(bad, () => {
+      bad.push('first problem');
+      throw new TypeError('null is not an object');
+    });
+    expect(bad).toEqual([
+      'first problem',
+      'the report could not be judged: null is not an object',
+    ]);
+    const fine: string[] = [];
+    guarded(fine, () => {});
+    expect(fine).toEqual([]);
+    // The verdict loop parses with parseReports and judges a result inside guarded().
+    const src = readFileSync(
+      new URL('../../../scripts/check-browsers.ts', import.meta.url),
+      'utf8',
+    );
+    expect(src).toContain('const { reports, unreadable } = parseReports(out);');
+    expect(src).not.toMatch(/\.map\(\(l\) =>\s*JSON\.parse\(l\)/);
+    expect(src).toMatch(/guarded\(bad, \(\) => \{\n\s*const res = r!\.result!;/);
   });
 
   // Two CI jobs since 2026-11-11 (owner): Playwright's engines in its image, the installed

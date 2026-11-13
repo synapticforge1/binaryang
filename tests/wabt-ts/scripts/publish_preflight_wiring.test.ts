@@ -284,6 +284,9 @@ describe('the bump gates against the release jsr.json names', () => {
       expect(one).toContain(cause);
     }
     expect(one).toContain('its reason is above');
+    // Round 6: a lock is removed only when no git process runs; the force fetch is spelt out.
+    expect(one).toContain('only once NO git process');
+    expect(one).toContain('`git fetch --force origin main`');
     expect(fetchAdvice(128).join(' ')).toContain('Check the network');
     expect(fetchAdvice(128).join(' ')).not.toContain('git tag -d');
     // No status: git did not start or was killed — not a network problem (round 5).
