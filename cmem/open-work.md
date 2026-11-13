@@ -21,8 +21,8 @@ Fresh read-only reviewers, Sonnet from round 2 on (owner), every finding re-run 
 fix as its class with a test that fails without it, inverted by mutants (19, 9, 7, 6, 4, 4 caught
 in rounds 1–6; the round commits list each finding). Every round found something; the owner
 chose every fix; all on
-branch **`review-r1`** (13 commits since `main` 400367144; the gate 12 / 12 after each round),
-**NOT merged or pushed**. Round 7 in progress (its fetch-advice reviewer found nothing; the
+branch **`review-r1`** (from `main` 400367144; the gate 12 / 12 after each round), **merged into
+`main` and pushed** (owner: "push", 2026-11-13) — no release. Round 7 in progress (its fetch-advice reviewer found nothing; the
 verdict-loop reviewer still running) — the review stops at the first empty round. What changed:
 the release script's guards are `scripts/release/release-run.ts`, held by RUNNING them; `tag`
 waits for `npm-build`; exact npm / Deno; job time limits; stale accepted entries fail the gate;
