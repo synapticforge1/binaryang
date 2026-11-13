@@ -5,7 +5,7 @@
  */
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import { failuresIn, judge } from '../../../scripts/release/previous-tests.ts';
+import { failuresIn, gateHolds, judge } from '../../../scripts/release/previous-tests.ts';
 
 const report = `<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
@@ -65,6 +65,25 @@ describe('judge: failures against the accepted list', () => {
       reason: 'old',
     };
     expect(judge(failures, [moved, gone]).stale).toEqual([gone]);
+  });
+  // Review round 1 (2026-11-13): a stale entry was printed and KEPT, ready to accept a real
+  // regression of a same-named test at a later release.
+  it('the gate holds only with nothing unexpected AND nothing stale', () => {
+    const both = [moved, {
+      file: 'tests/ir/a.test.ts',
+      name: 'folds "i32.add" & drops',
+      since: '1.16.0',
+      reason: 'x',
+    }];
+    expect(gateHolds(judge(failures, both))).toBe(true);
+    expect(gateHolds(judge(failures, [moved]))).toBe(false); // one unexpected
+    const gone = {
+      file: 'tests/ir/z.test.ts',
+      name: 'fixed since',
+      since: '1.15.0',
+      reason: 'old',
+    };
+    expect(gateHolds(judge(failures, [...both, gone]))).toBe(false); // one stale
   });
   it('the file must match as well as the name', () => {
     const elsewhere = { ...moved, file: 'tests/ir/a.test.ts' };

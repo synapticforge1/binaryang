@@ -75,6 +75,16 @@ export function judge(failures: Failure[], accepted: AcceptedChange[]) {
   };
 }
 
+/**
+ * The gate's verdict: no unexpected failure AND no stale entry. A stale entry — an accepted
+ * change that no longer fails — accepts NOTHING today but would silently accept a real regression
+ * of a same-named test later, so it stops the gate until it is dropped (review round 1,
+ * 2026-11-13; it used to be printed and kept).
+ */
+export function gateHolds(j: ReturnType<typeof judge>): boolean {
+  return j.unexpected.length === 0 && j.stale.length === 0;
+}
+
 /** Runs the previous release's tests against this tree's committed source; 0 when the gate holds. */
 export function previousTests(ref = lastReleaseTag()): number {
   const dir = mkdtempSync(join(tmpdir(), 'binaryang-prevtests-'));
@@ -132,7 +142,7 @@ export function previousTests(ref = lastReleaseTag()): number {
     );
     for (const f of j.unexpected) console.error(`  ✗ NOT accepted: ${f.file} — ${f.name}`);
     for (const s of j.stale) {
-      console.log(`  · stale entry (no longer fails): ${s.file} — ${s.name} (since ${s.since})`);
+      console.error(`  ✗ STALE entry (no longer fails): ${s.file} — ${s.name} (since ${s.since})`);
     }
     if (j.unexpected.length > 0) {
       console.error(
@@ -141,9 +151,16 @@ export function previousTests(ref = lastReleaseTag()): number {
       console.error(
         'change. Fix it, or list it there with the version and the reason, in its own commit.',
       );
-      return 1;
     }
-    return 0;
+    if (j.stale.length > 0) {
+      console.error(
+        'tests/accepted-changes.json lists a change that no longer fails: drop it, in its own commit',
+      );
+      console.error(
+        '(only the release just before is run, so its entries go at the next release).',
+      );
+    }
+    return gateHolds(j) ? 0 : 1;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
