@@ -5,7 +5,12 @@ import { existsSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
-import { fetchAdvice, READ_ONLY_GIT, runRelease } from '../../../scripts/release/release-run.ts';
+import {
+  exitText,
+  fetchAdvice,
+  READ_ONLY_GIT,
+  runRelease,
+} from '../../../scripts/release/release-run.ts';
 import { RELEASE_FILES } from '../../../scripts/release/release-guard.ts';
 import { releaseBaseProblem } from '../../../scripts/release/version.ts';
 
@@ -272,12 +277,24 @@ describe('the bump gates against the release jsr.json names', () => {
     expect(bump.slice(fetch, tag)).toContain('fetchAdvice(fetched.status)');
   });
 
-  it('fetch advice fits the exit status: the local tag for 1, the network for anything else', () => {
-    expect(fetchAdvice(1).join(' ')).toContain('git tag -d');
-    for (const s of [128, null]) {
-      expect(fetchAdvice(s).join(' ')).not.toContain('git tag -d');
-      expect(fetchAdvice(s).join(' ')).toContain('Check the network');
+  it('fetch advice fits the exit status: a refused ref update, the network, git not running', () => {
+    // Exit 1 (round 5, run): a clobbered tag, a held or stale lock, a non-fast-forward.
+    const one = fetchAdvice(1).join(' ');
+    for (const cause of ['would clobber existing tag', 'cannot lock ref', 'non-fast-forward']) {
+      expect(one).toContain(cause);
     }
+    expect(one).toContain('its reason is above');
+    expect(fetchAdvice(128).join(' ')).toContain('Check the network');
+    expect(fetchAdvice(128).join(' ')).not.toContain('git tag -d');
+    // No status: git did not start or was killed — not a network problem (round 5).
+    expect(fetchAdvice(null).join(' ')).toContain('did not run to completion');
+    expect(fetchAdvice(null).join(' ')).not.toContain('network');
+    // `(exit N: why)` — or "git's reason above" when it was printed live, never nested text.
+    expect(exitText({ status: 1, stdout: '', stderr: '' })).toBe("(exit 1; git's reason above)");
+    expect(exitText({ status: null, stdout: '', stderr: 'Error: spawn git ENOENT' })).toBe(
+      '(exit null: Error: spawn git ENOENT)',
+    );
+    expect(fsx.readTextFileSync('scripts/release/publish.ts')).not.toContain('(printed above)');
     // No review notes in the text a maintainer reads.
     expect(fsx.readTextFileSync('scripts/release/release-run.ts')).not.toMatch(
       /'[^'\n]*\(review round \d[^'\n]*'/,

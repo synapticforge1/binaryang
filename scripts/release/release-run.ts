@@ -58,15 +58,33 @@ export const READ_ONLY_GIT: ReadonlySet<string> = new Set([
  * tag advice used to follow every failure, the commonest being offline).
  */
 export function fetchAdvice(status: number | null): string[] {
+  // No exit status: git did not start, or was killed (round 5: this got the network advice).
+  if (status === null) {
+    return ['  git did not run to completion (it did not start, or it was killed): see why above.'];
+  }
+  // Exit 1 is git refusing to UPDATE A LOCAL REF, for more than one reason (round 5, run: a stale
+  // lock and a non-fast-forward exit 1 too). git's own line above says which.
   if (status === 1) {
     return [
-      "  git refused to move a LOCAL tag that differs from GitHub's (the record): delete the",
-      '  tag git names above (git tag -d <name>) and run again.',
+      '  git refused to update a local ref; its reason is above:',
+      '  - "would clobber existing tag": a LOCAL tag differs from GitHub\'s (the record) — delete',
+      '    that tag (git tag -d <name>);',
+      '  - "cannot lock ref" / "unable to update local ref": another git process (an editor\'s',
+      '    background fetch) holds the ref, or a stale .lock file is left under .git — wait, or',
+      '    remove the .lock file git names;',
+      '  - "non-fast-forward": a local remote-tracking ref has diverged — fetch it with --force.',
+      '  Then run again.',
     ];
   }
   return [
     '  Check the network, your credentials and that the remote `origin` exists, then run again.',
   ];
+}
+
+/** `(exit N: why)`, or `(exit N; git's reason above)` when git printed it live (round 5). */
+export function exitText(r: GitResult): string {
+  const why = r.stderr.trim();
+  return `(exit ${r.status}${why === '' ? "; git's reason above" : `: ${why}`})`;
 }
 
 /** Runs the release; its exit code. */
@@ -79,7 +97,7 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
   const git = (args: string[]): GitResult | null => {
     const r = d.git(args);
     if (r.status !== 0) {
-      d.error(`git ${args.join(' ')} failed (exit ${r.status}): ${r.stderr.trim()}`);
+      d.error(`git ${args.join(' ')} failed ${exitText(r)}`);
       return null;
     }
     return r;
@@ -113,8 +131,9 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
   const fetched = d.git(['fetch', '--tags', 'origin', 'main']);
   if (fetched.status !== 0) {
     return refuse(
-      `Refusing to release ${tag}: could not fetch main and the tags from origin ` +
-        `(exit ${fetched.status}: ${fetched.stderr.trim()}).`,
+      `Refusing to release ${tag}: could not fetch main and the tags from origin ${
+        exitText(fetched)
+      }.`,
       ...fetchAdvice(fetched.status),
     );
   }

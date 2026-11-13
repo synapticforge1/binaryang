@@ -60,13 +60,9 @@ const code = await runRelease({
     return {
       status: r.status,
       stdout: r.stdout ?? '',
-      // Why it failed: git did not start; git was killed (it printed nothing); or git's own words,
-      // already printed live above (review round 3, 2026-11-13).
-      stderr: r.error
-        ? String(r.error)
-        : r.signal
-        ? `git was killed by ${r.signal}`
-        : '(printed above)',
+      // Why it failed: git did not start; git was killed (it printed nothing); or nothing here —
+      // git's own words were printed live, and release-run says "git's reason above" (rounds 3–5).
+      stderr: r.error ? String(r.error) : r.signal ? `git was killed by ${r.signal}` : '',
     };
   },
   jsrHas: (v) => jsrHas({}, jsrName, v),

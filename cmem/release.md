@@ -62,18 +62,20 @@ twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that f
 | `npm` (U8) | `id-token: write` | waits for JSR; the proven tarball checked; skip if npm serves it; `npm publish`; provenance read back, FATAL |
 
 ⚠️ **Switch the `NPM_PUBLISH` repository variable only BEFORE a push, never between a run and a
-re-run of it** (review rounds 3–4, 2026-11-13). GitHub's "Re-running workflows and jobs" page
+re-run of it** (review rounds 3–5, 2026-11-13). GitHub's "Re-running workflows and jobs" page
 says that re-running failed jobs (or one job) also re-runs the jobs that depend on them, and that
-the jobs not re-run keep their results and outputs from the previous attempt; it does not mention
-`vars` or skipped jobs, so what follows is INFERRED from it, not measured. "Re-run failed jobs"
-does not re-run `npm-build`, which no failed job depends on, so its earlier result stands
-whatever the variable says now:
+the jobs not re-run keep their OUTPUTS from the previous attempt; that a re-run uses the same
+commit and ref; and that a run can be re-run for up to 30 days, at most 50 times. It does not
+mention `vars`, skipped jobs, or whether a job that was not re-run keeps its RESULT, so what
+follows is INFERRED, not measured. "Re-run failed jobs" does not re-run `npm-build`, which no
+failed job depends on, so (inferred) its earlier result stands whatever the variable says now:
 - **turned ON** after `npm-build` was skipped: `npm` stays skipped and the run ends green with
   npm unpublished;
 - **turned OFF** after `npm-build` succeeded: `npm` still publishes.
 
-If the variable changed mid-release, use **"Re-run all jobs"**, not "Re-run failed jobs". That
-evaluates every job again with the variable as it is now. Every job then skips what is already
+If the variable changed mid-release, use **"Re-run all jobs"**, not "Re-run failed jobs" (offered
+for any run, failed or not, within the 30 days). That evaluates every job again, and (inferred)
+reads the variable as it is now. Every job then skips what is already
 done: the tag at this commit, an existing page, a version JSR or npm already serves. So the same
 version is completed, and no new one is needed.
 
