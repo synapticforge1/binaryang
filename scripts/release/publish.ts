@@ -53,8 +53,15 @@ const code = await runRelease({
   version,
   git(args) {
     console.log(`$ git ${args.join(' ')}`);
-    const r = spawnSync('git', args, { encoding: 'utf8' });
-    return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? String(r.error ?? '') };
+    // stdin and stderr pass through, LIVE: git's progress, hook output, a refusal's reason and a
+    // credential prompt reach the maintainer as before the refactor (review round 2,
+    // 2026-11-13); stdout is captured for the answers the guards read.
+    const r = spawnSync('git', args, { encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] });
+    return {
+      status: r.status,
+      stdout: r.stdout ?? '',
+      stderr: r.error ? String(r.error) : '(printed above)',
+    };
   },
   jsrHas: (v) => jsrHas({}, jsrName, v),
   npmState: (v) => npmState({}, v),

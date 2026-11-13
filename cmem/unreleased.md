@@ -101,5 +101,7 @@ contains ([handoffs.md](handoffs.md)).
 
 ## Since 3.0.4
 
-Nothing in either package yet. Repo-only: review round 1's fixes (2026-11-13) to the release
+Nothing in either package yet. Repo-only: review rounds 1–2's fixes (2026-11-13) to the release
 scripts, the workflows and their tests ([release.md](release.md) § "How a release is made").
+⚠️ The next bump refuses until `tests/accepted-changes.json` lists v3.0.4's 11 source-reading
+release tests and drops its stale 3.0.4 entry — the steps are in release.md, step 2.

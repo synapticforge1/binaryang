@@ -90,7 +90,9 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
       `Refusing to release ${tag}: on '${branch?.stdout.trim() ?? '?'}', not 'main'. Merge first.`,
     );
   }
-  if (!git(['fetch', '-q', '--tags', 'origin', 'main'])) {
+  // Not `-q`: git's reason for a refusal (a tag that moved upstream: "would clobber existing
+  // tag") is printed only without it (review round 2, 2026-11-13: the message ended empty).
+  if (!git(['fetch', '--tags', 'origin', 'main'])) {
     return refuse(`Refusing to release ${tag}: could not fetch main and the tags from origin.`);
   }
   if (d.git(['merge-base', '--is-ancestor', 'origin/main', 'HEAD']).status !== 0) {

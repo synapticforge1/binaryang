@@ -131,7 +131,8 @@ describe('the release: every refusal runs, and changes nothing', () => {
   it("fetches GitHub's main AND its tags (CI makes the tags) before reading any tag", async () => {
     const r = await release();
     const fetch = r.calls.findIndex((c) => c[0] === 'fetch');
-    expect(r.calls[fetch]).toEqual(['fetch', '-q', '--tags', 'origin', 'main']);
+    // Not `-q`: without it git says why a fetch is refused (round 2, 2026-11-13).
+    expect(r.calls[fetch]).toEqual(['fetch', '--tags', 'origin', 'main']);
     expect(fetch).toBeLessThan(r.calls.findIndex((c) => c[0] === 'rev-parse' && c[1] === '-q'));
   });
 
@@ -195,6 +196,8 @@ describe('publish.ts wires in the real checks', () => {
     expect(PUBLISH).toContain('runRelease({');
     // publish.ts itself runs no git command of its own.
     expect(PUBLISH).not.toMatch(/\[\s*'(add|commit|push|tag)'/);
+    // git's stdin and stderr pass through, live (round 2, 2026-11-13).
+    expect(PUBLISH).toContain("stdio: ['inherit', 'pipe', 'inherit']");
   });
 
   // The property that made `publish.ts` untestable in the first place. If the guard module ever
@@ -238,14 +241,19 @@ describe('the bump gates against the release jsr.json names', () => {
     expect(releaseBaseProblem('', '3.0.4')).toContain('(none)');
   });
 
-  it('bump_version.ts fetches the tags, then refuses a wrong base, before the floor is used', () => {
+  it('bump_version.ts fetches the tags, finds the base, refuses a wrong one, THEN the floor', () => {
     const bump = fsx.readTextFileSync('scripts/release/bump_version.ts');
-    const fetch = bump.indexOf("['fetch', '-q', '--tags', 'origin']");
-    const base = bump.indexOf('releaseBaseProblem(f.ref, current)');
-    expect(fetch).toBeGreaterThan(-1);
-    expect(base).toBeGreaterThan(fetch);
-    expect(base).toBeLessThan(bump.indexOf('compatibility floor since'));
-    expect(bump.slice(fetch, base)).toContain('process.exit(1)');
+    const fetch = bump.indexOf("['fetch', '--tags', 'origin']");
+    const tag = bump.indexOf('ref = lastReleaseTag();');
+    const base = bump.indexOf('releaseBaseProblem(ref, current)');
+    const floor = bump.indexOf('floorSinceRelease(ref)');
+    expect([fetch, tag, base, floor].every((i) => i > -1)).toBe(true);
+    expect(fetch < tag && tag < base && base < floor).toBe(true);
+    expect(bump.slice(fetch, tag)).toContain('process.exit(1)');
+    expect(bump.slice(base, floor)).toContain('process.exit(1)');
+    // No release tag reachable (round 2): lastReleaseTag throws; that is a refusal, not a crash.
+    expect(bump.slice(tag, base)).toMatch(/catch/);
+    expect(bump).not.toContain("'-q', '--tags'");
   });
 });
 
@@ -343,12 +351,16 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     const needs = (job: string) => /\n {4}needs: ([^\n]+)/.exec(jobs[job]!)?.[1];
     /** A job's `if:` — the expression inside its `${{ … }}`. */
     const cond = (job: string) => /\n {4}if: \$\{\{ ([^\n]+) \}\}\n/.exec(jobs[job]!)?.[1];
-    // The npm package is proven BEFORE CI tags (review round 1, 2026-11-13); `npm-build` may be
-    // skipped only while npm publishing is off.
+    // The npm package is proven BEFORE CI tags (review round 1, 2026-11-13). `tag` decides on
+    // npm-build's RESULT only (round 2: reading `vars.NPM_PUBLISH` again could skip the release
+    // silently if the variable changed between the two jobs or before a re-run).
     expect(needs('tag')).toBe('[checks, npm-build]');
     expect(cond('tag')).toBe(
-      "!cancelled() && needs.checks.result == 'success' && needs.checks.outputs.release == 'true' && (needs.npm-build.result == 'success' || (vars.NPM_PUBLISH != 'true' && needs.npm-build.result == 'skipped'))",
+      "!cancelled() && needs.checks.result == 'success' && needs.checks.outputs.release == 'true' && (needs.npm-build.result == 'success' || needs.npm-build.result == 'skipped')",
     );
+    for (const job of ['tag', 'release', 'jsr']) {
+      expect(cond(job), `${job} reads no variable`).not.toContain('vars.');
+    }
     expect(needs('release')).toBe('[checks, tag]');
     // Explicit, because a default condition skips a job when ANY job upstream was skipped.
     expect(cond('release')).toBe("!cancelled() && needs.tag.result == 'success'");
@@ -485,14 +497,15 @@ describe('the release workflows, off Deno except for the publish itself', () => 
 
   it('the jsr job: skips an upload JSR has, and reads provenance back AFTER the publish', () => {
     const r = runs(jobs['jsr']!);
-    expect(r.indexOf('bun scripts/release/registry.ts jsr-has "$VERSION"')).toBeLessThan(
-      r.indexOf('deno publish'),
-    );
+    const has = r.indexOf('bun scripts/release/registry.ts jsr-has "$VERSION"');
+    const publish = r.indexOf('deno publish');
+    const prov = r.indexOf('bun scripts/release/registry.ts provenance jsr "$VERSION"');
+    // Each present (an absent one reads -1 and would pass an order check — round 2).
+    expect([has, publish, prov].every((i) => i >= 0)).toBe(true);
+    expect(has < publish && publish < prov).toBe(true);
     expect(live('jsr')).toMatch(
       /if: steps\.jsr\.outputs\.present == 'false'\n\s+run: deno publish\n/,
     );
-    expect(r.indexOf('bun scripts/release/registry.ts provenance jsr "$VERSION"'))
-      .toBeGreaterThan(r.indexOf('deno publish'));
   });
 
   it('the npm job: checks the tarball, skips a version npm serves, reads provenance back', () => {
@@ -502,12 +515,8 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     const state = at('bun scripts/release/registry.ts npm-state "$VERSION"');
     const publish = at('npm publish "$TARBALL" --ignore-scripts');
     const prov = at('bun scripts/release/registry.ts provenance npm "$VERSION"');
-    expect([tgz >= 0, tgz < publish, state < publish, prov > publish]).toEqual([
-      true,
-      true,
-      true,
-      true,
-    ]);
+    expect([tgz, state, publish, prov].every((i) => i >= 0)).toBe(true);
+    expect(tgz < publish && state < publish && prov > publish).toBe(true);
     expect(live('npm')).toMatch(
       /if: steps\.state\.outputs\.state == 'free'\n(?:\s+env:\n\s+TARBALL: [^\n]+\n)?\s+run: npm publish/,
     );
@@ -531,8 +540,22 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     for (const c of checkouts) {
       expect(c.split(/\n\s+- name: /)[0]).toContain('persist-credentials: false');
     }
+    // A limit on every job, each long enough for its measured work (round 2: any number passed).
+    // `checks` runs both test legs and a dry run; `jsr` / `npm` poll provenance ~3 min each.
+    const least: Record<string, number> = {
+      checks: 30,
+      tag: 5,
+      release: 5,
+      jsr: 15,
+      'npm-build': 20,
+      npm: 15,
+    };
+    expect(Object.keys(jobs).sort()).toEqual(Object.keys(least).sort());
     for (const job of Object.keys(jobs)) {
-      expect(live(job), `${job}: timeout-minutes`).toMatch(/\n {4}timeout-minutes: \d+\n/);
+      const m = /\n {4}timeout-minutes: (\d+)\n/.exec(live(job));
+      expect(m, `${job}: timeout-minutes`).not.toBe(null);
+      expect(Number(m![1]), `${job}: at least ${least[job]}`).toBeGreaterThanOrEqual(least[job]!);
+      expect(Number(m![1]), `${job}: at most an hour`).toBeLessThanOrEqual(60);
     }
     expect(PUBLISH_YML).toMatch(
       /\nconcurrency:\n {2}group: publish-\$\{\{ github\.sha \}\}\n {2}cancel-in-progress: false\n/,

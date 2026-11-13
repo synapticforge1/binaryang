@@ -186,12 +186,14 @@ jobs:
 
   # CI pushes the tag, only after `checks` is green on THIS commit (D1, U6) AND the npm package is
   # built and proven (review round 1, 2026-11-13: a package that cannot build for npm used to get
-  # its tag, its page and its JSR version first). `npm-build` may be skipped only while npm
-  # publishing is off.
+  # its tag, its page and its JSR version first). A SKIPPED `npm-build` means npm publishing was
+  # off when `npm-build` was decided; `tag` reads that RESULT, never the variable again (review
+  # round 2, 2026-11-13: the variable switched on between the two, or before a re-run, skipped
+  # `tag` — and everything after it — in a run that ended green, releasing nothing).
   tag:
     name: Tag ${{ needs.checks.outputs.tag }}
     needs: [checks, npm-build]
-    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.checks.outputs.release == 'true' && (needs.npm-build.result == 'success' || (vars.NPM_PUBLISH != 'true' && needs.npm-build.result == 'skipped')) }}
+    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.checks.outputs.release == 'true' && (needs.npm-build.result == 'success' || needs.npm-build.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
