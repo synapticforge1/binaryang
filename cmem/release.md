@@ -61,11 +61,21 @@ twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that f
 | `npm-build` | `contents: read` | `npm:prove`, pack, artifact — BEFORE the tag |
 | `npm` (U8) | `id-token: write` | waits for JSR; the proven tarball checked; skip if npm serves it; `npm publish`; provenance read back, FATAL |
 
-⚠️ **Switch the `NPM_PUBLISH` repository variable only BEFORE a push, never between a run and
-its "Re-run failed jobs"** (review round 3, 2026-11-13, reasoned from GitHub's re-run behaviour):
-a re-run keeps the `npm-build` it skipped while npm was off, so `npm` stays skipped and the run
-ends green with npm unpublished. Turned on mid-release: let that run finish, then release the next
-version with npm on.
+⚠️ **Switch the `NPM_PUBLISH` repository variable only BEFORE a push, never between a run and a
+re-run of it** (review rounds 3–4, 2026-11-13). GitHub's "Re-running workflows and jobs" page
+says that re-running failed jobs (or one job) also re-runs the jobs that depend on them, and that
+the jobs not re-run keep their results and outputs from the previous attempt; it does not mention
+`vars` or skipped jobs, so what follows is INFERRED from it, not measured. "Re-run failed jobs"
+does not re-run `npm-build`, which no failed job depends on, so its earlier result stands
+whatever the variable says now:
+- **turned ON** after `npm-build` was skipped: `npm` stays skipped and the run ends green with
+  npm unpublished;
+- **turned OFF** after `npm-build` succeeded: `npm` still publishes.
+
+If the variable changed mid-release, use **"Re-run all jobs"**, not "Re-run failed jobs". That
+evaluates every job again with the variable as it is now. Every job then skips what is already
+done: the tag at this commit, an existing page, a version JSR or npm already serves. So the same
+version is completed, and no new one is needed.
 
 A tag made with `GITHUB_TOKEN` starts no workflow run, which is why it is all one run. The run's
 actor is whoever pushed `main` — the owner, a member of the `@jrmarcum` JSR scope. The bot-actor

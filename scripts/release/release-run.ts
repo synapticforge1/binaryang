@@ -51,6 +51,24 @@ export const READ_ONLY_GIT: ReadonlySet<string> = new Set([
   'diff',
 ]);
 
+/**
+ * What to do about a failed `git fetch --tags`, by its exit status. git refuses to move a LOCAL
+ * tag that differs from the remote's with exit 1 ("would clobber existing tag"); offline, an
+ * authentication failure or a missing remote is exit 128 (measured, review round 4, 2026-11-13: the
+ * tag advice used to follow every failure, the commonest being offline).
+ */
+export function fetchAdvice(status: number | null): string[] {
+  if (status === 1) {
+    return [
+      "  git refused to move a LOCAL tag that differs from GitHub's (the record): delete the",
+      '  tag git names above (git tag -d <name>) and run again.',
+    ];
+  }
+  return [
+    '  Check the network, your credentials and that the remote `origin` exists, then run again.',
+  ];
+}
+
 /** Runs the release; its exit code. */
 export async function runRelease(d: ReleaseDeps): Promise<number> {
   const tag = `v${d.version}`;
@@ -92,11 +110,12 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
   }
   // Not `-q`: git's reason for a refusal (a tag that moved upstream: "would clobber existing
   // tag") is printed only without it (review round 2, 2026-11-13: the message ended empty).
-  if (!git(['fetch', '--tags', 'origin', 'main'])) {
+  const fetched = d.git(['fetch', '--tags', 'origin', 'main']);
+  if (fetched.status !== 0) {
     return refuse(
-      `Refusing to release ${tag}: could not fetch main and the tags from origin (git's reason above).`,
-      `  "would clobber existing tag": a LOCAL tag differs from GitHub's, which is the record —`,
-      '  delete the local one (git tag -d <tag>) and run again (review round 3, 2026-11-13).',
+      `Refusing to release ${tag}: could not fetch main and the tags from origin ` +
+        `(exit ${fetched.status}: ${fetched.stderr.trim()}).`,
+      ...fetchAdvice(fetched.status),
     );
   }
   if (d.git(['merge-base', '--is-ancestor', 'origin/main', 'HEAD']).status !== 0) {

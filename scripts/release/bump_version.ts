@@ -31,6 +31,7 @@ import {
   replaceOnce,
   writeAtomic,
 } from './version.ts';
+import { fetchAdvice } from './release-run.ts';
 
 import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
@@ -79,16 +80,15 @@ if (dryRun) {
   // Not `-q`: git says why it refused (a tag moved upstream) only without it (round 2).
   const fetched = spawnSync('git', ['fetch', '--tags', 'origin'], { stdio: 'inherit' });
   if (fetched.status !== 0) {
-    // Its reason: git's own (printed above), or why git did not start at all (round 3).
-    console.error(
-      `bump: could not fetch the tags from origin${
-        fetched.error ? ` (${fetched.error.message})` : ''
-      }; nothing was written.`,
-    );
-    console.error(
-      '  "would clobber existing tag": a LOCAL tag differs from GitHub\'s, which is the record —',
-    );
-    console.error('  delete the local one (git tag -d <tag>) and bump again.');
+    // Its reason: git's own (printed above), why git did not start, or the signal that killed it
+    // (rounds 3–4); then the advice that fits the exit status (release-run.ts's fetchAdvice).
+    const why = fetched.error
+      ? ` (${fetched.error.message})`
+      : fetched.signal
+      ? ` (git was killed by ${fetched.signal})`
+      : ` (exit ${fetched.status}, git's reason above)`;
+    console.error(`bump: could not fetch the tags from origin${why}; nothing was written.`);
+    for (const l of fetchAdvice(fetched.status)) console.error(l);
     process.exit(1);
   }
   const { LEVELS, floorSinceRelease, lastReleaseTag, snapshotDrift } = await import(

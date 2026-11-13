@@ -30,8 +30,10 @@
 # A tag pushed with the job's GITHUB_TOKEN starts NO workflow run, so the page and the publish are
 # in THIS run (`needs:`). The run's actor is whoever pushed `main` — the owner, a member of the
 # `@jrmarcum` JSR scope — which is what JSR authorises (the dispatched runs auto-tag.yml started had
-# the bot as actor and were refused, `actorNotScopeMember`; auto-tag.yml is retired). MEASURED here
-# by 3.0.3 (run 43061998593) and 3.0.4 (run 43072390794), all six jobs green.
+# the bot as actor and were refused, `actorNotScopeMember`; auto-tag.yml is retired). The order
+# checks → tag → page → JSR → npm was MEASURED by 3.0.3 (run 43061998593) and 3.0.4 (run
+# 43072390794), all six jobs green; `npm-build` BEFORE the tag and the explicit `if:`s (review,
+# 2026-11-13) are UNMEASURED until the next release.
 #
 # The npm package is built and PROVEN (`npm-build`) BEFORE CI tags: a package npm would never get
 # must not leave a tag, a page and a JSR version behind (review round 1, 2026-11-13). Every job has

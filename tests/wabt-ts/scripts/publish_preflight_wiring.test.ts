@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
-import { READ_ONLY_GIT, runRelease } from '../../../scripts/release/release-run.ts';
+import { fetchAdvice, READ_ONLY_GIT, runRelease } from '../../../scripts/release/release-run.ts';
 import { RELEASE_FILES } from '../../../scripts/release/release-guard.ts';
 import { releaseBaseProblem } from '../../../scripts/release/version.ts';
 
@@ -25,6 +25,8 @@ interface World {
   porcelain: string;
   branch: string;
   fetchFails: boolean;
+  /** git's exit status for a failed fetch: 1 = a tag it will not clobber, 128 = offline etc. */
+  fetchStatus?: number;
   containsOriginMain: boolean;
   localTag: 0 | 1 | 128;
   remoteTag: string;
@@ -84,7 +86,7 @@ async function release(over: Partial<World> = {}) {
           if (a1 === 'origin/main') return ok(`${w.originMain}\n`);
           return ok(`${committed ? 'c'.repeat(40) : w.head}\n`);
         case 'fetch':
-          return w.fetchFails ? fail(128) : ok();
+          return w.fetchFails ? fail(w.fetchStatus ?? 128) : ok();
         case 'merge-base':
           return w.containsOriginMain ? ok() : fail();
         case 'ls-remote':
@@ -141,8 +143,10 @@ describe('the release: every refusal runs, and changes nothing', () => {
     ['a modified file outside the release files', { porcelain: ' M src/x.ts\n' }, 'not clean'],
     ['a branch other than main', { branch: 'feature' }, "not 'main'"],
     ['a detached HEAD', { branch: 'HEAD' }, "not 'main'"],
-    // …and says what to do when a local tag differs from GitHub's (round 3).
-    ['a failed fetch', { fetchFails: true }, 'git tag -d <tag>'],
+    // …and says what fits: the network for exit 128 (round 4: the tag advice followed every
+    // failure), the local tag for exit 1, git's "would clobber" (round 3).
+    ['a failed fetch (offline)', { fetchFails: true }, 'Check the network'],
+    ['a fetch refusing to move a local tag', { fetchFails: true, fetchStatus: 1 }, 'git tag -d'],
     ['a main that lacks origin/main', { containsOriginMain: false }, 'does not contain'],
     ['a local tag', { localTag: 0 }, 'LOCAL tag'],
     ['an unreadable local tag list', { localTag: 128 }, 'could not read the local tags'],
@@ -260,9 +264,24 @@ describe('the bump gates against the release jsr.json names', () => {
     expect(bump.slice(base, floor)).toContain('git describe: ');
     expect(bump.slice(base, floor)).toContain('describeError');
     expect(bump).not.toContain("'-q', '--tags'");
-    // A fetch that fails says why git did not start, and what to do about a moved tag (round 3).
+    // A fetch that fails says why (git did not start, or was killed — rounds 3–4) and gives the
+    // advice for its exit status, as the release does.
     expect(bump.slice(fetch, tag)).toContain('fetched.error');
-    expect(bump.slice(fetch, tag)).toContain('git tag -d <tag>');
+    // The CONDITION, not just the word (round 4: the word also sits inside the message text).
+    expect(bump.slice(fetch, tag)).toMatch(/:\s*fetched\.signal\s*\?\s*`/);
+    expect(bump.slice(fetch, tag)).toContain('fetchAdvice(fetched.status)');
+  });
+
+  it('fetch advice fits the exit status: the local tag for 1, the network for anything else', () => {
+    expect(fetchAdvice(1).join(' ')).toContain('git tag -d');
+    for (const s of [128, null]) {
+      expect(fetchAdvice(s).join(' ')).not.toContain('git tag -d');
+      expect(fetchAdvice(s).join(' ')).toContain('Check the network');
+    }
+    // No review notes in the text a maintainer reads.
+    expect(fsx.readTextFileSync('scripts/release/release-run.ts')).not.toMatch(
+      /'[^'\n]*\(review round \d[^'\n]*'/,
+    );
   });
 });
 
