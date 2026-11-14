@@ -82,11 +82,20 @@ export const APT_FAIL_FAST = [
   '',
 ].join('\n');
 
-/** An armored key's bytes (the base64 between the header's blank line and the checksum), or the key as given. */
+/**
+ * An armored key's bytes (the base64 between the header's blank line and the checksum), or the
+ * key as given. Exactly ONE armored block: a file with two is refused (security review round 2,
+ * 2026-11-13) — only the first was fingerprinted while apt trusted the whole file, so a second
+ * block's key went unchecked. The keyring apt reads is what this returns, never the download.
+ */
 export function dearmor(key: Uint8Array): Uint8Array {
   const text = new TextDecoder('latin1').decode(key);
-  if (!text.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----')) return key;
-  const body = text.split('-----BEGIN PGP PUBLIC KEY BLOCK-----')[1]!
+  const BEGIN = '-----BEGIN PGP PUBLIC KEY BLOCK-----';
+  if (!text.includes(BEGIN)) return key;
+  if (text.split(BEGIN).length !== 2) {
+    throw new Error('a key file with more than one armored block');
+  }
+  const body = text.split(BEGIN)[1]!
     .split('-----END PGP PUBLIC KEY BLOCK-----')[0]!;
   const lines = body.replace(/\r/g, '').split('\n');
   const start = lines.findIndex((l) => l.trim() === '') + 1;
@@ -159,10 +168,13 @@ export function keyProblem(
     `[${b.fingerprints.join(', ')}]: a vendor's rotation is checked and pinned by hand`;
 }
 
-/** The keyring file for a fetched key: binary keys as `.gpg`, armored ones as `.asc` (apt reads both). */
-export function keyringPath(base: string, key: Uint8Array): string {
-  const head = new TextDecoder('latin1').decode(key.subarray(0, 64));
-  return `${base}${head.includes('-----BEGIN PGP PUBLIC KEY BLOCK-----') ? '.asc' : '.gpg'}`;
+/**
+ * The keyring apt is given: the CHECKED bytes — the key de-armored, binary, as `.gpg` — never the
+ * file as downloaded (security review round 2, 2026-11-13). Text around an armored block, or a
+ * second one, was trusted by apt without having been fingerprinted.
+ */
+export function keyring(base: string, key: Uint8Array): { path: string; bytes: Uint8Array } {
+  return { path: `${base}.gpg`, bytes: dearmor(key) };
 }
 
 function step(label: string, cmd: string, args: string[], input?: string | Uint8Array): void {
@@ -208,12 +220,12 @@ async function main(): Promise<void> {
       console.error(`✗ ${b.name}: ${problem}`);
       process.exit(1);
     }
-    const keyring = keyringPath(b.keyring, key);
-    writeRoot(`${b.name}: keyring ${keyring}`, keyring, key);
+    const ring = keyring(b.keyring, key);
+    writeRoot(`${b.name}: keyring ${ring.path}`, ring.path, ring.bytes);
     writeRoot(
       `${b.name}: source`,
       b.list,
-      `deb [arch=amd64 signed-by=${keyring}] ${b.source}\n`,
+      `deb [arch=amd64 signed-by=${ring.path}] ${b.source}\n`,
     );
   }
 

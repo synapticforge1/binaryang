@@ -14,6 +14,51 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**State, 2026-11-13, latest (supersedes everything below where it differs).** Security review
+**round 1** merged and PUSHED (`main` 541995e1a, CI green). **Round 2** (Sonnet: CLI files,
+hostile modules, CI / release), on branch **`security-r2`**: the owner chose all three groups —
+A: CoalesceLocals was quadratic in locals (35 bytes ran `-O2` for hours) → unreferenced locals
+placed directly, a bitset matrix over referenced locals, `COALESCE_MAX_REFERENCED_LOCALS` 20,000
+(output byte-identical on 5,924 spec + 421 real modules); the reader's backstop read as invalidity
+→ `decoderFailed`. B: the privacy scan reads every file (UTF-16, NUL); apt keyring = the checked
+bytes, two armour blocks refused; `.wit` "absent" only on ENOENT; names printed inert
+(`src/core/printable.ts`: objdump, interp, every diagnostic, WIT comments). C: C10b (a missing
+declared type refused when read); `-o ""` refused; temp name out of errors (13 chars); dangling
+symlink written through; secret shapes, Git Bash paths; force-push range; `--proto-redir`;
+README § "Limits on untrusted input". Mutants 6/7 (1 equivalent) and 23/24 (1 equivalent,
+removed). The owner then asked to NORMALIZE the runtime-dependent nesting depth — measured, and
+**option 1** chosen (the paragraph below). **Round 3** (on option 1; the tiers now NEST and work
+goes ONE CLASS AT A TIME — owner, both in [working-rules.md](working-rules.md)): four reviewers
+(bypasses, the measure, cost, code). **Class 1 — shared subtrees expanding a walk** (an API-built
+DAG, 2^k nodes as walked) FIXED: `MAX_TREE_NODES` 8,000,000 per function, refused in
+`TREE_OVER_LIMIT`; 5/5 mutants; its class-only retest running. **Queued classes, in order:**
+2 depth that grows AFTER the check (passes — inlining, SimplifyLocals — deepen a module, refused
+at write or a pass overflows on Node: a regression against `main`; the interpreter's nesting
+adds across calls); 3 the WAT parser recursing before the check (the pre-scan misses `(@…`
+annotations, a folded `delegate`, linear operand chains); 4 entries never checked
+(`parseWastScript` commands; `createPass().run`, `resolveNames`, `ExprVisitor`, `validateModule`);
+5 the unit (`loop` / `if` / `try` count 2 levels; README wording, "none is silent"); 6 `bun run
+hostile` still keyed to the old message, so it proves nothing. Next: class 1's retest, then 2.
+
+**OPEN — the nesting limit, option 2 (owner, 2026-11-13: "I agree with option 1 now and then
+option 2 in the stage by stage plan as described").** Option 1 is DONE on `security-r2`: one
+limit, `MAX_NESTING_DEPTH` = 256 (`src/ir/nesting.ts`), measured iteratively and refused in one
+message at every entry — the binary reader (bodies and constant expressions), the WAT parser (a
+token pre-scan before it recurses, then the built tree exactly), the writers, the passes, the
+interpreter and the bundler — and `tests/wabt-ts/parser/nesting_limit.test.ts` holds every stage
+at exactly 256 and refuses 257 and 100,000, run locally on Bun 1.4.4, Node 22.18 / 24 / 26 and
+Deno (2026-11-13), and in CI on both test legs. Why 256: the cold capacities measured that day
+(Windows, a fresh process per probe) were 425 at the lowest on every V8 runtime (an operand
+chain through `wat2wasm` and the writer; blocks through the interpreter ~490) and 5,794+ on Bun;
+real code nests 25 (421 real-compiler modules) and 40 (spec). **Option 2, stage by stage, lowest
+ceiling first** — each stage made iterative (an explicit stack), its cold capacity re-measured
+on every runtime, and the limit raised only to what EVERY stage then holds with margin (the
+test's `LOWEST_MEASURED_CAPACITY` and README move with it): (1) folded-WAT parsing and the
+writers' operand recursion (425); (2) the interpreter's `exec` (~490); (3) the shared walkers
+`walkExpression` / `mapExpression` (86 call sites in 30 files inherit them); (4) the validator,
+`wasm2wat`, and the passes with recursion of their own. Browsers (Chrome / Firefox / Safari) are
+not measured yet: measure them before raising the limit.
+
 **State, 2026-11-13, later (supersedes the paragraphs below where they differ).** The **"review"**
 below ENDED at round 9, which found nothing (its reviewers, Sonnet, reported no finding).
 The owner's **"security review"** (workspace `review-process.md` § 3, the seven surfaces) on

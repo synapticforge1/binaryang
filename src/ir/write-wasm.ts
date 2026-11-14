@@ -54,6 +54,7 @@ import { requireIndex, type Var, varIndex } from './ir.ts';
 import { Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { None, Unreachable } from './types.ts';
+import { moduleLimitProblem } from './nesting.ts';
 
 /**
  * Thrown when a module cannot be written: a reference that names nothing, a
@@ -78,6 +79,11 @@ export class WasmEncodeError extends Error {
  *   the module holds something the binary cannot spell (`checkForWriting`).
  */
 export function writeWasm(m: WasmModule): Uint8Array {
+  // A tree past the one nesting limit (ir/nesting.ts) is refused before the recursive writer
+  // runs, the same on every runtime: a module the reader did not make (the compat builder, a
+  // pass's output) reaches here unchecked.
+  const over = moduleLimitProblem(m);
+  if (over !== undefined) throw new WasmEncodeError(over);
   // The resolve step is inside `writing` too: it is where a deeply nested
   // module first runs out of stack (~400 blocks), and it escaped as a bare
   // RangeError (open-work 13).
@@ -103,6 +109,8 @@ export function writeWasm(m: WasmModule): Uint8Array {
  * @throws {WasmEncodeError} when a reference names nothing the module has.
  */
 export function writeWat(m: WasmModule): string {
+  const over = moduleLimitProblem(m);
+  if (over !== undefined) throw new WasmEncodeError(over);
   return writing(() => {
     const copy = resolvedCopy(m);
     labelsToDepths(copy);

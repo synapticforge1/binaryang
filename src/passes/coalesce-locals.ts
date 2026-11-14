@@ -82,6 +82,19 @@ registerPass(CoalesceLocalsPass);
 // Per-function implementation
 // ---------------------------------------------------------------------------
 
+/**
+ * The most REFERENCED locals (parameters included) a function may have for this pass to colour
+ * it; a function with more is left as it is, which is always correct for an optimization.
+ * Colouring costs the square of that count (one interference bit per pair, each local checked
+ * against each slot's members), and the count is the input's: one 35-byte function declaring the
+ * reader's maximum of 1,000,000 locals ran this pass for hours and gigabytes (security review
+ * round 2, 2026-11-13). Measured 2026-11-13 at this budget: see `coalesce_budget.test.ts`.
+ * Upstream colours any count. Locals NOTHING references cost nothing here at any count: they
+ * interfere with nothing, so each goes straight to the lowest slot of its type — the slot the
+ * colouring itself chose for them.
+ */
+export const COALESCE_MAX_REFERENCED_LOCALS = 20_000;
+
 function _coalesceFunction(fn: WasmFunction): void {
   const numLocals = fn.locals.length;
   if (numLocals === 0) return;
@@ -90,6 +103,18 @@ function _coalesceFunction(fn: WasmFunction): void {
   // 1. CFG + liveness ------------------------------------------------------
   const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
   computeLiveness(cfg);
+
+  // The locals anything references: the params, every local an action reads or writes, and
+  // any live at entry. Only these can interfere; the matrix is over them alone.
+  const compact = new Int32Array(numLocals).fill(-1);
+  let referenced = 0;
+  const reference = (x: number) => {
+    if (x >= 0 && x < numLocals && compact[x] === -1) compact[x] = referenced++;
+  };
+  for (let i = 0; i < numParams; i++) reference(i);
+  for (const x of cfg.entry.start) reference(x);
+  for (const b of cfg.blocks) for (const a of b.actions) reference(a.index);
+  if (referenced > COALESCE_MAX_REFERENCED_LOCALS) return;
 
   // 2. Per-block effective-set / ends-live-range maps ----------------------
   // For each LocalSet/LocalTee origin, was its result ever used?
@@ -101,8 +126,8 @@ function _coalesceFunction(fn: WasmFunction): void {
   }
 
   // 3. Interference matrix -------------------------------------------------
-  // Upper-triangular: interferes(low, high) only.
-  const interferes = new _InterferenceMatrix(numLocals);
+  // Upper-triangular: interferes(low, high) only, over the referenced locals.
+  const interferes = new _InterferenceMatrix(compact, referenced);
 
   // Params interfere with each other so they can never be merged.
   for (let i = 0; i < numParams; i++) {
@@ -126,9 +151,21 @@ function _coalesceFunction(fn: WasmFunction): void {
   const mapping = new Array<number>(numLocals);
   for (let i = 0; i < numParams; i++) mapping[i] = i;
 
-  // Slot → list of locals currently assigned to it.
+  // Slot → its type (its first member's), and the REFERENCED locals assigned to it: an
+  // unreferenced member interferes with nothing, so it is never checked against.
+  const slotType: unknown[] = [];
   const slotMembers = new Map<number, number[]>();
-  for (let i = 0; i < numParams; i++) slotMembers.set(i, [i]);
+  /** The lowest slot of each type: where a local that interferes with nothing goes. */
+  const lowestOfType = new Map<unknown, number>();
+  const openSlot = (slot: number, type: unknown) => {
+    slotType[slot] = type;
+    slotMembers.set(slot, []);
+    if (!lowestOfType.has(type)) lowestOfType.set(type, slot);
+  };
+  for (let i = 0; i < numParams; i++) {
+    openSlot(i, fn.locals[i]!.type);
+    slotMembers.get(i)!.push(i);
+  }
 
   // Copies between locals (`local.set x (local.get y)`), both directions: a
   // local prefers the slot of a local it is copied from or to, since sharing it
@@ -137,20 +174,31 @@ function _coalesceFunction(fn: WasmFunction): void {
   const copyPartners = _copyPartners(cfg, effectiveSet, numLocals);
 
   const fits = (slot: number, local: number): boolean => {
-    const members = slotMembers.get(slot)!;
-    // Type must match (slots are typed); slots always have members.
-    if (fn.locals[members[0]!]!.type !== fn.locals[local]!.type) return false;
-    return members.every((m) => !interferes.get(m, local));
+    // Type must match (slots are typed).
+    if (slotType[slot] !== fn.locals[local]!.type) return false;
+    return slotMembers.get(slot)!.every((m) => !interferes.get(m, local));
   };
 
   let nextSlot = numParams;
   for (let local = numParams; local < numLocals; local++) {
+    if (compact[local] === -1) {
+      // Referenced by nothing: the lowest slot of its type fits it, as the search below would
+      // find; a new slot when there is none.
+      const type = fn.locals[local]!.type;
+      let slot = lowestOfType.get(type);
+      if (slot === undefined) {
+        slot = nextSlot++;
+        openSlot(slot, type);
+      }
+      mapping[local] = slot;
+      continue;
+    }
     let assigned = -1;
     // A copy partner's slot first — a PARAM's included — then the lowest slot
     // that fits. 🔧 Open-work 2, step 1: the search started past the params, so
     // a variable could never take a param's slot; the copy an inline leaves
     // (`local.set 1 (local.get 0)`, param 0 not read again) could not go.
-    for (const partner of copyPartners[local]!) {
+    for (const partner of copyPartners.get(local)) {
       if (partner >= local) continue; // not yet placed
       const slot = mapping[partner]!;
       if (fits(slot, local)) {
@@ -163,7 +211,7 @@ function _coalesceFunction(fn: WasmFunction): void {
     }
     if (assigned === -1) {
       assigned = nextSlot++;
-      slotMembers.set(assigned, []);
+      openSlot(assigned, fn.locals[local]!.type);
     }
     mapping[local] = assigned;
     slotMembers.get(assigned)!.push(local);
@@ -273,49 +321,66 @@ function _copyPartners(
   cfg: CFG,
   effectiveSet: ReadonlySet<Expression>,
   numLocals: number,
-): number[][] {
-  const partners = Array.from({ length: numLocals }, () => new Set<number>());
+): { get(local: number): readonly number[] } {
+  // Only locals in a copy have partners: a map, not one set per local (a function may declare a
+  // million locals that nothing touches).
+  const partners = new Map<number, Set<number>>();
+  const add = (x: number, y: number) => {
+    let s = partners.get(x);
+    if (s === undefined) partners.set(x, s = new Set());
+    s.add(y);
+  };
   for (const b of cfg.blocks) {
     for (const a of b.actions) {
       if (a.kind !== 'set' || !effectiveSet.has(a.origin)) continue;
       const source = _copySource(a.origin);
       if (source < 0 || source === a.index || source >= numLocals) continue;
-      partners[a.index]!.add(source);
-      partners[source]!.add(a.index);
+      add(a.index, source);
+      add(source, a.index);
     }
   }
-  return partners.map((s) => [...s].sort((x, y) => x - y));
+  const sorted = new Map([...partners].map(([k, s]) => [k, [...s].sort((x, y) => x - y)]));
+  return { get: (local: number) => sorted.get(local) ?? [] };
 }
 
 // ---------------------------------------------------------------------------
 // Upper-triangular interference matrix
 // ---------------------------------------------------------------------------
 
+/**
+ * Over the REFERENCED locals only, by their compact number (`compact[local]`, -1 for a local
+ * nothing references, which interferes with nothing), one BIT per pair: at the budget's 20,000,
+ * 25 MB (a byte per pair over every declared local was 5 × 10^11 bytes at 1,000,000).
+ */
 class _InterferenceMatrix {
   private readonly n: number;
   private readonly bits: Uint8Array;
-  constructor(n: number) {
+  private readonly compact: Int32Array;
+  constructor(compact: Int32Array, n: number) {
+    this.compact = compact;
     this.n = n;
-    // n*(n-1)/2 entries; store as a flat byte array.
-    this.bits = new Uint8Array(Math.max(0, (n * (n - 1)) >> 1));
+    const pairs = Math.max(0, (n * (n - 1)) / 2);
+    this.bits = new Uint8Array(Math.ceil(pairs / 8));
   }
-  private indexOf(low: number, high: number): number {
-    // low < high; pair (i, j) → i * n - i*(i+1)/2 + (j - i - 1)
-    return low * this.n - ((low * (low + 1)) >> 1) + (high - low - 1);
+  /** The pair's bit, or -1 when either local is out of range or referenced by nothing. */
+  private bitOf(a: number, b: number): number {
+    if (a === b || a < 0 || b < 0 || a >= this.compact.length || b >= this.compact.length) {
+      return -1;
+    }
+    const x = this.compact[a]!, y = this.compact[b]!;
+    if (x < 0 || y < 0) return -1;
+    const low = x < y ? x : y;
+    const high = x < y ? y : x;
+    // pair (i, j), i < j → i * n - i*(i+1)/2 + (j - i - 1)
+    return low * this.n - (low * (low + 1)) / 2 + (high - low - 1);
   }
   set(a: number, b: number): void {
-    if (a === b) return;
-    const low = a < b ? a : b;
-    const high = a < b ? b : a;
-    if (low < 0 || high >= this.n) return;
-    this.bits[this.indexOf(low, high)] = 1;
+    const i = this.bitOf(a, b);
+    if (i >= 0) this.bits[i >>> 3]! |= 1 << (i & 7);
   }
   get(a: number, b: number): boolean {
-    if (a === b) return false;
-    const low = a < b ? a : b;
-    const high = a < b ? b : a;
-    if (low < 0 || high >= this.n) return false;
-    return this.bits[this.indexOf(low, high)] === 1;
+    const i = this.bitOf(a, b);
+    return i >= 0 && (this.bits[i >>> 3]! & (1 << (i & 7))) !== 0;
   }
 }
 

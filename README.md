@@ -409,6 +409,38 @@ new Bun the project adopts — the one place the runtimes are governed different
 rather than buried. Bun 1.3 (the last before the Zig → Rust rewrite in 1.4.0) has never been
 supported.
 
+## Limits on untrusted input
+
+binaryang reads modules from anyone, so what a small input may make it spend is bounded, by
+name. Each limit refuses with a typed error or diagnostic; none is silent. (Security reviews,
+2026-11-13.)
+
+| What | Limit | Past it |
+| --- | --- | --- |
+| A file the CLI reads | 1 GiB (`MAX_INPUT_BYTES`); a pipe or device read only up to it | `tool: cannot read …` |
+| Expression nesting, operands included | 256 levels (`MAX_NESTING_DEPTH`), the same on every runtime | "the module nests deeper than 256 levels, binaryang's limit on every runtime" |
+| Locals in one function | 1,000,000 (`MAX_MATERIALIZED_LOCALS`) | decode error |
+| Locals in a whole module | 1,000,000 plus one per byte of the module (`maxModuleLocals`) | decode error |
+| CoalesceLocals | colours a function of up to 20,000 referenced locals (`COALESCE_MAX_REFERENCED_LOCALS`) | that function is left as it is (still correct) |
+| Interpreter: nested calls | 1,000 (`maxDepth`) | trap `call stack exhausted` |
+| Interpreter: locals of every active call | 4,000,000 (`maxStackLocals`) | trap `call stack exhausted` |
+| Interpreter: fuel | unlimited by default; when set, charged per instruction AND per element, per 8 bytes and per local of bulk work | `Stop('fuel')` |
+| Interpreter: a memory / a table / an array | 1 GiB / 10,000,000 / 10,000,000 elements | `Stop('unsupported')` |
+
+**Memory grows with the input, linearly.** A module of many tiny functions costs the most per
+byte: 1,000,000 empty functions (4 MB) took about 2 GB at peak to validate, to read for the
+optimizer, or to print as WAT — some 500 bytes per input byte (measured 2026-11-13, Bun 1.4.4,
+Windows). Real compiler output costs far less per byte, but a service taking untrusted modules
+should cap their size before handing them over. **Nesting** is held to one number on every
+runtime. The stages recurse once per level, so the depth they could reach was the host's
+JavaScript stack: measured 2026-11-13 from a cold start, 425 levels at the lowest on Node 22.18,
+24 and 26 and on Deno, 5,794 on Bun 1.4.4, and on Node one module at one depth was refused cold
+and accepted once the JIT had warmed. 256 sits under the lowest of those, with room for a
+caller's own stack, and is 6–10 times the deepest real module measured (25 levels in 421
+real-compiler modules, 40 in the spec testsuite). It is measured without recursing, before any
+stage recurses, so a module far deeper than any stack is the same refusal. The limit is to rise
+as the recursive stages are made iterative, lowest ceiling first.
+
 ## Migrating
 
 ### ⚠️ Breaking Changes

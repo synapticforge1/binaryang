@@ -42,6 +42,7 @@ import {
   WasmException,
 } from '../interp/interpreter.ts';
 import { cliExit, cliProcess, fsRead } from '../cli/io.ts';
+import { printable } from '../core/printable.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 /** Options for {@link wasmInterp}. */
@@ -194,6 +195,12 @@ export function showValue(v: Value): string {
 
 /** A result's line of output. */
 export function showInvocation(inv: Invocation): string {
+  // One line, printable: the export's name and a stop's message carry the module's names, and a
+  // control character in one acted on the terminal (security review round 2, core/printable.ts).
+  return printable(invocationLine(inv));
+}
+
+function invocationLine(inv: Invocation): string {
   const call = `${inv.name}(${inv.args.map(showValue).join(', ')})`;
   const o = inv.outcome;
   if ('values' in o) return `${call} => ${o.values.map(showValue).join(', ')}`;
@@ -222,7 +229,9 @@ export function interpModule(
     if (imp.kind === ExternalKind.Func && opts.dummyImportFunc) continue;
     throw new Stop(
       'host',
-      `error initializing module: invalid import "${imp.module}.${imp.field}"`,
+      `error initializing module: invalid import "${printable(imp.module)}.${
+        printable(imp.field)
+      }"`,
     );
   }
   const inst = new Interpreter(module, { imports, fuel: opts.fuel, hangCheck: opts.hangCheck });

@@ -17,7 +17,14 @@
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
-import { findLeaks, KNOWN, mask, parseArgs, unknown } from '../../../scripts/check-privacy.ts';
+import {
+  findLeaks,
+  KNOWN,
+  mask,
+  parseArgs,
+  textOf,
+  unknown,
+} from '../../../scripts/check-privacy.ts';
 
 const CI = fsx.readTextFileSync('.github/workflows/ci.yml');
 const PUBLISH = fsx.readTextFileSync('.github/workflows/publish.yml');
@@ -178,5 +185,69 @@ describe('A3 — scripts/check-privacy.ts', () => {
     expect(() => parseArgs(['--dir'])).toThrow('--dir needs a value');
     expect(() => parseArgs(['--commits', '--dir', 'x'])).toThrow('--commits needs a value');
     expect(() => parseArgs(['--all'])).toThrow('unknown argument --all');
+  });
+});
+
+// Security review round 2 (2026-11-13): the scanner skipped any file with a NUL, so a UTF-16
+// file — or a text file with one early NUL — was never read; it missed common secret shapes and
+// Git Bash's drive paths; CI's commit range fell back to the tip alone after a force-push.
+describe('round 2 — the scanner reads every file, in every encoding', () => {
+  const gh = ['gh', 'p_', 'a1B2'.repeat(9)].join('');
+  const line = `const t = '${gh}';`;
+  const kinds = (bytes: Uint8Array) => findLeaks('f', textOf(bytes), undefined).map((l) => l.kind);
+  const utf16le = (s: string) => new Uint8Array(Buffer.from(s, 'utf16le'));
+
+  it('UTF-8, UTF-16 with either byte-order mark, UTF-16 without one, and text with a NUL', () => {
+    expect(kinds(new TextEncoder().encode(line))).toEqual(['GitHub token']);
+    expect(kinds(new Uint8Array([0xff, 0xfe, ...utf16le(line)]))).toEqual(['GitHub token']);
+    const be = Buffer.from(utf16le(line));
+    be.swap16();
+    expect(kinds(new Uint8Array([0xfe, 0xff, ...be]))).toEqual(['GitHub token']);
+    expect(kinds(utf16le(line))).toContain('GitHub token');
+    expect(kinds(new TextEncoder().encode(`\0\n${line}`))).toContain('GitHub token');
+  });
+
+  it('a binary file is read too (its bytes as text)', () => {
+    const bin = new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0, ...new TextEncoder().encode(gh)]);
+    expect(kinds(bin)).toContain('GitHub token');
+  });
+});
+
+describe('round 2 — the shapes the first list missed', () => {
+  const kinds = (s: string) => findLeaks('f.ts', s, undefined).map((l) => l.kind);
+  it('Google and Stripe keys, a JWT, a secret assigned, a Git Bash drive path', () => {
+    expect(kinds(['AI', 'za', 'B'.repeat(35)].join(''))).toEqual(['Google API key']);
+    expect(kinds(['sk', '_live_', 'C'.repeat(24)].join(''))).toEqual(['Stripe key']);
+    expect(
+      kinds(['ey', 'J', 'a'.repeat(12), '.ey', 'J', 'b'.repeat(12), '.', 'c'.repeat(12)].join('')),
+    )
+      .toEqual(['JSON Web Token']);
+    expect(kinds(['pass', 'word = "', 'hunter22x', '"'].join(''))).toEqual(['secret assignment']);
+    // (it is a home path too, which the macOS rule also says)
+    expect(kinds(['/', 'c/', 'Users', '/someone/x'].join(''))).toContain('drive path');
+    expect(kinds(['/', 'd/', 'Programs', '/proj/a.ts'].join(''))).toEqual(['drive path']);
+  });
+
+  it('and not what names no one: a placeholder path, a variable, an empty or templated value', () => {
+    expect(kinds('C:/x/Programs/Opera/opera.exe')).toEqual([]);
+    expect(kinds('const password = process.env.PASSWORD;')).toEqual([]);
+    expect(kinds(['pass', "word: '$", "{x}'"].join(''))).toEqual([]);
+    expect(kinds('/usr/lib/x86_64-linux-gnu/opera-stable/opera')).toEqual([]);
+  });
+});
+
+describe('round 2 — CI and the installer', () => {
+  it("CI's privacy range after a force-push: every commit since the latest release tag", () => {
+    const gates = live(job(CI, 'gates'));
+    expect(gates).toContain(
+      'elif prev=$(git describe --tags --abbrev=0 --match \'v[0-9]*\' HEAD 2>/dev/null); then range="$prev..HEAD"',
+    );
+    expect(gates).not.toContain('HEAD^!');
+  });
+
+  it('curl follows no redirect off https', () => {
+    expect(fsx.readTextFileSync('.github/actions/install-pinned/action.yml')).toContain(
+      "curl -fsSL --retry 3 --proto '=https' --proto-redir '=https'",
+    );
   });
 });

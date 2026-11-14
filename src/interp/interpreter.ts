@@ -58,6 +58,7 @@ import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { ValType } from '../ir/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { OPCODE_DEFINITIONS, opcodeKey } from '../definitions/mod.ts';
+import { moduleLimitProblem } from '../ir/nesting.ts';
 import type { Opcode } from '../core/opcode.ts';
 import { isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import type {
@@ -872,6 +873,9 @@ export class Interpreter {
   declare readonly module: WasmModule;
   constructor(module: WasmModule, options: InterpreterOptions = {}) {
     this.module = module;
+    // The one nesting limit (ir/nesting.ts): `exec` recurses per level of the tree.
+    const over = moduleLimitProblem(module);
+    if (over !== undefined) throw new Stop('unsupported', over);
     this.maxDepth = options.maxDepth ?? 1000;
     this.maxStackLocals = options.maxStackLocals ?? 4_000_000;
     this.types = typesOf(module.types);

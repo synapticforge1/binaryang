@@ -99,7 +99,11 @@ jobs:
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if git cat-file -e "$BASE^{commit}" 2>/dev/null; then range="$BASE..HEAD"; else range="HEAD^!"; fi
+          # The commit before the push is gone after a force-push (or absent on a first push):
+          # then every commit since the latest release tag, never the tip alone (round 2).
+          if git cat-file -e "$BASE^{commit}" 2>/dev/null; then range="$BASE..HEAD"
+          elif prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null); then range="$prev..HEAD"
+          else range="HEAD"; fi
           bun run privacy --commits "$range"
 
       # Known vulnerabilities in the dependencies (Bun's npm audit; the @jsr packages have no audit

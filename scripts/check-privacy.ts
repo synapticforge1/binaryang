@@ -47,6 +47,9 @@ export interface Leak {
 const RULES: { kind: string; re: RegExp }[] = [
   { kind: 'drive path', re: /\b[A-Za-z]:(?:\\\\?|\/)+(?:Users|Programs)(?:\\\\?|\/)[^\s'"`]*/g },
   { kind: 'drive path', re: /\/mnt\/[a-z]\/(?:Users|Programs)\/[^\s'"`]*/g },
+  // Git Bash / MSYS spells the same paths: a slash, the drive letter, a slash, then Users or
+  // Programs (security review round 2).
+  { kind: 'drive path', re: /(?<![\w.:/])\/[a-z]\/(?:Users|Programs)\/[^\s'"`]*/g },
   { kind: 'home path', re: /\/Users\/[A-Za-z][\w.-]*\/[^\s'"`]*/g },
   { kind: 'home path', re: /\/home\/(?!runner\/)[a-z][\w.-]*\/[^\s'"`]*/g },
   { kind: 'private key', re: /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----/g },
@@ -54,6 +57,18 @@ const RULES: { kind: string; re: RegExp }[] = [
   { kind: 'npm token', re: /\bnpm_[A-Za-z0-9]{36}\b/g },
   { kind: 'AWS key', re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g },
   { kind: 'Slack token', re: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/g },
+  // Round 2 (2026-11-13): shapes the first list missed.
+  { kind: 'Google API key', re: /\bAIza[0-9A-Za-z_-]{35}\b/g },
+  { kind: 'Stripe key', re: /\b(?:sk|rk)_live_[0-9A-Za-z]{20,}\b/g },
+  {
+    kind: 'JSON Web Token',
+    re: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
+  },
+  {
+    kind: 'secret assignment',
+    re:
+      /\b(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*['"][^'"\s$]{8,}['"]/gi,
+  },
 ];
 
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
@@ -131,11 +146,26 @@ function maintainerAddress(root: string): string | undefined {
   return undefined;
 }
 
-/** Text files only: a NUL in the first 8 KiB means binary (as git decides). */
-function textOf(path: string): string | undefined {
-  const bytes = readFileSync(path);
-  if (bytes.subarray(0, 8192).includes(0)) return undefined;
-  return bytes.toString('utf8');
+/**
+ * What a file SAYS, whatever its encoding — EVERY file is read. 🔧 A NUL in the first 8 KiB meant
+ * "binary, skip it", so a UTF-16 file, or a text file with one NUL early, was never scanned at all
+ * (security review round 2, 2026-11-13). Now: UTF-16BE by its byte-order mark; UTF-8 when there is
+ * no NUL; anything else (a binary, or UTF-16 without a mark) as BOTH Latin-1 and UTF-16LE, so a
+ * secret written in either reading is seen. A finding's line number is then a line of that
+ * reading.
+ */
+export function textOf(bytes: Uint8Array): string {
+  const b = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // (UTF-16LE needs no case of its own: its NULs send it to the both-readings case below, which
+  // reads it as UTF-16LE — a mutant dropping that case changed nothing.)
+  if (b[0] === 0xfe && b[1] === 0xff) {
+    const swapped = Buffer.from(b.subarray(2));
+    swapped.swap16();
+    return swapped.toString('utf16le');
+  }
+  if (!b.includes(0)) return b.toString('utf8');
+  const even = b.length - (b.length % 2);
+  return `${b.toString('latin1')}\n${b.subarray(0, even).toString('utf16le')}`;
 }
 
 function walk(dir: string, out: string[]): void {
@@ -184,11 +214,10 @@ if (import.meta.main) {
   for (const f of git(['ls-files', '-z']).split('\0').filter(Boolean)) {
     let text: string | undefined;
     try {
-      text = textOf(join(root, f));
+      text = textOf(readFileSync(join(root, f)));
     } catch {
       continue; // listed but deleted in the working tree
     }
-    if (text === undefined) continue;
     files++;
     leaks.push(...findLeaks(f, text, maintainer));
   }
@@ -196,8 +225,7 @@ if (import.meta.main) {
     const all: string[] = [];
     walk(join(root, d), all);
     for (const p of all) {
-      const text = textOf(p);
-      if (text === undefined) continue;
+      const text = textOf(readFileSync(p));
       files++;
       leaks.push(...findLeaks(p.slice(root.length + 1).replace(/\\/g, '/'), text, maintainer));
     }

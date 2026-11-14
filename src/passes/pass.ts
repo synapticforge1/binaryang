@@ -33,6 +33,7 @@ import { isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { dropWrittenTypeIndex, type Expression, ExpressionKind } from '../ir/expressions.ts';
 import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
+import { requireNestingWithinLimit } from '../ir/nesting.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
 import { spillStackValues } from './spill-stack-values.ts';
 import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
@@ -339,6 +340,8 @@ export class PassRunner {
    * a bare RangeError from inside some pass (open-work 13).
    */
   run(): void {
+    // The one nesting limit (ir/nesting.ts), checked before any pass recurses into the tree.
+    requireNestingWithinLimit(this._module, 'optimizer');
     try {
       this.runQueue();
     } catch (e) {

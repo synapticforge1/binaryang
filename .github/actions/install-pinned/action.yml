@@ -33,7 +33,7 @@ runs:
         dir="$RUNNER_TEMP/pinned"
         mkdir -p "$dir"
         fetch() { # url sha256 file
-          curl -fsSL --retry 3 --proto '=https' -o "$dir/$3" "$1"
+          curl -fsSL --retry 3 --proto '=https' --proto-redir '=https' -o "$dir/$3" "$1"
           echo "$2  $dir/$3" | sha256sum -c --strict -
         }
         for tool in $TOOLS; do
