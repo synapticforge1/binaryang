@@ -304,6 +304,35 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   was made.) This is about suppressing a check to pass it; a test's `@ts-expect-error` that
   ASSERTS a state is unrepresentable (the compile-time inversion above) is an assertion, not a
   suppression.
+- **Follow upstream, unless it confuses something already in the project** (owner, 2026-11-05,
+  CL7: `wasm-objdump -d` vs `-x`). Where binaryang differs from wabt / binaryen.js, upstream is the
+  default — but a shipped flag or signature has users, and a silent change of meaning is worse
+  than the divergence. Before proposing the change, search binaryang and every sibling repo for
+  callers and report them. If it breaks a shipped meaning, stage it: upstream's form now with the
+  old one deprecated (a MINOR), the breaking part queued in [unreleased.md](unreleased.md)
+  § "Queued for the next MAJOR" (as for CL7 and `i64.const(value, high?: never)`).
+- **Reviewers run on Sonnet** (owner, 2026-11-13: "please specify the use of sonnet model agents
+  for the reviewers"). Every reviewer agent of a "review", "security review" or "hardening review"
+  (workspace `review-process.md`, letter H35) is launched with `model: sonnet`, every round; the
+  re-verification and the fixes stay with the main session.
+- **The review tiers nest** (owner, 2026-11-13: "The 'security review' should also include the
+  regular 'review'. the 'hardening review' should include the regular 'review' plus the 'security
+  review' also"). Every round of a "security review" also briefs a code (correctness) reviewer
+  on its scope; every round of a "hardening review" briefs all three layers. A round is empty only
+  when every layer's reviewers find nothing (workspace `review-process.md` § 0, letter H35).
+- **One class at a time** (owner, 2026-11-13: "fix one class of error at a time and retest for
+  that class of error then once cleared of that error type move to the next error class"; into
+  the workspace rule, § 1.3). A finding of another class met on the way is queued, not fixed out
+  of turn.
+- 🔒 **Everything about this project is kept IN this project's folder, never only on the machine**
+  (owner, 2026-11-13: "all information related to this project shall be stored in this project
+  folder, and not stored on this machine so that maximum project portability is achieved"). Rules,
+  decisions, state and records go in `cmem/` (private facts in the gitignored `cmem/local/`); a
+  script kept for reuse goes in `scripts/`. Nothing the project depends on lives in an agent's
+  per-machine memory or a temp folder: a one-time script in a scratch folder is fine only while it
+  is used, and anything worth keeping from it moves into the repo. The four rules held in the
+  session's machine memory until then (this list's numeric-ID, ignore-statement, upstream and
+  Sonnet rules) are here, and that copy was deleted the same day.
 
 ## Tools
 

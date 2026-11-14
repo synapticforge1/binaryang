@@ -35,6 +35,7 @@ import {
   type Var,
 } from '../ir/ir.ts';
 import { baseName, fsRead, fsWrite } from '../cli/io.ts';
+import { printable } from '../core/printable.ts';
 
 /** The first line of every generated file — what says a `.wit` may be replaced. */
 export const WIT_GENERATED_HEADER =
@@ -117,14 +118,9 @@ export function witWorldName(name: string): string {
  * written as a `\u` escape, and so is the backslash itself, so the escape cannot be forged.
  */
 export function commentSafe(name: string): string {
-  let out = '';
-  for (const c of name) {
-    const u = c.codePointAt(0)!;
-    const control = c === '\\' || u <= 0x1f || (u >= 0x7f && u <= 0x9f) || u === 0x2028 ||
-      u === 0x2029;
-    out += control ? `\\u${u.toString(16).padStart(4, '0')}` : c;
-  }
-  return out;
+  // The shared rule (bidi and zero-width characters included since security review round 2),
+  // and the backslash, so an escape in the comment cannot be forged.
+  return printable(name, { backslash: true });
 }
 
 /**
@@ -194,8 +190,11 @@ export async function emitWitBeside(
   let existing: string | null = null;
   try {
     existing = new TextDecoder().decode(await fsRead(path));
-  } catch {
-    // absent
+  } catch (e) {
+    // ABSENT only when it is not there. 🔧 Every error read as absent, so a hand-written `.wit`
+    // that could not be read (no permission, over the input limit) was replaced without a word
+    // (security review round 2, 2026-11-13); now that failure is the caller's to report.
+    if ((e as { code?: string }).code !== 'ENOENT') throw e;
   }
   if (existing !== null && !GENERATED_BY.test(existing)) return { path, outcome: 'kept existing' };
   await fsWrite(path, text);

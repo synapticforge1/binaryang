@@ -10,6 +10,8 @@
  * the wabt C++ error-reporting pattern.
  */
 
+import { printable } from './printable.ts';
+
 // ---------------------------------------------------------------------------
 // Source location
 // ---------------------------------------------------------------------------
@@ -171,7 +173,10 @@ export function formatError(
   sourceLine?: string,
   format: ErrorFormat = ErrorFormat.Short,
 ): string {
-  const { loc, message, level } = err;
+  const { loc, level } = err;
+  // A message quotes the module's names, which may hold an ESC or a bidi override: printable,
+  // its own line breaks and tabs kept (security review round 2, 2026-11-13; core/printable.ts).
+  const message = printable(err.message, { keepLines: true });
   const severity = level === ErrorLevel.Warning ? 'warning' : 'error';
   const header = `${formatLocation(loc)}: ${severity}: ${message}`;
 

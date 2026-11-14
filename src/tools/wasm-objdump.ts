@@ -38,6 +38,7 @@ import { withEmptyRecGroups } from '../ir/fidelity.ts';
 import { readBinaryIr } from '../reader/binary-reader.ts';
 import { isRealName } from '../ir/made-up-names.ts';
 import { Result } from '../core/result.ts';
+import { printable } from '../core/printable.ts';
 import {
   formatErrors,
   hasErrors,
@@ -171,7 +172,7 @@ function appendDetails(lines: string[], m: Module): void {
     lines.push(`Import[${m.imports.length}]:`);
     let fi = 0, ti = 0, mi = 0, gi = 0, tgi = 0;
     for (const imp of m.imports) {
-      const from = ` <- ${imp.module}.${imp.field}`;
+      const from = ` <- ${printable(imp.module)}.${printable(imp.field)}`;
       switch (imp.kind) {
         case ExternalKind.Func: {
           const i = fi++;
@@ -221,7 +222,7 @@ function appendDetails(lines: string[], m: Module): void {
       const kindStr = extKindName(exp.kind);
       const idx = indexOf(exp.var);
       const name = exp.kind === ExternalKind.Func && idx !== undefined ? named(funcNames[idx]) : '';
-      lines.push(` - ${kindStr}[${idx ?? '?'}]${name} -> "${exp.name}"`);
+      lines.push(` - ${kindStr}[${idx ?? '?'}]${name} -> "${printable(exp.name)}"`);
     }
   }
 }
@@ -269,8 +270,13 @@ function bare(name: string): string {
   return name.startsWith('$') ? name.slice(1) : name;
 }
 
+/**
+ * ` <name>`, the name made printable: a module's names are any UTF-8, and an ESC, a line break or
+ * a bidi override printed raw acted on the terminal or forged a line (security review round 2,
+ * 2026-11-13; `core/printable.ts`). A name without them prints as upstream's.
+ */
 function named(name: string | undefined): string {
-  return name === undefined || name === '' ? '' : ` <${name}>`;
+  return name === undefined || name === '' ? '' : ` <${printable(name)}>`;
 }
 
 function sigOf(typeVar: Var | undefined): string {
@@ -311,7 +317,7 @@ function sectionLabel(meta: SectionMeta, m: Module): string {
     const custom = m.customSections.find((c) =>
       locOf(c).offset >= meta.offset && locOf(c).offset < meta.offset + meta.size
     );
-    return custom ? `"${custom.name}"` : 'custom';
+    return custom ? `"${printable(custom.name)}"` : 'custom';
   }
   return binarySectionName(meta.section);
 }

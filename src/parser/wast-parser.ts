@@ -21,6 +21,7 @@ import {
 } from '../core/error.ts';
 import { Result } from '../core/result.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
+import { MAX_NESTING_DEPTH, moduleLimitProblem, NESTING_OVER_LIMIT } from '../ir/nesting.ts';
 import {
   decimalToBits,
   decodeStringToken,
@@ -7285,6 +7286,33 @@ export interface ParseWastResult {
  * bug, so it surfaces as a loud "internal parser error" carrying the original
  * message, and the partial result built so far is returned alongside it.
  */
+/**
+ * How deep the parser will RECURSE on `tokens`, found without recursing: open parentheses plus
+ * the linear `block` … `end` nesting (a `try` … `delegate` closes too). An upper bound on the
+ * expression tree's depth — it counts the `(module (func …` framing and every `(param …)` — so
+ * the parser refuses only what is clearly past the limit, and {@link moduleTooDeep} judges the
+ * built tree exactly.
+ */
+function parseDepth(tokens: readonly Token[]): number {
+  let parens = 0, linear = 0, max = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]!.tokenType;
+    if (t === TokenType.Lpar) parens++;
+    else if (t === TokenType.Rpar) parens = Math.max(0, parens - 1);
+    else if (isBlockInstr(t) && tokens[i - 1]?.tokenType !== TokenType.Lpar) linear++;
+    else if (t === TokenType.End || t === TokenType.Delegate) linear = Math.max(0, linear - 1);
+    if (parens + linear > max) max = parens + linear;
+  }
+  return max;
+}
+
+/**
+ * Levels of framing the token count includes and a tree does not: `(module`, `(func`, a WAST
+ * command such as `(assert_return (invoke …` — and room for them. The parser's own capacity (425
+ * levels at the lowest, measured 2026-11-13) is far above {@link MAX_NESTING_DEPTH} plus this.
+ */
+const PARSE_FRAMING = 16;
+
 function runParse<T>(
   src: LexerSource | string,
   build: (parser: WastParser) => T,
@@ -7294,6 +7322,13 @@ function runParse<T>(
   let parser: WastParser | null = null;
   try {
     const tokens = lexer.tokenize();
+    // The one nesting limit (ir/nesting.ts), before the recursive parser can run out of stack —
+    // so the refusal is the same words on every runtime, never the host's stack overflowing.
+    if (parseDepth(tokens) > MAX_NESTING_DEPTH + PARSE_FRAMING) {
+      const errors: WabtError[] = [...lexer.errors];
+      addError(errors, unknownLocation(), NESTING_OVER_LIMIT);
+      return { value: empty(), errors };
+    }
     parser = new WastParser(tokens);
     const value = build(parser);
     return { value, errors: [...lexer.errors, ...parser.errors] };
@@ -7312,6 +7347,12 @@ function runParse<T>(
 /** Parse a WAT text file into a Module IR. */
 export function parseWatModule(src: LexerSource | string): ParseWatResult {
   const { value: module, errors } = runParse(src, (p) => p.parseModule(), makeModule);
+  // The built tree, judged exactly: a linear operand chain nests without a parenthesis.
+  const over = moduleLimitProblem(module);
+  if (over !== undefined) {
+    addError(errors, unknownLocation(), over);
+    return { module: makeModule(), errors };
+  }
   return { module, errors };
 }
 

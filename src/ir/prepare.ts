@@ -21,7 +21,7 @@
 
 import type { Module } from './ir.ts';
 import { nameReferences } from './name-references.ts';
-import { readBinaryIr } from '../reader/binary-reader.ts';
+import { decoderFailed, readBinaryIr } from '../reader/binary-reader.ts';
 import {
   formatErrors,
   hasErrors,
@@ -30,6 +30,7 @@ import {
   NESTING_TOO_DEEP,
 } from '../core/error.ts';
 import { allFeatures } from '../core/feature.ts';
+import { ExternalKind } from '../core/binary.ts';
 import { validateModule } from '../validator/validator.ts';
 import { deriveTypes } from './derive-types.ts';
 import type { WasmModule } from './module.ts';
@@ -96,6 +97,17 @@ export function readForPasses(bytes: Uint8Array, filename = '<input>'): WasmModu
     throw e;
   }
   if (hasErrors(errors)) throw new WasmBinaryError(formatErrors(errors).trim());
+  // A function or tag declared with a type index past the type section is refused here, as
+  // upstream's reader refuses it ("invalid function type index"). 🔧 It was read, and the writer
+  // then chose a type with the same signature, so a module that was not valid came out of
+  // `readBinary` → `emitBinary` (and binaryen-compat's `validate()`) as a valid, different one
+  // (security review rounds 1–2, 2026-11-13, C10b).
+  if (declaresMissingType(m)) {
+    throw new WasmBinaryError(
+      invalidity(bytes, filename) ??
+        `${filename}: a function or tag names a type that does not exist`,
+    );
+  }
   try {
     return prepareForPasses(m);
   } catch (e) {
@@ -104,6 +116,20 @@ export function readForPasses(bytes: Uint8Array, filename = '<input>'): WasmModu
     if (diagnostics !== null) throw new WasmBinaryError(diagnostics);
     throw e;
   }
+}
+
+/** Whether a function, an imported function or a tag declares a type index past the type section. */
+function declaresMissingType(m: Module): boolean {
+  const n = m.types.length;
+  const missing = (v: { kind: string; value?: number } | undefined) =>
+    v !== undefined && v.kind === 'index' && (v.value ?? 0) >= n;
+  for (const f of m.functions) if (missing(f.typeVar)) return true;
+  for (const t of m.tags) if (missing(t.typeVar)) return true;
+  for (const imp of m.imports) {
+    if (imp.kind === ExternalKind.Func && missing(imp.func.typeVar)) return true;
+    if (imp.kind === ExternalKind.Tag && missing(imp.tag.typeVar)) return true;
+  }
+  return false;
 }
 
 /**
@@ -133,5 +159,8 @@ export function invalidity(bytes: Uint8Array, filename: string): string | null {
     if (isStackExhausted(e)) return `${filename}: ${NESTING_TOO_DEEP}`;
     return null;
   }
+  // The DECODER failed (its backstop's error): that judges nothing about the bytes, so it is no
+  // verdict — the caller's own failure is rethrown as ours (security review round 2).
+  if (decoderFailed(errors)) return null;
   return hasErrors(errors) ? formatErrors(errors).trim() : null;
 }

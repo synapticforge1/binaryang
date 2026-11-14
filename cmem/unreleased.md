@@ -16,6 +16,19 @@ Repo-only: the privacy scan and audit, the pinned installer, ci.yml hardened, ke
 the tarball digest. The surface may have grown (OptimizeError, the option): the compatibility gate
 decides the level.
 
+**UNRELEASED — security review round 2 and the nesting limit (2026-11-13, branch
+`security-r2`):** package changes. CoalesceLocals no longer quadratic (a function of more than
+20,000 referenced locals left as it is); a decoder failure is no verdict on the input; names
+print inert in `wasm-objdump`, `wasm-interp`, every diagnostic and WIT comments
+(`core/printable.ts`); `readBinary` refuses a function or tag declared with a missing type (as
+upstream); `-o ""` refused; ONE nesting limit on every runtime, 256 levels (`MAX_NESTING_DEPTH`,
+`NESTING_OVER_LIMIT`, `NestingLimitError` — internal, not in the package's exports: the surface
+check is unchanged), and
+subtrees shared by reference (only the API can make them) may not expand a module past twice its
+distinct expressions plus 1,000,000 (`MAX_SHARED_SLACK`); a cycle is refused. ⚠️ Behaviour
+change for the note: modules deeper than 256 that Bun accepted are now refused on every runtime;
+and (open, class 2) some modules the optimizer deepens past 256 are refused after `-O2`.
+
 **Shipped in 3.0.2 and 3.0.1** (kept here until the next release): no package change — 3.0.0
 again, for npm, which 3.0.0 and 3.0.1 did not reach; npm went from 2.2.2 to 3.0.2. Repo-only:
 `npm-build` creates the `npm pack` destination; `registry.ts npm-tarball` hands `npm publish` an

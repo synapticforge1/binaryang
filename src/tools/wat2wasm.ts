@@ -295,7 +295,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     cliExit(1);
   }
 
-  if (output) {
+  if (output !== undefined) {
     await cliRefuseOverwritingInput('wat2wasm', [input], output);
     await cliWrite('wat2wasm', output, binary);
   } else {

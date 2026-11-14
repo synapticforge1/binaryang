@@ -54,6 +54,7 @@ import { requireIndex, type Var, varIndex } from './ir.ts';
 import { Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { None, Unreachable } from './types.ts';
+import { MAX_SHARED_SLACK, moduleLimitProblem } from './nesting.ts';
 
 /**
  * Thrown when a module cannot be written: a reference that names nothing, a
@@ -78,6 +79,11 @@ export class WasmEncodeError extends Error {
  *   the module holds something the binary cannot spell (`checkForWriting`).
  */
 export function writeWasm(m: WasmModule): Uint8Array {
+  // A tree past the one nesting limit (ir/nesting.ts) is refused before the recursive writer
+  // runs, the same on every runtime: a module the reader did not make (the compat builder, a
+  // pass's output) reaches here unchecked.
+  const over = moduleLimitProblem(m);
+  if (over !== undefined) throw new WasmEncodeError(over);
   // The resolve step is inside `writing` too: it is where a deeply nested
   // module first runs out of stack (~400 blocks), and it escaped as a bare
   // RangeError (open-work 13).
@@ -103,6 +109,8 @@ export function writeWasm(m: WasmModule): Uint8Array {
  * @throws {WasmEncodeError} when a reference names nothing the module has.
  */
 export function writeWat(m: WasmModule): string {
+  const over = moduleLimitProblem(m);
+  if (over !== undefined) throw new WasmEncodeError(over);
   return writing(() => {
     const copy = resolvedCopy(m);
     labelsToDepths(copy);
@@ -508,10 +516,24 @@ function sigilEntityNames(m: WasmModule): void {
  * fidelity table cloned, byte payloads shared (nothing here writes into them).
  */
 function copyModule(m: WasmModule): WasmModule {
+  // A full copy: an object reached along two paths is copied twice (each copy is resolved in its
+  // own place). That expansion is bounded as `moduleLimitProblem` bounds the expressions'
+  // (security review round 3, class 1): any object — a location, the section layout, not only an
+  // expression — reached so often that the copy passes twice the distinct objects plus
+  // MAX_SHARED_SLACK stops the copy, typed, instead of running away.
+  const distinct = new Set<object>();
+  let copied = 0;
   const copy = (v: unknown): unknown => {
     if (v === null || typeof v !== 'object') return v;
     if (v instanceof Uint8Array) return v;
     if (v instanceof FidelityTable) return v.clone();
+    distinct.add(v);
+    if (++copied > 2 * distinct.size + MAX_SHARED_SLACK) {
+      throw new WasmEncodeError(
+        `cannot write the module: objects shared by reference expand its copy past ${copied} ` +
+          `from ${distinct.size} distinct (the limit: twice the distinct, plus ${MAX_SHARED_SLACK})`,
+      );
+    }
     if (Array.isArray(v)) return v.map(copy);
     if (v instanceof Map) return new Map([...v].map(([k, x]) => [k, copy(x)]));
     if (v instanceof Set) return new Set([...v].map(copy));

@@ -138,6 +138,7 @@ import {
 import { BrOnOp, locOf } from '../ir/ir.ts';
 import { countImports, totalFuncs } from '../ir/ir.ts';
 import { nameEveryEntity } from '../ir/made-up-names.ts';
+import { limitProblem } from '../ir/nesting.ts';
 import { applyTextForm, decodeTextForm, TEXT_FORM_SECTION } from '../ir/text-form.ts';
 import { pushAll } from '../core/arrays.ts';
 
@@ -611,6 +612,20 @@ const SIMD_UNARY_OPS: ReadonlySet<number> = new Set([
  * the same defect (found at M8a1).
  */
 export const MAX_MATERIALIZED_LOCALS = 1_000_000;
+
+/**
+ * How the reader's backstop begins the error it reports when the DECODER itself failed — a
+ * defect of ours, or the process running out of memory — rather than the bytes: no verdict on
+ * the input. 🔧 It was read as one: `invalidity()` (ir/prepare.ts) took it for the validator's
+ * diagnostics, so a VALID module that ran the optimizer out of memory came back "not valid:
+ * internal decode error: Out of memory" (security review round 2, 2026-11-13).
+ */
+export const INTERNAL_DECODE_ERROR = 'internal decode error';
+
+/** Whether `errors` holds the backstop's error: the decoder failed, so they judge nothing. */
+export function decoderFailed(errors: ErrorList): boolean {
+  return errors.some((e) => e.message.startsWith(`${INTERNAL_DECODE_ERROR}: `));
+}
 
 /**
  * The most locals a whole module may declare and still be decoded: {@link MAX_MATERIALIZED_LOCALS}
@@ -1627,6 +1642,14 @@ export class BinaryReader {
         this.err('unexpected end of section or function');
         return;
       }
+      // The decoder is iterative; everything after it recurses per level. Past the one limit
+      // every runtime shares (ir/nesting.ts), refused here, before anything recursive runs.
+      const over = this.ok() ? limitProblem(func.body) : undefined;
+      if (over !== undefined) {
+        this.err(over);
+        func.body = region([], func.loc);
+        return;
+      }
       this.pos = bodyEnd;
     }
   }
@@ -1687,7 +1710,14 @@ export class BinaryReader {
    */
   private readInitExpr(m: Module): RegionExpr {
     const loc = this.loc();
-    return region(this.decodeBody(this.data.length, m, null), loc);
+    const r = region(this.decodeBody(this.data.length, m, null), loc);
+    // Extended constants nest too (`i32.add` chains): the same limit, here as for a body.
+    const over = this.ok() ? limitProblem(r) : undefined;
+    if (over !== undefined) {
+      this.err(over);
+      return region([], loc);
+    }
+    return r;
   }
 
   // ---------------------------------------------------------------------------
@@ -3853,7 +3883,7 @@ export function readBinaryIr(
       unknownLocation(),
       isStackExhausted(e)
         ? NESTING_TOO_DEEP
-        : `internal decode error: ${e instanceof Error ? e.message : String(e)}`,
+        : `${INTERNAL_DECODE_ERROR}: ${e instanceof Error ? e.message : String(e)}`,
     );
     return makeModule();
   }

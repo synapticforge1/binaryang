@@ -10,7 +10,7 @@ import {
   APT_FAIL_FAST,
   dearmor,
   keyProblem,
-  keyringPath,
+  keyring,
   primaryFingerprints,
   UNDECLARED,
 } from '../../../scripts/ci/install-browsers.ts';
@@ -126,7 +126,9 @@ describe("ci.yml's browser check: Playwright's engines in its image, the rest on
 
   // Security review round 1 (2026-11-13), C12: each vendor's signing key was trusted on first
   // use. Its primary keys are now pinned; the fixtures are the two public key files as served on
-  // 2026-11-13, whose fingerprints `gpg --show-keys` gave the same that day.
+  // 2026-11-13, whose fingerprints `gpg --show-keys` gave the same that day — reduced to their key
+  // and subkey packets (security round 2: no user IDs, so no addresses; the fingerprints, which
+  // cover the key packet alone, unchanged), Opera's re-armored.
   const FIX = 'tests/wabt-ts/scripts/fixtures/apt-keys';
   const braveKey = new Uint8Array(readFileSync(`${FIX}/brave-browser-archive-keyring.gpg`));
   const operaKey = new Uint8Array(readFileSync(`${FIX}/opera-archive.key`));
@@ -165,13 +167,30 @@ describe("ci.yml's browser check: Playwright's engines in its image, the rest on
   it('checks the key before writing the keyring', () => {
     expect(SCRIPT.indexOf('keyProblem(b, key)')).toBeGreaterThan(-1);
     expect(SCRIPT.indexOf('keyProblem(b, key)')).toBeLessThan(
-      SCRIPT.indexOf('keyringPath(b.keyring, key)'),
+      SCRIPT.indexOf('keyring(b.keyring, key)'),
     );
+    // …and apt is pointed at the keyring written from the checked bytes, not the download.
+    // (the script's template text, written in parts: here it is no template)
+    expect(SCRIPT).toContain('ring.path, ring.bytes);');
+    expect(SCRIPT).toContain('signed-by=$' + '{ring.path}]');
+    expect(SCRIPT).not.toMatch(/writeRoot\([^\n]*, key\);/);
   });
 
-  it('writes a binary key as .gpg and an armored one as .asc (no gpg needed)', () => {
-    const armored = new TextEncoder().encode('-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmQINB');
-    expect(keyringPath('/k/opera', armored)).toBe('/k/opera.asc');
-    expect(keyringPath('/k/brave', new Uint8Array([0x99, 0x02, 0x0d, 0x04]))).toBe('/k/brave.gpg');
+  // Security review round 2 (2026-11-13): only the FIRST armored block was fingerprinted, and apt
+  // trusted the whole file — a second block's key passed unchecked (re-run that day).
+  it('refuses a key file with a second armored block, and gives apt only the checked bytes', () => {
+    const braveArmored = `-----BEGIN PGP PUBLIC KEY BLOCK-----\n\n${
+      Buffer.from(braveKey).toString('base64').match(/.{1,64}/g)!.join('\n')
+    }\n-----END PGP PUBLIC KEY BLOCK-----\n`;
+    const both = new TextEncoder().encode(
+      `${new TextDecoder('latin1').decode(operaKey)}\n${braveArmored}`,
+    );
+    expect(keyProblem(opera, both)).toContain('more than one armored block');
+    // The keyring: binary, the de-armored key, as .gpg, for either form of download.
+    const o = keyring('/k/opera', operaKey);
+    expect(o.path).toBe('/k/opera.gpg');
+    expect(o.bytes[0]! & 0x80).toBe(0x80);
+    expect(primaryFingerprints(o.bytes)).toEqual(opera.fingerprints);
+    expect(keyring('/k/brave', braveKey)).toEqual({ path: '/k/brave.gpg', bytes: braveKey });
   });
 });

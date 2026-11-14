@@ -116,7 +116,10 @@ export async function fsRead(path: string, limit: number = MAX_INPUT_BYTES): Pro
  * device such as `/dev/null`, a pipe) is written directly: renaming over it would replace it.
  */
 export async function fsWrite(path: string, data: Uint8Array | string): Promise<void> {
-  const { realpath, rename, stat, unlink, writeFile } = await import('node:fs/promises');
+  const { lstat, readlink, realpath, rename, stat, unlink, writeFile } = await import(
+    'node:fs/promises'
+  );
+  const { dirname, resolve } = await import('node:path');
   let target = path;
   let mode: number | undefined;
   try {
@@ -129,14 +132,23 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
     mode = st.mode & 0o777;
   } catch (e) {
     if ((e as { code?: string }).code !== 'ENOENT') throw e;
+    // A DANGLING symbolic link: written through, to the file it names, as a link to an existing
+    // file is. 🔧 The rename replaced the link itself with a file (security review round 2).
+    const link = await lstat(path).catch(() => undefined);
+    if (link?.isSymbolicLink()) target = resolve(dirname(path), await readlink(path));
   }
-  const tmp = `${target}.${crypto.randomUUID()}.tmp`;
+  // Eight hex digits are enough beside one file: a temp name 13 characters longer than the
+  // target, not 41 (a long legal name could fail ENAMETOOLONG through the temp name alone).
+  const tmp = `${target}.${crypto.randomUUID().slice(0, 8)}.tmp`;
   try {
     await writeFile(tmp, data, mode === undefined ? { flag: 'wx' } : { flag: 'wx', mode });
     await rename(tmp, target);
   } catch (e) {
     await unlink(tmp).catch(() => undefined);
-    throw e;
+    // The error names the file the user asked for, never the temp name they did not.
+    const err = e as Error & { code?: string };
+    const named = new Error(err.message.split(tmp).join(target));
+    throw err.code === undefined ? named : Object.assign(named, { code: err.code });
   }
 }
 
@@ -214,6 +226,10 @@ export async function cliWrite(
   path: string,
   data: Uint8Array | string,
 ): Promise<void> {
+  // 🔧 `wat2wasm in.wat -o ""` wrote the binary to the terminal (an empty string read as "no
+  // output") while other tools said "cannot write ''" (security review round 2, 2026-11-13):
+  // an empty path is the same refusal everywhere.
+  if (path === '') cliFail(tool, 'the output path is empty (-o ""): name a file');
   try {
     await fsWrite(path, data);
   } catch (e) {

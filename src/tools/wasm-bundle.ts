@@ -59,6 +59,7 @@ import { BinarySection, ExternalKind } from '../core/binary.ts';
 import { Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import { isStackExhausted, type Location, NESTING_TOO_DEEP } from '../core/error.ts';
+import { moduleLimitProblem } from '../ir/nesting.ts';
 import { ExprVisitor, type ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import { unique } from '../ir/made-up-names.ts';
@@ -1076,6 +1077,11 @@ export function bundle(
   inputs: BundleInput[],
   options: Partial<BundleOptions> = {},
 ): { module: WasmModule; report: BundleReport } {
+  // The one nesting limit (ir/nesting.ts), on each input before the bundler walks it.
+  for (const input of inputs) {
+    const over = moduleLimitProblem(input.module);
+    if (over !== undefined) throw new BundleError(`${input.name}: ${over}`);
+  }
   try {
     return bundleInputs(inputs, options);
   } catch (e) {

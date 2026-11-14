@@ -29,7 +29,9 @@ import { bundle, BundleError } from '../../../src/tools/wasm-bundle.ts';
 import { readBinary } from '../../../src/compat/binaryen-compat.ts';
 import { decodeLinkingSection, LinkingFormatError } from '../../../src/core/linking.ts';
 import { encodeU32Leb128 } from '../../../src/core/leb128.ts';
-import { NESTING_TOO_DEEP } from '../../../src/core/error.ts';
+// The one nesting limit (owner, 2026-11-13): past it, every stage refuses in these words, typed
+// in its own way as before — and the host's stack never decides (ir/nesting.ts).
+import { MAX_NESTING_DEPTH, NESTING_OVER_LIMIT } from '../../../src/ir/nesting.ts';
 
 const leb = (n: number) => [...encodeU32Leb128(n)];
 const section = (id: number, body: number[]) => [id, ...leb(body.length), ...body];
@@ -62,12 +64,12 @@ function tooDeep(f: () => unknown, cls: new (...a: never[]) => Error): void {
     caught = e;
   }
   expect(caught).toBeInstanceOf(cls);
-  expect((caught as Error).message).toContain(NESTING_TOO_DEEP);
+  expect((caught as Error).message).toContain(NESTING_OVER_LIMIT);
 }
 
 /** A tool result reports the nesting limit in its error list. */
 function reportsTooDeep(r: { errors: { message: string }[] }): void {
-  expect(r.errors.map((e) => e.message)).toContain(NESTING_TOO_DEEP);
+  expect(r.errors.map((e) => e.message)).toContain(NESTING_OVER_LIMIT);
 }
 
 // Far past every ceiling measured before the pass (~400 to ~5,000).
@@ -103,11 +105,15 @@ describe('hardening: a module nested deeper than the walkers can follow', () => 
     } catch (e) {
       optimizer = e;
     }
-    expect((optimizer as Error)?.message).toBe(`optimizer: ${NESTING_TOO_DEEP}`);
-    // interpModule records a Stop as the call's OUTCOME (its contract), rather than throwing.
-    expect(interpModule(m(), { runAllExports: true })[0]!.outcome).toEqual({
-      stop: `unsupported: ${NESTING_TOO_DEEP}`,
-    });
+    expect((optimizer as Error)?.message).toBe(`optimizer: ${NESTING_OVER_LIMIT}`);
+    // The interpreter refuses the module when it is instantiated: a Stop, its contract.
+    let interp: unknown;
+    try {
+      interpModule(m(), { runAllExports: true });
+    } catch (e) {
+      interp = e;
+    }
+    expect((interp as Error)?.message).toBe(`unsupported: ${NESTING_OVER_LIMIT}`);
     tooDeep(() => bundle([{ name: 'a', module: m() }], { log: undefined }), BundleError);
     tooDeep(() => writeWasm(m()), WasmEncodeError);
     tooDeep(() => writeWat(m()), WasmEncodeError);
@@ -118,10 +124,13 @@ describe('hardening: the nesting the text route and the writers can FOLLOW (pass
   // Name resolution recursed through one 700-line switch, whose frame V8
   // sizes for every case, and gave up between 300 and 400 nested blocks on a
   // COLD call — the lowest ceiling of any stage. Split into a dispatcher (pass
-  // 2) it follows 700 cold (and ~1,500 once the JIT has warmed it). Pinned at
-  // 600, cold-safe, which the unsplit resolver fails — a change that brings
-  // back the old frame shows here.
-  const DEPTH = 600;
+  // 2) it follows 700 cold (and ~1,500 once the JIT has warmed it). This was
+  // pinned at 600; since the one nesting limit (2026-11-13) nothing past
+  // MAX_NESTING_DEPTH reaches these stages, so it is pinned AT the limit, on
+  // every runtime the suite runs on (nesting_limit.test.ts holds every stage
+  // there, and 257 refused). A frame that grows back past the limit's margin
+  // shows as one of those failing.
+  const DEPTH = MAX_NESTING_DEPTH;
   const built = (n: number) => {
     let body = makeBlock([]);
     for (let i = 1; i < n; i++) body = makeBlock([body]);
