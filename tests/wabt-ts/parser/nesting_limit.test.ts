@@ -24,17 +24,17 @@ import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { Interpreter, Stop } from '../../../src/interp/interpreter.ts';
 import { formatErrors } from '../../../src/core/error.ts';
 import {
-  limitProblem,
   MAX_NESTING_DEPTH,
-  MAX_TREE_NODES,
+  moduleLimitProblem,
   NESTING_OVER_LIMIT,
   nestingDepth,
   NestingLimitError,
-  TREE_OVER_LIMIT,
+  SUBTREE_SHARED,
 } from '../../../src/ir/nesting.ts';
 import { defaultPassOptions, PassRunner } from '../../../src/passes/pass.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
-import type { Expression } from '../../../src/ir/expressions.ts';
+import { BinaryOp, type Expression, makeBinary, makeConst } from '../../../src/ir/expressions.ts';
+import { ValType } from '../../../src/ir/types.ts';
 
 const N = MAX_NESTING_DEPTH;
 const leb = (v: number): number[] => {
@@ -221,10 +221,12 @@ describe('the limit is a promise, written down', () => {
 });
 
 // Security review round 3, class 1 (2026-11-13): the API can build a DAG — one node as both
-// operands of the next, k times — which every walk expands into 2^k nodes. The depth check took
-// 719 ms at k = 24 and would never finish at k = 40; the writers and passes expand it the same
-// way. Now a walk past MAX_TREE_NODES stops and refuses.
-describe('one tree-size limit — shared subtrees cannot make a walk exponential', () => {
+// operands of the next, k times — which every walk expands into 2^k nodes: the depth check took
+// 719 ms at k = 24 and would never finish at k = 40, and one such subtree as the body of many
+// functions ran the writer to 6.9 GB. A cap on nodes AS WALKED (the first fix) was per function,
+// so the retest beat it across functions. Now any expression met twice anywhere in the module is
+// refused (SUBTREE_SHARED), as upstream's validator refuses it, in one walk over each DISTINCT node.
+describe('one tree — a subtree shared by reference is refused, at once', () => {
   /** `k` levels, each an `i32.add` whose two operands are the SAME node. */
   const dag = (k: number): Expression => {
     let e = readWat('(module (func (drop (i32.const 1))))').functions[0]!.body.children[0]!;
@@ -232,56 +234,85 @@ describe('one tree-size limit — shared subtrees cannot make a walk exponential
     for (let i = 0; i < k; i++) e = { kind: 'binary', op: 0x6a, left: e, right: e } as never;
     return e;
   };
-  const moduleOf = (body: Expression) => {
-    const m = readWat('(module (func (export "f") (drop (i32.const 0))))');
-    (m.functions[0]!.body.children[0]! as { value: Expression }).value = body;
+  /** `n` functions, each `(drop <body>)`. */
+  const moduleOf = (body: () => Expression, n = 1) => {
+    const m = readWat(`(module ${'(func (drop (i32.const 0))) '.repeat(n)}(export "f" (func 0)))`);
+    for (const f of m.functions) (f.body.children[0]! as { value: Expression }).value = body();
     return m;
   };
+  /** What each stage that throws says about `m`. */
+  const refusals = (m: ReturnType<typeof moduleOf>) => {
+    const msg = (f: () => unknown) => {
+      try {
+        f();
+        return 'accepted';
+      } catch (x) {
+        return String((x as Error).message);
+      }
+    };
+    return {
+      check: moduleLimitProblem(m) ?? 'accepted',
+      write: msg(() => writeWasm(m)),
+      passes: msg(() => new PassRunner(m, defaultPassOptions).add('Vacuum').run()),
+      interp: msg(() => new Interpreter(m)),
+    };
+  };
 
-  it('k = 40 (2^40 nodes as walked) is refused in about a second, at every stage that throws', () => {
-    const m = moduleOf(dag(40));
+  it('k = 40 (2^40 nodes as walked) is refused at once, at every stage that throws', () => {
+    const m = moduleOf(() => dag(40));
     const t = performance.now();
-    assertEquals(limitProblem(m.functions[0]!.body), TREE_OVER_LIMIT);
-    assert(performance.now() - t < 5_000, `the check took ${performance.now() - t} ms`);
-    let w = '';
-    try {
-      writeWasm(m);
-    } catch (x) {
-      w = String((x as Error).message);
-    }
-    assertEquals(w, TREE_OVER_LIMIT);
-    let o: unknown;
-    try {
-      new PassRunner(m, defaultPassOptions).add('Vacuum').run();
-    } catch (x) {
-      o = x;
-    }
-    assert(o instanceof NestingLimitError && o.message.endsWith(TREE_OVER_LIMIT), String(o));
-    let i: unknown;
-    try {
-      new Interpreter(m);
-    } catch (x) {
-      i = x;
-    }
-    assert(i instanceof Stop && i.message.includes(TREE_OVER_LIMIT), String(i));
+    const r = refusals(m);
+    assert(performance.now() - t < 2_000, `${performance.now() - t} ms`);
+    assertEquals(r.check, SUBTREE_SHARED);
+    assertEquals(r.write, SUBTREE_SHARED);
+    assertEquals(r.passes, `optimizer: ${SUBTREE_SHARED}`);
+    assertEquals(r.interp, `unsupported: ${SUBTREE_SHARED}`);
   });
 
-  it('a small DAG (well under the node limit) is still written and run', () => {
-    const m = moduleOf(dag(10)); // 2^11 nodes as walked
-    assertEquals(limitProblem(m.functions[0]!.body), undefined);
-    assert(writeWasm(m).length > 8);
+  it("ONE shared subtree as the body of 400 functions — the retest's case — is refused at once", () => {
+    const shared = dag(21);
+    const m = moduleOf(() => shared, 400);
+    const t = performance.now();
+    assertEquals(refusals(m).check, SUBTREE_SHARED);
+    assert(performance.now() - t < 2_000, `${performance.now() - t} ms`);
   });
 
-  it('a TREE of a million nodes — no sharing — is within the limit', () => {
+  it('a node shared between two functions but not within either is refused too', () => {
+    const one =
+      (readWat('(module (func (drop (i32.const 5))))').functions[0]!.body.children[0]! as {
+        value: Expression;
+      }).value;
+    const m = moduleOf(() => one, 2);
+    assertEquals(refusals(m).write, SUBTREE_SHARED);
+  });
+
+  it('a cycle is refused, not walked forever', () => {
+    const a = { kind: 'binary', op: 0x6a } as unknown as { left: unknown; right: unknown };
+    a.left = a;
+    a.right = a;
+    assertEquals(refusals(moduleOf(() => a as unknown as Expression)).check, SUBTREE_SHARED);
+  });
+
+  it('distinct nodes — however many, however alike — are a tree, and pass', () => {
+    // dag-shaped but every node its own object (built by the factories): no sharing.
+    const tree = (k: number): Expression =>
+      k === 0
+        ? makeConst({ type: ValType.I32, value: 1 })
+        : makeBinary(BinaryOp.AddI32, tree(k - 1), tree(k - 1));
+    const m = moduleOf(() => tree(10), 3);
+    assertEquals(refusals(m), {
+      check: 'accepted',
+      write: 'accepted',
+      passes: 'accepted',
+      interp: 'accepted',
+    });
     const wide = readWat(`(module (func ${'(nop) '.repeat(1_000_000)}))`);
-    assertEquals(limitProblem(wide.functions[0]!.body), undefined);
+    assertEquals(moduleLimitProblem(wide), undefined);
   });
 
-  it('the node limit sits above what an engine runs: 7,654,321 bytes per function body', () => {
-    // Every node takes at least a byte, so a body an engine accepts has fewer nodes than this.
-    assert(MAX_TREE_NODES > 7_654_321);
-    assert(TREE_OVER_LIMIT.includes('8,000,000 nodes'));
-    assertEquals(nestingDepth(dag(30), Infinity, 1_000), Infinity);
+  it('the reader and the parser, which cannot share a node, keep the cheaper depth-only walk', () => {
+    assertEquals(nestingDepth(dag(3)), 4);
+    assertEquals(nestingDepth(dag(3), Infinity, new Set()), -1);
   });
 });
 

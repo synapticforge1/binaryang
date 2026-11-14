@@ -29,9 +29,15 @@ README § "Limits on untrusted input". Mutants 6/7 (1 equivalent) and 23/24 (1 e
 removed). The owner then asked to NORMALIZE the runtime-dependent nesting depth — measured, and
 **option 1** chosen (the paragraph below). **Round 3** (on option 1; the tiers now NEST and work
 goes ONE CLASS AT A TIME — owner, both in [working-rules.md](working-rules.md)): four reviewers
-(bypasses, the measure, cost, code). **Class 1 — shared subtrees expanding a walk** (an API-built
-DAG, 2^k nodes as walked) FIXED: `MAX_TREE_NODES` 8,000,000 per function, refused in
-`TREE_OVER_LIMIT`; 5/5 mutants; its class-only retest running. **Queued classes, in order:**
+(bypasses, the measure, cost, code). **Class 1 — a subtree shared by reference** (an API-built
+DAG, 2^k nodes as walked). First fix, a per-function cap on nodes as walked (8,000,000), was
+BEATEN by its retest: one shared subtree as the body of 400 functions (34 s to refuse; the
+writer 6.9 GB at 21M walked nodes), and 8M walked nodes still cost 3–7 s / 3.35 GB to write.
+Now EXACT: `moduleLimitProblem` walks the whole module once with one `Set`, any node met twice
+refused (`SUBTREE_SHARED`, as upstream's validator refuses); each distinct node visited once
+(~140 ms per million nodes on Bun and Node, < 2 ms on the largest real module); the cap removed.
+20/20 tests on Bun and V8, 5/5 mutants; its SECOND class-only retest running. **Queued classes,
+in order:**
 2 depth that grows AFTER the check (passes — inlining, SimplifyLocals — deepen a module, refused
 at write or a pass overflows on Node: a regression against `main`; the interpreter's nesting
 adds across calls); 3 the WAT parser recursing before the check (the pre-scan misses `(@…`
