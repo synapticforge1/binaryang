@@ -24,16 +24,23 @@ import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { Interpreter, Stop } from '../../../src/interp/interpreter.ts';
 import { formatErrors } from '../../../src/core/error.ts';
 import {
+  EXPRESSION_CYCLE,
   MAX_NESTING_DEPTH,
+  MAX_SHARED_SLACK,
   moduleLimitProblem,
   NESTING_OVER_LIMIT,
   nestingDepth,
   NestingLimitError,
-  SUBTREE_SHARED,
 } from '../../../src/ir/nesting.ts';
 import { defaultPassOptions, PassRunner } from '../../../src/passes/pass.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
-import { BinaryOp, type Expression, makeBinary, makeConst } from '../../../src/ir/expressions.ts';
+import {
+  BinaryOp,
+  type Expression,
+  makeBinary,
+  makeConst,
+  makeDrop,
+} from '../../../src/ir/expressions.ts';
 import { ValType } from '../../../src/ir/types.ts';
 
 const N = MAX_NESTING_DEPTH;
@@ -222,97 +229,119 @@ describe('the limit is a promise, written down', () => {
 
 // Security review round 3, class 1 (2026-11-13): the API can build a DAG — one node as both
 // operands of the next, k times — which every walk expands into 2^k nodes: the depth check took
-// 719 ms at k = 24 and would never finish at k = 40, and one such subtree as the body of many
-// functions ran the writer to 6.9 GB. A cap on nodes AS WALKED (the first fix) was per function,
-// so the retest beat it across functions. Now any expression met twice anywhere in the module is
-// refused (SUBTREE_SHARED), as upstream's validator refuses it, in one walk over each DISTINCT node.
-describe('one tree — a subtree shared by reference is refused, at once', () => {
+// 719 ms at k = 24 and would never finish at k = 40, and one such subtree as the body of 400
+// functions took 34 s to check and the writer to 6.9 GB. Two fixes were beaten — a per-function
+// cap (by the 400 functions), and refusing ANY shared node (by Flatten and the custom-page-size
+// lowering, which reuse a node, and binaryen.js's `i32.add(x, x)`). Now the measure: walking the
+// module may cost at most twice its distinct nodes plus MAX_SHARED_SLACK, found without expanding
+// anything; a cycle is always refused; imports' fields are covered; and the writer's copy is held
+// to the same bound for every object it copies.
+describe('one bound on shared subtrees — walking a module costs what it holds', () => {
+  const leaf = () => makeConst({ type: ValType.I32, value: 1 });
   /** `k` levels, each an `i32.add` whose two operands are the SAME node. */
   const dag = (k: number): Expression => {
-    let e = readWat('(module (func (drop (i32.const 1))))').functions[0]!.body.children[0]!;
-    e = (e as { value: Expression }).value;
-    for (let i = 0; i < k; i++) e = { kind: 'binary', op: 0x6a, left: e, right: e } as never;
+    let e: Expression = leaf();
+    for (let i = 0; i < k; i++) e = makeBinary(BinaryOp.AddI32, e, e);
     return e;
   };
+  /** The same shape with every node its own object: a tree. */
+  const tree = (k: number): Expression =>
+    k === 0 ? leaf() : makeBinary(BinaryOp.AddI32, tree(k - 1), tree(k - 1));
   /** `n` functions, each `(drop <body>)`. */
   const moduleOf = (body: () => Expression, n = 1) => {
     const m = readWat(`(module ${'(func (drop (i32.const 0))) '.repeat(n)}(export "f" (func 0)))`);
     for (const f of m.functions) (f.body.children[0]! as { value: Expression }).value = body();
     return m;
   };
-  /** What each stage that throws says about `m`. */
-  const refusals = (m: ReturnType<typeof moduleOf>) => {
-    const msg = (f: () => unknown) => {
-      try {
-        f();
-        return 'accepted';
-      } catch (x) {
-        return String((x as Error).message);
-      }
-    };
-    return {
-      check: moduleLimitProblem(m) ?? 'accepted',
-      write: msg(() => writeWasm(m)),
-      passes: msg(() => new PassRunner(m, defaultPassOptions).add('Vacuum').run()),
-      interp: msg(() => new Interpreter(m)),
-    };
+  const msg = (f: () => unknown) => {
+    try {
+      f();
+      return 'accepted';
+    } catch (x) {
+      return String((x as Error).message);
+    }
   };
+  /** What each stage that throws says about `m`. */
+  const refusals = (m: ReturnType<typeof moduleOf>) => ({
+    check: moduleLimitProblem(m) ?? 'accepted',
+    write: msg(() => writeWasm(m)),
+    passes: msg(() => new PassRunner(m, defaultPassOptions).add('Vacuum').run()),
+    interp: msg(() => new Interpreter(m)),
+  });
+  const EXPANDS = 'subtrees shared by reference expand the module to ';
 
   it('k = 40 (2^40 nodes as walked) is refused at once, at every stage that throws', () => {
-    const m = moduleOf(() => dag(40));
     const t = performance.now();
-    const r = refusals(m);
+    const r = refusals(moduleOf(() => dag(40)));
     assert(performance.now() - t < 2_000, `${performance.now() - t} ms`);
-    assertEquals(r.check, SUBTREE_SHARED);
-    assertEquals(r.write, SUBTREE_SHARED);
-    assertEquals(r.passes, `optimizer: ${SUBTREE_SHARED}`);
-    assertEquals(r.interp, `unsupported: ${SUBTREE_SHARED}`);
+    assert(r.check.startsWith(EXPANDS), r.check);
+    assert(r.write.startsWith(EXPANDS), r.write);
+    assert(r.passes.startsWith(`optimizer: ${EXPANDS}`), r.passes);
+    assert(r.interp.startsWith(`unsupported: ${EXPANDS}`), r.interp);
   });
 
-  it("ONE shared subtree as the body of 400 functions — the retest's case — is refused at once", () => {
+  it("ONE shared subtree as the body of 400 functions — the first retest's case — at once", () => {
     const shared = dag(21);
-    const m = moduleOf(() => shared, 400);
     const t = performance.now();
-    assertEquals(refusals(m).check, SUBTREE_SHARED);
+    assert(refusals(moduleOf(() => shared, 400)).check.startsWith(EXPANDS));
     assert(performance.now() - t < 2_000, `${performance.now() - t} ms`);
   });
 
-  it('a node shared between two functions but not within either is refused too', () => {
-    const one =
-      (readWat('(module (func (drop (i32.const 5))))').functions[0]!.body.children[0]! as {
-        value: Expression;
-      }).value;
-    const m = moduleOf(() => one, 2);
-    assertEquals(refusals(m).write, SUBTREE_SHARED);
-  });
-
-  it('a cycle is refused, not walked forever', () => {
-    const a = { kind: 'binary', op: 0x6a } as unknown as { left: unknown; right: unknown };
-    a.left = a;
-    a.right = a;
-    assertEquals(refusals(moduleOf(() => a as unknown as Expression)).check, SUBTREE_SHARED);
-  });
-
-  it('distinct nodes — however many, however alike — are a tree, and pass', () => {
-    // dag-shaped but every node its own object (built by the factories): no sharing.
-    const tree = (k: number): Expression =>
-      k === 0
-        ? makeConst({ type: ValType.I32, value: 1 })
-        : makeBinary(BinaryOp.AddI32, tree(k - 1), tree(k - 1));
-    const m = moduleOf(() => tree(10), 3);
-    assertEquals(refusals(m), {
+  it("a little reuse — a pass's, binaryen.js's `add(x, x)` — is accepted, and written as a tree", () => {
+    const shared = moduleOf(() => dag(6), 3); // one node used twice at each of 6 levels
+    const plain = moduleOf(() => tree(6), 3);
+    assertEquals(refusals(shared), {
       check: 'accepted',
       write: 'accepted',
       passes: 'accepted',
       interp: 'accepted',
     });
-    const wide = readWat(`(module (func ${'(nop) '.repeat(1_000_000)}))`);
-    assertEquals(moduleLimitProblem(wide), undefined);
+    assertEquals([...writeWasm(moduleOf(() => dag(6), 3))], [...writeWasm(plain)]);
   });
 
-  it('the reader and the parser, which cannot share a node, keep the cheaper depth-only walk', () => {
-    assertEquals(nestingDepth(dag(3)), 4);
-    assertEquals(nestingDepth(dag(3), Infinity, new Set()), -1);
+  it('the bound: walked ≤ 2 × distinct + MAX_SHARED_SLACK, exactly at its edge', () => {
+    // One shared subtree of S distinct nodes used by F functions: walked ≈ F·S, distinct ≈ S + F·2.
+    const shared = tree(12); // 8,191 distinct nodes
+    const over = moduleOf(() => shared, 200); // walked ~1.64M + framing > 2·(8,191+…) + 1M
+    const under = moduleOf(() => shared, 100); // walked ~0.82M < 1M slack
+    assert(String(moduleLimitProblem(over)).startsWith(EXPANDS), String(moduleLimitProblem(over)));
+    assertEquals(moduleLimitProblem(under), undefined);
+    assert(MAX_SHARED_SLACK === 1_000_000);
+  });
+
+  it('a cycle is refused, not walked forever', () => {
+    const a = makeBinary(BinaryOp.AddI32, leaf(), leaf()) as unknown as {
+      left: unknown;
+      right: unknown;
+    };
+    a.left = a;
+    assertEquals(refusals(moduleOf(() => a as unknown as Expression)).check, EXPRESSION_CYCLE);
+  });
+
+  it("an import's fields are measured too (the second retest's case)", () => {
+    const m = readWat('(module (import "e" "f" (func)) (func (export "g")))');
+    const imp = m.imports[0]! as unknown as { func: { body: Expression } };
+    imp.func.body = { kind: 'region', children: [makeDrop(dag(40))] } as unknown as Expression;
+    const t = performance.now();
+    assert(String(moduleLimitProblem(m)).startsWith(EXPANDS));
+    assert(msg(() => writeWasm(m)).startsWith(EXPANDS));
+    assert(performance.now() - t < 2_000, `${performance.now() - t} ms`);
+  });
+
+  it("the writer's copy is held to the same bound for objects that are not expressions", () => {
+    // A location object shared k levels deep — the copy expanded it (the second retest's case).
+    let loc: Record<string, unknown> = { filename: '', line: 0, column: 0, offset: 0 };
+    for (let i = 0; i < 40; i++) loc = { a: loc, b: loc };
+    const m = moduleOf(() => leaf());
+    (m.functions[0]!.body.children[0]! as { loc: unknown }).loc = loc;
+    const t = performance.now();
+    assert(msg(() => writeWasm(m)).includes('objects shared by reference expand its copy'));
+    assert(performance.now() - t < 5_000, `${performance.now() - t} ms`);
+  });
+
+  it('a tree of a million nodes, no sharing, passes', () => {
+    const wide = readWat(`(module (func ${'(nop) '.repeat(1_000_000)}))`);
+    assertEquals(moduleLimitProblem(wide), undefined);
   });
 });
 

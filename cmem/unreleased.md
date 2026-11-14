@@ -23,9 +23,9 @@ print inert in `wasm-objdump`, `wasm-interp`, every diagnostic and WIT comments
 (`core/printable.ts`); `readBinary` refuses a function or tag declared with a missing type (as
 upstream); `-o ""` refused; ONE nesting limit on every runtime, 256 levels (`MAX_NESTING_DEPTH`,
 `NESTING_OVER_LIMIT`, `NestingLimitError` — internal, not in the package's exports: the surface
-check is unchanged), and a
-module's expressions must form a TREE: a node shared by reference (only the API can make one) is
-refused (`SUBTREE_SHARED`), as upstream's validator refuses it. ⚠️ Behaviour
+check is unchanged), and
+subtrees shared by reference (only the API can make them) may not expand a module past twice its
+distinct expressions plus 1,000,000 (`MAX_SHARED_SLACK`); a cycle is refused. ⚠️ Behaviour
 change for the note: modules deeper than 256 that Bun accepted are now refused on every runtime;
 and (open, class 2) some modules the optimizer deepens past 256 are refused after `-O2`.
 

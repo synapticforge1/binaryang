@@ -33,11 +33,16 @@ goes ONE CLASS AT A TIME — owner, both in [working-rules.md](working-rules.md)
 DAG, 2^k nodes as walked). First fix, a per-function cap on nodes as walked (8,000,000), was
 BEATEN by its retest: one shared subtree as the body of 400 functions (34 s to refuse; the
 writer 6.9 GB at 21M walked nodes), and 8M walked nodes still cost 3–7 s / 3.35 GB to write.
-Now EXACT: `moduleLimitProblem` walks the whole module once with one `Set`, any node met twice
-refused (`SUBTREE_SHARED`, as upstream's validator refuses); each distinct node visited once
-(~140 ms per million nodes on Bun and Node, < 2 ms on the largest real module); the cap removed.
-20/20 tests on Bun and V8, 5/5 mutants; its SECOND class-only retest running. **Queued classes,
-in order:**
+Second fix, refusing ANY node met twice, broke the full gate: Flatten and the custom-page-size
+lowering reuse a node (and binaryen.js code does `i32.add(x, x)`) — so the gate's 4 failing steps
+were false refusals — and the second retest found imports' fields unmeasured and the writer's
+`copyModule` expanding any shared object. **Third, current:** `moduleLimitProblem` measures, in
+one walk with one map (each distinct node once, its expanded size and height remembered), the
+nodes AS WALKED (W) against the distinct (U), and refuses W > 2U + `MAX_SHARED_SLACK` (1,000,000)
+(`subtreesExpand`), a cycle (`EXPRESSION_CYCLE`), or depth; imports' `func.body` / `global.init` /
+`table.init` are covered; `copyModule` holds every object it copies to the same bound. 22/22 on
+Bun and V8; 8/8 mutants; both full test legs green. Its THIRD class-only retest is next.
+**Queued classes, in order:**
 2 depth that grows AFTER the check (passes — inlining, SimplifyLocals — deepen a module, refused
 at write or a pass overflows on Node: a regression against `main`; the interpreter's nesting
 adds across calls); 3 the WAT parser recursing before the check (the pre-scan misses `(@…`
