@@ -12,15 +12,27 @@ import { DENO, denoCommand } from '../../../scripts/deno.ts';
 // copy: code imports `denoCommand`, command lines run the file. This gates that, by reading every
 // tracked file, and the owner's CI decision with it.
 
-/** Files that may name a Deno version: the pin itself, and history. */
+/**
+ * Files that may name a Deno version: the pin itself (`package.json`'s locked devDependency, read
+ * by `scripts/deno.ts` — round 4, B2), and history.
+ */
 const ALLOWED = (f: string) =>
   f === 'scripts/deno.ts' || f === 'CHANGELOG.md' || f.startsWith('cmem/') ||
   f === 'tests/wabt-ts/scripts/deno_pin.test.ts';
 
 describe('the Deno pin is written once', () => {
-  it('is an exact version of the npm `deno` package', () => {
+  it('is an exact version of the npm `deno` package, locked', async () => {
     expect(DENO).toMatch(/^deno@\d+\.\d+\.\d+$/);
-    expect(denoCommand(['doc'])).toEqual(['bun', ['x', DENO, 'doc']]);
+    // the INSTALLED binary, never a fetched one (`bun x deno@<v>` ignored the lock)
+    expect(denoCommand(['doc'])).toEqual(['bun', ['run', 'deno', 'doc']]);
+    // the lockfile holds that exact version, with its integrity hash
+    const lock = await fsx.readTextFile('bun.lock');
+    expect(lock).toContain(`"${DENO}"`);
+    // and the command runs the copy installed under node_modules — the locked one
+    const [cmd, argv] = denoCommand(['eval', 'console.log(Deno.version.deno, Deno.execPath())']);
+    const r = spawnSync(cmd, argv, { encoding: 'utf8', timeout: 60_000 });
+    expect(r.stdout).toContain(DENO.slice('deno@'.length));
+    expect(r.stdout.replaceAll('\\', '/')).toContain('node_modules/deno/');
   });
 
   it('appears in no other tracked file', async () => {

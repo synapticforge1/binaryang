@@ -23,13 +23,25 @@
 
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
+import pkg from '../package.json' with { type: 'json' };
 
-/** The pinned Deno, as `bun x` names it. */
-export const DENO = 'deno@2.9.6';
+/**
+ * The pinned Deno, as `bun x` names it — read from `package.json`'s `devDependencies`, so the ONE
+ * copy of the version is the locked dependency: 🔧 `bun x deno@<v>` fetched it unlocked, so nothing
+ * checked its integrity (security review round 4, B2). Installed, `bun.lock` holds its hash; its
+ * postinstall stays blocked (the binary comes from the platform package, which needs none), and
+ * {@link denoCommand} runs that installed copy.
+ */
+export const DENO = `deno@${(pkg.devDependencies as Record<string, string>)['deno']}`;
 
-/** `bun` and its arguments to run Deno with `args`: spawn as `spawnSync(cmd, argv, …)`. */
+/**
+ * `bun` and its arguments to run Deno with `args`: spawn as `spawnSync(cmd, argv, …)`. `bun run
+ * deno` runs the INSTALLED binary only — the one `bun.lock` checked — and fails plainly when it
+ * is not installed. 🔧 `bun x deno@<v>` ignored the install and fetched its own copy into a temp
+ * cache, so the lock's hash was never used (the review of round 4's batch 1).
+ */
 export function denoCommand(args: readonly string[]): [string, string[]] {
-  return ['bun', ['x', DENO, ...args]];
+  return ['bun', ['run', 'deno', ...args]];
 }
 
 if (import.meta.main) {

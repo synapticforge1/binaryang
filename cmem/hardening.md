@@ -40,9 +40,13 @@ itself ("hardening's cheap axes decay too").
 | H5 | **Deep NESTING in a valid function made the interpreter report `trap: call stack exhausted`** — a claim about the program, where V8 runs it. | probe |
 | H6 | `wasm-interp` / `wasm-ctor-eval` ran a file without validating it (upstream validates). | review |
 
-**Not defects** (measured, recorded): wasm recursion traps `call stack exhausted` at any depth,
-infinite recursion included; fuel stops an infinite loop; a 65,536-page memory is refused as a
-typed `Stop` / ctor-eval reason; a 2^40-page memory64 maximum is fine; the bundle's page-sum cap is
+**Not defects** (measured, recorded): wasm recursion traps `call stack exhausted` at its depth
+limit (`maxDepth`), infinite recursion included — 🔧 CORRECTED 2026-11-15 (security review round
+4, R1-1): "at any depth" was wrong; when the HOST's stack ran out first (V8: a terminating
+`sum(150)`), that too was a trap, so one program's result depended on the runtime. Now a
+`Stop('unsupported')` saying the interpreter cannot tell; the permanent fix is option 2's.
+Also not defects: fuel stops an infinite loop; a 65,536-page memory is refused as a typed
+`Stop` / ctor-eval reason; a 2^40-page memory64 maximum is fine; the bundle's page-sum cap is
 a `BundleError`; huge counts in a `reloc.*` section fail fast. **Real modules nest shallowly:** 542
 modules (the corpus, wasmtk's tests, the Rust and Zig fixtures) peak at depth 25.
 

@@ -134,9 +134,14 @@ for (const r of rows) {
 }
 
 console.log('  === wat2wasm vs the optimizer (-O3) over the same tree, RUN in lockstep ===');
+// 🔧 This line said "modules compared" for every module READ, and the TOTAL "agree on every
+// one" while 76 of 544 were never run (security review round 4, R2-3): it states both now.
 console.log(
-  `    modules compared        ${String(rows.length).padStart(5)}` +
+  `    modules read            ${String(rows.length).padStart(5)}` +
     `   (${corpus} corpus + ${inputs.length - corpus} fixture)`,
+);
+console.log(
+  `    modules compared        ${String(by('agree').length + diverged.length).padStart(5)}`,
 );
 console.log(`    agree                   ${String(by('agree').length).padStart(5)}`);
 console.log(`    DIVERGE                 ${String(diverged.length).padStart(5)}`);
@@ -157,6 +162,13 @@ if (timedOut.length > 0) {
   console.log(`\n  === ${timedOut.length} did not terminate, so nothing was compared in them ===`);
   for (const r of timedOut) console.log(`    ${r.file}`);
 }
+const skipped = by('skip');
+if (skipped.length > 0) {
+  console.log(
+    `\n  === ${skipped.length} skipped — one side could not be set up — not compared ===`,
+  );
+  for (const r of skipped) console.log(`    ${r.file.padEnd(44)} ${r.detail.slice(0, 100)}`);
+}
 
 if (diverged.length > 0) {
   console.log(`\n  === the ${diverged.length} that diverge (first 30) ===`);
@@ -176,8 +188,12 @@ if (diverged.length > 0) {
   process.exit(1);
 }
 
+const compared = by('agree').length;
+const uncompared = rows.length - compared;
 console.log(
-  `\n  TOTAL — ${calls} calls across ${exportCount} exports, and the two paths agree on every one.`,
+  `\n  TOTAL — ${calls} calls across ${exportCount} exports in ${compared} of ${rows.length} modules, ` +
+    `and the two paths agree on every one; ${uncompared} not compared (counted above by ` +
+    'reason; the skipped and the timed out listed by name).',
 );
 
 // ⚠️ **Exit explicitly, or this gate never exits.** `worker.terminate()` cannot

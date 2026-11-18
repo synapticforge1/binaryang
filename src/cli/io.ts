@@ -113,13 +113,32 @@ export async function fsRead(path: string, limit: number = MAX_INPUT_BYTES): Pro
  * file beside the target, then renamed over it. A failure part-way (a full disk, a kill) leaves
  * the old file whole, never half a module (security review round 1, 2026-11-13). A symbolic link
  * is written through, to the file it names, as before. A target that is not a regular file (a
- * device such as `/dev/null`, a pipe) is written directly: renaming over it would replace it.
+ * device such as `/dev/null`, a pipe, a Windows device name such as `NUL`) is written directly:
+ * renaming over it would replace it.
+ *
+ * What the rename means (review H-3, 2026-11-18): the output is a NEW file, so a hard link to the
+ * old one keeps the old contents and its ACL and owner are the directory's defaults (the mode is
+ * kept); a kill between the write and the rename leaves `<output>.<8 hex>.tmp` beside it. Where
+ * the directory refuses a new file but the existing output is writable, it is overwritten in place
+ * (not atomic there), as before atomic writes.
  */
 export async function fsWrite(path: string, data: Uint8Array | string): Promise<void> {
   const { lstat, readlink, realpath, rename, stat, unlink, writeFile } = await import(
     'node:fs/promises'
   );
-  const { dirname, resolve } = await import('node:path');
+  const { basename, dirname, resolve } = await import('node:path');
+  // win-x64 / win-arm64: a reserved device name (`NUL`, `CON`, `COM1` …, any case; `/dev/null`
+  // as NUL) is a DEVICE, written by its device path. 🔧 `realpath` refused it (EINVAL), so
+  // `-o NUL` failed after atomic writes came in (review H-2, 2026-11-18); and written by its plain
+  // name, Bun created a FILE named `NUL` (measured on Windows 11 26300), so 3.0.4 never reached
+  // the device either. Windows 11 reserves only the bare name: `nul.wasm` is an ordinary file.
+  if (cliProcess().platform === 'win32') {
+    const name = path === '/dev/null' ? 'NUL' : basename(path);
+    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name)) {
+      await writeFile(`\\\\.\\${name.toUpperCase()}`, data);
+      return;
+    }
+  }
   let target = path;
   let mode: number | undefined;
   try {
@@ -141,7 +160,18 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // target, not 41 (a long legal name could fail ENAMETOOLONG through the temp name alone).
   const tmp = `${target}.${crypto.randomUUID().slice(0, 8)}.tmp`;
   try {
-    await writeFile(tmp, data, mode === undefined ? { flag: 'wx' } : { flag: 'wx', mode });
+    try {
+      await writeFile(tmp, data, mode === undefined ? { flag: 'wx' } : { flag: 'wx', mode });
+    } catch (e) {
+      // The directory refuses a new file, but the output exists: overwrite it in place, as before
+      // atomic writes (review H-3). Its own failure (read-only file) is the error reported.
+      const code = (e as { code?: string }).code;
+      if (mode !== undefined && (code === 'EACCES' || code === 'EPERM')) {
+        await writeFile(target, data);
+        return;
+      }
+      throw e;
+    }
     await rename(tmp, target);
   } catch (e) {
     await unlink(tmp).catch(() => undefined);

@@ -57,7 +57,7 @@ export class WatInputError extends Error {
  * @throws {WatInputError} with wabt-ts's diagnostics when the text is not a
  *   valid module.
  */
-export function readValidWat(source: string, filename = '<input>'): WasmModule {
+export function readValidWat(source: string | Uint8Array, filename = '<input>'): WasmModule {
   // Validated as TEXT (`validate: true`), so an invalid module is reported at
   // its `line:col`, as `wasm-opt` does for WAT input; every feature on, as the
   // binary route's `readValidForPasses`.
@@ -73,7 +73,7 @@ export function readValidWat(source: string, filename = '<input>'): WasmModule {
  * @throws {WatInputError} with wabt-ts's diagnostics when the text is not a
  *   module it can assemble.
  */
-export function readWat(source: string, filename = '<input>'): WasmModule {
+export function readWat(source: string | Uint8Array, filename = '<input>'): WasmModule {
   const { binary, errors } = wat2wasm(source, { filename });
   if (hasErrors(errors)) throw new WatInputError(formatErrors(errors));
   return readForPasses(binary, filename);

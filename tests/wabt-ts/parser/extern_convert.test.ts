@@ -91,22 +91,23 @@ describe('extern ⇄ any conversions', () => {
     assert(roundTripsExactly(wat));
   });
 
-  it('V8 rejects the wrong direction (our validator does not — known gap)', () => {
-    // `extern.convert_any` takes an ANYref. Applying it to an externref is a
-    // type error and V8 says so. wabt-ts's own validator accepts it: the
-    // type-checker coarsens reference types, so externref and anyref are not
-    // distinguished on its operand stack. Asserting the LOOSE behaviour
-    // records the gap honestly rather than pretending it is checked — if the
-    // validator is ever tightened this test should start failing, and the
-    // assertion should be flipped rather than deleted.
-    const { binary, errors } = wat2wasm(
+  it('the wrong direction is rejected — by our validator, as by V8', () => {
+    // `extern.convert_any` takes an ANYref, `any.convert_extern` an EXTERNref; the other way is a
+    // type error. 🔧 This test asserted our validator ACCEPTED it ("known gap"), but it called
+    // `wat2wasm` without validation: the validator rejects both, as V8 does (security review
+    // round 4, R1-2 — the gap was a test bent to a wrong reading, not the validator's).
+    const wrong = [
       '(module (func (param externref) (result externref) (extern.convert_any (local.get 0))))',
-    );
-    assert(!hasErrors(errors), 'validator is expected to be permissive here');
-    assert(binary);
-    const buf = new ArrayBuffer(binary.byteLength);
-    new Uint8Array(buf).set(binary);
-    assert(!WebAssembly.validate(buf), 'V8 must reject the wrong direction');
+      '(module (func (param anyref) (result anyref) (any.convert_extern (local.get 0))))',
+    ];
+    for (const wat of wrong) {
+      const { errors } = wat2wasm(wat, { validate: true });
+      assert(hasErrors(errors), `our validator must reject: ${wat}`);
+      const unchecked = wat2wasm(wat).binary!;
+      const buf = new ArrayBuffer(unchecked.byteLength);
+      new Uint8Array(buf).set(unchecked);
+      assert(!WebAssembly.validate(buf), `V8 must reject: ${wat}`);
+    }
   });
 });
 

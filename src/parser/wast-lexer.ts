@@ -24,6 +24,16 @@ import {
   PREFIX_THREADS,
 } from '../core/opcode.ts';
 import { decodeStringToken, STRICT_NAME_DECODER } from '../core/literal.ts';
+
+/** Whether `bytes` are valid UTF-8. */
+function isUtf8(bytes: Uint8Array): boolean {
+  try {
+    STRICT_NAME_DECODER.decode(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
 import { isInstrCode } from '../definitions/instr-code.ts';
 import { isValType, Type } from '../core/types.ts';
 import { LexerSource } from './lexer-source.ts';
@@ -1492,6 +1502,14 @@ export class WastLexer {
       }
     }
     this.tokenStart = savedStart;
+    // The source is UTF-8 text (the spec), so the string's RAW bytes must be valid UTF-8: escapes
+    // are ASCII, so only a raw byte ≥ 0x80 can break it. 🔧 They were decoded leniently, so a raw
+    // 0xFF became U+FFFD and was written as EF BF BD — three bytes for one, exit 0 (review H-1,
+    // 2026-11-18). Upstream wabt and wasm-tools refuse it.
+    if (!hasError && !isUtf8(this.src.data.subarray(savedStart, this.cursor))) {
+      this.error('malformed UTF-8 encoding');
+      return { loc: this.getLocation(), tokenType: TokenType.Invalid };
+    }
     if (hasError) return { loc: this.getLocation(), tokenType: TokenType.Invalid };
     return this.textToken(tt);
   }

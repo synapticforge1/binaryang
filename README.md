@@ -409,6 +409,15 @@ new Bun the project adopts — the one place the runtimes are governed different
 rather than buried. Bun 1.3 (the last before the Zig → Rust rewrite in 1.4.0) has never been
 supported.
 
+## Privacy
+
+binaryang collects nothing. The library and the CLI make no network request (no telemetry, no
+update check), read no environment variable, and read only the files you name. The CLI writes
+only the output you ask for (`-o`), plus the `.wit` file beside a bundle's output; it writes
+through a temporary file beside the output, removed when the write ends (a run killed mid-write
+can leave one `<output>.<8 hex>.tmp` beside it, holding only that output). Nothing about you, your
+machine or your paths is written into a module it produces.
+
 ## Limits on untrusted input
 
 binaryang reads modules from anyone, so what a small input may make it spend is bounded, by
@@ -419,10 +428,11 @@ name. Each limit refuses with a typed error or diagnostic; none is silent. (Secu
 | --- | --- | --- |
 | A file the CLI reads | 1 GiB (`MAX_INPUT_BYTES`); a pipe or device read only up to it | `tool: cannot read …` |
 | Expression nesting, operands included | 256 levels (`MAX_NESTING_DEPTH`), the same on every runtime | "the module nests deeper than 256 levels, binaryang's limit on every runtime" |
+| A module built through the API that reuses objects (a node, a list, bytes, a long string) | walked, copied or written per use: at most twice what it holds, plus 1,000,000 expression nodes / 8,000,000 entries; data nested at most 1,536 objects deep (`MAX_DATA_DEPTH`); no cycle, no sparse array, no number past 64 bits | "… shared by reference expand the module to …", "the module's data nests deeper than 1536 objects …", or the cycle's, the hole's or the number's own words |
 | Locals in one function | 1,000,000 (`MAX_MATERIALIZED_LOCALS`) | decode error |
 | Locals in a whole module | 1,000,000 plus one per byte of the module (`maxModuleLocals`) | decode error |
 | CoalesceLocals | colours a function of up to 20,000 referenced locals (`COALESCE_MAX_REFERENCED_LOCALS`) | that function is left as it is (still correct) |
-| Interpreter: nested calls | 1,000 (`maxDepth`) | trap `call stack exhausted` |
+| Interpreter: nested calls | 1,000 (`maxDepth`); on V8 (Node, Deno) the host's JavaScript stack can end a run first, measured at 130–440 calls | trap `call stack exhausted` at the limit; `Stop('unsupported')`, "ran out of its host's stack …", when the host's stack ends it first (no claim about the program) |
 | Interpreter: locals of every active call | 4,000,000 (`maxStackLocals`) | trap `call stack exhausted` |
 | Interpreter: fuel | unlimited by default; when set, charged per instruction AND per element, per 8 bytes and per local of bulk work | `Stop('fuel')` |
 | Interpreter: a memory / a table / an array | 1 GiB / 10,000,000 / 10,000,000 elements | `Stop('unsupported')` |
@@ -440,6 +450,31 @@ caller's own stack, and is 6–10 times the deepest real module measured (25 lev
 real-compiler modules, 40 in the spec testsuite). It is measured without recursing, before any
 stage recurses, so a module far deeper than any stack is the same refusal. The limit is to rise
 as the recursive stages are made iterative, lowest ceiling first.
+
+**What is untrusted.** The input binaryang defends against is bytes and text: what its readers and
+parsers take. A module built or edited through the API is the caller's own code. The bounds and
+refusals below hold for it too, so a mistake there is caught rather than run away with, but it
+is not treated as an attacker: a caller who forges a module (a copy keeping its original's
+location or id, getters, Proxies) can make binaryang do what that code asks.
+
+**Reuse in an API-built module is bounded.** Each entry (the writers, the optimizer, the
+interpreter, the bundler) measures every object a module holds before it starts, so reuse — a
+binaryen.js `add(x, x)`, one type list under many blocks — costs what the module holds, however
+it is shared. The bound is linear, not tight: names up to 64 KiB are not counted per use (text
+that calls a long name many times holds every copy itself), so at the bound's edge a module of a
+few dozen objects reused a million times prints each name once per use, as large as that makes
+it (the binary writer writes names as indices). The optimizer and the bundler give each use of a
+reused node, list or index its own copy before they rewrite in place (the optimizer in place, so
+a handle you hold stays the live one); the tests pin a reused module against the same module
+written out under SimplifyLocals and the default pipeline at -O3, and under each other pass that
+once gave a different result (RemoveUnusedTypes, Flatten). A module OWNS its objects, as in binaryen: one object given to two
+modules is changed for both when either is optimized; give each module its own. Two definitions
+of one kind with one name (one function listed twice, a copy spread from one) are refused by
+the writers and the bundler, since a reference by name could mean either; and the bundler refuses
+a relocation whose location several differing nodes carry (a copy spread from a linked node and
+edited keeps the original's `loc`) rather than guess which one moves. What the check cannot bound is code: an object whose getter makes a new object on
+every read, or a `Proxy`, runs the caller's own code inside binaryang and can make any walk
+endless, as a callback that loops can. Hand the API plain objects.
 
 ## Migrating
 

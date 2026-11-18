@@ -11,6 +11,7 @@
 // Each result is checked against V8 running the same bytes — the engine is the
 // oracle, not what this file expects.
 
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
@@ -182,14 +183,33 @@ describe('calls and the stack', () => {
     );
   });
 
-  it('runaway recursion is "call stack exhausted", at the depth limit or the host\'s', () => {
+  it('runaway recursion traps "call stack exhausted" at the depth limit; the HOST\'s is a stop', () => {
     const wat = `(module (func $r (export "f") (result i32) (call $r)))`;
-    for (const maxDepth of [50, 1_000_000]) {
-      expect(() => interp(wat, { maxDepth }).invoke('f', [])).toThrow(Trap);
+    // the program reaches its own limit: a trap, as an engine reports it
+    expect(() => interp(wat, { maxDepth: 50 }).invoke('f', [])).toThrow('call stack exhausted');
+    expect(() => interp(wat, { maxDepth: 50 }).invoke('f', [])).toThrow(Trap);
+    // the host's stack runs out first: the interpreter cannot tell, so it stops — 🔧 it trapped,
+    // and a terminating sum(150) trapped on V8 though it returns on Bun (round 4, R1-1)
+    expect(() => interp(wat, { maxDepth: 1_000_000 }).invoke('f', [])).toThrow(Stop);
+    expect(() => interp(wat, { maxDepth: 1_000_000 }).invoke('f', [])).toThrow(/cannot tell/);
+  });
+  it('the README says what a run deeper than the host stack gives: a Stop, not the trap', () => {
+    // review B-1 (2026-11-18): the limits table still promised a trap past 1,000 on every runtime
+    const readme = readFileSync('README.md', 'utf8');
+    const row = readme.split('\n').find((l) => l.startsWith('| Interpreter: nested calls'))!;
+    expect(row).toContain('maxDepth');
+    expect(row).toContain("host's stack");
+    expect(row).toContain("Stop('unsupported')");
+  });
+  it('a terminating recursion never TRAPS for the host: it returns, or stops', () => {
+    const wat = '(module (func $sum (export "sum") (param i32) (result i32)' +
+      ' (if (result i32) (local.get 0) (then (i32.add (local.get 0)' +
+      ' (call $sum (i32.sub (local.get 0) (i32.const 1))))) (else (i32.const 0)))))';
+    for (const n of [100, 150, 500, 900]) {
       try {
-        interp(wat, { maxDepth }).invoke('f', []);
+        expect(interp(wat).invoke('sum', [i32(n)])).toEqual([i32((n * (n + 1)) / 2)]);
       } catch (e) {
-        expect((e as Trap).message).toBe('call stack exhausted');
+        expect(e).toBeInstanceOf(Stop); // V8's smaller stack: never a Trap
       }
     }
   });

@@ -178,15 +178,24 @@ export function formatError(
   // its own line breaks and tabs kept (security review round 2, 2026-11-13; core/printable.ts).
   const message = printable(err.message, { keepLines: true });
   const severity = level === ErrorLevel.Warning ? 'warning' : 'error';
-  const header = `${formatLocation(loc)}: ${severity}: ${message}`;
+  // The file name comes from the command line: printable too.
+  const header = `${printable(formatLocation(loc))}: ${severity}: ${message}`;
 
   if (format === ErrorFormat.Long && sourceLine !== undefined && loc.column > 0) {
-    // Tabs are kept under tabs, so the caret lines up however the terminal
-    // expands them.
-    const pad = [...sourceLine.slice(0, loc.column - 1)].map((c) => (c === '\t' ? '\t' : ' '));
+    // The SOURCE LINE is the input's own text: printable as the message is. 🔧 It was printed raw,
+    // so a .wat with ESC/BEL on a failing line put terminal control sequences — a clipboard write
+    // (OSC 52), a screen clear — on the user's stderr (review S-1, 2026-11-18). The caret is
+    // measured on the printable text, so an escape that widens the line keeps it aligned; tabs are
+    // kept under tabs, however the terminal expands them.
+    const shown = (s: string) => printable(s, { keepLines: true });
+    const before = shown(sourceLine.slice(0, loc.column - 1));
+    const pad = [...before].map((c) => (c === '\t' ? '\t' : ' '));
     // Under the whole token, as upstream (DG6); one `^` where its end is unknown.
-    const width = loc.endColumn !== undefined ? Math.max(1, loc.endColumn - loc.column) : 1;
-    return `${header}\n${sourceLine}\n${pad.join('')}${'^'.repeat(width)}`;
+    const token = loc.endColumn !== undefined
+      ? shown(sourceLine.slice(loc.column - 1, loc.endColumn - 1))
+      : '';
+    const width = Math.max(1, [...token].length);
+    return `${header}\n${shown(sourceLine)}\n${pad.join('')}${'^'.repeat(width)}`;
   }
   return header;
 }

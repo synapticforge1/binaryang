@@ -29,6 +29,22 @@ distinct expressions plus 1,000,000 (`MAX_SHARED_SLACK`); a cycle is refused. �
 change for the note: modules deeper than 256 that Bun accepted are now refused on every runtime;
 and (open, class 2) some modules the optimizer deepens past 256 are refused after `-O2`.
 
+**UNRELEASED — round 3 class 1, round 4, and the review under the final standard (2026-11-15 to
+11-18, branches `security-r3`, `review-next`):** package changes. API-built modules: reused
+objects bounded (data depth 1,536, `heldDataProblem`), the optimizer unshares in place, writers
+and the bundler refuse two definitions with one name, the bundler refuses a relocation its copies
+disagree on. `readBinary(bytes, { validate })` (minor: new option, off by default); `readWat` /
+`readValidWat` take bytes too; a quoted `.wast` module carries `bytes`. Text input: malformed
+UTF-8 refused where it stands, in every tool (it was silently rewritten); a leading BOM read the
+same everywhere. CLI: `-o NUL` / `/dev/null` reach the Windows device (3.0.4 made a FILE named
+NUL); a folder denying new files still lets a writable output be overwritten; `-o` without a
+file refused in `wasm-bundle` and `wasm-ctor-eval`; `wasm-interp` refuses extra `--argument`s and
+`--argument` without `--run-export`; the interpreter reports the host's stack running out as a
+Stop, not a trap; errors echo source lines and file names printable (no terminal escapes); CLI
+command and asyncify import names looked up as own keys. Docs: README "## Privacy" (collects
+nothing), the interpreter's limits on V8, the threat model. Repo-only: `deno` a locked
+devDependency, Dependabot for actions, `/.claude/` ignored, the review issues file gitignored.
+
 **Shipped in 3.0.2 and 3.0.1** (kept here until the next release): no package change — 3.0.0
 again, for npm, which 3.0.0 and 3.0.1 did not reach; npm went from 2.2.2 to 3.0.2. Repo-only:
 `npm-build` creates the `npm pack` destination; `registry.ts npm-tarball` hands `npm publish` an

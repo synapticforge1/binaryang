@@ -1,0 +1,11 @@
+# The actions every workflow uses are pinned by full commit SHA (the comment beside each names its
+# tag). Pins go stale, and an advisory against a pinned action goes unseen, unless something
+# watches them: Dependabot opens a pull request when a pinned action has a newer release (security
+# review round 4, B4). npm dependencies are not watched here: bun.lock is bumped by hand, on review.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

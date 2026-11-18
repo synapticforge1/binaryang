@@ -515,7 +515,12 @@ export function resolveAsyncifyImports(module: WasmModule): boolean {
   const rename = new Map<string, string>();
   for (const imp of module.imports) {
     if (imp.kind !== ExternalKind.Func || imp.module !== ASYNCIFY_IMPORT_MODULE) continue;
-    const control = ASYNCIFY_IMPORT_TO_CONTROL[imp.field];
+    // An OWN key only: the field is the input's, and `toString` / `constructor` / `__proto__`
+    // reached Object.prototype and came back as a host function's text (security review round 4,
+    // A1).
+    const control = Object.hasOwn(ASYNCIFY_IMPORT_TO_CONTROL, imp.field)
+      ? ASYNCIFY_IMPORT_TO_CONTROL[imp.field]
+      : undefined;
     if (control === undefined) {
       throw new Error(`asyncify: unidentified asyncify import "asyncify.${imp.field}".`);
     }

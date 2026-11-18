@@ -113,7 +113,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const handler = COMMANDS[command];
+  // An OWN key only: `constructor` / `toString` ran an Object.prototype method (round 4, A2).
+  const handler = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
   if (!handler) {
     console.error(`Unknown command: ${command}`);
     console.error(`Run with --help to see available commands.`);
