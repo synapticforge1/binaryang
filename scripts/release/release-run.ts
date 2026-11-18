@@ -129,7 +129,9 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
       '  records `review-complete: <commit>` in the gitignored cmem/review-issues.md.',
     );
   }
-  const since = git(['diff', '--name-only', reviewed]);
+  // `--no-renames`: with rename detection, a file MOVED from reviewed code into `cmem/` is listed
+  // only under its new name, and its source path never reaches the check (review H-1, 2026-11-18).
+  const since = git(['diff', '--name-only', '--no-renames', reviewed]);
   if (!since) return refuse(`Refusing to release ${tag}: git could not compare with the review.`);
   const unreviewed = since.stdout.split('\n').map((l) => l.trim()).filter((f) =>
     f !== '' && !(RELEASE_FILES as readonly string[]).includes(f) && !f.startsWith('cmem/')

@@ -144,4 +144,6 @@ contains ([handoffs.md](handoffs.md)).
 The package changes are the three "UNRELEASED" paragraphs at the top. Repo-only: review rounds
 1–2's fixes (2026-11-13) to the release scripts and workflows; letter H37 (2026-11-18): every
 gate runs locally (`bun run gate`), CI only publishes. `tests/accepted-changes.json` lists the 25
-v3.0.4 tests these changes fail, for 3.1.0 (`accept-3.1.0`, 2026-11-18).
+v3.0.4 tests these changes fail (`accept-3.1.0`, 2026-11-18). The level is **4.0.0** (owner,
+2026-11-18): the compatibility gate reads `readBinary`'s new optional parameter as a changed
+declaration, a major (rule H6); CHANGELOG § 4.0.0.
