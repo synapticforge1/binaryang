@@ -3,14 +3,12 @@
 Updated: 2026-11-18, during the 4.0.0 release
 
 ## Version
-- Released: 3.0.4 on 2026-11-11 (JSR and npm, provenance on both)
-- Releasing: **4.0.0** (owner, 2026-11-18: "release"; level 4.0.0, the gate's floor is MAJOR —
-  readBinary's changed declaration). CHANGELOG § 4.0.0
-- Working branch: `main` (review-310 merged)
+- Released: **4.0.0 on 2026-11-18** (JSR and npm, provenance on both; release.md § 4.0.0)
+- Its publish.yml run 44412712388 is RED in npm's provenance read-back only (npm lagged ~4 min)
+- Working branch: `main`
 
 ## Now
-- The release review is COMPLETE at ad49dee73 (review-issues.md: `review-complete:`)
-- Then: push `main` unbumped, `bun run bump major`, `bun run release`, watch publish.yml
+- 4.0.0 is out; the release review is COMPLETE at ad49dee73
 - H38 steps 1–3 and 7 are done; steps 4–6 open
 
 ## Review
@@ -20,11 +18,12 @@ Updated: 2026-11-18, during the 4.0.0 release
   pending: the other four
 
 ## Next
-1. Finish the 4.0.0 release; record it in release.md § "Release History"
+1. The npm provenance poll window (open-work, top): widen, test, review, next release
 2. H38 steps 4–6: archive closed items, split the 19 files over 25 KB, wrap long lines
 3. The carried issues C-H2…C-R2-5 (review-issues.md), when the owner opens them
 
 ## Waiting on owner
+- "Re-run failed jobs" on publish.yml run 44412712388 (web UI): skips the publish, turns it green
 - The ★ best-practices copy (held by letter H38)
 
 ## Read next
