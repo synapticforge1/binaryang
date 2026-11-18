@@ -46,15 +46,21 @@ import {
   makeErrorList,
   NESTING_TOO_DEEP,
 } from '../core/error.ts';
-import { FidelityTable } from './fidelity.ts';
+import { FidelityTable, type NodeId } from './fidelity.ts';
 import type { WasmModule } from './module.ts';
 import { type Expression, ExpressionKind, type RegionExpr } from './expressions.ts';
-import { mapChildrenShallow } from './walk.ts';
+import { mapChildrenShallow, visitChildren } from './walk.ts';
 import { requireIndex, type Var, varIndex } from './ir.ts';
 import { Type } from '../core/types.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { None, Unreachable } from './types.ts';
-import { MAX_SHARED_SLACK, moduleLimitProblem } from './nesting.ts';
+import {
+  DATA_SHARED_SLACK,
+  dataExpands,
+  dataWork,
+  moduleLimitProblem,
+  regionsOf,
+} from './nesting.ts';
 
 /**
  * Thrown when a module cannot be written: a reference that names nothing, a
@@ -84,6 +90,8 @@ export function writeWasm(m: WasmModule): Uint8Array {
   // pass's output) reaches here unchecked.
   const over = moduleLimitProblem(m);
   if (over !== undefined) throw new WasmEncodeError(over);
+  const twice = sharedName(m);
+  if (twice !== undefined) throw new WasmEncodeError(`cannot write the module: ${twice}`);
   // The resolve step is inside `writing` too: it is where a deeply nested
   // module first runs out of stack (~400 blocks), and it escaped as a bare
   // RangeError (open-work 13).
@@ -111,6 +119,8 @@ export function writeWasm(m: WasmModule): Uint8Array {
 export function writeWat(m: WasmModule): string {
   const over = moduleLimitProblem(m);
   if (over !== undefined) throw new WasmEncodeError(over);
+  const twice = sharedName(m);
+  if (twice !== undefined) throw new WasmEncodeError(`cannot write the module: ${twice}`);
   return writing(() => {
     const copy = resolvedCopy(m);
     labelsToDepths(copy);
@@ -430,6 +440,71 @@ function checkForWriting(m: WasmModule): void {
   }
 }
 
+/**
+ * Two definitions of one kind with ONE name — one object listed twice, or a copy spread from
+ * one — or two exports of one name, or `undefined`. A reference by name could mean either: 🔧
+ * the binary writer bound it to the first, the bundler to the last, so bundling changed which
+ * body ran; and the text did not read back ("duplicate func $f") (security review round 3,
+ * class 1, fourteenth and fifteenth retests). Every writer and the bundler refuse it.
+ */
+export function sharedName(m: WasmModule): string | undefined {
+  // Imports share their kind's names with the definitions: 🔧 an import and a function both
+  // named $g bound `call $g` to the import in the writer and to the function in the bundler
+  // (security review round 3, class 1, sixteenth retest).
+  const imported = <K extends string>(key: K) =>
+    m.imports.flatMap((
+      i,
+    ) => (key in i ? [(i as unknown as Record<K, { name?: string }>)[key]] : []));
+  const kinds: [string, readonly { name?: string }[]][] = [
+    ['functions', [...imported('func'), ...m.functions]],
+    ['globals', [...imported('global'), ...m.globals]],
+    ['tables', [...imported('table'), ...m.tables]],
+    ['memories', [...imported('memory'), ...m.memories]],
+    ['tags', [...imported('tag'), ...m.tags]],
+    ['data segments', m.dataSegments],
+    ['element segments', m.elements],
+    ['exports', m.exports],
+  ];
+  for (const [what, list] of kinds) {
+    const seen = new Set<string>();
+    for (const x of list) {
+      if (x.name === undefined || x.name === '') continue;
+      if (seen.has(x.name)) return `two ${what} are both named ${x.name}`;
+      seen.add(x.name);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Each node of the (tree) copy its OWN fidelity entry: a node whose `nodeId` another already
+ * carries — a reused node's copies, or a node spread (`{ ...e }`) and edited through the API —
+ * gets a fresh id holding a copy of the entry. Resolving records into the entry per node, so
+ * otherwise the last node resolved set it for all: 🔧 an edited copy's `select` result type was
+ * written for the untouched original, which then did not validate (security review round 3,
+ * class 1, thirteenth retest).
+ */
+function oneEntryPerNode(m: WasmModule): void {
+  // EXPRESSION nodes only: elsewhere one id on two objects is the reader's own (a type and what
+  // records it), and the writer finds them by it — renumbered, a struct module grew 18 bytes.
+  const seen = new Set<NodeId>();
+  const stack: Expression[] = [];
+  for (const r of regionsOf(m)) stack.push(r);
+  while (stack.length > 0) {
+    const e = stack.pop()!;
+    const node = e as { nodeId?: NodeId };
+    if (node.nodeId !== undefined) {
+      if (seen.has(node.nodeId)) {
+        const entry = m.fidelity.get(node.nodeId);
+        const id = m.fidelity.mint();
+        if (entry !== undefined) m.fidelity.set(id, { ...entry });
+        node.nodeId = id;
+      } else seen.add(node.nodeId);
+    }
+    visitChildren(e, (c) => stack.push(c));
+  }
+}
+
 /** A copy of `m` with references resolved to indices and every type use named. */
 function resolvedCopy(m: WasmModule): WasmModule {
   // A DEFINED global must have its initializer: the format has no spelling for
@@ -443,6 +518,7 @@ function resolvedCopy(m: WasmModule): WasmModule {
     }
   }
   const copy = copyModule(m);
+  oneEntryPerNode(copy);
   for (const f of copy.functions) nameTheFrame(f);
   // A passive or declared segment has no table or memory: the binary spells
   // none, and the encoder never read one. binaryen-ts's WAT parser and the API
@@ -515,25 +591,37 @@ function sigilEntityNames(m: WasmModule): void {
  * A structural copy of `m`: every array, object, `Map` and `Set` new, the
  * fidelity table cloned, byte payloads shared (nothing here writes into them).
  */
+/**
+ * A full structural copy of `m`, PER PATH: an object reached along two paths is copied twice,
+ * so the copy is a tree — each use its own node, for a stage that rewrites in place (each copy
+ * is resolved, or relocated, in its own place). Every array, object, `Map` and `Set` is new; the
+ * fidelity table cloned; byte payloads shared. Its cost is what `moduleLimitProblem` bounds
+ * first (`heldDataProblem`: the module's data as walked per path, in {@link dataWork}
+ * entries); the copy keeps the same bound itself, for a module changed after that check.
+ * 🔧 Counting objects alone, one shared array of a million `i32`s as the type of 100 blocks
+ * copied 1e8 entries (4.2 s, 3.5 GB) as 101 objects — class 1's fourth retest, 2026-11-15.
+ */
+export function unsharedCopy(m: WasmModule): WasmModule {
+  return copyModule(m);
+}
+
 function copyModule(m: WasmModule): WasmModule {
-  // A full copy: an object reached along two paths is copied twice (each copy is resolved in its
-  // own place). That expansion is bounded as `moduleLimitProblem` bounds the expressions'
-  // (security review round 3, class 1): any object — a location, the section layout, not only an
-  // expression — reached so often that the copy passes twice the distinct objects plus
-  // MAX_SHARED_SLACK stops the copy, typed, instead of running away.
   const distinct = new Set<object>();
+  let held = 0;
   let copied = 0;
   const copy = (v: unknown): unknown => {
     if (v === null || typeof v !== 'object') return v;
-    if (v instanceof Uint8Array) return v;
-    if (v instanceof FidelityTable) return v.clone();
-    distinct.add(v);
-    if (++copied > 2 * distinct.size + MAX_SHARED_SLACK) {
-      throw new WasmEncodeError(
-        `cannot write the module: objects shared by reference expand its copy past ${copied} ` +
-          `from ${distinct.size} distinct (the limit: twice the distinct, plus ${MAX_SHARED_SLACK})`,
-      );
+    const work = dataWork(v);
+    if (!distinct.has(v)) {
+      distinct.add(v);
+      held += work;
     }
+    copied += work;
+    if (copied > 2 * held + DATA_SHARED_SLACK) {
+      throw new WasmEncodeError(`cannot write the module: ${dataExpands(copied, held)}`);
+    }
+    if (ArrayBuffer.isView(v)) return v; // bytes are shared: nothing here writes into them
+    if (v instanceof FidelityTable) return v.clone();
     if (Array.isArray(v)) return v.map(copy);
     if (v instanceof Map) return new Map([...v].map(([k, x]) => [k, copy(x)]));
     if (v instanceof Set) return new Set([...v].map(copy));

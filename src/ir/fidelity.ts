@@ -218,6 +218,11 @@ export class FidelityTable {
     return this.#entries.size;
   }
 
+  /** Every recorded entry: for measuring what a module holds (`ir/nesting.ts`). */
+  entryValues(): FidelityEntry[] {
+    return [...this.#entries.values()];
+  }
+
   /**
    * An independent copy: the same ids and entries, the same next id. Entries
    * are shared, which is safe because {@link set} REPLACES an entry and never

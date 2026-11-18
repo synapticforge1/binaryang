@@ -50,6 +50,7 @@
     "@std/assert": "npm:@jsr/std__assert@1.0.19",
     "@std/expect": "npm:@jsr/std__expect@1.0.19",
     "@types/node": "~22.18.0",
+    "deno": "2.9.6",
     "dprint": "0.57.4",
     "playwright": "1.63.0",
     "typescript": "7.0.2"

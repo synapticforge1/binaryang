@@ -1534,17 +1534,6 @@ export class TypeChecker {
   }
 
   /**
-   * `br_on_cast` / `br_on_cast_fail`. Input is `[t* rt1]`, the branch target
-   * takes `[t* rt2]`, and the fallthrough keeps `[t* rt1\rt2]` (the two
-   * reference types trade places for the `_fail` spelling).
-   *
-   * Like `ref.test` / `ref.cast`, this is checked at the COARSE `Type.Ref`
-   * shape — wabt-ts's flat type lattice cannot express GC subtyping, so
-   * every reference type is interchangeable here and V8 does the precise
-   * check. The stack ARITY is still enforced exactly, which is what catches
-   * the mistakes this validator can catch.
-   */
-  /**
    * `br_on_cast` / `br_on_cast_fail`. Input is `[t* rt1]`; the branch takes
    * `[t* rt2]` and the fallthrough keeps `[t* rt1\\rt2]` — the two reference
    * types trade places for the `_fail` spelling.

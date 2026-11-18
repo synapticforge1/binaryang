@@ -28,6 +28,7 @@
  */
 
 import type { Expression } from './expressions.ts';
+import { FidelityTable } from './fidelity.ts';
 import type { Module } from './ir.ts';
 import { visitChildren } from './walk.ts';
 
@@ -117,7 +118,7 @@ export function tooDeep(root: Expression | undefined): boolean {
  * and the same fields of what it IMPORTS (a `Func`, `Global` or `Table` import may carry them, and
  * the writers copy them: the second class-1 retest hung a shared subtree there).
  */
-function* regionsOf(m: Module): Generator<Expression> {
+export function* regionsOf(m: Module): Generator<Expression> {
   for (const f of m.functions) yield f.body;
   for (const g of m.globals) if (g.init !== undefined) yield g.init;
   for (const t of m.tables) if (t.init !== undefined) yield t.init;
@@ -138,9 +139,16 @@ function* regionsOf(m: Module): Generator<Expression> {
   }
 }
 
-/** A node's remembered measure: its expanded size × 512 + its height (height ≤ 257 here). */
+/**
+ * A node's remembered measure: its expanded size × 512 + its height (height ≤ 257 here). Sizes
+ * saturate at 2^40 — far past any bound, so nothing that big is ever accepted — which keeps the
+ * packed number under 2^53, exact: 🔧 unsaturated, a 2^52 expansion lost its height and was
+ * refused in the depth limit's words (class 1's third retest, 2026-11-15).
+ */
 const PENDING = -1;
-const pack = (size: number, height: number) => size * 512 + height;
+const SIZE_CAP = 2 ** 40;
+const capped = (size: number) => (size > SIZE_CAP ? SIZE_CAP : size);
+const pack = (size: number, height: number) => capped(size) * 512 + height;
 const sizeOf = (v: number) => Math.floor(v / 512);
 const heightOf = (v: number) => v % 512;
 
@@ -160,6 +168,10 @@ function measure(
   const next: number[] = [0];
   const size: number[] = [1];
   const height: number[] = [0];
+  // The LEVELS on the path so far — regions are not levels — so a walk stops as soon as it is past
+  // the limit, by the same count the heights use. 🔧 It counted the stack, regions included, so a
+  // nest of `if`s (a region per arm) stopped at ~129 though its height was within 256.
+  const levels: number[] = [root.kind === 'region' ? 0 : 1];
   const childrenOf = (e: Expression) => {
     const out: Expression[] = [];
     visitChildren(e, (c) => out.push(c));
@@ -169,35 +181,38 @@ function measure(
   memo.set(root, PENDING);
   while (nodes.length > 0) {
     const top = nodes.length - 1;
-    // A region (a function body) is not a level; every other node is one.
-    if (nodes.length > MAX_NESTING_DEPTH + 2) return 'deep';
     if (next[top]! < kids[top]!.length) {
       const c = kids[top]![next[top]!++]!;
       const m = memo.get(c);
       if (m === PENDING) return 'cycle';
       if (m !== undefined) {
-        size[top]! += sizeOf(m);
+        size[top] = capped(size[top]! + sizeOf(m));
         height[top] = Math.max(height[top]!, heightOf(m));
         continue;
       }
+      // A region (a function body, an arm) is not a level; every other node is one.
+      const level = levels[top]! + (c.kind === 'region' ? 0 : 1);
+      if (level > MAX_NESTING_DEPTH) return 'deep';
       memo.set(c, PENDING);
       nodes.push(c);
       kids.push(childrenOf(c));
       next.push(0);
       size.push(1);
       height.push(0);
+      levels.push(level);
       continue;
     }
     const e = nodes.pop()!;
     kids.pop();
     next.pop();
+    levels.pop();
     const s = size.pop()!;
     const h = height.pop()! + (e.kind === 'region' ? 0 : 1);
     if (h > MAX_NESTING_DEPTH) return 'deep';
     memo.set(e, pack(s, h));
     if (nodes.length > 0) {
       const p = nodes.length - 1;
-      size[p]! += s;
+      size[p] = capped(size[p]! + s);
       height[p] = Math.max(height[p]!, h);
     } else return [s, h];
   }
@@ -211,16 +226,238 @@ function measure(
  * visited once: a subtree shared between functions is measured as surely as one within a function.
  */
 export function moduleLimitProblem(m: Module): string | undefined {
+  return moduleShape(m).problem;
+}
+
+/** What {@link modulesShape} finds. */
+export interface ModuleShape {
+  /** The limit passed, in its own words, or `undefined`. */
+  problem?: string;
+  /** Expression nodes as walked, and distinct: `walked > distinct` when a node is reused. */
+  walked: number;
+  distinct: number;
+}
+
+/** The module's {@link moduleLimitProblem}, with its expression nodes as walked and distinct. */
+export function moduleShape(m: Module): ModuleShape {
+  return modulesShape([m]);
+}
+
+/**
+ * {@link moduleShape} for several modules TOGETHER — one call's inputs (the bundler's): what they
+ * share between them is measured once, so one module given as many inputs is bounded by what it
+ * holds, not by how many times it is given (class 1's eighth retest).
+ */
+export function modulesShape(ms: readonly Module[]): ModuleShape {
   const memo = new Map<Expression, number>();
   let walked = 0;
-  for (const r of regionsOf(m)) {
-    const res = measure(r, memo);
-    if (res === 'deep') return NESTING_OVER_LIMIT;
-    if (res === 'cycle') return EXPRESSION_CYCLE;
-    walked += res[0];
+  for (const m of ms) {
+    for (const r of regionsOf(m)) {
+      const res = measure(r, memo);
+      if (res === 'deep') return { problem: NESTING_OVER_LIMIT, walked, distinct: memo.size };
+      if (res === 'cycle') return { problem: EXPRESSION_CYCLE, walked, distinct: memo.size };
+      walked += res[0];
+    }
   }
   const distinct = memo.size;
-  return walked > 2 * distinct + MAX_SHARED_SLACK ? subtreesExpand(walked, distinct) : undefined;
+  if (walked > 2 * distinct + MAX_SHARED_SLACK) {
+    return { problem: subtreesExpand(walked, distinct), walked, distinct };
+  }
+  const data = heldData(ms);
+  return data.problem === undefined
+    ? { walked, distinct }
+    : { problem: data.problem, walked, distinct };
+}
+
+/**
+ * The slack for EVERYTHING a module holds, not only its expressions, in ENTRIES (an object and
+ * each field, element or entry it holds — {@link dataWork}): an expression node is several (a
+ * constant is the node and its value; a `br_table` holds its targets), so the expression bound's
+ * {@link MAX_SHARED_SLACK} is scaled by 8. 🔧 At 16× a refusal took 6.5 s on V8 to reach (class
+ * 1's third retest, 2026-11-15).
+ */
+export const DATA_SHARED_SLACK = 8 * MAX_SHARED_SLACK;
+
+/** The refusal of shared data — a type list, a location, any object — expanded past the bound. */
+export function dataExpands(walked: number, held: number): string {
+  return `objects shared by reference expand the module to ${walked} entries as walked, ` +
+    `from ${held} held (the limit: twice the held, plus ${DATA_SHARED_SLACK})`;
+}
+
+/** The refusal of a sparse array: its `length` says more than it holds, and a copy fills it. */
+export const SPARSE_ARRAY =
+  'an array in the module has a hole (a sparse array): its length is not what it holds';
+
+/**
+ * The refusal of a number no WebAssembly value needs: every `bigint` the IR holds is 64 bits
+ * (an `i64`, an `f64`'s bits, a memory offset). 🔧 One million-bit `i64.const` value under 200
+ * functions cost `writeWat` 9.2 s, written per use and counted as nothing (class 1's seventh
+ * retest, 2026-11-15).
+ */
+export const WIDE_NUMBER =
+  'a number in the module is wider than 64 bits, as no WebAssembly value is';
+const WIDEST = 1n << 64n;
+
+/**
+ * How deep a module's DATA may nest, object in object: six objects per expression level under
+ * {@link MAX_NESTING_DEPTH}. The deepest level is a `try` in a `catch` — the try, its `catches`,
+ * the catch, its body, the body's list: five (🔧 at four, plain trees of 210 such levels, under the
+ * nesting limit, were refused: the review of class 1's fixes, 2026-11-15); an `if` is three, a
+ * block two. The copies (the writers', the optimizer's unshare) recurse once per object, so this
+ * bounds them as the nesting limit bounds the stages: V8 ran a copy out of stack near 2,750 (🔧 a
+ * chain of 100,000 plain objects hung on a reused node did, a bare RangeError: class 1's tenth
+ * retest). Kept under 2,048, the packed memo's height field.
+ */
+export const MAX_DATA_DEPTH = 6 * MAX_NESTING_DEPTH;
+
+/** The refusal of data nested past {@link MAX_DATA_DEPTH}. */
+export const DATA_TOO_DEEP =
+  `the module's data nests deeper than ${MAX_DATA_DEPTH} objects, binaryang's limit on every runtime`;
+
+/** The refusal of a cycle through data that is not an expression. */
+export const DATA_CYCLE =
+  'an object in the module contains itself (a cycle): no copy of it can end';
+
+/**
+ * What visiting, copying or writing `v` once costs: the object and each entry it holds; a byte
+ * view, its bytes (shared by the copy, but written once per use); a fidelity table, its entries
+ * and its empty rec groups (the clone copies both). 🔧 A shared `Uint8Array` as the data of 64
+ * segments wrote 537 MB from 8 MB held; a table's rec groups, cloned per path, went uncounted;
+ * a `Uint16Array` was walked an element at a time, 4.8 s at 5M (class 1's sixth retest).
+ */
+export function dataWork(v: object): number {
+  if (ArrayBuffer.isView(v)) return 1 + v.byteLength;
+  if (Array.isArray(v)) return 1 + v.length;
+  if (v instanceof Map || v instanceof Set) return 1 + v.size;
+  if (v instanceof FidelityTable) return 1 + v.size + v.emptyRecGroups.length;
+  return 1 + Object.keys(v).length;
+}
+
+/**
+ * A string's length past this is work, counted wherever it is used: a string is a value, so one
+ * held once and used a million times cannot be told from a million strings — but its bytes are
+ * written per use (🔧 one 4 MB export name under 100 exports wrote 419 MB: class 1's sixth
+ * retest). Names up to this long are free — far past any real name — so text that calls a long
+ * name many times costs nothing extra (🔧 at 256, a WAT module calling one 1,000-character name
+ * 20,000 times was refused, though the text held every copy: the review of class 1's fixes);
+ * past it, a string costs what it writes, bounded with everything else.
+ */
+export const FREE_STRING_LENGTH = 65_536;
+const stringWork = (
+  s: string,
+) => (s.length > FREE_STRING_LENGTH ? s.length - FREE_STRING_LENGTH : 0);
+
+/** The values `v` holds, or `'sparse'` at its first hole (so the scan costs what is held). */
+function dataChildren(v: object): unknown[] | 'sparse' {
+  if (ArrayBuffer.isView(v)) return []; // a leaf: its bytes are its work
+  if (Array.isArray(v)) {
+    for (let i = 0; i < v.length; i++) if (!(i in v)) return 'sparse';
+    return v;
+  }
+  if (v instanceof Map || v instanceof Set) return [...v.values()];
+  if (v instanceof FidelityTable) return v.entryValues();
+  return Object.values(v);
+}
+
+/**
+ * What is wrong with the DATA a module holds, every object in it and not only the expressions:
+ * a sparse array, a cycle, or objects shared so widely that a walk or a copy per path passes
+ * twice what is held plus {@link DATA_SHARED_SLACK}. Each distinct object's expanded work is
+ * remembered, so the check costs what the module holds. 🔧 Only expressions were measured, so one
+ * shared array of a million types under 160 blocks cost an optimizer run 3.8 s and 8.8 GB, and a
+ * one-entry array at index 4e8 ran the writer's copy out of memory (class 1's fifth retest,
+ * 2026-11-15).
+ */
+export function heldDataProblem(m: Module): string | undefined {
+  return heldData(m).problem;
+}
+
+/** {@link heldDataProblem}'s walk from any root: the problem, the work as walked, and as held. */
+function heldData(root: object): { problem?: string; total: number; held: number } {
+  const r = heldDataWalk(root);
+  return typeof r === 'string' ? { problem: r, total: 0, held: 0 } : r;
+}
+
+function heldDataWalk(root: object): string | { problem?: string; total: number; held: number } {
+  // Each finished object's expanded WORK and HEIGHT (itself and the deepest chain under it),
+  // packed in one number (work ≤ 2^40, height ≤ MAX_DATA_DEPTH < 2048), so one reached again by
+  // a deeper path is held to the depth limit there too. 🔧 Depth was checked on the path that
+  // found an object first, so chains of chains, each found shallow, nested 40,000 deep under the
+  // limit and ran the copies out of stack (class 1's eleventh retest, 2026-11-15).
+  const memo = new Map<object, number>();
+  const strings = new Set<string>();
+  let held = 0;
+  const objects: object[] = [];
+  const kids: unknown[][] = [];
+  const next: number[] = [];
+  const work: number[] = [];
+  const heights: number[] = [];
+  const enter = (v: object): string | undefined => {
+    if (objects.length >= MAX_DATA_DEPTH) return DATA_TOO_DEEP;
+    const c = dataChildren(v);
+    if (c === 'sparse') return SPARSE_ARRAY;
+    const w = dataWork(v);
+    held += w;
+    memo.set(v, PENDING);
+    objects.push(v);
+    kids.push(c);
+    next.push(0);
+    work.push(w);
+    heights.push(1);
+    return undefined;
+  };
+  const first = enter(root);
+  if (first !== undefined) return first;
+  let total = 0;
+  while (objects.length > 0) {
+    const top = objects.length - 1;
+    if (next[top]! < kids[top]!.length) {
+      const c = kids[top]![next[top]!++];
+      if (typeof c === 'string') {
+        // Counted per use; the held side counts each distinct long string once.
+        const w = stringWork(c);
+        if (w > 0) {
+          work[top] = capped(work[top]! + w);
+          if (!strings.has(c)) {
+            strings.add(c);
+            held += w;
+          }
+        }
+        continue;
+      }
+      if (typeof c === 'bigint') {
+        if (c >= WIDEST || c <= -WIDEST) return WIDE_NUMBER;
+        continue;
+      }
+      if (c === null || typeof c !== 'object') continue;
+      const known = memo.get(c);
+      if (known === PENDING) return DATA_CYCLE;
+      if (known !== undefined) {
+        const h = known % 2048;
+        if (objects.length + h > MAX_DATA_DEPTH) return DATA_TOO_DEEP;
+        work[top] = capped(work[top]! + Math.floor(known / 2048));
+        heights[top] = Math.max(heights[top]!, h + 1);
+        continue;
+      }
+      const p = enter(c);
+      if (p !== undefined) return p;
+      continue;
+    }
+    const v = objects.pop()!;
+    kids.pop();
+    next.pop();
+    const w = work.pop()!;
+    const h = heights.pop()!;
+    memo.set(v, capped(w) * 2048 + h);
+    if (objects.length > 0) {
+      const p = objects.length - 1;
+      work[p] = capped(work[p]! + w);
+      heights[p] = Math.max(heights[p]!, h + 1);
+    } else total = w;
+  }
+  return total > 2 * held + DATA_SHARED_SLACK
+    ? { problem: dataExpands(total, held), total, held }
+    : { total, held };
 }
 
 /** Whether `m` is past a limit ({@link moduleLimitProblem}). */

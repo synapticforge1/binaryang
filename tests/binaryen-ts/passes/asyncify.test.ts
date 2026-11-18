@@ -335,6 +335,19 @@ const PASS_OPTIONS = (passArgs: Record<string, string>): PassOptions => ({
   partialInliningIfs: 0,
 });
 
+test('Asyncify — an import named after an Object.prototype key is unidentified, not a host function', () => {
+  // 🔧 the field is the input's: "toString" came back as a host function's source text and
+  // became an IR name (security review round 4, A1)
+  for (const field of ['toString', 'constructor', '__proto__', 'hasOwnProperty', 'valueOf']) {
+    const m = readWat(`(module (import "asyncify" "${field}" (func (param i32))))`);
+    assertThrows(
+      () => resolveAsyncifyImports(m),
+      Error,
+      `unidentified asyncify import "asyncify.${field}"`,
+    );
+  }
+});
+
 test('Asyncify — the bottom-most runtime is a propagation barrier (TinyGo 0.43)', () => {
   const m = readWat(BOTTOM_MOST);
   resolveAsyncifyImports(m);

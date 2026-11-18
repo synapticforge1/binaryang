@@ -75,7 +75,7 @@
  * @license MIT
  */
 
-import { invalidity, readForPasses } from '../ir/prepare.ts';
+import { invalidity, readForPasses, readValidForPasses } from '../ir/prepare.ts';
 import { writeWasm } from '../ir/write-wasm.ts';
 import {
   asRegion,
@@ -118,7 +118,7 @@ import {
   type WasmFunction,
   type WasmModule,
 } from '../ir/module.ts';
-import type { ExprType } from '../ir/ir.ts';
+import type { ExprType, TypeEntry } from '../ir/ir.ts';
 import { None, Unreachable, ValType } from '../ir/types.ts';
 import { AbstractHeapType, isRefType, type ValueType } from '../ir/gc-types.ts';
 import { createPass, listPasses as _listPasses, PassRunner } from '../passes/index.ts';
@@ -275,7 +275,7 @@ const _ID_TO_VAL: Record<number, ValType> = {
  * an unrecognized ID, so an approximate ID can never re-enter the encoder and
  * become a wrong function signature.
  */
-function _valTypeToId(t: ValueType | undefined): number {
+function _valTypeToId(t: ValueType | undefined, types: readonly TypeEntry[] = []): number {
   if (t === undefined) return none;
   if (isRefType(t)) {
     const h = t.heapType;
@@ -284,6 +284,13 @@ function _valTypeToId(t: ValueType | undefined): number {
       (h.name === AbstractHeapType.Func || h.name === AbstractHeapType.NoFunc)
     ) {
       return funcref;
+    }
+    // A DEFINED type: its kind decides the hierarchy — a function type is under `func`, not
+    // `any`. 🔧 Every `(ref null $T)` was reported as `anyref`, a func ref too, fooling a caller
+    // testing `=== funcref` (security review round 4, R1-3).
+    if (h.kind === 'index' || h.kind === 'name') {
+      const def = h.kind === 'index' ? types[h.value] : types.find((d) => d.name === h.name);
+      if (def?.kind === 'func') return funcref;
     }
     if (
       h.kind === 'abstract' &&
@@ -1190,10 +1197,14 @@ export class Module {
    */
   getFunction(name: string): WasmFunction | null {
     const defined = this._inner.functions.find((f) => f.name === name);
-    if (defined !== undefined) return defined;
+    if (defined !== undefined) {
+      _functionModule.set(defined, this._inner);
+      return defined;
+    }
     for (const imp of this._inner.imports) {
       if (imp.kind === ExternalKind.Func && imp.func.name === name) {
         _importedFunctions.set(imp.func, { module: imp.module, base: imp.field });
+        _functionModule.set(imp.func, this._inner);
         return imp.func;
       }
     }
@@ -1674,9 +1685,24 @@ function runTyped(module: Module, what: string, run: () => void): void {
 // Namespace-level functions matching upstream binaryen.js
 // ---------------------------------------------------------------------------
 
-/** Parses `.wasm` bytes into a {@link Module}. */
-export function readBinary(bytes: Uint8Array): Module {
-  const m = new Module(readForPasses(bytes));
+/** Options to {@link readBinary} beyond upstream's. */
+export interface ReadBinaryOptions {
+  /**
+   * Validate the bytes first, refusing an invalid module in the validator's words
+   * (`WasmBinaryError`) before anything acts on it. OFF by default, as upstream's `readBinary`,
+   * which decodes structure only: a type-invalid module is then read, optimized and written out
+   * without an error, and is diagnosed only if a pass stops on it ({@link OptimizeError}).
+   * Added on the owner's word (security review round 4, R1-4: "stay upstream compatible and add
+   * the validate option").
+   */
+  validate?: boolean;
+}
+
+/** Parses `.wasm` bytes into a {@link Module}; `{ validate: true }` refuses an invalid one. */
+export function readBinary(bytes: Uint8Array, options: ReadBinaryOptions = {}): Module {
+  const m = new Module(
+    options.validate === true ? readValidForPasses(bytes) : readForPasses(bytes),
+  );
   SOURCES.set(m, bytes.slice());
   return m;
 }
@@ -1743,6 +1769,13 @@ export interface FunctionInfo {
 const _importedFunctions = new WeakMap<WasmFunction, { module: string; base: string }>();
 
 /**
+ * The module each function handle came from: its `types`, read at call time, say what a `$T`
+ * means. 🔧 The types ARRAY was kept, and a pass (remove-unused-types) replaces and renumbers it,
+ * so a handle taken before the pass reported its params swapped (the review of round 4's batch 1).
+ */
+const _functionModule = new WeakMap<WasmFunction, WasmModule>();
+
+/**
  * Returns inspection info for a function handle, defined or imported, shaped as
  * binaryen.js's: `params` and `results` each ONE packed type ({@link createType}
  * — `none`, a single type, or an array standing in for a tuple ID).
@@ -1758,16 +1791,18 @@ const _importedFunctions = new WeakMap<WasmFunction, { module: string; base: str
  * handle at all, so these were always `""` — open-work 52 (a).)
  */
 export function getFunctionInfo(func: WasmFunction): FunctionInfo {
-  const results = func.sig.results.map(_valTypeToId);
+  const types = _functionModule.get(func)?.types ?? [];
+  const id = (t: ValueType) => _valTypeToId(t, types);
+  const results = func.sig.results.map(id);
   const imported = _importedFunctions.get(func);
   return {
     name: func.name,
     module: imported?.module ?? '',
     base: imported?.base ?? '',
     type: createType(results),
-    params: createType(func.sig.params.map(_valTypeToId)),
+    params: createType(func.sig.params.map(id)),
     results: createType(results),
-    vars: func.locals.slice(func.sig.params.length).map((l) => _valTypeToId(l.type)),
+    vars: func.locals.slice(func.sig.params.length).map((l) => id(l.type)),
     body: func.body,
   };
 }

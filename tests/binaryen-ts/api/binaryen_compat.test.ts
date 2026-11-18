@@ -243,6 +243,55 @@ test('getFunctionInfo packs params and results as binaryen.js does', () => {
   assertEquals(binaryen.expandType(info('$two').results), [binaryen.i32, binaryen.i64]);
 });
 
+test('a reference to a defined FUNCTION type is reported as funcref, a struct as anyref', () => {
+  // 🔧 Every `(ref null $T)` was `anyref`, a func ref too (security review round 4, R1-3).
+  const mod = binaryen.readBinary(
+    new Uint8Array(
+      wat2wasm(`(module (type $f (func)) (type $s (struct))
+      (func $g (param (ref null $f) (ref null $s) externref)))`).binary,
+    ),
+  );
+  const f = mod.getFunction('$g');
+  if (!f) throw new Error('function $g not found');
+  assertEquals(binaryen.expandType(binaryen.getFunctionInfo(f).params), [
+    binaryen.funcref,
+    binaryen.anyref,
+    binaryen.externref,
+  ]);
+});
+
+test('a handle taken before a pass renumbers the types still reports its params right', () => {
+  // the review of round 4's batch 1: the handle kept the OLD types array
+  const mod = binaryen.readBinary(
+    new Uint8Array(
+      wat2wasm(`(module (type $u (struct (field i32))) (type $f (func)) (type $s (struct))
+      (func $g (param (ref null $f) (ref null $s))))`).binary,
+    ),
+  );
+  const g = mod.getFunction('$g');
+  if (!g) throw new Error('function $g not found');
+  const want = [binaryen.funcref, binaryen.anyref];
+  assertEquals(binaryen.expandType(binaryen.getFunctionInfo(g).params), want);
+  mod.runPasses(['remove-unused-types']); // drops $u: every index shifts
+  assertEquals(binaryen.expandType(binaryen.getFunctionInfo(g).params), want);
+});
+
+test('readBinary validates only when asked: upstream reads an invalid module, { validate: true } refuses it', () => {
+  // round 4, R1-4: off by default, as upstream; `i64.const` returned as an i32 is invalid
+  const invalid = new Uint8Array(
+    wat2wasm('(module (func (export "f") (result i32) (i64.const 1)))').binary,
+  );
+  assertEquals(typeof binaryen.readBinary(invalid).emitBinary, 'function'); // read, as upstream
+  let said = 'accepted';
+  try {
+    binaryen.readBinary(invalid, { validate: true });
+  } catch (e) {
+    said = (e as Error).message;
+  }
+  assert(/type mismatch|expected|i32|i64/.test(said) && said !== 'accepted', said);
+  assertEquals(typeof binaryen.readBinary(ADD_MODULE, { validate: true }).emitBinary, 'function');
+});
+
 test('getFunction returns null for missing name', () => {
   const mod = binaryen.readBinary(ADD_MODULE);
   assertEquals(mod.getFunction('nope'), null);

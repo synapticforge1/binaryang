@@ -59,7 +59,8 @@ import { BinarySection, ExternalKind } from '../core/binary.ts';
 import { Type } from '../core/types.ts';
 import { Result } from '../core/result.ts';
 import { isStackExhausted, type Location, NESTING_TOO_DEEP } from '../core/error.ts';
-import { moduleLimitProblem } from '../ir/nesting.ts';
+import { moduleShape, modulesShape } from '../ir/nesting.ts';
+import { sharedName, unsharedCopy } from '../ir/write-wasm.ts';
 import { ExprVisitor, type ExprVisitorDelegate } from '../ir/expr-visitor.ts';
 import { FidelityTable } from '../ir/fidelity.ts';
 import { unique } from '../ir/made-up-names.ts';
@@ -321,12 +322,21 @@ function lebLength(v: number): number {
   return n;
 }
 
-/** Every instruction node of every function body, by the byte its opcode sat at. */
-function nodesByOffset(m: Module): Map<number, Expr> {
-  const at = new Map<number, Expr>();
+/**
+ * Every instruction node of every function body, by the byte its opcode sat at — ALL of them:
+ * a node reused through the API is copied once per use before this, and every copy keeps the
+ * one location, so each must be relocated. 🔧 One per offset kept only the last copy, and the
+ * other uses of a relocated `i32.const` kept the unmoved address, silently (security review
+ * round 3, class 1, twelfth retest).
+ */
+function nodesByOffset(m: Module): Map<number, Expr[]> {
+  const at = new Map<number, Expr[]>();
   const d: ExprVisitorDelegate = {
     everyExpr(e) {
-      if (e.loc !== undefined && e.kind !== 'pop') at.set(e.loc.offset, e);
+      if (e.loc === undefined || e.kind === 'pop') return;
+      const here = at.get(e.loc.offset);
+      if (here === undefined) at.set(e.loc.offset, [e]);
+      else here.push(e);
     },
   };
   const v = new ExprVisitor(d);
@@ -396,7 +406,9 @@ function linkedSites(
   relocs: Map<BinarySection, RelocEntry[]>,
 ): Sites {
   const sp = spacesOf(m);
-  const at = nodesByOffset(m);
+  const all = nodesByOffset(m);
+  // The node at an offset, for what it IS (every use is the same instruction); `all` for moving.
+  const at = { get: (offset: number): Expr | undefined => all.get(offset)?.[0] };
   const segmentBases = m.dataSegments.map((d) =>
     d.kind === 'active' ? constOffset(d.offset) : undefined
   );
@@ -409,6 +421,14 @@ function linkedSites(
         'The module was rewritten after it was linked (TinyGo runs wasm-opt after wasm-ld; so does any ' +
         'optimizer), so its relocations are stale. Link the object with `wasm-ld --emit-relocs` and bundle ' +
         'that output before optimising.',
+    );
+  };
+  /** Several nodes carry one relocation site's location, and they are not all the same. */
+  const differ = (e: RelocEntry, held: string): never => {
+    throw new BundleError(
+      `${what}: ${relocTypeName(e.type)} at offset 0x${e.offset.toString(16)} is held by ${held} ` +
+        "that differ — a copy made through the API keeps its original's location, so which is the " +
+        'relocated one cannot be told. Give an edited copy a location of its own, or none.',
     );
   };
   const symbol = (e: RelocEntry): LinkingSymbol => {
@@ -439,26 +459,43 @@ function linkedSites(
     switch (e.type) {
       case RelocType.MemoryAddrSleb:
       case RelocType.MemoryAddrRelSleb: {
-        const n = at.get(abs - 1);
-        if (n === undefined || n.kind !== 'const' || n.value.type !== Type.I32) {
-          return stale(e, n === undefined ? 'no instruction there' : `a ${n.kind}`);
+        const here = all.get(abs - 1) ?? [];
+        const consts = here.filter((x) =>
+          x.kind === 'const' && x.value.type === Type.I32
+        ) as ConstExpr[];
+        const n = consts[0];
+        if (n === undefined) {
+          return stale(e, here.length === 0 ? 'no instruction there' : `a ${here[0]!.kind}`);
+        }
+        // Every node carrying this location is moved — each copy of a reused one — so they must
+        // all still BE this instruction: one spread from it and edited carries the location too,
+        // and which of them is the original cannot be told. 🔧 Moving only the copies that
+        // matched the first moved the edited one and left the original pointing into another
+        // input's memory (security review round 3, class 1, fourteenth and fifteenth retests).
+        const i32 = (c: ConstExpr) => (c.value as { value: number }).value;
+        if (consts.length !== here.length || consts.some((c) => i32(c) !== i32(n))) {
+          return differ(e, `${here.length} nodes`);
         }
         const want = expectedAddress(e);
-        if (want !== undefined && n.value.value !== want) {
-          stale(e, `i32.const ${n.value.value}, the symbol says ${want}`);
+        if (want !== undefined && i32(n) !== want) {
+          stale(e, `i32.const ${i32(n)}, the symbol says ${want}`);
         }
         // A `__memory_base`-relative value moves with the base global, not here.
-        if (!relocIsMemoryRel(e.type)) sites.consts.push(n);
+        if (!relocIsMemoryRel(e.type)) pushAll(sites.consts, consts);
         break;
       }
       case RelocType.MemoryAddrLeb: {
         let n: Expr | undefined;
+        let uses: Expr[] = [];
         for (const d of [2, 3, 4]) {
           const c = at.get(abs - d);
           if (c !== undefined && hasMemArg(c)) {
             const op = c.opcode;
             const immediate = (op > 0xff ? 1 + lebLength(op & 0xffff) : 1) + lebLength(c.align);
-            if (immediate === d) n = c;
+            if (immediate === d) {
+              n = c;
+              uses = all.get(abs - d)!;
+            }
           }
         }
         if (n === undefined || !hasMemArg(n)) return stale(e, 'no memory instruction there');
@@ -466,7 +503,11 @@ function linkedSites(
         if (want !== undefined && Number(n.offset) !== (want >>> 0)) {
           stale(e, `offset=${n.offset}, the symbol says ${want >>> 0}`);
         }
-        sites.memargs.push(n);
+        // every copy, all still this instruction (as for a constant above)
+        if (uses.some((u) => !hasMemArg(u) || u.opcode !== n.opcode || u.offset !== n.offset)) {
+          return differ(e, `${uses.length} nodes`);
+        }
+        pushAll(sites.memargs, uses as MemArgExpr[]);
         break;
       }
       case RelocType.FunctionIndexLeb: {
@@ -517,10 +558,15 @@ function linkedSites(
     if (dataMeta === undefined) throw new BundleError(`${what}: reloc.DATA without a data section`);
     sites.entries++;
     const abs = dataMeta.offset + e.offset;
-    const seg = m.dataSegments.find((d) =>
+    // EVERY segment there: one listed twice through the API (copied per use before this, each
+    // copy keeping the location) has its words moved in each. 🔧 `find` took the first, and the
+    // second copy, written after it, overwrote the moved words with unmoved ones (security
+    // review round 3, class 1, thirteenth retest).
+    const segs = m.dataSegments.filter((d) =>
       d.dataLoc !== undefined && abs >= d.dataLoc.offset &&
       abs + 4 <= d.dataLoc.offset + d.data.length
     );
+    const seg = segs[0];
     switch (e.type) {
       case RelocType.MemoryAddrI32: {
         if (seg === undefined || seg.dataLoc === undefined) {
@@ -532,7 +578,13 @@ function linkedSites(
         if (want !== undefined && have !== want) {
           stale(e, `the word is ${have}, the symbol says ${want}`);
         }
-        sites.words.push({ segment: seg, offset });
+        // every copy, all still holding this word (as for a constant in the code)
+        if (
+          segs.some((s) => s.data.length !== seg.data.length || readI32(s.data, offset) !== have)
+        ) {
+          return differ(e, `${segs.length} data segments`);
+        }
+        for (const segment of segs) sites.words.push({ segment, offset });
         break;
       }
       case RelocType.TableIndexI32:
@@ -594,7 +646,11 @@ function guessedSites(m: Module): Sites {
 }
 
 /** Globals whose initializer a `reloc.GLOBAL` entry marks (our assembler's `(@reloc data)`). */
-function markedGlobals(m: Module, relocs: Map<BinarySection, RelocEntry[]>): Set<Global> {
+function markedGlobals(
+  m: Module,
+  relocs: Map<BinarySection, RelocEntry[]>,
+  what: string,
+): Set<Global> {
   const out = new Set<Global>();
   const entries = relocs.get(BinarySection.Global) ?? [];
   if (entries.length === 0) return out;
@@ -604,8 +660,21 @@ function markedGlobals(m: Module, relocs: Map<BinarySection, RelocEntry[]>): Set
     const abs = meta.offset + e.offset;
     // The entry points at the `i32.const` immediate; the global's `loc` is its
     // type byte, so the immediate is at loc + type(1) + mutability(1) + opcode(1).
-    const g = m.globals.find((x) => x.loc !== undefined && x.loc.offset + 3 === abs);
-    if (g !== undefined) out.add(g);
+    // every global there — a reused one is copied per use, each copy keeping the location — all
+    // still holding one initializer: one spread with a new one keeps the location too, and which
+    // is the original cannot be told (class 1's fourteenth and fifteenth retests)
+    const there = m.globals.filter((x) => x.loc !== undefined && x.loc.offset + 3 === abs);
+    const init = (g: Global) => constOffset(g.init as { children: Expr[] } | undefined);
+    if (there.some((g) => init(g) !== init(there[0]!))) {
+      throw new BundleError(
+        `${what}: the global marked at offset 0x${
+          e.offset.toString(16)
+        } is held by ${there.length} ` +
+          "globals that differ — a copy made through the API keeps its original's location, so which " +
+          'is the relocated one cannot be told. Give an edited copy a location of its own, or none.',
+      );
+    }
+    for (const g of there) out.add(g);
   }
   return out;
 }
@@ -625,7 +694,6 @@ interface Prepared {
   relocation: 'linked' | 'guessed' | 'none';
   sites: Sites;
   addressGlobals: Set<Global>;
-  symbolGlobalNames: Map<number, string>;
   dropped: string[];
 }
 
@@ -663,16 +731,17 @@ function prepare(input: BundleInput, options: BundleOptions, warnings: string[])
   let sites: Sites;
   let relocation: Prepared['relocation'];
   const addressGlobals = new Set<Global>();
-  const symbolGlobalNames = new Map<number, string>();
+  // The globals ANY linking symbol names as an address global (several symbols may share one).
+  const addressSymbols = new Set<number>();
   if (linked !== undefined) {
     relocation = 'linked';
     sites = linkedSites(m, what, linked.linking, linked.relocs);
     for (const sym of linked.linking.symbols) {
       if (sym.kind === SymbolKind.Global && sym.index !== undefined && sym.name !== undefined) {
-        symbolGlobalNames.set(sym.index, sym.name);
+        if (ADDRESS_GLOBALS.has(sym.name)) addressSymbols.add(sym.index);
       }
     }
-    for (const g of markedGlobals(m, linked.relocs)) addressGlobals.add(g);
+    for (const g of markedGlobals(m, linked.relocs, what)) addressGlobals.add(g);
   } else if (memory === undefined) {
     relocation = 'none';
     sites = { consts: [], memargs: [], words: [], entries: 0 };
@@ -694,19 +763,22 @@ function prepare(input: BundleInput, options: BundleOptions, warnings: string[])
 
   // The address globals, by every name the module gives them.
   const importedGlobals = m.imports.filter((i) => i.kind === ExternalKind.Global).length;
-  const exportedAs = new Map<string, string>();
+  // By EVERY name: 🔧 one export name per global (the last) left a global exported as both
+  // `__memory_base` and an alias unmoved when the alias came last (security review round 3,
+  // class 1, fourteenth retest).
+  const exportedAsAddress = new Set<string>();
   for (const ex of m.exports) {
-    if (ex.kind === ExternalKind.Global && ex.var.kind === 'name') {
-      exportedAs.set(ex.var.name, ex.name);
+    if (ex.kind === ExternalKind.Global && ex.var.kind === 'name' && ADDRESS_GLOBALS.has(ex.name)) {
+      exportedAsAddress.add(ex.var.name);
     }
   }
   m.globals.forEach((g, i) => {
-    const names = [
-      g.name.replace(/^\$/, ''),
-      symbolGlobalNames.get(importedGlobals + i),
-      exportedAs.get(g.name),
-    ];
-    if (names.some((n) => n !== undefined && ADDRESS_GLOBALS.has(n))) addressGlobals.add(g);
+    if (
+      ADDRESS_GLOBALS.has(g.name.replace(/^\$/, '')) || addressSymbols.has(importedGlobals + i) ||
+      exportedAsAddress.has(g.name)
+    ) {
+      addressGlobals.add(g);
+    }
   });
   for (const g of addressGlobals) {
     if (g.type !== Type.I32 || constOffset(g.init) === undefined) {
@@ -727,7 +799,6 @@ function prepare(input: BundleInput, options: BundleOptions, warnings: string[])
     relocation,
     sites,
     addressGlobals,
-    symbolGlobalNames,
     dropped,
   };
 }
@@ -1065,8 +1136,9 @@ const kindName = (k: ExternalKind): string =>
     : 'tag';
 
 /**
- * Bundle `inputs` into one module. The inputs are CONSUMED: their trees are
- * renamed and rewired in place and become the result's. The result is a
+ * Bundle `inputs` into one module. Each input is COPIED first (one node per
+ * use), and the copies are renamed and rewired in place; the caller's modules
+ * are left as they were. The result is a
  * module as `readForPasses` would give — ready for `writeWasm`, the
  * optimizer, or the interpreter.
  *
@@ -1077,11 +1149,30 @@ export function bundle(
   inputs: BundleInput[],
   options: Partial<BundleOptions> = {},
 ): { module: WasmModule; report: BundleReport } {
-  // The one nesting limit (ir/nesting.ts), on each input before the bundler walks it.
+  // The one nesting limit (ir/nesting.ts), on each input before the bundler walks it. Then EVERY
+  // input is copied, one node per use: the bundler rewrites in place, once per path, so a node
+  // reused in an input (an API user's `add(x, x)`) or SHARED BETWEEN inputs was relocated twice
+  // and loaded from the wrong address, silently (security review round 3, class 1: the third
+  // retest, and the seventh for objects two inputs share). The caller's modules are untouched.
   for (const input of inputs) {
-    const over = moduleLimitProblem(input.module);
-    if (over !== undefined) throw new BundleError(`${input.name}: ${over}`);
+    const shape = moduleShape(input.module);
+    if (shape.problem !== undefined) throw new BundleError(`${input.name}: ${shape.problem}`);
+    // a reference by name to one of two same-named definitions could mean either (class 1's
+    // fifteenth retest: the bundle bound it to the last, the writer to the first)
+    const twice = sharedName(input.module);
+    if (twice !== undefined) throw new BundleError(`${input.name}: ${twice}`);
   }
+  // And the inputs TOGETHER: one module given as many inputs is copied once per input, so what
+  // they share between them is held to the same bound (class 1's eighth retest).
+  const together = modulesShape(inputs.map((i) => i.module));
+  if (together.problem !== undefined) throw new BundleError(`the inputs: ${together.problem}`);
+  inputs = inputs.map((input) => {
+    try {
+      return { ...input, module: unsharedCopy(input.module) };
+    } catch (e) {
+      throw new BundleError(`${input.name}: ${(e as Error).message}`);
+    }
+  });
   try {
     return bundleInputs(inputs, options);
   } catch (e) {
@@ -1415,6 +1506,7 @@ function bundleInputs(
   // Pass 3: rewire every reference, move every address, and take the entities.
   const reports: InputReport[] = [];
   const starts: string[] = [];
+  const ownBytes = new Set<object>();
   for (const p of prepared) {
     const m = p.m;
     const r = renames.get(p)!;
@@ -1500,6 +1592,12 @@ function bundleInputs(
       moved++;
     }
     for (const { segment, offset } of p.sites.words) {
+      // Its own bytes before the first write: the copy shares byte arrays, and one array held by
+      // two segments (or two inputs) was relocated by both (class 1's seventh retest).
+      if (!ownBytes.has(segment)) {
+        ownBytes.add(segment);
+        (segment as { data: Uint8Array }).data = segment.data.slice();
+      }
       writeI32(segment.data, offset, (readI32(segment.data, offset) + p.base) | 0);
       moved++;
     }

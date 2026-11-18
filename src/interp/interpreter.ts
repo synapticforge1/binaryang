@@ -216,10 +216,9 @@ export class Stop extends Error {
 }
 
 /**
- * Active wasm calls at or above which a HOST stack overflow is the program's
- * own exhaustion (a trap) rather than this interpreter's nesting limit (a
- * stop). Recursion that runs the host out does so hundreds of calls deep; a
- * deeply nested function does so one or two calls deep.
+ * Active wasm calls below which a HOST stack overflow is said to be one function nesting too
+ * deeply (the nesting words); at or above, the calls themselves. Either way it is a
+ * {@link Stop}, never a trap: the program did not reach a limit, the interpreter did.
  */
 const RECURSION_FLOOR = 64;
 
@@ -1164,18 +1163,20 @@ export class Interpreter {
    * ("call stack exhausted") at its own depth limit, as an engine does.
    */
   /**
-   * What the HOST's stack running out means. With many wasm calls active, the
-   * program is recursing: that is its exhaustion, as an engine reports it
-   * (spec `fac.wast`'s `fac-rec` runs the host out before {@link maxDepth}).
-   * With few, one function nests deeper than the recursive evaluator can
-   * follow — V8 runs it — so it is this interpreter's limit, a {@link Stop}.
-   * 🔧 Both were `call stack exhausted`: a valid 60,000-deep block trapped
-   * (open-work 13). The line is {@link RECURSION_FLOOR} active calls.
+   * What the HOST's stack running out means: always this interpreter's limit, a {@link Stop} —
+   * the recursive evaluator ran out of JavaScript stack before the program reached its own limit
+   * ({@link InterpreterOptions.maxDepth}, where `call stack exhausted` IS a trap). 🔧 With 64 or
+   * more calls active it was reported as the program's trap, so one terminating program gave
+   * different results on different runtimes: `sum(150)` trapped on V8 and returned on Bun
+   * (security review round 4, R1-1; and before that a valid 60,000-deep block trapped,
+   * open-work 13). The permanent fix — an evaluator on its own stack — is option 2's.
    */
   private exhausted(): Error {
-    return this.depth >= RECURSION_FLOOR
-      ? new Trap('call stack exhausted')
-      : new Stop('unsupported', NESTING_TOO_DEEP);
+    return this.depth < RECURSION_FLOOR ? new Stop('unsupported', NESTING_TOO_DEEP) : new Stop(
+      'unsupported',
+      `the interpreter ran out of its host's stack ${this.depth} calls deep, before its limit ` +
+        `of ${this.maxDepth}: it cannot tell whether the program would trap there`,
+    );
   }
 
   private entry<T>(f: () => T): T {
@@ -1588,20 +1589,29 @@ export class Interpreter {
         const params = this.params(e, locals);
         const base = s.length - params;
         const results = arityOf(e.type as BlockResult);
-        for (;;) {
-          try {
-            this.exec(e.body, locals);
-          } catch (t) {
-            if (t instanceof Delegate && t.label === e.label) throw t.exn;
-            if (!(t instanceof Branch) || t.label !== e.label) throw t;
-            // Back to the top, with the loop's parameters.
-            const carried = s.splice(s.length - params, params);
-            s.length = base;
-            pushAll(s, carried);
-            if (this.hangArmed || this.hangWatch !== null) this.backEdge(e, locals);
-            continue;
+        try {
+          for (;;) {
+            try {
+              this.exec(e.body, locals);
+            } catch (t) {
+              if (t instanceof Delegate && t.label === e.label) throw t.exn;
+              if (!(t instanceof Branch) || t.label !== e.label) throw t;
+              // Back to the top, with the loop's parameters.
+              const carried = s.splice(s.length - params, params);
+              s.length = base;
+              pushAll(s, carried);
+              if (this.hangArmed || this.hangWatch !== null) this.backEdge(e, locals);
+              continue;
+            }
+            break;
           }
-          break;
+        } finally {
+          // A sample belongs to THIS run of the loop: leaving it, by any way, closes the sample,
+          // so a later run of the same node is never held to it. 🔧 One loop node at two sites
+          // (reused through the API) was held to the first site's sample and reported a `hang`
+          // that was not (security review round 3, class 1, eleventh retest).
+          const w = this.hangWatch;
+          if (w !== null && w.loop === e && w.frame === locals) this.hangReschedule(Date.now());
         }
         const out = s.splice(s.length - results, results);
         s.length = base;

@@ -33,7 +33,8 @@ import { isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { dropWrittenTypeIndex, type Expression, ExpressionKind } from '../ir/expressions.ts';
 import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
-import { requireNestingWithinLimit } from '../ir/nesting.ts';
+import { moduleShape, NestingLimitError } from '../ir/nesting.ts';
+import { unshareInPlace } from '../ir/unshare.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
 import { spillStackValues } from './spill-stack-values.ts';
 import { handleNonDefaultableLocals } from './non-nullable-locals.ts';
@@ -340,8 +341,13 @@ export class PassRunner {
    * a bare RangeError from inside some pass (open-work 13).
    */
   run(): void {
-    // The one nesting limit (ir/nesting.ts), checked before any pass recurses into the tree.
-    requireNestingWithinLimit(this._module, 'optimizer');
+    // The one nesting limit (ir/nesting.ts), checked before any pass recurses into the tree. Then
+    // each REUSED object gets one per use, in place (ir/unshare.ts): the passes rewrite what they
+    // reach once per path, so a reused `local.get`, `Var` or `locals` list came out wrong
+    // (security review round 3, class 1, eighth and ninth retests).
+    const shape = moduleShape(this._module);
+    if (shape.problem !== undefined) throw new NestingLimitError('optimizer', shape.problem);
+    unshareInPlace(this._module);
     try {
       this.runQueue();
     } catch (e) {

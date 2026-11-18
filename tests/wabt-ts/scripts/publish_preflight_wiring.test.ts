@@ -619,9 +619,12 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     );
   });
 
-  it('the tools are exact versions: Bun as the repo pins it, Deno as scripts/deno.ts pins it', () => {
-    const deno = /DENO = 'deno@(\d+\.\d+\.\d+)'/.exec(fsx.readTextFileSync('scripts/deno.ts'))?.[1];
-    expect(deno).toBeDefined();
+  it('the tools are exact versions: Bun as the repo pins it, Deno as package.json locks it', () => {
+    // Deno's one pin is the locked devDependency scripts/deno.ts reads (round 4, B2).
+    const deno = (JSON.parse(fsx.readTextFileSync('package.json')) as {
+      devDependencies: Record<string, string>;
+    }).devDependencies['deno'];
+    expect(deno).toMatch(/^\d+\.\d+\.\d+$/);
     // The jobs without a credential use the setup actions; the installer the others use pins the
     // same versions, by URL.
     const denoPins = [...PUBLISH_YML.matchAll(/deno-version: (\S+)/g)].map((m) => m[1]);

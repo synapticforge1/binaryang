@@ -93,6 +93,14 @@ const wasts: string[] = [];
 for (const e of await readdir(src, { withFileTypes: true })) {
   if (e.isFile() && e.name.endsWith('.wast')) wasts.push(e.name);
 }
+// And the suite's `custom/` folder (custom sections and annotations: `name_annot`,
+// `custom_annot`, `branch_hint`). 🔧 Only the top level was read, so those never ran (security
+// review round 4, R2-6). Prepared as `custom-<name>`, beside the rest.
+const customDir = `${src}/custom`;
+const customs = await readdir(customDir, { withFileTypes: true }).catch(() => []);
+for (const e of customs) {
+  if (e.isFile() && e.name.endsWith('.wast')) wasts.push(`custom/${e.name}`);
+}
 wasts.sort();
 if (wasts.length === 0) {
   console.error(`spec-prepare: no .wast files under ${src}`);
@@ -106,7 +114,7 @@ const failed: string[] = [];
 let viaWasmTools = 0;
 
 for (const name of wasts) {
-  const base = name.replace(/\.wast$/, '');
+  const base = name.replace(/\.wast$/, '').replace('/', '-');
   const dir = `${out}/${base}`;
   await mkdir(dir, { recursive: true });
   const cmd = spawnSync('wast2json', [...FEATURES, '-o', `${dir}/${base}.json`, `${src}/${name}`], {

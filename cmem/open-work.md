@@ -39,17 +39,111 @@ were false refusals — and the second retest found imports' fields unmeasured a
 `copyModule` expanding any shared object. **Third, current:** `moduleLimitProblem` measures, in
 one walk with one map (each distinct node once, its expanded size and height remembered), the
 nodes AS WALKED (W) against the distinct (U), and refuses W > 2U + `MAX_SHARED_SLACK` (1,000,000)
-(`subtreesExpand`), a cycle (`EXPRESSION_CYCLE`), or depth; imports' `func.body` / `global.init` /
-`table.init` are covered; `copyModule` holds every object it copies to the same bound. 22/22 on
-Bun and V8; 8/8 mutants; both full test legs green. Its THIRD class-only retest is next.
-**Queued classes, in order:**
-2 depth that grows AFTER the check (passes — inlining, SimplifyLocals — deepen a module, refused
-at write or a pass overflows on Node: a regression against `main`; the interpreter's nesting
-adds across calls); 3 the WAT parser recursing before the check (the pre-scan misses `(@…`
-annotations, a folded `delegate`, linear operand chains); 4 entries never checked
-(`parseWastScript` commands; `createPass().run`, `resolveNames`, `ExprVisitor`, `validateModule`);
-5 the unit (`loop` / `if` / `try` count 2 levels; README wording, "none is silent"); 6 `bun run
-hostile` still keyed to the old message, so it proves nothing. Next: class 1's retest, then 2.
+((`subtreesExpand`), a cycle (`EXPRESSION_CYCLE`), or depth; imports' `func.body` / `global.init` /
+`table.init` are covered; `copyModule` holds every object it copies to the same bound.
+**Class 1 then ran sixteen class-only retests**, each widening the class to what the last found —
+the MOVING GOAL POST the owner then forbade (working-rules: fixed together, frozen scope, frozen
+depth, the threat model, all ON TRIAL). Its fixes (2026-11-15, uncommitted on `security-r3`):
+`heldDataProblem` (all data, dataWork, depth 1,536 = 6 × 256 by every path, sparse arrays, wide
+bigints, data cycles), `src/ir/unshare.ts` (the optimizer unshares in place, handles kept),
+`oneEntryPerNode`, `sharedName` (writers + bundler refuse one name twice, imports included), the
+bundler (every input copied; every copy at a relocation moved, or a refusal when they differ),
+the interpreter's hang sample closed on loop exit; README "Limits on untrusted input" (the threat
+model). Then the reviews OF THE FIXES under the trial rules: **4 → 1 → 1** (both last a README
+sentence; the third's exact wording applied), gate 30/30. **Class 1 CLOSED** (owner,
+2026-11-15: "close class 1"). Trial note for the fine tuning: a doc fix should quote what the tests cite, not paraphrase.
+
+**Re-scoped (owner, 2026-11-15: "I agree on the rescope suggestions"):** the SECURITY review asks
+what a bad actor can do to TAKE CONTROL of (A) the code or (B) the repo
+([working-rules.md](working-rules.md) § the security review, on trial); robustness — crashes,
+depth, memory, cost — is the HARDENING review's. So round 3's queued classes are now the
+**hardening review's queue**, each opened with its scope and depth written first: H-2 depth that
+grows AFTER the check (passes deepen a module; the interpreter's nesting across calls); H-3 the
+WAT parser recursing before its check (`(@…` annotations, folded `delegate`, linear operand
+chains); H-4 entries never checked (`parseWastScript` commands; `createPass().run`,
+`resolveNames`, `ExprVisitor`, `validateModule`); H-5 the unit (`loop` / `if` / `try` levels;
+README wording); H-6 `bun run hostile` keyed to the old message.
+
+**Security review round 4 — scope and depth, FROZEN when it opens (for the owner to read
+first).** SCOPE, two goals only:
+(A) CONTROL OF THE CODE — can untrusted bytes or text (a `.wasm`, `.wat`, `.wast`, `.wit`, a CLI
+argument or file path) make binaryang run or load code, or reach the host beyond what it was
+asked: `eval` / `new Function` / dynamic `import()` / `require` on anything input-derived;
+prototype pollution (`__proto__`, `constructor`, `prototype` keys from parsed names, custom
+sections, WIT, JSON); the interpreter's host boundary (imports, WASI, memory / table views
+escaping, a trap that leaks host objects); the CLI writing or reading outside what it was given
+(paths, symlinks, `-o`, overwrite); child processes and their arguments; anything that loads a
+file by a name the input chose.
+(B) CONTROL OF THE REPO — can a bad actor take over the repository, its releases or the machines
+that build it: `.github/workflows/*` (triggers — `pull_request_target`, `workflow_run`, issue /
+comment events; `permissions:`; `${{ github.event.* }}` interpolated into `run:`; secrets in
+logs or reachable from fork code; actions pinned by SHA; caches poisoned across trust levels);
+the release path (who and what can tag and publish; npm / JSR tokens vs trusted publishing;
+provenance; the version line that ARMS a release); dependencies (lockfile integrity,
+install / postinstall scripts, registries, the pinned installers' checksums); the committed
+scripts people and agent sessions run (`scripts/*.ts`, `package.json` scripts, hooks); what is
+committed that should not be (secrets, the privacy scan's reach). Branch and tag protection and
+account settings are GitHub web-UI items: the reviewer lists what to check, the OWNER checks.
+(R) THE REVIEW, included (owner, 2026-11-15: correctness and fidelity) — workarounds and patches
+where a permanent fix belongs, across `src/`; and the fidelity of what binaryang produces against
+the corpus (spec testsuite, the 421-module byte baseline, the direct corpus vs `wat2wasm`, the
+optimizer corpus, the behaviour checks), a difference a finding unless it is a recorded intended
+divergence. The known-differences lists (`tests/bun-known-differences.json`, divergence records)
+are read too: an entry that is really a bug is a finding.
+DEPTH, fixed: every source file under `src/` and `scripts/`, every workflow and `package.json`
+script, the lockfile and installers — by reading AND by planted hostile inputs run on Bun and
+V8 (Deno) on this machine; for (R), the corpora the gate already runs, compared as the gate
+compares them (bytes, validity, behaviour), plus reading each workaround's cause; CI's own runners only through what the workflows declare (read, not
+run); no network attacks on GitHub or the registries; the API-built module is the caller's code
+(the threat model), not an attacker. A finding outside this scope goes to the backlog for the
+owner, and the depth never grows within the round.
+
+**Round 4's first reviews (2026-11-15): 16 findings, 11 backlog.** (A) control of the code 2 (low:
+input-chosen keys looked up on `Object.prototype` in `--asyncify`'s table and the CLI's command
+table); nothing in scope gives control. (B) control of the repo 4: B1 (medium) the release gate is
+a version bump reaching `main` — **NOT FIXED, owner 2026-11-15: "since I am the sole publisher, I
+do not think this is an issue"** (recorded so a later review does not re-raise it); B2 `bun x
+deno@2.9.6` not in the lockfile; B3 the npm tarball's digest proves transport only (by design);
+B4 no Dependabot / `CODEOWNERS`. (R1) workarounds 4: the interpreter's host-stack overflow reported
+as a program trap (V8 traps a terminating `sum(150)`); a test recording a validator gap that does
+not exist; the facade reporting a func ref as `anyref`; invalid input diagnosed only after a pass
+crashes. (R2) fidelity 6: no gate against the real `wat2wasm`; the optimizer's behaviour check
+narrow and no `wasm-opt` size ratchet (+1.03% today); `direct-behaviour`'s TOTAL hides 76
+uncompared; 5 binary inputs rejected for the wrong reason; the spec behaviour oracle is V8, not
+the spec's values; `custom/*.wast` not in the gate. Nothing found writes a wrong module today.
+**Owner's decisions (2026-11-15):** R1-4 stay upstream-compatible and add a validate option;
+R1-1 keep option 2 as planned (the small fix now); the three new gates (R2-1, R2-2, R2-5) are
+their OWN batch, after this one; B's web checklist dropped. **Batch 1 (11 items), fixed:** A1/A2
+own-property lookups (`Object.hasOwn`); B2 `deno` a locked devDependency, `scripts/deno.ts`
+reads its version, postinstall stays blocked; B4 `.github/dependabot.yml` (actions only; no
+`CODEOWNERS`, B1's reason); R1-1 host-stack exhaustion a `Stop`, never a trap
+(`hardening.md` corrected); R1-2 `extern_convert` test validates, two stale comments gone; R1-3
+the facade resolves a defined heap type (func → `funcref`); R1-4 `readBinary(bytes, { validate })`
+(api-surface re-baselined — its OWN commit); R2-3 direct-behaviour states modules read vs
+compared, lists the skipped; R2-6 `custom/*.wast` prepared (260 files); R2-4 MEASURED, not a bug:
+all five give wabt's and V8's reason (the spec's differs by how `wast2json` built the bytes).
+B3 by design. Mutants 5/5; gate 30/30. **Its review: 16 → 2** — B2 `bun x deno@<v>` ran a
+FETCHED copy, not the locked one (now `bun run deno`, the installed binary only; the pin test
+runs it and checks the path); R1-3 the facade kept the types ARRAY, which remove-unused-types
+replaces (now the module, read at call time; a test runs the pass between). Also the
+hardening.md run-on line and the direct-behaviour TOTAL's "listed above" wording. Mutants 2/2;
+gate 30/30. Committed on `security-r3` 2026-11-18 (`api-surface.json` in its own commit).
+
+**SUPERSEDED (2026-11-18): the workspace's FINAL review standard (letter H37, `../cmem/
+review-process.md`) replaces the trial rules and round 4's process; letter H38 (the memory
+guide) applies too.** The owner's decisions on the scope (2026-11-18): (1) **the review starts
+FROM SCRATCH** — round 4's findings are NOT carried over as the first review; all five required
+classes (basic, hardening, licensing, security, privacy) get a fresh first review under H37's
+item lists (round 4's fixes stay in the code); (2) the release script's "run the review set" =
+refuse unless `cmem/review-issues.md` records a COMPLETED review (its last re-review empty) at
+the commit being released, then run every gate locally; (3) browser and runtime coverage moves
+LOCAL with CI's tests (what cannot run here is `pending`); (4) commit first. **The order:**
+commit → H38 steps 1–3 + 7 (STATE.md, INDEX router, root CLAUDE.md pointer, check-cmem.ts) →
+H37 (a) slot file, (b) gitignored review-issues.md + privacy-gate check, (c) open issues moved
+there, (f) the seven review words, (g) `cmem/platforms.md` → the review from scratch (five first
+reviews, then re-reviews of the fixes until one is empty) → H37 (d) release script, (e) CI only
+publishes (`ci.yml` deleted, `publish.yml`'s `checks` job removed, a committed local gate script,
+rehearsed between releases) → H38 steps 4–6 (archive, split 19 files, wrap 582 lines).
 
 **OPEN — the nesting limit, option 2 (owner, 2026-11-13: "I agree with option 1 now and then
 option 2 in the stage by stage plan as described").** Option 1 is DONE on `security-r2`: one
