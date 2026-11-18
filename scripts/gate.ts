@@ -32,8 +32,8 @@ import process from 'node:process';
 
 const keep = process.argv.includes('--keep');
 const work = mkdtempSync(join(tmpdir(), 'binaryang-gate-'));
-// Removed however the run ends — the last step, a throw, or Ctrl-C (a step ended by it stops the
-// gate; a signal between steps exits too) — unless `--keep`; a hard kill runs no handler anywhere:
+// Removed however the run ends — the last step, a throw, or Ctrl-C on POSIX (a step ended by it
+// stops the gate) — unless `--keep`; a hard kill runs no handler anywhere (win-x64 Ctrl-C: below):
 // the prepared corpora are tens of MB, and a ten-minute run is often interrupted (review H-2).
 process.on('exit', () => {
   if (keep) console.log(`prepared corpora kept in ${work}`);
@@ -174,12 +174,12 @@ for (const [name, cmd] of steps) {
       maxBuffer: 1 << 28,
     });
     // Ctrl-C reaches the step's process, not this one's handlers: `spawnSync` blocks them until the
-    // loop ends. A step ended by an interrupt (a POSIX signal; on Windows the exit code of a console
-    // Ctrl-C, 0xC000013A) ENDS the gate, through the exit handler (review RH-1).
-    if (
-      r.signal === 'SIGINT' || r.signal === 'SIGTERM' || r.status === 130 ||
-      r.status === 0xc000013a
-    ) {
+    // loop ends. A step ended by an interrupt (SIGINT / SIGTERM, or a shell's 130) ENDS the gate,
+    // through the exit handler (review RH-1; measured on linux-x64, a group SIGINT). NOT a step our
+    // own timeout killed: that is `r.error` ETIMEDOUT, a FAIL row, and the gate goes on (RH2-1).
+    // win-x64: a console Ctrl-C is UNMEASURED here — Bun reports a child's exit code in 8 bits, so
+    // 0xC000013A cannot be matched, and no other code is guessed at (RB2-1).
+    if (!r.error && (r.signal === 'SIGINT' || r.signal === 'SIGTERM' || r.status === 130)) {
       console.log(`INTERRUPTED ${name}: the gate stops here`);
       process.exit(130);
     }

@@ -34,8 +34,8 @@ LOCALLY** — the review set and every gate, before the bump is pushed. CI runs 
    `tests/accepted-changes.json` exactly as `bun scripts/release/previous-tests.ts v<previous>`
    names it, `since` the version being bumped TO (decide the level first), with its reason, and
    drop the stale entries — ONE commit on a branch `accept-<new version>`, merged `--no-ff` into
-   `main` (as `accept-3.0.3`, `accept-3.0.4` and `accept-3.1.0` were). A major bump runs no previous tests: its list
-documents what changed (`accept-3.1.0` was written before the gate set 4.0.0's level).
+   `main` (as `accept-3.0.3`, `accept-3.0.4` and `accept-3.1.0` were). A major bump runs no
+   previous tests: its list documents what changed (`accept-3.1.0` predates 4.0.0's level).
 3. **U4 `bun run release`** (`scripts/release/publish.ts`, its logic `release-run.ts`) — FIRST
    the review set (since 2026-11-18): a completed review recorded (`review-complete: <sha>` in the
    gitignored `review-issues.md`) with nothing but the release files and `cmem/` changed since,

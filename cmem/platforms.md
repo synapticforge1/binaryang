@@ -47,6 +47,9 @@ build is made or claimed.
   `npm/prove.ts`, `definitions.ts`.
 - **No process groups.** A probe's browser helpers are stopped by command line. Where:
   `scripts/probe/engines.ts`.
+- **Ctrl-C during `bun run gate`: UNMEASURED.** Bun reports a child's exit code in 8 bits, so a
+  console Ctrl-C's 0xC000013A cannot be seen; on linux-x64 a step ended by SIGINT stops the gate
+  and removes its temp corpora (measured 2026-11-18). Where: `scripts/gate.ts` (review RB2-1).
 - **A shared `node_modules` is per-OS.** Run from the Windows checkout, WSL has only the win32
   Deno binary: a Linux run needs its own clone and `bun install` (measured 2026-11-18).
 - **The coalesce budget test under load.** `coalesce_budget.test.ts` "at the budget …" (20 s
