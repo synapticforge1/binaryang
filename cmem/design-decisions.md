@@ -43,6 +43,14 @@ guide, letter H38, step 2). Last verified 2026-11-18.
   rules that did not converge are in [wabt-ts.md](wabt-ts.md) and [binaryen-ts.md](binaryen-ts.md).
 - 2026-11-17: the ★ best-practices copy is held for the owner's answer (letter H38): not split.
 
+## M6 — Apache-2.0 §4(b) and the ported files (owner, 2026-11-18)
+
+- The question (licensing review, n-2): §4(b) asks that MODIFIED files carry a notice that they
+  were changed; the 86 ported files say "Ported from" / "Based on", not "modified".
+- The owner's answer: "the files were not changed that were rewritten in typescript from the
+  orginal c++". The upstream files are not modified: each TypeScript file is a new rewrite that
+  keeps its upstream's copyright and licence header and names its source. No "modified" notice.
+
 ## M5 — the review standard (2026-11-18)
 
 - The workspace's FINAL review standard (letter H37, `../../cmem/review-process.md`) replaces

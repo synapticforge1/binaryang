@@ -334,7 +334,12 @@ export type HostImport =
 export interface InterpreterOptions {
   /** Supplies an import, or `undefined`: a call to a missing function is a {@link Stop}. */
   imports?: (module: string, field: string) => HostImport | undefined;
-  /** Nested calls before `call stack exhausted`. Default 1,000. */
+  /**
+   * Nested calls before `call stack exhausted` (a trap). Default 1,000. The evaluator recurses on
+   * the HOST's JavaScript stack, so on V8 (Node, Deno) that stack can run out first — measured at
+   * 130–440 calls, depending on the frames — and the run ends with a {@link Stop}
+   * (`unsupported`), which says nothing about the program. Bun's larger stack reaches the limit.
+   */
   maxDepth?: number;
   /**
    * Locals, parameters included, that every active call together may hold before

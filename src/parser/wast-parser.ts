@@ -325,7 +325,19 @@ export type WastScriptModule =
   | {
     readonly kind: 'quote';
     readonly name: string | null;
+    /**
+     * The quoted text, decoded for display: a byte that is not UTF-8 shows as U+FFFD. Lex
+     * {@link bytes} to judge the module — `(module quote "\ff")` is malformed text, which a
+     * string cannot carry.
+     */
     readonly source: string;
+    /**
+     * The quoted text's exact bytes, the strings concatenated. `new LexerSource(bytes)` refuses
+     * a byte that is not UTF-8 ("malformed UTF-8 encoding"), as a script's `assert_malformed`
+     * expects. 🔧 Only the decoded `source` was given, so the invalid byte became a valid U+FFFD
+     * and the module read as valid (review RH-1, 2026-11-18).
+     */
+    readonly bytes: Uint8Array;
     readonly loc: Location;
   }
   | {
@@ -6679,9 +6691,10 @@ export class WastParser {
       // single string and then choke on the second with "expected ), got
       // Text"; the testsuite splits quoted modules across one string per
       // line throughout.
-      const source = TEXT_DECODER.decode(this.parseTextList());
+      const bytes = this.parseTextList();
+      const source = TEXT_DECODER.decode(bytes);
       this.expect(TokenType.Rpar);
-      return { kind: 'quote', name, source, loc };
+      return { kind: 'quote', name, source, bytes, loc };
     }
 
     const module = makeModule();

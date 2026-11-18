@@ -1829,7 +1829,7 @@ export async function wasmBundle(
   for (const path of paths) {
     const bytes = new Uint8Array(await fsRead(path));
     const module = path.endsWith('.wat')
-      ? readWat(new TextDecoder().decode(bytes), path)
+      ? readWat(bytes, path) // the bytes: malformed UTF-8 refused (review H-1)
       : readForPasses(bytes, path);
     const alias = aliases.get(path) ?? aliases.get(baseName(path));
     const name = alias ?? moduleNameOf(path);
@@ -1906,8 +1906,15 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   const aliases = new Map<string, string>();
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
-    if (a === '-o') output = args[++i] ?? output;
-    else if (a === '--no-wit') wit = false;
+    if (a === '-o') {
+      // 🔧 With no value it fell back to `bundle.wasm` in the current folder, exit 0 (review H-4).
+      const v = args[++i];
+      if (v === undefined || v === '') {
+        console.error('wasm-bundle: -o needs a file');
+        cliExit(1);
+      }
+      output = v;
+    } else if (a === '--no-wit') wit = false;
     else if (a === '--wit') wit = true;
     else if (a.startsWith('--on-conflict=')) {
       const v = a.slice(14);

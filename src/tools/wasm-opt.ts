@@ -369,10 +369,13 @@ function _nativeOptimize(
   // stage 3: binaryen-ts's own decoder is no longer an entry point).
   let input = inputBytes;
   if (isWat) {
+    // The lexer takes the BYTES, so malformed UTF-8 is refused where it stands; the decoded text
+    // is only for echoing the source line. 🔧 Decoding first turned a raw 0xFF into U+FFFD, which
+    // the lexer then accepted as valid text (review H-1, 2026-11-18).
     const text = new TextDecoder().decode(inputBytes);
     // Validated as TEXT, so an invalid module is reported at its `line:col`
     // with the source line — as upstream, which validates its input.
-    const r = wat2wasm(text, { filename, validate: opts.validate });
+    const r = wat2wasm(inputBytes, { filename, validate: opts.validate });
     if (hasErrors(r.errors)) {
       throw new WatInputError(formatErrors(r.errors, ErrorFormat.Long, text));
     }

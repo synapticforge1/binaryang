@@ -251,6 +251,16 @@ export function interpModule(
     const fn = inst.functionIndex(ex.var);
     const sig = functionSignature(module, fn);
     const given = ex.name === opts.runExport ? opts.args : [];
+    // More arguments than the function takes is a mistyped call. 🔧 Extras were ignored and the
+    // call ran (review H-5, 2026-11-18). FEWER is by design: a missing argument takes its type's
+    // default, so an export with parameters can be run by name (open-work 13;
+    // wasm_interp.test.ts "defaults a v128 argument …").
+    if (ex.name === opts.runExport && given.length > sig.length) {
+      throw new Error(
+        `--run-export=${ex.name} takes ${sig.length} argument${sig.length === 1 ? '' : 's'}; ` +
+          `${given.length} given (--argument, once per parameter, in order)`,
+      );
+    }
     let args: Value[] = [];
     inst.refuel(opts.fuel);
     let outcome: Invocation['outcome'];
@@ -282,7 +292,7 @@ export async function wasmInterp(
 ): Promise<Invocation[]> {
   const bytes = new Uint8Array(await fsRead(inputPath));
   const module = inputPath.endsWith('.wat')
-    ? readValidWat(new TextDecoder().decode(bytes), inputPath)
+    ? readValidWat(bytes, inputPath) // the bytes: malformed UTF-8 refused (review H-1)
     : readValidForPasses(bytes, inputPath);
   return interpModule(module, options);
 }
@@ -368,6 +378,12 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   }
   if (input === undefined) {
     usage();
+    cliExit(1);
+  }
+  // An argument is for the export `--run-export` names. 🔧 Without one it was ignored, exit 0
+  // (review RH-2, 2026-11-18).
+  if (options.args!.length > 0 && options.runExport === undefined) {
+    console.error('wasm-interp: --argument needs --run-export=NAME, the export it is for');
     cliExit(1);
   }
   let invocations: Invocation[];

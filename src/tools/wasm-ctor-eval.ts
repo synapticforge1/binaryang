@@ -584,7 +584,7 @@ export async function wasmCtorEval(
 ): Promise<{ output: Uint8Array | string; outcomes: CtorOutcome[]; reason?: string }> {
   const bytes = new Uint8Array(await fsRead(inputPath));
   const module = inputPath.endsWith('.wat')
-    ? readValidWat(new TextDecoder().decode(bytes), inputPath)
+    ? readValidWat(bytes, inputPath) // the bytes: malformed UTF-8 refused (review H-1)
     : readValidForPasses(bytes, inputPath);
   const result = ctorEval(module, options);
   const out = writeWasm(module);
@@ -639,8 +639,15 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   const options: Partial<WasmCtorEvalOptions> = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
-    if (a === '-o') options.output = args[++i] ?? 'output.wasm';
-    else if (a.startsWith('--ctors=')) options.ctors = a.slice(8).split(',').filter(Boolean);
+    if (a === '-o') {
+      // 🔧 With no value it fell back to `output.wasm` (review H-4's sibling).
+      const v = args[++i];
+      if (v === undefined || v === '') {
+        console.error('wasm-ctor-eval: -o needs a file');
+        cliExit(1);
+      }
+      options.output = v;
+    } else if (a.startsWith('--ctors=')) options.ctors = a.slice(8).split(',').filter(Boolean);
     else if (a.startsWith('--kept-exports=')) {
       options.keptExports = a.slice(15).split(',').filter(Boolean);
     } else if (a === '--ignore-external-input') options.ignoreExternalInput = true;

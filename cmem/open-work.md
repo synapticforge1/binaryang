@@ -144,6 +144,10 @@ there, (f) the seven review words, (g) `cmem/platforms.md` → the review from s
 reviews, then re-reviews of the fixes until one is empty) → H37 (d) release script, (e) CI only
 publishes (`ci.yml` deleted, `publish.yml`'s `checks` job removed, a committed local gate script,
 rehearsed between releases) → H38 steps 4–6 (archive, split 19 files, wrap 582 lines).
+**The review for the next release is COMPLETE (2026-11-18):** first review 7 (basic 1,
+hardening 5, security 1) → re-review 1: 2 → re-review 2: 0; the full suite passed on win-x64
+and linux-x64 (Ubuntu 26.04, Bun only); the other four platforms pending. Issues and fixes in
+the gitignored `review-issues.md`; n-2 answered by the owner (design-decisions.md M6).
 
 **OPEN — the nesting limit, option 2 (owner, 2026-11-13: "I agree with option 1 now and then
 option 2 in the stage by stage plan as described").** Option 1 is DONE on `security-r2`: one

@@ -11,6 +11,7 @@
 // Each result is checked against V8 running the same bytes — the engine is the
 // oracle, not what this file expects.
 
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
@@ -191,6 +192,14 @@ describe('calls and the stack', () => {
     // and a terminating sum(150) trapped on V8 though it returns on Bun (round 4, R1-1)
     expect(() => interp(wat, { maxDepth: 1_000_000 }).invoke('f', [])).toThrow(Stop);
     expect(() => interp(wat, { maxDepth: 1_000_000 }).invoke('f', [])).toThrow(/cannot tell/);
+  });
+  it('the README says what a run deeper than the host stack gives: a Stop, not the trap', () => {
+    // review B-1 (2026-11-18): the limits table still promised a trap past 1,000 on every runtime
+    const readme = readFileSync('README.md', 'utf8');
+    const row = readme.split('\n').find((l) => l.startsWith('| Interpreter: nested calls'))!;
+    expect(row).toContain('maxDepth');
+    expect(row).toContain("host's stack");
+    expect(row).toContain("Stop('unsupported')");
   });
   it('a terminating recursion never TRAPS for the host: it returns, or stops', () => {
     const wat = '(module (func $sum (export "sum") (param i32) (result i32)' +

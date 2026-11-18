@@ -28,11 +28,14 @@ export class LexerSource {
 
   constructor(data: Uint8Array | string, filename = '<input>') {
     this.filename = filename;
-    if (typeof data === 'string') {
-      this.data = TEXT_ENCODER.encode(data);
-    } else {
-      this.data = data;
-    }
+    const bytes = typeof data === 'string' ? TEXT_ENCODER.encode(data) : data;
+    // A leading UTF-8 byte-order mark marks the FILE's encoding; it is not source text, so the
+    // whole-file read strips it here, and only here (a BOM inside a name stays a character).
+    // 🔧 The tools decoded a file first, which stripped it, while `wat2wasm` lexed the bytes and
+    // refused it ("unexpected char"): one file, two outcomes (review H-1 / H-6, 2026-11-18).
+    this.data = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
+      ? bytes.subarray(3)
+      : bytes;
   }
 
   /** Current read position. */

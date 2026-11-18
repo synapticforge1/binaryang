@@ -409,6 +409,15 @@ new Bun the project adopts — the one place the runtimes are governed different
 rather than buried. Bun 1.3 (the last before the Zig → Rust rewrite in 1.4.0) has never been
 supported.
 
+## Privacy
+
+binaryang collects nothing. The library and the CLI make no network request (no telemetry, no
+update check), read no environment variable, and read only the files you name. The CLI writes
+only the output you ask for (`-o`), plus the `.wit` file beside a bundle's output; it writes
+through a temporary file beside the output, removed when the write ends (a run killed mid-write
+can leave one `<output>.<8 hex>.tmp` beside it, holding only that output). Nothing about you, your
+machine or your paths is written into a module it produces.
+
 ## Limits on untrusted input
 
 binaryang reads modules from anyone, so what a small input may make it spend is bounded, by
@@ -423,7 +432,7 @@ name. Each limit refuses with a typed error or diagnostic; none is silent. (Secu
 | Locals in one function | 1,000,000 (`MAX_MATERIALIZED_LOCALS`) | decode error |
 | Locals in a whole module | 1,000,000 plus one per byte of the module (`maxModuleLocals`) | decode error |
 | CoalesceLocals | colours a function of up to 20,000 referenced locals (`COALESCE_MAX_REFERENCED_LOCALS`) | that function is left as it is (still correct) |
-| Interpreter: nested calls | 1,000 (`maxDepth`) | trap `call stack exhausted` |
+| Interpreter: nested calls | 1,000 (`maxDepth`); on V8 (Node, Deno) the host's JavaScript stack can end a run first, measured at 130–440 calls | trap `call stack exhausted` at the limit; `Stop('unsupported')`, "ran out of its host's stack …", when the host's stack ends it first (no claim about the program) |
 | Interpreter: locals of every active call | 4,000,000 (`maxStackLocals`) | trap `call stack exhausted` |
 | Interpreter: fuel | unlimited by default; when set, charged per instruction AND per element, per 8 bytes and per local of bulk work | `Stop('fuel')` |
 | Interpreter: a memory / a table / an array | 1 GiB / 10,000,000 / 10,000,000 elements | `Stop('unsupported')` |
