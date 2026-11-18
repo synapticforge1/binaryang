@@ -64,3 +64,6 @@ build is made or claimed.
 
 - **Only Bun in this WSL.** The V8 test leg and Deno run on win-x64; a Linux run covers the Bun
   leg, the byte baseline, the spec suite, the interpreter checks and the privacy scan.
+- **No `wast2json` or `wasm-tools` in this WSL:** `spec-prepare` there skips every file and the spec
+  and interpreter checks then pass EMPTY. Prepare the corpus on win-x64 and run the checks on it
+  from Linux (done for the 4.0.0 review, 2026-11-18).
