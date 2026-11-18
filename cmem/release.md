@@ -15,6 +15,9 @@ create the release page from the tag, then publish the package to the registry f
 that order." The workspace's [`release-process.md`](../../cmem/release-process.md) § 5 names the
 twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that file are binaryang's own
 3.0.2 steps (the JS/TS reference), superseded by D1 where they say "the tag push publishes".
+🔒 **Amended 2026-11-17 (letter H37; owner: "We want the CI to verify the version, then tag,
+create the release page and publish, and skip any version already published"): the CHECKS run
+LOCALLY** — the review set and every gate, before the bump is pushed. CI runs no test.
 
 **Local, on the owner's word and level (U1 — "release" = "push", then this; Tooling rule 12):**
 
@@ -38,10 +41,17 @@ twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that f
    1–3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not
    by reading publish.ts's source"; and update the file's `about` line (3.0.4's one entry dropped
    at that release). In the same commit, delete this ⚠️ paragraph and the matching one in
-   [unreleased.md](unreleased.md). Then bump again. (Measured end to end in a scratch clone in
+   [unreleased.md](unreleased.md). Then bump again. **Since 2026-11-18 more of v3.0.4's tests fail
+   too** — those reading `ci.yml` (`ci_browsers`, `ci_hardening`, `deno_pin`, `browsers_wiring`)
+   and the `checks` job's test steps (`publish_preflight_wiring`): CI only publishes now (letter
+   H37). List them the same way, reason "letter H37: every gate runs locally, CI only publishes". (Measured end to end in a scratch clone in
    review round 3: the procedure takes the bump from refused to written.)
-3. **U4 `bun run release`** (`scripts/release/publish.ts`, its logic `release-run.ts`) — guards
-   first, each a refusal that changes nothing (held by running them, review round 1): a clean tree
+3. **U4 `bun run release`** (`scripts/release/publish.ts`, its logic `release-run.ts`) — FIRST
+   the review set (since 2026-11-18): a completed review recorded (`review-complete: <sha>` in the
+   gitignored `review-issues.md`) with nothing but the release files and `cmem/` changed since,
+   then `bun run gate --release` — every gate locally, plus the compatibility gate and the privacy
+   scan of every commit since the previous tag. Then the guards, each a refusal that changes
+   nothing (held by running them, review round 1): a clean tree
    (untracked files count), on `main`, `fetch` of `main` AND the tags, `main` contains
    `origin/main`, the tag absent locally AND on origin, neither JSR nor npm knows the number, a
    cold `deno publish --dry-run` in an empty `DENO_DIR`, `bun run check`, the package root a
@@ -54,7 +64,7 @@ twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that f
 
 | job | holds | does |
 | --- | --- | --- |
-| `checks` (U5) | `contents: read` | `workflow.ts release-state`: jsr.json's version with no tag on GitHub = NEW, its tag on THIS commit = a re-run, elsewhere = not a release (stops). For a NEW one, `registry.ts free` (JSR and npm). Then the compatibility gate (`api-surface.ts --release-check`), `bun run check`, both test legs, `deno publish --dry-run` on the sparse tree `jsr` publishes |
+| `checks` (U5) | `contents: read` | the VERSION only (since 2026-11-18): `workflow.ts release-state` — NEW, a re-run, or not a release (stops); for a NEW one, `registry.ts free` (JSR and npm): a version already published is skipped. No test, no dependency |
 | `tag` (U6) | `contents: write` | only once `checks` AND `npm-build` are green or `npm-build` was skipped (npm publishing off) — decided on `npm-build`'s RESULT, never on the variable again (review rounds 1–2): `github.ts tag`, the annotated tag `vX.Y.Z` on this commit through the REST API, read back; at this commit already = done, elsewhere = refused |
 | `release` (U7) | `contents: write` | `github.ts release`: the GitHub Release page FROM the tag (H32's order), BEFORE the publish |
 | `jsr` (U8) | `id-token: write` | skip if JSR has it; `uploaded` written first; `deno publish` direct; Rekor read back, FATAL |

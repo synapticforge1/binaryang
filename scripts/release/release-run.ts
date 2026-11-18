@@ -37,6 +37,14 @@ export interface ReleaseDeps {
   typeCheck(): boolean;
   /** The package root as a working CLI: the problems found (none = fine). */
   entryProblems(): Promise<string[]>;
+  /**
+   * The commit a COMPLETED review covers — the `review-complete: <sha>` line the main agent writes
+   * into the gitignored `cmem/review-issues.md` when a review's last re-review comes back empty —
+   * or `null` when none is recorded (workspace review standard, letter H37 § 9).
+   */
+  reviewedCommit(): string | null;
+  /** Every gate, run locally (`scripts/gate.ts`): true when all passed. */
+  runGates(): boolean;
   log(line: string): void;
   error(line: string): void;
 }
@@ -108,6 +116,34 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
   };
 
   d.log(`Releasing ${tag}`);
+
+  // FIRST, the review set (letter H37, 2026-11-17; owner, 2026-11-18): a release needs a completed
+  // review that covers what it ships, and every gate passing HERE — CI only publishes. Since the
+  // reviewed commit, only the release files and the project memory may have changed: anything
+  // else was never reviewed.
+  const reviewed = d.reviewedCommit();
+  if (reviewed === null) {
+    return refuse(
+      `Refusing to release ${tag}: no completed review is recorded.`,
+      '  Run the review ("review": the five required classes) until a re-review is empty; it',
+      '  records `review-complete: <commit>` in the gitignored cmem/review-issues.md.',
+    );
+  }
+  const since = git(['diff', '--name-only', reviewed]);
+  if (!since) return refuse(`Refusing to release ${tag}: git could not compare with the review.`);
+  const unreviewed = since.stdout.split('\n').map((l) => l.trim()).filter((f) =>
+    f !== '' && !(RELEASE_FILES as readonly string[]).includes(f) && !f.startsWith('cmem/')
+  );
+  if (unreviewed.length > 0) {
+    return refuse(
+      `Refusing to release ${tag}: ${unreviewed.length} file(s) changed since the reviewed commit:`,
+      ...unreviewed.slice(0, 10).map((f) => `    ${f}`),
+      '  Review them first (a re-review of the changes, or a new review).',
+    );
+  }
+  if (!d.runGates()) {
+    return refuse(`Refusing to release ${tag}: a gate failed (bun run gate; its output above).`);
+  }
 
   // 0. A clean tree, untracked files counted: the release commits RELEASE_FILES and nothing else,
   // and a JSR version cannot be replaced (T13.43).

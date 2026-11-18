@@ -315,62 +315,17 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   for the reviewers"). Every reviewer agent of a "review", "security review" or "hardening review"
   (workspace `review-process.md`, letter H35) is launched with `model: sonnet`, every round; the
   re-verification and the fixes stay with the main session.
-- **The review tiers nest** (owner, 2026-11-13: "The 'security review' should also include the
-  regular 'review'. the 'hardening review' should include the regular 'review' plus the 'security
-  review' also"). Every round of a "security review" also briefs a code (correctness) reviewer
-  on its scope; every round of a "hardening review" briefs all three layers. A round is empty only
-  when every layer's reviewers find nothing (workspace `review-process.md` § 0, letter H35).
-- **One class at a time** (owner, 2026-11-13: "fix one class of error at a time and retest for
-  that class of error then once cleared of that error type move to the next error class"; into
-  the workspace rule, § 1.3). A finding of another class met on the way is queued, not fixed out
-  of turn.
-- **Within a class: every finding fixed TOGETHER, then ONE review of the fixes** (owner,
-  2026-11-15: "we seem to be stuck in a loop of checks. we need to address all of the class 1
-  issues at the same time, not one at a time. the next review should be checking issues from the
-  fixes not new issues"). Round 3's class 1 ran sixteen retests, each a fresh hunt that found a
-  new edge and earned another retest. So: gather the class's findings, fix them as one batch,
-  then brief the retest on THE FIXES — do they hold, did they break anything, are they complete
-  for the finding they answer — not to hunt new cases of the class. New cases it meets anyway
-  are listed, not chased round after round.
-- **A class's scope is written down when it opens and never moves** (owner, 2026-11-15: "Do not
-  move the goal post for each round of reviews. That was definitely the mistake."). Each review
-  round must return a SHORTER list than the one before, down to zero; then the next class. What
-  went wrong in round 3's class 1: each brief widened the class to what the last retest found
-  (shared subtrees → all data → output size → wrong results → copies sharing a location, an id,
-  a name), and ended "anything else in the class" — an open hunt with a moving boundary never
-  ends, and a third of the findings were in the round before's own fixes. A finding outside the
-  written scope goes to a BACKLOG for the owner, who decides whether it becomes a class.
-- **Nor does a class's DEPTH grow** (owner, 2026-11-15: "we never growth the depth of the checks in
-  a single class. either check it up front or create a whole new class of checks"). How deep a
-  class's checks go — which entries, which inputs, which runtimes, how far past the bound — is
-  decided when the class opens and written with its scope. A later round checks the fixes at
-  that same depth, never deeper; checking deeper is a NEW class, opened as one.
-- **The security review: control of the code and of the repo; robustness is hardening's** (owner,
-  2026-11-15: "on our security reviews, we should be reviewing attack surfaces that a bad actor
-  can exploit to malisciously take control of our code or our repo. both of which are important
-  to protect"; then "I agree on the rescope suggestions"). The SECURITY review asks two things:
-  (A) can untrusted bytes or text make binaryang run or load code, or reach the host beyond what
-  it was asked; (B) can a bad actor take over the repository, its releases or the machines that
-  build it — CI workflows, the release path and tokens, dependencies and install scripts, the
-  committed scripts, what is committed. Crashes, depth limits, memory and cost — "fails loudly,
-  never falls over" — are the HARDENING review's. Both stay required before a release. Round 4's
-  frozen scope and depth: [open-work.md](open-work.md). (The workspace standard's seven surfaces
-  map onto these: 1, 3, 5, 6, 7 are (A) / (B); 2 and 4 move to hardening.)
-- **The "review": correctness and FIDELITY of results** (owner, 2026-11-15: "the 'review' is a
-  correctness and fidelity of results review. In other words fixes for work arounds and patches
-  instead of full blown permanent fixes. Then checking the fidelity of what is produced with the
-  corpus."). Two parts: (1) find WORKAROUNDS AND PATCHES where a permanent fix belongs — a special
-  case, a guard that hides a wrong result, a fallback, a `try`/`catch` that swallows, a test
-  bent to the code, a "known difference" that is a bug — each answered by the real fix at its
-  cause; (2) the FIDELITY of what binaryang produces, measured against the corpus: the spec
-  testsuite, the 421 real-compiler modules (byte baseline), the direct corpus against `wat2wasm`,
-  the optimizer corpus and the behaviour checks — a difference is a finding unless it is a
-  recorded, intended divergence. Every "security review" and "hardening review" includes it.
-- ⏳ **The six rules above (fixed together, frozen scope, frozen depth, the threat model, the
-  security review's two goals, the review's two parts) are ON TRIAL** (owner, 2026-11-15: "lets run through a couple of reviews with the new rules and
-  adjust if needed. then we will add this to the workspace after any fine tuning needed"). They
-  go into the workspace standard (`review-process.md`, letter H35's next addendum) only after
-  the owner's fine tuning; until then they are binaryang's alone.
+- **Reviews follow the workspace FINAL standard** (owner, 2026-11-17; letter H37;
+  `../../cmem/review-process.md`): five required classes before every release, in order — basic,
+  hardening, licensing, security, privacy — after an optional efficiency review. One agent per class
+  for the first review (the class's item list word for word, its severity floor, the scope); the
+  main agent triages, then fixes ALL of one class together, class by class; a NEW agent per class
+  re-reviews only the fixes and the code they affect; the first empty re-review ends it, then the
+  full suite once per platform that has a machine. Issues live in the gitignored
+  `cmem/review-issues.md`; a completed review writes `review-complete: <sha>` there, which
+  `bun run release` requires. binaryang's slots: [review-process.md](review-process.md).
+  (binaryang's 2026-11-15 trial rules fed this standard and are superseded by it: design-decisions
+  M5.)
 - **The threat model** (owner, 2026-11-15, agreeing): untrusted INPUT is bytes and text — what
   the reader and the parsers take. A module built or edited through the API is the CALLER'S
   OWN CODE: the refusals and bounds binaryang has for it stay, but a review does not treat a
@@ -492,13 +447,23 @@ H34). When the owner says:
 - **"push"** — perform "commit", then merge the branch into `main`, then push `main` (and the
   working branch) to GitHub (`origin`) and read it back with `git ls-remote`.
 - **"release"** — perform "push", then the release process: the workspace's
-  `cmem/release-process.md` §§ 5–8 — CI checks first, then CI pushes the tag, then the GitHub
-  Release page from the tag, then the publish to the registry — recorded in `cmem/release.md`
+  `cmem/release-process.md` §§ 5–8 as amended 2026-11-17 — the checks run LOCALLY first
+  (`bun run release`: a completed review recorded, then `bun run gate --release`), then CI
+  verifies the version, pushes the tag, makes the GitHub Release page from the tag and publishes
+  to the registries, skipping a version already published — recorded in `cmem/release.md`
   § "Release History" (newest first, a summary of what changed). The level (patch / minor /
   major) is the owner's: ask if it was not given.
 
 Each command includes the one before it, and none goes further than its own word (a "commit"
 never pushes, a "push" never releases). This repo's own gate and merge rules apply at each step.
+
+**The review words** (owner, 2026-11-17; letter H37, `../../cmem/review-process.md` § 1):
+
+- **"review"** — all five required classes, in order: basic, hardening, licensing, security,
+  privacy; the loop of § 9 until a re-review is empty, then the full suite once per platform.
+- **"basic review"**, **"hardening review"**, **"licensing review"**, **"security review"**,
+  **"privacy review"** — the same loop for that one class.
+- **"efficiency review"** — OPTIONAL, never blocks a release; when run, it runs BEFORE the five.
 
 ## Session routine and memory (workspace memory guide, letter H38)
 

@@ -53,16 +53,11 @@ model). Then the reviews OF THE FIXES under the trial rules: **4 → 1 → 1** (
 sentence; the third's exact wording applied), gate 30/30. **Class 1 CLOSED** (owner,
 2026-11-15: "close class 1"). Trial note for the fine tuning: a doc fix should quote what the tests cite, not paraphrase.
 
-**Re-scoped (owner, 2026-11-15: "I agree on the rescope suggestions"):** the SECURITY review asks
-what a bad actor can do to TAKE CONTROL of (A) the code or (B) the repo
-([working-rules.md](working-rules.md) § the security review, on trial); robustness — crashes,
-depth, memory, cost — is the HARDENING review's. So round 3's queued classes are now the
-**hardening review's queue**, each opened with its scope and depth written first: H-2 depth that
-grows AFTER the check (passes deepen a module; the interpreter's nesting across calls); H-3 the
-WAT parser recursing before its check (`(@…` annotations, folded `delegate`, linear operand
-chains); H-4 entries never checked (`parseWastScript` commands; `createPass().run`,
-`resolveNames`, `ExprVisitor`, `validateModule`); H-5 the unit (`loop` / `if` / `try` levels;
-README wording); H-6 `bun run hostile` keyed to the old message.
+**Re-scoped (owner, 2026-11-15):** the security review asks about CONTROL of the code or the
+repo; robustness is the hardening review's (now the final standard's classes, letter H37). The
+OPEN issues once queued here — round 3's hardening queue (C-H2 … C-H6) and round 4's three
+fidelity gates (C-R2-1, C-R2-2, C-R2-5) — MOVED to the gitignored `review-issues.md` § "Carried"
+(H37 work item (c), 2026-11-18): issues are tracked there, never on GitHub.
 
 **Security review round 4 — scope and depth, FROZEN when it opens (for the owner to read
 first).** SCOPE, two goals only:

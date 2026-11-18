@@ -4,6 +4,7 @@
   "scripts": {
     "check": "bun check -p tsconfig.json && bun check -p scripts/binaryen-ts/tsconfig.json && bun check -p tests/tsconfig.json && bun check -p tests/binaryen-ts/tsconfig.json && bun check -p examples/browser-optimize/tsconfig.json",
     "check:tsc": "tsc -p tsconfig.json && tsc -p scripts/binaryen-ts/tsconfig.json && tsc -p tests/tsconfig.json && tsc -p tests/binaryen-ts/tsconfig.json && tsc -p examples/browser-optimize/tsconfig.json",
+    "gate": "bun scripts/gate.ts",
     "test": "bun scripts/test.ts",
     "test:bun": "bun scripts/test.ts --bun",
     "naming": "bun scripts/check-naming.ts",

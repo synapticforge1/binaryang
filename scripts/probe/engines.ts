@@ -281,6 +281,7 @@ await fetch('/result', { method: 'POST', body: JSON.stringify(out) });
     const profile = mkdtempSync(join(tmpdir(), `probe-${name}-`));
     // Stop EVERY process whose command line names this run's profile: killing the launcher is not
     // enough (Edge's helpers outlived it, 2026-10-23, and a relaunched helper is not in its tree).
+    // win-x64 / win-arm64: no process groups, so the profile's processes are found by command line.
     const stop = () =>
       process.platform === 'win32'
         ? spawnSync('powershell', [

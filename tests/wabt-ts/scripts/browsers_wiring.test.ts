@@ -224,16 +224,13 @@ describe('the real-browser job', () => {
     expect(src).toMatch(/guarded\(bad, \(\) => \{\n\s*const res = r!\.result!;/);
   });
 
-  // Two CI jobs since 2026-11-11 (owner): Playwright's engines in its image, the installed
-  // browsers on the hosted runner. ci_browsers.test.ts holds that their two lists are all of them.
-  it('is CI work that installs the browsers and requires all of them', () => {
-    const ci = readFileSync(new URL('../../../.github/workflows/ci.yml', import.meta.url), 'utf8');
-    const runs = [...ci.matchAll(/^\s*run:\s*(.+)$/gm)].map((m) => m[1]!.trim());
-    expect(runs).toContain('bun scripts/ci/install-browsers.ts');
-    const checks = runs.filter((r) => r.startsWith('bun run browsers '));
-    expect(checks).toEqual([
-      'bun run browsers --require-all --only=chromium,firefox,safari',
-      'bun run browsers --require-all --only=chrome,edge,brave,opera',
-    ]);
+  // LOCAL work since 2026-11-18 (workspace review standard, letter H37: every gate runs locally,
+  // CI only publishes). The gate REQUIRES the browsers the dev machine runs — a missing one fails,
+  // never skips; Brave and Opera are `pending` until a machine has them (cmem/platforms.md).
+  it('is a gate step that requires every browser this machine runs', () => {
+    const gate = readFileSync(new URL('../../../scripts/gate.ts', import.meta.url), 'utf8');
+    expect(gate).toMatch(
+      /'browsers',\s+bun\('run', 'browsers', '--require-all', '--only=chromium,firefox,safari,chrome,edge'\)/,
+    );
   });
 });

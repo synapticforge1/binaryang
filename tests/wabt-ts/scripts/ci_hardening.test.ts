@@ -5,15 +5,15 @@
 //
 //   A3  the privacy rule ("no secrets or personal information are ever made public") and the
 //       dependencies' known vulnerabilities were checked by no step of CI or the release. Now
-//       `scripts/check-privacy.ts` and `bun audit` run in CI's gates (the tree, and the commits a
-//       push adds) and in the release's checks (every commit since the previous release), and the
-//       built npm package is scanned before it is packed.
-//   B8  ci.yml had no `permissions:` (the repository default, possibly write), actions pinned by
-//       tag, checkouts that kept the token, and `npm install -g bun` running the package's install
-//       script. Now: read-only, pinned to commits, no kept credential, nothing's install script.
+//       `scripts/check-privacy.ts` and `bun audit` run in the LOCAL gate (`scripts/gate.ts`: the
+//       tree, and the commits not yet on GitHub; with `--release`, every commit since the
+//       previous release), and the built npm package is scanned before it is packed.
+//   B8  ci.yml's credentials — ci.yml is gone since 2026-11-18: the workspace review standard
+//       (letter H37) runs every gate locally and CI only publishes.
 //
 // The samples below are ASSEMBLED from pieces, so this file holds no string the scanner refuses.
 
+import { existsSync, readdirSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
@@ -22,12 +22,13 @@ import {
   KNOWN,
   mask,
   parseArgs,
+  privateFilesTracked,
   textOf,
   unknown,
 } from '../../../scripts/check-privacy.ts';
 
-const CI = fsx.readTextFileSync('.github/workflows/ci.yml');
 const PUBLISH = fsx.readTextFileSync('.github/workflows/publish.yml');
+const GATE = fsx.readTextFileSync('scripts/gate.ts');
 /** The lines that are not YAML comments. */
 const live = (yml: string) => yml.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
 /** One job's text in a workflow, by its key under `jobs:`. */
@@ -39,50 +40,32 @@ function job(yml: string, key: string): string {
   return next < 0 ? body.slice(at) : body.slice(at, at + 3 + next);
 }
 
-describe('B8 — ci.yml holds no credential it does not need', () => {
-  it('reads with a read-only token, and no job asks for more', () => {
-    expect(CI).toMatch(/\npermissions:\n {2}contents: read\n\njobs:\n/);
-    expect(live(CI)).not.toMatch(/:\s*write\b/);
-  });
-
-  it('pins every action to a commit, or to this repo', () => {
-    const uses = [...CI.matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)/gm)].map((m) => m[1]!);
-    expect(uses.length).toBeGreaterThan(8);
-    expect(uses.filter((u) => !/@[0-9a-f]{40}$/.test(u) && !u.startsWith('./.github/actions/')))
-      .toEqual([]);
-  });
-
-  it('keeps no credential in any checkout', () => {
-    const checkouts = CI.split('uses: actions/checkout@').slice(1);
-    expect(checkouts.length).toBe(4);
-    for (const c of checkouts) {
-      expect(c.split(/\n\s+- name: /)[0]).toContain('persist-credentials: false');
-    }
-  });
-
-  it('runs no install script: nothing is `npm install -g`-ed', () => {
-    expect(live(CI)).not.toMatch(/npm (?:install|i) -g/);
+describe('B8 — the workflows hold no credential they do not need', () => {
+  it('ci.yml is gone: CI runs no tests (letter H37); publish.yml holds write only to publish', () => {
+    expect(existsSync('.github/workflows/ci.yml')).toBe(false);
+    expect(readdirSync('.github/workflows').sort()).toEqual(['publish.yml']);
+    expect(PUBLISH).toMatch(/\npermissions: \{\}\n/);
+    expect(live(job(PUBLISH, 'checks'))).not.toMatch(/:\s*write\b/);
+    expect(live(PUBLISH)).not.toMatch(/npm (?:install|i) -g/);
   });
 });
 
-describe('A3 — the privacy rule and the audit, checked by CI and the release', () => {
-  it("CI's gates: the tree and the commits the push adds, with the history to read them", () => {
-    const gates = live(job(CI, 'gates'));
-    expect(gates).toMatch(/uses: actions\/checkout@\S+[^\n]*\n\s+with:\n\s+fetch-depth: 0\n/);
-    expect(gates).toContain('bun run privacy --commits "$range"');
-    expect(gates).toContain('if git cat-file -e "$BASE^{commit}" 2>/dev/null; then');
-    expect(gates).toContain('run: bun run audit');
-    // the base: the pull request's, or the commit before the push
-    expect(gates).toContain('github.event.pull_request.base.sha || github.event.before');
+describe('A3 — the privacy rule and the audit, checked by the local gate and the release', () => {
+  it('the gate: the tree and the commits not yet on GitHub, and the audit', () => {
+    expect(GATE).toContain(
+      "['privacy', bun('scripts/check-privacy.ts', '--commits', 'origin/main..HEAD')]",
+    );
+    expect(GATE).toContain("['audit', bun('audit')]");
   });
 
-  it("the release's checks: every commit since the previous release, before the tag", () => {
-    const checks = live(job(PUBLISH, 'checks'));
-    expect(checks).toContain("prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^)");
-    expect(checks).toContain('bun run privacy --commits "$prev..HEAD"');
-    expect(checks).toContain('run: bun run audit');
-    // checks has the tags (fetch-depth 0), and the tag job waits for checks
-    expect(checks).toMatch(/fetch-depth: 0/);
+  it("the release's gate: every commit since the previous release, before the tag", () => {
+    expect(GATE).toContain("['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', 'HEAD']");
+    // (`$` + `{prev}` written in two parts: it is the gate's template, not this file's.)
+    expect(GATE).toContain("bun('scripts/check-privacy.ts', '--commits', `$" + '{prev}..HEAD`)');
+    // the release runs the gate with --release, and the tag job still waits for checks
+    expect(fsx.readTextFileSync('scripts/release/publish.ts')).toContain(
+      "spawnSync('bun', ['run', 'gate', '--release']",
+    );
     expect(job(PUBLISH, 'tag')).toMatch(/needs: \[checks, npm-build\]/);
   });
 
@@ -236,15 +219,19 @@ describe('round 2 — the shapes the first list missed', () => {
   });
 });
 
-describe('round 2 — CI and the installer', () => {
-  it("CI's privacy range after a force-push: every commit since the latest release tag", () => {
-    const gates = live(job(CI, 'gates'));
-    expect(gates).toContain(
-      'elif prev=$(git describe --tags --abbrev=0 --match \'v[0-9]*\' HEAD 2>/dev/null); then range="$prev..HEAD"',
+describe('the private files stay untracked (letter H37 § 10)', () => {
+  it('the review issues file, cmem/local/ and .claude/ are each refused when tracked', () => {
+    expect(privateFilesTracked(['src/a.ts', 'cmem/INDEX.md', 'README.md'])).toEqual([]);
+    expect(privateFilesTracked(['cmem/review-issues.md', 'cmem/local/env.md', '.claude/s.json']))
+      .toEqual(['cmem/review-issues.md', 'cmem/local/env.md', '.claude/s.json']);
+    // a look-alike name is not one of them
+    expect(privateFilesTracked(['cmem/review-issues-template.md', 'docs/cmem/local.md'])).toEqual(
+      [],
     );
-    expect(gates).not.toContain('HEAD^!');
   });
+});
 
+describe('round 2 — the installer', () => {
   it('curl follows no redirect off https', () => {
     expect(fsx.readTextFileSync('.github/actions/install-pinned/action.yml')).toContain(
       "curl -fsSL --retry 3 --proto '=https' --proto-redir '=https'",

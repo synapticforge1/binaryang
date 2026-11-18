@@ -257,6 +257,7 @@ try {
       )
     }\n`,
   );
+  // win-x64 / win-arm64: the installed binary carries `.exe`.
   const tsc = join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'tsc.exe' : 'tsc');
   const types = spawnSync(tsc, ['-p', join(consumer, 'tsconfig.json')], {
     cwd: consumer,
