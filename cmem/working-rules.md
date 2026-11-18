@@ -499,3 +499,27 @@ H34). When the owner says:
 
 Each command includes the one before it, and none goes further than its own word (a "commit"
 never pushes, a "push" never releases). This repo's own gate and merge rules apply at each step.
+
+## Session routine and memory (workspace memory guide, letter H38)
+
+- **Start:** read `cmem/STATE.md`, then `cmem/INDEX.md` (a router), then the workspace
+  correspondence rows addressed to binaryang (`../../cmem/workspace-correspondence.md`); open
+  only the files STATE's "Read next" or the task names.
+- **End:** rewrite `cmem/STATE.md` (counts only, no issue content, no machine facts); move items
+  closed this session to `cmem/archive/`; record decisions in `design-decisions.md` and rules
+  here; run `bun scripts/check-cmem.ts` and fix what it reports.
+- **Sub-agents:** a reviewer gets its brief and `STATE.md` and does not browse `cmem/`; any other
+  sub-agent gets the task and the exact files picked from the index.
+- **Limits** (held by the check): INDEX 3 KB, STATE 60 lines, any other live note 25 KB, any line
+  outside a code block 200 characters; `archive/` and `local/` unlimited. The guide's migration
+  steps 4–6 are open (STATE.md "Next").
+
+## Triggers (the workspace's, as binaryang reads them)
+
+1. **"update the project memory"** — revise the matching topic file and its index line, with
+   absolute dates, updating rather than duplicating; then grep the old values across `cmem/`,
+   `README.md` and `CHANGELOG.md`, and measure when two files disagree.
+2. **"look for code issues"** — audit tested and untested paths for workarounds, dead code, bugs
+   and silent fall-throughs; report `file:line` and severity; judge by OUTPUT, not exit codes.
+3. **"coordinate"** — with a sibling, by letter only ([handoffs.md](handoffs.md)): read its
+   record, verify by running its tools, record in our own memory; never write its tree.
