@@ -48,6 +48,7 @@ if (import.meta.main) {
   try {
     writeFileSync(file, code);
     const r = spawnSync(
+      // win-x64 / win-arm64: the installed binary carries `.exe`.
       'node_modules/.bin/biome' + (process.platform === 'win32' ? '.exe' : ''),
       ['lint', file, '--colors=off', '--max-diagnostics=none'],
       { encoding: 'utf8' },

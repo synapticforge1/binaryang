@@ -1,17 +1,17 @@
-# The release: checks, then CI's tag, then the GitHub Release page, then JSR and npm.
+# The release: the version, then CI's tag, then the GitHub Release page, then JSR and npm.
 #
-# 🔒 The owner's order (2026-11-10, workspace letter H33, `release-process.md` § 5 / § 8 D1): "the
-# CI to check first, then push the tag, and then create the release page from the tag, then
-# publish the package to the registry for the project in that order." `bun run bump <level>` writes
-# the version; `bun run release` commits `bump to vX.Y.Z` and pushes `main` ONLY — no tag is made
-# on a machine, ever. This workflow runs on every push to `main`:
+# 🔒 The owner's order (2026-11-10, workspace letter H33, `release-process.md` § 5 / § 8 D1), as
+# amended 2026-11-17 (letter H37: "We want the CI to verify the version, then tag, create the
+# release page and publish, and skip any version already published"): the CHECKS run LOCALLY.
+# `bun run bump <level>` writes the version; `bun run release` refuses without a completed review,
+# runs every gate (`bun run gate --release`), commits `bump to vX.Y.Z` and pushes `main` ONLY — no
+# tag is made on a machine, ever. CI runs no tests. This workflow runs on every push to `main`:
 #
-#   checks     no token  Is this a release? jsr.json's version with no tag on GitHub = NEW; its
-#                        tag on THIS commit = a RE-RUN; on another commit = an ordinary push, and
-#                        everything stops here (ci.yml checks that). For a release: a NEW number
-#                        must be free on JSR and npm (npm never reuses one, C34 (2)); the
-#                        compatibility gate, the type check, both test legs, and
-#                        `deno publish --dry-run` on exactly the files `jsr` checks out
+#   checks     no token  The VERSION: is this a release? jsr.json's version with no tag on GitHub
+#                        = NEW; its tag on THIS commit = a RE-RUN; on another commit = an ordinary
+#                        push, and everything stops here. For a release, a NEW number must be free
+#                        on JSR and npm (npm never reuses one, C34 (2)): a version already published
+#                        is skipped
 #   npm-build  no token  builds and PROVES the npm package, packs it, uploads the tarball — BEFORE
 #                        the tag (skipped while the NPM_PUBLISH variable is not `true`)
 #   tag        contents  once `checks` is green and `npm-build` green or skipped: CI's annotated
@@ -32,8 +32,9 @@
 # `@jrmarcum` JSR scope — which is what JSR authorises (the dispatched runs auto-tag.yml started had
 # the bot as actor and were refused, `actorNotScopeMember`; auto-tag.yml is retired). The order
 # checks → tag → page → JSR → npm was MEASURED by 3.0.3 (run 43061998593) and 3.0.4 (run
-# 43072390794), all six jobs green; `npm-build` BEFORE the tag and the explicit `if:`s (review,
-# 2026-11-13) are UNMEASURED until the next release.
+# 43072390794), all six jobs green; `npm-build` BEFORE the tag, the explicit `if:`s (review,
+# 2026-11-13) and the version-only `checks` job (2026-11-18) are UNMEASURED until the next release
+# (a push of an already-published version rehearses `checks` alone: it says "not a release").
 #
 # The npm package is built and PROVEN (`npm-build`) BEFORE CI tags: a package npm would never get
 # must not leave a tag, a page and a JSR version behind (review round 1, 2026-11-13). Every job has
@@ -58,8 +59,8 @@
 # workflow's OIDC token, and every step of a job holding it can mint one. So `jsr` and `npm` run
 # only pinned actions, `deno publish` / `npm publish`, and the standalone
 # `scripts/release/registry.ts`; they check out what they publish and that script, and install
-# NOTHING. `tag` and `release` check out their one script and jsr.json. Everything that runs
-# dependencies is in `checks` or `npm-build`, without a token. Every action is pinned to a commit
+# NOTHING. `checks`, `tag` and `release` check out their scripts and jsr.json. Everything that runs
+# dependencies is in `npm-build`, without a token. Every action is pinned to a commit
 # hash (the comment names its release); move a pin by reading the release tag's commit with
 # `git ls-remote`.
 #
@@ -85,10 +86,16 @@ concurrency:
 permissions: {}
 
 jobs:
+  # The VERSION only. Every check runs LOCALLY now, before the bump is pushed (workspace review
+  # standard, letter H37, 2026-11-17; owner: "We want the CI to verify the version, then tag,
+  # create the release page and publish, and skip any version already published"): `bun run
+  # release` refuses without a completed review, then runs every gate (`bun run gate --release`:
+  # the tests, the privacy scan, the audit, the compatibility gate, the JSR dry run …). The job
+  # keeps its id `checks`, so every `needs:` below reads the same.
   checks:
-    name: Checks (is this a release?)
+    name: Version (is this a release?)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -98,17 +105,21 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
 
     steps:
-      - name: Checkout
+      - name: Checkout the release scripts and the manifest only
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          # The release tags: the compatibility gate compares this commit with the previous tag.
-          fetch-depth: 0
           persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /jsr.json
+            /main.ts
+            /scripts/release/
+            /.github/actions/install-pinned/
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Install Bun (exact URL, sha256-checked)
+        uses: ./.github/actions/install-pinned
         with:
-          bun-version: '1.4.4'
+          tools: bun
 
       # Outputs release (true / false), and for a release its state (new / rerun), version, tag.
       # The tag is read from GitHub with `git ls-remote`, never from the local tags.
@@ -116,90 +127,13 @@ jobs:
         id: release
         run: bun scripts/release/workflow.ts release-state
 
+      # Skip any version already published: a NEW number must be free on JSR and npm (npm never
+      # reuses one, C34 (2)); a re-run's jobs each skip what the registries already serve.
       - name: A new number is free on JSR and npm
         if: steps.release.outputs.state == 'new'
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: bun scripts/release/registry.ts free "$VERSION"
-
-      # The CI gate's tooling (Bun migration B6 / B7, 2026-10-13): Bun with the dev dependencies,
-      # and Node 24, the V8 referee the suite's verdict comes from.
-      - name: Install dev dependencies
-        if: steps.release.outputs.release == 'true'
-        run: bun install --frozen-lockfile
-
-      # 🔒 The privacy rule, CHECKED before anything is tagged or published (security review round
-      # 1, A3, 2026-11-13): no secret, personal address or drive path in the tree or in any commit
-      # message since the previous release. Hits print masked.
-      - name: Privacy (the tree, and every commit since the previous release)
-        if: steps.release.outputs.release == 'true'
-        run: |
-          prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^)
-          bun run privacy --commits "$prev..HEAD"
-
-      - name: Dependency audit
-        if: steps.release.outputs.release == 'true'
-        run: bun run audit
-
-      - name: Install Node (the V8 referee)
-        if: steps.release.outputs.release == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: '24'
-
-      # The compatibility gate, on the commit CI is about to tag (workspace letter H6, rule 2): the
-      # version's jump from the PREVIOUS release tag must cover what the surface diff demands.
-      - name: Compatibility gate (the version jump covers the surface change)
-        if: steps.release.outputs.release == 'true'
-        run: bun scripts/release/api-surface.ts --release-check
-
-      - name: Type-check
-        if: steps.release.outputs.release == 'true'
-        run: bun run check
-
-      # The CI gate's two legs (B5): node:test on Node 24 is the verdict; Bun must fail exactly the
-      # known JavaScriptCore differences in tests/bun-known-differences.json.
-      - name: Test (node:test on Node 24, the referee)
-        if: steps.release.outputs.release == 'true'
-        run: bun run test
-
-      - name: Test (Bun, against the known JavaScriptCore differences)
-        if: steps.release.outputs.release == 'true'
-        run: bun run test:bun
-
-      # Deno ONLY for `deno publish` (owner, 2026-10-12: Deno for JSR).
-      - name: Install Deno
-        if: steps.release.outputs.release == 'true'
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
-        with:
-          deno-version: v2.9.6
-
-      # The `jsr` job publishes from a checkout of jsr.json's `publish.include` alone — no
-      # package.json, no lockfile, no node_modules. Rehearse exactly that tree here (measured
-      # 2026-11-09: the same 136 files, and the slow-types check passes, as from the full tree).
-      - name: Checkout the published files only (as the jsr job does)
-        if: steps.release.outputs.release == 'true'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-        with:
-          path: jsr-tree
-          persist-credentials: false
-          sparse-checkout-cone-mode: false
-          sparse-checkout: |
-            /jsr.json
-            /main.ts
-            /src/
-            /README.md
-            /LICENSE
-            /LICENSE-MIT
-            /LICENSE-APACHE
-            /NOTICE.md
-
-      # No `--allow-slow-types` (measured 2026-08-26: the tree passes the slow-types check without
-      # it, and a slow-types package ships NO .d.ts for Node users).
-      - name: JSR dry run, on the tree the jsr job publishes
-        if: steps.release.outputs.release == 'true'
-        working-directory: jsr-tree
-        run: deno publish --dry-run
 
   # CI pushes the tag, only after `checks` is green on THIS commit (D1, U6) AND the npm package is
   # built and proven (review round 1, 2026-11-13: a package that cannot build for npm used to get

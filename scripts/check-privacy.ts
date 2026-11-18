@@ -199,6 +199,18 @@ export function parseArgs(argv: string[]): { dirs: string[]; commits: string | u
   return { dirs, commits };
 }
 
+/**
+ * The PRIVATE files among `tracked` (paths as `git ls-files` prints them): the review issues file,
+ * anything under `cmem/local/` or `.claude/`. Each is gitignored, but `git add -f` still commits
+ * it — and an issues file on GitHub publishes every open finding (workspace review standard,
+ * letter H37 § 10: "the privacy gate checks that it is untracked").
+ */
+export function privateFilesTracked(tracked: readonly string[]): string[] {
+  return tracked.filter((f) =>
+    f === 'cmem/review-issues.md' || f.startsWith('cmem/local/') || f.startsWith('.claude/')
+  );
+}
+
 if (import.meta.main) {
   let args: ReturnType<typeof parseArgs>;
   try {
@@ -211,7 +223,14 @@ if (import.meta.main) {
   const maintainer = maintainerAddress(root);
   const leaks: Leak[] = [];
   let files = 0;
-  for (const f of git(['ls-files', '-z']).split('\0').filter(Boolean)) {
+  const tracked = git(['ls-files', '-z']).split('\0').filter(Boolean);
+  const privateOnes = privateFilesTracked(tracked);
+  if (privateOnes.length > 0) {
+    console.error('check-privacy: private file(s) TRACKED — untrack them (git rm --cached):');
+    for (const f of privateOnes) console.error(`  ${f}`);
+    process.exit(1);
+  }
+  for (const f of tracked) {
     let text: string | undefined;
     try {
       text = textOf(readFileSync(join(root, f)));

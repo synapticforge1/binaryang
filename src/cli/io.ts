@@ -195,6 +195,8 @@ export async function sameFile(a: string, b: string): Promise<boolean> {
     if (x.ino !== 0n && y.ino !== 0n) return x.dev === y.dev && x.ino === y.ino;
     const [ra, rb] = await Promise.all([realpath(a), realpath(b)]);
     const platform = cliProcess().platform;
+    // win-x64 / win-arm64 / mac-x64 / mac-arm64: case-insensitive file systems by default (NTFS,
+    // exFAT, APFS), so a path differing only in case is the same file there.
     const fold = platform === 'win32' || platform === 'darwin';
     return fold ? ra.toLowerCase() === rb.toLowerCase() : ra === rb;
   } catch {

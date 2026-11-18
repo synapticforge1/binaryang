@@ -55,6 +55,7 @@ export async function contentHash(source: Record<string, unknown>): Promise<stri
 function fmt(ts: string, path = 'src/definitions/data.ts'): string {
   // The repo's formatter (dprint since Bun migration B3, 2026-10-13; it replaced `deno fmt` byte
   // for byte), through dprint.json: `--stdin <path>` picks the config and plugin by that path.
+  // win-x64 / win-arm64: the installed binary carries `.exe`.
   const bin = 'node_modules/.bin/dprint' + (process.platform === 'win32' ? '.exe' : '');
   const out = spawnSync(bin, ['fmt', '--stdin', path], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),

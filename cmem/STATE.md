@@ -4,11 +4,11 @@ Updated: 2026-11-18, at the end of the session
 
 ## Version
 - Released: 3.0.4 on 2026-11-11 (JSR and npm, provenance on both)
-- Working branch: `review-next` (local; from `security-r3`; the review's fixes uncommitted)
+- Working branch: `h37` (local; from `main` 715f58abd, where the review's fixes landed)
 
 ## Now
-- The review for the next release is COMPLETE under the final standard (letter H37)
-- Its fixes sit uncommitted on `review-next`, waiting on the owner's "commit" / "push"
+- The review for the next release is COMPLETE under the final standard (letter H37), on `main`
+- H37 (a)–(g) done on `h37`, uncommitted: `bun run gate` 31/31 on win-x64 (2026-11-18)
 - H38 steps 1–3 and 7 are done; steps 4–6 open
 
 ## Review
@@ -18,17 +18,15 @@ Updated: 2026-11-18, at the end of the session
 - Platforms passed: win-x64, linux-x64 (Ubuntu 26.04, Bun only); pending: the other four
 
 ## Next
-1. Commit the review's fixes on `review-next`, then merge to `main` (the owner's word)
-2. H37 (a) slot file, (b) privacy gate checks review-issues.md is untracked, (c), (f), (g)
-3. H37 (d) release script refuses without a completed review; (e) CI only publishes
-4. A committed local gate script (the scratch one is not kept)
-5. H38 steps 4–6: archive closed items, split the 19 files over 25 KB, wrap long lines
+1. Commit `h37`, then merge to `main` (the owner's word); the changed publish.yml is
+   first exercised in full at the next real release
+2. H38 steps 4–6: archive closed items, split the 19 files over 25 KB, wrap long lines
+3. The carried issues C-H2…C-R2-5 (review-issues.md), when the owner opens them
 
 ## Waiting on owner
-- "commit" / "push" for the review's fixes
-- n-2: is "Ported from / Based on" enough for Apache-2.0 §4(b)'s "modified" notice?
-- The GitHub settings checklist the security reviewer listed (in review-issues.md)
+- "commit" / "push" for `h37`
 - The ★ best-practices copy (held by letter H38)
+- Closed 2026-11-18: n-2 (rewrites, M6); the GitHub settings checklist (owner verified)
 
 ## Read next
 - review-issues.md (gitignored): the review's issues, fixes and counts

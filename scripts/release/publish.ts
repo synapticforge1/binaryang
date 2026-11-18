@@ -6,7 +6,8 @@
  * with `git ls-remote`. It makes and pushes NO tag: 🔒 the owner's order (2026-11-10, workspace
  * letter H33, D1) is "the CI to check first, then push the tag, and then create the release page
  * from the tag, then publish the package to the registry". `.github/workflows/publish.yml` runs
- * on the push: `checks` → CI's `tag` → the `release` page → `jsr` / `npm`. Until 2026-11-10 this
+ * on the push: `checks` (the version only, since 2026-11-18) → CI's `tag` → the `release` page →
+ * `jsr` / `npm`. Until 2026-11-10 this
  * script force-wrote the tag locally and pushed `main` and the tag together.
  *
  * WHAT it does is `./release-run.ts` (`runRelease`), every guard and every git command, tested
@@ -16,7 +17,8 @@
  *
  * Typical flow:
  *   1. bun run bump <level>   # writes the next version into jsr.json and main.ts
- *   2. bun run release        # guards, commits the bump, pushes main (this script)
+ *   2. bun run release        # the review set and every gate (local), guards, commits the bump,
+ *                             # pushes main (this script); CI then only verifies and publishes
  *   3. Watch the Actions tab — publish.yml's six jobs; a failure is "Re-run failed jobs" on that
  *      run, never a new tag and never a second `bun run release` (it refuses: nothing to push).
  *
@@ -40,7 +42,7 @@ import { DENO, denoCommand } from '../deno.ts';
 import { jsrHas, npmState } from './registry.ts';
 import { runRelease } from './release-run.ts';
 
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -90,13 +92,25 @@ const code = await runRelease({
     return spawnSync('bun', ['run', 'check'], { stdio: 'inherit' }).status === 0;
   },
   entryProblems: () => checkEntry(process.cwd()),
+  // The completed review: the gitignored issues file's `review-complete: <sha>` line, if any.
+  reviewedCommit() {
+    if (!existsSync('cmem/review-issues.md')) return null;
+    const m = /^review-complete: ([0-9a-f]{40})\s*$/m.exec(
+      readFileSync('cmem/review-issues.md', 'utf8'),
+    );
+    return m ? m[1]! : null;
+  },
+  runGates() {
+    console.log('$ bun run gate --release   (every gate, locally: CI only publishes)');
+    return spawnSync('bun', ['run', 'gate', '--release'], { stdio: 'inherit' }).status === 0;
+  },
   log: (l) => console.log(l),
   error: (l) => console.error(l),
 });
 if (code === 0) {
   console.log('  https://github.com/synapticforge1/binaryang/actions');
   console.log(
-    "Its jobs, in the owner's order: checks -> tag (CI tags this commit) -> release (the",
+    "Its jobs, in the owner's order: checks (the version) -> tag (CI tags this commit) -> release (the",
   );
   console.log(
     'GitHub Release page) -> jsr -> npm. Read every job; a failure is "Re-run failed jobs",',

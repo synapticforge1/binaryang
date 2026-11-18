@@ -48,14 +48,17 @@ describe('the Deno pin is written once', () => {
     expect(hits).toEqual([]);
   });
 
-  // Owner, 2026-10-28: "the CI should use npm's deno". The gates job and the runtimes matrix's
-  // Deno leg run Deno through scripts/deno.ts; only publish.yml keeps setup-deno, because its
-  // `deno publish` runs DIRECTLY for provenance (cmem/publishing.md).
-  it('CI runs Deno through scripts/deno.ts, and installs none', async () => {
-    const ci = await fsx.readTextFile('.github/workflows/ci.yml');
-    expect(ci).not.toContain('setup-deno');
-    expect(ci).toContain('invoke: bun scripts/deno.ts run -A');
+  // Owner, 2026-10-28: "the CI should use npm's deno". Since 2026-11-18 CI runs no checks (letter
+  // H37): the local gate runs Deno through scripts/deno.ts; publish.yml's `jsr` job alone needs
+  // Deno, for `deno publish` run DIRECTLY (provenance, cmem/publishing.md), from the pinned,
+  // sha256-checked installer — never a setup action.
+  it('the gate runs Deno through scripts/deno.ts; publish.yml installs it only for the publish', async () => {
+    const gate = await fsx.readTextFile('scripts/gate.ts');
+    expect(gate).toContain("'scripts/deno.ts', 'run', '-A'");
     const publish = await fsx.readTextFile('.github/workflows/publish.yml');
-    expect(publish).toContain('setup-deno');
+    expect(publish).not.toContain('setup-deno');
+    expect(publish).toMatch(
+      /uses: \.\/\.github\/actions\/install-pinned\n\s+with:\n\s+tools: [^\n]*deno/,
+    );
   });
 });

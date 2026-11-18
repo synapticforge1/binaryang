@@ -325,7 +325,7 @@ The table is the current shape; [release.md](release.md) § "How a release is ma
 
 | job | token | what it runs |
 | --- | --- | --- |
-| `checks` | none | `workflow.ts release-state` (no tag = new, the tag here = re-run, elsewhere = stop); for a new number `registry.ts free` (JSR AND npm — npm never reuses a number, C34 (2)); `api-surface.ts --release-check`; `check`, both test legs; `deno publish --dry-run` on a sparse checkout of `jsr.json`'s include list (the `jsr` job's tree) |
+| `checks` | none | the VERSION only (since 2026-11-18, letter H37 — the checks run locally in `bun run release`: the review set, then `bun run gate --release`): `workflow.ts release-state` (no tag = new, the tag here = re-run, elsewhere = stop); for a new number `registry.ts free` (JSR AND npm — npm never reuses a number, C34 (2)) |
 | `tag` | contents: write | only once `checks` is green and `npm-build` green or skipped (its RESULT, never the variable): `github.ts tag` — the annotated tag on this commit (REST), read back; at this commit = done, elsewhere = refused |
 | `release` | contents: write | `github.ts release` (H32), from the tag, before the publish |
 | `jsr` | id-token | sparse checkout of the published files + `registry.ts`, nothing installed; `jsr-has` (a re-run skips the upload); `oidc-check`; **`uploaded=true` written BEFORE** `deno publish`; provenance read-back |
@@ -627,7 +627,9 @@ wabt-ts reached the same rule from the other direction and recorded the corollar
 `defaultFeatures()` started getting rejections where they previously got success. That is the option
 finally working, and it is still a behaviour change that belongs in release notes.
 
-## `publish:dry` is in CI but NOT in `deno task test`
+## `publish:dry` is in the local gate but NOT in the test suite
+
+(Since 2026-11-18 the gate is local, `bun run gate`: CI only publishes, letter H37.)
 
 It runs the **slow-types** check, which `deno task check` does not. Moving one constant into another
 file made it public API without an explicit type — a `missing-explicit-type` error that **339

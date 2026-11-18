@@ -7,6 +7,8 @@ Read STATE.md first. Open another file only when the task matches its line.
 - [open-work.md](open-work.md): when choosing the next item or picking one up
 - [design-decisions.md](design-decisions.md): when a change touches a recorded decision
 - [unreleased.md](unreleased.md): when a change lands on `main`, and when writing a release note
+- [review-process.md](review-process.md): during a review — binaryang's slots in the standard
+- [platforms.md](platforms.md): when a change is platform-specific, or recording a platform run
 - [release.md](release.md): only when releasing; holds the Release History
 - [publishing.md](publishing.md): when the release workflow or provenance changes
 - [testing.md](testing.md): before running or adding tests, gates or corpora

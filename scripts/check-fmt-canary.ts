@@ -59,6 +59,7 @@ export const FILES: readonly { path: string; code: string; reported: boolean; wh
 ];
 
 if (import.meta.main) {
+  // win-x64 / win-arm64: the installed binary carries `.exe`.
   const bin = 'node_modules/.bin/dprint' + (process.platform === 'win32' ? '.exe' : '');
   const listed = spawnSync(bin, ['output-file-paths'], { encoding: 'utf8', maxBuffer: 16 << 20 });
   const count = listed.stdout.split('\n').filter((l) =>

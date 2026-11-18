@@ -48,6 +48,12 @@ interface World {
   pushFails: boolean;
   /** What origin's main reads back as after the push (undefined: HEAD). */
   readBack?: string;
+  /** The commit a completed review covers (null: none recorded). */
+  reviewed: string | null;
+  /** `git diff --name-only <reviewed>`: the files changed since the review. */
+  changedSinceReview: string;
+  /** Every gate passed. */
+  gates: boolean;
 }
 
 const READY: World = {
@@ -67,6 +73,9 @@ const READY: World = {
   head: 'a'.repeat(40),
   originMain: 'b'.repeat(40),
   pushFails: false,
+  reviewed: 'e'.repeat(40),
+  changedSinceReview: 'jsr.json\nmain.ts\ncmem/release.md\n',
+  gates: true,
 };
 
 /** Runs a release in `world`; the exit code, every git command, and what was printed. */
@@ -98,6 +107,8 @@ async function release(over: Partial<World> = {}) {
           if (a1 === '--tags') return w.lsRemoteTagsFails ? fail(128) : ok(w.remoteTag);
           return ok(`${w.readBack ?? (committed ? 'c'.repeat(40) : w.head)}\trefs/heads/main\n`);
         case 'diff':
+          // `diff --name-only <reviewed>`: what changed since the review.
+          if (a1 === '--name-only') return ok(w.changedSinceReview);
           // `diff --quiet HEAD -- files` (the bump pending) and `diff --cached --quiet` (staged).
           return w.bumpPending ? fail(1) : ok();
         case 'add':
@@ -115,6 +126,8 @@ async function release(over: Partial<World> = {}) {
     coldDryRun: () => w.cold,
     typeCheck: () => w.check,
     entryProblems: () => Promise.resolve(w.entry),
+    reviewedCommit: () => w.reviewed,
+    runGates: () => w.gates,
     log: (l) => out.push(l),
     error: (l) => out.push(l),
   });
@@ -135,6 +148,12 @@ describe('the release: every refusal runs, and changes nothing', () => {
     expect(r.calls.at(-1)).toEqual(['ls-remote', 'origin', 'refs/heads/main']);
   });
 
+  it('the review set runs FIRST: before the tree, the fetch or any registry is read', async () => {
+    const r = await release();
+    expect(r.calls[0]).toEqual(['diff', '--name-only', 'e'.repeat(40)]);
+    expect(r.out).toContain('Releasing v9.9.9');
+  });
+
   it("fetches GitHub's main AND its tags (CI makes the tags) before reading any tag", async () => {
     const r = await release();
     const fetch = r.calls.findIndex((c) => c[0] === 'fetch');
@@ -144,6 +163,14 @@ describe('the release: every refusal runs, and changes nothing', () => {
   });
 
   const refusals: [string, Partial<World>, string][] = [
+    // The review set first (letter H37; owner, 2026-11-18).
+    ['no completed review recorded', { reviewed: null }, 'no completed review is recorded'],
+    [
+      'code changed since the reviewed commit',
+      { changedSinceReview: 'jsr.json\nsrc/x.ts\n' },
+      'changed since the reviewed commit',
+    ],
+    ['a failed gate', { gates: false }, 'a gate failed'],
     ['an untracked file', { porcelain: '?? new.ts\n M jsr.json\n' }, 'not clean'],
     ['a modified file outside the release files', { porcelain: ' M src/x.ts\n' }, 'not clean'],
     ['a branch other than main', { branch: 'feature' }, "not 'main'"],
@@ -360,28 +387,34 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     expect(code(PUBLISH_YML).filter((l) => /\b(deno task|bun run) release\b/.test(l))).toEqual([]);
   });
 
-  it('runs both type checks and both test legs BEFORE publishing', () => {
-    const r = runs(PUBLISH_YML);
-    const publish = r.indexOf('deno publish');
-    for (const cmd of ['bun run check', 'bun run test', 'bun run test:bun']) {
-      const at = r.indexOf(cmd);
-      expect(at >= 0 && at < publish, `${cmd} runs before the publish`).toBe(true);
+  // 🔒 Letter H37 (2026-11-17; owner: "We want the CI to verify the version, then tag, create the
+  // release page and publish, and skip any version already published"): CI runs NO check. The
+  // checks run locally — `bun run release` runs the gate first — and `checks` verifies the version.
+  it('CI runs no check: the checks job only verifies the version', () => {
+    expect(runs(jobs['checks']!)).toEqual([
+      'bun scripts/release/workflow.ts release-state',
+      'bun scripts/release/registry.ts free "$VERSION"',
+    ]);
+    for (const cmd of ['bun run check', 'bun run test', 'bun run test:bun', 'bun run audit']) {
+      expect(runs(PUBLISH_YML), cmd).not.toContain(cmd);
     }
-    expect(r).not.toContain('deno task test');
   });
 
-  // Workspace letter H6, rule 2: the compatibility gate is repeated on the tagged commit, before
-  // anything is published, and it needs the release tags to find the previous one.
-  it('runs the compatibility gate on the tag BEFORE publishing, with the tags fetched', () => {
-    const r = runs(PUBLISH_YML);
-    const gate = r.indexOf('bun scripts/release/api-surface.ts --release-check');
-    expect(
-      gate >= 0 && gate < r.indexOf('deno publish'),
-      'the release check runs before the publish',
-    ).toBe(true);
-    expect(jobs['checks']).toMatch(
-      /uses: actions\/checkout@[0-9a-f]{40}[^\n]*\n\s+with:\n(?:\s+#[^\n]*\n)*\s+fetch-depth: 0/,
-    );
+  it('the local gate runs what CI ran: the type check, both test legs, the JSR dry run', () => {
+    const gate = fsx.readTextFileSync('scripts/gate.ts');
+    for (const step of ["bun('run', 'check')", "bun('run', 'test')", "bun('run', 'test:bun')"]) {
+      expect(gate, step).toContain(step);
+    }
+    expect(gate).toContain("['publish:dry', bun('run', 'publish:dry')]");
+  });
+
+  // Workspace letter H6, rule 2: the compatibility gate runs before anything is published — now in
+  // the release's local gate (`--release`), on the bumped version, against the previous tag.
+  it('runs the compatibility gate in the release gate, BEFORE the bump is pushed', () => {
+    const gate = fsx.readTextFileSync('scripts/gate.ts');
+    expect(gate).toContain("bun('scripts/release/api-surface.ts', '--release-check')");
+    expect(gate).toContain("if (process.argv.includes('--release'))");
+    expect(PUBLISH).toContain("spawnSync('bun', ['run', 'gate', '--release']");
   });
 
   // 🔒 The owner's order (2026-11-10, workspace letter H33, D1): "the CI to check first, then push
@@ -502,8 +535,11 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     expect([...sparse('jsr')[0]!].sort()).toEqual(
       [...want, '/scripts/release/registry.ts', '/.github/actions/install-pinned/'].sort(),
     );
-    // …and the checks job rehearses `deno publish --dry-run` on that same tree.
-    expect([...sparse('checks')[0]!].sort()).toEqual(want);
+    // …and the checks job checks out the release scripts and the manifest alone (it runs no
+    // dependency; the JSR dry run is the local gate's).
+    expect([...sparse('checks')[0]!].sort()).toEqual(
+      ['/jsr.json', '/main.ts', '/scripts/release/', '/.github/actions/install-pinned/'].sort(),
+    );
   });
 
   it('runs on uploaded, not on the publish exit, and writes uploaded BEFORE the upload', () => {
@@ -579,16 +615,12 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     );
   });
 
-  it('checks: after release-state, every step runs only for a release', () => {
+  it('checks: after release-state, the one step runs only for a NEW version', () => {
     const steps = live('checks').split(/\n\s+- name: /).slice(1);
     const after = steps.slice(steps.findIndex((s) => s.includes('release-state')) + 1);
-    expect(after.length).toBeGreaterThan(5);
-    for (const s of after) {
-      expect(s, s.split('\n')[0]).toMatch(
-        /\n\s+if: steps\.release\.outputs\.(release == 'true'|state == 'new')\n/,
-      );
-    }
-    expect(runs(jobs['checks']!)).toContain('deno publish --dry-run');
+    expect(after.length).toBe(1);
+    expect(after[0]).toMatch(/\n\s+if: steps\.release\.outputs\.state == 'new'\n/);
+    expect(runs(jobs['checks']!)).not.toContain('deno publish --dry-run');
   });
 
   it('no checkout keeps a credential; every job has a time limit; runs queue, never cancel', () => {
@@ -598,9 +630,9 @@ describe('the release workflows, off Deno except for the publish itself', () => 
       expect(c.split(/\n\s+- name: /)[0]).toContain('persist-credentials: false');
     }
     // A limit on every job, each long enough for its measured work (round 2: any number passed).
-    // `checks` runs both test legs and a dry run; `jsr` / `npm` poll provenance ~3 min each.
+    // `checks` reads the version (the tests run locally); `jsr` / `npm` poll provenance ~3 min each.
     const least: Record<string, number> = {
-      checks: 30,
+      checks: 5,
       tag: 5,
       release: 5,
       jsr: 15,
@@ -625,12 +657,12 @@ describe('the release workflows, off Deno except for the publish itself', () => 
       devDependencies: Record<string, string>;
     }).devDependencies['deno'];
     expect(deno).toMatch(/^\d+\.\d+\.\d+$/);
-    // The jobs without a credential use the setup actions; the installer the others use pins the
-    // same versions, by URL.
+    // `npm-build` (no credential) uses the setup actions; every other job, the pinned installer —
+    // which pins the same versions, by URL. Deno comes only from the installer (the `jsr` job).
     const denoPins = [...PUBLISH_YML.matchAll(/deno-version: (\S+)/g)].map((m) => m[1]);
-    expect(denoPins).toEqual([`v${deno}`]);
+    expect(denoPins).toEqual([]);
     const bunPins = [...PUBLISH_YML.matchAll(/bun-version: (\S+)/g)].map((m) => m[1]);
-    expect(bunPins).toEqual(["'1.4.4'", "'1.4.4'"]);
+    expect(bunPins).toEqual(["'1.4.4'"]);
     expect(INSTALLER).toContain(`/download/v${deno}/deno-x86_64-unknown-linux-gnu.zip`);
     expect(INSTALLER).toContain('/download/bun-v1.4.4/bun-linux-x64.zip');
     // Node: the referee's major, as every setup-node in the workflows.
