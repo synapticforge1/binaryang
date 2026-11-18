@@ -30,22 +30,11 @@ LOCALLY** — the review set and every gate, before the bump is pushed. CI runs 
    level; for a patch or a minor runs that release's tests against this tree
    (`scripts/release/previous-tests.ts`) — an unlisted failure OR a stale
    `tests/accepted-changes.json` entry stops it. It writes `jsr.json` and `main.ts`.
-   ⚠️ **The bump after 3.0.4 WILL refuse first, by design** (measured 2026-11-13, review round 2):
-   v3.0.4's `publish_preflight_wiring.test.ts` read the release script's SOURCE, which review
-   rounds 1–2 replaced with behaviour tests — **11 of its tests fail** on the new tree — and the
-   3.0.4 entry (`browsers_wiring.test.ts`, "is a CI job that installs the browsers …") is now
-   stale. Before the bump, on a branch `accept-<new version>` merged `--no-ff` into `main` (as
-   `accept-3.0.3` / `accept-3.0.4` were), ONE commit: drop the stale entry; list the 11 exactly as
-   `bun scripts/release/previous-tests.ts v3.0.4` names them, `since` the version you are about
-   to bump TO (decide the level first: a minor makes it 3.1.0, not 3.0.5), reason "review rounds
-   1–3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not
-   by reading publish.ts's source"; and update the file's `about` line (3.0.4's one entry dropped
-   at that release). In the same commit, delete this ⚠️ paragraph and the matching one in
-   [unreleased.md](unreleased.md). Then bump again. **Since 2026-11-18 more of v3.0.4's tests fail
-   too** — those reading `ci.yml` (`ci_browsers`, `ci_hardening`, `deno_pin`, `browsers_wiring`)
-   and the `checks` job's test steps (`publish_preflight_wiring`): CI only publishes now (letter
-   H37). List them the same way, reason "letter H37: every gate runs locally, CI only publishes". (Measured end to end in a scratch clone in
-   review round 3: the procedure takes the bump from refused to written.)
+   When the previous release's tests fail on purpose, list each in
+   `tests/accepted-changes.json` exactly as `bun scripts/release/previous-tests.ts v<previous>`
+   names it, `since` the version being bumped TO (decide the level first), with its reason, and
+   drop the stale entries — ONE commit on a branch `accept-<new version>`, merged `--no-ff` into
+   `main` (as `accept-3.0.3`, `accept-3.0.4` and `accept-3.1.0` were).
 3. **U4 `bun run release`** (`scripts/release/publish.ts`, its logic `release-run.ts`) — FIRST
    the review set (since 2026-11-18): a completed review recorded (`review-complete: <sha>` in the
    gitignored `review-issues.md`) with nothing but the release files and `cmem/` changed since,
