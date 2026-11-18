@@ -1,5 +1,61 @@
 # Changelog
 
+## 3.1.0
+
+A minor release from four security and hardening reviews. It **refuses hostile input in one
+place, the same on every runtime**, makes the command-line tools safer with files, and adds one
+option. Nothing is removed or renamed. Some inputs that 3.0.4 accepted are now refused: read the
+first section.
+
+### Behaviour changes — inputs now refused
+
+- **One nesting limit, 256 levels, on every runtime.** Every stage that walks
+  a module (the binary reader, the WAT parser, the writers, the optimizer, the interpreter, the
+  bundler) refuses deeper nesting with the same message. 3.0.4's limit depended on the stage and
+  the runtime: around 400 to 5,000 levels, more on Bun. Real compilers' output nests about 25
+  levels. A module that the optimizer itself nests past 256 is refused after optimizing.
+- **Malformed UTF-8 in WAT text is refused** where it stands, in every tool. It was silently
+  replaced. A leading byte-order mark is read the same way everywhere.
+- **Locals are bounded:** a module may declare at most 1,000,000 locals plus one per byte of its
+  size. The interpreter holds the locals of all active calls to 4,000,000 (`maxStackLocals`).
+- `readBinary` refuses a function or tag declared with a type that does not exist, as upstream.
+- `wasm-interp` refuses more `--argument`s than the export takes, and `--argument` without
+  `--run-export`. Missing arguments still default to zero.
+- `-o` with an empty value, or with no value in `wasm-bundle` and `wasm-ctor-eval`, is refused.
+
+### Command-line tools
+
+- A tool whose output is not its input's format **refuses to write over its input**
+  (`wat2wasm a.wat -o a.wat`, a case variant, a hard link).
+- **Every write is atomic** (a temporary file, then a rename). A folder that denies new files still
+  lets an existing writable output be overwritten in place. A bad output path is
+  `tool: cannot write …`, never a stack trace.
+- **`-o NUL` and `-o /dev/null` reach the Windows null device.** 3.0.4 created a file named `NUL`.
+- Inputs over 1 GiB are refused.
+- **Names print inert:** module names, file names and echoed source lines in `wasm-objdump`,
+  `wasm-interp`, every error message and WIT comments are escaped, so a crafted module cannot send
+  terminal control sequences.
+
+### Library
+
+- **New:** `readBinary(bytes, { validate })` in `./compat/binaryen` (off by default, as upstream),
+  and `OptimizeError`, which the binaryen facade's optimizer throws.
+- CoalesceLocals is no longer quadratic: a function with more than 20,000 referenced locals is
+  left as it is.
+- The interpreter charges fuel for bulk work (per element, per 8 bytes, per local), and
+  `memory.grow` no longer copies the memory on every grow. When the host's JavaScript stack runs
+  out before the interpreter's call limit, the call stops with "ran out of its host's stack"
+  rather than trapping: the interpreter cannot tell what the program would have done.
+- A module built through the API is checked as well: reused subtrees are bounded, the optimizer
+  unshares them in place, the writers and the bundler refuse two definitions with one name, and
+  the bundler refuses a relocation its copies disagree on.
+
+### Documentation
+
+- README § "Privacy": the tools and the library collect nothing, read no environment and make no
+  network request.
+- README § "Limits on untrusted input" lists every limit above, and what counts as untrusted.
+
 ## 3.0.4
 
 The same package as 3.0.3 — **nothing in it changed**. The project's own checks changed: the
