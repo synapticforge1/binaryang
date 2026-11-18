@@ -1,11 +1,13 @@
 # Changelog
 
-## 3.1.0
+## 4.0.0
 
-A minor release from four security and hardening reviews. It **refuses hostile input in one
+A major release from four security and hardening reviews. It **refuses hostile input in one
 place, the same on every runtime**, makes the command-line tools safer with files, and adds one
-option. Nothing is removed or renamed. Some inputs that 3.0.4 accepted are now refused: read the
-first section.
+option. Nothing is removed or renamed, and **no calling code needs to change**. It is a major
+because the project's compatibility gate counts any changed declaration as breaking, and
+`readBinary` in `./compat/binaryen` gained an optional parameter; and because some inputs that
+3.0.4 accepted are now refused: read the first section.
 
 ### Behaviour changes — inputs now refused
 

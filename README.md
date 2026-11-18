@@ -239,8 +239,9 @@ library in each of these browsers, headless (WebKit is Safari's engine): every e
 browser's engine accepts. The browser recipe below runs there too. Brave and Opera (Chromium
 engines) are not yet run on the test machine.
 
-The checks run on the maintainer's machine before each release (`bun run gate`, Windows x64 and
-Linux x64); GitHub Actions only publishes.
+The checks run on the maintainer's machine before each release (`bun run gate`, on Windows x64; a
+Linux x64 run covers the Bun test leg, the spec suite and the byte baseline); GitHub Actions only
+publishes.
 
 ### Making a module run on every widely used engine
 
@@ -491,6 +492,7 @@ minors, before that rule.
 
 | Version | What changed                                                                                                                                  | How to migrate                                                                                                                         |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 4.0.0   | Nothing removed or renamed: `readBinary` in `./compat/binaryen` gained an optional `{ validate }` (the gate counts a changed declaration as a break). Hostile input refused the same on every runtime: nesting deeper than 256, malformed UTF-8 in text, more locals than the limits | none in code; a module nested deeper than 256 levels, or text that is not UTF-8, is now refused (CHANGELOG § 4.0.0) |
 | 3.0.0   | `./compat/binaryen`: the type IDs, `Features` bits, a new module's features (MVP) and the default shrink level (1) are binaryen.js 132's values; `i64.const(low, high)` throws (binaryen.js 132's message) where `high` was dropped. CLI: `wasm-objdump -d` is upstream's `--disassemble`, refused until binaryang has a disassembler (it printed the details). Bun 1.4.4 is the minimum | compare IDs and bits by NAME (`binaryen.i32`, `binaryen.Features.GC`), never by number; pass one `bigint` to `i64.const`; use `wasm-objdump -x` for the details; Bun 1.4.4 or later |
 | 2.0.0   | `--enable-sat-float-to-int` / `--disable-sat-float-to-int` removed (deprecated in 1.17.0); `./definitions`: `FeatureDefinition.cliAliases` removed, D2 data version 2.0.0 | spell it as upstream wabt and wasm-tools do: `--enable-saturating-float-to-int` / `--disable-saturating-float-to-int` |
 | 1.12.0  | `./ir/binaryen-ts`, `./ir/wabt-ts`, `./core/wabt-ts` removed (deprecated in 1.11.0); type names `Type` in `./api`, `Features` / `WasmModule` in `./compat/wabt` removed | import from `./ir`, which exports the same names from the same declarations; use `ExprType`, `WabtFeatures`, `WabtWasmModule` |

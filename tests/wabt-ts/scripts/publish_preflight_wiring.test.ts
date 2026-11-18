@@ -170,11 +170,13 @@ describe('the release: every refusal runs, and changes nothing', () => {
       mkdirSync(join(dir, 'src'));
       writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n'.repeat(20));
       g('add', '-A');
-      g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'reviewed');
+      // A `noreply@` address: the privacy scan refuses any other in a committed file (RP-1).
+      const who = ['-c', 'user.name=t', '-c', 'user.email=noreply@example.invalid'];
+      g(...who, 'commit', '-qm', 'reviewed');
       const reviewed = g('rev-parse', 'HEAD').trim();
       mkdirSync(join(dir, 'cmem'));
       g('mv', 'src/a.ts', 'cmem/a.ts');
-      g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'moved');
+      g(...who, 'commit', '-qm', 'moved');
       // Rename detection hides the source; the guard's flags do not.
       expect(g('diff', '--name-only', reviewed).split('\n')).not.toContain('src/a.ts');
       expect(g('diff', '--name-only', '--no-renames', reviewed).split('\n')).toContain('src/a.ts');
