@@ -14,6 +14,12 @@ with the Browsers job (2026-10-13, `2ff337844`); the code lens pass 1 merged and
 ([hardening.md](hardening.md)); items 30 and 32 closed ([optimizer.md](optimizer.md),
 [run-everywhere.md](run-everywhere.md)); the wasmtk Asyncify thread ([handoffs.md](handoffs.md)).
 
+**OPEN — the npm provenance poll is too short (4.0.0, 2026-11-18).** `registry.ts provenance npm`
+polls 12 × 15 s (about 3 minutes); npm showed 4.0.0 about 4 minutes after `npm publish`, so
+publish.yml run 44412712388 ended red with everything published (release.md § 4.0.0). Widen the
+window (measure: npm's lag, and JSR's poll beside it), test it, review it as a change, ship it
+in the next release. Until then a red "Verify provenance … npm" is read back by hand first.
+
 **State, 2026-11-13, latest (supersedes everything below where it differs).** Security review
 **round 1** merged and PUSHED (`main` 541995e1a, CI green). **Round 2** (Sonnet: CLI files,
 hostile modules, CI / release), on branch **`security-r2`**: the owner chose all three groups —

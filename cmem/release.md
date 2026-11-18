@@ -111,6 +111,37 @@ with the needs above, 0 unpinned actions.
 
 ## Release History
 
+### 4.0.0 — a MAJOR from `main` (2026-11-18 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
+
+**What changed** (`CHANGELOG.md` § 4.0.0): four security and hardening reviews. Hostile input is
+refused the same on every runtime (nesting over 256, malformed UTF-8, local limits); the CLI never
+writes over its input, writes atomically, reaches `NUL`; names print inert; `readBinary(bytes,
+{ validate })` and `OptimizeError` are new. Nothing removed or renamed; no calling code changes.
+A MAJOR because the compatibility gate counts readBinary's widened declaration as a break (H6).
+
+The owner's go: "release"; level 4.0.0 (owner, 2026-11-18, asked when the gate's floor read MAJOR).
+
+1. `accept-3.1.0` (merge `88ce4f56b`: 25 v3.0.4 tests listed, written for a minor; a major runs
+   none) and CHANGELOG on `release/3.1.0` (merge `823eaa063`), renamed § 4.0.0 in the review.
+2. **The release review** (letter H37, the first under it): scope c2fa549..823eaa063; first
+   review 4 → 3 → 2 → 0 on `review-310` (merge `8d254df8a`). Full suite: win-x64 gate 31/31;
+   linux-x64 Bun leg, baseline, privacy, spec and interp. `review-complete: ad49dee73`.
+3. Pushed unbumped: publish.yml run 44411285180 green (version only: not a release).
+4. `bun run bump major`: floor MAJOR (readBinary changed). `bun run release`: the review check,
+   `bun run gate --release` (fetches tags; compatibility gate; privacy since v3.0.4), the guards;
+   `bump to v4.0.0` (`fbec78d4e`), `main` only pushed, read back.
+5. **publish.yml run 44412712388 — RED in its last step only:** version → npm-build → tag
+   `v4.0.0` → page → **JSR 4.0.0, Rekor `3979960983`** → npm: `npm publish` exit 0 (22:35:15Z),
+   then "Verify provenance was recorded on npm" FAILED: 12 tries × 15 s ended 22:38:01Z, and npm
+   showed 4.0.0 only at 22:39:23Z (about 4 minutes; status page "all operational"). Read back
+   afterwards: **npm 4.0.0, SLSA provenance v1**; `registry.ts provenance npm 4.0.0` passes
+   locally; `latest` = 4.0.0 on both. Fix the window: open-work (the npm poll, 2026-11-18).
+   "Re-run failed jobs" on the run (owner, web UI) skips the publish and turns it green.
+6. **As a user:** `bun x @synapticforge1/binaryang@4.0.0 --version` → `binaryang 4.0.0`;
+   `deno run -A jsr:@jrmarcum/binaryang@4.0.0 --version` REFUSED by Deno 2.9.6's default
+   24-hour minimum dependency age (a new Deno guard, not a defect); with
+   `--minimum-dependency-age=0` → `binaryang 4.0.0`.
+
 ### 3.0.4 — a PATCH from `main` (2026-11-11 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
 
 **What changed** (`CHANGELOG.md` § 3.0.4): The same package as 3.0.3 — **nothing in it changed**.

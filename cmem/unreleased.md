@@ -1,9 +1,9 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-11 (UTC): the last release is `v3.0.4`, on JSR AND npm, both with provenance**
-([release.md](release.md) § "3.0.4" — 3.0.2's package again, with the two-job browser check);
-3.0.0 and 3.0.1 are on JSR only. Unreleased: the security fixes below. (Check: `git log --oneline
-v3.0.4..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-18 (UTC): the last release is `v4.0.0`, on JSR AND npm, both with provenance**
+([release.md](release.md) § "4.0.0"). The three "UNRELEASED" paragraphs below SHIPPED in 4.0.0
+(CHANGELOG § 4.0.0 is the public note); they stay until the next release. Unreleased since
+4.0.0: nothing yet. (Check: `git log --oneline v4.0.0..main -- src/ main.ts jsr.json README.md`.)
 
 **UNRELEASED since 3.0.4 — security review round 1 (2026-11-13, branch `security-r1`):**
 package changes, for the next release note. CLI: a tool whose output is not its input's format
