@@ -3,7 +3,7 @@
 [![JSR](https://jsr.io/badges/@jrmarcum/binaryang)](https://jsr.io/@jrmarcum/binaryang)
 [![JSR Score](https://jsr.io/badges/@jrmarcum/binaryang/score)](https://jsr.io/@jrmarcum/binaryang)
 [![npm](https://img.shields.io/npm/v/@synapticforge1/binaryang)](https://www.npmjs.com/package/@synapticforge1/binaryang)
-[![CI](https://github.com/synapticforge1/binaryang/actions/workflows/ci.yml/badge.svg)](https://github.com/synapticforge1/binaryang/actions/workflows/ci.yml)
+[![Release](https://github.com/synapticforge1/binaryang/actions/workflows/publish.yml/badge.svg)](https://github.com/synapticforge1/binaryang/actions/workflows/publish.yml)
 
 A WebAssembly toolchain in TypeScript — a port of both
 [Binaryen](https://github.com/WebAssembly/binaryen) and [WABT](https://github.com/WebAssembly/wabt)
@@ -219,12 +219,12 @@ enum (`Type.I32`); the type of a node's `type` field is `ExprType`.
 
 Runs on **Deno, Node.js, Bun and modern browsers** from a single source tree.
 
-| runtime  | minimum     | tested in CI                                           | note                              |
-| -------- | ----------- | ------------------------------------------------------ | --------------------------------- |
-| Deno     | 2.x         | 2.x                                                    |                                   |
-| Node.js  | **22.18.0** | 22.18.0, latest 22, 24, 26                             | no flags¹                         |
-| Bun      | **1.4.4**   | 1.4.4                                                  |                                   |
-| browsers | modern      | Chromium, Chrome, Edge, Brave, Opera, Firefox, WebKit² | library surface only, not the CLI |
+| runtime  | minimum     | tested before every release (`bun run gate`) | note                              |
+| -------- | ----------- | -------------------------------------------- | --------------------------------- |
+| Deno     | 2.x         | 2.9.6                                        |                                   |
+| Node.js  | **22.18.0** | latest 22, 24, 26                            | no flags¹                         |
+| Bun      | **1.4.4**   | 1.4.4                                        |                                   |
+| browsers | modern      | Chromium, Chrome, Edge, Firefox, WebKit²     | library surface only, not the CLI |
 
 ¹ Node users receive compiled JavaScript: the npm package's, or JSR's own build. binaryang's
 TypeScript **source** (a clone of this
@@ -232,11 +232,15 @@ repository) also runs on Node with no flag: it is ERASABLE TypeScript, with no `
 constructor parameter properties, which Node's default type stripping accepts, Node 26 included.
 The compiler option `erasableSyntaxOnly` keeps it that way.
 
-² Every export is bundled for the browser target in CI and must not import a Node builtin; the
-library's command-line paths load Node's file system only when they run. CI then RUNS the library
-in each of these browsers, headless (WebKit is Safari's engine): every export loads, and `wat2wasm`
-and `wasmOpt` give byte-identical output to Deno, Node and Bun on 421 modules, which each browser's
-engine accepts. The browser recipe below runs there too.
+² Every export is bundled for the browser target and must not import a Node builtin; the
+library's command-line paths load Node's file system only when they run. The gate then RUNS the
+library in each of these browsers, headless (WebKit is Safari's engine): every export loads, and
+`wat2wasm` and `wasmOpt` give byte-identical output to Deno, Node and Bun on 421 modules, which each
+browser's engine accepts. The browser recipe below runs there too. Brave and Opera (Chromium
+engines) are not yet run on the test machine.
+
+The checks run on the maintainer's machine before each release (`bun run gate`, Windows x64 and
+Linux x64); GitHub Actions only publishes.
 
 ### Making a module run on every widely used engine
 
@@ -536,10 +540,10 @@ resolving — nothing is yanked.
 
 Project memory lives in [`cmem/`](https://github.com/synapticforge1/binaryang/tree/main/cmem/) — start
 with [`cmem/INDEX.md`](https://github.com/synapticforge1/binaryang/blob/main/cmem/INDEX.md). Two rules are
-binding and enforced in CI: upstream project names are reserved for upstream-compatibility paths,
+binding and enforced by the gate (`bun run gate`): upstream project names are reserved for upstream-compatibility paths,
 and runtime portability is enforced (no Deno-specific globals in shipped source, and no top-level
 import of a `node:` builtin anywhere in it, because those do not load in a browser; the CLI loads
-Node's file system only when it runs, and every export is bundled for the browser in CI).
+Node's file system only when it runs, and every export is bundled for the browser).
 
 ## Licence
 

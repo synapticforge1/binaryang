@@ -1,7 +1,10 @@
 // Copyright (c) 2026 Jon Marcum
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
-import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
@@ -150,8 +153,34 @@ describe('the release: every refusal runs, and changes nothing', () => {
 
   it('the review set runs FIRST: before the tree, the fetch or any registry is read', async () => {
     const r = await release();
-    expect(r.calls[0]).toEqual(['diff', '--name-only', 'e'.repeat(40)]);
+    // `--no-renames`: a rename into cmem/ must list its SOURCE too (review H-1, 2026-11-18).
+    expect(r.calls[0]).toEqual(['diff', '--name-only', '--no-renames', 'e'.repeat(40)]);
     expect(r.out).toContain('Releasing v9.9.9');
+  });
+
+  it('a file moved from reviewed code into cmem/ is still unreviewed (real git)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'review-rename-'));
+    try {
+      const g = (...a: string[]) => {
+        const r = spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+        expect(r.status, `git ${a.join(' ')}: ${r.stderr}`).toBe(0);
+        return r.stdout;
+      };
+      g('init', '-q');
+      mkdirSync(join(dir, 'src'));
+      writeFileSync(join(dir, 'src', 'a.ts'), 'export const a = 1;\n'.repeat(20));
+      g('add', '-A');
+      g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'reviewed');
+      const reviewed = g('rev-parse', 'HEAD').trim();
+      mkdirSync(join(dir, 'cmem'));
+      g('mv', 'src/a.ts', 'cmem/a.ts');
+      g('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'moved');
+      // Rename detection hides the source; the guard's flags do not.
+      expect(g('diff', '--name-only', reviewed).split('\n')).not.toContain('src/a.ts');
+      expect(g('diff', '--name-only', '--no-renames', reviewed).split('\n')).toContain('src/a.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("fetches GitHub's main AND its tags (CI makes the tags) before reading any tag", async () => {
@@ -415,6 +444,17 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     expect(gate).toContain("bun('scripts/release/api-surface.ts', '--release-check')");
     expect(gate).toContain("if (process.argv.includes('--release'))");
     expect(PUBLISH).toContain("spawnSync('bun', ['run', 'gate', '--release']");
+    // GitHub's tags BEFORE the previous release is read (CI makes the tags; review B-2), and a
+    // failed fetch fails both release steps.
+    const fetch = gate.indexOf("['fetch', '--tags', 'origin']");
+    expect(fetch).toBeGreaterThan(gate.indexOf("if (process.argv.includes('--release'))"));
+    expect(fetch).toBeLessThan(gate.indexOf("'describe', '--tags'"));
+    expect(gate.match(/'FETCH-FAILED'/g)?.length).toBe(3);
+    // The surface check reads the previous tag from HEAD: the bump is not committed yet.
+    const surface = fsx.readTextFileSync('scripts/release/api-surface.ts');
+    expect(surface).toContain(
+      "['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', 'HEAD'],",
+    );
   });
 
   // 🔒 The owner's order (2026-11-10, workspace letter H33, D1): "the CI to check first, then push

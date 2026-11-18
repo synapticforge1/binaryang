@@ -16,7 +16,7 @@
  * sha256 of the `wat2wasm` output; every line must print the same one. A line fnm does not have
  * installed FAILS the check, naming the command that installs it, and is never silently skipped.
  *
- * CI does not run this: its `runtimes` matrix covers the same lines with `actions/setup-node`.
+ * `bun run gate` runs it (step `lts`), locally, as every gate since letter H37 (2026-11-18).
  *
  * ```sh
  * bun run lts

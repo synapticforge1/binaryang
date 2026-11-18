@@ -32,6 +32,13 @@ import process from 'node:process';
 
 const keep = process.argv.includes('--keep');
 const work = mkdtempSync(join(tmpdir(), 'binaryang-gate-'));
+// Removed however the run ends — the last step, a throw, Ctrl-C or a kill signal — unless `--keep`:
+// the prepared corpora are tens of MB, and a ten-minute run is often interrupted (review H-2).
+process.on('exit', () => {
+  if (keep) console.log(`prepared corpora kept in ${work}`);
+  else rmSync(work, { recursive: true, force: true });
+});
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => process.exit(130));
 const corpus = (name: string) => {
   const dir = join(work, name);
   mkdirSync(dir, { recursive: true });
@@ -91,17 +98,26 @@ const steps: Step[] = [
 // jump from the previous release tag covers what the surface diff demands (workspace letter H6,
 // rule 2) — and the privacy scan over EVERY commit since that tag, before anything is tagged.
 if (process.argv.includes('--release')) {
-  const prev = spawnSync(
+  // GitHub's tags FIRST: CI makes them, so a clone holds a release's tag only once it has fetched
+  // it, and "the previous release" read from a stale clone is an older one — the compatibility gate
+  // would measure the jump from the wrong release (review B-2, 2026-11-18). A failed fetch fails.
+  const fetched = spawnSync('git', ['fetch', '--tags', 'origin'], { encoding: 'utf8' });
+  const prev = fetched.status !== 0 ? '' : spawnSync(
     'git',
     ['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', 'HEAD'],
-    {
-      encoding: 'utf8',
-    },
+    { encoding: 'utf8' },
   ).stdout.trim();
-  steps.push(['compatibility gate', bun('scripts/release/api-surface.ts', '--release-check')]);
+  steps.push([
+    'compatibility gate',
+    fetched.status !== 0
+      ? ['FETCH-FAILED', (fetched.stderr || String(fetched.error ?? '')).trim()]
+      : bun('scripts/release/api-surface.ts', '--release-check'),
+  ]);
   steps.push([
     'privacy since the previous release',
-    prev === ''
+    fetched.status !== 0
+      ? ['FETCH-FAILED', 'see the compatibility gate']
+      : prev === ''
       ? ['NO-PREVIOUS-TAG']
       : bun('scripts/check-privacy.ts', '--commits', `${prev}..HEAD`),
   ]);
@@ -131,7 +147,10 @@ for (const [name, cmd] of steps) {
   let tail: string;
   if (cmd[0] === 'NO-PREVIOUS-TAG') {
     status = 1;
-    tail = 'no release tag v* below HEAD: fetch the tags (git fetch --tags origin)';
+    tail = 'no release tag v* below HEAD, after fetching the tags from origin';
+  } else if (cmd[0] === 'FETCH-FAILED') {
+    status = 1;
+    tail = `git fetch --tags origin failed: ${cmd[1]}`;
   } else if (cmd[0] === 'SMOKE') {
     const r = cliSmoke(cmd[1]!);
     status = r.status;
@@ -157,7 +176,5 @@ for (const [name, cmd] of steps) {
   const seconds = Math.round((Date.now() - started) / 1000);
   console.log(`${status === 0 ? 'ok  ' : 'FAIL'} ${name} (${seconds} s) ${tail.slice(0, 200)}`);
 }
-if (keep) console.log(`prepared corpora kept in ${work}`);
-else rmSync(work, { recursive: true, force: true });
 console.log(`gate: ${steps.length - failed} / ${steps.length} passed`);
 process.exit(failed === 0 ? 0 : 1);

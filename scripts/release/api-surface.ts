@@ -26,7 +26,7 @@
  * bun scripts/release/api-surface.ts --floor    # the floor against the last release tag
  * bun scripts/release/api-surface.ts --floor v1.14.0
  * bun scripts/release/api-surface.ts --print    # this tree's surface on stdout (used on a tag's tree)
- * bun scripts/release/api-surface.ts --release-check   # CI on a tag: the version jump ≥ the floor
+ * bun scripts/release/api-surface.ts --release-check   # the release gate: the version jump ≥ the floor
  * ```
  *
  * An intended surface change re-baselines in its OWN commit (rule 5): run the first form and commit
@@ -395,13 +395,16 @@ if (import.meta.main) {
       process.exit(1);
     }
   } else if (args[0] === '--release-check') {
-    // CI, on a release tag (rule 2): the version in jsr.json against the PREVIOUS release tag must
-    // jump at least as far as the surface diff between them demands. Needs the tags (fetch-depth 0).
+    // The release gate (rule 2; `bun run gate --release`, locally, the bump written but NOT yet
+    // committed): the version in jsr.json against the PREVIOUS release tag must jump at least as
+    // far as the surface diff between them demands. HEAD, not HEAD^: in CI (until 2026-11-18)
+    // HEAD was the bump commit; locally it is the last commit, and if that is itself tagged, it IS
+    // the previous release (review B-2). Needs GitHub's tags, which the gate fetches first.
     const version =
       (JSON.parse(readFileSync(join(REPO, 'jsr.json'), 'utf8')) as { version: string }).version;
     const prev = run(
       'git',
-      ['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', 'HEAD^'],
+      ['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', 'HEAD'],
       REPO,
     ).trim();
     const f = await floorSinceRelease(prev);
