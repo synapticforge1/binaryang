@@ -113,6 +113,7 @@ import {
   cliRefuseOverwritingInput,
   cliWrite,
   fsRead,
+  isDevice,
 } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { pushAll } from '../core/arrays.ts';
@@ -1983,7 +1984,11 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
         : `Wrote WASM: ${output} (${result.output.byteLength} bytes)`,
     );
   }
-  if (wit) {
+  // No `.wit` beside a device: `-o NUL` wrote a file named `NUL.wit` through 4.0.0 (4.1.0 notes
+  // review); on Linux `-o /dev/null` tried `/dev/null.wit`.
+  if (wit && await isDevice(output)) {
+    if (options.log !== undefined) console.log(`No WIT: the output ${output} is a device`);
+  } else if (wit) {
     // The interface beside the bundle, by default. A by-product: a failure
     // to write it is said, and does not fail the bundle.
     try {

@@ -92,6 +92,22 @@ describe('H-2: the null device is the device, on every OS', () => {
     assertEquals(strays(dir), []);
     assertEquals(strays(repo), []);
   });
+  // 🔧 Through 4.0.0 `wasm-bundle -o NUL` wrote a FILE named `NUL.wit` beside its output (Windows),
+  // and `-o /dev/null` tried `/dev/null.wit` (Linux): no `.wit` beside a device (4.1.0 notes review).
+  it('wasm-bundle to the null device writes no .wit beside it', () => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+    for (const o of devices) {
+      const r = run('wasm-bundle', 'in.wasm', '-o', o);
+      assertEquals(r.status, 0, `${o}: ${r.stderr}`);
+      assert(!/could not write the \.wit/.test(r.stderr), `${o}: ${r.stderr}`);
+    }
+    assertEquals(readdirSync(dir).filter((n) => /\.wit$/i.test(n)), []);
+  });
+  it('and to a file it still writes the .wit (the control)', () => {
+    assertEquals(run('wasm-bundle', 'in.wasm', '-o', 'bundled.wasm').status, 0);
+    assert(readdirSync(dir).includes('bundled.wit'), readdirSync(dir).join(', '));
+    rmSync(join(dir, 'bundled.wit'));
+  });
 });
 
 describe('H-3: a folder that refuses new files, around a writable output', () => {

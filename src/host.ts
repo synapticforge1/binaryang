@@ -112,6 +112,33 @@ export async function fsRead(path: string, limit: number = MAX_INPUT_BYTES): Pro
 }
 
 /**
+ * win-x64 / win-arm64: the reserved device names, bare and in any case (`nul.wasm` is an ordinary
+ * file on Windows 11). One pattern for {@link fsWrite} and {@link isDevice}.
+ */
+const WINDOWS_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+/**
+ * Whether `path` names a DEVICE rather than a file or folder: on Windows a reserved name (or
+ * `/dev/null`, written as NUL), elsewhere an existing path that is neither a file nor a folder
+ * (`/dev/null`, a pipe). A tool that writes a file BESIDE its output skips it for a device: there
+ * is no "beside" a device (`wasm-bundle -o NUL` wrote a file named `NUL.wit` here through 4.0.0;
+ * on Linux it tried `/dev/null.wit`).
+ */
+export async function isDevice(path: string): Promise<boolean> {
+  const { basename } = await import('node:path');
+  if (cliProcess().platform === 'win32') {
+    return WINDOWS_DEVICE.test(path === '/dev/null' ? 'NUL' : basename(path));
+  }
+  const { stat } = await import('node:fs/promises');
+  try {
+    const st = await stat(path);
+    return !st.isFile() && !st.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Writes `data` to `path`, through `node:fs/promises` loaded on demand, ATOMICALLY: into a fresh
  * file beside the target, then renamed over it. A failure part-way (a full disk, a kill) leaves
  * the old file whole, never half a module (security review round 1, 2026-11-13). A symbolic link
@@ -140,7 +167,7 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // on Windows 11 26300, 2026-11-19, found by `--self-check`, letter H39).
   if (cliProcess().platform === 'win32') {
     const name = path === '/dev/null' ? 'NUL' : basename(path);
-    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name)) {
+    if (WINDOWS_DEVICE.test(name)) {
       const device = await open(`\\\\.\\${name.toUpperCase()}`, 'r+');
       try {
         await device.writeFile(data);
