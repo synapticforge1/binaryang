@@ -126,6 +126,17 @@ describe('H-2: the null device is the device, on every OS', () => {
       }
       rmSync(join(dir, `${tool}.file.wasm`));
     }
+    // wasm-opt's minify map is upstream's stdout output; it must leave stdout to the module.
+    const minify = ['wasm-opt', 'in.wasm', '--minify-imports-and-exports', '-o'];
+    assertEquals(run(...minify, 'min.wasm').status, 0);
+    const want = [...readFileSync(join(dir, 'min.wasm'))];
+    for (const o of ['-', '/dev/stdout']) {
+      const r = spawnSync('bun', [MAIN, ...minify, o], { cwd: dir, timeout: 60_000 });
+      assertEquals(r.status, 0, `minify -o ${o}: ${r.stderr.toString()}`);
+      assertEquals([...r.stdout], want, `minify -o ${o}: stdout is not the module alone`);
+      assert(r.stderr.toString().includes('"exports"'), `minify -o ${o}: no map on stderr`);
+    }
+    rmSync(join(dir, 'min.wasm'));
   });
   // 4.1.0 notes review: on linux-x64 `-o /dev/stdout` into a pipe failed (realpath of
   // /proc/self/fd/1, ENOENT); on win-x64 `-o CON` with no console was a bare EINVAL.

@@ -17,8 +17,9 @@ or renamed, and no calling code needs to change. It is a minor because the CLI g
   `/dev/fd/1` and `/dev/fd/2`, and `/proc/self/fd/1` and `/proc/self/fd/2`, which Git Bash
   passes for them). On Linux they failed when standard output was a pipe or a socket.
 - **When the module goes to standard output, it goes there alone.** `wasm-bundle`, `wasm-opt`
-  and `wasm-ctor-eval` print their report ("Wrote WASM: …") to standard error then; through
-  4.0.0, `wasm-bundle -o -` put its report into the module bytes.
+  and `wasm-ctor-eval` print their report ("Wrote WASM: …"), and `wasm-opt` its minify map, to
+  standard error then; through 4.0.0, `wasm-bundle -o -` and `wasm-ctor-eval -o -` put their
+  report into the module bytes.
 - **`-o CON` with no console attached is refused naming the device**, where 4.0.0 gave a bare
   `EINVAL`.
 - **`binaryang --self-check`** tries every file operation the command-line tools use on the

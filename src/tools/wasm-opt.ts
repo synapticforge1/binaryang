@@ -295,8 +295,8 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   // so an unparseable input surfaced as an uncaught exception.
   let result: Uint8Array | string;
   // The minify map goes to stdout, as upstream prints it — to stderr when
-  // stdout carries the module itself (`-o -`).
-  const toStdout = (parsed.options.output ?? 'output.wasm') !== '-';
+  // stdout carries the module itself (`-o -`, `-o /dev/stdout`).
+  const toStdout = !writesToStdout(parsed.options.output ?? 'output.wasm');
   const onMinifyMap = (map: MinifyMap) => {
     const text = formatMinifyMap(map);
     if (toStdout) cliProcess().stdout.write(text);
