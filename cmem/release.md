@@ -12,7 +12,7 @@ registry, the purges, the recovery recipes.
 
 🔒 **The owner's order (2026-11-10, D1):** "the CI to check first, then push the tag, and then
 create the release page from the tag, then publish the package to the registry for the project in
-that order." The workspace's [`release-process.md`](../../cmem/release-process.md) § 5 names the
+that order." The workspace's [`release-process.md`](../../workspace/cmem/release-process.md) § 5 names the
 twelve slots U1–U12; this is binaryang's filling of them. §§ 1–4 of that file are binaryang's own
 3.0.2 steps (the JS/TS reference), superseded by D1 where they say "the tag push publishes".
 🔒 **Amended 2026-11-17 (letter H37; owner: "We want the CI to verify the version, then tag,

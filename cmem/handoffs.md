@@ -1000,7 +1000,7 @@ reads address 0, which belongs to the FIRST image in a bundle.
 > `unmarked: 'guess'` can tell a null-like 0 from an address. The way out on your side is to lay a
 > wasic module out first, or give the empty array a non-zero sentinel.
 
-Letters addressed to binaryang in `../../cmem/handoffs.md`, acted on in this repo. The workspace
+Letters addressed to binaryang in `../../workspace/cmem/archive/handoffs-to-2026-11-19.md`, acted on in this repo. The workspace
 closes its own rows; nothing is written there from here.
 
 - **H5 ✅ 2026-10-23** (`526d447da`). Drift B1–B7 and W5. B1 / B2 [testing.md](testing.md)
@@ -1024,7 +1024,7 @@ closes its own rows; nothing is written there from here.
 - **H6 ◐ 2026-10-23 — memory and rules done.** SemVer bump
   (done 2026-10-22, `bun run bump [patch|minor|major]`). The 28 ★ rules copied into
   [best-practices.md](best-practices.md) § "The workspace's convergent rules (★)" under a dated
-  stamp. Memory layout per `../../cmem/memory-conventions.md`: INDEX 24.3 → 13.4 KB (one line per
+  stamp. Memory layout per `../../workspace/cmem/memory-conventions.md`: INDEX 24.3 → 13.4 KB (one line per
   file; the triggers added; the memory's own history moved to [project.md](project.md) § "Memory:
   what was retired"), the six stacked "State" paragraphs in [open-work.md](open-work.md) folded into
   one summary with its `git show`. The gate — surface snapshot, the floor in the bump, a CI check
@@ -1057,7 +1057,7 @@ closes its own rows; nothing is written there from here.
     with the runtimes; not ours to run. **wasmrt re-ran it 2026-10-26** (its record, in the
     workspace's notes): wasm-tools 1.262 writes one name section, and wasmrt's unit test expects
     exactly those bytes — so wasmrt = wasm-tools 1.262 = binaryang. **wazmrt re-ran it the same
-    day** (its notes in `../../cmem/handoffs.md`): on 1.262 wazmrt was the one outlier of four — a
+    day** (its notes in `../../workspace/cmem/archive/handoffs-to-2026-11-19.md`): on 1.262 wazmrt was the one outlier of four — a
     wazmrt DEFECT, fixed (`852ff84`, pushed 2026-10-26, unreleased); its `probes/four-assemblers.ts`
     over the two `h8-fixtures/` plus five variants: all seven equal wasm-tools on wazmrt, wasmrt and
     binaryang 2.2.0 (except binaryang's own `name` shape on `"names"`, I7 DESIGN). **I8 is closed
@@ -1069,7 +1069,7 @@ closes its own rows; nothing is written there from here.
   script compared all 28 ★ rules, workspace against this copy, by number and normalized text:
   5.2 the only difference before the edit (its positive control), 0 of 28 after.
 - **Workspace status, 2026-10-26 — notations left for the workspace session** in
-  `../../cmem/handoffs.md` (its "Notes from binaryang" block): which letters are done here with
+  `../../workspace/cmem/archive/handoffs-to-2026-11-19.md` (its "Notes from binaryang" block): which letters are done here with
   their commits, H25 §3(a) measured (the public refs carry no drive path; the path-bearing commits
   are on local-only branches never pushed), H22 not yet done here at that point (done below, the
   same day), and the stale binaryang cells in its sweep and open-work.
@@ -1142,7 +1142,7 @@ closes its own rows; nothing is written there from here.
   logged as a new § when it arrives.
 
 - **C9 SENT by binaryang, 2026-10-26** (owner: "add this as a correspondence notation for the
-  other repos to do also"): a row in `../../cmem/workspace-correspondence.md` and its full text in
+  other repos to do also"): a row in `../../workspace/cmem/workspace-correspondence.md` and its full text in
   the workspace `handoffs.md` notes block, to every repo under the workspace folder and to the
   owner — git's `safe.directory` entries still name the old folder, so git refuses every command
   at the new path until the owner adds the new entries (system config); meanwhile the

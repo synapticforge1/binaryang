@@ -42,6 +42,9 @@ guide, letter H38, step 2). Last verified 2026-11-18.
 - So the shared file opens with only the CONVERGENT rules, each with both derivations named; the
   rules that did not converge are in [wabt-ts.md](wabt-ts.md) and [binaryen-ts.md](binaryen-ts.md).
 - 2026-11-17: the ★ best-practices copy is held for the owner's answer (letter H38): not split.
+- 2026-11-19, DECIDED (owner, letter H38: "I agree with that"): KEEP the copy, unchanged under its
+  stamp, in a file of its own — [best-practices-shared.md](best-practices-shared.md). The 28 rules
+  are ~10 KB; the size is our own lessons, which follow the guide (archive, split under 25 KB).
 
 ## M6 — Apache-2.0 §4(b) and the ported files (owner, 2026-11-18)
 
@@ -53,7 +56,7 @@ guide, letter H38, step 2). Last verified 2026-11-18.
 
 ## M5 — the review standard (2026-11-18)
 
-- The workspace's FINAL review standard (letter H37, `../../cmem/review-process.md`) replaces
+- The workspace's FINAL review standard (letter H37, `../../workspace/cmem/review-process.md`) replaces
   binaryang's trial rules of 2026-11-15 (one class at a time, nested tiers, frozen scope and
   depth) and the round-4 process.
 - The owner's decisions: the review starts from scratch under the new standard; the release

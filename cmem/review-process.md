@@ -1,6 +1,6 @@
 # review-process.md — binaryang's slots in the review standard
 
-Summary: what the workspace's FINAL review standard (`../../cmem/review-process.md`, letter H37,
+Summary: what the workspace's FINAL review standard (`../../workspace/cmem/review-process.md`, letter H37,
 2026-11-17) needs to know about binaryang. The standard itself is not copied here: read it there.
 Last verified 2026-11-18.
 
