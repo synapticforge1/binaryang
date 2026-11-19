@@ -17,7 +17,8 @@ Last verified 2026-11-18.
   recursive delete can follow it into the real folder.
 - Issues, fixes, rejections and counts: the gitignored `review-issues.md`. A completed review ends
   with the line `review-complete: <sha>` there; `bun run release` refuses without it, or when a
-  file other than the release files and `cmem/` changed since that commit.
+  file other than the release files and `cmem/` changed since that commit. It reads the LAST such
+  line (`latestReviewedCommit`, since 2026-11-19; the first, before), so a new review appends.
 - Fixes go on a local review branch, merged to `main` when the review completes.
 
 ## Private-data paths (never committed; the privacy gate refuses them tracked)

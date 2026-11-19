@@ -11,6 +11,7 @@ import * as fsx from '../../test_fs.ts';
 import {
   exitText,
   fetchAdvice,
+  latestReviewedCommit,
   READ_ONLY_GIT,
   runRelease,
 } from '../../../scripts/release/release-run.ts';
@@ -247,6 +248,24 @@ describe('the release: every refusal runs, and changes nothing', () => {
     const r = await release({ porcelain: '', bumpPending: false });
     expect(r.code).toBe(0);
     expect(r.mutated).toEqual(['add', 'push']);
+  });
+});
+
+describe('the review a release reads is the LATEST completed one', () => {
+  const a = 'a'.repeat(40);
+  const b = 'b'.repeat(40);
+  it('the last `review-complete:` line wins, not the first', () => {
+    expect(latestReviewedCommit(`## one\nreview-complete: ${a}\n\n## two\nreview-complete: ${b}\n`))
+      .toBe(b);
+  });
+  it('a line relabelled as history is not read; CRLF and trailing blanks are', () => {
+    const text = `review-complete (historical): ${b}\r\nreview-complete: ${a} \r\n`;
+    expect(latestReviewedCommit(text)).toBe(a);
+  });
+  it('none, a short sha, or text after it: null', () => {
+    expect(latestReviewedCommit('no review here')).toBe(null);
+    expect(latestReviewedCommit('review-complete: abc123\n')).toBe(null);
+    expect(latestReviewedCommit(`review-complete: ${a} (pending)\n`)).toBe(null);
   });
 });
 

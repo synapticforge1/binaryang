@@ -94,6 +94,18 @@ export function fetchAdvice(status: number | null): string[] {
 }
 
 /** `(exit N: why)`, or `(exit N; git's reason above)` when git printed it live (round 5). */
+/**
+ * The commit the LATEST completed review covers, from the issues file's text: the last line that
+ * reads exactly `review-complete: <40-hex sha>`, or `null` when there is none. A review appends its
+ * line after the earlier ones; a line relabelled as history (`review-complete (…): <sha>`) is not
+ * read. 🔧 Until 2026-11-19 the FIRST such line was read, so an older review's line shadowed every
+ * later one unless it was relabelled by hand.
+ */
+export function latestReviewedCommit(issues: string): string | null {
+  const all = [...issues.matchAll(/^review-complete: ([0-9a-f]{40})[ \t]*\r?$/gm)];
+  return all.length === 0 ? null : all[all.length - 1]![1]!;
+}
+
 export function exitText(r: GitResult): string {
   const why = r.stderr.trim();
   return `(exit ${r.status}${why === '' ? "; git's reason above" : `: ${why}`})`;
