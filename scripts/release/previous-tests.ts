@@ -102,17 +102,29 @@ export function previousTests(ref = lastReleaseTag()): number {
     symlinkSync(target, at, 'junction');
     links.push(at);
   };
+  // EVERY process this run starts gets the caller's environment without GIT_*: a `GIT_DIR`,
+  // `GIT_WORK_TREE` or `GIT_INDEX_FILE` (a git hook exports them) outranks `cwd`, so the work
+  // tree's `add` and `commit` — and the OLD TESTS, which make commits of their own in what they
+  // take for a scratch repository — would land in the REAL one (measured 2026-11-19: with
+  // GIT_DIR exported, v4.1.0's tests committed "reviewed" onto the branch being released).
+  const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));
   try {
     const extract = (tree: string, ...paths: string[]) => {
       const tar = spawnSync('git', ['archive', '--format=tar', tree, ...paths], {
         cwd: REPO,
         maxBuffer: 1 << 30,
+        env: clean,
       });
       if (tar.status !== 0) {
         throw new Error(`git archive ${tree}: ${tar.stderr.toString().slice(0, 300)}`);
       }
       // `tar -x` with cwd, never `-C <drive path>` (a Windows tar reads `C:` as a remote host).
-      const x = spawnSync('tar', ['-x'], { cwd: dir, input: tar.stdout, maxBuffer: 1 << 30 });
+      const x = spawnSync('tar', ['-x'], {
+        cwd: dir,
+        input: tar.stdout,
+        maxBuffer: 1 << 30,
+        env: clean,
+      });
       if (x.status !== 0) throw new Error(`tar -x: ${x.stderr.toString().slice(0, 300)}`);
     };
     extract('HEAD');
@@ -126,7 +138,7 @@ export function previousTests(ref = lastReleaseTag()): number {
     const who = 'previous-tests';
     const at = 'no-reply@previous-tests.invalid';
     const env = {
-      ...process.env,
+      ...clean,
       GIT_AUTHOR_NAME: who,
       GIT_AUTHOR_EMAIL: at,
       GIT_COMMITTER_NAME: who,
@@ -148,7 +160,7 @@ export function previousTests(ref = lastReleaseTag()): number {
     const flags = ['--test', '--test-reporter=junit', `--test-reporter-destination=${report}`];
     const globs = TEST_DIRS.map((d) => `${d}/**/*.test.ts`);
     const [bin, args] = nodeCommand(REFEREE, flags, globs[0]!, globs.slice(1));
-    const status = spawnSync(bin, args, { cwd: dir, stdio: 'ignore' }).status;
+    const status = spawnSync(bin, args, { cwd: dir, stdio: 'ignore', env: clean }).status;
     let xml = '';
     try {
       xml = readFileSync(report, 'utf8');

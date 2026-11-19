@@ -14,8 +14,9 @@ reported by trackoor (<https://ucsbplse.github.io/>). Nothing is added, removed 
   optimizing, and nothing was written.
 - **The validator refuses a `sub` type that declares more than one supertype.** The GC proposal
   allows at most one, and V8 refuses more, but through 4.1.0 `wasmValidate` and
-  `wat2wasm(..., { validate: true })` accepted it. The error is
-  `sub type N declares K supertypes; at most 1 allowed`.
+  `wat2wasm(..., { validate: true })` accepted it. Such a module, which validated before, now
+  gets the error `sub type N declares K supertypes; at most 1 allowed` (so do the `wasm-validate`
+  and `wat2wasm --validate` commands).
 
 Repository only (nothing here is in the package):
 

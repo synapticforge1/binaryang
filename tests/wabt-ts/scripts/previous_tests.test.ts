@@ -108,6 +108,19 @@ describe('previousTests: the work tree the old tests run in', () => {
     expect(body).not.toContain('gpgsign');
   });
 
+  // A caller's GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE outranks `cwd`: with GIT_DIR exported,
+  // v4.1.0's tests committed into the real repository (2026-11-19). Every process gets `clean`.
+  it('starts every process without the caller GIT_* variables', () => {
+    expect(body).toContain(
+      'const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));',
+    );
+    const spawns = body.split('spawnSync(').slice(1).map((s) => s.slice(0, s.indexOf(')')));
+    expect(spawns.length).toBe(4);
+    for (const s of spawns) expect(s).toMatch(/\benv(: clean)?\b/);
+    expect(body).toMatch(/const env = \{\s*\.\.\.clean,/);
+    expect(body).not.toContain('...process.env');
+  });
+
   it('links the binaryen corpus in when the checkout has it', () => {
     expect(body).toContain("join(REPO, 'upstream', 'binaryen', 'test')");
     expect(body).toMatch(/if \(existsSync\(corpus\)\)/);
