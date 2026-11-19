@@ -19,6 +19,8 @@ Updated: 2026-11-19, at the end of the review of 7d3a1feee..review-bun
 - Last: 7d3a1feee..review-bun, COMPLETE at d1dfa0856 (first review: hardening 1, owner 2, queued
   Q-H1; re-review 1: 0); the review of H39 before it, complete at f1a55034f
 - Platforms passed: win-x64 (gate 31/31), linux-x64 (fresh WSL clone, 0 skips); pending: four
+- **The review set for 4.1.0** (owner, 2026-11-19): these two reviews, v4.0.0..review-h39 and
+  7d3a1feee..review-bun; no fresh full review. Since d1dfa0856 only `cmem/` changed
 
 ## Next
 1. `publish.ts` reads the FIRST `review-complete:` line; older ones are relabelled — fix it

@@ -46,6 +46,14 @@ guide, letter H38, step 2). Last verified 2026-11-18.
   stamp, in a file of its own — [best-practices-shared.md](best-practices-shared.md). The 28 rules
   are ~10 KB; the size is our own lessons, which follow the guide (archive, split under 25 KB).
 
+## The review set for 4.1.0 (owner, 2026-11-19)
+
+- Owner, asked whether to run one fresh review of v4.0.0..main: "For this we are going to count
+  this towards the review set for 4.1.0, since we just made some changes." The set is the review
+  of v4.0.0..review-h39 (complete at f1a55034f) and of 7d3a1feee..review-bun (complete at
+  d1dfa0856); together they cover every shipped change since 4.0.0. `bun run release` reads the
+  latest `review-complete:` line; only `cmem/` changed after it.
+
 ## H39 — test per engine; every OS call in `src/host.ts` (owner, 2026-11-19)
 
 - Owner: "that way we do not over test something"; "yes for host.ts". What binaryang computes
