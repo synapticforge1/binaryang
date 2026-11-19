@@ -12,8 +12,8 @@ Updated: 2026-11-19, at the end of the review of 7d3a1feee..review-bun
 - Bun runs with memory64 on; the Bun known-differences list is EMPTY; no test skips anywhere
 - H39 is merged and reviewed (`src/host.ts`, its gate, `--self-check`; `-o NUL` on Deno fixed)
 - H38 steps 1–3 and 7 are done, and the ★ copy is decided (best-practices-shared.md); steps 4–6 open
-- Letter H43 (Tooling rule 15): helper scripts are TypeScript (working-rules); the rule itself,
-  the reviewer brief and the H43 answer are still to do
+- Letter H43 (Tooling rule 15) recorded: working-rules (scratch bounded, "commit" empties it,
+  helper scripts TypeScript), review-process (reviewer folders, links removed first)
 
 ## Review
 - Last: 7d3a1feee..review-bun, COMPLETE at d1dfa0856 (first review: hardening 1, owner 2, queued
@@ -21,8 +21,7 @@ Updated: 2026-11-19, at the end of the review of 7d3a1feee..review-bun
 - Platforms passed: win-x64 (gate 31/31), linux-x64 (fresh WSL clone, 0 skips); pending: four
 
 ## Next
-1. H43: Tooling rule 15 into working-rules.md (budget, clean-up on "commit") and the reviewer
-   brief; answer `../workspace/cmem/letters/H43.md` with the commit and the scratchpad's size
+1. H43: answer `../workspace/cmem/letters/H43.md` with this commit and the scratchpad's size (0)
 2. `publish.ts` reads the FIRST `review-complete:` line; older ones are relabelled — fix it
 3. H39 answer once pushed; the npm provenance poll window; H38 steps 4–6; carried C-H2…C-R2-5
 
