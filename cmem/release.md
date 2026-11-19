@@ -140,7 +140,8 @@ The owner's go: "release" (2026-11-19), after "push" of the fix.
    (23:36:59Z) → **JSR 4.1.1, Rekor `4009969936`** → npm: `npm publish` ok (23:37:43Z), then
    "Verify provenance was recorded on npm" timed out at 23:40:30Z; npm showed 4.1.1 at 23:40:50Z
    (~3 min). Read back afterwards: **npm 4.1.1, SLSA provenance v1**; `latest` = 4.1.1 on both.
-   "Re-run failed jobs" (owner, web UI) skips the publish and turns it green. **Second time: the
+   "Re-run failed jobs" (owner, web UI) skips the publish and turns it green — **done: GREEN
+   (owner, 2026-11-19)**. **Second time: the
    poll window (12 × 15 s) is shorter than npm's lag — fix it before the next release.**
 5. **As a user:** `bun x @synapticforge1/binaryang@4.1.1 --version` → `binaryang 4.1.1`.
 
