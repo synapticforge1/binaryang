@@ -379,6 +379,14 @@ export class SharedValidator {
     return this.printError(loc, `sub type ${idx} extends final type ${superIdx}`);
   }
 
+  /**
+   * Report a `(sub …)` declaring more than one supertype: the GC proposal allows at most one
+   * (spec `type-subtyping.wast`, "multiple supertypes"), and every engine refuses more (issue #1).
+   */
+  onMultipleSupertypes(loc: Location, idx: number, count: number): Result {
+    return this.printError(loc, `sub type ${idx} declares ${count} supertypes; at most 1 allowed`);
+  }
+
   /** Report a supertype index that names no type. */
   onUnknownType(loc: Location, idx: number): Result {
     return this.printError(loc, `unknown type ${idx}`);
