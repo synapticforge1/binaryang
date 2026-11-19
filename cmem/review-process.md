@@ -15,10 +15,12 @@ Last verified 2026-11-18.
   removed by the main session at triage (letter H43). ⚠️ First remove any link a reviewer made
   into the repo (a junction to `node_modules`, seen 2026-11-19) by itself, non-recursively: a
   recursive delete can follow it into the real folder.
-- Issues, fixes, rejections and counts: the gitignored `review-issues.md`. A completed review ends
-  with the line `review-complete: <sha>` there; `bun run release` refuses without it, or when a
-  file other than the release files and `cmem/` changed since that commit. It reads the LAST such
-  line (`latestReviewedCommit`, since 2026-11-19; the first, before), so a new review appends.
+- Issues, fixes, rejections and counts: the gitignored `review-issues.md`. A completed review is
+  RECORDED with `bun run review:record <commit>`, which writes only that hash to the gitignored
+  `cmem/local/review-complete` (owner, 2026-11-19, option C: reading it from the prose failed
+  open three times). `bun run release` reads it strictly and refuses without it, on a malformed
+  one, or when a file other than the release files and `cmem/` changed since that commit. The
+  `review-complete:` line in the notes is a human-readable copy; nothing reads it.
 - Fixes go on a local review branch, merged to `main` when the review completes.
 
 ## Private-data paths (never committed; the privacy gate refuses them tracked)

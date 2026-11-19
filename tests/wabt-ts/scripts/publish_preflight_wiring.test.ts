@@ -2,7 +2,15 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -11,11 +19,16 @@ import * as fsx from '../../test_fs.ts';
 import {
   exitText,
   fetchAdvice,
-  latestReviewedCommit,
   READ_ONLY_GIT,
   runRelease,
 } from '../../../scripts/release/release-run.ts';
 import { RELEASE_FILES } from '../../../scripts/release/release-guard.ts';
+import {
+  parseReviewRecord,
+  readReviewRecord,
+  resolveCommit,
+  writeReviewRecord,
+} from '../../../scripts/release/review-record.ts';
 import { releaseBaseProblem } from '../../../scripts/release/version.ts';
 
 // T13.44, then review round 1 (2026-11-13). `release_guard.test.ts` proves `releaseBlockers`
@@ -54,6 +67,8 @@ interface World {
   readBack?: string;
   /** The commit a completed review covers (null: none recorded). */
   reviewed: string | null;
+  /** `reviewedCommit()` throws this message (a malformed newest review line). */
+  reviewThrows?: string;
   /** `git diff --name-only <reviewed>`: the files changed since the review. */
   changedSinceReview: string;
   /** Every gate passed. */
@@ -130,7 +145,10 @@ async function release(over: Partial<World> = {}) {
     coldDryRun: () => w.cold,
     typeCheck: () => w.check,
     entryProblems: () => Promise.resolve(w.entry),
-    reviewedCommit: () => w.reviewed,
+    reviewedCommit: () => {
+      if (w.reviewThrows !== undefined) throw new Error(w.reviewThrows);
+      return w.reviewed;
+    },
     runGates: () => w.gates,
     log: (l) => out.push(l),
     error: (l) => out.push(l),
@@ -197,6 +215,12 @@ describe('the release: every refusal runs, and changes nothing', () => {
   const refusals: [string, Partial<World>, string][] = [
     // The review set first (letter H37; owner, 2026-11-18).
     ['no completed review recorded', { reviewed: null }, 'no completed review is recorded'],
+    // Re-review 1 of review-line: a named refusal, not a stack trace.
+    [
+      'a malformed newest review line',
+      { reviewThrows: 'the last review line in cmem/review-issues.md is malformed: "x"' },
+      'Refusing to release v',
+    ],
     [
       'code changed since the reviewed commit',
       { changedSinceReview: 'jsr.json\nsrc/x.ts\n' },
@@ -251,21 +275,120 @@ describe('the release: every refusal runs, and changes nothing', () => {
   });
 });
 
-describe('the review a release reads is the LATEST completed one', () => {
+// The record of the latest completed review (owner, 2026-11-19, option C of the review-line
+// finding): one hash in its own file, written by `bun run review:record`, read strictly.
+describe('the review record: one hash, written by a script, read strictly', () => {
   const a = 'a'.repeat(40);
-  const b = 'b'.repeat(40);
-  it('the last `review-complete:` line wins, not the first', () => {
-    expect(latestReviewedCommit(`## one\nreview-complete: ${a}\n\n## two\nreview-complete: ${b}\n`))
-      .toBe(b);
+  const bytes = (...parts: (string | number[])[]) =>
+    Buffer.concat(
+      parts.map((p) => (typeof p === 'string' ? Buffer.from(p, 'latin1') : Buffer.from(p))),
+    );
+  const inTemp = (body: (dir: string) => void) => {
+    const dir = mkdtempSync(join(tmpdir(), 'binaryang-record-'));
+    try {
+      body(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it('40 lowercase hex, with or without one LF, is the commit', () => {
+    expect(parseReviewRecord(bytes(a))).toBe(a);
+    expect(parseReviewRecord(bytes(`${a}\n`))).toBe(a);
   });
-  it('a line relabelled as history is not read; CRLF and trailing blanks are', () => {
-    const text = `review-complete (historical): ${b}\r\nreview-complete: ${a} \r\n`;
-    expect(latestReviewedCommit(text)).toBe(a);
+  it('anything else is refused, naming the record — never read loosely', () => {
+    const utf16 = Buffer.from(`${a}\n`, 'utf16le');
+    for (
+      const refused of [
+        bytes(''),
+        bytes(`${a}\r\n`),
+        bytes([0xef, 0xbb, 0xbf], a),
+        bytes([0xff, 0xfe], [...utf16]),
+        bytes(a.toUpperCase()),
+        bytes(a.slice(1)),
+        bytes(`${a} `),
+        bytes(`${a}\n\n`),
+        bytes(`${a}\n${a}\n`),
+        bytes(`review-complete: ${a}`),
+        bytes(a.slice(0, 20), [0xd0, 0xb0], a.slice(21)),
+      ]
+    ) {
+      expect(() => parseReviewRecord(refused)).toThrow('cmem/local/review-complete');
+    }
   });
-  it('none, a short sha, or text after it: null', () => {
-    expect(latestReviewedCommit('no review here')).toBe(null);
-    expect(latestReviewedCommit('review-complete: abc123\n')).toBe(null);
-    expect(latestReviewedCommit(`review-complete: ${a} (pending)\n`)).toBe(null);
+  it('no record file: null (the release refuses: no completed review)', () => {
+    inTemp((dir) => expect(readReviewRecord(join(dir, 'review-complete'))).toBe(null));
+  });
+  it('the writer writes the hash and one LF, replaces the old record whole, leaves no temp file', () => {
+    inTemp((dir) => {
+      const path = join(dir, 'review-complete');
+      writeReviewRecord('b'.repeat(40), path);
+      writeReviewRecord(a, path);
+      expect(readFileSync(path, 'latin1')).toBe(`${a}\n`);
+      expect(readReviewRecord(path)).toBe(a);
+      expect(readdirSync(dir)).toEqual(['review-complete']);
+    });
+  });
+  it('the writer refuses anything but a 40-hex hash and leaves the old record', () => {
+    inTemp((dir) => {
+      const path = join(dir, 'review-complete');
+      writeReviewRecord(a, path);
+      for (const bad of ['', 'HEAD', a.toUpperCase(), a.slice(1), `${a}\n`]) {
+        expect(() => writeReviewRecord(bad, path)).toThrow('not a 40-hex commit hash');
+      }
+      expect(readReviewRecord(path)).toBe(a);
+      expect(readdirSync(dir)).toEqual(['review-complete']);
+    });
+  });
+  // Re-review 3 (B-3 and its siblings).
+  // Re-review 4: Bun on Windows threw EEXIST for `mkdirSync('.')`, so a bare name failed there.
+  it('a bare file name (its folder is the working directory) is written', () => {
+    inTemp((dir) => {
+      const back = process.cwd();
+      process.chdir(dir);
+      try {
+        writeReviewRecord(a, 'review-complete');
+        expect(readReviewRecord('review-complete')).toBe(a);
+      } finally {
+        process.chdir(back);
+      }
+    });
+  });
+  // Re-review 5: a file in the folder's place was refused only by the OS's ENOENT / ENOTDIR.
+  it('a file where the record folder should be is refused by name; nothing is written', () => {
+    inTemp((dir) => {
+      const local = join(dir, 'local');
+      writeFileSync(local, 'not a folder');
+      expect(() => writeReviewRecord(a, join(local, 'review-complete'))).toThrow(
+        `${local} is not a folder`,
+      );
+      expect(readFileSync(local, 'utf8')).toBe('not a folder');
+      expect(readdirSync(dir)).toEqual(['local']);
+    });
+  });
+  it('the writer makes a missing folder (a fresh clone has no cmem/local/)', () => {
+    inTemp((dir) => {
+      const path = join(dir, 'local', 'review-complete');
+      writeReviewRecord(a, path);
+      expect(readReviewRecord(path)).toBe(a);
+    });
+  });
+  it('a folder, or a file over 41 bytes, is refused by name before it is read', () => {
+    inTemp((dir) => {
+      const folder = join(dir, 'review-complete');
+      mkdirSync(folder);
+      expect(() => readReviewRecord(folder)).toThrow(`${folder} is not a file`);
+      const big = join(dir, 'big');
+      writeFileSync(big, `${a}\n\n`);
+      expect(() => readReviewRecord(big)).toThrow(`${big} is 42 bytes`);
+      const named = join(dir, 'named');
+      writeFileSync(named, a.toUpperCase());
+      expect(() => readReviewRecord(named)).toThrow(`${named} is not one 40-hex`);
+    });
+  });
+  it('a commit is resolved to its full hash; a name that is no commit is null', () => {
+    expect(resolveCommit('HEAD')).toMatch(/^[0-9a-f]{40}$/);
+    expect(resolveCommit('no-such-revision-anywhere')).toBe(null);
   });
 });
 

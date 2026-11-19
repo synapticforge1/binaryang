@@ -38,9 +38,10 @@ export interface ReleaseDeps {
   /** The package root as a working CLI: the problems found (none = fine). */
   entryProblems(): Promise<string[]>;
   /**
-   * The commit a COMPLETED review covers — the `review-complete: <sha>` line the main agent writes
-   * into the gitignored `cmem/review-issues.md` when a review's last re-review comes back empty —
-   * or `null` when none is recorded (workspace review standard, letter H37 § 9).
+   * The commit a COMPLETED review covers — the record `bun run review:record <commit>` writes to
+   * the gitignored `cmem/local/review-complete` when a review's last re-review comes back empty
+   * (`review-record.ts`) — or `null` when none is recorded (workspace review standard, letter H37
+   * § 9). THROWS when the record is malformed; the release refuses, naming it.
    */
   reviewedCommit(): string | null;
   /** Every gate, run locally (`scripts/gate.ts`): true when all passed. */
@@ -94,18 +95,6 @@ export function fetchAdvice(status: number | null): string[] {
 }
 
 /** `(exit N: why)`, or `(exit N; git's reason above)` when git printed it live (round 5). */
-/**
- * The commit the LATEST completed review covers, from the issues file's text: the last line that
- * reads exactly `review-complete: <40-hex sha>`, or `null` when there is none. A review appends its
- * line after the earlier ones; a line relabelled as history (`review-complete (…): <sha>`) is not
- * read. 🔧 Until 2026-11-19 the FIRST such line was read, so an older review's line shadowed every
- * later one unless it was relabelled by hand.
- */
-export function latestReviewedCommit(issues: string): string | null {
-  const all = [...issues.matchAll(/^review-complete: ([0-9a-f]{40})[ \t]*\r?$/gm)];
-  return all.length === 0 ? null : all[all.length - 1]![1]!;
-}
-
 export function exitText(r: GitResult): string {
   const why = r.stderr.trim();
   return `(exit ${r.status}${why === '' ? "; git's reason above" : `: ${why}`})`;
@@ -133,12 +122,18 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
   // review that covers what it ships, and every gate passing HERE — CI only publishes. Since the
   // reviewed commit, only the release files and the project memory may have changed: anything
   // else was never reviewed.
-  const reviewed = d.reviewedCommit();
+  // A malformed record THROWS (review-record.ts): a named refusal, not a stack trace.
+  let reviewed: string | null;
+  try {
+    reviewed = d.reviewedCommit();
+  } catch (e) {
+    return refuse(`Refusing to release ${tag}: ${e instanceof Error ? e.message : String(e)}.`);
+  }
   if (reviewed === null) {
     return refuse(
       `Refusing to release ${tag}: no completed review is recorded.`,
-      '  Run the review ("review": the five required classes) until a re-review is empty; it',
-      '  records `review-complete: <commit>` in the gitignored cmem/review-issues.md.',
+      '  Run the review ("review": the five required classes) until a re-review is empty, then',
+      '  record it: `bun run review:record <commit>` (writes cmem/local/review-complete).',
     );
   }
   // `--no-renames`: with rename detection, a file MOVED from reviewed code into `cmem/` is listed
