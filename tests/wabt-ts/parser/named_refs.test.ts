@@ -38,6 +38,8 @@ import { assert } from '@std/assert';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
 import { formatErrors, hasErrors } from '../../../src/core/error.ts';
+import { allFeatures, wasmValidate } from '../../../src/tools/wasm-validate.ts';
+import { refusedFor } from '../../engine_limits.ts';
 
 /**
  * Assert an engine accepts the bytes, not merely that the encoder produced some.
@@ -52,6 +54,21 @@ function assertV8Accepts(binary: Uint8Array, label: string, src: string): void {
   const buf = new ArrayBuffer(binary.byteLength);
   new Uint8Array(buf).set(binary);
   if (WebAssembly.validate(buf)) return;
+  // JavaScriptCore refuses a legacy `delegate` to a block (tests/engine_limits.ts): binaryang's
+  // validator judges that fixture there; the V8 leg judges it in the engine.
+  let refused = false;
+  try {
+    refused = refusedFor(binary, 'delegate');
+  } catch { /* another refusal: reported below */ }
+  if (refused) {
+    const v = wasmValidate(binary, { features: allFeatures() });
+    assert(
+      !hasErrors(v.errors),
+      `${label}: invalid:
+${formatErrors(v.errors)}`,
+    );
+    return;
+  }
   let detail = '';
   try {
     new WebAssembly.Module(buf);

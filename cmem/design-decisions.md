@@ -68,6 +68,10 @@ guide, letter H38, step 2). Last verified 2026-11-18.
   `scripts/test.ts` and `scripts/gate.ts` start. All 24 memory64 / table64 entries cleared.
 - Read at Bun's start only: a `.env` file is too late (measured). No JavaScriptCore option
   lifts the 100-memory cap or accepts `delegate` to a block (option list read 2026-11-19).
+- Those 10 (owner: "address the rest"): `tests/engine_limits.ts` `refusedFor` — JavaScriptCore
+  refusing with EXACTLY its known message, anything else fails; the test then holds the module
+  to values the V8 leg checks against the engine (the interpreter, the translated module, or
+  binaryang's validator). Never the component under test judging itself. The list is empty.
 
 ## M6 — Apache-2.0 §4(b) and the ported files (owner, 2026-11-18)
 

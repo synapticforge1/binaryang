@@ -17,6 +17,9 @@ import { assert, assertEquals } from '@std/assert';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import { Interpreter } from '../../../src/interp/interpreter.ts';
+import { ExternalKind } from '../../../src/core/binary.ts';
+import { refusedFor } from '../../engine_limits.ts';
 
 /** `n` one-page memories, `$m0` … `$m<n-1>`. */
 const memories = (n: number) => Array.from({ length: n }, (_, i) => `(memory $m${i} 1)`).join(' ');
@@ -24,13 +27,32 @@ const memories = (n: number) => Array.from({ length: n }, (_, i) => `(memory $m$
 /** Assembled by wabt-ts (LEB throughout), then binaryen-ts decode -> encode. */
 function roundTrip(wat: string): { original: Uint8Array; back: Uint8Array } {
   const original = wat2wasm(wat).binary;
-  assert(original !== undefined && WebAssembly.validate(original as BufferSource), 'valid input');
+  // Valid: the engine compiles it, or JavaScriptCore refuses it for its 100-memory cap alone.
+  assert(original !== undefined);
+  refusedFor(original, 'memories');
   return { original, back: writeWasm(readForPasses(original)) };
 }
 
+/**
+ * The module's exports, run by the engine; on JavaScriptCore, which refuses more than 100
+ * memories, by binaryang's interpreter: a component apart from the reader and writer under test,
+ * held to the same pinned values (the V8 leg checks them against the engine).
+ */
 function exportsOf(bytes: Uint8Array): Record<string, () => number> {
-  return new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
-    .exports as Record<string, () => number>;
+  if (!refusedFor(bytes, 'memories')) {
+    return new WebAssembly.Instance(new WebAssembly.Module(bytes as BufferSource))
+      .exports as Record<string, () => number>;
+  }
+  const vm = new Interpreter(readForPasses(bytes));
+  const out: Record<string, () => number> = {};
+  for (const e of vm.module.exports) {
+    if (e.kind !== ExternalKind.Func) continue;
+    out[e.name] = () => {
+      const [r] = vm.invoke(e.name, []);
+      return r !== undefined && 'value' in r ? Number(r.value) : NaN;
+    };
+  }
+  return out;
 }
 
 describe('binaryen-ts reads and writes a memory index as a LEB', () => {
