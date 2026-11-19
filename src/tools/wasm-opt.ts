@@ -135,8 +135,9 @@ export interface WasmOptOptions {
   memcpyToBulkMemory?: boolean;
   /**
    * Receives the old → new map when a minify pass ran (`--minify-imports`,
-   * `--minify-imports-and-exports`, `…-and-modules`) — the names the HOST
-   * must apply. The CLI prints it to stdout, as upstream does.
+   * `--minify-imports-and-exports`, `--minify-imports-and-exports-and-modules`) — the names the
+   * HOST must apply. The CLI prints it to stdout, as upstream does — to stderr when the module
+   * itself goes to stdout.
    */
   onMinifyMap?: (map: MinifyMap) => void;
 }
