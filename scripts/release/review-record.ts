@@ -85,6 +85,11 @@ export function writeReviewRecord(sha: string, path: string = REVIEW_RECORD): vo
   // Node does not, so a bare file name failed (re-review 4, 2026-11-19).
   const dir = dirname(path);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  // A file where the folder should be: refused by name, not by the OS's ENOENT / ENOTDIR from the
+  // temp-file write (re-review 5; owner: "Fix it now").
+  else if (!statSync(dir).isDirectory()) {
+    throw new Error(`${dir} is not a folder: remove it, then run review:record`);
+  }
   const tmp = `${path}.${process.pid}.tmp`;
   try {
     writeFileSync(tmp, `${sha}\n`, { encoding: 'utf8', flag: 'wx' });

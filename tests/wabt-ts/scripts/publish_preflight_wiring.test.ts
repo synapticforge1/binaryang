@@ -354,6 +354,18 @@ describe('the review record: one hash, written by a script, read strictly', () =
       }
     });
   });
+  // Re-review 5: a file in the folder's place was refused only by the OS's ENOENT / ENOTDIR.
+  it('a file where the record folder should be is refused by name; nothing is written', () => {
+    inTemp((dir) => {
+      const local = join(dir, 'local');
+      writeFileSync(local, 'not a folder');
+      expect(() => writeReviewRecord(a, join(local, 'review-complete'))).toThrow(
+        `${local} is not a folder`,
+      );
+      expect(readFileSync(local, 'utf8')).toBe('not a folder');
+      expect(readdirSync(dir)).toEqual(['local']);
+    });
+  });
   it('the writer makes a missing folder (a fresh clone has no cmem/local/)', () => {
     inTemp((dir) => {
       const path = join(dir, 'local', 'review-complete');
