@@ -37,6 +37,9 @@ Updated: 2026-11-19, at the release of 4.1.1
 4. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
 
 ## Pushed
+- 2026-11-19: rulesets read back — `main` (27683565: the default branch; deletion, force push)
+  and a TAG ruleset (27687370, `refs/tags/v*`: deletion, force push, update; creation allowed,
+  so CI tags). A history purge needs both switched off for it.
 - 2026-11-19: `main` at e77d6fdd1 (`bump to v4.1.1`), tag `v4.1.1` (read back); issue #1 answered
   and closed by the owner.
 - 2026-11-19: Dependabot #2 (setup-node 7.1.0) and #3 (checkout 7.0.1) taken in through
@@ -47,9 +50,6 @@ Updated: 2026-11-19, at the release of 4.1.1
   H39, H41, H42, H43 (the workspace commits them and closes per repo)
 
 ## Waiting on owner
-- The `v*` ruleset is a BRANCH ruleset (refs/heads/v*): recreate it as a TAG ruleset (restrict
-  updates, deletions, force pushes; not creations). The `main` ruleset (27683565) is right:
-  deletions and force pushes only (2026-11-19)
 - Note on issue #1 that the fixes shipped in 4.1.1 (closed already)
 
 ## Read next
