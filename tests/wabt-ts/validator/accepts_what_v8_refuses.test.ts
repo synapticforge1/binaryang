@@ -225,3 +225,22 @@ test('ref.null names a type that exists', () => {
     'unknown type 7 in ref.null',
   );
 });
+
+// Issue #1 (reported 2026-11-15 against 3.0.4): a `(sub …)` declaring two supertypes validated
+// clean, though the GC proposal allows at most one (spec `type-subtyping.wast`, "multiple
+// supertypes") and V8 refuses it. Through the binary and through `wat2wasm --validate`.
+test('a sub type declares at most one supertype', () => {
+  assertEquals(
+    verdicts(asm('(module (type $p (sub (struct))) (type $c (sub $p (struct))))')),
+    { ours: true, v8: true },
+    'control',
+  );
+  const two = '(module (type $p1 (sub (struct))) (type $p2 (sub (struct))) ' +
+    '(type $c (sub $p1 $p2 (struct))))';
+  refusedBoth(asm(two), 'sub type 2 declares 2 supertypes; at most 1 allowed');
+  const text = wat2wasm(two, { textForm: false, validate: true, features: allFeatures() });
+  assert(
+    text.errors.some((e) => e.message.includes('declares 2 supertypes')),
+    text.errors.map((e) => e.message).join(' | '),
+  );
+});

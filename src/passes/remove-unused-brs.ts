@@ -450,9 +450,12 @@ function _optimizeBlock(
   ) {
     const rest = block.children.slice(0, -1);
     if (rest.length === 0) return makeNop();
-    const newLast = rest[rest.length - 1]!; // `rest` is non-empty (checked above)
-    // Only safe when the new tail has type none (block type is preserved)
-    if (newLast.type !== None) return block;
+    // 🔧 Only when EVERY statement before the `br` leaves nothing — the last one included. A
+    // branch also DISCARDS what earlier statements left on the stack (in unreachable code
+    // `(i32.eqz (br 0))` leaves an i32 that only the trailing `br` unwound); falling through
+    // keeps it for the `end`, which -O2 then refused as invalid (issue #1, as `_dropFlowingBrs`
+    // and `_tailReturn` already check).
+    if (rest.some((c) => c.type !== None)) return block;
     return { ...block, type: None, children: rest };
   }
 

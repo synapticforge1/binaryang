@@ -7,7 +7,7 @@ Updated: 2026-11-19, at the release of 4.1.0
   publish.yml run 44621909375 green in every job
 - 4.0.0's run 44412712388 is GREEN since its re-run (attempt 2, 2026-11-19 21:58Z: publish
   skipped, provenance found on the first read); attempt 1 was red only because npm lagged ~4 min
-- Unreleased on main: nothing (unreleased.md)
+- Unreleased on main: issue #1's two silent fixes (unreleased.md) → a 4.1.1 patch, on the owner's word
 - Working branch: `main`
 
 ## Now
@@ -28,16 +28,25 @@ Updated: 2026-11-19, at the release of 4.1.0
   d1dfa0856..review-line; together every shipped change and the release tooling since 4.0.0
 
 ## Next
-1. Tell wasmtk what 4.1.0 contains (handoffs.md)
-2. The npm provenance poll window (open-work, top); H38 steps 4–6 (archive, split, wrap)
-3. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
+1. 4.1.1 (issue #1), on the owner's "release": notes, review set, bump patch, release; then the
+   issue reply says which version has it
+2. Tell wasmtk what 4.1.0 (and 4.1.1) contain (handoffs.md)
+3. The npm provenance poll window (open-work, top); H38 steps 4–6 (archive, split, wrap)
+4. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
 
 ## Pushed
+- 2026-11-19: Dependabot #2 (setup-node 7.1.0) and #3 (checkout 7.0.1) taken in through
+  `actions-bump` (reviewed; gate 30/31 → the privacy fix, re-reviewed; main 6fa2bd3d0, both PRs
+  closed as merged, run 44629579556 green). Issue #1 fixed on `issue-1` (review 0 in all five;
+  gate 31/31; linux-x64 fresh clone 6790/6790).
 - 2026-11-19: `main` at 1ffb9f125 (`bump to v4.1.0`) on origin, tag `v4.1.0` (read back). Answers in the workspace letters:
   H39, H41, H42, H43 (the workspace commits them and closes per repo)
 
 ## Waiting on owner
-- Nothing
+- The `v*` ruleset is a BRANCH ruleset (refs/heads/v*): recreate it as a TAG ruleset (restrict
+  updates, deletions, force pushes; not creations). The `main` ruleset (27683565) is right:
+  deletions and force pushes only (2026-11-19)
+- Post the reply on issue #1 (no GitHub login on this machine)
 
 ## Read next
 - design-decisions.md: Bun runs with memory64 on; engine limits; no skips

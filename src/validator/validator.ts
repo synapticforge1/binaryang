@@ -434,6 +434,9 @@ class ModuleValidator implements ExprVisitorDelegate {
       } else if (te.field) {
         checkVt(te.field.type, `type ${i} element`, locOf(te), bound);
       }
+      // At most one supertype (issue #1): the rest of a longer list is still checked below.
+      const declared = te.sub?.supertypes.length ?? 0;
+      if (declared > 1) this.acc(this.sv.onMultipleSupertypes(locOf(te), i, declared));
       for (const sv of te.sub?.supertypes ?? []) {
         if (sv.kind !== 'index') continue;
         if (sv.value >= seenTypes) {
