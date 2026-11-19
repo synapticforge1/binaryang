@@ -56,7 +56,7 @@ B3):
 6. Read both registries back (Rekor id on JSR, the attestation on npm), run the package as a user
    from each, record it in [release.md](release.md) § "Release History", newest first.
 
-**The compatibility gate** (workspace letter H6, built 2026-10-23; `../../cmem/layout-and-packaging.md`
+**The compatibility gate** (workspace letter H6, built 2026-10-23; `../../workspace/cmem/layout-and-packaging.md`
 § "The compatibility gate"):
 
 - **Rule 1, the snapshot** — `api-surface.json` at the repo root: per export subpath every symbol

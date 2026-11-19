@@ -30,5 +30,6 @@ Read STATE.md first. Open another file only when the task matches its line.
 - [jsr-deno-exit-guide.md](jsr-deno-exit-guide.md): only for the other `@jrmarcum` JSR packages
 - [wabt-ts.md](wabt-ts.md): when code, a test or a commit cites a T-id or UP-n
 - [binaryen-ts.md](binaryen-ts.md): when code or a test cites a WT-n or a binaryen-ts invariant
-- [best-practices.md](best-practices.md): held for the owner (H38); read a rule a task cites
+- [best-practices.md](best-practices.md): binaryang's own lessons; read a rule a task cites
+- [best-practices-shared.md](best-practices-shared.md): the workspace's 28 ★ rules, copied (H38)
 - `local/`: private machine facts, gitignored; never given to a reviewer

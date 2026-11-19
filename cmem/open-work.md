@@ -130,7 +130,7 @@ replaces (now the module, read at call time; a test runs the pass between). Also
 hardening.md run-on line and the direct-behaviour TOTAL's "listed above" wording. Mutants 2/2;
 gate 30/30. Committed on `security-r3` 2026-11-18 (`api-surface.json` in its own commit).
 
-**SUPERSEDED (2026-11-18): the workspace's FINAL review standard (letter H37, `../cmem/
+**SUPERSEDED (2026-11-18): the workspace's FINAL review standard (letter H37, `../workspace/cmem/
 review-process.md`) replaces the trial rules and round 4's process; letter H38 (the memory
 guide) applies too.** The owner's decisions on the scope (2026-11-18): (1) **the review starts
 FROM SCRATCH** — round 4's findings are NOT carried over as the first review; all five required
@@ -236,7 +236,7 @@ Opera on the runner, apt failing fast ([run-everywhere.md](run-everywhere.md) §
 six jobs green ([release.md](release.md) § "3.0.4").
 
 **Later, 2026-11-10 (memory only):** the release workflow, as 3.0.2 ran it, written to the
-workspace for JS/TS projects on the owner's word — `../../cmem/release-process.md` (workspace
+workspace for JS/TS projects on the owner's word — `../../workspace/cmem/release-process.md` (workspace
 INDEX line added) — and ledger **C44** opened by binaryang, asking the workspace to adapt it for
 the other languages. binaryang verifies and closes C44. The paragraph below otherwise stands.
 

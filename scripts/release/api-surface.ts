@@ -1,7 +1,7 @@
 /**
  * @module scripts/release/api-surface
  *
- * The compatibility gate's SURFACE SNAPSHOT (workspace letter H6; `../../cmem/layout-and-packaging.md`
+ * The compatibility gate's SURFACE SNAPSHOT (workspace letter H6; `../workspace/cmem/layout-and-packaging.md`
  * § "The compatibility gate", rules 1, 2 and 5). "Backward compatible" is a gate result, never a
  * judgment made at bump time.
  *

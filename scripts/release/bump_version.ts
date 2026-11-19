@@ -73,7 +73,7 @@ if (dryRun) {
 }
 
 // GATE: "backward compatible" is a gate result, never a judgment made at bump time
-// (../../cmem/layout-and-packaging.md § "The compatibility gate", rules 2 and 5).
+// (../workspace/cmem/layout-and-packaging.md § "The compatibility gate", rules 2 and 5).
 {
   // CI makes the tags (D1), so a clone has them only once it fetches them: fetch first, and gate
   // only against `v<current>` (review round 1, 2026-11-13).

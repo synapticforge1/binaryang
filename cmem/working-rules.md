@@ -32,7 +32,7 @@ not survive a clone is not a project rule. The lessons behind them are in
   sequence (tag and push) stays in the workflow" — both from before D1; CI's tag is
   `github.ts tag`, a tested script.
 - 🔒 **No `gh` — not here, not in CI** (owner, 2026-11-08, workspace letter H30 /
-  `../cmem/working-rules.md` § Tooling rule 9: "just checking the repo is easier"; "yes change
+  `../workspace/cmem/tooling-rules.md` rule 9: "just checking the repo is easier"; "yes change
   those"). The GitHub CLI is not installed and will not be. Check the repo instead: `git
   ls-remote origin` against `origin/*`, `git fetch`, a registry's public API. A workflow writes
   to GitHub through the REST API with its own `GITHUB_TOKEN` from a Bun step —
@@ -85,7 +85,7 @@ not survive a clone is not a project rule. The lessons behind them are in
   2026-11-10 `auto-tag` did). See [release.md](release.md); the unreleased changes waiting for it
   are in [unreleased.md](unreleased.md).
 - **Docs and memory land in the SAME commit as the code they describe** (workspace floor,
-  `../cmem/working-rules.md` § Git, adopted here 2026-10-22, owner: "yes"): the cmem record,
+  `../workspace/cmem/working-rules.md` § Git, adopted here 2026-10-22, owner: "yes"): the cmem record,
   `unreleased.md` and `CHANGELOG.md` § Unreleased lines for a change go in that change's commit,
   not on a docs branch after it ("a doc pass scheduled after the release is a doc pass that does
   not happen"). 🔧 Until then each open-work 31 step merged its code first and its record on a
@@ -263,7 +263,7 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   paths (`new URL('../../wasmtk/…', import.meta.url)`), an environment variable, or a placeholder
   (`<repo>`, `<scratchpad>`); the real path goes in the gitignored `cmem/local/`, or nowhere.
   **The test is "is it machine-specific?", not "is it absolute?"** (owner, 2026-10-23; workspace
-  `../cmem/working-rules.md` § Records, letter H22; recorded here 2026-10-26). NOT public: any path
+  `../workspace/cmem/working-rules.md` § Records, letter H22; recorded here 2026-10-26). NOT public: any path
   that records the owner's own machine layout — a user profile, the project tree, another drive,
   a scoop or AppData install, a scratchpad or session id. FINE: repo- or sibling-relative paths,
   environment variables, placeholders, and a CONVENTION path that names nothing about one machine
@@ -316,7 +316,7 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   (workspace `review-process.md`, letter H35) is launched with `model: sonnet`, every round; the
   re-verification and the fixes stay with the main session.
 - **Reviews follow the workspace FINAL standard** (owner, 2026-11-17; letter H37;
-  `../../cmem/review-process.md`): five required classes before every release, in order — basic,
+  `../../workspace/cmem/review-process.md`): five required classes before every release, in order — basic,
   hardening, licensing, security, privacy — after an optional efficiency review. One agent per class
   for the first review (the class's item list word for word, its severity floor, the scope); the
   main agent triages, then fixes ALL of one class together, class by class; a NEW agent per class
@@ -391,7 +391,7 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
 - **After any scripted edit, read back the lines it changed**, and treat "0 replacements" as a
   failure, not a no-op.
 - 🔒 **Every Bun-version notation is the latest INSTALLED Bun** (owner, 2026-11-09, workspace
-  letter H31 / `../cmem/working-rules.md` § Tooling rule 10: "update any notations on bun version
+  letter H31 / `../workspace/cmem/tooling-rules.md` rule 10: "update any notations on bun version
   to the latest installed version always"; "the minimum supported version will be updated to the
   latest version currently installed"). At the first session after the owner installs a newer
   Bun, run `bun --version` (Windows and WSL), run the gate on it, then move every pin
@@ -427,6 +427,9 @@ in one parent directory (its absolute path is in the private `cmem/local/environ
 - **Nothing is ever written into a sibling repo from this one.** Draft the note in
   [handoffs.md](handoffs.md) and hand it over; fixes land in the repo that owns the file. During a
   merge the habit of respecting repo boundaries is the first thing to erode.
+- **The one exception: an answer to a workspace letter** (letters H41, H42, 2026-11-19): append one
+  bullet under `## Answers` in `../workspace/cmem/letters/<ID>.md` — never its status or index line.
+  The workspace session commits it. That repo is PUBLIC: no machine paths, credentials or personal facts.
 - **Verify a sibling from a scratch COPY**, because `deno` writes `deno.lock` in whatever directory
   it runs in.
 - **A sibling may vendor YOUR source.** wasmtk carries `upstream/binaryang/`; measuring "what does
@@ -457,7 +460,7 @@ H34). When the owner says:
 Each command includes the one before it, and none goes further than its own word (a "commit"
 never pushes, a "push" never releases). This repo's own gate and merge rules apply at each step.
 
-**The review words** (owner, 2026-11-17; letter H37, `../../cmem/review-process.md` § 1):
+**The review words** (owner, 2026-11-17; letter H37, `../../workspace/cmem/review-process.md` § 1):
 
 - **"review"** — all five required classes, in order: basic, hardening, licensing, security,
   privacy; the loop of § 9 until a re-review is empty, then the full suite once per platform.
@@ -467,9 +470,9 @@ never pushes, a "push" never releases). This repo's own gate and merge rules app
 
 ## Session routine and memory (workspace memory guide, letter H38)
 
-- **Start:** read `cmem/STATE.md`, then `cmem/INDEX.md` (a router), then the workspace
-  correspondence rows addressed to binaryang (`../../cmem/workspace-correspondence.md`); open
-  only the files STATE's "Read next" or the task names.
+- **Start:** read `cmem/STATE.md`, then `cmem/INDEX.md` (a router), then the workspace index
+  `../workspace/cmem/workspace-correspondence.md` (letters H41, H42) and the items addressed to
+  binaryang in `../workspace/cmem/letters/`; open only the files STATE's "Read next" or the task names.
 - **End:** rewrite `cmem/STATE.md` (counts only, no issue content, no machine facts); move items
   closed this session to `cmem/archive/`; record decisions in `design-decisions.md` and rules
   here; run `bun scripts/check-cmem.ts` and fix what it reports.

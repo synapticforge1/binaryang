@@ -65,7 +65,7 @@ gives 19 and 24 commits respectively. Both "preserve history"; only one keeps it
     decisions**: Node 26 becoming LTS on 2026-10-28 changes nothing; the floor next moves to 24 at
     Node 22's EOL, 2027-04-30.
   - **Bun: the latest Bun installed on the maintainer's machine — 1.4.4, measured 2026-11-09 on
-    Windows and in WSL** (owner, 2026-11-09, workspace letter H31 / `../cmem/working-rules.md`
+    Windows and in WSL** (owner, 2026-11-09, workspace letter H31 / `../workspace/cmem/working-rules.md`
     § Tooling rule 10: "the minimum supported version will be updated to the latest version
     currently installed"). It moves, with every other Bun pin, at the first session after the
     owner installs a newer Bun, gate run first; the release that carries a raised floor says so.

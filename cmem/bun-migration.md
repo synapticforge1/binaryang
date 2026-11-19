@@ -699,5 +699,5 @@ the CLI's, and every `api-surface.json` hash would have to be shown unchanged fi
   1.4.3 when this was written, 2026-10-12); confirm CRLF
   handling in `dprint` matches `deno fmt` here ([`local/environment.md`](local/environment.md)).
 - **Sibling repos** (wasmtk, wazmrt's TS tooling, the TS loaders) face the same deadline. That
-  belongs to the workspace session's [handoffs](../../cmem/handoffs.md). Nothing is written to
+  belongs to the workspace session's [handoffs](../../workspace/cmem/archive/handoffs-to-2026-11-19.md). Nothing is written to
   them from here. wasmtk consumes binaryang from JSR and is unaffected by B1–B7.

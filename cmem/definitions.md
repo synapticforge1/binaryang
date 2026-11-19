@@ -5,7 +5,7 @@ Placed on the list by the owner 2026-09-30 from wasmtk's § 23 (H9: a subpath fo
 generate their copies from, H10). Built 2026-10-06 in two commits — D2 and D3 (`b482b711d`),
 then D1 (`d2bcdf769`). This file is the summary the cleanup policy asks for ([INDEX.md](INDEX.md));
 the full record as it stood before the cut is `git show d0f3dbabd:cmem/open-work.md` (item 22).
-The workspace's design is `../cmem/divergences.md` § "The shared definitions".
+The workspace's design is `../workspace/cmem/divergences.md` § "The shared definitions".
 
 ## What shipped
 
