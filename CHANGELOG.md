@@ -1,13 +1,26 @@
 # Changelog
 
-## Unreleased
+## 4.1.0
+
+A minor release: one fix for Deno on Windows and one new command-line flag. Nothing is removed
+or renamed, and no calling code needs to change. It is a minor because the CLI gains a flag.
 
 - **`-o NUL` works on Deno on Windows.** Through 4.0.0 it failed with `cannot write 'NUL':
   EISDIR` on Deno (Bun and Node were fine): Deno refuses to create-or-truncate the device.
 - **`binaryang --self-check`** tries every file operation the command-line tools use on the
-  machine it runs on, in a temp folder it removes, and reports each; exit 1 if one fails.
-- Repo-only: every call to the system is in one module, `src/host.ts` (it was `src/cli/io.ts`),
-  and `bun run portability` fails on a file, path, OS or process API anywhere else.
+  machine it runs on, in a temp folder it removes, and reports each; exit 1 if one fails. Every
+  operation is tried or failed, never skipped: an account that may not make a symbolic link
+  fails that step, saying how to allow it (on Windows, Developer Mode or an administrator).
+
+Repository only (nothing here is in the package):
+
+- Every call to the system is in one module, `src/host.ts` (it was `src/cli/io.ts`), and
+  `bun run portability` fails on a file, path, OS or process API anywhere else.
+- The Bun test run uses JavaScriptCore with memory64 on, and no test is listed as a known Bun
+  difference any more; no test is skipped on any platform.
+- A test no longer leaves a temp folder behind on each run.
+- `bun run release` reads the latest completed review from one hash that `bun run review:record`
+  writes, instead of from the review notes.
 
 ## 4.0.0
 
