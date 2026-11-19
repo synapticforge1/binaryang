@@ -23,9 +23,8 @@ Updated: 2026-11-19, at the end of the review of 7d3a1feee..review-bun
   7d3a1feee..review-bun; no fresh full review. Since d1dfa0856 only `cmem/` changed
 
 ## Next
-1. `publish.ts` reads the FIRST `review-complete:` line; older ones are relabelled — fix it
-2. The npm provenance poll window (open-work, top); H38 steps 4–6 (archive, split, wrap)
-3. The carried issues C-H2…C-R2-5 (review-issues.md), when the owner opens them
+1. The npm provenance poll window (open-work, top); H38 steps 4–6 (archive, split, wrap)
+2. The carried issues C-H2…C-R2-5 (review-issues.md), when the owner opens them
 
 ## Pushed
 - 2026-11-19: `main` at bb5a2f475 on origin (read back). Answers in the workspace letters:

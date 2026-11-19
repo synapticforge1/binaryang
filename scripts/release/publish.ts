@@ -40,7 +40,7 @@ import { readCurrentVersion } from './version.ts';
 import { checkEntry } from './entry-check.ts';
 import { DENO, denoCommand } from '../deno.ts';
 import { jsrHas, npmState } from './registry.ts';
-import { runRelease } from './release-run.ts';
+import { latestReviewedCommit, runRelease } from './release-run.ts';
 
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import process from 'node:process';
@@ -92,13 +92,10 @@ const code = await runRelease({
     return spawnSync('bun', ['run', 'check'], { stdio: 'inherit' }).status === 0;
   },
   entryProblems: () => checkEntry(process.cwd()),
-  // The completed review: the gitignored issues file's `review-complete: <sha>` line, if any.
+  // The latest completed review: the gitignored issues file's last `review-complete: <sha>` line.
   reviewedCommit() {
     if (!existsSync('cmem/review-issues.md')) return null;
-    const m = /^review-complete: ([0-9a-f]{40})\s*$/m.exec(
-      readFileSync('cmem/review-issues.md', 'utf8'),
-    );
-    return m ? m[1]! : null;
+    return latestReviewedCommit(readFileSync('cmem/review-issues.md', 'utf8'));
   },
   runGates() {
     console.log('$ bun run gate --release   (every gate, locally: CI only publishes)');
