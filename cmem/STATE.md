@@ -21,9 +21,13 @@ Updated: 2026-11-19, at the end of the review of 7d3a1feee..review-bun
 - Platforms passed: win-x64 (gate 31/31), linux-x64 (fresh WSL clone, 0 skips); pending: four
 
 ## Next
-1. H43: answer `../workspace/cmem/letters/H43.md` with this commit and the scratchpad's size (0)
-2. `publish.ts` reads the FIRST `review-complete:` line; older ones are relabelled — fix it
-3. H39 answer once pushed; the npm provenance poll window; H38 steps 4–6; carried C-H2…C-R2-5
+1. `publish.ts` reads the FIRST `review-complete:` line; older ones are relabelled — fix it
+2. The npm provenance poll window (open-work, top); H38 steps 4–6 (archive, split, wrap)
+3. The carried issues C-H2…C-R2-5 (review-issues.md), when the owner opens them
+
+## Pushed
+- 2026-11-19: `main` at bb5a2f475 on origin (read back). Answers in the workspace letters:
+  H39, H41, H42, H43 (the workspace commits them and closes per repo)
 
 ## Waiting on owner
 - "Re-run failed jobs" on publish.yml run 44412712388 (web UI): skips the publish, turns it green
