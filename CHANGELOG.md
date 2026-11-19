@@ -1,5 +1,30 @@
 # Changelog
 
+## 4.1.1
+
+A patch release: two fixes from [issue #1](https://github.com/synapticforge1/binaryang/issues/1),
+reported by trackoor (<https://ucsbplse.github.io/>). Nothing is added, removed or renamed.
+
+- **`wasm-opt -O2`, `-O3` and `-O4` no longer refuse a valid module that has a value left in
+  unreachable code before a block's last `br`.** Through 4.1.0 they threw `optimized module
+  failed validation: … type mismatch at end of block` (`-O1` was fine). RemoveUnusedBrs removed
+  the block's trailing `br` after checking only the statement just before it, but an earlier
+  statement in unreachable code, such as `(i32.eqz (br 0))`, can leave a value that only that
+  `br` discarded. The output was never wrong: the module failed our own check after
+  optimizing, and nothing was written.
+- **The validator refuses a `sub` type that declares more than one supertype.** The GC proposal
+  allows at most one, and V8 refuses more, but through 4.1.0 `wasmValidate` and
+  `wat2wasm(..., { validate: true })` accepted it. The error is
+  `sub type N declares K supertypes; at most 1 allowed`.
+
+Repository only (nothing here is in the package):
+
+- The publish workflow uses `actions/checkout` 7.0.1 and `actions/setup-node` 7.1.0 (Dependabot
+  #2 and #3), with setup-node's automatic dependency cache turned off.
+- The privacy scan accepts GitHub's support address, which Dependabot signs its commits with.
+- `bun run bump` runs the previous release's tests in a work tree that is committed and has the
+  binaryen test corpus, so neither shows up as a behaviour change.
+
 ## 4.1.0
 
 A minor release: fixes for writing to devices and one new command-line flag. Nothing is removed
