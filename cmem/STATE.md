@@ -4,7 +4,8 @@ Updated: 2026-11-19, at the release of 4.1.1
 
 ## Version
 - Released: **4.1.1 on 2026-11-19** (JSR and npm, provenance on both; release.md § 4.1.1);
-  publish.yml run 44639032099 RED in npm's provenance read-back only (npm lagged ~3 min)
+  publish.yml run 44639032099 GREEN since the owner's re-run (attempt 1 red only in npm's
+  provenance read-back: npm lagged ~3 min)
 - 4.1.0 on 2026-11-19, run 44621909375 green in every job
 - 4.0.0's run 44412712388 is GREEN since its re-run (attempt 2, 2026-11-19 21:58Z: publish
   skipped, provenance found on the first read); attempt 1 was red only because npm lagged ~4 min
@@ -49,7 +50,6 @@ Updated: 2026-11-19, at the release of 4.1.1
 - The `v*` ruleset is a BRANCH ruleset (refs/heads/v*): recreate it as a TAG ruleset (restrict
   updates, deletions, force pushes; not creations). The `main` ruleset (27683565) is right:
   deletions and force pushes only (2026-11-19)
-- "Re-run failed jobs" on publish.yml run 44639032099 (web UI): skips the publish, turns it green
 - Note on issue #1 that the fixes shipped in 4.1.1 (closed already)
 
 ## Read next
