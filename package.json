@@ -18,6 +18,7 @@
     "surface:check": "bun scripts/release/api-surface.ts --check",
     "surface:floor": "bun scripts/release/api-surface.ts --floor",
     "release": "bun scripts/release/publish.ts",
+    "review:record": "bun scripts/release/review-record.ts",
     "npm:build": "bun scripts/npm/build.ts",
     "npm:prove": "bun scripts/npm/prove.ts",
     "baseline": "bun scripts/wabt-ts/verify-baseline.ts",

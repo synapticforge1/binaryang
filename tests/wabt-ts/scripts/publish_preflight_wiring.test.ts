@@ -2,7 +2,15 @@
 // Licensed under the MIT License. See LICENSE-MIT in the repository root.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -11,11 +19,16 @@ import * as fsx from '../../test_fs.ts';
 import {
   exitText,
   fetchAdvice,
-  latestReviewedCommit,
   READ_ONLY_GIT,
   runRelease,
 } from '../../../scripts/release/release-run.ts';
 import { RELEASE_FILES } from '../../../scripts/release/release-guard.ts';
+import {
+  parseReviewRecord,
+  readReviewRecord,
+  resolveCommit,
+  writeReviewRecord,
+} from '../../../scripts/release/review-record.ts';
 import { releaseBaseProblem } from '../../../scripts/release/version.ts';
 
 // T13.44, then review round 1 (2026-11-13). `release_guard.test.ts` proves `releaseBlockers`
@@ -262,84 +275,74 @@ describe('the release: every refusal runs, and changes nothing', () => {
   });
 });
 
-describe('the review a release reads is the LATEST completed one', () => {
-  const NBSP = String.fromCharCode(0xa0);
-  const BOM = String.fromCharCode(0xfeff);
+// The record of the latest completed review (owner, 2026-11-19, option C of the review-line
+// finding): one hash in its own file, written by `bun run review:record`, read strictly.
+describe('the review record: one hash, written by a script, read strictly', () => {
   const a = 'a'.repeat(40);
-  const b = 'b'.repeat(40);
-  it('the last `review-complete:` line wins, not the first', () => {
-    expect(latestReviewedCommit(`## one\nreview-complete: ${a}\n\n## two\nreview-complete: ${b}\n`))
-      .toBe(b);
-  });
-  it('a line relabelled as history is not read; CRLF and trailing blanks are', () => {
-    const text = `review-complete (historical): ${b}\r\nreview-complete: ${a} \r\n`;
-    expect(latestReviewedCommit(text)).toBe(a);
-  });
-  it('no review line at all: null (the release refuses)', () => {
-    expect(latestReviewedCommit('no review here')).toBe(null);
-    expect(latestReviewedCommit(`review-complete (historical): ${a}\n`)).toBe(null);
-  });
-  // Review H-1 (2026-11-19): a malformed NEWEST line let an older valid one through — the release
-  // went ahead on the wrong review. Now it throws, naming the line.
-  it('a malformed newest line throws; it never falls back to an older review', () => {
-    const utf16 = (s: string) => [...s].map((c) => `${c}\0`).join('');
-    const malformed = [
-      `  review-complete: ${b}`,
-      `review-complete: ${b.toUpperCase()}`,
-      `review-complete: ${b.slice(1)}`,
-      `review-complete: ${b}b`,
-      `review-complete: ${b} (pending)`,
-      `review-complete:  ${b}`,
-      `${BOM}${utf16(`review-complete: ${b.toUpperCase()}`)}`,
-      // Re-review 1: glued to text before it, and look-alike prefixes.
-      `note review-complete: ${b}`,
-      `trailing textreview-complete: ${b}`,
-      `${String.fromCharCode(0x200b)}review-complete: ${b}`,
-      `${String.fromCharCode(0x85)}review-complete: ${b}`,
-      `review${String.fromCharCode(0x2011)}complete: ${b}`,
-      `REV${String.fromCharCode(0x130)}EW-COMPLETE: ${b}`,
-    ];
-    for (const line of malformed) {
-      expect(() => latestReviewedCommit(`review-complete: ${a}\n${line}\n`)).toThrow('malformed');
-    }
-  });
-  // Re-review 1: what `readFileSync(file, 'utf8')` really makes of bytes PowerShell 5.1 appends —
-  // a UTF-16 byte-order mark decodes as two U+FFFD, not one U+FEFF.
-  it('UTF-16 bytes appended to a UTF-8 file, as readFileSync decodes them', () => {
-    const decoded = (encoding: 'utf16le' | 'utf16be', line: string) => {
-      // The byte-order mark directly before the line, as `>>` writes it after a final newline.
-      const body = Buffer.from(`${line}\r\n`, 'utf16le');
-      if (encoding === 'utf16be') body.swap16();
-      const bom = encoding === 'utf16le' ? [0xff, 0xfe] : [0xfe, 0xff];
-      return Buffer.concat([Buffer.from(`review-complete: ${a}\n`), Buffer.from(bom), body])
-        .toString('utf8');
-    };
-    for (const encoding of ['utf16le', 'utf16be'] as const) {
-      expect(latestReviewedCommit(decoded(encoding, `review-complete: ${b}`))).toBe(b);
-      expect(() => latestReviewedCommit(decoded(encoding, `Review-complete: ${b}`)))
-        .toThrow('malformed');
-    }
-  });
-  // Compatibility normalization repairs a no-break space or full-width letters to the line the
-  // writer meant: the NEWEST sha, never an older one.
-  it('a no-break space or full-width hex is read as the newest line', () => {
-    const fullWidth = [...b].map((c) => String.fromCharCode(c.charCodeAt(0) + 0xfee0)).join('');
-    expect(latestReviewedCommit(`review-complete: ${a}\nreview-complete:${NBSP}${b}\n`)).toBe(b);
-    expect(latestReviewedCommit(`review-complete: ${a}\nreview-complete: ${fullWidth}\n`)).toBe(b);
-  });
-  it('the line a malformed error names is cut at 200 characters', () => {
-    let message = '';
+  const bytes = (...parts: (string | number[])[]) =>
+    Buffer.concat(
+      parts.map((p) => (typeof p === 'string' ? Buffer.from(p, 'latin1') : Buffer.from(p))),
+    );
+  const inTemp = (body: (dir: string) => void) => {
+    const dir = mkdtempSync(join(tmpdir(), 'binaryang-record-'));
     try {
-      latestReviewedCommit(`review-complete: ${a}\nreview-complete: ${'x'.repeat(300)}\n`);
-    } catch (e) {
-      message = (e as Error).message;
+      body(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
-    expect(message).toContain('malformed');
-    expect(message.length).toBeLessThan(400);
+  };
+
+  it('40 lowercase hex, with or without one LF, is the commit', () => {
+    expect(parseReviewRecord(bytes(a))).toBe(a);
+    expect(parseReviewRecord(bytes(`${a}\n`))).toBe(a);
   });
-  it('a valid line appended as UTF-16 (PowerShell 5.1 `>>`) is read as that line', () => {
-    const utf16 = [...`\r\nreview-complete: ${b}\r\n`].map((c) => `${c}\0`).join('');
-    expect(latestReviewedCommit(`review-complete: ${a}\n${BOM}${utf16}`)).toBe(b);
+  it('anything else is refused, naming the record — never read loosely', () => {
+    const utf16 = Buffer.from(`${a}\n`, 'utf16le');
+    for (
+      const refused of [
+        bytes(''),
+        bytes(`${a}\r\n`),
+        bytes([0xef, 0xbb, 0xbf], a),
+        bytes([0xff, 0xfe], [...utf16]),
+        bytes(a.toUpperCase()),
+        bytes(a.slice(1)),
+        bytes(`${a} `),
+        bytes(`${a}\n\n`),
+        bytes(`${a}\n${a}\n`),
+        bytes(`review-complete: ${a}`),
+        bytes(a.slice(0, 20), [0xd0, 0xb0], a.slice(21)),
+      ]
+    ) {
+      expect(() => parseReviewRecord(refused)).toThrow('cmem/local/review-complete');
+    }
+  });
+  it('no record file: null (the release refuses: no completed review)', () => {
+    inTemp((dir) => expect(readReviewRecord(join(dir, 'review-complete'))).toBe(null));
+  });
+  it('the writer writes the hash and one LF, replaces the old record whole, leaves no temp file', () => {
+    inTemp((dir) => {
+      const path = join(dir, 'review-complete');
+      writeReviewRecord('b'.repeat(40), path);
+      writeReviewRecord(a, path);
+      expect(readFileSync(path, 'latin1')).toBe(`${a}\n`);
+      expect(readReviewRecord(path)).toBe(a);
+      expect(readdirSync(dir)).toEqual(['review-complete']);
+    });
+  });
+  it('the writer refuses anything but a 40-hex hash and leaves the old record', () => {
+    inTemp((dir) => {
+      const path = join(dir, 'review-complete');
+      writeReviewRecord(a, path);
+      for (const bad of ['', 'HEAD', a.toUpperCase(), a.slice(1), `${a}\n`]) {
+        expect(() => writeReviewRecord(bad, path)).toThrow('not a 40-hex commit hash');
+      }
+      expect(readReviewRecord(path)).toBe(a);
+      expect(readdirSync(dir)).toEqual(['review-complete']);
+    });
+  });
+  it('a commit is resolved to its full hash; a name that is no commit is null', () => {
+    expect(resolveCommit('HEAD')).toMatch(/^[0-9a-f]{40}$/);
+    expect(resolveCommit('no-such-revision-anywhere')).toBe(null);
   });
 });
 

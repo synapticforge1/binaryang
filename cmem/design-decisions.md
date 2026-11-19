@@ -52,7 +52,19 @@ guide, letter H38, step 2). Last verified 2026-11-18.
   this towards the review set for 4.1.0, since we just made some changes." The set is the review
   of v4.0.0..review-h39 (complete at f1a55034f) and of 7d3a1feee..review-bun (complete at
   d1dfa0856); together they cover every shipped change since 4.0.0. `bun run release` reads the
-  latest `review-complete:` line; only `cmem/` changed after it.
+  review record (below); only `cmem/` changed after it.
+
+## The review record is its own file, written by a script (owner, 2026-11-19, option C)
+
+- The finding: the release read the latest reviewed commit out of the hand-written review notes,
+  and three rounds of fixes (H-1, H-2, H-3 in the review of the review-line change) each met a new
+  look-alike spelling that made it silently use an OLDER review. Two consecutive re-reviews
+  reported it not closed, so options went to the owner (review standard § 9): a broader net,
+  the last line of the notes, a separate file, or accepting the risk. Owner: the separate file.
+- `bun run review:record <commit>` (`scripts/release/review-record.ts`) resolves the commit and
+  writes only its 40-hex hash and a newline, atomically, to the gitignored
+  `cmem/local/review-complete`; the release reads those bytes strictly (any other content
+  refuses, naming the file). No prose is parsed; the notes' line is a copy nobody reads.
 
 ## H39 — test per engine; every OS call in `src/host.ts` (owner, 2026-11-19)
 

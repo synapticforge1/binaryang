@@ -40,9 +40,10 @@ import { readCurrentVersion } from './version.ts';
 import { checkEntry } from './entry-check.ts';
 import { DENO, denoCommand } from '../deno.ts';
 import { jsrHas, npmState } from './registry.ts';
-import { latestReviewedCommit, runRelease } from './release-run.ts';
+import { runRelease } from './release-run.ts';
+import { readReviewRecord } from './review-record.ts';
 
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -92,12 +93,9 @@ const code = await runRelease({
     return spawnSync('bun', ['run', 'check'], { stdio: 'inherit' }).status === 0;
   },
   entryProblems: () => checkEntry(process.cwd()),
-  // The latest completed review: the gitignored issues file's last `review-complete: <sha>` line.
-  // Throws when that line is malformed; runRelease turns it into a named refusal.
-  reviewedCommit() {
-    if (!existsSync('cmem/review-issues.md')) return null;
-    return latestReviewedCommit(readFileSync('cmem/review-issues.md', 'utf8'));
-  },
+  // The latest completed review: the record `bun run review:record` writes (review-record.ts).
+  // Throws when it is malformed; runRelease turns that into a named refusal.
+  reviewedCommit: () => readReviewRecord(),
   runGates() {
     console.log('$ bun run gate --release   (every gate, locally: CI only publishes)');
     return spawnSync('bun', ['run', 'gate', '--release'], { stdio: 'inherit' }).status === 0;

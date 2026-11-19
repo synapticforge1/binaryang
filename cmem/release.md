@@ -37,8 +37,9 @@ LOCALLY** — the review set and every gate, before the bump is pushed. CI runs 
    `main` (as `accept-3.0.3`, `accept-3.0.4` and `accept-3.1.0` were). A major bump runs no
    previous tests: its list documents what changed (`accept-3.1.0` predates 4.0.0's level).
 3. **U4 `bun run release`** (`scripts/release/publish.ts`, its logic `release-run.ts`) — FIRST
-   the review set (since 2026-11-18): a completed review recorded (`review-complete: <sha>` in the
-   gitignored `review-issues.md`) with nothing but the release files and `cmem/` changed since,
+   the review set (since 2026-11-18): a completed review recorded (`bun run review:record`, one
+   hash in the gitignored `cmem/local/review-complete`, since 2026-11-19; a `review-complete:` line
+   in `review-issues.md` before) with nothing but the release files and `cmem/` changed since,
    then `bun run gate --release` — every gate locally, plus the compatibility gate and the privacy
    scan of every commit since the previous tag. Then the guards, each a refusal that changes
    nothing (held by running them, review round 1): a clean tree

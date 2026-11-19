@@ -326,8 +326,8 @@ worlds, both unlinkables honoured, no pins — [testing.md](testing.md) § "The 
   main agent triages, then fixes ALL of one class together, class by class; a NEW agent per class
   re-reviews only the fixes and the code they affect; the first empty re-review ends it, then the
   full suite once per platform that has a machine. Issues live in the gitignored
-  `cmem/review-issues.md`; a completed review writes `review-complete: <sha>` there, which
-  `bun run release` requires. binaryang's slots: [review-process.md](review-process.md).
+  `cmem/review-issues.md`; a completed review is recorded with `bun run review:record <commit>`
+  (`cmem/local/review-complete`, one hash), which `bun run release` requires. binaryang's slots: [review-process.md](review-process.md).
   (binaryang's 2026-11-15 trial rules fed this standard and are superseded by it: design-decisions
   M5.)
 - **The threat model** (owner, 2026-11-15, agreeing): untrusted INPUT is bytes and text — what
