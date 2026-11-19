@@ -173,7 +173,8 @@ The owner's go: "release"; level 4.0.0 (owner, 2026-11-18, asked when the gate's
    showed 4.0.0 only at 22:39:23Z (about 4 minutes; status page "all operational"). Read back
    afterwards: **npm 4.0.0, SLSA provenance v1**; `registry.ts provenance npm 4.0.0` passes
    locally; `latest` = 4.0.0 on both. Fix the window: open-work (the npm poll, 2026-11-18).
-   "Re-run failed jobs" on the run (owner, web UI) skips the publish and turns it green.
+   "Re-run failed jobs" on the run (owner, web UI) skips the publish and turns it green — **done:
+   attempt 2 (2026-11-19 21:58Z) GREEN**, the publish step skipped, provenance on the first read.
 6. **As a user:** `bun x @synapticforge1/binaryang@4.0.0 --version` → `binaryang 4.0.0`;
    `deno run -A jsr:@jrmarcum/binaryang@4.0.0 --version` REFUSED by Deno 2.9.6's default
    24-hour minimum dependency age (a new Deno guard, not a defect); with
