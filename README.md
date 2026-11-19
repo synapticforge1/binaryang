@@ -425,7 +425,9 @@ update check), read no environment variable, and read only the files you name. T
 only the output you ask for (`-o`), plus the `.wit` file beside a bundle's output; it writes
 through a temporary file beside the output, removed when the write ends (a run killed mid-write
 can leave one `<output>.<8 hex>.tmp` beside it, holding only that output). Nothing about you, your
-machine or your paths is written into a module it produces.
+machine or your paths is written into a module it produces. The one exception is
+`binaryang --self-check`, run only when you ask: it finds the system's temp folder (which reads
+`TMPDIR`, `TEMP` or `TMP`), writes a few test files in a new folder there, and removes it.
 
 ## Limits on untrusted input
 
