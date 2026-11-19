@@ -1,23 +1,4 @@
 {
-  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2; 2.2.2's two, DG7's words, dropped at 3.0.3; 3.0.3's six, the release order D1, dropped at 3.0.4; 3.0.4's one, the two-job browser check, dropped at 4.0.0; 4.0.0's twenty-five, the security reviews and H37's CI, dropped at 4.1.0). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;. A test FILE that fails to load is reported under its own path as the name, with the platform's separator (the bump runs on win-x64).",
-  "entries": [
-    {
-      "file": "tests/wabt-ts/tools/cli_file_safety.test.ts",
-      "name": "tests\\wabt-ts\\tools\\cli_file_safety.test.ts",
-      "since": "4.1.0",
-      "reason": "Letter H39 (2026-11-19): every OS call moved into one module, src/host.ts; src/cli/io.ts, which v4.0.0's test imports or reads, is gone. Internal, not an export (CHANGELOG § 4.1.0); the behaviours these tests pinned are held by today's tests against src/host.ts."
-    },
-    {
-      "file": "tests/wabt-ts/tools/cli_io_errors.test.ts",
-      "name": "each tool imports the shared guarded helpers",
-      "since": "4.1.0",
-      "reason": "Letter H39 (2026-11-19): every OS call moved into one module, src/host.ts; src/cli/io.ts, which v4.0.0's test imports or reads, is gone. Internal, not an export (CHANGELOG § 4.1.0); the behaviours these tests pinned are held by today's tests against src/host.ts."
-    },
-    {
-      "file": "tests/wabt-ts/tools/security_round2.test.ts",
-      "name": "tests\\wabt-ts\\tools\\security_round2.test.ts",
-      "since": "4.1.0",
-      "reason": "Letter H39 (2026-11-19): every OS call moved into one module, src/host.ts; src/cli/io.ts, which v4.0.0's test imports or reads, is gone. Internal, not an export (CHANGELOG § 4.1.0); the behaviours these tests pinned are held by today's tests against src/host.ts."
-    }
-  ]
+  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2; 2.2.2's two, DG7's words, dropped at 3.0.3; 3.0.3's six, the release order D1, dropped at 3.0.4; 3.0.4's one, the two-job browser check, dropped at 4.0.0; 4.0.0's twenty-five, the security reviews and H37's CI, dropped at 4.1.0; 4.1.0's three, the tests that read src/cli/io.ts, dropped at 4.1.1). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;. A test FILE that fails to load is reported under its own path as the name, with the platform's separator (the bump runs on win-x64).",
+  "entries": []
 }
