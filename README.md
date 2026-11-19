@@ -158,6 +158,10 @@ wabt's layout — and `--version`:
 npx binaryang wasm-opt --help
 ```
 
+`binaryang --self-check` tries every file operation the tools use (write, replace whole, read
+back, refuse a folder, one file by two names, a symbolic link, the null device) in a temp folder
+it removes, and says what fails: run it once on an OS the project has not been tested on.
+
 ¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records how each instruction was written —
 bare or folded, and grouped how — in a `binaryang.text-form` custom section, and `wasm2wat` gives it
 back that way: linear stays linear, folded stays folded, a mix stays the same mix (the plain nested
@@ -421,7 +425,9 @@ update check), read no environment variable, and read only the files you name. T
 only the output you ask for (`-o`), plus the `.wit` file beside a bundle's output; it writes
 through a temporary file beside the output, removed when the write ends (a run killed mid-write
 can leave one `<output>.<8 hex>.tmp` beside it, holding only that output). Nothing about you, your
-machine or your paths is written into a module it produces.
+machine or your paths is written into a module it produces. The one exception is
+`binaryang --self-check`, run only when you ask: it finds the system's temp folder (which reads
+`TMPDIR`, `TEMP` or `TMP`), writes a few test files in a new folder there, and removes it.
 
 ## Limits on untrusted input
 

@@ -53,7 +53,7 @@ import { ModuleBuilder } from '../ir/module.ts';
 import { applyTarget, checkTarget } from './target.ts';
 import { memcpyToBulkMemory } from './memcpy-to-bulk-memory.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
-import { cliExit, cliProcess, cliRefuseOverwritingInput, cliWrite, fsRead } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRefuseOverwritingInput, cliWrite, fsRead } from '../host.ts';
 
 // ---------------------------------------------------------------------------
 // Options

@@ -50,7 +50,7 @@ import {
   nestingTooDeep,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliExit, cliProcess, cliRead, cliRefuseOverwritingInput, cliWrite } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRead, cliRefuseOverwritingInput, cliWrite } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 import { allFeatures, type Features } from '../core/feature.ts';

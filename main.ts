@@ -61,7 +61,7 @@ import { main as wasm2tsMain } from './src/tools/wasm2ts.ts';
 import { main as wasmCtorEvalMain } from './src/tools/wasm-ctor-eval.ts';
 import { main as wasmInterpMain } from './src/tools/wasm-interp.ts';
 import { main as wasmBundleMain } from './src/tools/wasm-bundle.ts';
-import { cliExit, cliProcess } from './src/cli/io.ts';
+import { cliExit, cliProcess, cliSelfCheck } from './src/host.ts';
 
 export * from './src/index.ts';
 
@@ -110,6 +110,11 @@ async function main(): Promise<void> {
 
   if (command === '--version' || command === '-v') {
     console.log(`binaryang ${VERSION}`);
+    return;
+  }
+  // Letter H39: tries every host operation on this machine, in a temp folder it removes.
+  if (command === '--self-check') {
+    await cliSelfCheck(VERSION);
     return;
   }
 
@@ -181,6 +186,7 @@ COMMANDS:
 OPTIONS:
   --help, -h            Show this help
   --version, -v         Show version
+  --self-check          Try every file operation on this machine and report
   <command> --help      Every option of one command, with examples
   <command> --version   Show version
 

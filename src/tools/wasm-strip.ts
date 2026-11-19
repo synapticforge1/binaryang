@@ -49,7 +49,7 @@ import {
   unknownLocation,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliExit, cliProcess, cliRead, cliWrite } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRead, cliWrite } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------

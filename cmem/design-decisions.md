@@ -46,6 +46,20 @@ guide, letter H38, step 2). Last verified 2026-11-18.
   stamp, in a file of its own — [best-practices-shared.md](best-practices-shared.md). The 28 rules
   are ~10 KB; the size is our own lessons, which follow the guide (archive, split under 25 KB).
 
+## H39 — test per engine; every OS call in `src/host.ts` (owner, 2026-11-19)
+
+- Owner: "that way we do not over test something"; "yes for host.ts". What binaryang computes
+  is tested per engine; OS testing is `host`'s alone ([platforms.md](platforms.md)).
+- `src/cli/io.ts` became `src/host.ts` (the workspace's file name for every TS project); the
+  boundary is the third check of `scripts/check-portability.ts`, so one gate holds both the
+  browser rule and the host rule. It refuses every import form, `import type` included.
+- `--self-check` is a root CLI flag (`binaryang --self-check`), not a command: it checks the
+  machine, not a module.
+- Each step is `ok` or `FAIL`, never skipped (owner, 2026-11-19: "no skips to track"): a symbolic
+  link the account may not make is a FAIL that says so (Windows: Developer Mode or an admin).
+- A FAIL line prints the raw error, which can name the temp path (owner, 2026-11-19: "as long as
+  it is not public facing it is okay"): it reaches only the user's terminal; no doc shows one.
+
 ## M6 — Apache-2.0 §4(b) and the ported files (owner, 2026-11-18)
 
 - The question (licensing review, n-2): §4(b) asks that MODIFIED files carry a notice that they

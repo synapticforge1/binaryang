@@ -2,22 +2,31 @@
 
 Summary: the support matrix (workspace review standard, letter H37 § 12) and the notes for each
 platform ID that has something to say. Settings stay in the code, each tagged with its platform ID
-(search for `win-x64` …). Last verified 2026-11-18.
+(search for `win-x64` …). Last verified 2026-11-19.
 
 binaryang ships SOURCE (TypeScript, on JSR and npm): no native build, nothing per platform. So no
 glibc or musl target applies (the workspace's Linux baseline is for native builds), and no 32-bit
 build is made or claimed.
 
+**Per engine, and `host` per OS** (workspace letter H39, owner, 2026-11-19: "that way we do not
+over test something"). What binaryang computes is tested per ENGINE on one machine: V8 (Node,
+Deno) and JavaScriptCore (Bun); the runtimes hide the OS and the CPU from pure TypeScript, and
+a `.wasm` is the same bytes everywhere. Every OS call is in `src/host.ts`; `bun run portability`
+fails on one anywhere else. OS testing concerns `host` alone: on an OS when its machine is at
+hand, and again only when `host` or the pinned runtime changes; a release that changed neither
+carries the last result. An OS not yet run is checked when met, with `binaryang --self-check`.
+Status `runtime`: covered by the runtime and by `host`'s result for that OS.
+
 ## Support matrix
 
 | Platform | Status | Target name | Tested on |
 | --- | --- | --- | --- |
-| win-x64 | tested | n/a (source) | dev machine |
-| win-arm64 | pending | n/a (source) | — (no machine yet) |
+| win-x64 | tested | n/a (source) | dev machine; `--self-check` 10/10 on Bun, Node 24, Deno 2.9.8 |
+| win-arm64 | runtime | n/a (source) | win-x64's `host` result (H39) |
 | mac-x64 | pending | n/a (source) | — (the Intel Mac, when it exists) |
-| mac-arm64 | pending | n/a (source) | — (the arm64 Mac, when it exists) |
-| linux-x64 | tested | n/a (source) | dev machine, Ubuntu under WSL |
-| linux-arm64 | pending | n/a (source) | — (no machine yet) |
+| mac-arm64 | runtime | n/a (source) | mac-x64's `host` result once run (pending until then) |
+| linux-x64 | tested | n/a (source) | dev machine, Ubuntu under WSL; `--self-check` 10/10 on Bun |
+| linux-arm64 | runtime | n/a (source) | linux-x64's `host` result (H39) |
 
 ## Runtimes and browsers (the second axis)
 
@@ -40,8 +49,11 @@ build is made or claimed.
 - **Reserved device names.** `CON PRN AUX NUL COM1-9 LPT1-9` (bare, any case) are devices; Bun's
   `writeFile` by the plain name creates a FILE named `NUL` (Windows 11 26300). Written by the
   device path `\\.\NAME`; `/dev/null` maps to NUL. Windows 11 no longer reserves `nul.wasm`.
-  Where: `src/cli/io.ts` `fsWrite` (review H-2, 2026-11-18).
-- **Case-insensitive paths.** One file may be named in two cases. Where: `src/cli/io.ts`
+  Where: `src/host.ts` `fsWrite` (review H-2, 2026-11-18).
+- **Deno refuses `writeFile` on a device** (EISDIR: it opens with create / truncate) and accepts
+  an `r+` open; Bun and Node accept both. So `-o NUL` failed on Deno through 4.0.0. Found by
+  `--self-check` (2026-11-19, Deno 2.9.8). Where: `src/host.ts` `fsWrite`.
+- **Case-insensitive paths.** One file may be named in two cases. Where: `src/host.ts`
   `sameFile` (with mac-x64 / mac-arm64).
 - **`.exe` on installed tools.** Where: `scripts/check-lint-canary.ts`, `check-fmt-canary.ts`,
   `npm/prove.ts`, `definitions.ts`.
@@ -58,7 +70,7 @@ build is made or claimed.
 
 ## mac-x64 / mac-arm64
 
-- **Case-insensitive APFS** by default. Where: `src/cli/io.ts` `sameFile`.
+- **Case-insensitive APFS** by default. Where: `src/host.ts` `sameFile`.
 
 ## linux-x64
 

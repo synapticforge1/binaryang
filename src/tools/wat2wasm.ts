@@ -64,7 +64,7 @@ import {
   cliRefuseOverwritingInput,
   cliWrite,
   writeStdout,
-} from '../cli/io.ts';
+} from '../host.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 

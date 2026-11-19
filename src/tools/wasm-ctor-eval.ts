@@ -67,7 +67,7 @@ import {
   type Value,
   WasmException,
 } from '../interp/interpreter.ts';
-import { cliExit, cliProcess, cliRefuseOverwritingInput, cliWrite, fsRead } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRefuseOverwritingInput, cliWrite, fsRead } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { pushAll, replaceAll } from '../core/arrays.ts';
 

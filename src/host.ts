@@ -3,25 +3,28 @@
 
 /**
  * @module
- * Cross-runtime CLI I/O helpers.
+ * `host` — every call binaryang makes to the system it runs on (workspace letter H39, owner,
+ * 2026-11-19: "all of the OS/platform specifics lives in one place").
  *
- * ## Why this exists
+ * Reading and writing files (never over an input, never half-written), temp files, paths, the
+ * process (arguments, exit, stdout): all of it is here, and only here. `bun run portability`
+ * fails when any other shipped file imports a runtime's file, path, OS or process API. What
+ * binaryang COMPUTES is tested per engine (V8 and JavaScriptCore); OS-specific testing concerns
+ * this file alone, and only when it or the pinned runtime changes (cmem/platforms.md). On a
+ * machine not yet tested, `binaryang --self-check` ({@link selfCheck}) tries each operation here.
  *
- * wabt-ts defined `cliRead`/`cliWrite` privately and identically in five of its
- * six tools (byte-identical, verified), each reaching for the `Deno` global.
- * That global does not exist on Node or Bun at any version, so those blocks ran
- * on exactly one of binaryang's four supported runtimes.
+ * ## History
  *
- * This module is the single copy, written against `node:` builtins, which are
- * portable across Deno, Node and Bun.
+ * `src/cli/io.ts` until 2026-11-19. wabt-ts defined `cliRead`/`cliWrite` privately and identically
+ * in five of its six tools, each reaching for the `Deno` global, which runs on one of binaryang's
+ * four supported runtimes. This module is the single copy, written against `node:` builtins, which
+ * are portable across Deno, Node and Bun.
  *
  * ## Layer
  *
- * This is **CLI-layer** code and may use `node:` builtins. The library layer may
- * not: `node:` is portable across the three runtimes but NOT to the browser, and
- * binaryang's library surface has to run there. See the README's runtime-support
- * table. `Deno.*` is never permitted in shipped source -- it works on one target
- * out of four.
+ * The library layer does not reach the system: `node:` is portable across the three runtimes but
+ * NOT to the browser, and binaryang's library surface has to run there. See the README's
+ * runtime-support table. `Deno.*` is never permitted in shipped source.
  *
  * @license MIT
  */
@@ -123,7 +126,7 @@ export async function fsRead(path: string, limit: number = MAX_INPUT_BYTES): Pro
  * (not atomic there), as before atomic writes.
  */
 export async function fsWrite(path: string, data: Uint8Array | string): Promise<void> {
-  const { lstat, readlink, realpath, rename, stat, unlink, writeFile } = await import(
+  const { lstat, open, readlink, realpath, rename, stat, unlink, writeFile } = await import(
     'node:fs/promises'
   );
   const { basename, dirname, resolve } = await import('node:path');
@@ -132,10 +135,18 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // `-o NUL` failed after atomic writes came in (review H-2, 2026-11-18); and written by its plain
   // name, Bun created a FILE named `NUL` (measured on Windows 11 26300), so 3.0.4 never reached
   // the device either. Windows 11 reserves only the bare name: `nul.wasm` is an ordinary file.
+  // 🔧 Opened `r+`, not by `writeFile`: Deno 2.9.8 refuses `writeFile` on the device (EISDIR, it
+  // opens with create / truncate) and accepts `r+`; Bun 1.4.4 and Node 24 accept both (measured
+  // on Windows 11 26300, 2026-11-19, found by `--self-check`, letter H39).
   if (cliProcess().platform === 'win32') {
     const name = path === '/dev/null' ? 'NUL' : basename(path);
     if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name)) {
-      await writeFile(`\\\\.\\${name.toUpperCase()}`, data);
+      const device = await open(`\\\\.\\${name.toUpperCase()}`, 'r+');
+      try {
+        await device.writeFile(data);
+      } finally {
+        await device.close();
+      }
       return;
     }
   }
@@ -280,4 +291,146 @@ export function writeStdout(data: Uint8Array): Promise<void> {
   return new Promise((resolve, reject) => {
     cliProcess().stdout.write(data, (err) => (err ? reject(err) : resolve()));
   });
+}
+
+/** One line of {@link selfCheck}'s report. */
+export interface SelfCheckResult {
+  /** What was tried, in a few words. */
+  readonly operation: string;
+  /**
+   * `ok` or `FAIL`, nothing else (owner, 2026-11-19: "no skips to track"): an operation the
+   * machine will not let it try is a FAIL, with the reason.
+   */
+  readonly status: 'ok' | 'FAIL';
+  /** Why it failed. */
+  readonly detail?: string;
+}
+
+/**
+ * Tries each of this module's operations on the machine it runs on, in a fresh temp folder that it
+ * removes afterwards, and returns one result per operation (letter H39 (3): "only when asked, and
+ * it cleans up after itself"). Run as `binaryang --self-check`; nothing else calls it.
+ */
+export async function selfCheck(
+  /** For the tests: stands in for `symlink`, to make the machine refuse a link. */
+  testing: { symlink?: (target: string, link: string) => Promise<void> } = {},
+): Promise<SelfCheckResult[]> {
+  const fsp = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const platform = cliProcess().platform;
+  const results: SelfCheckResult[] = [];
+  const same = (a: Uint8Array, b: Uint8Array) =>
+    a.length === b.length && a.every((x, i) => x === b[i]);
+  const attempt = async (operation: string, run: () => Promise<string | true>) => {
+    try {
+      const r = await run();
+      results.push(
+        r === true ? { operation, status: 'ok' } : { operation, status: 'FAIL', detail: r },
+      );
+    } catch (e) {
+      results.push({
+        operation,
+        status: 'FAIL',
+        detail: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  let dir: string;
+  try {
+    dir = await fsp.mkdtemp(join(tmpdir(), 'binaryang-self-check-'));
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    return [{ operation: 'make a temp folder', status: 'FAIL', detail }];
+  }
+  results.push({ operation: 'make a temp folder', status: 'ok' });
+  try {
+    const a = join(dir, 'a.wasm');
+    const one = new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]);
+    const two = new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0, 0, 1, 0]);
+
+    await attempt('write a new file', async () => {
+      await fsWrite(a, one);
+      return same(await fsRead(a), one) || 'the bytes read back differ';
+    });
+    await attempt('replace a file whole, no temp file left', async () => {
+      await fsWrite(a, two);
+      if (!same(await fsRead(a), two)) return 'the bytes read back differ';
+      const left = (await fsp.readdir(dir)).filter((n) => n.endsWith('.tmp'));
+      return left.length === 0 || `left behind: ${left.join(', ')}`;
+    });
+    await attempt('write text', async () => {
+      const t = join(dir, 't.wat');
+      await fsWrite(t, '(module)\n');
+      return (await fsp.readFile(t, 'utf8')) === '(module)\n' || 'the text read back differs';
+    });
+    await attempt('refuse to read a folder', async () => {
+      const refused = await fsRead(dir).then(() => false, () => true);
+      return refused || 'a folder was read as a file';
+    });
+    await attempt('refuse a file over the input limit', async () => {
+      const refused = await fsRead(a, 4).then(() => false, () => true);
+      return refused || 'an 11-byte file passed a 4-byte limit';
+    });
+    await attempt('know one file by two names', async () => {
+      const b = join(dir, 'b.wasm');
+      await fsWrite(b, one);
+      if (!(await sameFile(a, a))) return 'a file is not the same as itself';
+      if (await sameFile(a, b)) return 'two files read as one';
+      if (await sameFile(a, join(dir, 'missing.wasm'))) return 'a missing file read as present';
+      // win-x64 / win-arm64 / mac-x64 / mac-arm64: the case variant is the same file there.
+      if (platform === 'win32' || platform === 'darwin') {
+        if (!(await sameFile(a, join(dir, 'A.WASM')))) return `'A.WASM' is not 'a.wasm' here`;
+      }
+      return true;
+    });
+    await attempt('write through a symbolic link', async () => {
+      const target = join(dir, 'target.wasm');
+      const link = join(dir, 'link.wasm');
+      await fsWrite(target, one);
+      try {
+        await (testing.symlink ?? fsp.symlink)(target, link);
+      } catch (e) {
+        const code = (e as { code?: string }).code;
+        // win-x64 / win-arm64: a symbolic link needs Developer Mode or an administrator.
+        if (code !== 'EPERM' && code !== 'EACCES') throw e;
+        return `this account may not make a symbolic link (${code}), so writing through one ` +
+          'was not tried; on Windows, turn on Developer Mode or run as an administrator';
+      }
+      await fsWrite(link, two);
+      if (!(await fsp.lstat(link)).isSymbolicLink()) return 'the link was replaced by a file';
+      return same(await fsRead(target), two) || 'the linked file was not written';
+    });
+    await attempt('write to the null device', async () => {
+      // win-x64 / win-arm64: NUL; elsewhere /dev/null.
+      await fsWrite(platform === 'win32' ? 'NUL' : '/dev/null', one);
+      return true;
+    });
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
+  await attempt('remove the temp folder', async () => {
+    const gone = await fsp.stat(dir).then(() => false, () => true);
+    return gone || 'it is still there';
+  });
+  return results;
+}
+
+/** `binaryang --self-check`: prints {@link selfCheck}'s report; exits 1 if anything failed. */
+export async function cliSelfCheck(version: string): Promise<void> {
+  const p = cliProcess();
+  const v = p.versions as { bun?: string; deno?: string; node?: string };
+  const runtime = v.bun ? `Bun ${v.bun}` : v.deno ? `Deno ${v.deno}` : `Node ${v.node}`;
+  console.log(`binaryang ${version} self-check: ${p.platform}-${p.arch}, ${runtime}`);
+  const results = await selfCheck();
+  for (const r of results) {
+    const why = r.detail === undefined ? '' : ` — ${r.detail}`;
+    console.log(`  ${r.status.padEnd(4)} ${r.operation}${why}`);
+  }
+  const failed = results.filter((r) => r.status === 'FAIL').length;
+  console.log(
+    failed === 0 ? 'every host operation works here' : `${failed} host operation(s) failed`,
+  );
+  if (failed > 0) cliExit(1);
 }

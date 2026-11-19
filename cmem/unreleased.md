@@ -3,7 +3,14 @@
 **As of 2026-11-18 (UTC): the last release is `v4.0.0`, on JSR AND npm, both with provenance**
 ([release.md](release.md) § "4.0.0"). The three "UNRELEASED" paragraphs below SHIPPED in 4.0.0
 (CHANGELOG § 4.0.0 is the public note); they stay until the next release. Unreleased since
-4.0.0: nothing yet. (Check: `git log --oneline v4.0.0..main -- src/ main.ts jsr.json README.md`.)
+4.0.0: letter H39 below. (Check: `git log --oneline v4.0.0..main -- src/ main.ts jsr.json README.md`.)
+
+**UNRELEASED since 4.0.0 — letter H39, `host.ts` (2026-11-19, branch `h39-host`):** package
+changes. FIX: `-o NUL` on Deno on Windows (EISDIR through 4.0.0; the device is opened `r+`).
+NEW: `binaryang --self-check`. The CLI's I/O module moved, `src/cli/io.ts` → `src/host.ts`
+(not an export: the surface check is unchanged). Repo-only: the host boundary in
+`bun run portability`. Level: **4.1.0, the owner's (2026-11-19: "I was agreeing to the minor
+version")** — the surface snapshot gains a CLI flag (`3b120b329`), a minor under the gate.
 
 **UNRELEASED since 3.0.4 — security review round 1 (2026-11-13, branch `security-r1`):**
 package changes, for the next release note. CLI: a tool whose output is not its input's format

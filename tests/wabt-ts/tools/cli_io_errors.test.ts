@@ -46,7 +46,7 @@
 //
 //   then                          now
 //   `if (import.meta.main)` block  exported `main(args)`, registered in COMMANDS
-//   helpers defined per tool       imported from `src/cli/io.ts`, one copy
+//   helpers defined per tool       imported from `src/host.ts`, one copy
 //   `deno run tool.ts <args>`      `main.ts <tool> <args>`
 //   `Deno.readFile` etc.           `node:fs/promises`, behind the same helpers
 //
@@ -107,8 +107,8 @@ describe('T13.31 — no CLI block does unguarded file I/O', () => {
       // The gate above passes vacuously if a tool does no I/O at all, so pin
       // that each one still reaches for the helper.
       assert(
-        /import \{[^}]*cliRead[^}]*\} from '\.\.\/cli\/io\.ts'/.test(src),
-        `${tool}: does not import cliRead from src/cli/io.ts — the gate above would pass vacuously`,
+        /import \{[^}]*cliRead[^}]*\} from '\.\.\/host\.ts'/.test(src),
+        `${tool}: does not import cliRead from src/host.ts — the gate above would pass vacuously`,
       );
       // The message must name the tool, or the user cannot tell what failed.
       assert(

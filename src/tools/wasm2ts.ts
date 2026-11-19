@@ -25,7 +25,7 @@
 
 import type { ErrorList } from '../core/error.ts';
 import type { Result } from '../core/result.ts';
-import { cliExit, cliProcess } from '../cli/io.ts';
+import { cliExit, cliProcess } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------

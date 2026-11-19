@@ -78,6 +78,21 @@ describe('H-2: a Windows device name is the device (win-x64)', () => {
     }
     assertEquals(readdirSync(dir).filter((n) => /^nul$/i.test(n)), []);
   });
+  // 🔧 Deno refused the device's `writeFile` (EISDIR) through 4.0.0; Bun, above, never did.
+  it('on Deno too', {
+    skip: process.platform !== 'win32' ||
+      spawnSync('deno', ['--version'], { stdio: 'ignore' }).status !== 0,
+  }, () => {
+    for (const o of ['NUL', '/dev/null']) {
+      const r = spawnSync('deno', ['run', '-A', MAIN, 'wat2wasm', 'a.wat', '-o', o], {
+        cwd: dir,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      assertEquals(r.status, 0, `${o}: ${r.stderr}`);
+    }
+    assertEquals(readdirSync(dir).filter((n) => /^nul$/i.test(n)), []);
+  });
 });
 
 describe('H-3: a folder that refuses new files, around a writable output', () => {

@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import * as fsx from '../../test_fs.ts';
 import { runTsAsync } from '../../run_ts.ts';
-import { fsRead, fsWrite, sameFile } from '../../../src/cli/io.ts';
+import { fsRead, fsWrite, sameFile } from '../../../src/host.ts';
 import { commentSafe, witFromModule } from '../../../src/tools/witgen.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';

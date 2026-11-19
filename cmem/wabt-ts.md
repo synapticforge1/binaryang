@@ -553,7 +553,7 @@ The invariants from each round:
 
 **Tools, API, scripts, hygiene**
 - [decision] CLI blocks never call `Deno.readFile` and friends directly. They use `cliRead`/`cliWrite`,
-  now shared in `src/cli/io.ts`, which print `<tool>: cannot read '<path>': <reason>` and exit 1.
+  now shared in `src/host.ts`, which print `<tool>: cannot read '<path>': <reason>` and exit 1.
   JSDoc examples keep the bare `Deno.readFile` on purpose (T13.31; `tests/wabt-ts/tools/cli_io_errors.test.ts`).
 - [decision] Every `/compat/wabt` failure is an `Error` naming its method. `toBinary` wraps writer
   failures, and a method that can fail says so in its doc (T13.30; `tests/wabt-ts/api/compat_error_shape.test.ts`).
@@ -678,7 +678,7 @@ since been superseded by the core. The compiler idioms and `Result` convention a
 
 **History, summarized:** the Bun 1.3.14 smoke test was byte-identical to Deno (2026-08-24).
 `tsconfig`/`vitest` were deleted early in wabt-ts. [correction] Two statements are superseded. First,
-"only `src/tools` may use `Deno.*`": tools now use `node:*` via `src/cli/io.ts` (N3). Second, the
+"only `src/tools` may use `Deno.*`": tools now use `node:*` via `src/host.ts` (N3). Second, the
 `@jrmarcum/binaryen-ts@1.0.9` pin: the T13.22 cancellation was fixed pre-merge (`15cce742`, pin moved
 to 1.5.0), and the dependency was removed by the merge.
 
