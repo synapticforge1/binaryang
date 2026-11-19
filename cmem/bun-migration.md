@@ -397,8 +397,10 @@ Owner: "move on to 26 and 28"; decided: `@std/assert` / `@std/expect` KEPT via J
   `process`.
 - **`scripts/test.ts`:** `bun run test` = `node --test` on the referee (fnm when installed, else
   `node` from PATH only if it IS Node 24: CI pins it with `setup-node`). `bun run test:bun` = `bun
-  test`, whose failures must be EXACTLY `tests/bun-known-differences.json` (36: memory64 / table64
-  24, multi-memory index ≥ 127 5, legacy-EH `delegate` 5, an error's wording 2): an unlisted
+  test`, whose failures must be EXACTLY `tests/bun-known-differences.json` (10 since 2026-11-19:
+  multi-memory index ≥ 127 5, legacy-EH `delegate` 5; it was 36 — memory64 / table64 24, cleared
+  by `BUN_JSC_useWasmMemory64=1`, `scripts/bun-engine.ts`; an error's wording 2, the tests now
+  accept either engine's words for the one reason): an unlisted
   failure fails, and so does a listed test that passes (stale). Both legs require EVERY tracked
   test file to have run a test ("a step that ran nothing passes").
 - **Proof:** Node 24: 346 files, 5,901 leaves, 0 differ, 0 fail. Bun: the same 5,901, the 36

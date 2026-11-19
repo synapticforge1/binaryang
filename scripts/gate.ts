@@ -22,6 +22,8 @@
  * `wasm-tools` must be on PATH; a step whose tool is missing FAILS, never skips.
  */
 
+// First: every Bun started from here runs with memory64 on (owner, 2026-11-19).
+import './bun-engine.ts';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

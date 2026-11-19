@@ -32,7 +32,7 @@ Status `runtime`: covered by the runtime and by `host`'s result for that OS.
 
 | Runtime | Version | win-x64 | linux-x64 |
 | --- | --- | --- | --- |
-| Bun | 1.4.4 | full suite (both legs) | full Bun leg, corpora |
+| Bun | 1.4.4, memory64 on (`BUN_JSC_useWasmMemory64=1`) | full suite (both legs) | full Bun leg, corpora |
 | Node | 22.18, 24, 26 (LTS lines) | V8 test leg on 24; `lts` on all three | not installed there |
 | Deno | 2.9.6 (npm, locked) | CLI smoke, JSR dry run | not installed there |
 | Browsers | Chromium, Chrome, Edge, Firefox, Safari | `bun run browsers --require-all` | — |
