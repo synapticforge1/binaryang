@@ -341,6 +341,19 @@ describe('the review record: one hash, written by a script, read strictly', () =
     });
   });
   // Re-review 3 (B-3 and its siblings).
+  // Re-review 4: Bun on Windows threw EEXIST for `mkdirSync('.')`, so a bare name failed there.
+  it('a bare file name (its folder is the working directory) is written', () => {
+    inTemp((dir) => {
+      const back = process.cwd();
+      process.chdir(dir);
+      try {
+        writeReviewRecord(a, 'review-complete');
+        expect(readReviewRecord('review-complete')).toBe(a);
+      } finally {
+        process.chdir(back);
+      }
+    });
+  });
   it('the writer makes a missing folder (a fresh clone has no cmem/local/)', () => {
     inTemp((dir) => {
       const path = join(dir, 'local', 'review-complete');

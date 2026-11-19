@@ -81,7 +81,10 @@ export function writeReviewRecord(sha: string, path: string = REVIEW_RECORD): vo
   if (!/^[0-9a-f]{40}$/.test(sha)) {
     throw new Error(`not a 40-hex commit hash: ${JSON.stringify(sha)}`);
   }
-  mkdirSync(dirname(path), { recursive: true });
+  // Only when missing: Bun 1.4.4 on Windows throws EEXIST for `mkdirSync('.', { recursive })`, which
+  // Node does not, so a bare file name failed (re-review 4, 2026-11-19).
+  const dir = dirname(path);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const tmp = `${path}.${process.pid}.tmp`;
   try {
     writeFileSync(tmp, `${sha}\n`, { encoding: 'utf8', flag: 'wx' });
