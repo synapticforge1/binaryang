@@ -5,6 +5,7 @@
  */
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
+import * as fsx from '../../test_fs.ts';
 import { failuresIn, gateHolds, judge } from '../../../scripts/release/previous-tests.ts';
 
 const report = `<?xml version="1.0" encoding="utf-8"?>
@@ -88,5 +89,38 @@ describe('judge: failures against the accepted list', () => {
   it('the file must match as well as the name', () => {
     const elsewhere = { ...moved, file: 'tests/ir/a.test.ts' };
     expect(judge(failures, [elsewhere]).unexpected.length).toBe(2);
+  });
+});
+
+// The harness's work tree (4.1.1's bump, 2026-11-19): v4.1.0's tests failed two that were the
+// harness's doing — `resolveCommit('HEAD')` in a repository with nothing committed, and
+// corpus_roundtrip without the gitignored binaryen corpus. Read from the source: the run itself
+// takes minutes and is what the bump executes.
+describe('previousTests: the work tree the old tests run in', () => {
+  const src = fsx.readTextFileSync('scripts/release/previous-tests.ts');
+  const body = src.slice(src.indexOf('export function previousTests('));
+
+  it('commits what it stages, under an identity of its own', () => {
+    expect(body).toMatch(/\['add', '-A'\], \['commit', '-q', '-m', 'previous tests'\]/);
+    expect(body).toContain('GIT_AUTHOR_NAME: who');
+    expect(body).toContain('GIT_COMMITTER_EMAIL: at');
+    expect(body).not.toContain('--no-verify');
+    expect(body).not.toContain('gpgsign');
+  });
+
+  it('links the binaryen corpus in when the checkout has it', () => {
+    expect(body).toContain("join(REPO, 'upstream', 'binaryen', 'test')");
+    expect(body).toMatch(/if \(existsSync\(corpus\)\)/);
+  });
+
+  it('removes its links before it removes the folder', () => {
+    const fin = body.slice(body.lastIndexOf('} finally {'));
+    const unlink = fin.indexOf('unlinkSync(l)');
+    const rm = fin.indexOf('rmSync(dir');
+    expect(unlink).toBeGreaterThan(0);
+    expect(rm).toBeGreaterThan(unlink);
+    // Every link goes through `link`, which records it for that removal.
+    expect(body.split('symlinkSync(').length - 1).toBe(1);
+    expect(body).toMatch(/symlinkSync\(target, at, 'junction'\);\s*links\.push\(at\);/);
   });
 });

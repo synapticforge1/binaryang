@@ -20,7 +20,15 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -88,6 +96,12 @@ export function gateHolds(j: ReturnType<typeof judge>): boolean {
 /** Runs the previous release's tests against this tree's committed source; 0 when the gate holds. */
 export function previousTests(ref = lastReleaseTag()): number {
   const dir = mkdtempSync(join(tmpdir(), 'binaryang-prevtests-'));
+  // The links this run makes into the repository: removed before the folder is (Tooling rule 15).
+  const links: string[] = [];
+  const link = (target: string, at: string) => {
+    symlinkSync(target, at, 'junction');
+    links.push(at);
+  };
   try {
     const extract = (tree: string, ...paths: string[]) => {
       const tar = spawnSync('git', ['archive', '--format=tar', tree, ...paths], {
@@ -107,11 +121,29 @@ export function previousTests(ref = lastReleaseTag()): number {
     // A git work tree with the extracted files staged: some tests read the TRACKED files
     // (`deno_pin.test.ts` runs `git ls-files`), and outside a repository git lists nothing —
     // 3.0.1's bump failed v3.0.0's copy that way, a harness defect, not a behaviour change.
-    for (const g of [['init', '-q'], ['add', '-A']]) {
-      const r = spawnSync('git', g, { cwd: dir, encoding: 'utf8' });
+    // COMMITTED, too: a test that resolves `HEAD` (4.1.0's `resolveCommit`) finds no commit in a
+    // repository with only staged files — 4.1.1's bump failed it that way, a harness defect.
+    const who = 'previous-tests';
+    const at = 'no-reply@previous-tests.invalid';
+    const env = {
+      ...process.env,
+      GIT_AUTHOR_NAME: who,
+      GIT_AUTHOR_EMAIL: at,
+      GIT_COMMITTER_NAME: who,
+      GIT_COMMITTER_EMAIL: at,
+    };
+    for (const g of [['init', '-q'], ['add', '-A'], ['commit', '-q', '-m', 'previous tests']]) {
+      const r = spawnSync('git', g, { cwd: dir, encoding: 'utf8', env });
       if (r.status !== 0) throw new Error(`git ${g.join(' ')}: ${r.stderr.slice(0, 300)}`);
     }
-    symlinkSync(join(REPO, 'node_modules'), join(dir, 'node_modules'), 'junction');
+    link(join(REPO, 'node_modules'), join(dir, 'node_modules'));
+    // The gitignored binaryen corpus, where this checkout has it: since 4.1.0 corpus_roundtrip
+    // FAILS without it (no skips), and an archive of tracked files never carries it.
+    const corpus = join(REPO, 'upstream', 'binaryen', 'test');
+    if (existsSync(corpus)) {
+      mkdirSync(join(dir, 'upstream', 'binaryen'), { recursive: true });
+      link(corpus, join(dir, 'upstream', 'binaryen', 'test'));
+    }
     const report = join(dir, 'junit.xml');
     const flags = ['--test', '--test-reporter=junit', `--test-reporter-destination=${report}`];
     const globs = TEST_DIRS.map((d) => `${d}/**/*.test.ts`);
@@ -162,6 +194,12 @@ export function previousTests(ref = lastReleaseTag()): number {
     }
     return gateHolds(j) ? 0 : 1;
   } finally {
+    // Links first, so the recursive delete can never reach through one into the repository.
+    for (const l of links.reverse()) {
+      try {
+        unlinkSync(l);
+      } catch { /* already gone */ }
+    }
     rmSync(dir, { recursive: true, force: true });
   }
 }
