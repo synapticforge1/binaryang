@@ -131,17 +131,21 @@ describe('security round 1 — a tool that changes the format never writes over 
   it('a case variant of the input: refused where the file system ignores case, another file where not', async () => {
     await inDir(async (dir) => {
       await fsx.writeTextFile(join(dir, 'a.wat'), WAT);
+      // Asked BEFORE the run: it looks for A.WAT, which the run itself writes where case counts.
+      const ignoresCase = caseInsensitive(dir);
       const r = await cli(['wat2wasm', 'a.wat', '-o', 'A.WAT'], dir);
-      if (caseInsensitive(dir)) {
+      if (ignoresCase) {
         // win-x64 / win-arm64 / mac-x64 / mac-arm64 by default: A.WAT IS a.wat.
         assertEquals(r.code, 1, r.stderr);
       } else {
         // linux-x64 / linux-arm64: A.WAT is a file of its own, written; a.wat is not touched.
         assertEquals(r.code, 0, r.stderr);
-        assertEquals(
-          (await fsx.readFile(join(dir, 'A.WAT'))).slice(0, 4),
-          new Uint8Array([0, 0x61, 0x73, 0x6d]),
-        );
+        assertEquals([...(await fsx.readFile(join(dir, 'A.WAT'))).subarray(0, 4)], [
+          0,
+          0x61,
+          0x73,
+          0x6d,
+        ]);
       }
       assertEquals(await fsx.readTextFile(join(dir, 'a.wat')), WAT);
     });
