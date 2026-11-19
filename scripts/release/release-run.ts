@@ -93,19 +93,46 @@ export function fetchAdvice(status: number | null): string[] {
   ];
 }
 
-/** `(exit N: why)`, or `(exit N; git's reason above)` when git printed it live (round 5). */
+// Built from their codes: an escape for these was rewritten as the raw character once (2026-11-19).
+const NUL = String.fromCharCode(0);
+const BOM = String.fromCharCode(0xfeff);
+const LINE_SEPARATOR = String.fromCharCode(0x2028);
+const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029);
+
 /**
  * The commit the LATEST completed review covers, from the issues file's text: the last line that
  * reads exactly `review-complete: <40-hex sha>`, or `null` when there is none. A review appends its
  * line after the earlier ones; a line relabelled as history (`review-complete (…): <sha>`) is not
  * read. 🔧 Until 2026-11-19 the FIRST such line was read, so an older review's line shadowed every
  * later one unless it was relabelled by hand.
+ *
+ * Fails CLOSED (review H-1, 2026-11-19): every line that, trimmed and in lower case, starts with
+ * `review-complete:` is a review line, and when the LAST of them is not exactly the form above
+ * (indented, an uppercase or short sha, text after it, UTF-16 appended by PowerShell 5.1's `>>`)
+ * this throws, naming the line — never falling back to an older review's line. NULs and byte-order
+ * marks are dropped before reading, so a UTF-16 line is seen, and refused.
  */
 export function latestReviewedCommit(issues: string): string | null {
-  const all = [...issues.matchAll(/^review-complete: ([0-9a-f]{40})[ \t]*\r?$/gm)];
-  return all.length === 0 ? null : all[all.length - 1]![1]!;
+  const lines = issues
+    .split(NUL).join('')
+    .split(BOM).join('')
+    .split(/\r?\n|\r/)
+    .flatMap((l) => l.split(LINE_SEPARATOR))
+    .flatMap((l) => l.split(PARAGRAPH_SEPARATOR));
+  const meant = lines.filter((l) => l.trim().toLowerCase().startsWith('review-complete:'));
+  const last = meant.at(-1);
+  if (last === undefined) return null;
+  const m = /^review-complete: ([0-9a-f]{40})[ \t]*$/.exec(last);
+  if (m === null) {
+    throw new Error(
+      `the last review line in cmem/review-issues.md is malformed: ${JSON.stringify(last)} — ` +
+        'write it as `review-complete: <40 lowercase hex>`, alone on its line',
+    );
+  }
+  return m[1]!;
 }
 
+/** `(exit N: why)`, or `(exit N; git's reason above)` when git printed it live (round 5). */
 export function exitText(r: GitResult): string {
   const why = r.stderr.trim();
   return `(exit ${r.status}${why === '' ? "; git's reason above" : `: ${why}`})`;

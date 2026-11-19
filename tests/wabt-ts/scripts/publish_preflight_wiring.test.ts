@@ -252,6 +252,8 @@ describe('the release: every refusal runs, and changes nothing', () => {
 });
 
 describe('the review a release reads is the LATEST completed one', () => {
+  const NBSP = String.fromCharCode(0xa0);
+  const BOM = String.fromCharCode(0xfeff);
   const a = 'a'.repeat(40);
   const b = 'b'.repeat(40);
   it('the last `review-complete:` line wins, not the first', () => {
@@ -262,10 +264,31 @@ describe('the review a release reads is the LATEST completed one', () => {
     const text = `review-complete (historical): ${b}\r\nreview-complete: ${a} \r\n`;
     expect(latestReviewedCommit(text)).toBe(a);
   });
-  it('none, a short sha, or text after it: null', () => {
+  it('no review line at all: null (the release refuses)', () => {
     expect(latestReviewedCommit('no review here')).toBe(null);
-    expect(latestReviewedCommit('review-complete: abc123\n')).toBe(null);
-    expect(latestReviewedCommit(`review-complete: ${a} (pending)\n`)).toBe(null);
+    expect(latestReviewedCommit(`review-complete (historical): ${a}\n`)).toBe(null);
+  });
+  // Review H-1 (2026-11-19): a malformed NEWEST line let an older valid one through — the release
+  // went ahead on the wrong review. Now it throws, naming the line.
+  it('a malformed newest line throws; it never falls back to an older review', () => {
+    const utf16 = (s: string) => [...s].map((c) => `${c}\0`).join('');
+    const malformed = [
+      `  review-complete: ${b}`,
+      `review-complete: ${b.toUpperCase()}`,
+      `review-complete: ${b.slice(1)}`,
+      `review-complete: ${b}b`,
+      `review-complete: ${b} (pending)`,
+      `review-complete:  ${b}`,
+      `review-complete:${NBSP}${b}`,
+      `${BOM}${utf16(`review-complete: ${b.toUpperCase()}`)}`,
+    ];
+    for (const line of malformed) {
+      expect(() => latestReviewedCommit(`review-complete: ${a}\n${line}\n`)).toThrow('malformed');
+    }
+  });
+  it('a valid line appended as UTF-16 (PowerShell 5.1 `>>`) is read as that line', () => {
+    const utf16 = [...`\r\nreview-complete: ${b}\r\n`].map((c) => `${c}\0`).join('');
+    expect(latestReviewedCommit(`review-complete: ${a}\n${BOM}${utf16}`)).toBe(b);
   });
 });
 
