@@ -2265,6 +2265,7 @@
     "--on-conflict",
     "--run-all-exports",
     "--run-export",
+    "--self-check",
     "--start",
     "--unmarked",
     "--version",
@@ -2279,7 +2280,7 @@
     "-s",
     "-v"
    ],
-   "usage": "9ca121e701f6"
+   "usage": "ba799627e523"
   },
   "wasm-opt": {
    "flags": [
