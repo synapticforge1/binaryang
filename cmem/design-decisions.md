@@ -60,6 +60,23 @@ guide, letter H38, step 2). Last verified 2026-11-18.
 - A FAIL line prints the raw error, which can name the temp path (owner, 2026-11-19: "as long as
   it is not public facing it is okay"): it reaches only the user's terminal; no doc shows one.
 
+## Bun runs with memory64 on (owner, 2026-11-19)
+
+- Owner: "We want memory64 on always. If they pass with it on, then they are cleared from the
+  failure/skip list." JavaScriptCore has memory64 / table64 behind `useWasmMemory64`, off in
+  Bun 1.4.4; `scripts/bun-engine.ts` sets `BUN_JSC_useWasmMemory64=1` for every Bun that
+  `scripts/test.ts` and `scripts/gate.ts` start. All 24 memory64 / table64 entries cleared.
+- Read at Bun's start only: a `.env` file is too late (measured). No JavaScriptCore option
+  lifts the 100-memory cap or accepts `delegate` to a block (option list read 2026-11-19).
+- Those 10 (owner: "address the rest"): `tests/engine_limits.ts` `refusedFor` — JavaScriptCore
+  refusing with EXACTLY its known message, anything else fails; the test then holds the module
+  to values the V8 leg checks against the engine (the interpreter, the translated module, or
+  binaryang's validator). Never the component under test judging itself. The list is empty.
+- No skips in the tests either: each platform skip is that platform's own check (`/dev/null`,
+  a case-sensitive `A.WAT`, Windows' read-only attribute, an endless named pipe, Deno from npm).
+  What a machine must provide now FAILS when missing, saying how: symbolic links (Windows:
+  Developer Mode or admin), not running as root, `chmod` / `icacls`, the `upstream/binaryen` corpus.
+
 ## M6 — Apache-2.0 §4(b) and the ported files (owner, 2026-11-18)
 
 - The question (licensing review, n-2): §4(b) asks that MODIFIED files carry a notice that they

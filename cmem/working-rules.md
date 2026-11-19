@@ -58,6 +58,10 @@ not survive a clone is not a project rule. The lessons behind them are in
   the file with a file-writing tool, never a heredoc or a double-quoted `-m` (see "Do not author
   file CONTENT through a shell heredoc" in [best-practices.md](best-practices.md), which lists all
   four ways a tool here corrupts literal text). ⚠️ `-F -` does not read stdin here.
+- 🔒 **Helper scripts are TypeScript, run with `bun` — never Python** (owner, 2026-11-19: "why is
+  the python script not a typescript script?"), throwaway scratch edits and probes included; for
+  an edit, the Edit tool first. 🔧 Python helpers cost three failed attempts that day: the Windows
+  `py` launcher ran a bash shebang instead of the edit, and Python inside a heredoc broke regexes.
 - **End every message with the attribution line** the session supplies (`Co-Authored-By: …`).
 - **Commits are authored with the owner's GitHub noreply address**, set as this clone's LOCAL
   `user.email` (2026-10-22, letter H19; the history was purged of the personal address that

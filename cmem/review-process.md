@@ -26,8 +26,8 @@ Last verified 2026-11-18.
 
 ## Reference results (re-derive before quoting; measured 2026-11-18)
 
-- `bun run test` (V8, Node 24): 6765 pass, 0 fail. `bun run test:bun`: exactly the 36 listed
-  JavaScriptCore differences (`tests/bun-known-differences.json`).
+- `bun run test` (V8, Node 24): 6765 pass, 0 fail. `bun run test:bun`: 0 fail, the list of
+  JavaScriptCore differences EMPTY (`tests/bun-known-differences.json`; 36 until 2026-11-19).
 - `bun run baseline`: 421 real-compiler modules byte-identical.
 - Spec testsuite (260 `.wast`, from the sibling wasmtk checkout): 2256/2256 accepted, 2714/2714
   invalid rejected, 711/711 malformed binary, 1229/1229 malformed text, no misses.

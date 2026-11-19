@@ -25,6 +25,7 @@ import {
 } from '../../../src/interp/interpreter.ts';
 import { ValType } from '../../../src/ir/types.ts';
 import { allFeatures } from '../../../src/core/feature.ts';
+import { refusedFor } from '../../engine_limits.ts';
 
 const i32 = (value: number): Value => ({ type: ValType.I32, value });
 
@@ -55,6 +56,27 @@ async function agree(wat: string, ...args: number[]): Promise<number | string> {
   expect(ours === 'exception').toBe(engine === 'exception');
   if (typeof ours === 'number') expect(ours).toBe(engine);
   return ours;
+}
+
+/**
+ * {@link agree}, and the result is `want`. Where JavaScriptCore refuses the module (a legacy
+ * `delegate` to a block: tests/engine_limits.ts), the interpreter alone is held to `want` — the
+ * value V8 gives, which the V8 leg checks here against the engine on every run.
+ */
+async function agreePinned(wat: string, want: number | 'exception', x: number): Promise<void> {
+  if (!refusedFor(wat2wasm(wat, { textForm: false }).binary, 'delegate')) {
+    expect(await agree(wat, x)).toBe(want);
+    return;
+  }
+  let ours: number | 'exception';
+  try {
+    const [r] = interp(wat).invoke('f', [i32(x)]);
+    ours = r!.type === ValType.I32 ? r!.value as number : NaN;
+  } catch (e) {
+    if (!(e instanceof WasmException)) throw e;
+    ours = 'exception';
+  }
+  expect(ours).toBe(want);
 }
 
 describe('control', () => {
@@ -621,7 +643,9 @@ describe('exceptions (E3d)', () => {
           (do (block $b (result i32)
             (try (result i32) (do (call $raise (local.get 0)) (i32.const 0)) (delegate $b))))
           (catch $a (drop) (i32.const 8)))))`;
-    for (const x of [0, 1]) await agree(pastBlock, x);
+    // JavaScriptCore refuses this one; the values, from V8: nothing thrown 0, `$a` caught 8.
+    await agreePinned(pastBlock, 0, 0);
+    await agreePinned(pastBlock, 8, 1);
     const outOfFunction = `(module ${TAGS}
       (func (export "f") (param i32) (result i32)
         (try (result i32) (do (call $raise (local.get 0)) (i32.const 0)) (delegate 0))))`;

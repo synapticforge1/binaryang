@@ -20,6 +20,8 @@
  * ```
  */
 
+// First: every Bun started from here runs with memory64 on (owner, 2026-11-19).
+import './bun-engine.ts';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

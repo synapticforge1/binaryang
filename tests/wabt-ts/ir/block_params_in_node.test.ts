@@ -26,6 +26,9 @@ import { readBinaryIr } from '../../../src/reader/binary-reader.ts';
 import { parseWatModule } from '../../../src/parser/wast-parser.ts';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
+import { Interpreter } from '../../../src/interp/interpreter.ts';
+import { readForPasses } from '../../../src/ir/prepare.ts';
+import { refusedFor } from '../../engine_limits.ts';
 
 function compile(wat: string): Uint8Array {
   const r = wat2wasm(wat);
@@ -34,8 +37,16 @@ function compile(wat: string): Uint8Array {
   return r.binary;
 }
 
-/** Run export `f` and return its result. */
+/**
+ * `f()`, run by the engine; on JavaScriptCore, which refuses a legacy `delegate` to a block, by
+ * binaryang's interpreter (what is under test here is the parser's name resolution, not the
+ * interpreter), held to the same pinned value. The V8 leg checks it against the engine.
+ */
 function run(bytes: Uint8Array): unknown {
+  if (refusedFor(bytes, 'delegate')) {
+    const [r] = new Interpreter(readForPasses(bytes)).invoke('f', []);
+    return r !== undefined && 'value' in r ? r.value : r;
+  }
   const inst = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array(bytes)), {});
   return (inst.exports['f'] as () => unknown)();
 }

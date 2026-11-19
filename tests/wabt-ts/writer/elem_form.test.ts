@@ -49,6 +49,13 @@ function toBuf(b: Uint8Array): ArrayBuffer {
   return buf;
 }
 
+/**
+ * The host engine's reason for rejecting a funcref segment on a `(ref func)` table, in its own
+ * words: V8 "… is not a subtype of …"; JavaScriptCore "Table 0 must have type 'Funcref'" (Bun,
+ * measured 2026-11-19). Both name the same mismatch; any other error fails the test.
+ */
+const SEGMENT_TYPE_MISMATCH = /not a subtype|Table \d+ must have type 'Funcref'/;
+
 function v8Reject(wat: string): string | null {
   try {
     new WebAssembly.Module(toBuf(compile(wat)));
@@ -93,7 +100,10 @@ describe('T7.11 — element segments target a non-nullable table', () => {
     // its input. The funcidx form is now used only when the declared type IS
     // the non-nullable `(ref func)` that form actually carries.
     const msg = v8Reject(`(module ${NONNULL_TABLE} (elem (i32.const 3) funcref (ref.func $g)))`);
-    assert(msg !== null && /not a subtype/.test(msg), `expected a subtype error, got: ${msg}`);
+    assert(
+      msg !== null && SEGMENT_TYPE_MISMATCH.test(msg),
+      `expected a segment type mismatch, got: ${msg}`,
+    );
   });
 
   it('and one on an explicitly-numbered table', () => {
@@ -108,7 +118,10 @@ describe('T7.11 — element segments target a non-nullable table', () => {
     // table, and the funcidx form cannot express it. The point is that the
     // fix does not paper over a real type error by collapsing every segment.
     const msg = v8Reject(`(module ${NONNULL_TABLE} (elem (i32.const 3) funcref (ref.null func)))`);
-    assert(msg !== null && /not a subtype/.test(msg), `expected a subtype error, got: ${msg}`);
+    assert(
+      msg !== null && SEGMENT_TYPE_MISMATCH.test(msg),
+      `expected a segment type mismatch, got: ${msg}`,
+    );
   });
 });
 

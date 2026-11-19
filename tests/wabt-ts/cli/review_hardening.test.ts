@@ -17,6 +17,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { denoCommand } from '../../../scripts/deno.ts';
 
 const MAIN = resolve('main.ts');
 let dir = '';
@@ -69,29 +70,27 @@ describe('H-1: a .wat that is not UTF-8 is refused where it stands', () => {
   });
 });
 
-describe('H-2: a Windows device name is the device (win-x64)', () => {
-  it('-o NUL and -o /dev/null succeed and leave no file named NUL', {
-    skip: process.platform !== 'win32',
-  }, () => {
-    for (const o of ['NUL', 'nul', '/dev/null']) {
-      assertEquals(run('wat2wasm', 'a.wat', '-o', o).status, 0, o);
-    }
-    assertEquals(readdirSync(dir).filter((n) => /^nul$/i.test(n)), []);
+describe('H-2: the null device is the device, on every OS', () => {
+  // win-x64 / win-arm64: the reserved name, any case, and `/dev/null` as NUL. Elsewhere `/dev/null`
+  // itself. Never a file named NUL left behind.
+  const devices = process.platform === 'win32' ? ['NUL', 'nul', '/dev/null'] : ['/dev/null'];
+  const strays = (where: string) => readdirSync(where).filter((n) => /^nul$/i.test(n));
+
+  it('-o to the null device succeeds and leaves no file', () => {
+    for (const o of devices) assertEquals(run('wat2wasm', 'a.wat', '-o', o).status, 0, o);
+    assertEquals(strays(dir), []);
   });
-  // 🔧 Deno refused the device's `writeFile` (EISDIR) through 4.0.0; Bun, above, never did.
-  it('on Deno too', {
-    skip: process.platform !== 'win32' ||
-      spawnSync('deno', ['--version'], { stdio: 'ignore' }).status !== 0,
-  }, () => {
-    for (const o of ['NUL', '/dev/null']) {
-      const r = spawnSync('deno', ['run', '-A', MAIN, 'wat2wasm', 'a.wat', '-o', o], {
-        cwd: dir,
-        encoding: 'utf8',
-        timeout: 60_000,
-      });
+  // 🔧 Deno refused the device's `writeFile` (EISDIR) through 4.0.0; Bun, above, never did. The
+  // repo's own Deno (npm, `scripts/deno.ts`), so this runs wherever `bun install` ran.
+  it('on Deno too', () => {
+    const repo = resolve('.');
+    for (const o of devices) {
+      const [cmd, args] = denoCommand(['run', '-A', MAIN, 'wat2wasm', join(dir, 'a.wat'), '-o', o]);
+      const r = spawnSync(cmd, args, { cwd: repo, encoding: 'utf8', timeout: 60_000 });
       assertEquals(r.status, 0, `${o}: ${r.stderr}`);
     }
-    assertEquals(readdirSync(dir).filter((n) => /^nul$/i.test(n)), []);
+    assertEquals(strays(dir), []);
+    assertEquals(strays(repo), []);
   });
 });
 

@@ -35,6 +35,7 @@ import { validateModule } from '../../../src/validator/validator.ts';
 import { test } from 'node:test';
 import * as fsx from '../../test_fs.ts';
 import { spawnSync } from 'node:child_process';
+import { refusedFor } from '../../engine_limits.ts';
 
 /** A call's outcome: a returned value, or an exception carrying tag `e`'s first payload value. */
 type Outcome = { value: number | bigint } | { thrown: number | bigint | 'other' } | { trap: true };
@@ -346,11 +347,20 @@ for (const fx of FIXTURES) {
   const fn = fx.fn ?? 'f';
   test(`TranslateToExnref: ${fx.name}`, async () => {
     const legacy = assemble(fx.wat);
-    assertEquals(outcomes(legacy, fx.inputs, fn), fx.expect, 'the LEGACY module, in V8');
+    // The legacy original, in the engine — unless JavaScriptCore refuses its `delegate` to a
+    // block (tests/engine_limits.ts); then the pinned values, which the V8 leg checks against the
+    // engine, are held by the translated module below, which JavaScriptCore runs.
+    if (!refusedFor(legacy, 'delegate')) {
+      assertEquals(outcomes(legacy, fx.inputs, fn), fx.expect, 'the LEGACY module, in the engine');
+    }
     const translated = translate(legacy);
     assertNoLegacy(translated);
     assertValid(translated);
-    assertEquals(outcomes(translated, fx.inputs, fn), fx.expect, 'the TRANSLATED module, in V8');
+    assertEquals(
+      outcomes(translated, fx.inputs, fn),
+      fx.expect,
+      'the TRANSLATED module, in the engine',
+    );
     await assertWasmtimeAgrees(translated, fx.inputs, fx.expect, fn);
   });
 }

@@ -15,11 +15,13 @@
 //   B4  an export name with a line break wrote its own line of WIT.
 
 import { describe, it } from 'node:test';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, linkSync, statSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import * as fsx from '../../test_fs.ts';
 import { runTsAsync } from '../../run_ts.ts';
+import { nodeCommand, REFEREE } from '../../../scripts/v8.ts';
 import { fsRead, fsWrite, sameFile } from '../../../src/host.ts';
 import { commentSafe, witFromModule } from '../../../src/tools/witgen.ts';
 import { readWat } from '../../../src/tools/read-wat.ts';
@@ -28,6 +30,45 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 const MAIN = new URL('../../../main.ts', import.meta.url);
 const WAT = '(module (func (export "f") (result i32) (i32.const 1)))\n';
 const isWindows = process.platform === 'win32';
+/**
+ * A named pipe (the last argument) that never stops sending; prints `ready` once it listens. Each
+ * write waits for the last one: Bun's `write` keeps returning true, so a `while` loop never yields.
+ */
+const ENDLESS_PIPE = "const c=new Uint8Array(65536);require('node:net').createServer((s)=>{" +
+  "const p=()=>s.write(c,(e)=>{if(!e)p();});s.on('error',()=>{});p();})" +
+  ".listen(process.argv.at(-1),()=>console.log('ready'));" +
+  // A backstop: the server is gone in 60 s even if nothing stops it.
+  'setTimeout(()=>process.exit(0),60000).unref();';
+
+/**
+ * Resolves when `server` prints its first line (`ready`); rejects, saying why, when it exits
+ * first or says nothing for `ms` — never waits without an end (review H-1).
+ */
+function serverReady(server: ChildProcess, ms: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`the pipe server said nothing for ${ms} ms`));
+    }, ms);
+    const onData = () => {
+      cleanup();
+      resolve();
+    };
+    const onExit = (code: number | null, signal: string | null) => {
+      cleanup();
+      reject(
+        new Error(`the pipe server exited (code ${code}, signal ${signal}) before it listened`),
+      );
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      server.stdout!.off('data', onData);
+      server.off('exit', onExit);
+    };
+    server.stdout!.once('data', onData);
+    server.once('exit', onExit);
+  });
+}
 
 function cli(args: string[], cwd: string) {
   return runTsAsync(MAIN, args, { cwd });
@@ -117,15 +158,25 @@ describe('security round 1 — a tool that changes the format never writes over 
     });
   }
 
-  it('refuses a case variant of the input where the file system ignores case', async (t) => {
+  it('a case variant of the input: refused where the file system ignores case, another file where not', async () => {
     await inDir(async (dir) => {
       await fsx.writeTextFile(join(dir, 'a.wat'), WAT);
-      if (!caseInsensitive(dir)) {
-        t.skip('this file system tells A.WAT from a.wat');
-        return;
-      }
+      // Asked BEFORE the run: it looks for A.WAT, which the run itself writes where case counts.
+      const ignoresCase = caseInsensitive(dir);
       const r = await cli(['wat2wasm', 'a.wat', '-o', 'A.WAT'], dir);
-      assertEquals(r.code, 1, r.stderr);
+      if (ignoresCase) {
+        // win-x64 / win-arm64 / mac-x64 / mac-arm64 by default: A.WAT IS a.wat.
+        assertEquals(r.code, 1, r.stderr);
+      } else {
+        // linux-x64 / linux-arm64: A.WAT is a file of its own, written; a.wat is not touched.
+        assertEquals(r.code, 0, r.stderr);
+        assertEquals([...(await fsx.readFile(join(dir, 'A.WAT'))).subarray(0, 4)], [
+          0,
+          0x61,
+          0x73,
+          0x6d,
+        ]);
+      }
       assertEquals(await fsx.readTextFile(join(dir, 'a.wat')), WAT);
     });
   });
@@ -201,29 +252,46 @@ describe('security round 1 — fsWrite replaces a file whole, never in place', (
     });
   });
 
-  it('keeps the permission bits of the file it replaces', async (t) => {
-    if (isWindows) {
-      t.skip('Windows has no POSIX permission bits');
-      return;
-    }
+  it('keeps the permission bits of the file it replaces', async () => {
     await inDir(async (dir) => {
       const path = join(dir, 'tool.wasm');
       await fsx.writeTextFile(path, 'old');
-      chmodSync(path, 0o640);
+      if (!isWindows) {
+        chmodSync(path, 0o640);
+        await fsWrite(path, 'new');
+        assertEquals(statSync(path).mode & 0o777, 0o640);
+        return;
+      }
+      // win-x64 / win-arm64: the permission Windows has is the read-only attribute. A writable
+      // output stays writable; a read-only one is refused, its content and attribute kept
+      // (Bun, Node 24 and Deno, measured 2026-11-19).
+      const before = statSync(path).mode & 0o777;
       await fsWrite(path, 'new');
-      assertEquals(statSync(path).mode & 0o777, 0o640);
+      assertEquals(statSync(path).mode & 0o777, before);
+      chmodSync(path, 0o444);
+      try {
+        await assertRejects(() => fsWrite(path, 'newer'));
+        assertEquals(await fsx.readTextFile(path), 'new');
+        assertEquals(statSync(path).mode & 0o777, 0o444);
+      } finally {
+        chmodSync(path, 0o666);
+      }
     });
   });
 
-  it('writes through a symbolic link to the file it names', async (t) => {
+  it('writes through a symbolic link to the file it names', async () => {
     await inDir(async (dir) => {
       const real = join(dir, 'real.wasm');
       await fsx.writeTextFile(real, 'old');
+      // No skip (owner, 2026-11-19): a machine that may not make a link fails, saying why.
       try {
         symlinkSync(real, join(dir, 'link.wasm'), 'file');
-      } catch {
-        t.skip('no permission to make a symbolic link here');
-        return;
+      } catch (e) {
+        throw new Error(
+          `this account may not make a symbolic link, so writing through one cannot be tested: on Windows turn on Developer Mode or run as an administrator (${
+            (e as Error).message
+          })`,
+        );
       }
       await fsWrite(join(dir, 'link.wasm'), 'new');
       assertEquals(await fsx.readTextFile(real), 'new');
@@ -245,12 +313,36 @@ describe('security round 1 — fsRead refuses what is not a module-sized file', 
     });
   });
 
-  it('reads an endless device only up to the limit', async (t) => {
-    if (isWindows) {
-      t.skip('no /dev/zero on Windows');
+  it('reads an endless device only up to the limit', async () => {
+    if (!isWindows) {
+      await assertRejects(() => fsRead('/dev/zero', 100_000), Error, 'input limit');
       return;
     }
-    await assertRejects(() => fsRead('/dev/zero', 100_000), Error, 'input limit');
+    // win-x64 / win-arm64: no /dev/zero; an endless named pipe, served by ANOTHER process, on
+    // Node (the referee): a pipe served in-process can deadlock Bun's open, and one Bun serves
+    // never delivers its data to any reader (Bun 1.4.4, measured 2026-11-19).
+    const pipe = `\\\\.\\pipe\\binaryang-test-${process.pid}-${Date.now()}`;
+    // Node's own executable, started directly: killing `fnm exec` leaves the node it started
+    // running on Windows, and that server kept this file's process alive (2026-11-19).
+    // 🔧 Review H-1 (2026-11-19): the lookup had no time limit and no error check (no `fnm` was a
+    // TypeError), and the wait for `ready` had no end (a server that exits first hung the test).
+    const [cmd, args] = nodeCommand(REFEREE, ['-p'], 'process.execPath', []);
+    const lookup = spawnSync(cmd, args, { encoding: 'utf8', timeout: 30_000 });
+    const node = lookup.stdout?.trim() ?? '';
+    assert(
+      lookup.status === 0 && node !== '',
+      `Node ${REFEREE} through fnm is needed to serve the pipe: install fnm, then ` +
+        `\`fnm install ${REFEREE}\` (${lookup.error?.message ?? lookup.stderr?.trim()})`,
+    );
+    const server = spawn(node, ['-e', ENDLESS_PIPE, pipe], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
+    try {
+      await serverReady(server, 15_000);
+      await assertRejects(() => fsRead(pipe, 100_000), Error, 'input limit');
+    } finally {
+      server.kill();
+    }
   });
 
   it('refuses a directory', async () => {
