@@ -1,155 +1,23 @@
 {
-  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2; 2.2.2's two, DG7's words, dropped at 3.0.3; 3.0.3's six, the release order D1, dropped at 3.0.4; 3.0.4's one, the two-job browser check, dropped at 4.0.0). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;. A test FILE that fails to load is reported under its own path as the name, with the platform's separator (the bump runs on win-x64).",
+  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2; 2.2.2's two, DG7's words, dropped at 3.0.3; 3.0.3's six, the release order D1, dropped at 3.0.4; 3.0.4's one, the two-job browser check, dropped at 4.0.0; 4.0.0's twenty-five, the security reviews and H37's CI, dropped at 4.1.0). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;. A test FILE that fails to load is reported under its own path as the name, with the platform's separator (the bump runs on win-x64).",
   "entries": [
     {
-      "file": "tests/binaryen-ts/hardening/hostile_input.test.ts",
-      "name": "the text tools report it in their error lists",
-      "since": "4.0.0",
-      "reason": "Security review round 2 (2026-11-13): ONE nesting limit on every runtime, 256 levels, reported as NESTING_OVER_LIMIT; v3.0.4 expected the old per-walker NESTING_TOO_DEEP wording."
+      "file": "tests/wabt-ts/tools/cli_file_safety.test.ts",
+      "name": "tests\\wabt-ts\\tools\\cli_file_safety.test.ts",
+      "since": "4.1.0",
+      "reason": "Letter H39 (2026-11-19): every OS call moved into one module, src/host.ts; src/cli/io.ts, which v4.0.0's test imports or reads, is gone. Internal, not an export (CHANGELOG § 4.1.0); the behaviours these tests pinned are held by today's tests against src/host.ts."
     },
     {
-      "file": "tests/binaryen-ts/hardening/hostile_input.test.ts",
-      "name": "the reader and the compat reader throw WasmBinaryError",
-      "since": "4.0.0",
-      "reason": "Security review round 2 (2026-11-13): ONE nesting limit on every runtime, 256 levels, reported as NESTING_OVER_LIMIT; v3.0.4 expected the old per-walker NESTING_TOO_DEEP wording."
+      "file": "tests/wabt-ts/tools/cli_io_errors.test.ts",
+      "name": "each tool imports the shared guarded helpers",
+      "since": "4.1.0",
+      "reason": "Letter H39 (2026-11-19): every OS call moved into one module, src/host.ts; src/cli/io.ts, which v4.0.0's test imports or reads, is gone. Internal, not an export (CHANGELOG § 4.1.0); the behaviours these tests pinned are held by today's tests against src/host.ts."
     },
     {
-      "file": "tests/binaryen-ts/hardening/hostile_input.test.ts",
-      "name": "the optimizer, the interpreter, the bundler and the writers say so in their own terms",
-      "since": "4.0.0",
-      "reason": "Security review round 2 (2026-11-13): ONE nesting limit on every runtime, 256 levels, reported as NESTING_OVER_LIMIT; v3.0.4 expected the old per-walker NESTING_TOO_DEEP wording."
-    },
-    {
-      "file": "tests/binaryen-ts/hardening/hostile_input.test.ts",
-      "name": "the writers write 600 nested blocks",
-      "since": "4.0.0",
-      "reason": "Security review round 2 (2026-11-13): ONE nesting limit on every runtime, 256 levels; 600 nested blocks, which 3.0.4 wrote on V8 only, are now refused everywhere (a behaviour change named in the release note)."
-    },
-    {
-      "file": "tests/binaryen-ts/hardening/hostile_input.test.ts",
-      "name": "wat2wasm assembles 600 nested blocks, linear and folded",
-      "since": "4.0.0",
-      "reason": "Security review round 2 (2026-11-13): ONE nesting limit on every runtime, 256 levels; 600 nested blocks, which 3.0.4 assembled on V8 only, are now refused everywhere (a behaviour change named in the release note)."
-    },
-    {
-      "file": "tests/binaryen-ts/interp/interpreter.test.ts",
-      "name": "runaway recursion is &quot;call stack exhausted&quot;, at the depth limit or the host's",
-      "since": "4.0.0",
-      "reason": "Review round 4 (2026-11-15): the HOST's stack running out is a Stop (the interpreter cannot tell it from its own fault), not the trap 'call stack exhausted'; the interpreter's own depth limit still traps."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/workflow_steps.test.ts",
-      "name": "npm-tarball: exactly one .tgz in the folder; its path becomes the output",
-      "since": "4.0.0",
-      "reason": "Security review round 1 (2026-11-13): `registry.ts npm-tarball` takes the proven tarball's digest and checks it; v3.0.4 called it without one. CI only; nothing in either package."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/browsers_wiring.test.ts",
-      "name": "is CI work that installs the browsers and requires all of them",
-      "since": "4.0.0",
-      "reason": "Letter H37 (2026-11-18): every gate runs locally, CI only publishes; the browser check is a step of `bun run gate`, and ci.yml is gone. CI only; nothing in either package."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/ci_browsers.test.ts",
-      "name": "tests\\wabt-ts\\scripts\\ci_browsers.test.ts",
-      "since": "4.0.0",
-      "reason": "Letter H37 (2026-11-18): every gate runs locally, CI only publishes; ci.yml, which this file read, is gone, so the file fails to load. CI only; nothing in either package."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/deno_pin.test.ts",
-      "name": "is an exact version of the npm `deno` package",
-      "since": "4.0.0",
-      "reason": "Letter H37 (2026-11-18): every gate runs locally, CI only publishes; the pin is read from publish.yml's jsr job, not ci.yml. CI only; nothing in either package."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/deno_pin.test.ts",
-      "name": "CI runs Deno through scripts/deno.ts, and installs none",
-      "since": "4.0.0",
-      "reason": "Letter H37 (2026-11-18): every gate runs locally, CI only publishes; ci.yml is gone and the jsr job installs its pinned Deno through install-pinned. CI only; nothing in either package."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "imports and calls the guard",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "refuses rather than warns",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "runs no state-changing git command before the guard",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "pushes main ONLY, makes no tag, and reads the push back",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "refuses a local tag, a tag on origin, and a number either registry knows, before mutating",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "stages exactly the list the guard exempts",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "checks the remote tag before mutating anything",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "runs a cold type check, in a fresh DENO_DIR, before mutating anything",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "checks the package root is the CLI, before mutating anything",
-      "since": "4.0.0",
-      "reason": "Review rounds 1-3 (2026-11-13): the release script's guards are held by running them (release-run.ts), not by reading publish.ts's source; letter H37 (2026-11-18): every gate runs locally, CI only publishes."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "runs both type checks and both test legs BEFORE publishing",
-      "since": "4.0.0",
-      "reason": "Letter H37 (2026-11-18): every gate runs locally, CI only publishes; the type checks and both test legs run in `bun run gate --release`, before the bump is pushed, and publish.yml's checks job reads the version only."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "runs the compatibility gate on the tag BEFORE publishing, with the tags fetched",
-      "since": "4.0.0",
-      "reason": "Letter H37 (2026-11-18): every gate runs locally, CI only publishes; the compatibility gate is a step of `bun run gate --release`, not of publish.yml."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "orders the jobs checks → tag → release → jsr → npm",
-      "since": "4.0.0",
-      "reason": "Letter H37 (2026-11-18): every gate runs locally, CI only publishes; the checks job (still first, same order) is now the version check, whose steps v3.0.4's test read."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "the jsr job checks out exactly what jsr.json publishes, plus the registry script",
-      "since": "4.0.0",
-      "reason": "Security review round 1 (2026-11-13) and letter H37 (2026-11-18): every job installs Bun and Deno through the repo's own pinned installer (`.github/actions/install-pinned`), not setup-bun / setup-deno, so the jsr job's sparse checkout adds that action."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "pins every action to a commit hash",
-      "since": "4.0.0",
-      "reason": "Security review round 1 (2026-11-13) and letter H37 (2026-11-18): the installers are the repo's own local action (`./.github/actions/install-pinned`, which has no hash to pin; every remote action is still pinned to one), and ci.yml, which v3.0.4's test also read, is gone."
+      "file": "tests/wabt-ts/tools/security_round2.test.ts",
+      "name": "tests\\wabt-ts\\tools\\security_round2.test.ts",
+      "since": "4.1.0",
+      "reason": "Letter H39 (2026-11-19): every OS call moved into one module, src/host.ts; src/cli/io.ts, which v4.0.0's test imports or reads, is gone. Internal, not an export (CHANGELOG § 4.1.0); the behaviours these tests pinned are held by today's tests against src/host.ts."
     }
   ]
 }
