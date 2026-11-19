@@ -102,6 +102,7 @@ describe('A3 — scripts/check-privacy.ts', () => {
   const person = ['some.one', '@', 'example', '.org'].join('');
   const bot = ['41898282+github-actions[bot]', '@', 'users.noreply.github.com'].join('');
   const trailer = ['noreply', '@', 'anthropic.com'].join('');
+  const dependabot = ['support', '@', 'github.com'].join('');
 
   const kinds = (text: string, name = 'f.ts', maintainer?: string) =>
     findLeaks(name, text, maintainer).map((l) => l.kind);
@@ -124,6 +125,10 @@ describe('A3 — scripts/check-privacy.ts', () => {
     expect(kinds(runner)).toEqual([]);
     expect(kinds(bot)).toEqual([]);
     expect(kinds(trailer)).toEqual([]);
+    // Dependabot's sign-off: GitHub's own support address, exactly — a person at github.com is not.
+    expect(kinds(`Signed-off-by: dependabot[bot] <${dependabot}>`)).toEqual([]);
+    expect(kinds(['some.one', '@', 'github.com'].join(''))).toEqual(['email address']);
+    expect(kinds(['support', '@', 'github.com.evil.example'].join(''))).toEqual(['email address']);
     expect(kinds('C:\\zig-cache\\wazmrt and /usr/lib/x86_64-linux-gnu/opera-stable/opera')).toEqual(
       [],
     );
