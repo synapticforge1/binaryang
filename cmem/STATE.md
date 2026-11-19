@@ -5,7 +5,8 @@ Updated: 2026-11-19, at the release of 4.1.0
 ## Version
 - Released: **4.1.0 on 2026-11-19** (JSR and npm, provenance on both; release.md § 4.1.0);
   publish.yml run 44621909375 green in every job
-- 4.0.0's run 44412712388 is RED in npm's provenance read-back only (npm lagged ~4 min)
+- 4.0.0's run 44412712388 is GREEN since its re-run (attempt 2, 2026-11-19 21:58Z: publish
+  skipped, provenance found on the first read); attempt 1 was red only because npm lagged ~4 min
 - Unreleased on main: nothing (unreleased.md)
 - Working branch: `main`
 
@@ -36,7 +37,7 @@ Updated: 2026-11-19, at the release of 4.1.0
   H39, H41, H42, H43 (the workspace commits them and closes per repo)
 
 ## Waiting on owner
-- "Re-run failed jobs" on publish.yml run 44412712388 (web UI): skips the publish, turns it green
+- Nothing
 
 ## Read next
 - design-decisions.md: Bun runs with memory64 on; engine limits; no skips

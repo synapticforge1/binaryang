@@ -72,8 +72,13 @@ const RULES: { kind: string; re: RegExp }[] = [
 ];
 
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
-/** A service's address, which names no person. */
-const SERVICE = /^(?:[^@\s]+@users\.noreply\.github\.com|no-?reply@[^@\s]+|git@github\.com)$/i;
+/**
+ * A service's address, which names no person. `support@github.com` is the one Dependabot signs
+ * its commits off with (`Signed-off-by: dependabot[bot] <…>`); a merged Dependabot pull request
+ * carries it into the history (2026-11-19).
+ */
+const SERVICE =
+  /^(?:[^@\s]+@users\.noreply\.github\.com|no-?reply@[^@\s]+|git@github\.com|support@github\.com)$/i;
 /** Files the maintainer contact may appear in: the manifests' own fields. */
 const MANIFESTS = new Set(['package.json', 'jsr.json', 'dist/package.json']);
 
