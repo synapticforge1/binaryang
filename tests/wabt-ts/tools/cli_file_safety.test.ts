@@ -15,7 +15,7 @@
 //   B4  an export name with a line break wrote its own line of WIT.
 
 import { describe, it } from 'node:test';
-import { spawn, spawnSync } from 'node:child_process';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, linkSync, statSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { assert, assertEquals, assertRejects } from '@std/assert';
@@ -39,6 +39,36 @@ const ENDLESS_PIPE = "const c=new Uint8Array(65536);require('node:net').createSe
   ".listen(process.argv.at(-1),()=>console.log('ready'));" +
   // A backstop: the server is gone in 60 s even if nothing stops it.
   'setTimeout(()=>process.exit(0),60000).unref();';
+
+/**
+ * Resolves when `server` prints its first line (`ready`); rejects, saying why, when it exits
+ * first or says nothing for `ms` — never waits without an end (review H-1).
+ */
+function serverReady(server: ChildProcess, ms: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`the pipe server said nothing for ${ms} ms`));
+    }, ms);
+    const onData = () => {
+      cleanup();
+      resolve();
+    };
+    const onExit = (code: number | null, signal: string | null) => {
+      cleanup();
+      reject(
+        new Error(`the pipe server exited (code ${code}, signal ${signal}) before it listened`),
+      );
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      server.stdout!.off('data', onData);
+      server.off('exit', onExit);
+    };
+    server.stdout!.once('data', onData);
+    server.once('exit', onExit);
+  });
+}
 
 function cli(args: string[], cwd: string) {
   return runTsAsync(MAIN, args, { cwd });
@@ -294,14 +324,21 @@ describe('security round 1 — fsRead refuses what is not a module-sized file', 
     const pipe = `\\\\.\\pipe\\binaryang-test-${process.pid}-${Date.now()}`;
     // Node's own executable, started directly: killing `fnm exec` leaves the node it started
     // running on Windows, and that server kept this file's process alive (2026-11-19).
+    // 🔧 Review H-1 (2026-11-19): the lookup had no time limit and no error check (no `fnm` was a
+    // TypeError), and the wait for `ready` had no end (a server that exits first hung the test).
     const [cmd, args] = nodeCommand(REFEREE, ['-p'], 'process.execPath', []);
-    const node = spawnSync(cmd, args, { encoding: 'utf8' }).stdout.trim();
-    assert(node !== '', `Node ${REFEREE} through fnm: not found`);
+    const lookup = spawnSync(cmd, args, { encoding: 'utf8', timeout: 30_000 });
+    const node = lookup.stdout?.trim() ?? '';
+    assert(
+      lookup.status === 0 && node !== '',
+      `Node ${REFEREE} through fnm is needed to serve the pipe: install fnm, then ` +
+        `\`fnm install ${REFEREE}\` (${lookup.error?.message ?? lookup.stderr?.trim()})`,
+    );
     const server = spawn(node, ['-e', ENDLESS_PIPE, pipe], {
       stdio: ['ignore', 'pipe', 'inherit'],
     });
     try {
-      await new Promise((ready) => server.stdout!.once('data', ready));
+      await serverReady(server, 15_000);
       await assertRejects(() => fsRead(pipe, 100_000), Error, 'input limit');
     } finally {
       server.kill();

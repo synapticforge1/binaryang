@@ -37,7 +37,6 @@ function compile(wat: string): Uint8Array {
   return r.binary;
 }
 
-/** Run export `f` and return its result. */
 /**
  * `f()`, run by the engine; on JavaScriptCore, which refuses a legacy `delegate` to a block, by
  * binaryang's interpreter (what is under test here is the parser's name resolution, not the

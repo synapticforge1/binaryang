@@ -33,7 +33,7 @@
 // take a `$name`, it belongs in the list.
 
 import { describe, it } from 'node:test';
-import { assert } from '@std/assert';
+import { assert, assertEquals } from '@std/assert';
 
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { wasm2wat } from '../../../src/tools/wasm2wat.ts';
@@ -55,7 +55,8 @@ function assertV8Accepts(binary: Uint8Array, label: string, src: string): void {
   new Uint8Array(buf).set(binary);
   if (WebAssembly.validate(buf)) return;
   // JavaScriptCore refuses a legacy `delegate` to a block (tests/engine_limits.ts): binaryang's
-  // validator judges that fixture there; the V8 leg judges it in the engine.
+  // validator judges that fixture there, the V8 leg in the engine, and on both engines the test
+  // "legacy delegate $l resolves to the label it names" checks the depth it encodes.
   let refused = false;
   try {
     refused = refusedFor(binary, 'delegate');
@@ -260,6 +261,39 @@ describe('T13.7 - every named reference encodes', () => {
       assertV8Accepts(binary, name, src);
     });
   }
+});
+
+/** The code section's bytes: what names resolve to, without the name section that records them. */
+function codeSection(b: Uint8Array): number[] {
+  let i = 8;
+  while (i < b.length) {
+    const id = b[i++]!;
+    let size = 0;
+    let shift = 0;
+    let byte: number;
+    do {
+      byte = b[i++]!;
+      size |= (byte & 0x7f) << shift;
+      shift += 7;
+    } while (byte & 0x80);
+    if (id === 10) return [...b.subarray(i, i + size)];
+    i += size;
+  }
+  throw new Error('no code section');
+}
+
+// Engine-independent (owner, 2026-11-19): JavaScriptCore cannot load this fixture, and a valid
+// module can still name the wrong label. `delegate $l` from inside the try names the block
+// around it: depth 0.
+describe('T13.7 - legacy delegate $l resolves to the label it names', () => {
+  it('encodes the code of (delegate 0), not of (delegate 1)', () => {
+    const code = (wat: string) => codeSection(wat2wasm(wat, { textForm: false }).binary!);
+    const named = code('(module (func (block $l (try (do) (delegate $l)))))');
+    const depth = (d: number) => code(`(module (func (block (try (do) (delegate ${d})))))`);
+    assertEquals(named, depth(0));
+    // The comparison can tell a wrong depth: its positive control.
+    assert(JSON.stringify(named) !== JSON.stringify(depth(1)), 'depth 1 encodes the same code');
+  });
 });
 
 describe('T13.7 - and survives a round trip back through the numeric form', () => {
