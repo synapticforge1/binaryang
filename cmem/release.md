@@ -115,6 +115,35 @@ with the needs above, 0 unpinned actions.
 
 ## Release History
 
+### 4.1.1 — a PATCH from `main` (2026-11-19 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
+
+**What changed** (`CHANGELOG.md` § 4.1.1): GitHub issue #1 (trackoor): `wasm-opt -O2`+ no longer
+refuses a valid module with a value left in unreachable code before a block's trailing `br`; the
+validator refuses a `sub` type with more than one supertype. Repo-only: Dependabot #2/#3, the
+privacy scan and Dependabot's address, the previous-tests work tree.
+
+The owner's go: "release" (2026-11-19), after "push" of the fix.
+
+1. **Review set:** `actions-bump` (review + re-review 1, 0), `issue-1` (review 0 in all five), the
+   release branch (round 1: S-1, the harness's inherited GIT_*; re-review 1: B-1, notes wording;
+   re-review 2: 0) — `review:record 1ecd7396a`. While verifying S-1's first fix with GIT_DIR at
+   this repository, v4.1.0's tests committed "reviewed" onto the branch (local; soft-reset; every
+   spawn now gets the env without GIT_*; verified against a canary) — review-issues.md.
+2. **The bump's previous tests needed a harness fix first:** v4.1.0's tests failed 2 that were the
+   harness's (no commit in the work tree; no binaryen corpus) — fixed in `fea1e9bd6`; 4.1.0's 3
+   accepted entries dropped (`accept-4.1.1`, now empty). Full suite: win-x64 gate 31/31; linux-x64
+   fresh clone 6794/6794. Merged (`5a187e33c`), pushed unbumped: run 44637169325 green.
+3. `bun run bump patch`: floor patch; previous tests 6783, 0 failed, 0 accepted. `bun run release`:
+   gate --release **33 / 33** (compatibility: patch); `bump to v4.1.1` (`e77d6fdd1`) pushed, read back.
+4. **publish.yml run 44639032099 — RED in its last step only**, as 4.0.0's: version → npm build →
+   tag `v4.1.1` (annotated `b381d4bf8`, peels to `e77d6fdd1`) → page by `github-actions[bot]`
+   (23:36:59Z) → **JSR 4.1.1, Rekor `4009969936`** → npm: `npm publish` ok (23:37:43Z), then
+   "Verify provenance was recorded on npm" timed out at 23:40:30Z; npm showed 4.1.1 at 23:40:50Z
+   (~3 min). Read back afterwards: **npm 4.1.1, SLSA provenance v1**; `latest` = 4.1.1 on both.
+   "Re-run failed jobs" (owner, web UI) skips the publish and turns it green. **Second time: the
+   poll window (12 × 15 s) is shorter than npm's lag — fix it before the next release.**
+5. **As a user:** `bun x @synapticforge1/binaryang@4.1.1 --version` → `binaryang 4.1.1`.
+
 ### 4.1.0 — a MINOR from `main` (2026-11-19 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
 
 **What changed** (`CHANGELOG.md` § 4.1.0): writing to devices and standard output (`-o NUL` on

@@ -1,19 +1,12 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-19 (UTC): the last release is `v4.1.0`, on JSR AND npm, both with provenance**
-([release.md](release.md) § "4.1.0"). Unreleased: issue #1, below. (Check:
-`git log --oneline v4.1.0..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-19 (UTC): the last release is `v4.1.1`, on JSR AND npm, both with provenance**
+([release.md](release.md) § "4.1.1"). Nothing is unreleased on `main`. (Check:
+`git log --oneline v4.1.1..main -- src/ main.ts jsr.json README.md`.)
 
-**UNRELEASED since 4.1.0 — issue #1 (GitHub, reported 2026-11-15 against 3.0.4; fixed
-2026-11-19, branch `issue-1`):** package changes, both **silent fixes** → a patch.
-- **`wasm-opt -O2`/`-O3`/`-O4` refused valid input** ("optimized module failed validation: type
-  mismatch at end of block"): RemoveUnusedBrs dropped a block's trailing `br` though an earlier
-  statement in unreachable code left a value only that `br` unwound. Never wrong output — our
-  own post-optimization check refused it — but a throw on a valid module.
-- **The validator accepted a `(sub …)` with more than one supertype** (`wasmValidate`,
-  `wat2wasm --validate`), which the GC proposal forbids and V8 refuses: now "sub type N
-  declares K supertypes; at most 1 allowed".
-Credit the reporter (trackoor; https://ucsbplse.github.io/) in the note.
+**Shipped in 4.1.1** (CHANGELOG § 4.1.1; kept here until the next release): GitHub issue #1's two
+fixes — `wasm-opt -O2`+ and a value left in unreachable code before a trailing `br`; the validator
+and more than one supertype.
 
 **Shipped in 4.1.0** (CHANGELOG § 4.1.0 is the public note; kept here until the next release):
 letter H39 (`src/host.ts`, `--self-check`, `-o NUL` on Deno) and the release-notes review's fixes
@@ -92,7 +85,6 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 4.1.0
+## Since 4.1.1
 
-Nothing yet. `tests/accepted-changes.json` lists the 3 v4.0.0 tests that read `src/cli/io.ts`
-(`accept-4.1.0`); they are dropped at the next release.
+Nothing yet. `tests/accepted-changes.json` is empty.
