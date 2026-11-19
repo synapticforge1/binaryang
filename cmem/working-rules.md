@@ -482,6 +482,15 @@ never pushes, a "push" never releases). This repo's own gate and merge rules app
   here; run `bun scripts/check-cmem.ts` and fix what it reports.
 - **Sub-agents:** a reviewer gets its brief and `STATE.md` and does not browse `cmem/`; any other
   sub-agent gets the task and the exact files picked from the index.
+- 🔒 **Scratch space is bounded and cleaned by the session that used it** (letter H43, Tooling
+  rule 15 in `../workspace/cmem/tooling-rules.md`; owner: "It can't be an unbounded storage
+  space"). Throwaway files go in the session's own scratchpad only, never its path in a tracked
+  file. Budget 200 MB: say so before anything larger, remove it when its step is done. Delete when
+  the item clears — a script after its run, a probe when its finding is verified, a reviewer's
+  folder at triage. Nothing lives only in scratch. **"commit" ends with an empty scratchpad.**
+  binaryang's own temp use, in the system temp, is bounded the same way: tests remove their
+  folders (review Q-H1); `bun run gate --keep` corpora are removed once their run is used.
+  Project notes go in `cmem/`, never the assistant's per-project memory folder (it is empty).
 - **Limits** (held by the check): INDEX 3 KB, STATE 60 lines, any other live note 25 KB, any line
   outside a code block 200 characters; `archive/` and `local/` unlimited. The guide's migration
   steps 4–6 are open (STATE.md "Next").

@@ -11,6 +11,10 @@ Last verified 2026-11-18.
   [working-rules.md](working-rules.md) § "Owner commands".
 - Reviewers run on Sonnet (owner, 2026-11-13), read-only, each in its own scratch folder; never
   kill a process by image name (other work on this machine runs node and bun).
+- A reviewer's folder is a folder under the main session's scratchpad, said so in its brief, and
+  removed by the main session at triage (letter H43). ⚠️ First remove any link a reviewer made
+  into the repo (a junction to `node_modules`, seen 2026-11-19) by itself, non-recursively: a
+  recursive delete can follow it into the real folder.
 - Issues, fixes, rejections and counts: the gitignored `review-issues.md`. A completed review ends
   with the line `review-complete: <sha>` there; `bun run release` refuses without it, or when a
   file other than the release files and `cmem/` changed since that commit.
