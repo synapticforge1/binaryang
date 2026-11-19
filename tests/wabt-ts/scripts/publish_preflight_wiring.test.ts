@@ -340,6 +340,27 @@ describe('the review record: one hash, written by a script, read strictly', () =
       expect(readdirSync(dir)).toEqual(['review-complete']);
     });
   });
+  // Re-review 3 (B-3 and its siblings).
+  it('the writer makes a missing folder (a fresh clone has no cmem/local/)', () => {
+    inTemp((dir) => {
+      const path = join(dir, 'local', 'review-complete');
+      writeReviewRecord(a, path);
+      expect(readReviewRecord(path)).toBe(a);
+    });
+  });
+  it('a folder, or a file over 41 bytes, is refused by name before it is read', () => {
+    inTemp((dir) => {
+      const folder = join(dir, 'review-complete');
+      mkdirSync(folder);
+      expect(() => readReviewRecord(folder)).toThrow(`${folder} is not a file`);
+      const big = join(dir, 'big');
+      writeFileSync(big, `${a}\n\n`);
+      expect(() => readReviewRecord(big)).toThrow(`${big} is 42 bytes`);
+      const named = join(dir, 'named');
+      writeFileSync(named, a.toUpperCase());
+      expect(() => readReviewRecord(named)).toThrow(`${named} is not one 40-hex`);
+    });
+  });
   it('a commit is resolved to its full hash; a name that is no commit is null', () => {
     expect(resolveCommit('HEAD')).toMatch(/^[0-9a-f]{40}$/);
     expect(resolveCommit('no-such-revision-anywhere')).toBe(null);
