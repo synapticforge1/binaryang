@@ -137,7 +137,7 @@ describe("security round 2 — the tools print a hostile module's names inert", 
 });
 
 describe('security round 2 — the .wit beside a bundle', () => {
-  it('a hand-written .wit that cannot be READ is not replaced: the failure is said', async (t) => {
+  it('a hand-written .wit that cannot be READ is not replaced: the failure is said', async () => {
     await inDir(async (dir) => {
       const wit = join(dir, 'b.wit');
       writeFileSync(wit, '// written by hand\n');
@@ -150,9 +150,12 @@ describe('security round 2 — the .wit beside a bundle', () => {
       } catch {
         readable = false;
       }
+      // No skip (owner, 2026-11-19): a machine that cannot take the read right away fails, saying why.
       if (!deny || readable) {
-        t.skip('cannot make a file unreadable here (root, or no ACL tool)');
-        return;
+        throw new Error(
+          'cannot make a file unreadable here, so this cannot be tested: run as an ordinary user ' +
+            '(root reads anything), with `chmod` (POSIX) or `icacls` (Windows) on the PATH',
+        );
       }
       try {
         await assertRejects(() =>
@@ -223,14 +226,19 @@ describe('security round 2 — output paths', () => {
     });
   });
 
-  it('a dangling symbolic link is written through, to the file it names', async (t) => {
+  it('a dangling symbolic link is written through, to the file it names', async () => {
     await inDir(async (dir) => {
       const link = join(dir, 'out.wasm');
+      // No skip (owner, 2026-11-19): a machine that may not make a link fails, saying why.
       try {
         symlinkSync(join(dir, 'real.wasm'), link, 'file');
-      } catch {
-        t.skip('no permission to make a symbolic link here');
-        return;
+      } catch (e) {
+        throw new Error(
+          'this account may not make a symbolic link, so writing through one cannot be tested: ' +
+            `on Windows turn on Developer Mode or run as an administrator (${
+              (e as Error).message
+            })`,
+        );
       }
       await fsWrite(link, 'new');
       assertEquals(readFileSync(join(dir, 'real.wasm'), 'utf8'), 'new');

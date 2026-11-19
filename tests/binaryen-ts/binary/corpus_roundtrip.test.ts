@@ -152,10 +152,16 @@ async function validates(bytes: Uint8Array): Promise<boolean> {
 
 test(
   'corpus: parse->encode->parse is lossless and stays valid',
-  { skip: CORPUS === null },
   async () => {
-    // Non-null by the `skip` gate above, which is `CORPUS === null`.
-    const corpus = CORPUS!;
+    // No skip (owner, 2026-11-19): a checkout without the corpus fails, saying how to get it.
+    if (CORPUS === null) {
+      throw new Error(
+        'upstream/binaryen/test is missing: clone binaryen (WebAssembly/binaryen, version_132) to ' +
+          'upstream/binaryen/ in this repo (gitignored), or copy it from a checkout that has it ' +
+          '(cmem/testing.md, "upstream/binaryen/test")',
+      );
+    }
+    const corpus = CORPUS;
     const files = await findWasm(corpus);
     assert(files.length > 0, `no .wasm files under ${corpus}`);
 

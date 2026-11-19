@@ -72,6 +72,10 @@ guide, letter H38, step 2). Last verified 2026-11-18.
   refusing with EXACTLY its known message, anything else fails; the test then holds the module
   to values the V8 leg checks against the engine (the interpreter, the translated module, or
   binaryang's validator). Never the component under test judging itself. The list is empty.
+- No skips in the tests either: each platform skip is that platform's own check (`/dev/null`,
+  a case-sensitive `A.WAT`, Windows' read-only attribute, an endless named pipe, Deno from npm).
+  What a machine must provide now FAILS when missing, saying how: symbolic links (Windows:
+  Developer Mode or admin), not running as root, `chmod` / `icacls`, the `upstream/binaryen` corpus.
 
 ## M6 — Apache-2.0 §4(b) and the ported files (owner, 2026-11-18)
 

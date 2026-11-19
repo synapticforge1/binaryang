@@ -50,6 +50,10 @@ Status `runtime`: covered by the runtime and by `host`'s result for that OS.
   `writeFile` by the plain name creates a FILE named `NUL` (Windows 11 26300). Written by the
   device path `\\.\NAME`; `/dev/null` maps to NUL. Windows 11 no longer reserves `nul.wasm`.
   Where: `src/host.ts` `fsWrite` (review H-2, 2026-11-18).
+- **Bun 1.4.4 named pipes** (reported to Bun by the owner, 2026-11-19): a pipe server's `write()`
+  chained from a write callback hangs the event loop, and `write()` never returns `false`. The
+  endless-device test serves its pipe from Node 24, started directly (killing `fnm exec` leaves
+  its node running). Bun READING a pipe is fine. Where: `tests/wabt-ts/tools/cli_file_safety.test.ts`.
 - **Deno refuses `writeFile` on a device** (EISDIR: it opens with create / truncate) and accepts
   an `r+` open; Bun and Node accept both. So `-o NUL` failed on Deno through 4.0.0. Found by
   `--self-check` (2026-11-19, Deno 2.9.8). Where: `src/host.ts` `fsWrite`.
