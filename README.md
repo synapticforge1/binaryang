@@ -158,6 +158,10 @@ wabt's layout — and `--version`:
 npx binaryang wasm-opt --help
 ```
 
+`binaryang --self-check` tries every file operation the tools use (write, replace whole, read
+back, refuse a folder, one file by two names, a symbolic link, the null device) in a temp folder
+it removes, and says what fails: run it once on an OS the project has not been tested on.
+
 ¹ `wat2wasm` → `wasm2wat` transpiles verbatim: `wat2wasm` records how each instruction was written —
 bare or folded, and grouped how — in a `binaryang.text-form` custom section, and `wasm2wat` gives it
 back that way: linear stays linear, folded stays folded, a mix stays the same mix (the plain nested

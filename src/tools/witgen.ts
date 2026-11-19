@@ -34,7 +34,7 @@ import {
   type ValueType,
   type Var,
 } from '../ir/ir.ts';
-import { baseName, fsRead, fsWrite } from '../cli/io.ts';
+import { baseName, fsRead, fsWrite } from '../host.ts';
 import { printable } from '../core/printable.ts';
 
 /** The first line of every generated file — what says a `.wit` may be replaced. */

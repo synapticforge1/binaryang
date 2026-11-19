@@ -49,7 +49,7 @@ import {
 import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type { Limits, Module, SectionMeta, ValueType, Var } from '../ir/ir.ts';
-import { cliExit, cliProcess, cliRead } from '../cli/io.ts';
+import { cliExit, cliProcess, cliRead } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { countImports } from '../ir/ir.ts';
 

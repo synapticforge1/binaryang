@@ -113,7 +113,7 @@ import {
   cliRefuseOverwritingInput,
   cliWrite,
   fsRead,
-} from '../cli/io.ts';
+} from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { pushAll } from '../core/arrays.ts';
 

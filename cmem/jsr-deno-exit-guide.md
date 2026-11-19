@@ -609,7 +609,7 @@ says whether binaryang RE-MEASURED it (2026-10-28: Deno 2.9.8, Bun 1.4.4, Node 2
   its `main()`, and library modules imported those CLI modules, so a pure function like
   `wat2wasm()` became unloadable. A per-file portability rule ("no `node:` outside the CLI
   layer") stayed green, because it never followed imports.
-- **The fix, with the API unchanged** (`src/cli/io.ts`):
+- **The fix, with the API unchanged** (`src/host.ts`):
   - `cliProcess()`: `globalThis.process`, read when a CLI function RUNS (Deno, Node and Bun all
     have it; a browser gets a clear error);
   - `cliExit(code): never`, a named call. TypeScript does not treat `cliProcess().exit()` as

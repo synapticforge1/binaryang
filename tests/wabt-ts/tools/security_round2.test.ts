@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { assert, assertEquals, assertRejects } from '@std/assert';
 import * as fsx from '../../test_fs.ts';
 import { runTsAsync } from '../../run_ts.ts';
-import { fsWrite } from '../../../src/cli/io.ts';
+import { fsWrite } from '../../../src/host.ts';
 import { actsWhenPrinted, printable } from '../../../src/core/printable.ts';
 import { formatError, unknownLocation } from '../../../src/core/error.ts';
 import { commentSafe, emitWitBeside } from '../../../src/tools/witgen.ts';

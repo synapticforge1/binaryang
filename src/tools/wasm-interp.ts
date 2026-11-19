@@ -41,7 +41,7 @@ import {
   type Value,
   WasmException,
 } from '../interp/interpreter.ts';
-import { cliExit, cliProcess, fsRead } from '../cli/io.ts';
+import { cliExit, cliProcess, fsRead } from '../host.ts';
 import { printable } from '../core/printable.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 

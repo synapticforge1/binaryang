@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **`-o NUL` works on Deno on Windows.** Through 4.0.0 it failed with `cannot write 'NUL':
+  EISDIR` on Deno (Bun and Node were fine): Deno refuses to create-or-truncate the device.
+- **`binaryang --self-check`** tries every file operation the command-line tools use on the
+  machine it runs on, in a temp folder it removes, and reports each; exit 1 if one fails.
+- Repo-only: every call to the system is in one module, `src/host.ts` (it was `src/cli/io.ts`),
+  and `bun run portability` fails on a file, path, OS or process API anywhere else.
+
 ## 4.0.0
 
 A major release from four security and hardening reviews. It **refuses hostile input in one
