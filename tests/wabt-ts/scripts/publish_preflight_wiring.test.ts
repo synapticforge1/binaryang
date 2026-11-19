@@ -857,6 +857,19 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     );
   });
 
+  // setup-node 5+ turns a dependency cache on by itself when package.json names a package manager
+  // (Dependabot #2 took 4.4.0 to 7.1.0, 2026-11-19): the job that builds the npm package restores
+  // no cache, and no setup action in the workflow caches.
+  it('restores no cache: every setup-node turns its automatic cache off', () => {
+    const setups = PUBLISH_YML.split(/^\s*- name: /m).filter((s) =>
+      /uses: actions\/setup-node@/.test(s)
+    );
+    expect(setups.length).toBeGreaterThan(0);
+    for (const s of setups) expect(s).toMatch(/^\s*package-manager-cache: false$/m);
+    expect(PUBLISH_YML).not.toMatch(/^\s*cache:/m);
+    expect(PUBLISH_YML).not.toMatch(/actions\/cache@/);
+  });
+
   it('pins every action to a commit hash, or to this repo', () => {
     const uses = [...PUBLISH_YML.matchAll(/^\s*(?:-\s+)?uses:\s*(\S+)/gm)].map((m) => m[1]!);
     expect(uses.length).toBeGreaterThan(10);

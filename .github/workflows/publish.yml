@@ -310,6 +310,9 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
+          # setup-node 5+ caches on its own when package.json names a package manager: a cache
+          # restored into the job that builds what npm publishes could carry another run's bytes.
+          package-manager-cache: false
 
       # Builds dist/ and proves the tarball (installed and run) before anything is published.
       - name: Build and prove the npm package
