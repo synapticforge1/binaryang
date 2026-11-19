@@ -67,7 +67,14 @@ import {
   type Value,
   WasmException,
 } from '../interp/interpreter.ts';
-import { cliExit, cliProcess, cliRefuseOverwritingInput, cliWrite, fsRead } from '../host.ts';
+import {
+  cliExit,
+  cliProcess,
+  cliRefuseOverwritingInput,
+  cliWrite,
+  fsRead,
+  writesToStdout,
+} from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { pushAll, replaceAll } from '../core/arrays.ts';
 
@@ -671,7 +678,12 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     usage();
     cliExit(1);
   }
-  if (!('log' in options)) options.log = (line) => console.log(line);
+  const outPath = options.output ?? 'output.wasm';
+  // The report goes to stderr when the module goes to stdout, so stdout holds the module alone.
+  const say = writesToStdout(outPath)
+    ? (line: string) => console.error(line)
+    : (line: string) => console.log(line);
+  if (!('log' in options)) options.log = say;
   let result: Awaited<ReturnType<typeof wasmCtorEval>>;
   try {
     result = await wasmCtorEval(input, options);
@@ -681,7 +693,6 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     );
     cliExit(1);
   }
-  const outPath = options.output ?? 'output.wasm';
   if (outPath === '-') {
     if (typeof result.output === 'string') console.log(result.output);
     else cliProcess().stdout.write(result.output);
@@ -693,7 +704,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   }
   await cliWrite('wasm-ctor-eval', outPath, result.output);
   if (options.log !== undefined) {
-    console.log(
+    say(
       typeof result.output === 'string'
         ? `Wrote WAT: ${outPath}`
         : `Wrote WASM: ${outPath} (${result.output.byteLength} bytes)`,

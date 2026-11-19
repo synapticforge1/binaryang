@@ -83,3 +83,7 @@ Status `runtime`: covered by the runtime and by `host`'s result for that OS.
 - **No `wast2json` or `wasm-tools` in this WSL:** `spec-prepare` there skips every file and the spec
   and interpreter checks then pass EMPTY. Prepare the corpus on win-x64 and run the checks on it
   from Linux (done for the 4.0.0 review, 2026-11-18).
+- **A fresh clone has no `upstream/binaryen/test`** (gitignored): corpus_roundtrip fails, by design,
+  until it is copied in — `cp -r /mnt/d/…/binaryang/upstream/binaryen/test upstream/binaryen/`
+  (2026-11-19). From Git Bash, pass `MSYS_NO_PATHCONV=1` to `wsl -e <cmd> /home/…`, or the
+  Linux path is rewritten into a Windows one.

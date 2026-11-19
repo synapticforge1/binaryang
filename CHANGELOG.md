@@ -2,20 +2,36 @@
 
 ## 4.1.0
 
-A minor release: one fix for Deno on Windows and one new command-line flag. Nothing is removed
+A minor release: fixes for writing to devices and one new command-line flag. Nothing is removed
 or renamed, and no calling code needs to change. It is a minor because the CLI gains a flag.
 
 - **`-o NUL` works on Deno on Windows.** Through 4.0.0 it failed with `cannot write 'NUL':
   EISDIR` on Deno (Bun and Node were fine): Deno refuses to create-or-truncate the device.
+- **`wasm-bundle` writes no `.wit` beside a device.** Through 4.0.0, `-o NUL` created a file
+  named `NUL.wit` in the current folder on Windows, and `-o /dev/null` tried to write
+  `/dev/null.wit` on Linux (and said it could not). The bundle's `.wit` is now skipped when the
+  output is a device.
+- **Every spelling Windows reads as a device works with `-o`:** `NUL.`, `nul `, `NUL:` and the
+  like were refused with `EINVAL` through 4.0.0.
+- **`-o /dev/stdout` and `-o /dev/stderr` write to the tool's own output on every OS** (also
+  `/dev/fd/1` and `/dev/fd/2`, and `/proc/self/fd/1` and `/proc/self/fd/2`, which Git Bash
+  passes for them). On Linux they failed when standard output was a pipe or a socket.
+- **When the module goes to standard output, it goes there alone.** `wasm-bundle`, `wasm-opt`
+  and `wasm-ctor-eval` print their report ("Wrote WASM: …"), and `wasm-opt` its minify map, to
+  standard error then; through 4.0.0, `wasm-bundle -o -` and `wasm-ctor-eval -o -` put their
+  progress lines into the module bytes.
+- **`-o CON` with no console attached is refused naming the device**, where 4.0.0 gave a bare
+  `EINVAL`.
 - **`binaryang --self-check`** tries every file operation the command-line tools use on the
   machine it runs on, in a temp folder it removes, and reports each; exit 1 if one fails. Every
   operation is tried or failed, never skipped: an account that may not make a symbolic link
   fails that step, saying how to allow it (on Windows, Developer Mode or an administrator).
+- Internal, not an export: every call to the system is in one module, `src/host.ts` (it was
+  `src/cli/io.ts`).
 
 Repository only (nothing here is in the package):
 
-- Every call to the system is in one module, `src/host.ts` (it was `src/cli/io.ts`), and
-  `bun run portability` fails on a file, path, OS or process API anywhere else.
+- `bun run portability` fails on a file, path, OS or process API outside `src/host.ts`.
 - The Bun test run uses JavaScriptCore with memory64 on, and no test is listed as a known Bun
   difference any more; no test is skipped on any platform.
 - A test no longer leaves a temp folder behind on each run.
