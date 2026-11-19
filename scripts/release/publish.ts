@@ -93,6 +93,7 @@ const code = await runRelease({
   },
   entryProblems: () => checkEntry(process.cwd()),
   // The latest completed review: the gitignored issues file's last `review-complete: <sha>` line.
+  // Throws when that line is malformed; runRelease turns it into a named refusal.
   reviewedCommit() {
     if (!existsSync('cmem/review-issues.md')) return null;
     return latestReviewedCommit(readFileSync('cmem/review-issues.md', 'utf8'));

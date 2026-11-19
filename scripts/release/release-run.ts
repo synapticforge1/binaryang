@@ -40,7 +40,8 @@ export interface ReleaseDeps {
   /**
    * The commit a COMPLETED review covers — the `review-complete: <sha>` line the main agent writes
    * into the gitignored `cmem/review-issues.md` when a review's last re-review comes back empty —
-   * or `null` when none is recorded (workspace review standard, letter H37 § 9).
+   * or `null` when none is recorded (workspace review standard, letter H37 § 9). THROWS when the
+   * newest review line is malformed (`latestReviewedCommit`); the release refuses, naming it.
    */
   reviewedCommit(): string | null;
   /** Every gate, run locally (`scripts/gate.ts`): true when all passed. */
@@ -98,6 +99,18 @@ const NUL = String.fromCharCode(0);
 const BOM = String.fromCharCode(0xfeff);
 const LINE_SEPARATOR = String.fromCharCode(0x2028);
 const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029);
+/** What UTF-8 decoding makes of a UTF-16 byte-order mark's bytes (FF FE / FE FF): two of these. */
+const REPLACEMENT = String.fromCharCode(0xfffd);
+
+/**
+ * A review line's prefix, wherever it stands in a line: "review", any dashes or invisible format
+ * characters, "complete", a colon — after compatibility normalization with combining marks dropped
+ * (so `REVİEW`, a non-ASCII hyphen or a zero-width space still match). A line relabelled as history,
+ * `review-complete (…): <sha>`, has its `(…)` before the colon and does not match.
+ */
+const REVIEW_PREFIX = /review[\p{Pd}\p{Cf}]*complete\s*:/iu;
+/** The one valid form of a review line. */
+const REVIEW_LINE = /^review-complete: ([0-9a-f]{40})[ \t]*$/;
 
 /**
  * The commit the LATEST completed review covers, from the issues file's text: the last line that
@@ -106,27 +119,36 @@ const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029);
  * read. 🔧 Until 2026-11-19 the FIRST such line was read, so an older review's line shadowed every
  * later one unless it was relabelled by hand.
  *
- * Fails CLOSED (review H-1, 2026-11-19): every line that, trimmed and in lower case, starts with
- * `review-complete:` is a review line, and when the LAST of them is not exactly the form above
- * (indented, an uppercase or short sha, text after it, UTF-16 appended by PowerShell 5.1's `>>`)
- * this throws, naming the line — never falling back to an older review's line. NULs and byte-order
- * marks are dropped before reading, so a UTF-16 line is seen, and refused.
+ * Fails CLOSED (review H-1 and its re-review, 2026-11-19): every line holding a review prefix
+ * ({@link REVIEW_PREFIX}) ANYWHERE is a review line, and when the LAST of them is not exactly the
+ * form above — indented, glued to text before it (`>>` onto a file without a final newline), an
+ * uppercase or short sha, text after it, a look-alike prefix — this THROWS, naming the line (cut at
+ * 200 characters); it never falls back to an older review's line. NULs, byte-order marks and the
+ * U+FFFD pairs that UTF-8 decoding makes of a UTF-16 byte-order mark are dropped first, so a line
+ * PowerShell 5.1's `>>` appended as UTF-16 is read. Normalization also REPAIRS compatibility forms
+ * (a no-break space, full-width letters) to the line the writer meant — the newest sha, never an
+ * older one. Prose written AFTER the last review line must
+ * not quote the prefix with its colon: it is refused like a malformed line.
  */
 export function latestReviewedCommit(issues: string): string | null {
   const lines = issues
     .split(NUL).join('')
     .split(BOM).join('')
+    .split(REPLACEMENT).join('')
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
     .split(/\r?\n|\r/)
     .flatMap((l) => l.split(LINE_SEPARATOR))
     .flatMap((l) => l.split(PARAGRAPH_SEPARATOR));
-  const meant = lines.filter((l) => l.trim().toLowerCase().startsWith('review-complete:'));
-  const last = meant.at(-1);
+  const last = lines.filter((l) => REVIEW_PREFIX.test(l)).at(-1);
   if (last === undefined) return null;
-  const m = /^review-complete: ([0-9a-f]{40})[ \t]*$/.exec(last);
+  const m = REVIEW_LINE.exec(last);
   if (m === null) {
+    const shown = last.length > 200 ? `${last.slice(0, 200)}…` : last;
     throw new Error(
-      `the last review line in cmem/review-issues.md is malformed: ${JSON.stringify(last)} — ` +
-        'write it as `review-complete: <40 lowercase hex>`, alone on its line',
+      `the last review line in cmem/review-issues.md is malformed: ${JSON.stringify(shown)} — ` +
+        'write it as `review-complete: <40 lowercase hex>`, alone on its line, and quote the ' +
+        'prefix without its colon in any note after it',
     );
   }
   return m[1]!;
@@ -160,7 +182,14 @@ export async function runRelease(d: ReleaseDeps): Promise<number> {
   // review that covers what it ships, and every gate passing HERE — CI only publishes. Since the
   // reviewed commit, only the release files and the project memory may have changed: anything
   // else was never reviewed.
-  const reviewed = d.reviewedCommit();
+  // A malformed newest review line THROWS (latestReviewedCommit): a named refusal, not a stack
+  // trace (review-line re-review 1, 2026-11-19).
+  let reviewed: string | null;
+  try {
+    reviewed = d.reviewedCommit();
+  } catch (e) {
+    return refuse(`Refusing to release ${tag}: ${e instanceof Error ? e.message : String(e)}.`);
+  }
   if (reviewed === null) {
     return refuse(
       `Refusing to release ${tag}: no completed review is recorded.`,

@@ -54,6 +54,8 @@ interface World {
   readBack?: string;
   /** The commit a completed review covers (null: none recorded). */
   reviewed: string | null;
+  /** `reviewedCommit()` throws this message (a malformed newest review line). */
+  reviewThrows?: string;
   /** `git diff --name-only <reviewed>`: the files changed since the review. */
   changedSinceReview: string;
   /** Every gate passed. */
@@ -130,7 +132,10 @@ async function release(over: Partial<World> = {}) {
     coldDryRun: () => w.cold,
     typeCheck: () => w.check,
     entryProblems: () => Promise.resolve(w.entry),
-    reviewedCommit: () => w.reviewed,
+    reviewedCommit: () => {
+      if (w.reviewThrows !== undefined) throw new Error(w.reviewThrows);
+      return w.reviewed;
+    },
     runGates: () => w.gates,
     log: (l) => out.push(l),
     error: (l) => out.push(l),
@@ -197,6 +202,12 @@ describe('the release: every refusal runs, and changes nothing', () => {
   const refusals: [string, Partial<World>, string][] = [
     // The review set first (letter H37; owner, 2026-11-18).
     ['no completed review recorded', { reviewed: null }, 'no completed review is recorded'],
+    // Re-review 1 of review-line: a named refusal, not a stack trace.
+    [
+      'a malformed newest review line',
+      { reviewThrows: 'the last review line in cmem/review-issues.md is malformed: "x"' },
+      'Refusing to release v',
+    ],
     [
       'code changed since the reviewed commit',
       { changedSinceReview: 'jsr.json\nsrc/x.ts\n' },
@@ -279,12 +290,52 @@ describe('the review a release reads is the LATEST completed one', () => {
       `review-complete: ${b}b`,
       `review-complete: ${b} (pending)`,
       `review-complete:  ${b}`,
-      `review-complete:${NBSP}${b}`,
       `${BOM}${utf16(`review-complete: ${b.toUpperCase()}`)}`,
+      // Re-review 1: glued to text before it, and look-alike prefixes.
+      `note review-complete: ${b}`,
+      `trailing textreview-complete: ${b}`,
+      `${String.fromCharCode(0x200b)}review-complete: ${b}`,
+      `${String.fromCharCode(0x85)}review-complete: ${b}`,
+      `review${String.fromCharCode(0x2011)}complete: ${b}`,
+      `REV${String.fromCharCode(0x130)}EW-COMPLETE: ${b}`,
     ];
     for (const line of malformed) {
       expect(() => latestReviewedCommit(`review-complete: ${a}\n${line}\n`)).toThrow('malformed');
     }
+  });
+  // Re-review 1: what `readFileSync(file, 'utf8')` really makes of bytes PowerShell 5.1 appends —
+  // a UTF-16 byte-order mark decodes as two U+FFFD, not one U+FEFF.
+  it('UTF-16 bytes appended to a UTF-8 file, as readFileSync decodes them', () => {
+    const decoded = (encoding: 'utf16le' | 'utf16be', line: string) => {
+      // The byte-order mark directly before the line, as `>>` writes it after a final newline.
+      const body = Buffer.from(`${line}\r\n`, 'utf16le');
+      if (encoding === 'utf16be') body.swap16();
+      const bom = encoding === 'utf16le' ? [0xff, 0xfe] : [0xfe, 0xff];
+      return Buffer.concat([Buffer.from(`review-complete: ${a}\n`), Buffer.from(bom), body])
+        .toString('utf8');
+    };
+    for (const encoding of ['utf16le', 'utf16be'] as const) {
+      expect(latestReviewedCommit(decoded(encoding, `review-complete: ${b}`))).toBe(b);
+      expect(() => latestReviewedCommit(decoded(encoding, `Review-complete: ${b}`)))
+        .toThrow('malformed');
+    }
+  });
+  // Compatibility normalization repairs a no-break space or full-width letters to the line the
+  // writer meant: the NEWEST sha, never an older one.
+  it('a no-break space or full-width hex is read as the newest line', () => {
+    const fullWidth = [...b].map((c) => String.fromCharCode(c.charCodeAt(0) + 0xfee0)).join('');
+    expect(latestReviewedCommit(`review-complete: ${a}\nreview-complete:${NBSP}${b}\n`)).toBe(b);
+    expect(latestReviewedCommit(`review-complete: ${a}\nreview-complete: ${fullWidth}\n`)).toBe(b);
+  });
+  it('the line a malformed error names is cut at 200 characters', () => {
+    let message = '';
+    try {
+      latestReviewedCommit(`review-complete: ${a}\nreview-complete: ${'x'.repeat(300)}\n`);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toContain('malformed');
+    expect(message.length).toBeLessThan(400);
   });
   it('a valid line appended as UTF-16 (PowerShell 5.1 `>>`) is read as that line', () => {
     const utf16 = [...`\r\nreview-complete: ${b}\r\n`].map((c) => `${c}\0`).join('');
