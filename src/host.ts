@@ -112,23 +112,51 @@ export async function fsRead(path: string, limit: number = MAX_INPUT_BYTES): Pro
 }
 
 /**
- * win-x64 / win-arm64: the reserved device names, bare and in any case (`nul.wasm` is an ordinary
- * file on Windows 11). One pattern for {@link fsWrite} and {@link isDevice}.
+ * win-x64 / win-arm64: a reserved device name, in any case, as Win32 reads one — the bare name,
+ * with trailing dots or spaces (`NUL.`, `nul `, `NUL. `), or with a colon (`NUL:`, `CON:`);
+ * `nul.wasm` is an ordinary file on Windows 11. Measured 2026-11-19 with cmd's `>` (Win32's own
+ * rules: none of these made a file) against Node and Bun, whose fs made a FILE for each but the
+ * colon form — so binaryang writes a device by its device path, `\\.\NAME`.
  */
-const WINDOWS_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+const WINDOWS_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?::|[. ]*)$/i;
+
+/**
+ * The process's own output stream a path names — `/dev/stdout`, `/dev/fd/1`, `/dev/stderr`,
+ * `/dev/fd/2`, on every OS — or `null`. Written through the stream, never opened by path: 🔧 under
+ * Bun's test runner a child's stdout is a socket, and Linux refuses to open a socket by its
+ * `/proc` path (ENXIO), and the path's link target has none when it is a pipe (ENOENT from
+ * realpath) — 4.1.0 notes review. On Windows these paths otherwise name nothing.
+ */
+function standardStream(path: string): 'stdout' | 'stderr' | null {
+  if (path === '/dev/stdout' || path === '/dev/fd/1') return 'stdout';
+  if (path === '/dev/stderr' || path === '/dev/fd/2') return 'stderr';
+  return null;
+}
+
+/** `data` to the process's stdout or stderr, resolved once it is flushed. */
+function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    cliProcess()[stream].write(data, (err) => (err ? reject(err) : resolve()));
+  });
+}
+
+/** The bare device name (`NUL`, `CON`, `COM1` …) `path` names on Windows, or `null`. */
+async function windowsDeviceName(path: string): Promise<string | null> {
+  const { basename } = await import('node:path');
+  const m = WINDOWS_DEVICE.exec(path === '/dev/null' ? 'NUL' : basename(path));
+  return m === null ? null : m[1]!.toUpperCase();
+}
 
 /**
  * Whether `path` names a DEVICE rather than a file or folder: on Windows a reserved name (or
  * `/dev/null`, written as NUL), elsewhere an existing path that is neither a file nor a folder
- * (`/dev/null`, a pipe). A tool that writes a file BESIDE its output skips it for a device: there
- * is no "beside" a device (`wasm-bundle -o NUL` wrote a file named `NUL.wit` here through 4.0.0;
- * on Linux it tried `/dev/null.wit`).
+ * (`/dev/null`, `/dev/stdout`, a pipe). A tool that writes a file BESIDE its output skips it for a
+ * device: there is no "beside" a device (`wasm-bundle -o NUL` wrote a file named `NUL.wit` here
+ * through 4.0.0; on Linux it tried `/dev/null.wit`).
  */
 export async function isDevice(path: string): Promise<boolean> {
-  const { basename } = await import('node:path');
-  if (cliProcess().platform === 'win32') {
-    return WINDOWS_DEVICE.test(path === '/dev/null' ? 'NUL' : basename(path));
-  }
+  if (standardStream(path) !== null) return true;
+  if (cliProcess().platform === 'win32') return (await windowsDeviceName(path)) !== null;
   const { stat } = await import('node:fs/promises');
   try {
     const st = await stat(path);
@@ -156,7 +184,9 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   const { lstat, open, readlink, realpath, rename, stat, unlink, writeFile } = await import(
     'node:fs/promises'
   );
-  const { basename, dirname, resolve } = await import('node:path');
+  const { dirname, resolve } = await import('node:path');
+  const stream = standardStream(path);
+  if (stream !== null) return writeStream(stream, data);
   // win-x64 / win-arm64: a reserved device name (`NUL`, `CON`, `COM1` …, any case; `/dev/null`
   // as NUL) is a DEVICE, written by its device path. 🔧 `realpath` refused it (EINVAL), so
   // `-o NUL` failed after atomic writes came in (review H-2, 2026-11-18); and written by its plain
@@ -166,9 +196,20 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // opens with create / truncate) and accepts `r+`; Bun 1.4.4 and Node 24 accept both (measured
   // on Windows 11 26300, 2026-11-19, found by `--self-check`, letter H39).
   if (cliProcess().platform === 'win32') {
-    const name = path === '/dev/null' ? 'NUL' : basename(path);
-    if (WINDOWS_DEVICE.test(name)) {
-      const device = await open(`\\\\.\\${name.toUpperCase()}`, 'r+');
+    const name = await windowsDeviceName(path);
+    if (name !== null) {
+      let device;
+      try {
+        device = await open(`\\\\.\\${name}`, 'r+');
+      } catch (e) {
+        // `CON` with no console attached, a `COM1` that is not there: say which device, and why
+        // (4.1.0 notes review: a bare EINVAL).
+        const why = e instanceof Error ? e.message : String(e);
+        const hint = name === 'CON' ? ' (this process has no console)' : '';
+        throw new Error(
+          `${path} is the ${name} device, which cannot be opened here${hint}: ${why}`,
+        );
+      }
       try {
         await device.writeFile(data);
       } finally {
@@ -176,6 +217,14 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
       }
       return;
     }
+  }
+  // A device or pipe (`/dev/stdout`, `/dev/null`, a FIFO), links followed: written directly,
+  // BEFORE `realpath` — 🔧 `/dev/stdout` is a link to `/proc/self/fd/1`, and when that is a pipe
+  // its target has no path, so realpath failed with ENOENT (4.1.0 notes review, linux-x64).
+  const direct = await stat(path).catch(() => undefined);
+  if (direct !== undefined && !direct.isFile() && !direct.isDirectory()) {
+    await writeFile(path, data);
+    return;
   }
   let target = path;
   let mode: number | undefined;
@@ -315,9 +364,7 @@ export async function cliWrite(
  * completes truncates its own output.
  */
 export function writeStdout(data: Uint8Array): Promise<void> {
-  return new Promise((resolve, reject) => {
-    cliProcess().stdout.write(data, (err) => (err ? reject(err) : resolve()));
-  });
+  return writeStream('stdout', data);
 }
 
 /** One line of {@link selfCheck}'s report. */

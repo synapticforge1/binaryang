@@ -2,9 +2,8 @@
 
 ## 4.1.0
 
-A minor release: two fixes for writing to the null device and one new command-line flag.
-Nothing is removed or renamed, and no calling code needs to change. It is a minor because the
-CLI gains a flag.
+A minor release: fixes for writing to devices and one new command-line flag. Nothing is removed
+or renamed, and no calling code needs to change. It is a minor because the CLI gains a flag.
 
 - **`-o NUL` works on Deno on Windows.** Through 4.0.0 it failed with `cannot write 'NUL':
   EISDIR` on Deno (Bun and Node were fine): Deno refuses to create-or-truncate the device.
@@ -12,6 +11,12 @@ CLI gains a flag.
   named `NUL.wit` in the current folder on Windows, and `-o /dev/null` tried to write
   `/dev/null.wit` on Linux (and said it could not). The bundle's `.wit` is now skipped when the
   output is a device.
+- **Every spelling Windows reads as a device works with `-o`:** `NUL.`, `nul `, `NUL:` and the
+  like were refused with `EINVAL` through 4.0.0.
+- **`-o /dev/stdout` and `-o /dev/stderr` write to the tool's own output on every OS** (also
+  `/dev/fd/1` and `/dev/fd/2`). On Linux they failed when standard output was a pipe or a socket.
+- **`-o CON` with no console attached is refused naming the device**, where 4.0.0 gave a bare
+  `EINVAL`.
 - **`binaryang --self-check`** tries every file operation the command-line tools use on the
   machine it runs on, in a temp folder it removes, and reports each; exit 1 if one fails. Every
   operation is tried or failed, never skipped: an account that may not make a symbolic link
