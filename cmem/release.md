@@ -36,6 +36,9 @@ LOCALLY** — the review set and every gate, before the bump is pushed. CI runs 
    drop the stale entries — ONE commit on a branch `accept-<new version>`, merged `--no-ff` into
    `main` (as `accept-3.0.3`, `accept-3.0.4` and `accept-3.1.0` were). A major bump runs no
    previous tests: its list documents what changed (`accept-3.1.0` predates 4.0.0's level).
+   **The accept commit changes a test file after the recorded review**, so `bun run release`
+   would refuse it: review it (all five classes, its own re-review) and `review:record` it before
+   merging (first met at 4.1.0, 2026-11-19).
 3. **U4 `bun run release`** (`scripts/release/publish.ts`, its logic `release-run.ts`) — FIRST
    the review set (since 2026-11-18): a completed review recorded (`bun run review:record`, one
    hash in the gitignored `cmem/local/review-complete`, since 2026-11-19; a `review-complete:` line
