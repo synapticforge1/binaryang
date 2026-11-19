@@ -16,7 +16,7 @@ reported by trackoor (<https://ucsbplse.github.io/>). Nothing is added, removed 
   allows at most one, and V8 refuses more, but through 4.1.0 `wasmValidate` and
   `wat2wasm(..., { validate: true })` accepted it. Such a module, which validated before, now
   gets the error `sub type N declares K supertypes; at most 1 allowed` (so do the `wasm-validate`
-  and `wat2wasm --validate` commands).
+  command and the `wat2wasm` command, which validates by default).
 
 Repository only (nothing here is in the package):
 

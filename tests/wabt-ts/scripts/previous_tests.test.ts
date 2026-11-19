@@ -116,7 +116,8 @@ describe('previousTests: the work tree the old tests run in', () => {
     );
     const spawns = body.split('spawnSync(').slice(1).map((s) => s.slice(0, s.indexOf(')')));
     expect(spawns.length).toBe(4);
-    for (const s of spawns) expect(s).toMatch(/\benv(: clean)?\b/);
+    // `env: clean`, or the work tree's `env`, built on `...clean` (checked below) — never another.
+    for (const s of spawns) expect(s).toMatch(/[{,]\s*env(?:: clean)?,?\s*\}/);
     expect(body).toMatch(/const env = \{\s*\.\.\.clean,/);
     expect(body).not.toContain('...process.env');
   });
