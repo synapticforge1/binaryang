@@ -55,6 +55,10 @@ guide, letter H38, step 2). Last verified 2026-11-18.
   browser rule and the host rule. It refuses every import form, `import type` included.
 - `--self-check` is a root CLI flag (`binaryang --self-check`), not a command: it checks the
   machine, not a module.
+- Each step is `ok` or `FAIL`, never skipped (owner, 2026-11-19: "no skips to track"): a symbolic
+  link the account may not make is a FAIL that says so (Windows: Developer Mode or an admin).
+- A FAIL line prints the raw error, which can name the temp path (owner, 2026-11-19: "as long as
+  it is not public facing it is okay"): it reaches only the user's terminal; no doc shows one.
 
 ## M6 — Apache-2.0 §4(b) and the ported files (owner, 2026-11-18)
 

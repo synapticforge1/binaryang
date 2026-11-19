@@ -9,8 +9,8 @@
 changes. FIX: `-o NUL` on Deno on Windows (EISDIR through 4.0.0; the device is opened `r+`).
 NEW: `binaryang --self-check`. The CLI's I/O module moved, `src/cli/io.ts` → `src/host.ts`
 (not an export: the surface check is unchanged). Repo-only: the host boundary in
-`bun run portability`. Level: a MINOR at least — the surface snapshot gains a CLI flag
-(`3b120b329`), and an added entry is a minor under the compatibility gate.
+`bun run portability`. Level: **4.1.0, the owner's (2026-11-19: "I was agreeing to the minor
+version")** — the surface snapshot gains a CLI flag (`3b120b329`), a minor under the gate.
 
 **UNRELEASED since 3.0.4 — security review round 1 (2026-11-13, branch `security-r1`):**
 package changes, for the next release note. CLI: a tool whose output is not its input's format

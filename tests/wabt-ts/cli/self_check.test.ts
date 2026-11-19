@@ -32,7 +32,21 @@ describe('H39: --self-check', () => {
     assertEquals(r.status, 0, r.stdout + r.stderr);
     const lines = r.stdout.trim().split('\n');
     assert(/^binaryang \d+\.\d+\.\d+ self-check: \w+-\w+, Bun /.test(lines[0]!), lines[0]);
-    assertEquals(lines.filter((l) => /^ {2}(ok|FAIL|skipped) {2,}/.test(l)).length, 10);
+    assertEquals(lines.filter((l) => /^ {2}(ok {2}|FAIL) \S/.test(l)).length, 10);
     assertEquals(lines.at(-1), 'every host operation works here');
+  });
+
+  // Owner, 2026-11-19: "no skips to track". A link the machine refuses was `skipped`, and the
+  // run exited 0 without having tried it.
+  it('a symbolic link the machine refuses is a FAIL, with the reason', async () => {
+    const refuse = () =>
+      Promise.reject(Object.assign(new Error('operation not permitted'), {
+        code: 'EPERM',
+      }));
+    const results = await selfCheck({ symlink: refuse });
+    const link = results.find((r) => r.operation === 'write through a symbolic link');
+    assertEquals(link?.status, 'FAIL');
+    assert(link?.detail?.includes('Developer Mode'), link?.detail);
+    assertEquals(results.filter((r) => r.status !== 'ok').length, 1);
   });
 });

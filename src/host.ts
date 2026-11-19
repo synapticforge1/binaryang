@@ -297,9 +297,12 @@ export function writeStdout(data: Uint8Array): Promise<void> {
 export interface SelfCheckResult {
   /** What was tried, in a few words. */
   readonly operation: string;
-  /** `ok`, `FAIL`, or `skipped` (the machine cannot try it: no right to make a symbolic link). */
-  readonly status: 'ok' | 'FAIL' | 'skipped';
-  /** Why it failed or was skipped. */
+  /**
+   * `ok` or `FAIL`, nothing else (owner, 2026-11-19: "no skips to track"): an operation the
+   * machine will not let it try is a FAIL, with the reason.
+   */
+  readonly status: 'ok' | 'FAIL';
+  /** Why it failed. */
   readonly detail?: string;
 }
 
@@ -308,7 +311,10 @@ export interface SelfCheckResult {
  * removes afterwards, and returns one result per operation (letter H39 (3): "only when asked, and
  * it cleans up after itself"). Run as `binaryang --self-check`; nothing else calls it.
  */
-export async function selfCheck(): Promise<SelfCheckResult[]> {
+export async function selfCheck(
+  /** For the tests: stands in for `symlink`, to make the machine refuse a link. */
+  testing: { symlink?: (target: string, link: string) => Promise<void> } = {},
+): Promise<SelfCheckResult[]> {
   const fsp = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
@@ -323,11 +329,11 @@ export async function selfCheck(): Promise<SelfCheckResult[]> {
         r === true ? { operation, status: 'ok' } : { operation, status: 'FAIL', detail: r },
       );
     } catch (e) {
-      const code = (e as { code?: string }).code;
-      const detail = e instanceof Error ? e.message : String(e);
-      // Making a symbolic link needs a right Windows gives only to some accounts.
-      const skip = operation.includes('symbolic link') && (code === 'EPERM' || code === 'EACCES');
-      results.push({ operation, status: skip ? 'skipped' : 'FAIL', detail });
+      results.push({
+        operation,
+        status: 'FAIL',
+        detail: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -383,7 +389,15 @@ export async function selfCheck(): Promise<SelfCheckResult[]> {
       const target = join(dir, 'target.wasm');
       const link = join(dir, 'link.wasm');
       await fsWrite(target, one);
-      await fsp.symlink(target, link);
+      try {
+        await (testing.symlink ?? fsp.symlink)(target, link);
+      } catch (e) {
+        const code = (e as { code?: string }).code;
+        // win-x64 / win-arm64: a symbolic link needs Developer Mode or an administrator.
+        if (code !== 'EPERM' && code !== 'EACCES') throw e;
+        return `this account may not make a symbolic link (${code}), so writing through one ` +
+          'was not tried; on Windows, turn on Developer Mode or run as an administrator';
+      }
       await fsWrite(link, two);
       if (!(await fsp.lstat(link)).isSymbolicLink()) return 'the link was replaced by a file';
       return same(await fsRead(target), two) || 'the linked file was not written';
@@ -412,7 +426,7 @@ export async function cliSelfCheck(version: string): Promise<void> {
   const results = await selfCheck();
   for (const r of results) {
     const why = r.detail === undefined ? '' : ` — ${r.detail}`;
-    console.log(`  ${r.status.padEnd(7)} ${r.operation}${why}`);
+    console.log(`  ${r.status.padEnd(4)} ${r.operation}${why}`);
   }
   const failed = results.filter((r) => r.status === 'FAIL').length;
   console.log(
