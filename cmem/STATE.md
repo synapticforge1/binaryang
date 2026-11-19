@@ -1,37 +1,34 @@
 # STATE: binaryang
 
-Updated: 2026-11-19, at the end of the review of v4.0.0..review-h39
+Updated: 2026-11-19, on branch `bun-memory64`, its gate running
 
 ## Version
 - Released: **4.0.0 on 2026-11-18** (JSR and npm, provenance on both; release.md § 4.0.0)
 - Its publish.yml run 44412712388 is RED in npm's provenance read-back only (npm lagged ~4 min)
 - Next: **4.1.0** (owner, 2026-11-19); what it carries: unreleased.md
-- Working branch: `main`
+- Working branch: `bun-memory64` (not merged): Bun with memory64 on, the Bun list 36 → 0, no skips
 
 ## Now
-- H39 is built and reviewed: `src/host.ts`, the host check in `bun run portability`,
-  `--self-check` (no skipped status), arm64 rows `runtime`; `-o NUL` on Deno fixed
+- `bun-memory64`: 3 commits; the gate on 165874442 is running, then linux-x64, then its review
+- H39 is merged and reviewed (`src/host.ts`, its gate, `--self-check`; `-o NUL` on Deno fixed)
 - H38 steps 1–3 and 7 are done, and the ★ copy is decided (best-practices-shared.md); steps 4–6 open
-- Workspace notes moved to `../workspace/cmem/` (H42); letters are one file each (H41)
+- Letter H43 (Tooling rule 15, scratch space bounded) read; not yet recorded or answered
 
 ## Review
-- Review of v4.0.0..review-h39 (owner: "review", 2026-11-19): COMPLETE at f1a55034f
-- Position: first review 1 (basic, found by privacy), the gate 1, re-review 1: 0, the owner's
-  overrule 1, re-review 2: 0
-- Platforms passed: win-x64 (gate 31/31), linux-x64 (fresh WSL clone: self-check, portability,
-  privacy, baseline, test:bun with the 36 listed, spec, interp); pending: the other four
+- Last: v4.0.0..review-h39, COMPLETE at f1a55034f (merged as 7d3a1feee)
+- Next: `bun-memory64`, all five classes; Q-H1 goes into its first round
+- Platforms passed (last review): win-x64 (gate 31/31), linux-x64 (fresh WSL clone); pending: four
 
 ## Next
-1. The 36 Bun known differences: the owner's choice (fix the 2 wording tests; route the 34?)
-2. `publish.ts` reads the FIRST `review-complete:` line; the old one is relabelled — fix it
-3. H39: answer in `../workspace/cmem/letters/H39.md` once pushed; mac-x64 `--self-check` when met
-4. The npm provenance poll window (open-work, top); H38 steps 4–6 (archive, split, wrap)
-5. The carried issues C-H2…C-R2-5 (review-issues.md), when the owner opens them
+1. Review `bun-memory64`, with Q-H1 (review-issues.md, "Queued for the NEXT review") in round 1
+2. Linux runs need the `upstream/binaryen` corpus copied into the clone (the test fails without it)
+3. H43: Tooling rule 15 into working-rules.md and the reviewer brief; clean scratch; answer H43
+4. `publish.ts` reads the FIRST `review-complete:` line; the old one is relabelled — fix it
+5. H39 answer once pushed; the npm provenance poll window; H38 steps 4–6; carried C-H2…C-R2-5
 
 ## Waiting on owner
 - "Re-run failed jobs" on publish.yml run 44412712388 (web UI): skips the publish, turns it green
-- The 36 Bun known differences: option 1 or 2 (asked 2026-11-19)
 
 ## Read next
+- design-decisions.md: Bun runs with memory64 on; engine limits; no skips
 - unreleased.md: what 4.1.0 must say
-- platforms.md: per engine, `host` per OS (H39), and the matrix
