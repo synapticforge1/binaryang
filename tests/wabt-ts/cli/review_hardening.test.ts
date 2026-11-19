@@ -71,10 +71,13 @@ describe('H-1: a .wat that is not UTF-8 is refused where it stands', () => {
 });
 
 describe('H-2: the null device is the device, on every OS', () => {
-  // win-x64 / win-arm64: the reserved name, any case, and `/dev/null` as NUL. Elsewhere `/dev/null`
-  // itself. Never a file named NUL left behind.
-  const devices = process.platform === 'win32' ? ['NUL', 'nul', '/dev/null'] : ['/dev/null'];
-  const strays = (where: string) => readdirSync(where).filter((n) => /^nul$/i.test(n));
+  // win-x64 / win-arm64: the reserved name, any case, and `/dev/null` as NUL — and, as Win32 reads
+  // them, with trailing dots or spaces or a colon (4.1.0 notes review: those were refused with
+  // EINVAL). Elsewhere `/dev/null` itself. Never a file named NUL, NUL. … left behind.
+  const devices = process.platform === 'win32'
+    ? ['NUL', 'nul', '/dev/null', 'NUL.', 'nul ', 'NUL:', 'NUL. ']
+    : ['/dev/null'];
+  const strays = (where: string) => readdirSync(where).filter((n) => /^nul[. :]*$/i.test(n));
 
   it('-o to the null device succeeds and leaves no file', () => {
     for (const o of devices) assertEquals(run('wat2wasm', 'a.wat', '-o', o).status, 0, o);
@@ -91,6 +94,72 @@ describe('H-2: the null device is the device, on every OS', () => {
     }
     assertEquals(strays(dir), []);
     assertEquals(strays(repo), []);
+  });
+  // 🔧 Through 4.0.0 `wasm-bundle -o NUL` wrote a FILE named `NUL.wit` beside its output (Windows),
+  // and `-o /dev/null` tried `/dev/null.wit` (Linux): no `.wit` beside a device (4.1.0 notes review).
+  it('wasm-bundle to the null device writes no .wit beside it', () => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+    for (const o of devices) {
+      const r = run('wasm-bundle', 'in.wasm', '-o', o);
+      assertEquals(r.status, 0, `${o}: ${r.stderr}`);
+      assert(!/could not write the \.wit/.test(r.stderr), `${o}: ${r.stderr}`);
+    }
+    assertEquals(readdirSync(dir).filter((n) => /\.wit$/i.test(n)), []);
+  });
+  it('and to a file it still writes the .wit (the control)', () => {
+    assertEquals(run('wasm-bundle', 'in.wasm', '-o', 'bundled.wasm').status, 0);
+    assert(readdirSync(dir).includes('bundled.wit'), readdirSync(dir).join(', '));
+    rmSync(join(dir, 'bundled.wit'));
+  });
+  // 4.1.0 notes review: a tool's report lines ("wasm-bundle: 1 module", "Wrote WASM: …") went to
+  // stdout with the module when the module went there too (`-o -`, and `-o /dev/stdout` once it
+  // worked): stdout must hold exactly the module the tool writes to a file; the report goes to stderr.
+  it('stdout holds the module alone; the report goes to stderr', () => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+    for (const tool of ['wasm-bundle', 'wasm-opt', 'wasm-ctor-eval']) {
+      assertEquals(run(tool, 'in.wasm', '-o', `${tool}.file.wasm`).status, 0, tool);
+      const want = [...readFileSync(join(dir, `${tool}.file.wasm`))];
+      for (const o of ['-', '/dev/stdout']) {
+        const r = spawnSync('bun', [MAIN, tool, 'in.wasm', '-o', o], { cwd: dir, timeout: 60_000 });
+        assertEquals(r.status, 0, `${tool} -o ${o}: ${r.stderr.toString()}`);
+        assertEquals([...r.stdout], want, `${tool} -o ${o}: stdout is not the module alone`);
+      }
+      rmSync(join(dir, `${tool}.file.wasm`));
+    }
+    // wasm-opt's minify map is upstream's stdout output; it must leave stdout to the module.
+    const minify = ['wasm-opt', 'in.wasm', '--minify-imports-and-exports', '-o'];
+    assertEquals(run(...minify, 'min.wasm').status, 0);
+    const want = [...readFileSync(join(dir, 'min.wasm'))];
+    for (const o of ['-', '/dev/stdout']) {
+      const r = spawnSync('bun', [MAIN, ...minify, o], { cwd: dir, timeout: 60_000 });
+      assertEquals(r.status, 0, `minify -o ${o}: ${r.stderr.toString()}`);
+      assertEquals([...r.stdout], want, `minify -o ${o}: stdout is not the module alone`);
+      assert(r.stderr.toString().includes('"exports"'), `minify -o ${o}: no map on stderr`);
+    }
+    rmSync(join(dir, 'min.wasm'));
+  });
+  // 4.1.0 notes review: on linux-x64 `-o /dev/stdout` into a pipe failed (realpath of
+  // /proc/self/fd/1, ENOENT); on win-x64 `-o CON` with no console was a bare EINVAL.
+  it('the console or standard output, by its device path', () => {
+    // Every OS: /dev/stdout and /dev/fd/1 are the process's stdout, written through the stream
+    // (a socket or a pipe — as under this runner — cannot be reopened by path on Linux).
+    for (const o of ['/dev/stdout', '/dev/fd/1']) {
+      const r = spawnSync('bun', [MAIN, 'wat2wasm', 'a.wat', '-o', o], {
+        cwd: dir,
+        timeout: 60_000,
+      });
+      assertEquals(r.status, 0, `${o}: ${r.stderr.toString()}`);
+      assertEquals([...r.stdout.subarray(0, 4)], [0x00, 0x61, 0x73, 0x6d], o);
+    }
+    if (process.platform === 'win32') {
+      // win-x64: with a console the module goes there; without one, a refusal naming the device.
+      const r = run('wat2wasm', 'a.wat', '-o', 'CON:');
+      assert(
+        r.status === 0 || /is the CON device, which cannot be opened here/.test(r.stderr),
+        `${r.status}: ${r.stderr}`,
+      );
+    }
+    assertEquals(readdirSync(dir).filter((n) => /^(con|stdout|1)/i.test(n)), []);
   });
 });
 
