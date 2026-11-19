@@ -14,7 +14,11 @@ or renamed, and no calling code needs to change. It is a minor because the CLI g
 - **Every spelling Windows reads as a device works with `-o`:** `NUL.`, `nul `, `NUL:` and the
   like were refused with `EINVAL` through 4.0.0.
 - **`-o /dev/stdout` and `-o /dev/stderr` write to the tool's own output on every OS** (also
-  `/dev/fd/1` and `/dev/fd/2`). On Linux they failed when standard output was a pipe or a socket.
+  `/dev/fd/1` and `/dev/fd/2`, and `/proc/self/fd/1` and `/proc/self/fd/2`, which Git Bash
+  passes for them). On Linux they failed when standard output was a pipe or a socket.
+- **When the module goes to standard output, it goes there alone.** `wasm-bundle`, `wasm-opt`
+  and `wasm-ctor-eval` print their report ("Wrote WASM: …") to standard error then; through
+  4.0.0, `wasm-bundle -o -` put its report into the module bytes.
 - **`-o CON` with no console attached is refused naming the device**, where 4.0.0 gave a bare
   `EINVAL`.
 - **`binaryang --self-check`** tries every file operation the command-line tools use on the

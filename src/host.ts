@@ -128,9 +128,25 @@ const WINDOWS_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?::|[. ]*)$/i;
  * realpath) — 4.1.0 notes review. On Windows these paths otherwise name nothing.
  */
 function standardStream(path: string): 'stdout' | 'stderr' | null {
-  if (path === '/dev/stdout' || path === '/dev/fd/1') return 'stdout';
-  if (path === '/dev/stderr' || path === '/dev/fd/2') return 'stderr';
+  // `/proc/self/fd/N` too: Git Bash on Windows rewrites `/dev/stdout` into it before the tool
+  // sees the argument (4.1.0 notes review).
+  if (path === '/dev/stdout' || path === '/dev/fd/1' || path === '/proc/self/fd/1') {
+    return 'stdout';
+  }
+  if (path === '/dev/stderr' || path === '/dev/fd/2' || path === '/proc/self/fd/2') {
+    return 'stderr';
+  }
   return null;
+}
+
+/**
+ * Whether a tool's output `path` is its own standard output — `-`, or a path naming stdout. Its
+ * report lines then go to stderr, so stdout holds the module alone (4.1.0 notes review: through
+ * 4.0.0 `wasm-bundle -o -`, and with 4.1.0's streams `-o /dev/stdout` for wasm-bundle, wasm-opt and
+ * wasm-ctor-eval, mixed "Wrote WASM: …" lines into the module bytes).
+ */
+export function writesToStdout(path: string): boolean {
+  return path === '-' || standardStream(path) === 'stdout';
 }
 
 /** `data` to the process's stdout or stderr, resolved once it is flushed. */

@@ -111,6 +111,22 @@ describe('H-2: the null device is the device, on every OS', () => {
     assert(readdirSync(dir).includes('bundled.wit'), readdirSync(dir).join(', '));
     rmSync(join(dir, 'bundled.wit'));
   });
+  // 4.1.0 notes review: a tool's report lines ("wasm-bundle: 1 module", "Wrote WASM: …") went to
+  // stdout with the module when the module went there too (`-o -`, and `-o /dev/stdout` once it
+  // worked): stdout must hold exactly the module the tool writes to a file; the report goes to stderr.
+  it('stdout holds the module alone; the report goes to stderr', () => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+    for (const tool of ['wasm-bundle', 'wasm-opt', 'wasm-ctor-eval']) {
+      assertEquals(run(tool, 'in.wasm', '-o', `${tool}.file.wasm`).status, 0, tool);
+      const want = [...readFileSync(join(dir, `${tool}.file.wasm`))];
+      for (const o of ['-', '/dev/stdout']) {
+        const r = spawnSync('bun', [MAIN, tool, 'in.wasm', '-o', o], { cwd: dir, timeout: 60_000 });
+        assertEquals(r.status, 0, `${tool} -o ${o}: ${r.stderr.toString()}`);
+        assertEquals([...r.stdout], want, `${tool} -o ${o}: stdout is not the module alone`);
+      }
+      rmSync(join(dir, `${tool}.file.wasm`));
+    }
+  });
   // 4.1.0 notes review: on linux-x64 `-o /dev/stdout` into a pipe failed (realpath of
   // /proc/self/fd/1, ENOENT); on win-x64 `-o CON` with no console was a bare EINVAL.
   it('the console or standard output, by its device path', () => {

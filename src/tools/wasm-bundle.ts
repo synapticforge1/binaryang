@@ -114,6 +114,7 @@ import {
   cliWrite,
   fsRead,
   isDevice,
+  writesToStdout,
 } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { pushAll } from '../core/arrays.ts';
@@ -1956,9 +1957,13 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   }
   options.aliases = aliases;
   options.witName = witNameOf(output === '-' ? 'bundle.wasm' : output);
-  if (!('log' in options)) options.log = (line) => console.log(line);
+  // The report goes to stderr when the module goes to stdout, so stdout holds the module alone.
+  const say = writesToStdout(output)
+    ? (line: string) => console.error(line)
+    : (line: string) => console.log(line);
+  if (!('log' in options)) options.log = say;
   if (options.log !== undefined) {
-    console.log(`wasm-bundle: ${inputs.length} module${inputs.length === 1 ? '' : 's'}`);
+    say(`wasm-bundle: ${inputs.length} module${inputs.length === 1 ? '' : 's'}`);
   }
   let result: Awaited<ReturnType<typeof wasmBundle>>;
   try {
@@ -1978,7 +1983,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   await cliRefuseOverwritingInput('wasm-bundle', inputs, output);
   await cliWrite('wasm-bundle', output, result.output);
   if (options.log !== undefined) {
-    console.log(
+    say(
       typeof result.output === 'string'
         ? `Wrote WAT: ${output}`
         : `Wrote WASM: ${output} (${result.output.byteLength} bytes)`,
@@ -1987,14 +1992,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   // No `.wit` beside a device: `-o NUL` wrote a file named `NUL.wit` through 4.0.0 (4.1.0 notes
   // review); on Linux `-o /dev/null` tried `/dev/null.wit`.
   if (wit && await isDevice(output)) {
-    if (options.log !== undefined) console.log(`No WIT: the output ${output} is a device`);
+    if (options.log !== undefined) say(`No WIT: the output ${output} is a device`);
   } else if (wit) {
     // The interface beside the bundle, by default. A by-product: a failure
     // to write it is said, and does not fail the bundle.
     try {
       const r = await emitWitBeside(output.replace(/\.wat$/i, '.wasm'), result.wit);
       if (options.log !== undefined) {
-        console.log(
+        say(
           r.outcome === 'written'
             ? `Wrote WIT: ${r.path} (core types)`
             : r.outcome === 'kept existing'

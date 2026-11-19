@@ -53,7 +53,14 @@ import { ModuleBuilder } from '../ir/module.ts';
 import { applyTarget, checkTarget } from './target.ts';
 import { memcpyToBulkMemory } from './memcpy-to-bulk-memory.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
-import { cliExit, cliProcess, cliRefuseOverwritingInput, cliWrite, fsRead } from '../host.ts';
+import {
+  cliExit,
+  cliProcess,
+  cliRefuseOverwritingInput,
+  cliWrite,
+  fsRead,
+  writesToStdout,
+} from '../host.ts';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -302,6 +309,11 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     cliExit(1);
   }
   const outPath = parsed.options.output ?? 'output.wasm';
+  // The report goes to stderr when the module goes to stdout (`-o /dev/stdout`), so stdout holds
+  // the module alone.
+  const say = writesToStdout(outPath)
+    ? (line: string) => console.error(line)
+    : (line: string) => console.log(line);
   // In place is upstream's `wasm-opt a.wasm -o a.wasm`, and stays allowed: the input's own
   // format, written atomically. A CHANGE of format in place (`a.wat` rewritten as binary)
   // destroys the source, and is refused.
@@ -314,14 +326,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       console.log(result);
     } else {
       await cliWrite('wasm-opt', outPath, result);
-      console.log(`Wrote WAT: ${outPath}`);
+      say(`Wrote WAT: ${outPath}`);
     }
   } else {
     if (outPath === '-') {
       cliProcess().stdout.write(result);
     } else {
       await cliWrite('wasm-opt', outPath, result);
-      console.log(`Wrote WASM: ${outPath} (${result.byteLength} bytes)`);
+      say(`Wrote WASM: ${outPath} (${result.byteLength} bytes)`);
     }
   }
 }
