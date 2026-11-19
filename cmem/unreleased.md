@@ -1,79 +1,14 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-18 (UTC): the last release is `v4.0.0`, on JSR AND npm, both with provenance**
-([release.md](release.md) § "4.0.0"). The three "UNRELEASED" paragraphs below SHIPPED in 4.0.0
-(CHANGELOG § 4.0.0 is the public note); they stay until the next release. Unreleased since
-4.0.0: letter H39 below. (Check: `git log --oneline v4.0.0..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-19 (UTC): the last release is `v4.1.0`, on JSR AND npm, both with provenance**
+([release.md](release.md) § "4.1.0"). Nothing is unreleased on `main`. (Check:
+`git log --oneline v4.1.0..main -- src/ main.ts jsr.json README.md`.)
 
-**UNRELEASED since 4.0.0 — letter H39, `host.ts` (2026-11-19, branch `h39-host`):** package
-changes. FIX: `-o NUL` on Deno on Windows (EISDIR through 4.0.0; the device is opened `r+`).
-NEW: `binaryang --self-check`. The CLI's I/O module moved, `src/cli/io.ts` → `src/host.ts`
-(not an export: the surface check is unchanged). Repo-only: the host boundary in
-`bun run portability`. Level: **4.1.0, the owner's (2026-11-19: "I was agreeing to the minor
-version")** — the surface snapshot gains a CLI flag (`3b120b329`), a minor under the gate.
-
-**UNRELEASED since 3.0.4 — security review round 1 (2026-11-13, branch `security-r1`):**
-package changes, for the next release note. CLI: a tool whose output is not its input's format
-refuses to write over the input; every write atomic; a bad output path is `tool: cannot write`,
-never a stack trace; inputs over 1 GiB refused. Library: a module's locals capped at 1,000,000
-plus one per byte (`maxModuleLocals`); the interpreter's `maxStackLocals` option (default
-4,000,000) and fuel charged by bulk work; `memory.grow` no longer copies per grow; flat code of any
-length read on V8; binaryen compat's `OptimizeError`; WIT comments escape names (`commentSafe`).
-Repo-only: the privacy scan and audit, the pinned installer, ci.yml hardened, key fingerprints,
-the tarball digest. The surface may have grown (OptimizeError, the option): the compatibility gate
-decides the level.
-
-**UNRELEASED — security review round 2 and the nesting limit (2026-11-13, branch
-`security-r2`):** package changes. CoalesceLocals no longer quadratic (a function of more than
-20,000 referenced locals left as it is); a decoder failure is no verdict on the input; names
-print inert in `wasm-objdump`, `wasm-interp`, every diagnostic and WIT comments
-(`core/printable.ts`); `readBinary` refuses a function or tag declared with a missing type (as
-upstream); `-o ""` refused; ONE nesting limit on every runtime, 256 levels (`MAX_NESTING_DEPTH`,
-`NESTING_OVER_LIMIT`, `NestingLimitError` — internal, not in the package's exports: the surface
-check is unchanged), and
-subtrees shared by reference (only the API can make them) may not expand a module past twice its
-distinct expressions plus 1,000,000 (`MAX_SHARED_SLACK`); a cycle is refused. ⚠️ Behaviour
-change for the note: modules deeper than 256 that Bun accepted are now refused on every runtime;
-and (open, class 2) some modules the optimizer deepens past 256 are refused after `-O2`.
-
-**UNRELEASED — round 3 class 1, round 4, and the review under the final standard (2026-11-15 to
-11-18, branches `security-r3`, `review-next`):** package changes. API-built modules: reused
-objects bounded (data depth 1,536, `heldDataProblem`), the optimizer unshares in place, writers
-and the bundler refuse two definitions with one name, the bundler refuses a relocation its copies
-disagree on. `readBinary(bytes, { validate })` (minor: new option, off by default); `readWat` /
-`readValidWat` take bytes too; a quoted `.wast` module carries `bytes`. Text input: malformed
-UTF-8 refused where it stands, in every tool (it was silently rewritten); a leading BOM read the
-same everywhere. CLI: `-o NUL` / `/dev/null` reach the Windows device (3.0.4 made a FILE named
-NUL); a folder denying new files still lets a writable output be overwritten; `-o` without a
-file refused in `wasm-bundle` and `wasm-ctor-eval`; `wasm-interp` refuses extra `--argument`s and
-`--argument` without `--run-export`; the interpreter reports the host's stack running out as a
-Stop, not a trap; errors echo source lines and file names printable (no terminal escapes); CLI
-command and asyncify import names looked up as own keys. Docs: README "## Privacy" (collects
-nothing), the interpreter's limits on V8, the threat model. Repo-only: `deno` a locked
-devDependency, Dependabot for actions, `/.claude/` ignored, the review issues file gitignored.
-
-**Shipped in 3.0.2 and 3.0.1** (kept here until the next release): no package change — 3.0.0
-again, for npm, which 3.0.0 and 3.0.1 did not reach; npm went from 2.2.2 to 3.0.2. Repo-only:
-`npm-build` creates the `npm pack` destination; `registry.ts npm-tarball` hands `npm publish` an
-absolute path; `previous-tests.ts` runs the old tests in a git work tree; `publish.ts` prints
-the five jobs. CHANGELOG § 3.0.1, § 3.0.2.
-
-**Shipped in 3.0.0** (CHANGELOG § 3.0.0 is the public note): the binaryen facade's
-binaryen.js 132 numbers, `i64.const` refusing `(low, high)`, `wasm-objdump -d` refused, Bun 1.4.4
-the minimum, `wasm2wat` validating, unknown options refused, the `parseWat` feature bag; the two
-optimizer fixes (tail-call inlining, SimplifyLocals in a `try`) and the integer-spelled
-`f32.const`; upstream wabt's output in `wasm-validate`, `wasm-objdump -x`, `wasm-interp`,
-`--generate-names`; code lens passes 2 and 3, open-work 50 and 52, CL7. The full notes as
-gathered: `git show 1222e78d5:cmem/unreleased.md`.
-
-**Shipped in 3.0.4 (no package change; CHANGELOG § 3.0.4), repo-only:** CI's browser check in
-two jobs, apt failing fast (2026-11-11; [run-everywhere.md](run-everywhere.md)). The owner first
-held it for the next package change, then released it the same day ("release 3.0.4").
-
-**Shipped in 3.0.3 (no package change; CHANGELOG § 3.0.3), repo-only:** the release ORDER
-is the owner's D1 (workspace letter H33, 2026-11-10/11) — `bun run release` pushes `main` only,
-`publish.yml` runs on that push (checks → CI's tag → page → JSR / npm), `auto-tag.yml` retired;
-every release record in [release.md](release.md) § "Release History" (D3).
+**Shipped in 4.1.0** (CHANGELOG § 4.1.0 is the public note; kept here until the next release):
+letter H39 (`src/host.ts`, `--self-check`, `-o NUL` on Deno) and the release-notes review's fixes
+— every Windows device spelling, no `.wit` beside a device, `-o /dev/stdout` on every OS, `-o CON`
+refused by name, the module alone on stdout. The 4.0.0 paragraphs held here until now are in git
+history (before `v4.1.0`).
 
 **Repo-only since 2.2.0 (nothing in either package; no release-note line):** the benchmark
 modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
@@ -146,11 +81,7 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 3.0.4
+## Since 4.1.0
 
-The package changes are the three "UNRELEASED" paragraphs at the top. Repo-only: review rounds
-1–2's fixes (2026-11-13) to the release scripts and workflows; letter H37 (2026-11-18): every
-gate runs locally (`bun run gate`), CI only publishes. `tests/accepted-changes.json` lists the 25
-v3.0.4 tests these changes fail (`accept-3.1.0`, 2026-11-18). The level is **4.0.0** (owner,
-2026-11-18): the compatibility gate reads `readBinary`'s new optional parameter as a changed
-declaration, a major (rule H6); CHANGELOG § 4.0.0.
+Nothing yet. `tests/accepted-changes.json` lists the 3 v4.0.0 tests that read `src/cli/io.ts`
+(`accept-4.1.0`); they are dropped at the next release.
