@@ -115,6 +115,39 @@ with the needs above, 0 unpinned actions.
 
 ## Release History
 
+### 4.1.0 — a MINOR from `main` (2026-11-19 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
+
+**What changed** (`CHANGELOG.md` § 4.1.0): writing to devices and standard output (`-o NUL` on
+Deno on Windows; every Windows device spelling; no `.wit` beside a device; `-o /dev/stdout`,
+`/dev/stderr` on every OS; `-o CON` with no console refused by name; with the module on stdout
+the report and the minify map go to stderr), and `binaryang --self-check`. Internal: the OS
+calls in one module, `src/host.ts` (letter H39).
+
+The owner's go: "release"; level 4.1.0 (owner, 2026-11-19: "I was agreeing to the minor version").
+
+1. **The review set** (H39, Bun memory64, the review line) complete at `decbdb093`; the release
+   notes (`9ebc5af62` on `release/4.1.0`) had their own review, which found N-1…N-4 and B-1…B-3
+   (owner: "Fix it in 4.1.0", "Fix them in 4.1.0"), fixed on `fix-nul-wit` through re-review 5
+   (0 in all five). Full suite at `ae8508b25`: win-x64 gate 31 / 31; linux-x64 fresh WSL clone
+   (Bun leg 6783 / 6783 once the gitignored binaryen corpus was copied in, baseline, privacy, spec,
+   interp, `--self-check`). Merged (`f37c495c5`, `20e0d0fcc`), pushed unbumped: publish.yml run
+   44618931193 green (version only).
+2. **`bun run bump minor` refused** (first time since the review check): v4.0.0's tests, 3 failed
+   unlisted (they import or grep `src/cli/io.ts`) and 25 entries stale. `accept-4.1.0`
+   (`18733943a`) — which changes a test file after the recorded review, so it had re-review 6 (0
+   in all five) and `review:record 18733943a` before the merge (`7109de0a9`). The bump then:
+   floor minor (`--self-check` added), previous tests 3 failed, 3 accepted.
+3. `bun run release`: the review check, `bun run gate --release` **33 / 33** (compatibility: minor;
+   privacy since v4.0.0, 47 commit messages), the guards; `bump to v4.1.0` (`1ffb9f125`), `main`
+   only pushed, read back.
+4. **publish.yml run 44621909375 — GREEN, every job:** version → npm build → tag `v4.1.0`
+   (annotated `6894a923b`, peels to `1ffb9f125`, `ls-remote`) → page `binaryang v4.1.0` by
+   `github-actions[bot]` (21:46:07Z) → **JSR 4.1.0, Rekor `4007542928`** → **npm 4.1.0, SLSA
+   provenance v1** (`registry.ts provenance` passes for both); `latest` = 4.1.0 on both.
+5. **As a user:** `bun x @synapticforge1/binaryang@4.1.0 --version` → `binaryang 4.1.0`;
+   `deno run -A jsr:@jrmarcum/binaryang@4.1.0 --version` refused by Deno's default minimum
+   dependency age, as for 4.0.0 (a fresh version; not ours).
+
 ### 4.0.0 — a MAJOR from `main` (2026-11-18 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
 
 **What changed** (`CHANGELOG.md` § 4.0.0): four security and hardening reviews. Hostile input is
