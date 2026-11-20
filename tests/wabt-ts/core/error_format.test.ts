@@ -73,8 +73,8 @@ describe('the quoted window never cuts a surrogate pair', () => {
 
   it('a short line is printed exactly as it was (the control)', () => {
     assertEquals(
-      long(at(3, 5), 'a' + FACE + 'b\tc'),
-      'f.wat:1:3: error: x\na' + FACE + 'b\tc\n  ^^',
+      long(at(4, 6), 'a' + FACE + 'b\tc'),
+      'f.wat:1:4: error: x\na' + FACE + 'b\tc\n  ^^',
     );
   });
 });
