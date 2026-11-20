@@ -464,7 +464,11 @@ the linear `block block … end end` and an operand chain written without parent
 (`i32.const 1 … i32.add …`) are the same depth. The first instruction of a body is level 1:
 `(drop (i32.add (i32.const 0) (i32.const 1)))` is 3 deep. The limit holds where a module meets
 the recursive stages, not only where it is read: a pass that deepens a module (inlining puts a
-callee's blocks inside the call site's) is refused after that pass, and a module built through
+callee's blocks inside the call site's) is refused after that pass, so the optimizer's sinks stay
+inside it: SimplifyLocals and the writer's stack form (`-O3`, `-Os`, `-Oz`) leave a `local.set`
+where it is rather than sink it into a read when the result would nest past 256 (a chain of 20,000
+dependent sets once ran the optimizer out of memory; upstream Binaryen has no such bound), and a
+module built through
 the API is refused by the writers, the passes, `resolveNames`, `validateModule`, `ExprVisitor`
 and the interpreter. The stages recurse once per level, so the depth they could reach was the host's
 JavaScript stack: measured 2026-11-13 from a cold start, 425 levels at the lowest on Node 22.18,

@@ -52,6 +52,7 @@ import {
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { None, Unreachable } from '../ir/types.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { expressionHeight, MAX_NESTING_DEPTH } from '../ir/nesting.ts';
 import { mapChildrenShallow, visitChildren, walkExpression } from '../ir/walk.ts';
 import { requireIndex, type ValueType } from '../ir/ir.ts';
 import {
@@ -88,6 +89,16 @@ interface Sinkable {
   set: LocalSetExpr;
   /** The value's effects, and the write of the local itself. */
   effects: Effects;
+  /** The value's height as it will stand once its own sinks are done (its root is level 1). */
+  height: number;
+}
+
+/** A set whose value the walk is inside: where the value starts and how tall it has grown. */
+interface OpenValue {
+  /** The level of the value's root, as the nesting limit counts levels. */
+  base: number;
+  /** The deepest level under the root (root = 1), counting the sinks done into it so far. */
+  height: number;
 }
 
 /** One pass over `fn`: find every sink, then apply them. True if any. */
@@ -112,7 +123,26 @@ function _sinkRound(fn: WasmFunction): boolean {
     for (const [i, s] of sinkables) if (invalidates(s.effects, by)) sinkables.delete(i);
   };
 
+  /**
+   * THE BOUND. A sink nests the value under the get's parents, and a chain of sets each read once
+   * by the next would build ONE expression as deep as the chain is long (a function of 20,000
+   * `x = x * 3 + a - 2;` ran the optimizer out of stack, then out of memory: wasmtk's letter
+   * C48, 2026-11-20). So a set is not sunk into a get when the result would pass
+   * {@link MAX_NESTING_DEPTH}: it stays where it is. `level` is the level of the node being
+   * visited, as the nesting limit counts levels; `open` holds the sets whose value the walk is in,
+   * the innermost last, each with the height its value has grown to by the sinks done into it.
+   */
+  let level = 0;
+  const open: OpenValue[] = [];
   const visit = (e: Expression): void => {
+    if (e.kind === ExpressionKind.Region) return visitNode(e);
+    level++;
+    if (e.kind === ExpressionKind.LocalSet) open.push({ base: level + 1, height: 0 });
+    visitNode(e);
+    if (e.kind === ExpressionKind.LocalSet) open.pop();
+    level--;
+  };
+  const visitNode = (e: Expression): void => {
     switch (e.kind) {
       case ExpressionKind.If:
         visit(e.condition);
@@ -151,7 +181,18 @@ function _sinkRound(fn: WasmFunction): boolean {
     if (e.kind === ExpressionKind.LocalGet) {
       const i = requireIndex(e.var, 'local index');
       const s = sinkables.get(i);
-      if (s !== undefined) {
+      const enclosing = open[open.length - 1];
+      // What the get becomes is the value, or a tee around it (one level more).
+      const tee = s !== undefined &&
+        !(gets.get(i) === 1 && _sameType(typeOf(s.set.value), typeOf(e)));
+      const add = s === undefined ? 0 : s.height + (tee ? 1 : 0);
+      if (s !== undefined && level + add - 1 > MAX_NESTING_DEPTH) {
+        // It would nest past the limit: the set stays, and this get reads it as it stands.
+        sinkables.delete(i);
+      } else if (s !== undefined) {
+        if (enclosing !== undefined) {
+          enclosing.height = Math.max(enclosing.height, level - enclosing.base + add);
+        }
         sinks.set(e, s.set);
         sunk.add(s.set);
         sunkEffects.set(s.set, s.effects);
@@ -191,7 +232,8 @@ function _sinkRound(fn: WasmFunction): boolean {
         if (from !== undefined) mergeEffects(effects, sunkEffects.get(from)!);
       });
       if (!effects.branches && !effects.unknown && !effects.pop && !_hasStructure(e.value)) {
-        sinkables.set(i, { set: e, effects });
+        const height = Math.max(expressionHeight(e.value), open[open.length - 1]!.height);
+        sinkables.set(i, { set: e, effects, height });
       }
     }
   };
