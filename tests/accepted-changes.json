@@ -1,4 +1,11 @@
 {
   "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2; 2.2.2's two, DG7's words, dropped at 3.0.3; 3.0.3's six, the release order D1, dropped at 3.0.4; 3.0.4's one, the two-job browser check, dropped at 4.0.0; 4.0.0's twenty-five, the security reviews and H37's CI, dropped at 4.1.0; 4.1.0's three, the tests that read src/cli/io.ts, dropped at 4.1.1). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;. A test FILE that fails to load is reported under its own path as the name, with the platform's separator (the bump runs on win-x64).",
-  "entries": []
+  "entries": [
+    {
+      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
+      "name": "documents where the guards live, so the docs cannot drift silently",
+      "since": "4.1.2",
+      "reason": "Letter H38 step 5 (2026-11-20): cmem/publishing.md was split by subject; the release-process half, which names release-guard.ts, is now cmem/publishing-release-flow.md, which today's test reads. Repository notes only: nothing in the package changed."
+    }
+  ]
 }
