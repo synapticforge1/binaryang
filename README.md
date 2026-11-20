@@ -472,8 +472,10 @@ the recursive stages, not only where it is read: a pass that deepens a module (i
 callee's blocks inside the call site's) is refused after that pass, so the optimizer's sinks stay
 inside it: SimplifyLocals and the writer's stack form (`-O3`, `-Os`, `-Oz`) leave a `local.set`
 where it is rather than sink it into a read when the result would nest past 256 (a chain of 20,000
-dependent sets once ran the optimizer out of memory; upstream Binaryen has no such bound), and a
-module built through
+dependent sets once ran the optimizer out of memory; upstream Binaryen has no such bound),
+RemoveUnusedBrs stops merging adjacent `br_if`s to one label into an `i32.or` chain where the
+chain would pass 256 (a flat run of 255 once refused the module; the branches stay separate),
+and a module built through
 the API is refused by the writers, the passes, `resolveNames`, `validateModule`, `ExprVisitor`
 and the interpreter. The stages recurse once per level, so the depth they could reach was the host's
 JavaScript stack: measured 2026-11-13 from a cold start, 425 levels at the lowest on Node 22.18,
