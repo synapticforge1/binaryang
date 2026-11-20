@@ -1122,14 +1122,7 @@ export class InliningPass implements Pass {
       walkExpression(bodyBefore, (e) => {
         if (e.kind === ExpressionKind.Block && e.label.startsWith('__inlined_func$')) {
           const rest = e.label.slice('__inlined_func$'.length);
-          let calleeName: string | undefined;
-          for (const name of inlineable.keys()) {
-            if (rest === name || rest.startsWith(name + '$')) {
-              if (calleeName === undefined || name.length > calleeName.length) {
-                calleeName = name;
-              }
-            }
-          }
+          const calleeName = calleeOfLabel(rest, inlineable);
           if (calleeName !== undefined) {
             inlinedUses.set(calleeName, (inlinedUses.get(calleeName) ?? 0) + 1);
           }
@@ -1178,6 +1171,21 @@ export class InliningPass implements Pass {
 }
 
 /**
+ * The inlineable callee a wrapper label names: the LONGEST name that is `rest` or a prefix of
+ * it followed by `$` (the hint suffix). Looks each such prefix up, so it costs the length of the
+ * label, not the number of inlineable functions: scanning them all for every wrapper was
+ * quadratic (20,000 functions in a chain: 24 s at --inlining).
+ */
+function calleeOfLabel(rest: string, inlineable: ReadonlyMap<string, unknown>): string | undefined {
+  if (inlineable.has(rest)) return rest;
+  for (let at = rest.lastIndexOf('$'); at > 0; at = rest.lastIndexOf('$', at - 1)) {
+    const name = rest.slice(0, at);
+    if (inlineable.has(name)) return name;
+  }
+  return undefined;
+}
+
+/**
  * Inlining pass with post-inline optimization.
  *
  * After each inlining iteration runs Vacuum and OptimizeInstructions on
@@ -1197,7 +1205,7 @@ registerPass(InliningOptimizingPass);
 // Exported helpers (used by tests)
 // ---------------------------------------------------------------------------
 
-export { deepCopy, measureSize };
+export { calleeOfLabel, deepCopy, measureSize };
 
 /** Counts instruction nodes in an expression tree. */
 function measureSize(expr: Expression): number {
