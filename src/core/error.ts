@@ -164,7 +164,15 @@ export function formatLocation(loc: Location): string {
 /** The most characters of a source line one long-format diagnostic quotes (a window around it). */
 const MAX_QUOTED_LINE = 200;
 
-/** The most characters of a message or a file name one diagnostic prints (hardening, round 2). */
+/**
+ * The most characters of a message or a file name one diagnostic prints (hardening, round 2).
+ *
+ * Measured BEFORE `printable`, which writes each escaped character as six (`\u001b`): the true
+ * bound is six times this for a part of nothing but escapes (round 3 measurement). The worst case
+ * is a 1,000-character file name, a 1,000-character message, and a long-format source window and
+ * caret, every character an ESC: 14,058 characters for one diagnostic, 1,405,800 for the 100
+ * {@link formatErrors} prints (plus its count line); `tests/wabt-ts/core/error_format.test.ts` holds that bound.
+ */
 const MAX_PART = 1000;
 
 /** The most characters of one quoted token or name inside a message. */
@@ -233,7 +241,9 @@ export function formatError(
   const message = printable(bounded(err.message), { keepTabs: true });
   const severity = level === ErrorLevel.Warning ? 'warning' : 'error';
   // The file name comes from the command line: printable too.
-  const header = `${printable(bounded(formatLocation(loc)))}: ${severity}: ${message}`;
+  // Round 3: the NAME is bounded alone, so a long one cannot cut the position off the end.
+  const where = formatLocation({ ...loc, filename: bounded(loc.filename) });
+  const header = `${printable(where)}: ${severity}: ${message}`;
 
   if (format === ErrorFormat.Long && sourceLine !== undefined && loc.column > 0) {
     // The SOURCE LINE is the input's own text: printable as the message is. 🔧 It was printed raw,

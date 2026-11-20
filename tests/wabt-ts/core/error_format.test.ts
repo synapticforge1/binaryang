@@ -150,3 +150,34 @@ describe('every user-derived part of a diagnostic is bounded', () => {
     }
   });
 });
+
+describe('round 3: a long file name keeps its position, and the true size bound holds', () => {
+  it('the name is cut alone: `:line:col` is still there', () => {
+    const out = formatError(err({ ...at(4), line: 3 }, 'm'), undefined, ErrorFormat.Short);
+    assertEquals(out, 'f.wat:3:4: error: m');
+    const name = 'n'.repeat(5000);
+    const cut = formatError(err({ ...at(4, undefined, name), line: 3 }, 'm'));
+    assert(cut.endsWith(':3:4: error: m'), cut.slice(-40));
+    assert(cut.startsWith('n'.repeat(900)) && cut.includes('(5000 characters)'), cut.slice(0, 60));
+    // A binary location: the offset stays too.
+    const bin = formatError(err({ filename: name, line: 0, column: 0, offset: 0x25 }, 'm'));
+    assert(bin.includes(':0000025: error: m'), bin.slice(0, 80));
+  });
+
+  it('the worst case (every character escaped) stays within the stated 1,405,800 + count line', () => {
+    const esc = '\x1b'.repeat(5000);
+    const loc = { filename: esc, line: 1, column: 300, offset: 0, endColumn: 900 };
+    const one = formatError(err(loc, esc), esc, ErrorFormat.Long);
+    assert(one.length <= 14_058, `one diagnostic: ${one.length}`);
+    // The unescaped parts are 1,000 characters at most, and six times that is what is printed.
+    assert(one.length > 12_000, `the measurement is of the worst case: ${one.length}`);
+    const all = formatErrors(
+      Array.from({ length: 150 }, () => err(loc, esc)),
+      ErrorFormat.Long,
+      esc,
+    );
+    const [body, count] = [all.slice(0, all.lastIndexOf('\n')), all.slice(all.lastIndexOf('\n'))];
+    assert(body.length <= 1_405_800 + 100, `100 diagnostics: ${body.length}`);
+    assert(count.includes('50 more errors'), count);
+  });
+});
