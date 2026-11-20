@@ -923,6 +923,7 @@ function inlineIntoFunction(
   _opts: PassOptions,
   labelHint: { value: number },
   consumed: Map<string, number>,
+  inlinedInto: ReadonlySet<string>,
 ): boolean {
   const usedLabels = collectLabels(fn.body);
   let changed = false;
@@ -945,6 +946,12 @@ function inlineIntoFunction(
     if (requireName(call.func, 'call target') === fn.name) return e; // skip recursive calls
     const callee = inlineable.get(requireName(call.func, 'call target'));
     if (!callee) return e;
+    // Upstream's `inlinedInto.contains(inlinedFunction)`: a function something was inlined INTO
+    // earlier in this iteration is not itself inlined now. With callees first in the module, each
+    // caller would otherwise copy the whole tail already inlined into its callee — a chain of N
+    // grew quadratically in time and memory (400 links: 7 s, 2.7 GB) where upstream takes one
+    // link per iteration.
+    if (inlinedInto.has(callee.name)) return e;
     // At a plain call site the callee's tail calls become ordinary calls (`substituteBody`),
     // which is not equivalent under a `try` in the callee.
     if (!call.isReturn && tailCallUnderTry(callee)) return e;
@@ -1061,6 +1068,8 @@ export class InliningPass implements Pass {
     /** Call sites inlined THIS iteration, per callee — what the removal below counts. */
     const consumed = new Map<string, number>();
     let anyInlined = false;
+    /** Functions an inlining went INTO this iteration (upstream's `inlinedInto`). */
+    const inlinedInto = new Set<string>();
 
     for (const fn of module.functions) {
       if (importedNames.has(fn.name)) continue;
@@ -1075,7 +1084,7 @@ export class InliningPass implements Pass {
       // and simply not inlined into.
       const before = fn.body;
       const here = new Map<string, number>();
-      const changed = inlineIntoFunction(fn, inlineable, opts, labelHint, here);
+      const changed = inlineIntoFunction(fn, inlineable, opts, labelHint, here, inlinedInto);
       if (!changed) continue;
       if (nestingDepth(fn.body, MAX_NESTING_DEPTH) > MAX_NESTING_DEPTH) {
         fn.body = before;
@@ -1084,6 +1093,7 @@ export class InliningPass implements Pass {
       for (const [name, n] of here) consumed.set(name, (consumed.get(name) ?? 0) + n);
 
       anyInlined = true;
+      inlinedInto.add(fn.name);
 
       // Post-inline cleanup (InliningOptimizing only). Inlining drops the
       // callee body into a wrapper block plus zero-init local.sets for the
