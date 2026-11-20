@@ -439,7 +439,8 @@ describe('publish.ts wires in the real checks', () => {
   });
 
   it('documents where the guards live, so the docs cannot drift silently', async () => {
-    const doc = await fsx.readTextFile('cmem/publishing.md');
+    // The release process half of publishing.md (split by subject, H38 step 5, 2026-11-20).
+    const doc = await fsx.readTextFile('cmem/publishing-release-flow.md');
     expect(doc).toContain('release-guard.ts');
   });
 });
