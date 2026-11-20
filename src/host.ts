@@ -149,8 +149,36 @@ export function writesToStdout(path: string): boolean {
   return path === '-' || standardStream(path) === 'stdout';
 }
 
+/**
+ * Bun on Linux: whether standard output was CLOSED when the process started (`>&-`). Q-H4, 4.1.0
+ * notes review: a runtime reopens a closed fd 1 as `/dev/null` before any script runs, so a write
+ * to it succeeds and goes nowhere. Measured 2026-11-20 (WSL Ubuntu, `/proc/self/fdinfo/1`): Bun
+ * reopens it with O_CLOEXEC (02000000) and sets that bit on no other stdio fd it inherits, and an
+ * fd inherited across exec can never carry it (exec closes those) — so `/dev/null` with O_CLOEXEC
+ * is the reopened one, while `>/dev/null`, `<>/dev/null`, Python's DEVNULL, Node's and Bun's
+ * `stdio: 'ignore'` all lack the bit. Node sets O_CLOEXEC on fd 0-2 whatever they were, and Deno
+ * reopens with the very flags Python's DEVNULL uses (`O_RDWR|O_LARGEFILE`): nothing in-process tells
+ * those two from a deliberate discard, so only Bun is checked. Elsewhere: no `/proc` on macOS, and
+ * on Windows a closed handle arrives as NUL.
+ */
+async function bunClosedStdout(): Promise<boolean> {
+  const p = cliProcess();
+  if (p.platform !== 'linux' || p.versions['bun'] === undefined) return false;
+  try {
+    const { readFile, readlink } = await import('node:fs/promises');
+    if ((await readlink('/proc/self/fd/1')) !== '/dev/null') return false;
+    const flags = /^flags:\s*([0-7]+)/m.exec(await readFile('/proc/self/fdinfo/1', 'utf8'));
+    return flags !== null && (parseInt(flags[1]!, 8) & 0o2000000) !== 0;
+  } catch {
+    return false;
+  }
+}
+
 /** `data` to the process's stdout or stderr, resolved once it is flushed. */
-function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | string): Promise<void> {
+async function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | string): Promise<void> {
+  if (stream === 'stdout' && (await bunClosedStdout())) {
+    throw new Error('standard output is closed (this process was started with `>&-`)');
+  }
   return new Promise((resolve, reject) => {
     cliProcess()[stream].write(data, (err) => (err ? reject(err) : resolve()));
   });

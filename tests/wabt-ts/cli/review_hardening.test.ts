@@ -259,6 +259,51 @@ describe('Q-H4: a write to standard output that fails is a one-line exit 1', () 
   }
 });
 
+describe('Q-H4: a stdout closed at start (`>&-`) is refused, a discarded one is not', () => {
+  // Bun reopens a closed fd 1 as /dev/null WITH O_CLOEXEC; a stdout the parent discarded (a shell's
+  // `>/dev/null`, `<>/dev/null`, Node's or Bun's `stdio: 'ignore'`, Python's DEVNULL) never has it.
+  // Node and Deno cannot be told apart in-process (measured, 4.1.0 notes review): only Bun is
+  // checked, and only on Linux (/proc); on other systems every case below is the control.
+  const sh = (redirect: string, args: string) =>
+    spawnSync('bash', ['-c', `bun '${MAIN}' ${args} ${redirect}`], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 60_000,
+    });
+  const targets = ['wasm-opt in.wasm -o -', 'wasm-opt in.wasm -o /dev/stdout', 'wat2wasm a.wat'];
+  it('closed: one line on stderr and exit 1 (Linux)', () => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+    if (process.platform !== 'linux') return;
+    for (const t of targets) {
+      const r = sh('>&-', t);
+      assertEquals(r.status, 1, `${t}: ${r.stderr}`);
+      const lines = r.stderr.trimEnd().split('\n');
+      assertEquals(lines.length, 1, r.stderr);
+      assert(/standard output is closed/.test(r.stderr), r.stderr);
+    }
+  });
+  it('discarded: exit 0 for every way a parent hands over /dev/null (Linux)', () => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+    for (const t of targets) {
+      if (process.platform === 'linux') {
+        for (const redirect of ['>/dev/null', '>>/dev/null', '1<>/dev/null']) {
+          const r = sh(redirect, t);
+          assertEquals(r.status, 0, `${t} ${redirect}: ${r.stderr}`);
+        }
+      }
+      // This runner's own `ignore` (libuv under Node, Bun's spawn under Bun).
+      const [tool, ...rest] = t.split(' ');
+      const r = spawnSync('bun', [MAIN, tool!, ...rest], {
+        cwd: dir,
+        stdio: ['ignore', 'ignore', 'pipe'],
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      assertEquals(r.status, 0, `${t} ignore: ${r.stderr}`);
+    }
+  });
+});
+
 describe('H-3: a folder that refuses new files, around a writable output', () => {
   it('the output is overwritten in place', () => {
     const sub = join(dir, 'locked');
