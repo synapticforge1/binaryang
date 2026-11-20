@@ -1,18 +1,11 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-19 (UTC): the last release is `v4.1.1`, on JSR AND npm, both with provenance**
-([release.md](release.md) § "4.1.1"). Nothing is unreleased on `main`. (Check:
-`git log --oneline v4.1.1..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-20 (UTC): the last release is `v4.1.2`, on JSR AND npm, both with provenance**
+([release.md](release.md) § "4.1.2"). Nothing is unreleased on `main`. (Check:
+`git log --oneline v4.1.2..main -- src/ main.ts jsr.json README.md`.)
 
-**Shipped in 4.1.1** (CHANGELOG § 4.1.1; kept here until the next release): GitHub issue #1's two
-fixes — `wasm-opt -O2`+ and a value left in unreachable code before a trailing `br`; the validator
-and more than one supertype.
-
-**Shipped in 4.1.0** (CHANGELOG § 4.1.0 is the public note; kept here until the next release):
-letter H39 (`src/host.ts`, `--self-check`, `-o NUL` on Deno) and the release-notes review's fixes
-— every Windows device spelling, no `.wit` beside a device, `-o /dev/stdout` on every OS, `-o CON`
-refused by name, the module alone on stdout. The 4.0.0 paragraphs held here until now are in git
-history (before `v4.1.0`).
+**Shipped in 4.1.2** (CHANGELOG § 4.1.2; kept here until the next release): no package change —
+the release workflow's npm provenance read-back (10 min, says what it saw).
 
 **Repo-only since 2.2.0 (nothing in either package; no release-note line):** the benchmark
 modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
@@ -85,6 +78,7 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 4.1.1
+## Since 4.1.2
 
-Nothing yet. `tests/accepted-changes.json` is empty.
+Nothing yet. `tests/accepted-changes.json` lists 2 entries since 4.1.2 (v4.1.1's tests that read
+cmem/publishing.md and today's previous-tests.ts); they are dropped at the next release.

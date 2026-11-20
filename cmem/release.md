@@ -132,6 +132,35 @@ with the needs above, 0 unpinned actions.
 
 ## Release History
 
+### 4.1.2 — a PATCH from `main` (2026-11-20 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
+
+**What changed** (`CHANGELOG.md` § 4.1.2): the same package as 4.1.1. The release workflow: npm's
+provenance read-back waits 10 min (40 × 15 s), each attempt says what it saw, the key per run
+attempt, the npm job's timeout 35 min. Repo-only besides: the previous-tests harness (a failure
+re-run alone, both runs bounded over their whole process tree — scripts/run-bounded.ts), and
+coalesce_budget's two bounds on process CPU time (Q-H5).
+
+The owner's go: "release" (2026-11-20).
+
+1. Notes (`d83cc2352`) and accept-4.1.2 reviewed (0 in all five). The gate's Node `test` step then
+   failed 2 of 4 runs, never naming the test (Q-H6 queued); the bump twice refused on v4.1.1's
+   coalesce_budget (20 s wall bound, ~7 s alone) under 57% background CPU. Owner: "Fix the harness".
+2. The harness: 057fb046a … e07b2bad3 (four re-reviews: twins vouching, an overclaiming label, no
+   time limit, the limit killing fnm only, Ctrl-C orphaning the group — all fixed, the last
+   measured on linux-x64). A second accepted entry: v4.1.1's harness test reads today's source.
+   fnm and Node 24 installed in the WSL (owner) — the Linux run gained the V8 leg, whose first run
+   failed the same test at 28.7 s → Q-H5's root cause: CPU-time bounds (8b53bad31 … daf08d553,
+   measured under 24 busy workers; budget bound 40 s).
+3. Full suite at `daf08d553`: win-x64 gate 31 / 31; linux-x64 fresh clone: V8 6811 / 6811, Bun
+   6811 / 6811, baseline, privacy, --self-check. Merged (`eb812aa9b`), pushed unbumped: run
+   44780039195 green. `review:record daf08d553`.
+4. `bun run bump patch`: floor patch; previous tests 6794, 2 failed, 2 accepted, at the first try.
+   `bun run release`: gate --release 33 / 33; `bump to v4.1.2` (`cb857e212`) pushed, read back.
+5. **publish.yml run 44782414500 — GREEN in every job, first attempt:** tag `v4.1.2` (`39a419c77`,
+   peels to `cb857e212`) → page (17:21:57Z) → **JSR 4.1.2, Rekor `4027447643`** → npm published
+   17:22:40Z, provenance found 17:25:27Z (2 min 47 s — at the old window's edge). `latest` = 4.1.2
+   on both. As a user: `bun x @synapticforge1/binaryang@4.1.2 --version` → `binaryang 4.1.2`.
+
 ### 4.1.1 — a PATCH from `main` (2026-11-19 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
 
 **What changed** (`CHANGELOG.md` § 4.1.1): GitHub issue #1 (trackoor): `wasm-opt -O2`+ no longer
