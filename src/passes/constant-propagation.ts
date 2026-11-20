@@ -131,6 +131,30 @@ function isPropagated(type: unknown): boolean {
   return zeroOf(type) !== VARIES;
 }
 
+/** Each reachable block's place in reverse postorder (entry 0); -1 for an unreachable one. */
+function reversePostorder(entry: BasicBlock, count: number): Int32Array {
+  const rpo = new Int32Array(count).fill(-1);
+  const seen = new Uint8Array(count);
+  const order: BasicBlock[] = []; // postorder
+  const stack: { b: BasicBlock; next: number }[] = [{ b: entry, next: 0 }];
+  seen[entry.id] = 1;
+  while (stack.length > 0) {
+    const top = stack[stack.length - 1]!;
+    if (top.next < top.b.out.length) {
+      const s = top.b.out[top.next++]!;
+      if (seen[s.id] === 0) {
+        seen[s.id] = 1;
+        stack.push({ b: s, next: 0 });
+      }
+    } else {
+      order.push(top.b);
+      stack.pop();
+    }
+  }
+  for (let i = 0; i < order.length; i++) rpo[order[i]!.id] = order.length - 1 - i;
+  return rpo;
+}
+
 // ---------------------------------------------------------------------------
 // Per-function implementation
 // ---------------------------------------------------------------------------
@@ -196,23 +220,55 @@ export function propagateFunction(fn: WasmFunction): boolean {
     }
     return s;
   };
-  const queue: BasicBlock[] = [cfg.entry];
-  const queued = new Set<number>([cfg.entry.id]);
-  while (queue.length > 0) {
-    const b = queue.shift()!;
-    queued.delete(b.id);
+  // The worklist takes the block earliest in reverse postorder first, so a merge with many
+  // predecessors is met once all of them have run, not once per predecessor (a FIFO queue ran a
+  // block with n predecessors up to n times, each pass over all n: quadratic, 26 s on 3,000
+  // `if (…) br`s in one block, upstream 0.7 s). The fixed point is the same in any order.
+  const rpo = reversePostorder(cfg.entry, cfg.blocks.length);
+  const heap: number[] = []; // the rpo numbers of the queued blocks, a binary min-heap
+  const byRpo: BasicBlock[] = new Array<BasicBlock>(cfg.blocks.length);
+  const queued = new Uint8Array(cfg.blocks.length);
+  for (const bl of cfg.blocks) if (rpo[bl.id]! >= 0) byRpo[rpo[bl.id]!] = bl;
+  const push = (bl: BasicBlock): void => {
+    queued[bl.id] = 1;
+    let i = heap.length;
+    heap.push(rpo[bl.id]!);
+    while (i > 0) {
+      const up = (i - 1) >> 1;
+      if (heap[up]! <= heap[i]!) break;
+      [heap[up], heap[i]] = [heap[i]!, heap[up]!];
+      i = up;
+    }
+  };
+  const pop = (): BasicBlock => {
+    const top = heap[0]!;
+    const last = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < heap.length && heap[l]! < heap[m]!) m = l;
+        if (r < heap.length && heap[r]! < heap[m]!) m = r;
+        if (m === i) break;
+        [heap[m], heap[i]] = [heap[i]!, heap[m]!];
+        i = m;
+      }
+    }
+    return byRpo[top]!;
+  };
+  push(cfg.entry);
+  while (heap.length > 0) {
+    const b = pop();
+    queued[b.id] = 0;
     const out = scan(b, inOf(b));
     const prev = outs[b.id]!;
     let changed = false;
     for (let i = 0; i < numLocals && !changed; i++) changed = !sameValue(prev[i], out[i]);
     if (!changed && prev !== empty) continue;
     outs[b.id] = out;
-    for (const s of b.out) {
-      if (!queued.has(s.id)) {
-        queue.push(s);
-        queued.add(s.id);
-      }
-    }
+    for (const s of b.out) if (queued[s.id] === 0) push(s);
   }
 
   // One last scan of every block with its converged in-state: what each read
