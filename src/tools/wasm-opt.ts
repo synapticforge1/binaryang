@@ -58,6 +58,7 @@ import {
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
+  cliWriteStdout,
   fsRead,
   writesToStdout,
 } from '../host.ts';
@@ -297,10 +298,11 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   let result: Uint8Array | string;
   // The minify map goes to stdout, as upstream prints it — to stderr when
   // stdout carries the module itself (`-o -`, `-o /dev/stdout`).
+  let minifyOut = '';
   const toStdout = !writesToStdout(parsed.options.output ?? 'output.wasm');
   const onMinifyMap = (map: MinifyMap) => {
     const text = formatMinifyMap(map);
-    if (toStdout) cliProcess().stdout.write(text);
+    if (toStdout) minifyOut = text;
     else cliProcess().stderr.write(text);
   };
   try {
@@ -309,6 +311,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     console.error(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
     cliExit(1);
   }
+  if (minifyOut !== '') await cliWriteStdout('wasm-opt', minifyOut);
   const outPath = parsed.options.output ?? 'output.wasm';
   // The report goes to stderr when the module goes to stdout (`-o /dev/stdout`), so stdout holds
   // the module alone.
@@ -324,14 +327,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
 
   if (typeof result === 'string') {
     if (outPath === '-') {
-      console.log(result);
+      await cliWriteStdout('wasm-opt', result + '\n');
     } else {
       await cliWrite('wasm-opt', outPath, result);
       say(`Wrote WAT: ${outPath}`);
     }
   } else {
     if (outPath === '-') {
-      cliProcess().stdout.write(result);
+      await cliWriteStdout('wasm-opt', result);
     } else {
       await cliWrite('wasm-opt', outPath, result);
       say(`Wrote WASM: ${outPath} (${result.byteLength} bytes)`);

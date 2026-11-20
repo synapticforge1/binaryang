@@ -5,14 +5,20 @@
 
 import { after, before, describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  closeSync,
+  constants,
   existsSync,
+  mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
+  readSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -160,6 +166,141 @@ describe('H-2: the null device is the device, on every OS', () => {
       );
     }
     assertEquals(readdirSync(dir).filter((n) => /^(con|stdout|1)/i.test(n)), []);
+  });
+});
+
+describe('Q-H2: -o to a FIFO with no reader is refused, not waited on for ever', () => {
+  const WASM = [0x00, 0x61, 0x73, 0x6d];
+  it('no reader: exit 1 at once, naming the FIFO and why', () => {
+    // Windows has no FIFO; its named pipe that is not there is refused at once too (ENOENT).
+    const fifo = process.platform === 'win32'
+      ? `\\\\.\\pipe\\binaryang-no-such-pipe-${process.pid}`
+      : join(dir, 'noreader.fifo');
+    if (process.platform !== 'win32') assertEquals(spawnSync('mkfifo', [fifo]).status, 0);
+    const t0 = Date.now();
+    const r = run('wat2wasm', 'a.wat', '-o', fifo);
+    assertEquals(r.status, 1, `${r.stderr} ${r.error}`);
+    assert(Date.now() - t0 < 20_000, 'it waited');
+    assert(r.stderr.includes(fifo), r.stderr);
+    if (process.platform !== 'win32') assert(r.stderr.includes('FIFO with no reader'), r.stderr);
+  });
+  it('with a reader the module arrives whole (POSIX; the control on Windows is a file)', () => {
+    if (process.platform === 'win32') {
+      assertEquals(run('wat2wasm', 'a.wat', '-o', 'ctl.wasm').status, 0);
+      assertEquals([...readFileSync(join(dir, 'ctl.wasm')).subarray(0, 4)], WASM);
+      return;
+    }
+    const fifo = join(dir, 'reader.fifo');
+    assertEquals(spawnSync('mkfifo', [fifo]).status, 0);
+    // This process is the reader: a non-blocking read open succeeds with no writer yet.
+    const fd = openSync(fifo, constants.O_RDONLY | constants.O_NONBLOCK);
+    try {
+      const r = run('wat2wasm', 'a.wat', '-o', fifo);
+      assertEquals(r.status, 0, r.stderr);
+      const buf = new Uint8Array(4096);
+      const n = readSync(fd, buf, 0, buf.length, null);
+      assertEquals([...buf.subarray(0, 4)], WASM);
+      assert(n > 8, String(n));
+    } finally {
+      closeSync(fd);
+    }
+    assert(!statSync(fifo).isFile(), 'the FIFO was replaced by a file');
+  });
+});
+
+describe('Q-H3: a \\\\?\\ path is the real file it names, even ending in a device name', () => {
+  it('writes the file (Windows); a file named nul elsewhere (the control)', () => {
+    const sub = join(dir, 'q3');
+    mkdirSync(sub);
+    if (process.platform === 'win32') {
+      for (const name of ['nul', 'CON', 'aux.']) {
+        const target = '\\\\?\\' + join(sub, name);
+        const r = run('wat2wasm', 'a.wat', '-o', target);
+        assertEquals(r.status, 0, `${name}: ${r.stderr}`);
+        assert(existsSync(target), `${name}: no file was made`);
+        assertEquals([...readFileSync(target).subarray(0, 4)], [0x00, 0x61, 0x73, 0x6d], name);
+        rmSync(target);
+      }
+    } else {
+      assertEquals(run('wat2wasm', 'a.wat', '-o', join(sub, 'nul')).status, 0);
+      assert(existsSync(join(sub, 'nul')));
+    }
+  });
+});
+
+describe('Q-H4: a write to standard output that fails is a one-line exit 1', () => {
+  // The reader is gone before the tool writes (the read end of its stdout pipe is destroyed at
+  // once): EPIPE. Through 4.1.2 wasm-bundle, wasm-ctor-eval and wasm-opt wrote `-o -` through an
+  // unawaited `stdout.write` with no handler: no message, exit 0 or an unhandled error.
+  const cases: [string, string[]][] = [
+    ['wat2wasm', ['a.wat']],
+    ['wasm2wat', ['in.wasm']],
+    ['wasm-bundle', ['in.wasm', '-o', '-']],
+    ['wasm-opt', ['in.wasm', '-o', '-']],
+    ['wasm-opt', ['a.wat', '-o', '-']],
+    ['wasm-ctor-eval', ['in.wasm', '-o', '-']],
+    ['wasm-bundle', ['in.wasm', '-o', '/dev/stdout']],
+  ];
+  for (const [tool, args] of cases) {
+    it(`${tool} ${args.join(' ')}: EPIPE`, async () => {
+      assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+      const c = spawn('bun', [MAIN, tool, ...args], {
+        cwd: dir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      c.stdout.destroy();
+      let err = '';
+      c.stderr.on('data', (d) => (err += d));
+      const status = await new Promise<number | null>((done) => c.on('close', done));
+      assertEquals(status, 1, err);
+      const last = err.trimEnd().split('\n').pop()!;
+      assert(/^[a-z0-9-]+: cannot write .*EPIPE/.test(last), err);
+    });
+  }
+});
+
+describe('Q-H4: a stdout closed at start (`>&-`) is refused, a discarded one is not', () => {
+  // Bun reopens a closed fd 1 as /dev/null WITH O_CLOEXEC; a stdout the parent discarded (a shell's
+  // `>/dev/null`, `<>/dev/null`, Node's or Bun's `stdio: 'ignore'`, Python's DEVNULL) never has it.
+  // Node and Deno cannot be told apart in-process (measured, 4.1.0 notes review): only Bun is
+  // checked, and only on Linux (/proc); on other systems every case below is the control.
+  const sh = (redirect: string, args: string) =>
+    spawnSync('bash', ['-c', `bun '${MAIN}' ${args} ${redirect}`], {
+      cwd: dir,
+      encoding: 'utf8',
+      timeout: 60_000,
+    });
+  const targets = ['wasm-opt in.wasm -o -', 'wasm-opt in.wasm -o /dev/stdout', 'wat2wasm a.wat'];
+  it('closed: one line on stderr and exit 1 (Linux)', () => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+    if (process.platform !== 'linux') return;
+    for (const t of targets) {
+      const r = sh('>&-', t);
+      assertEquals(r.status, 1, `${t}: ${r.stderr}`);
+      const lines = r.stderr.trimEnd().split('\n');
+      assertEquals(lines.length, 1, r.stderr);
+      assert(/standard output is closed/.test(r.stderr), r.stderr);
+    }
+  });
+  it('discarded: exit 0 for every way a parent hands over /dev/null (Linux)', () => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+    for (const t of targets) {
+      if (process.platform === 'linux') {
+        for (const redirect of ['>/dev/null', '>>/dev/null', '1<>/dev/null']) {
+          const r = sh(redirect, t);
+          assertEquals(r.status, 0, `${t} ${redirect}: ${r.stderr}`);
+        }
+      }
+      // This runner's own `ignore` (libuv under Node, Bun's spawn under Bun).
+      const [tool, ...rest] = t.split(' ');
+      const r = spawnSync('bun', [MAIN, tool!, ...rest], {
+        cwd: dir,
+        stdio: ['ignore', 'ignore', 'pipe'],
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      assertEquals(r.status, 0, `${t} ignore: ${r.stderr}`);
+    }
   });
 });
 

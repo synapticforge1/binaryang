@@ -112,6 +112,7 @@ import {
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
+  cliWriteStdout,
   fsRead,
   isDevice,
   writesToStdout,
@@ -1975,8 +1976,8 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     cliExit(1);
   }
   if (output === '-') {
-    if (typeof result.output === 'string') console.log(result.output);
-    else cliProcess().stdout.write(result.output);
+    const out = typeof result.output === 'string' ? result.output + '\n' : result.output;
+    await cliWriteStdout('wasm-bundle', out);
     return;
   }
   // Every input is read by now; the output must not be one of them.

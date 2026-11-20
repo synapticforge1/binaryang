@@ -149,15 +149,48 @@ export function writesToStdout(path: string): boolean {
   return path === '-' || standardStream(path) === 'stdout';
 }
 
+/**
+ * Bun on Linux: whether standard output was CLOSED when the process started (`>&-`). Q-H4, 4.1.0
+ * notes review: a runtime reopens a closed fd 1 as `/dev/null` before any script runs, so a write
+ * to it succeeds and goes nowhere. Measured 2026-11-20 (WSL Ubuntu, `/proc/self/fdinfo/1`): Bun
+ * reopens it with O_CLOEXEC (02000000) and sets that bit on no other stdio fd it inherits, and an
+ * fd inherited across exec can never carry it (exec closes those) — so `/dev/null` with O_CLOEXEC
+ * is the reopened one, while `>/dev/null`, `<>/dev/null`, Python's DEVNULL, Node's and Bun's
+ * `stdio: 'ignore'` all lack the bit. Node sets O_CLOEXEC on fd 0-2 whatever they were, and Deno
+ * reopens with the very flags Python's DEVNULL uses (`O_RDWR|O_LARGEFILE`): nothing in-process tells
+ * those two from a deliberate discard, so only Bun is checked. Elsewhere: no `/proc` on macOS, and
+ * on Windows a closed handle arrives as NUL.
+ */
+async function bunClosedStdout(): Promise<boolean> {
+  const p = cliProcess();
+  if (p.platform !== 'linux' || p.versions['bun'] === undefined) return false;
+  try {
+    const { readFile, readlink } = await import('node:fs/promises');
+    if ((await readlink('/proc/self/fd/1')) !== '/dev/null') return false;
+    const flags = /^flags:\s*([0-7]+)/m.exec(await readFile('/proc/self/fdinfo/1', 'utf8'));
+    return flags !== null && (parseInt(flags[1]!, 8) & 0o2000000) !== 0;
+  } catch {
+    return false;
+  }
+}
+
 /** `data` to the process's stdout or stderr, resolved once it is flushed. */
-function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | string): Promise<void> {
+async function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | string): Promise<void> {
+  if (stream === 'stdout' && (await bunClosedStdout())) {
+    throw new Error('standard output is closed (this process was started with `>&-`)');
+  }
   return new Promise((resolve, reject) => {
     cliProcess()[stream].write(data, (err) => (err ? reject(err) : resolve()));
   });
 }
 
-/** The bare device name (`NUL`, `CON`, `COM1` …) `path` names on Windows, or `null`. */
+/**
+ * The bare device name (`NUL`, `CON`, `COM1` …) `path` names on Windows, or `null`. A `\\?\` path
+ * is never a device: Win32 does no device-name parsing after that prefix, so `\\?\C:\x\nul` names
+ * a real file called `nul` (4.1.0 notes review, Q-H3; `\\.\NUL`, with a dot, is the device).
+ */
 async function windowsDeviceName(path: string): Promise<string | null> {
+  if (path.startsWith('\\\\?\\')) return null;
   const { basename } = await import('node:path');
   const m = WINDOWS_DEVICE.exec(path === '/dev/null' ? 'NUL' : basename(path));
   return m === null ? null : m[1]!.toUpperCase();
@@ -179,6 +212,43 @@ export async function isDevice(path: string): Promise<boolean> {
     return !st.isFile() && !st.isDirectory();
   } catch {
     return false;
+  }
+}
+
+/**
+ * Writes `data` into the FIFO at `path`, refusing at once when nothing has it open for reading.
+ * 🔧 Opening a FIFO for writing blocks until a reader opens it, so `-o <FIFO>` with no reader hung
+ * the tool for ever (4.1.0 notes review, Q-H2). A non-blocking open fails with ENXIO exactly then.
+ * That probe handle stays open until the blocking one is, so the reader never sees the FIFO's last
+ * writer leave and end its input early. (Only a reader that exits in the instant between the two
+ * opens can still leave the write waiting.) Windows has no FIFO: a named pipe that does not exist
+ * (`\\.\pipe\x`) is refused at once with ENOENT there (measured 2026-11-20), so nothing hangs.
+ */
+async function writeFifo(path: string, data: Uint8Array | string): Promise<void> {
+  const { constants, open } = await import('node:fs/promises');
+  let probe;
+  try {
+    probe = await open(path, constants.O_WRONLY | constants.O_NONBLOCK);
+  } catch (e) {
+    if ((e as { code?: string }).code === 'ENXIO') {
+      throw new Error(
+        `it is a FIFO with no reader: start the reader first (for example \`cat ${path}\`), ` +
+          'then write',
+      );
+    }
+    throw e;
+  }
+  try {
+    const out = await open(path, constants.O_WRONLY);
+    try {
+      await probe.close();
+      probe = undefined;
+      await out.writeFile(data);
+    } finally {
+      await out.close();
+    }
+  } finally {
+    await probe?.close();
   }
 }
 
@@ -239,6 +309,7 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // its target has no path, so realpath failed with ENOENT (4.1.0 notes review, linux-x64).
   const direct = await stat(path).catch(() => undefined);
   if (direct !== undefined && !direct.isFile() && !direct.isDirectory()) {
+    if (direct.isFIFO()) return writeFifo(path, data);
     await writeFile(path, data);
     return;
   }
@@ -379,8 +450,22 @@ export async function cliWrite(
  * module can exceed the pipe buffer, and a process that exits before the flush
  * completes truncates its own output.
  */
-export function writeStdout(data: Uint8Array): Promise<void> {
+export function writeStdout(data: Uint8Array | string): Promise<void> {
   return writeStream('stdout', data);
+}
+
+/**
+ * Output of a CLI tool to stdout, awaited: a write that fails (EPIPE from a reader that left,
+ * ENOSPC, EBADF) is a one-line `tool: cannot write standard output: …` and exit 1, as a file write
+ * is. 🔧 Through 4.1.2 `-o -` in wasm-bundle, wasm-ctor-eval and wasm-opt called an unawaited
+ * `stdout.write` with no handler (4.1.0 notes review, Q-H4). A string gets no newline added.
+ */
+export async function cliWriteStdout(tool: string, data: Uint8Array | string): Promise<void> {
+  try {
+    await writeStdout(data);
+  } catch (e) {
+    cliFail(tool, `cannot write standard output: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /** One line of {@link selfCheck}'s report. */
