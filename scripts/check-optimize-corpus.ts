@@ -155,6 +155,7 @@ function sizeRatchet(): void {
   }
   const tmp = scratch();
   const entries: Record<string, SizeEntry> = {};
+  let sixProblem: string | undefined;
   try {
     const measure = (
       sets: { name: string; wasm: Uint8Array; ours: number }[],
@@ -179,13 +180,14 @@ function sizeRatchet(): void {
     const six = new URL('../benches/browser-opt/modules/', import.meta.url);
     const sixInputs = readdirSync(six).filter((n) => n.endsWith('.wasm')).sort()
       .map((n) => ({ name: n, wasm: new Uint8Array(readFileSync(new URL(n, six))) }));
+    // No exit call in here: it would skip the `finally` and leave the scratch folder behind.
     try {
       requireSix(sixInputs.map((i) => i.name));
     } catch (e) {
-      console.log(`\n  ${(e as Error).message}`);
-      process.exit(1);
+      sixProblem = (e as Error).message;
     }
-    for (const [tag, opts] of [['-O2', LEVELS[1][1]], ['-Oz', LEVELS[4][1]]] as const) {
+    const sixLevels = [['-O2', LEVELS[1][1]], ['-Oz', LEVELS[4][1]]] as const;
+    for (const [tag, opts] of sixProblem === undefined ? sixLevels : []) {
       entries[`six ${tag}`] = measure(
         sixInputs.map((i) => {
           const mod = readForPasses(i.wasm);
@@ -197,6 +199,10 @@ function sizeRatchet(): void {
     }
   } finally {
     tmp.done();
+  }
+  if (sixProblem !== undefined) {
+    console.log(`\n  ${sixProblem}`);
+    process.exit(1);
   }
   if (update) {
     // A refusal that came or went is read by a person before it is recorded.

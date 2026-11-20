@@ -137,6 +137,16 @@ describe('the module set and the refused set are not recorded blindly', () => {
     expect(src).toContain('requireSix(sixInputs.map((i) => i.name));');
     expect(src.indexOf('requireSix(')).toBeLessThan(src.indexOf('if (update)'));
   });
+  it('no process.exit sits between the scratch folder and its removal (the `finally` would be skipped)', () => {
+    const src = readFileSync('scripts/check-optimize-corpus.ts', 'utf8');
+    const from = src.indexOf('const tmp = scratch();');
+    const to = src.indexOf('tmp.done();', from);
+    expect(from).toBeGreaterThan(0);
+    expect(to).toBeGreaterThan(from);
+    expect(src.slice(from, to)).not.toContain('process.exit');
+    // ...and the six-module problem is still reported, after the folder is gone.
+    expect(src.indexOf('sixProblem !== undefined', to)).toBeGreaterThan(to);
+  });
   it('refusedChanges names a refusal that appeared or went; none for an equal set or no baseline', () => {
     const b = {
       binaryen: 'v',
