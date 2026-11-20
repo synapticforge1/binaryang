@@ -24,6 +24,8 @@ import {
   NPM_NAME as REGISTRY_NPM_NAME,
   npmProvenance,
   npmState,
+  provenance,
+  PROVENANCE_POLL,
   provenanceUrl,
   sha256,
   tarballProblems,
@@ -237,6 +239,62 @@ describe('registry.ts: what the publish jobs ask JSR and npm', () => {
     const never = mockNet({ [JSR_V]: [{ status: 404 }] });
     expect(await jsrWait(never.net, jsr.name, '9.9.9')).toBe(false);
     expect(never.urls.length).toBe(12);
+  });
+
+  // npm served 4.0.0 and 4.1.1 3–4 minutes after `npm publish`, past the old 12 × 15 s poll: both
+  // publish runs ended red with everything published (2026-11-18, 2026-11-19).
+  describe('provenance: the poll', () => {
+    const NPM_V = `${NPM_DOC}/9.9.9`;
+    const ATT = {
+      dist: { attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } },
+    };
+    const quiet = async (f: () => Promise<number>) => {
+      const lines: string[] = [];
+      const log = console.log;
+      console.log = (...a: unknown[]) => void lines.push(a.join(' '));
+      try {
+        return { code: await f(), lines };
+      } finally {
+        console.log = log;
+      }
+    };
+
+    it('npm waits 10 minutes: an attestation on the 17th read (past the old 12) is found', async () => {
+      expect(PROVENANCE_POLL.npm.tries * PROVENANCE_POLL.npm.everyMs).toBeGreaterThanOrEqual(
+        600_000,
+      );
+      const late = mockNet({
+        [NPM_V]: [...Array(16).fill({ status: 200, body: {} }), { status: 200, body: ATT }],
+      });
+      const { code } = await quiet(() => provenance(late.net, 'npm', '9.9.9'));
+      expect(code).toBe(0);
+      expect(late.urls.length).toBe(17);
+    });
+
+    it('npm serving the version without provenance: every try, then the attestation error', async () => {
+      const never = mockNet({ [NPM_V]: [{ status: 200, body: {} }] });
+      const { code, lines } = await quiet(() => provenance(never.net, 'npm', '9.9.9'));
+      expect(code).toBe(1);
+      expect(never.urls.length).toBe(PROVENANCE_POLL.npm.tries);
+      expect(lines.at(-1)).toContain('is on npm, but no provenance attestation appeared in 10 min');
+    });
+
+    it('a refusal is named, never read as "no provenance": each attempt and the error say what came back', async () => {
+      const blocked = mockNet({ [NPM_V]: [{ status: 429 }] });
+      const { code, lines } = await quiet(() => provenance(blocked.net, 'npm', '9.9.9'));
+      expect(code).toBe(1);
+      expect(lines).toContain('  attempt 1: HTTP 429; retrying in 15s');
+      expect(lines.at(-1)).toContain('npm never served');
+      expect(lines.at(-1)).toContain('(last: HTTP 429)');
+      expect(lines.at(-1)).not.toContain('no provenance attestation');
+    });
+
+    it('JSR keeps 12 tries', async () => {
+      const never = mockNet({ [`${JSR_V}`]: [{ status: 200, body: { rekorLogId: null } }] });
+      const { code } = await quiet(() => provenance(never.net, 'jsr', '9.9.9'));
+      expect(code).toBe(1);
+      expect(never.urls.length).toBe(12);
+    });
   });
 
   it('npm-state: served → published; in `time` only → burned (npm never reuses); else free', async () => {

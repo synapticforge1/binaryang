@@ -198,38 +198,72 @@ export function tarballSpec(file: string): string {
 }
 
 /**
- * Polls a registry until the version records provenance: 12 tries, 15 s apart, each read
+ * How long each registry's provenance poll waits: `tries` reads, `everyMs` apart. npm served a new
+ * version 4 min 8 s (4.0.0, 2026-11-18) and 3 min 7 s (4.1.1, 2026-11-19) after `npm publish`,
+ * both past the old 12 × 15 s, and both runs ended red with everything published: npm waits
+ * 40 × 15 s (10 min, over twice the worst seen). JSR has always shown its Rekor entry well inside
+ * 12 × 15 s.
+ */
+export const PROVENANCE_POLL = {
+  npm: { tries: 40, everyMs: 15_000 },
+  jsr: { tries: 12, everyMs: 15_000 },
+} as const;
+
+/**
+ * Polls a registry until the version records provenance (`PROVENANCE_POLL`), each read
  * cache-busted. JSR ingests attestation asynchronously AND caches the endpoint, so a plain re-read
  * can keep returning the pre-attestation record for minutes (measured 2026-08-27: wabt-ts@1.5.1
- * read as null repeatedly while the cache-busted read showed rekorLogId 2618866200). Exit 1 when
- * it never appears: the version exists either way, and is immutable.
+ * read as null repeatedly while the cache-busted read showed rekorLogId 2618866200). Each attempt
+ * says what it saw — an HTTP status, a record without the field, a network error — so a block or a
+ * rate limit never reads as "no provenance". Exit 1 when it never appears: the version exists
+ * either way, and is immutable.
  */
-async function provenance(net: Net, registry: 'jsr' | 'npm', version: string): Promise<number> {
+export async function provenance(
+  net: Net,
+  registry: 'jsr' | 'npm',
+  version: string,
+): Promise<number> {
   const sleep = net.sleep ?? realSleep;
+  const { tries, everyMs } = PROVENANCE_POLL[registry];
   const name = registry === 'npm' ? NPM_NAME : jsrManifest().name;
   const url = provenanceUrl(registry, jsrManifest().name, version);
   const read = registry === 'npm' ? npmProvenance : jsrRekor;
-  console.log(`Checking ${url}`);
-  for (let i = 1; i <= 12; i++) {
+  console.log(`Checking ${url} (${tries} tries, ${everyMs / 1000}s apart)`);
+  let served = false;
+  let last = 'no answer';
+  for (let i = 1; i <= tries; i++) {
     let found = '';
     try {
       const r = await get(net, `${url}?cb=${process.env['GITHUB_RUN_ID'] ?? Date.now()}-${i}`);
-      if (r.status === 200) found = read(r.text);
-    } catch { /* a transient network error: the next try */ }
+      if (r.status === 200) {
+        served = true;
+        found = read(r.text);
+        last = 'the version record, without provenance yet';
+      } else last = `HTTP ${r.status}`;
+    } catch (e) {
+      last = `network error: ${e instanceof Error ? e.message : String(e)}`;
+    }
     if (found !== '') {
       const what = registry === 'npm' ? `provenance ${found}` : `Rekor log ID ${found}`;
-      console.log(`Provenance recorded on ${registry} — ${what}`);
+      console.log(`Provenance recorded on ${registry} — ${what} (attempt ${i})`);
       summary(`- ${registry}: ${name}@${version}, provenance recorded (${what})`);
       return 0;
     }
-    if (i < 12) {
-      console.log(`  attempt ${i}: not recorded yet, retrying in 15s`);
-      await sleep(15_000);
+    if (i < tries) {
+      console.log(`  attempt ${i}: ${last}; retrying in ${everyMs / 1000}s`);
+      await sleep(everyMs);
     }
+  }
+  const waited = `${Math.round(((tries - 1) * everyMs) / 60_000)} min`;
+  if (!served) {
+    console.log(
+      `::error::${registry} never served ${name}@${version} in ${waited} (last: ${last}). Read it back by hand before anything else: the publish step's own result says whether it was published.`,
+    );
+    return 1;
   }
   console.log(
     registry === 'npm'
-      ? `::error::${name}@${version} has no provenance attestation on npm. The version exists and is immutable.`
+      ? `::error::${name}@${version} is on npm, but no provenance attestation appeared in ${waited}. The version exists and is immutable.`
       : `::error::${name}@${version} published WITHOUT provenance (no Sigstore/Rekor entry). The publish itself SUCCEEDED — this version exists and is immutable. Do NOT 'fix' this by editing permissions or the publish YAML: binaryen-ts's workflow is byte-identical between an unattested (v1.4.3) and an attested (v1.5.0) release, so the YAML is not the variable. Check the OIDC step above, then org/enterprise Settings → Actions → General → OIDC policy, then that the JSR↔GitHub repo link is intact. See cmem/publishing.md.`,
   );
   return 1;
