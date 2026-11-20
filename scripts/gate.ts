@@ -15,11 +15,11 @@
  * commits not yet on GitHub), the dependency audit, the browser bundle, both test legs (V8 and
  * Bun), the byte baseline, the API surface, the JSR dry run, the npm package, the CLI on Bun and
  * on Deno (the same bytes), every Node LTS line, then the spec testsuite prepared from the sibling
- * wasmtk checkout and every corpus and behaviour check.
+ * wasmtk checkout and every corpus and behaviour check, and binaryang's `wat2wasm` bytes against upstream's.
  *
  * The prepared corpora go in a fresh folder under the system temp directory, removed at the end
- * (`--keep` keeps it and prints where). Node, Deno (from npm, `scripts/deno.ts`), `wast2json` and
- * `wasm-tools` must be on PATH; a step whose tool is missing FAILS, never skips.
+ * (`--keep` keeps it and prints where). Node, Deno (from npm, `scripts/deno.ts`), `wast2json`, `wat2wasm`
+ * (wabt) and `wasm-tools` must be on PATH; a step whose tool is missing FAILS, never skips.
  */
 
 // First: every Bun started from here runs with memory64 on (owner, 2026-11-19).
@@ -51,7 +51,8 @@ const corpus = (name: string) => {
 const suite = fileURLToPath(
   new URL('../../wasmtk/tests/module/wasm_wast/testsuite-main', import.meta.url),
 );
-const [spec, legacy, prop, teh, smoke] = ['spec', 'legacy', 'prop', 'teh', 'smoke'].map(corpus);
+const [spec, legacy, prop, teh, smoke, w2w] = ['spec', 'legacy', 'prop', 'teh', 'smoke', 'wat2wasm']
+  .map(corpus);
 
 type Step = [name: string, cmd: string[]];
 const bun = (...a: string[]): string[] => ['bun', ...a];
@@ -77,6 +78,9 @@ const steps: Step[] = [
   ['spec:prepare legacy', bun('scripts/spec-prepare.ts', join(suite, 'legacy'), legacy!)],
   ['operators', bun('run', 'operators')],
   ['spec', bun('scripts/spec-testsuite.ts', spec!)],
+  // binaryang's `wat2wasm` against upstream's (and `wasm-tools` where wabt cannot assemble), on the
+  // spec scripts' text modules and the wasmtk fixtures: the bytes (C-R2-1)
+  ['wat2wasm', bun('scripts/check-wat2wasm.ts', suite, w2w!)],
   ['spec-behaviour', bun('scripts/v8.ts', 'scripts/check-spec-behaviour.ts', spec!)],
   ['lowering', bun('scripts/check-lowering.ts', spec!)],
   ['direct', bun('run', 'direct')],
