@@ -6,8 +6,8 @@
  * The `wasm-opt` SIZE RATCHET (security review round 4, C-R2-2): binaryang's optimizer against
  * REAL binaryen `wasm-opt`, on the real-compiler modules, pinned in a checked-in baseline.
  *
- * Until it existed nothing stopped the size gap to upstream growing: -Oz was +1.03% over
- * binaryen's on the real-compiler corpus (cmem/optimizer.md) and only a measurement said so.
+ * Until it existed nothing stopped the size gap to upstream growing; only a measurement said
+ * what it was (at the baseline, binaryen 133: corpus -Oz +0.134%, six -Oz +0.573%, six -O2 -2.09%).
  *
  * What is measured (BYTES OUTSIDE CUSTOM SECTIONS: what each optimizer made of the code, not
  * the debug info binaryang and binaryen treat differently):
@@ -20,8 +20,9 @@
  * (`optimize-size-baseline.json`), when binaryen is not the version the baseline was taken with
  * (ratios of different versions are not comparable), when the modules binaryen refuses are not
  * the ones it refused at the baseline, and when `wasm-opt` is not on PATH: a missing tool
- * FAILS, never skips. When binaryang gets smaller it says so and prints the command that records
- * the new baseline; that is a deliberate act (`--update-baseline`), never automatic.
+ * FAILS, never skips. When binaryang gets smaller it FAILS too, printing the command that records
+ * the new baseline (a gain left unrecorded could be given back unseen); recording is a deliberate
+ * act (`--update-baseline`), never automatic.
  *
  * Binaryen is called with an EXPLICIT feature list, never `--all-features` (which switches on
  * compact imports our reader refuses; cmem/optimizer.md § The method) and `--strip-dwarf`
@@ -160,8 +161,9 @@ export function judge(
         "owner's deliberate trade, record it with --update-baseline",
     );
   } else if (grown < 0) {
-    notes.push(
-      `${line}: SMALLER than the baseline (${over(base)} over). Keep the gain: ` +
+    // A gain FAILS until it is recorded: an unrecorded gain could be given back later unseen.
+    fails.push(
+      `${line}: SMALLER than the baseline (${over(base)} over). Record the gain: ` +
         '`bun scripts/v8.ts scripts/check-optimize-corpus.ts --update-baseline`, then commit ' +
         'scripts/optimize-size-baseline.json',
     );
