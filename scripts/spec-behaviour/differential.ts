@@ -19,8 +19,9 @@
  * needed, and our code never decides what is right. The variants:
  *
  * - `round trip` — what the tools do: the one reader through `readForPasses`,
- *   the one writer through `writeWasm`, no pass.
- * - `-O1` … `-Oz` — the same through `PassRunner` at the five levels.
+ *   the one writer through `writeWasm`, no pass. It is `-O0`: the CLI's level 0 schedules no pass.
+ * - `-O1` … `-Oz` — the same through `PassRunner` at every other level the CLI offers
+ *   (-O1 -O2 -O3 -O4 -Os -Oz; -O4 joined them in security review round 4, R2 fidelity).
  *
  * Until 1.6.0 each variant also ran on "route A", binaryen-ts's own decoder and
  * encoder; both were deleted then (One front end stages 3b and 4b).
@@ -44,6 +45,11 @@
  * every variant, so a module whose behaviour depends on them is still compared
  * like for like. A module the engine will not instantiate with them compares
  * that failure too.
+ *
+ * **Every call to an import is LOGGED** with its arguments (by bits), in order, and the log is part
+ * of each invocation's outcome and of the instantiation's (the start function): a pass that drops,
+ * duplicates or reorders a call to an import changes nothing a returned value shows, and used to
+ * go unseen. A renamed import is logged under the name it had.
  */
 
 import { readForPasses } from '../../src/ir/prepare.ts';
@@ -109,10 +115,11 @@ export interface Row {
   detail: string[];
 }
 
-const LEVELS: [string, PassOptions['optimizeLevel'], PassOptions['shrinkLevel']][] = [
+export const LEVELS: [string, PassOptions['optimizeLevel'], PassOptions['shrinkLevel']][] = [
   ['-O1', 1, 0],
   ['-O2', 2, 0],
   ['-O3', 3, 0],
+  ['-O4', 4, 0],
   ['-Os', 2, 1],
   ['-Oz', 2, 2],
 ];
@@ -124,14 +131,23 @@ const LEVELS: [string, PassOptions['optimizeLevel'], PassOptions['shrinkLevel']]
  */
 type Made = Uint8Array | { bytes: Uint8Array; map: MinifyMap };
 
+/**
+ * Test seam: `afterPasses` sees each optimizing level's tree after its passes, before it is
+ * written, so a test can plant the defect the comparison must catch.
+ */
+export interface CheckHooks {
+  afterPasses?: (level: string, m: WasmModule) => void;
+}
+
 /** Every variant, built lazily so one that throws is refused alone. */
-function variants(bytes: Uint8Array): [string, () => Made][] {
+function variants(bytes: Uint8Array, hooks?: CheckHooks): [string, () => Made][] {
   const out: [string, () => Made][] = [];
   out.push(['round trip', () => writeWasm(readForPasses(bytes))]);
   for (const [level, o, s] of LEVELS) {
     out.push([level, () => {
       const m: WasmModule = readForPasses(bytes);
       new PassRunner(m, { optimizeLevel: o, shrinkLevel: s }).addDefaultOptimizationPasses().run();
+      hooks?.afterPasses?.(level, m);
       return writeWasm(m);
     }]);
   }
@@ -202,19 +218,29 @@ function spectest(name: string): unknown {
  */
 function importsFor(
   mod: WebAssembly.Module,
+  log: string[],
   original: (module: string, field: string) => readonly [string, string] = (m, f) => [m, f],
 ): WebAssembly.Imports {
   const out: Record<string, Record<string, unknown>> = {};
   for (const imp of WebAssembly.Module.imports(mod)) {
     const ns = (out[imp.module] ??= {});
     const [was, wasName] = original(imp.module, imp.name);
+    // A function import is wrapped to LOG its call: module, field (as the ORIGINAL names them) and
+    // arguments, by bits.
+    const logged = (f: unknown): unknown =>
+      imp.kind === 'function'
+        ? (...a: unknown[]) => {
+          log.push(`${was}.${wasName}(${a.map(show).join(',')})`);
+          return (f as (...x: unknown[]) => unknown)(...a);
+        }
+        : f;
     if (was === 'spectest') {
-      ns[imp.name] = spectest(wasName);
+      ns[imp.name] = logged(spectest(wasName));
       continue;
     }
     switch (imp.kind) {
       case 'function':
-        ns[imp.name] = () => {};
+        ns[imp.name] = logged(() => {});
         break;
       case 'memory':
         ns[imp.name] = new WebAssembly.Memory({ initial: 1 });
@@ -283,6 +309,7 @@ export function outcomes(
   map?: MinifyMap,
 ): string[] {
   const { exportName, original } = renaming(map);
+  const log: string[] = [];
   let exports: WebAssembly.Exports;
   try {
     // The wrappers go onto the bytes as they are: the original's and each
@@ -290,16 +317,20 @@ export function outcomes(
     // name each export has in THESE bytes.
     const sigs = new Map([...v128].map(([field, sig]) => [exportName(field), sig]));
     const mod = new WebAssembly.Module(withV128Wrappers(bytes, sigs) as BufferSource);
-    exports = new WebAssembly.Instance(mod, importsFor(mod, original)).exports;
+    exports = new WebAssembly.Instance(mod, importsFor(mod, log, original)).exports;
   } catch (e) {
     const err = e as Error;
     const kind = err instanceof WebAssembly.CompileError ? 'INVALID' : 'instantiation fails';
     // An import is named in the message; a renamed one has other names, and the
     // failure is the same one — so it is compared by its position alone.
     const msg = err.message.replace(/@\+\d+/g, '').replace(/(Import #\d+) "[^"]*" "[^"]*"/g, '$1');
-    return [`${kind}: ${msg}`];
+    return [`${kind}: ${msg}${log.length > 0 ? ` {${log.join(' ')}}` : ''}`];
   }
-  return invokes.map(({ line, field, args }) => {
+  // What the START function called, then each invocation's calls, in order.
+  const started = log.splice(0).join(' ');
+  const outs = invokes.map(({ line, field, args }) => {
+    log.length = 0;
+    const calls = () => (log.length > 0 ? ` {${log.join(' ')}}` : '');
     // Through its wrapper, where it has one: each vector as two i64 lanes.
     const wrapped = exports[wrapperName(exportName(field))];
     const f = typeof wrapped === 'function' ? wrapped : exports[exportName(field)];
@@ -308,16 +339,20 @@ export function outcomes(
       ? args.flatMap((a) => a.type === 'v128' ? v128Lanes(a) : [arg(a)])
       : args.map(arg);
     try {
-      return `${line} ${field} = ${show((f as (...a: unknown[]) => unknown)(...values))}`;
+      const r = show((f as (...a: unknown[]) => unknown)(...values));
+      return `${line} ${field}${calls()} = ${r}`;
     } catch (e) {
       const kind = e instanceof RangeError ? 'exhaustion' : (e as Error).constructor.name;
-      return `${line} ${field} ! ${kind}`;
+      return `${line} ${field}${calls()} ! ${kind}`;
     }
   });
+  // After the invocations, so each stays at its own index.
+  outs.push(`start {${started}}`);
+  return outs;
 }
 
 /** Compares every variant of `input` with the original. */
-export function check(input: SpecInput): Row {
+export function check(input: SpecInput, hooks?: CheckHooks): Row {
   const bytes = new Uint8Array(readFileSync(input.path));
   const v128 = new Map(input.v128 ?? []);
   const want = outcomes(bytes, input.invokes, v128);
@@ -336,7 +371,7 @@ export function check(input: SpecInput): Row {
     row.detail.push(`the engine refuses the original: ${want[0]!.slice(9, 160)}`);
     return row;
   }
-  for (const [variant, make] of variants(bytes)) {
+  for (const [variant, make] of variants(bytes, hooks)) {
     let made: Made;
     try {
       made = make();
