@@ -269,6 +269,55 @@ describe('wat2wasm -o - is standard output, as upstream (wabt 1.0.41) and the ot
   });
 });
 
+describe('security note 3: a failed write leaves no temp or empty file (Windows)', () => {
+  // Measured (Windows 11 26300, Bun 1.4.4): `-o \\?\…\sub\..\up.txt` left `up.txt.<hex>.tmp` (the
+  // temp open normalised the `..`; the rename and the unlink did not), and `-o …\ads.txt:s` left
+  // an empty `ads.txt`. Both are refused up front now, with one line, on Bun and on Node.
+  const leftovers = (folder: string) => readdirSync(folder).sort();
+  for (
+    const [rt, command] of [
+      ['bun', () => ['bun', [MAIN]] as [string, string[]]],
+      ['node', () => nodeCommand(REFEREE, [], MAIN, [])],
+    ] as [string, () => [string, string[]]][]
+  ) {
+    it(`${rt}: a \\\\?\\ path with .., . or an empty segment, and a stream name`, () => {
+      const w = join(dir, `q3-${rt}`);
+      mkdirSync(join(w, 'sub'), { recursive: true });
+      // Not join(): it would resolve the `..` the test is about.
+      const verbatim = (rel: string) => `\\\\?\\${w}\\${rel}`;
+      const go = (target: string) => {
+        const [cmd, head] = command();
+        return spawnSync(cmd, [...head, 'wat2wasm', join(dir, 'a.wat'), '-o', target], {
+          encoding: 'utf8',
+          timeout: 60_000,
+        });
+      };
+      // The control: a plain verbatim path writes its file.
+      assertEquals(
+        go(process.platform === 'win32' ? verbatim('ok.wasm') : join(w, 'ok.wasm')).status,
+        0,
+      );
+      assertEquals(leftovers(w), ['ok.wasm', 'sub']);
+      if (process.platform !== 'win32') return; // the refusals are Windows' own
+      const bad: [string, string][] = [
+        [verbatim('sub\\..\\up.txt'), "a '..' segment"],
+        [verbatim('sub\\.\\dot.txt'), "a '.' segment"],
+        [verbatim('sub\\\\dbl.txt'), 'an empty segment'],
+        [join(w, 'ads.txt:s'), 'alternate data stream'],
+        [verbatim('ads.txt:s'), 'alternate data stream'],
+      ];
+      for (const [target, why] of bad) {
+        const r = go(target);
+        assertEquals(r.status, 1, `${target}: ${r.stderr}`);
+        assert(r.stderr.includes(why), r.stderr);
+        assertEquals(r.stderr.trimEnd().split('\n').length, 1, r.stderr);
+        assertEquals(leftovers(w), ['ok.wasm', 'sub'], target);
+        assertEquals(leftovers(join(w, 'sub')), [], target);
+      }
+    });
+  }
+});
+
 describe('Q-H3: a \\\\?\\ path is the real file it names, even ending in a device name', () => {
   it('writes the file (Windows); a file named nul elsewhere (the control)', () => {
     const sub = join(dir, 'q3');

@@ -270,6 +270,34 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
 }
 
 /**
+ * Why a Windows `path` cannot be written as a file by temp and rename, or `null`. Two shapes left
+ * debris behind (4.1.x review, security note 3; measured on Windows 11 26300, Bun 1.4.4):
+ * - `\\?\C:\x\sub\..\up.txt`: Win32 resolves no `.` or `..` after `\\?\` (a segment named `..` is
+ *   no folder), yet Bun's open of the temp name normalised it while its rename and unlink did not,
+ *   so `up.txt.<hex>.tmp` stayed beside the target. Node resolves them; both are refused, so one
+ *   path means one thing. An empty segment (`\\`) is the same.
+ * - `ads.txt:s`, an alternate data stream: opening the temp stream CREATED an empty `ads.txt`, and
+ *   renaming a stream is EINVAL. A stream name is refused up front rather than failing after.
+ */
+function windowsPathProblem(path: string): string | null {
+  const verbatim = path.startsWith('\\\\?\\');
+  let rest = verbatim ? path.slice(4) : path;
+  if (verbatim && /^UNC\\/i.test(rest)) rest = rest.slice(4);
+  rest = rest.replace(/^[A-Za-z]:/, '');
+  if (rest.includes(':')) {
+    return 'an alternate data stream (a `:` in the name) cannot be written here: name a file';
+  }
+  if (!verbatim) return null;
+  const segments = rest.split('\\').slice(1);
+  const at = segments.findIndex(
+    (x, i) => x === '.' || x === '..' || (x === '' && i < segments.length - 1),
+  );
+  if (at < 0) return null;
+  const what = segments[at] === '' ? 'an empty segment' : `a '${segments[at]}' segment`;
+  return `a \\\\?\\ path with ${what} is not resolved by Windows: write the path without it`;
+}
+
+/**
  * Writes `data` to `path`, through `node:fs/promises` loaded on demand, ATOMICALLY: into a fresh
  * file beside the target, then renamed over it. A failure part-way (a full disk, a kill) leaves
  * the old file whole, never half a module (security review round 1, 2026-11-13). A symbolic link
@@ -346,6 +374,10 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
     // file is. 🔧 The rename replaced the link itself with a file (security review round 2).
     const link = await lstat(path).catch(() => undefined);
     if (link?.isSymbolicLink()) target = resolve(dirname(path), await readlink(path));
+  }
+  if (cliProcess().platform === 'win32') {
+    const problem = windowsPathProblem(target);
+    if (problem !== null) throw new Error(problem);
   }
   // Eight hex digits are enough beside one file: a temp name 13 characters longer than the
   // target, not 41 (a long legal name could fail ENAMETOOLONG through the temp name alone).
