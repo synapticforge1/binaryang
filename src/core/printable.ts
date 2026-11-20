@@ -35,12 +35,13 @@ export function actsWhenPrinted(u: number): boolean {
  */
 export function printable(
   name: string,
-  opts: { backslash?: boolean; keepLines?: boolean } = {},
+  opts: { backslash?: boolean; keepLines?: boolean; keepTabs?: boolean } = {},
 ): string {
   let out = '';
   for (const c of name) {
     const u = c.codePointAt(0)!;
-    const kept = opts.keepLines === true && (c === '\n' || c === '\t');
+    const kept = (opts.keepLines === true && c === '\n') ||
+      ((opts.keepLines === true || opts.keepTabs === true) && c === '\t');
     const inert = kept || !(actsWhenPrinted(u) || (opts.backslash === true && c === '\\'));
     out += inert ? c : `\\u${u.toString(16).padStart(4, '0')}`;
   }

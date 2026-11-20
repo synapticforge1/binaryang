@@ -68,7 +68,7 @@ describe('security round 2 — printable: what acts when printed is escaped, the
     assertEquals(commentSafe(`a${RLO}b​c\\`), 'a\\u202eb\\u200bc\\u005c');
   });
 
-  it('every diagnostic: a name in a message cannot drive the terminal; its line breaks stay', () => {
+  it('every diagnostic: a name in a message cannot drive the terminal; a line break in it is escaped, not kept', () => {
     const out = formatError({
       loc: unknownLocation(),
       level: ErrorLevel.Error,
@@ -76,7 +76,8 @@ describe('security round 2 — printable: what acts when printed is escaped, the
     });
     assert(!out.includes(ESC), out);
     assert(out.includes('\\u001b[2J'), out);
-    assert(out.includes('\n  first line kept'), out);
+    assert(out.includes('\\u000a  first line kept'), out);
+    assertEquals(out.split(String.fromCharCode(10)).length, 1, out);
   });
 });
 

@@ -25,7 +25,7 @@
 
 import type { ErrorList } from '../core/error.ts';
 import type { Result } from '../core/result.ts';
-import { cliExit, cliProcess } from '../host.ts';
+import { cliError, cliExit, cliProcess } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ export function main(_args: string[] = cliProcess().argv.slice(2)): Promise<void
     console.log(helpText(HELP));
     return Promise.resolve();
   }
-  console.error('wasm2ts: not yet implemented (Phase 8 — deferred pending wasmtk QA/QC)');
+  cliError('wasm2ts: not yet implemented (Phase 8 — deferred pending wasmtk QA/QC)');
   cliExit(1);
 }
 

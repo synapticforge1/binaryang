@@ -175,25 +175,67 @@ async function bunClosedStdout(): Promise<boolean> {
   }
 }
 
+/**
+ * What one stream's writes share (see {@link writeStream}): the writes still waiting, the one
+ * 'error' listener that rejects them, and whether that listener is installed or a failure was seen.
+ */
+interface StreamWatch {
+  readonly pending: Set<(err: Error) => void>;
+  readonly onError: (err: Error) => void;
+  installed: boolean;
+  failed: boolean;
+}
+
+const watches = new WeakMap<object, StreamWatch>();
+
 /** `data` to the process's stdout or stderr, resolved once it is flushed. */
 async function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | string): Promise<void> {
   if (stream === 'stdout' && (await bunClosedStdout())) {
     throw new Error('standard output is closed (this process was started with `>&-`)');
   }
   const out = cliProcess()[stream];
+  // 🔧 Node reports a failed write TWICE: to the callback, and as an 'error' event on the stream,
+  // which with no listener is an "Unhandled 'error' event" stack trace of 23-25 lines, not the
+  // one line + exit 1 the callers print (4.1.x review, hardening F1: `> /dev/full`, a closed
+  // pipe). Bun and Deno call back only. So a listener is held while a write is pending, and the
+  // callback and the event settle the one promise, whichever comes first. 🔧 ONE listener per
+  // stream, shared by every pending write: a listener each made 50 concurrent writes a
+  // MaxListenersExceededWarning on Node 24 (round 2 review). It stays after a failure (the event
+  // can follow the callback by a tick, and the process is ending); after success, once the last
+  // write is done, it is removed, so a long run does not leave one behind.
+  let watch = watches.get(out);
+  if (watch === undefined) {
+    const pending = new Set<(err: Error) => void>();
+    const made: StreamWatch = {
+      pending,
+      installed: false,
+      failed: false,
+      onError: (err) => {
+        made.failed = true;
+        for (const reject of [...pending]) reject(err);
+        pending.clear();
+      },
+    };
+    watch = made;
+    watches.set(out, watch);
+  }
+  const w = watch;
   return new Promise((resolve, reject) => {
-    // 🔧 Node reports a failed write TWICE: to the callback, and as an 'error' event on the stream,
-    // which with no listener is an "Unhandled 'error' event" stack trace of 23-25 lines, not the
-    // one line + exit 1 the callers print (4.1.x review, hardening F1: `> /dev/full`, a closed
-    // pipe). Bun and Deno call back only. So a listener is held for the write, and the callback
-    // and the event settle the one promise, whichever comes first. The listener stays after a
-    // failure (the event can follow the callback by a tick, and the process is ending); after
-    // success it is removed, so a long run does not pile them up.
-    const onError = (err: Error) => reject(err);
-    out.once('error', onError);
+    w.pending.add(reject);
+    if (!w.installed) {
+      out.on('error', w.onError);
+      w.installed = true;
+    }
     out.write(data, (err) => {
-      if (err) return reject(err);
-      out.removeListener('error', onError);
+      w.pending.delete(reject);
+      if (err) {
+        w.failed = true;
+        return reject(err);
+      }
+      if (w.pending.size === 0 && !w.failed) {
+        out.removeListener('error', w.onError);
+        w.installed = false;
+      }
       resolve();
     });
   });
@@ -248,9 +290,13 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
     if ((e as { code?: string }).code === 'ENXIO') {
       // The example command is given only where it can be exact: a path with a byte that acts
       // when printed (ESC, a line break …) is escaped in the message, and an escaped name is not
-      // the file's. Elsewhere it is single-quoted, `'` written `'\''`, which no byte escapes.
+      // the file's. Elsewhere it is single-quoted, `'` written `'\''`, which no byte escapes — in
+      // POSIX sh. fish reads `\` and `\'` inside single quotes as escapes and csh/tcsh expand `!`
+      // (history), so a path with `\` or `!` gets no example either (round 2 review).
       const quoted = `'${path.split("'").join("'\\''")}'`;
-      const example = printable(path) === path ? ` (for example \`cat ${quoted}\`)` : '';
+      const example = printable(path) === path && !/[\\!]/.test(path)
+        ? ` (for example \`cat ${quoted}\`)`
+        : '';
       throw new Error(`it is a FIFO with no reader: start the reader first${example}, then write`);
     }
     throw e;
@@ -278,22 +324,34 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
  *   path means one thing. An empty segment (`\\`) is the same.
  * - `ads.txt:s`, an alternate data stream: opening the temp stream CREATED an empty `ads.txt`, and
  *   renaming a stream is EINVAL. A stream name is refused up front rather than failing after.
+ * - Round 2: a `/` anywhere in a `\\?\` path (Bun normalises it on open, Win32 does not), and
+ *   EVERY segment after the root is checked, not all but the first (`\\?\..\x`, `\\?\UNC\..\s`).
  */
 function windowsPathProblem(path: string): string | null {
   const verbatim = path.startsWith('\\\\?\\');
-  let rest = verbatim ? path.slice(4) : path;
-  if (verbatim && /^UNC\\/i.test(rest)) rest = rest.slice(4);
-  rest = rest.replace(/^[A-Za-z]:/, '');
-  if (rest.includes(':')) {
+  // Win32 reads `\\?\` as "no processing": a `/` is a name character to it, yet Bun normalises it
+  // on the temp open and not on the rename (round 2 review: `\\?\W/sub/../fs.txt` left
+  // `fs.txt.<hex>.tmp` in W's parent). One refusal covers every such path.
+  if (verbatim && path.includes('/')) {
+    return 'a `/` in a \\\\?\\ path is not a separator to Windows: write the path with `\\`';
+  }
+  // Every segment after the root is a name. The root is dropped alone: `X:` (a drive), or `UNC`
+  // (its server and share stay and are checked); `C:rel` loses its `C:`.
+  const parts = (verbatim ? path.slice(4) : path).split('\\');
+  let names = parts;
+  if (!verbatim) parts[0] = parts[0]!.replace(/^[A-Za-z]:/, '');
+  else if (/^[A-Za-z]:$/.test(parts[0]!) || /^UNC$/i.test(parts[0]!)) {
+    names = parts.slice(1);
+  }
+  if (names.some((x) => x.includes(':'))) {
     return 'an alternate data stream (a `:` in the name) cannot be written here: name a file';
   }
   if (!verbatim) return null;
-  const segments = rest.split('\\').slice(1);
-  const at = segments.findIndex(
-    (x, i) => x === '.' || x === '..' || (x === '' && i < segments.length - 1),
+  const at = names.findIndex(
+    (x, i) => x === '.' || x === '..' || (x === '' && i < names.length - 1),
   );
   if (at < 0) return null;
-  const what = segments[at] === '' ? 'an empty segment' : `a '${segments[at]}' segment`;
+  const what = names[at] === '' ? 'an empty segment' : `a '${names[at]}' segment`;
   return `a \\\\?\\ path with ${what} is not resolved by Windows: write the path without it`;
 }
 
@@ -318,6 +376,10 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   const { dirname, resolve } = await import('node:path');
   const stream = standardStream(path);
   if (stream !== null) return writeStream(stream, data);
+  // win-x64 / win-arm64: `\\.\C:\dir\f` is the file `C:\dir\f` (the device namespace resolves `.`,
+  // `..` and `/` as a plain path does). Bun 1.4.4 cannot open it (ENOENT) and Node can, so it is
+  // written as the plain path on both (round 2 review; measured on Windows 11 26300).
+  if (cliProcess().platform === 'win32') path = path.replace(/^\\\\\.\\([A-Za-z]:)(?=\\)/, '$1');
   // win-x64 / win-arm64: a reserved device name (`NUL`, `CON`, `COM1` …, any case; `/dev/null`
   // as NUL) is a DEVICE, written by its device path. 🔧 `realpath` refused it (EINVAL), so
   // `-o NUL` failed after atomic writes came in (review H-2, 2026-11-18); and written by its plain
@@ -357,6 +419,12 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
     if (direct.isFIFO()) return writeFifo(path, data);
     await writeFile(path, data);
     return;
+  }
+  // The path as given is checked BEFORE `realpath`, which fails on some of these (`\\?\UNC\h\.\x`:
+  // EUNKNOWN); the target is checked again below, as a link or realpath may have changed it.
+  if (cliProcess().platform === 'win32') {
+    const problem = windowsPathProblem(path);
+    if (problem !== null) throw new Error(problem);
   }
   let target = path;
   let mode: number | undefined;
@@ -461,13 +529,24 @@ export function baseName(path: string): string {
 }
 
 /**
+ * The ONE way a CLI message reaches stderr: every tool, `main.ts` and {@link cliFail} call it, so
+ * nothing from the command line or a module acts on the terminal (round 2 review: `unknown option
+ * <ESC>[2J`, an option's value, and `wasm-opt`'s error text went out raw). A character that acts
+ * when printed is written `\uXXXX` (`core/printable.ts`). With `block`, the text is the tool's
+ * own multi-line layout (a diagnostic, a usage, a map): its line breaks and tabs stay.
+ */
+export function cliError(message: string, block = false): void {
+  console.error(printable(message, { keepLines: block }));
+}
+
+/**
  * Exit with a one-line `tool: message` on stderr. Never returns. The message is PRINTABLE: a path
  * from the command line, and the system's own error text quoting it (`ENOENT … open '<path>'`),
  * went to the terminal raw, so an ESC in a path acted there (4.1.x review, privacy note; the
- * review process says paths are escaped). Line breaks and tabs are kept.
+ * review process says paths are escaped). Through {@link cliError}.
  */
 export function cliFail(tool: string, message: string): never {
-  console.error(`${tool}: ${printable(message, { keepLines: true })}`);
+  cliError(`${tool}: ${message}`);
   cliExit(1);
 }
 
