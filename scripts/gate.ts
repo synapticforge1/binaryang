@@ -18,7 +18,9 @@
  * wasmtk checkout and every corpus and behaviour check, and binaryang's `wat2wasm` bytes against upstream's.
  *
  * The prepared corpora go in a fresh folder under the system temp directory, removed at the end
- * (`--keep` keeps it and prints where). Node, Deno (from npm, `scripts/deno.ts`), `wast2json`, `wat2wasm`
+ * (`--keep` keeps it and prints where). A FAILED step's whole output is kept in a private folder
+ * under the system temp directory (`gate-failure.ts`): at most 7 days, at most the 5 newest runs'.
+ * Node, Deno (from npm, `scripts/deno.ts`), `wast2json`, `wat2wasm`
  * (wabt) and `wasm-tools` must be on PATH; a step whose tool is missing FAILS, never skips.
  */
 
@@ -54,8 +56,13 @@ const suite = fileURLToPath(
 );
 // A failed step's whole output, kept after the gate ends (review Q-H6): a private folder made for
 // this run at its first failure (0700, never removed at exit: the failure row names it), the logs
-// written 'wx'; the folders of earlier runs are pruned to the last KEEP_RUNS now.
-pruneFailureDirs();
+// written 'wx'. Retention: a failing run's folder lives at most 7 days and only the KEEP_RUNS (5)
+// newest are kept, this run's included, so earlier runs are pruned to 4 now (never fatal).
+try {
+  pruneFailureDirs();
+} catch (e) {
+  console.log(`gate: could not prune old failure logs: ${(e as Error).message}`);
+}
 let failures: string | undefined;
 const [spec, legacy, prop, teh, smoke, w2w] = ['spec', 'legacy', 'prop', 'teh', 'smoke', 'wat2wasm']
   .map(corpus);

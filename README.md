@@ -246,6 +246,9 @@ engines) are not yet run on the test machine.
 The checks run on the maintainer's machine before each release (`bun run gate`, on Windows x64; a
 Linux x64 run covers the Bun test leg, the spec suite and the byte baseline); GitHub Actions only
 publishes.
+A failed gate step's whole output (it holds absolute paths, so your user name) is kept in a private
+folder under the system temp directory, named on the failing row: at most 7 days, and at most the
+5 newest failing runs (the one in progress counts).
 
 ### Making a module run on every widely used engine
 
