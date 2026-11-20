@@ -126,7 +126,8 @@ interface Solved {
 /**
  * The reaching-definitions fixed point. `undefined` when (blocks × 4 + locals) × words per
  * bitset would pass `maxWords`: the bitsets are quadratic in the function's size (blocks ×
- * definitions / 32), and a hostile function can make them gigabytes.
+ * definitions / 32), and a hostile function can make them gigabytes. Or when (sets + reads) ×
+ * words per bitset would pass four times `maxWords`: each of them is a pass over a bitset.
  */
 function solve(
   fn: WasmFunction,
@@ -151,13 +152,20 @@ function solve(
   for (let i = 0; i < fn.locals.length; i++) if (followed(i)) define(ENTRY, i);
   const entryBits = defs.length;
   const idOf = new Map<Expression, number>();
+  let followedActions = 0;
   for (const b of cfg.blocks) {
     for (const a of b.actions) {
-      if (a.kind === 'set' && followed(a.index)) idOf.set(a.origin, define(a.origin, a.index));
+      if (!followed(a.index)) continue;
+      followedActions++;
+      if (a.kind === 'set') idOf.set(a.origin, define(a.origin, a.index));
     }
   }
   const W = (defs.length + 31) >>> 5;
   if ((cfg.blocks.length * 4 + ofLocal.size) * W > maxWords) return undefined;
+  // Every set and read also costs a pass over one bitset (a mask, a population count), however
+  // few blocks hold them: 200,000 sets of one local in one block took 18 s. Four times the memory
+  // budget, as those are single word operations.
+  if (followedActions * W > maxWords * 4) return undefined;
   const masks = new Map<number, Uint32Array>(); // local → all its definitions
   for (const [local, ids] of ofLocal) {
     const m = new Uint32Array(W);
