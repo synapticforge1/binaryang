@@ -445,7 +445,10 @@ export function ctorEval(
     }
     const of = fn.body.children.length;
     if (fn.sig.params.length > 0 && !opts.ignoreExternalInput) {
-      log(`  ...stopping due to params\n  RECOMMENDATION: consider --ignore-external-input`);
+      // Two lines, two calls: the tool's own layout, and each is a one-line status (cliInfo /
+      // cliError escape any line break in one).
+      log(`  ...stopping due to params`);
+      log(`  RECOMMENDATION: consider --ignore-external-input`);
       outcomes.push({ name: ctor.name, statements: 0, of, complete: false, reason: 'parameters' });
       continue;
     }

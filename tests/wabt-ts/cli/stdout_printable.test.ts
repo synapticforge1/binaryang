@@ -28,6 +28,7 @@ before(() => {
     .raw`(module (memory 1) (func (export "f\1b[2Jx") (result i32) (i32.const 1)))`;
   writeFileSync(join(dir, 'b1.wat'), named);
   writeFileSync(join(dir, 'b2.wat'), named);
+  writeFileSync(join(dir, 'p.wat'), '(module (func (export "f") (param i32)))');
   writeFileSync(join(dir, 'c.wat'), String.raw`(module (func $s (export "f\1b[2Jx")) (start $s))`);
   writeFileSync(join(dir, `i${ODD}.wat`), '(module (memory 1) (func (export "g")))');
 });
@@ -84,6 +85,19 @@ describe('a status line on stdout is printable', () => {
       assertInert(r.stdout, what);
     });
   }
+
+  it("the tool's own two-line message keeps its two lines, on stdout and on stderr", () => {
+    const want =
+      '  ...stopping due to params\n  RECOMMENDATION: consider --ignore-external-input\n';
+    // The module to a file: the report is on stdout.
+    const file = run('wasm-ctor-eval', 'p.wat', '--ctors=f', '-o', 'o.wasm');
+    assert(file.stdout.includes(want), `stdout: ${JSON.stringify(file.stdout)}`);
+    assert(!file.stdout.includes('\\u000a'), 'no escaped line break on stdout');
+    // The module to stdout (-o -): the report is on stderr, the module alone on stdout.
+    const pipe = run('wasm-ctor-eval', 'p.wat', '--ctors=f', '-o', '-');
+    assert(pipe.stderr.includes(want), `stderr: ${JSON.stringify(pipe.stderr)}`);
+    assert(!pipe.stderr.includes('\\u000a'), 'no escaped line break on stderr');
+  });
 
   it('the module on stdout is untouched: the report goes to stderr', () => {
     const r = run('wasm-opt', 'a.wat', '-O1', '-o', '-');
