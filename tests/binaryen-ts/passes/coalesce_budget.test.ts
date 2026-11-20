@@ -15,6 +15,7 @@
 //     failure path read as the INPUT's invalidity: a valid module called invalid. Now a decoder
 //     failure is no verdict (`decoderFailed`, `invalidity`).
 
+import process from 'node:process';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
@@ -64,15 +65,26 @@ function fn(locals: number, code: number[] = []): Uint8Array {
 const coalesce = (m: WasmModule) =>
   new PassRunner(m, { ...defaultPassOptions, optimizeLevel: 2 }).add('CoalesceLocals').run();
 
+/**
+ * This process's CPU time in ms (user + system). The bounds below catch a quadratic pass —
+ * minutes of CPU — and CPU time does not grow when other test files share the machine: wall time
+ * did, and the 20 s bound failed at 20.5 s, 28.7 s inside full parallel runs that took ~7 s alone
+ * (Q-H5, 2026-11-20).
+ */
+const cpuMs = () => {
+  const u = process.cpuUsage();
+  return (u.user + u.system) / 1000;
+};
+
 describe('security round 2 — CoalesceLocals is bounded by the input, not by the counts in it', () => {
   it('the 35-byte module of 1,000,000 locals optimizes in seconds, its locals one slot', {
     timeout: 120_000,
   }, async () => {
     const wasm = fn(MAX_MATERIALIZED_LOCALS);
     expect(wasm.length).toBeLessThan(40);
-    const t = performance.now();
+    const t = cpuMs();
     const out = await wasmOpt(wasm, { optimizeLevel: 2 });
-    expect(performance.now() - t).toBeLessThan(30_000);
+    expect(cpuMs() - t).toBeLessThan(30_000);
     const m = readForPasses(out as Uint8Array);
     expect(m.functions[0]!.locals.length).toBeLessThanOrEqual(1);
   });
@@ -132,9 +144,9 @@ describe('security round 2 — CoalesceLocals is bounded by the input, not by th
 
   it('at the budget, every local live at once: seconds, not minutes', { timeout: 120_000 }, () => {
     const m = readForPasses(allLive(COALESCE_MAX_REFERENCED_LOCALS));
-    const t = performance.now();
+    const t = cpuMs();
     coalesce(m);
-    expect(performance.now() - t).toBeLessThan(20_000);
+    expect(cpuMs() - t).toBeLessThan(20_000);
     // none can share: all live together
     expect(m.functions[0]!.locals.length).toBe(COALESCE_MAX_REFERENCED_LOCALS);
   });
