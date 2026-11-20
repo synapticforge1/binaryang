@@ -8,12 +8,6 @@
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
 item closes, its record goes to the topic file and its line leaves here.
 
-**OPEN — the npm provenance poll is too short (4.0.0, 2026-11-18).** `registry.ts provenance npm`
-polls 12 × 15 s (about 3 minutes); npm showed 4.0.0 about 4 minutes after `npm publish`, so
-publish.yml run 44412712388 ended red with everything published (release.md § 4.0.0). Widen the
-window (measure: npm's lag, and JSR's poll beside it), test it, review it as a change, ship it
-in the next release. Until then a red "Verify provenance … npm" is read back by hand first.
-
 **OPEN — the nesting limit, option 2 (owner, 2026-11-13: "I agree with option 1 now and then
 option 2 in the stage by stage plan as described").** Option 1 is DONE on `security-r2`: one
 limit, `MAX_NESTING_DEPTH` = 256 (`src/ir/nesting.ts`), measured iteratively and refused in one
