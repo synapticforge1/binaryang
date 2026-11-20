@@ -447,6 +447,7 @@ name. Each limit refuses with a typed error or diagnostic; none is silent. (Secu
 | Locals in one function | 1,000,000 (`MAX_MATERIALIZED_LOCALS`) | decode error |
 | Locals in a whole module | 1,000,000 plus one per byte of the module (`maxModuleLocals`) | decode error |
 | CoalesceLocals | colours a function of up to 20,000 referenced locals (`COALESCE_MAX_REFERENCED_LOCALS`) | that function is left as it is (still correct) |
+| SSANoMerge, MergeLocals, the writer's Local2Stack | reaching-definitions bitsets of up to 2^25 words (128 MB; `LOCAL_GRAPH_MAX_WORDS`: about 11,000 sets and branches in one function) | that function is left as it is (still correct) |
 | Interpreter: nested calls | 1,000 (`maxDepth`); on V8 (Node, Deno) the host's JavaScript stack can end a run first, measured at 130–440 calls | trap `call stack exhausted` at the limit; `Stop('unsupported')`, "ran out of its host's stack …", when the host's stack ends it first (no claim about the program). Blocks and calls share that stack: a call inside nested blocks nests the callee's blocks on top of them, so the depth that ends a run is the two added, not either alone |
 | Interpreter: locals of every active call | 4,000,000 (`maxStackLocals`) | trap `call stack exhausted` |
 | Interpreter: fuel | unlimited by default; when set, charged per instruction AND per element, per 8 bytes and per local of bulk work | `Stop('fuel')` |
