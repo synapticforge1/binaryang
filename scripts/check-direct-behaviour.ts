@@ -41,6 +41,7 @@
 
 import type { Row, Status } from './direct-behaviour/differential.ts';
 import { type DirectInput, directInputs } from './direct-inputs.ts';
+import { PROBES } from './direct-behaviour/probes.ts';
 
 import process from 'node:process';
 import { Worker } from 'node:worker_threads';
@@ -55,7 +56,9 @@ const BUDGET_MS = 20_000;
 
 const WORKER = new URL('./direct-behaviour/worker.ts', import.meta.url);
 
-const { corpus, inputs } = await directInputs();
+const { corpus, inputs: read } = await directInputs();
+// The hand-written probes (`probes.ts`) ride with the corpus and the fixture.
+const inputs = [...read, ...PROBES];
 
 const rows: Row[] = [];
 
@@ -133,12 +136,14 @@ for (const r of rows) {
   for (const [k, n] of Object.entries(r.notRun)) notRun.set(k, (notRun.get(k) ?? 0) + n);
 }
 
-console.log('  === wat2wasm vs the optimizer (-O3) over the same tree, RUN in lockstep ===');
+console.log(
+  '  === wat2wasm vs the optimizer (-O0 -O1 -O2 -O3 -O4 -Os -Oz) over the same tree, RUN in lockstep ===',
+);
 // 🔧 This line said "modules compared" for every module READ, and the TOTAL "agree on every
 // one" while 76 of 544 were never run (security review round 4, R2-3): it states both now.
 console.log(
   `    modules read            ${String(rows.length).padStart(5)}` +
-    `   (${corpus} corpus + ${inputs.length - corpus} fixture)`,
+    `   (${corpus} corpus + ${read.length - corpus} fixture + ${PROBES.length} probe)`,
 );
 console.log(
   `    modules compared        ${String(by('agree').length + diverged.length).padStart(5)}`,
