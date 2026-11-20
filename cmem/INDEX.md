@@ -1,6 +1,7 @@
 # INDEX: binaryang
 
-Read STATE.md first. Open another file only when the task matches its line.
+Read STATE.md first. Open another file only when the task matches its line. A file named
+`<subject>-<part>.md` is a split of `<subject>.md`, which links it; `archive/` holds closed items.
 
 - [STATE.md](STATE.md): every session, first — where the project stands
 - [working-rules.md](working-rules.md): before the first commit or command of a session
@@ -32,4 +33,5 @@ Read STATE.md first. Open another file only when the task matches its line.
 - [binaryen-ts.md](binaryen-ts.md): when code or a test cites a WT-n or a binaryen-ts invariant
 - [best-practices.md](best-practices.md): binaryang's own lessons; read a rule a task cites
 - [best-practices-shared.md](best-practices-shared.md): the workspace's 28 ★ rules, copied (H38)
+- `archive/`: closed items and history, by file, to 4.1.1; read only when asked
 - `local/`: private machine facts, gitignored; never given to a reviewer

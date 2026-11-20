@@ -8,12 +8,27 @@ deprecated names in a later minor.
 
 ## What landed
 
-| phase | what | merged |
-| --- | --- | --- |
-| 1 — one tree | `src/binaryen-ts/` and `src/wabt-ts/` → `src/` by concept: 105 files by `git mv`; 2,162 relative path literals rewritten by a resolver (each resolved from its file's OLD place); 19 `deno.json` exports retargeted, every subpath kept; the orphan `src/wabt-ts/index.ts` barrel and 7 `.gitkeep`s removed; 62 `@module` tags. The layout: [project.md](project.md) § "Layout". | `2802e6e3f` |
-| 2 — one name each | duplicate exported type names **88 → 3**: 78 proven the same type name by name and made re-exports of the one declaration in `ir/ir.ts`; `RefType` made the IR's read-only `RefValueType`, after which `ValueType`, `StorageType`, `FuncSignature`, `BlockParams`, `Catch`, `TableCatch` were the same types too | `667d2b765` |
-| 3 — logic twice | core's unused `LiteralType` enum removed; `funcAt` / `funcSignature` in `ir/ir.ts` replace three private copies of one walk (`wasm-interp`, `witgen`, `wasm-bundle`) | `667d2b765` |
-| 4 — one subpath | **`./ir`** exports everything `./ir/wabt-ts`, `./ir/binaryen-ts` and `./core/wabt-ts` did; the three stay one release, DEPRECATED. binaryen-ts's `Type` union is `ExprType` everywhere in the code; `./ir/binaryen-ts` and `./api` still offer `Type` as a deprecated alias of it. Duplicate names **3 → 2**, then **0** with the compat rename. | this file's commit |
+- **phase:** 1 — one tree
+  - what: `src/binaryen-ts/` and `src/wabt-ts/` → `src/` by concept: 105 files by `git mv`; 2,162
+    relative path literals rewritten by a resolver (each resolved from its file's OLD place); 19
+    `deno.json` exports retargeted, every subpath kept; the orphan `src/wabt-ts/index.ts` barrel and
+    7 `.gitkeep`s removed; 62 `@module` tags. The layout: [project.md](project.md) § "Layout".
+  - merged: `2802e6e3f`
+- **phase:** 2 — one name each
+  - what: duplicate exported type names **88 → 3**: 78 proven the same type name by name and made
+    re-exports of the one declaration in `ir/ir.ts`; `RefType` made the IR's read-only
+    `RefValueType`, after which `ValueType`, `StorageType`, `FuncSignature`, `BlockParams`, `Catch`,
+    `TableCatch` were the same types too
+  - merged: `667d2b765`
+- **phase:** 3 — logic twice
+  - what: core's unused `LiteralType` enum removed; `funcAt` / `funcSignature` in `ir/ir.ts` replace three private copies of one walk (`wasm-interp`, `witgen`, `wasm-bundle`)
+  - merged: `667d2b765`
+- **phase:** 4 — one subpath
+  - what: **`./ir`** exports everything `./ir/wabt-ts`, `./ir/binaryen-ts` and `./core/wabt-ts` did;
+    the three stay one release, DEPRECATED. binaryen-ts's `Type` union is `ExprType` everywhere in
+    the code; `./ir/binaryen-ts` and `./api` still offer `Type` as a deprecated alias of it.
+    Duplicate names **3 → 2**, then **0** with the compat rename.
+  - merged: this file's commit
 
 Every phase: the full gate on its committed tree (21 / 21), the suite from a fresh clone, `baseline`
 IDENTICAL (421 / 421) — no output byte moved anywhere in the item.

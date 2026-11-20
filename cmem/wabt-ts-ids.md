@@ -1,0 +1,373 @@
+# wabt-ts — the T-id and UP-n index
+
+Summary: every T-id and UP-n that code, tests and commits cite, with how each closed. Last verified 2026-11-20.
+Main file: [wabt-ts.md](wabt-ts.md). Moved from it on 2026-11-20 (H38 step 5), unchanged.
+
+### T-id index — every T-id cited outside the ledger (T1–T5 and T11 added for completeness)
+
+- **id:** T1
+  - what it was, and how it closed: numeric literals: negative hex, optional hex-float exponent, NaN-payload `_` — +25 files (120→145/257)
+  - commit(s): `6f4aea091`
+- **id:** T2
+  - what it was, and how it closed: small grammar gaps + the four GC array bulk ops from scratch — +34 (→179)
+  - commit(s): `725a2ccb9`
+- **id:** T3
+  - what it was, and how it closed: multi-memory: bare memidx, `resolveMemoryVar`, `memory.init` index swap — +35 (→214)
+  - commit(s): `3121b07c1`
+- **id:** T4
+  - what it was, and how it closed: table64 / memory64 index types + table definition shapes — +16 (→230)
+  - commit(s): `ebc101630`
+- **id:** T5
+  - what it was, and how it closed: GC `(rec …)` / `(sub …)` — parse +7, encode +5
+  - commit(s): `7a8a03055`
+- **id:** T5.1
+  - what it was, and how it closed: `any.convert_extern` / `extern.convert_any` — parse +1, encode +1
+  - commit(s): `47d34c698`
+- **id:** T5.2
+  - what it was, and how it closed: abbreviated heap-type immediate (`ref.cast i31ref`) — parse +3, encode +3
+  - commit(s): `877ed238f`
+- **id:** T5.3
+  - what it was, and how it closed: `br_on_cast` / `br_on_cast_fail`, never implemented — parse 257/257, encode +2
+  - commit(s): `2455857f2`
+- **id:** T6.1
+  - what it was, and how it closed: block params / multi-value block results — absorbed during T7 (batch 2)
+  - commit(s): `c1e03eca4`
+- **id:** T6.2
+  - what it was, and how it closed: elem segment typed-ref element types — absorbed during T4
+  - commit(s): `ebc101630`
+- **id:** T6.3
+  - what it was, and how it closed: table inline-elem forms — absorbed during T4
+  - commit(s): `ebc101630`
+- **id:** T6.4
+  - what it was, and how it closed: `(module definition …)` / `(module instance …)` — parse +5, encode +5
+  - commit(s): `877ed238f`
+- **id:** T6.5
+  - what it was, and how it closed: `(@annotation …)` skipped in the lexer — parse +1, encode +1
+  - commit(s): `26552c675`
+- **id:** T7.1
+  - what it was, and how it closed: parser robustness: never throw, never hang (`noProgress`, `runParse` backstop), readable token names
+  - commit(s): `6f4aea091`
+- **id:** T7.2
+  - what it was, and how it closed: packed-type wire bytes (i8/i16 = 0x78/0x77); `br_table` index and `try_table` catch name resolution
+  - commit(s): `4edabfb13`
+- **id:** T7.3
+  - what it was, and how it closed: quoted ids = bare ids; raw non-ASCII → UTF-8; `(type $t)` supplies the signature; multi-value block types — +3 parse, +5 encode
+  - commit(s): `c1e03eca4`
+- **id:** T7.4
+  - what it was, and how it closed: typed-ref IR refactor: `ValueType = Type \| RefValueType` — encode +13
+  - commit(s): `9dda6c792`
+- **id:** T7.5
+  - what it was, and how it closed: multi-value `br` / `br_if` / `br_table` (values arrays; `br_table` index is the LAST operand) — encode +14
+  - commit(s): `a24a46fed`
+- **id:** T7.6
+  - what it was, and how it closed: `try_table` catch target depth resolved one frame too deep — encode +2
+  - commit(s): `d5130ef76`
+- **id:** T7.7
+  - what it was, and how it closed: relaxed SIMD aliased onto low SIMD opcodes: `(prefix<<8)\|sub` packing too narrow — encode +7
+  - commit(s): `d17eedc8f`
+- **id:** T7.8
+  - what it was, and how it closed: type-uses resolved against an incomplete type index space — encode +6
+  - commit(s): `59e9979c7`
+- **id:** T7.9
+  - what it was, and how it closed: `return_call_indirect` tail-call types (2) — **not defined in tasks.md**; ledger commit `5bec9d38a`, closed as a side effect of T7.8
+  - commit(s): `59e9979c7`
+- **id:** T7.10
+  - what it was, and how it closed: "seven singles" — **not defined in tasks.md**; ledger commit `5bec9d38a`, re-scoped into T7.11–T7.14
+  - commit(s): `59e9979c7`
+- **id:** T7.11
+  - what it was, and how it closed: element segments against a non-nullable table — encode +2 (later narrowed by T11)
+  - commit(s): `9f6217c52`
+- **id:** T7.12
+  - what it was, and how it closed: `br_on_null` / `br_on_non_null` carrying branch values — encode +2
+  - commit(s): `5e139a2f8`
+- **id:** T7.13
+  - what it was, and how it closed: UTF-8 BOM stripped from names — encode +1
+  - commit(s): `5e139a2f8`
+- **id:** T7.14
+  - what it was, and how it closed: explicit type-use overwritten by a structural signature match — encode +1
+  - commit(s): `5e139a2f8`
+- **id:** T8.1
+  - what it was, and how it closed: block type-use + inline signature
+  - commit(s): `de1fb431c`
+- **id:** T8.2
+  - what it was, and how it closed: `select` with several result groups
+  - commit(s): `de1fb431c`
+- **id:** T8.3
+  - what it was, and how it closed: WAT writer emitted a multi-instruction const expr as one folded paren (found via T5.1)
+  - commit(s): `47d34c698`
+- **id:** T8.4
+  - what it was, and how it closed: tag declared with a type-use
+  - commit(s): `de1fb431c`
+- **id:** T8.5
+  - what it was, and how it closed: folded `if` condition spanning several instructions
+  - commit(s): `de1fb431c`
+- **id:** T9.1
+  - what it was, and how it closed: binary reader had no `pushStmt` — silent statement reordering; round-trip INVALID 60→27
+  - commit(s): `9b0ce25c0`
+- **id:** T9.2
+  - what it was, and how it closed: validator vs V8: seven bugs over 418 modules (ungated MVP rules, dead SIMD table keys…) — agreement 1702→2120/2120
+  - commit(s): `b194456a8`
+- **id:** T9.3
+  - what it was, and how it closed: validator onto `ValueType`; real reference subtyping (canonical rec-group keys)
+  - commit(s): `accabcb46`
+- **id:** T9.4
+  - what it was, and how it closed: the 10 valid modules T9.3's lattice rejected — each a second hidden bug; agreement back to 2120
+  - commit(s): `cbb6eea50`
+- **id:** T9.5
+  - what it was, and how it closed: invalid modules validated clean (arity-less `checkSignature`, 32-bit page limit, memarg offset); harness read `errors` not `result`
+  - commit(s): `0f401211c`
+- **id:** T9.6
+  - what it was, and how it closed: module-level structural checks (SIMD align, lane indices, immutability, final supertypes, const exprs)
+  - commit(s): `a029714da`
+- **id:** T9.7
+  - what it was, and how it closed: declared subtyping checked structurally; `ref.eq`, `select`, defaultability, type scope
+  - commit(s): `8a0f24f34`
+- **id:** T9.8
+  - what it was, and how it closed: one-armed `if` arity; `try_table` catch-clause label types
+  - commit(s): `de4afcdd0`
+- **id:** T9.9
+  - what it was, and how it closed: immediate-vs-immediate rules; local-init = frame-scoped rollback (not join intersection)
+  - commit(s): `8227c8a51`
+- **id:** T9.10
+  - what it was, and how it closed: last invalid modules V8 rejects (`call_ref` named type, function-table check, elem type) — ours: 0 remaining
+  - commit(s): `71047c89c`
+- **id:** T9.11
+  - what it was, and how it closed: ten memarg handlers never checked `offset` (lint "unused var" was the finding) — 4 SIMD false accepts
+  - commit(s): `d6076e3e2`
+- **id:** T10.1
+  - what it was, and how it closed: export ORDER lost across `wasm2wat` (inline exports) — `buildExportMap` feasibility test; WASI 1→50/270
+  - commit(s): `26160ac5d`
+- **id:** T10.2
+  - what it was, and how it closed: inline `(export …)` emitted on IMPORTS — our parser rejected our output; same fix
+  - commit(s): `26160ac5d`
+- **id:** T10.3
+  - what it was, and how it closed: non-nullable table lost `Table.init` — `writeFoldedConstExpr`, fail-loud on the inexpressible
+  - commit(s): `1f12125ba`
+- **id:** T10.4
+  - what it was, and how it closed: printer stripped the NaN quiet bit; `return_call_indirect` lost its table index → round-trip 2120/2120
+  - commit(s): `bf261e93f`
+- **id:** T10.5
+  - what it was, and how it closed: filed against the reader; was linear `call` draining the whole stack — deferred body parsing; WASI 50→225
+  - commit(s): `881326c05`
+- **id:** T10.6
+  - what it was, and how it closed: linear `try_table` was a stub; `array.new_fixed` drained the stack
+  - commit(s): `e13949227`
+- **id:** T10.7
+  - what it was, and how it closed: `tagTypeIndex` compared typed-ref params by `===`, so encode threw — hard failures 1→0
+  - commit(s): `bf261e93f`
+- **id:** T10.8
+  - what it was, and how it closed: synthesized slot-filler written as a real `nop` — `NopExpr.placeholder`; WASI 270/270
+  - commit(s): `38dbb69b4`
+- **id:** T11
+  - what it was, and how it closed: pipeline REPAIRED an invalid module (funcidx elemlist is `(ref func)`) in five layers
+  - commit(s): `aed05471c`
+- **id:** T12.1
+  - what it was, and how it closed: out-of-range int/float constants wrapped/overflowed silently — malformed 666→698/1229
+  - commit(s): `e827394ac`
+- **id:** T12.2
+  - what it was, and how it closed: import after a definition accepted and RENUMBERED the module — →714
+  - commit(s): `2968cb9c2`
+- **id:** T12.3
+  - what it was, and how it closed: non-power-of-two `align=` accepted and CHANGED (`align=3` → 2) — →828
+  - commit(s): `65ff9f98a`
+- **id:** T12.4
+  - what it was, and how it closed: SIMD lane immediates / `v128.const` lane values wrapped (`-129` → 127) — →869
+  - commit(s): `68ec53ef6`
+- **id:** T12.5
+  - what it was, and how it closed: names not checked as UTF-8 on either path — quoted →1045, binary 110→638/711
+  - commit(s): `d3551bf63`
+- **id:** T12.6
+  - what it was, and how it closed: missing lane immediate compiled as lane 0; `nan:canonical`/`arithmetic` accepted as literals — →1087
+  - commit(s): `cbe7bb399`
+- **id:** T12.7
+  - what it was, and how it closed: annotation, closing label, inline signature read and discarded — →1183; closed T12.6's remainder
+  - commit(s): `af4bf151b`
+- **id:** T12.8
+  - what it was, and how it closed: binary reader resynchronised instead of reporting — binary 711/711, metric closed
+  - commit(s): `1bb7fa7fe`
+- **id:** T12.9
+  - what it was, and how it closed: duplicate ids, `nan:0x0`, lane signs, token boundaries, 2nd `(start)`, forward type use — 1227/1229 parser, 1229 via `wat2wasm`
+  - commit(s): `47f48b0df`
+- **id:** T13.1
+  - what it was, and how it closed: out-of-scope branch target is a PARSER error (`checkLabelScopes`) — quoted 1229/1229 at the parser
+  - commit(s): `070ca0f3b`
+- **id:** T13.2
+  - what it was, and how it closed: the last 19 `assert_invalid`: 16 were the ENCODER repairing them (u32 wrap, `ensureTypeFor`, rec-group reuse) — 2683/2683
+  - commit(s): `070ca0f3b`
+- **id:** T13.3
+  - what it was, and how it closed: `Limits.initial`/`max` → `bigint` (breaking by design) — V8-valid 2118→2119/2120
+  - commit(s): `1c1dfb75c`
+- **id:** T13.4
+  - what it was, and how it closed: custom page sizes end to end (`pageSizeLog2`, only 1 and 65536) — no metric covers it; modelled on wazmrt
+  - commit(s): `7a3b32309`
+- **id:** T13.5
+  - what it was, and how it closed: three reserved bytes read into nowhere (tag attribute ×2, table `0x40 0x00`) — found by grepping the shape
+  - commit(s): `df7743ecb`
+- **id:** T13.6
+  - what it was, and how it closed: review pass, clean; lexer⇄printer and natural-alignment audits made permanent tests
+  - commit(s): `349886416`
+- **id:** T13.7
+  - what it was, and how it closed: a NAMED reference in every grammar position — 64 cases; 21 fail at v1.3.5
+  - commit(s): test added in `35e77efab`
+- **id:** T13.8
+  - what it was, and how it closed: `instrInputCount` one too high for atomic store/rmw/cmpxchg — `wasm2wat` emitted invalid wasm
+  - commit(s): `35e77efab`
+- **id:** T13.9
+  - what it was, and how it closed: validator typed every atomic as `(v128,v128)→v128` (no `PREFIX_THREADS` branch) — 67 opcodes agree with V8
+  - commit(s): `9ed22ab53`
+- **id:** T13.10
+  - what it was, and how it closed: 9 of 21 feature flags gated nothing — gates at point of use + `checkValueType`; `--enable-*` CLI flags
+  - commit(s): `6d5994d98`
+- **id:** T13.11
+  - what it was, and how it closed: `resolveNames` never walked `table.get`'s index sub-expression; T13.7's guard held operands fixed
+  - commit(s): `aabdcde21`
+- **id:** T13.12
+  - what it was, and how it closed: the two signed LEB encoders still wrapped out-of-range input
+  - commit(s): `aabdcde21`
+- **id:** T13.13
+  - what it was, and how it closed: T13.7's guard varied one axis; operand axis added (69 cases, clean) and 2 of its fixtures were invalid wasm
+  - commit(s): `aabdcde21`
+- **id:** T13.14
+  - what it was, and how it closed: 12 GC operand false accepts a sibling handler already checked (cast hierarchy, i31, is_null, as_non_null, packedness)
+  - commit(s): `aabdcde21`
+- **id:** T13.15
+  - what it was, and how it closed: SIMD lane memory ops ignored the memory index type — wrong in both directions on memory64
+  - commit(s): `aabdcde21`
+- **id:** T13.16
+  - what it was, and how it closed: `data.drop`/`elem.drop` in the arity-1 group swallowed and DELETED the preceding value
+  - commit(s): `aabdcde21`
+- **id:** T13.17
+  - what it was, and how it closed: `rethrow` ignored its depth (must name a catch frame); V8 the only available oracle
+  - commit(s): `aabdcde21`
+- **id:** T13.18
+  - what it was, and how it closed: dead `getOpcodeNaturalAlign` removed; `instrInputCount` made total behind a source-enumeration gate; 3 axes clean
+  - commit(s): `aabdcde21`
+- **id:** T13.19
+  - what it was, and how it closed: ledger self-description (numbering procedure, status vocabulary); INTENT blocks on 3 membership sections
+  - commit(s): `aabdcde21`
+- **id:** T13.20
+  - what it was, and how it closed: `applyNames` walked 37 of 87 kinds — axis 1 made generic, axis 2 an explicit 55-kind table
+  - commit(s): `aabdcde21`
+- **id:** T13.21
+  - what it was, and how it closed: `constExprOperands` ⇄ `writeInstrHead` coupling (latent) — INTENT blocks + source gate
+  - commit(s): `aabdcde21`
+- **id:** T13.22
+  - what it was, and how it closed: bridge resolved `try_table` catches after pushing its own label
+    — cancelled binaryen-ts 1.0.9's off-by-one; BLOCKED, then fixed atomically with the 1.5.0 pin
+    (T13.47)
+  - commit(s): `43559fcb5` WIP, `08dc6a7b4`
+- **id:** T13.23
+  - what it was, and how it closed: binaryen-ts pin `^1.0.9` held only by the lockfile → EXACT; two upstream notes resolved (exposure nil)
+  - commit(s): `aabdcde21`
+- **id:** T13.24
+  - what it was, and how it closed: bridge pushed no label frame for `if` — `br` wrong both ways; `IF_FRAME` sentinel, branch to unlabeled `if` throws
+  - commit(s): `aabdcde21`
+- **id:** T13.25
+  - what it was, and how it closed: a NUL byte made the bridge file BINARY to grep, and a sweep reported clean — `source_hygiene` gate
+  - commit(s): `aabdcde21`
+- **id:** T13.26
+  - what it was, and how it closed: `readMemArg` used `1 << exp`: exponent 32 wrapped to align=1 and the round trip repaired it — `assert_invalid` 2671→2673
+  - commit(s): `aabdcde21`
+- **id:** T13.27
+  - what it was, and how it closed: NO DEFECTS FOUND: six axes over the binary reader and `wasm-strip`
+  - commit(s): `aabdcde21`
+- **id:** T13.28
+  - what it was, and how it closed: hygiene gate extended to `cmem/` + `README.md` (a `\b` had become a backspace); `ModuleContext.getExprArity` found dead
+  - commit(s): `aabdcde21`
+- **id:** T13.29
+  - what it was, and how it closed: four binary tools threw `RangeError` on ~102 of 585 malformed inputs — converted at the reader boundary
+  - commit(s): `aabdcde21`
+- **id:** T13.30
+  - what it was, and how it closed: `/compat` `toBinary` threw the writer's raw string — now names its origin, documented
+  - commit(s): `aabdcde21`
+- **id:** T13.31
+  - what it was, and how it closed: every CLI shim dumped a Deno stack trace on a bad path — `cliRead`/`cliWrite`
+  - commit(s): `aabdcde21`
+- **id:** T13.32
+  - what it was, and how it closed: NO DEFECTS FOUND: lexer token reachability (182 members) — pinned by a gate anyway
+  - commit(s): `aabdcde21`
+- **id:** T13.33
+  - what it was, and how it closed: `readTypeSection` bound in the loop CONDITION silently truncated count/content mismatches
+  - commit(s): `aabdcde21`
+- **id:** T13.34
+  - what it was, and how it closed: subtyping depth > 63 and supertype cycles accepted — `checkSubtypingDepth`
+  - commit(s): `aabdcde21`
+- **id:** T13.35
+  - what it was, and how it closed: NO DEFECTS FOUND: size amplification, string scaling clean; diagnostic OFFSET accuracy INCONCLUSIVE (oracle wrong)
+  - commit(s): `aabdcde21`
+- **id:** T13.36
+  - what it was, and how it closed: NO DEFECTS FOUND: module-level state, text-side convergence, gate vacuity; corrected "hardening does not decay"
+  - commit(s): `aabdcde21`
+- **id:** T13.37
+  - what it was, and how it closed: spec `assert_malformed` expected texts used as oracle: magic-before-version ordering; two LEB faults named apart — 608→689/711
+  - commit(s): `aabdcde21`
+- **id:** T13.38
+  - what it was, and how it closed: a misspelled instruction was blamed on a parenthesis / leaked `Reserved` — `unknown operator "…"`; parser wording 559→816/1229
+  - commit(s): `aabdcde21`
+- **id:** T13.39
+  - what it was, and how it closed: session harnesses omitted `synthesizeTypes` — every absolute figure that session was wrong (agreement 2207/2207, `assert_invalid` 2694/2694)
+  - commit(s): `aabdcde21`
+- **id:** T13.40
+  - what it was, and how it closed: every section header padded to a 5-byte LEB (upstream canonicalises) — WASI corpus −3.2%; round-trip metric split by input source
+  - commit(s): `aabdcde21`
+- **id:** T13.41
+  - what it was, and how it closed: `wasm-strip` relocated every kept custom section to the end — `Custom.precedingSection`; `--sections` 0→265/265; ninth metric
+  - commit(s): `aabdcde21`
+- **id:** T13.42
+  - what it was, and how it closed: the documented per-file format check ignored `deno.json` (width 80) — two CI-failing files hidden
+  - commit(s): `aabdcde21`
+- **id:** T13.43
+  - what it was, and how it closed: `deno task publish` would release a bare version bump from a dirty tree — dirty-tree + remote-tag guards
+  - commit(s): `aabdcde21`
+- **id:** T13.44
+  - what it was, and how it closed: the guard's WIRING gated (called before any mutating git command, exits, stays side-effect free)
+  - commit(s): `aabdcde21`
+- **id:** T13.45
+  - what it was, and how it closed: wasmtk snapshot "provenance unknown" was one `git log` away — stamped (`1ff92e71`, 2026-05-25) and gated
+  - commit(s): `d6cae5e5e`
+- **id:** T13.46
+  - what it was, and how it closed: corpus regenerated from wasmtk `4600ba9`: 272→421 (413 wasic + 8 other); `KNOWN_INVALID` emptied
+  - commit(s): `5c89647cf`
+- **id:** T13.47
+  - what it was, and how it closed: binaryen-ts 1.5.0 pin + T13.22 fix in one merge; the 12 bridge failures were two defects (coarsened sigs, undeclared func heap types) — bridge 28/28
+  - commit(s): `08dc6a7b4`, merge `15cce7426`
+- **id:** T13.48
+  - what it was, and how it closed: `deno task bump --dry-run` performed a real bump (script read no args) — dry run real, unknown args exit 2
+  - commit(s): `b73de6d1b`
+- **id:** T13.49
+  - what it was, and how it closed: pre-merge audit: de-coarsening incomplete (24 vs 5 sites), 5 colliding `src/` dirs, config cost 4 type errors
+  - commit(s): `856c26e96`
+- **id:** T13.50
+  - what it was, and how it closed: finish the bridge de-coarsening (import/tag `(ref $T)` params; `(ref null $T)` global) — OPEN at merge; closed 1.5.2
+  - commit(s): scoped `6f0fc7d0a`, closed `d6d22559c`
+- **id:** T13.50b
+  - what it was, and how it closed: **not defined in tasks.md.** Row 3 of T13.50 split out:
+    `ref.null` with a user-defined heap type refused by the bridge — cited by `src/bridge/bridge.ts`
+    and `tests/bridge/gc_decoarsening.test.ts`; fixed in the same commit
+  - commit(s): `d6d22559c`
+- **id:** T13.51
+  - what it was, and how it closed: **not defined in tasks.md.** The four `br_on_*` bridge cases —
+    three defects, two outside the bridge (func_type blocktype refusal, inline typed-ref blocktype,
+    undeclared blocktype func heap types); cited by `src/bridge/bridge.ts`
+  - commit(s): `814596760`
+
+Commits are verified by `git log` subject (or message, for T7.12–T7.14 and T13.7); the source file
+records only `4edabfb1`, `15cce742`, `43559fcb`. T13.11–T13.44 landed as ONE commit.
+
+### UP-n index — binaryen-ts findings filed from wabt-ts (this file defines them)
+
+| id | finding (measured severity) | fixed in binaryen-ts history |
+| --- | --- | --- |
+| UP-1 | `struct.get_u`/`array.get_u` collapsed onto `get` — valid wasm round-trips INVALID (wrong-output) | `862d0bea9`; shipped 1.5.0 (T13.47 flipped two tests that pinned it) |
+| UP-2 | `tuple.make`: enum entry, no factory, no encoder case (gap) | `51fa7fc40` |
+| UP-3 | four GC array bulk ops: no factory, no encoder case (gap) | `2823a8eeb` |
+| UP-4 | `ref.as_non_null`: not even an `ExpressionKind` (gap) | `2823a8eeb` |
+| UP-5 | start function silently DROPPED on round-trip — the most severe, and silent (wrong-output) | `862d0bea9` |
+| UP-6 | `WasmImport.kind` had no `"tag"` (gap) | `2823a8eeb` |
+| UP-7 | typed-ref LOCAL read back as `anyref` (`readValTypeByte`) — restated twice (wrong-output) | `4a0f4c0f9` |
+
+Report: `scripts/wabt-ts/binaryen-ts-upstream-report.md`. Lessons: re-verify against the actual checkout
+before filing (three of seven entries changed); **re-verifying is not re-ranking** — we ranked the loud
+failures above the silent one; we reviewed their code without the round-trip metric we had built for
+ourselves, and all three wrong-bytes findings lived on that path.
+

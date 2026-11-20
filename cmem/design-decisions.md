@@ -27,7 +27,8 @@ guide, letter H38, step 2). Last verified 2026-11-18.
 
 - cmem is working memory; git is the archive. "Nothing is deleted" was retired for the core.
 - Completed work was SUMMARIZED, with a `git show <commit>:<path>` pointer to the full text.
-- Kept in full even when done: decisions (above all DESIGN rows in [divergences.md](divergences.md)),
+- Kept in full even when done: decisions (above all DESIGN rows, now in [divergences-ir.md](divergences-ir.md),
+  [divergences-text.md](divergences-text.md) and [divergences-conformance.md](divergences-conformance.md)),
   recurring lessons, conditional risks with their trigger, baselines, corrections of beliefs.
 - Correct while summarizing: paths rewritten to today's tree; stale claims marked as corrections.
 - 2026-11-17: the memory guide (letter H38) moves closed items to `cmem/archive/`, grouped by

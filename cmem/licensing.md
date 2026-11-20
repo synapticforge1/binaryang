@@ -83,13 +83,18 @@ recorded as "both obligations satisfied"; the second upstream had no count at al
 
 ## File layout
 
-| file             | purpose                                                                                                                                                                                                                                                                     |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LICENSE`        | **The declared package licence — full MIT text**, plus a short trailing note pointing at `LICENSE-APACHE` and `NOTICE.md`. JSR fingerprints this by content hash against the SPDX MIT template, so the MIT text must be the **first content**, with no markdown decoration. |
-| `LICENSE-MIT`    | The same full MIT text, kept separate so the MIT-or-Apache choice is explicit.                                                                                                                                                                                              |
-| `LICENSE-APACHE` | Full Apache-2.0 text. JSR ignores it; it is what makes the alternative real.                                                                                                                                                                                                |
-| `NOTICE.md`      | Attribution to WebAssembly/wabt plus the dual-licence explanation.                                                                                                                                                                                                          |
-| `deno.json`      | `"license": "MIT"` — a single SPDX identifier, matching the `LICENSE` content.                                                                                                                                                                                              |
+- **file:** `LICENSE`
+  - purpose: **The declared package licence — full MIT text**, plus a short trailing note pointing
+    at `LICENSE-APACHE` and `NOTICE.md`. JSR fingerprints this by content hash against the SPDX MIT
+    template, so the MIT text must be the **first content**, with no markdown decoration.
+- **file:** `LICENSE-MIT`
+  - purpose: The same full MIT text, kept separate so the MIT-or-Apache choice is explicit.
+- **file:** `LICENSE-APACHE`
+  - purpose: Full Apache-2.0 text. JSR ignores it; it is what makes the alternative real.
+- **file:** `NOTICE.md`
+  - purpose: Attribution to WebAssembly/wabt plus the dual-licence explanation.
+- **file:** `deno.json`
+  - purpose: `"license": "MIT"` — a single SPDX identifier, matching the `LICENSE` content.
 
 ⚠️ **Fixed during the merge, and worth recording because it was invisible in either repo alone.**
 The two predecessors disagreed about the copyright line: binaryen-ts said
