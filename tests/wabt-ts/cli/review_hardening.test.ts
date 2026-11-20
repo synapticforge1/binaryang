@@ -241,6 +241,22 @@ describe('privacy: a path from the command line is printable in every message', 
       assertEquals(back.stdout, fifo, name);
     }
   });
+  it('a FIFO whose name has a backslash or a `!`: no example (fish and csh read them)', () => {
+    if (process.platform === 'win32') return;
+    // Round 2 review: `cat 'a\b'` is not the file in fish, and `!` is history in csh and tcsh.
+    for (const name of ['back\\slash', 'bang!', 'a\\!b', "it's\\"]) {
+      const fifo = join(dir, `${name}.fifo`);
+      assertEquals(spawnSync('mkfifo', [fifo]).status, 0);
+      const r = run('wat2wasm', 'a.wat', '-o', fifo);
+      assertEquals(r.status, 1, r.stderr);
+      assert(r.stderr.includes('FIFO with no reader'), r.stderr);
+      assert(!r.stderr.includes('for example'), `${name}: ${r.stderr}`);
+    }
+    // The control: a name with neither still gets its example.
+    const plain = join(dir, 'plain.fifo');
+    assertEquals(spawnSync('mkfifo', [plain]).status, 0);
+    assert(run('wat2wasm', 'a.wat', '-o', plain).stderr.includes('for example `cat '));
+  });
   it('a FIFO whose name has ESC: no ESC byte, and no example command', () => {
     if (process.platform === 'win32') return;
     const fifo = join(dir, `e${ESC}[31mfifo`);

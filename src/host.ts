@@ -248,9 +248,13 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
     if ((e as { code?: string }).code === 'ENXIO') {
       // The example command is given only where it can be exact: a path with a byte that acts
       // when printed (ESC, a line break …) is escaped in the message, and an escaped name is not
-      // the file's. Elsewhere it is single-quoted, `'` written `'\''`, which no byte escapes.
+      // the file's. Elsewhere it is single-quoted, `'` written `'\''`, which no byte escapes — in
+      // POSIX sh. fish reads `\` and `\'` inside single quotes as escapes and csh/tcsh expand `!`
+      // (history), so a path with `\` or `!` gets no example either (round 2 review).
       const quoted = `'${path.split("'").join("'\\''")}'`;
-      const example = printable(path) === path ? ` (for example \`cat ${quoted}\`)` : '';
+      const example = printable(path) === path && !/[\\!]/.test(path)
+        ? ` (for example \`cat ${quoted}\`)`
+        : '';
       throw new Error(`it is a FIFO with no reader: start the reader first${example}, then write`);
     }
     throw e;
