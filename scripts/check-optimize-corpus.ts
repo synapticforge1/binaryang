@@ -54,6 +54,8 @@ import {
   codeBytes,
   judge,
   readBaseline,
+  refusedChanges,
+  requireSix,
   scratch,
   type SizeBaseline,
   type SizeEntry,
@@ -160,7 +162,7 @@ function sizeRatchet(): void {
     ): SizeEntry => {
       const e: SizeEntry = { ours: 0, binaryen: 0, modules: 0, refused: [] };
       for (const s of sets) {
-        const theirs = binaryenSize(tmp.dir, s.wasm, level);
+        const theirs = binaryenSize(tmp.dir, s.wasm, level, s.name);
         if (theirs === undefined) e.refused.push(s.name);
         else {
           e.ours += s.ours;
@@ -177,8 +179,11 @@ function sizeRatchet(): void {
     const six = new URL('../benches/browser-opt/modules/', import.meta.url);
     const sixInputs = readdirSync(six).filter((n) => n.endsWith('.wasm')).sort()
       .map((n) => ({ name: n, wasm: new Uint8Array(readFileSync(new URL(n, six))) }));
-    if (sixInputs.length !== 6) {
-      failures.push(`expected the six real-compiler modules, found ${sixInputs.length}`);
+    try {
+      requireSix(sixInputs.map((i) => i.name));
+    } catch (e) {
+      console.log(`\n  ${(e as Error).message}`);
+      process.exit(1);
     }
     for (const [tag, opts] of [['-O2', LEVELS[1][1]], ['-Oz', LEVELS[4][1]]] as const) {
       entries[`six ${tag}`] = measure(
@@ -194,6 +199,23 @@ function sizeRatchet(): void {
     tmp.done();
   }
   if (update) {
+    // A refusal that came or went is read by a person before it is recorded.
+    let existing: SizeBaseline | undefined;
+    try {
+      existing = readBaseline();
+    } catch { /* none yet: the first recording */ }
+    const changes = refusedChanges(entries, existing);
+    if (changes.length > 0 && !process.argv.includes('--accept-refused-change')) {
+      console.log(
+        `\n  --update-baseline would CHANGE the refused set (a transient wasm-opt failure is never ` +
+          `recorded as a refusal: it throws; this is a real difference):`,
+      );
+      for (const c of changes) console.log(`    ${c}`);
+      console.log(
+        '  Read them; if they are right, record with --update-baseline --accept-refused-change',
+      );
+      process.exit(1);
+    }
     const next: SizeBaseline = { binaryen: version, entries };
     writeFileSync(BASELINE, JSON.stringify(next, null, 2) + '\n');
     console.log(`\n  size baseline RECORDED against ${version}: ${JSON.stringify(entries)}`);

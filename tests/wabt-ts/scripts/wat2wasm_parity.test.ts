@@ -19,6 +19,8 @@ import {
   isTextModule,
   sectionsOf,
   topLevelForms,
+  upstream,
+  wasmTools,
 } from '../../../scripts/check-wat2wasm.ts';
 import * as fsx from '../../test_fs.ts';
 import { spawnSync } from 'node:child_process';
@@ -134,6 +136,92 @@ test('a missing upstream wat2wasm FAILS the step, naming how to install it', asy
     assertEquals(r.status, 1);
     assert(r.stderr.includes('wat2wasm is REQUIRED'), r.stderr);
     assert(r.stderr.includes('scoop install wabt'), r.stderr);
+  } finally {
+    await fsx.remove(dir, { recursive: true });
+  }
+});
+
+// --- Time limits and a missing output (hardening review F5) ---------------------------------------
+// A hung `wat2wasm` / `wasm-tools` stalled the gate step for its whole 25-minute budget and left up
+// to eight children behind; an exit 0 with no output file threw, uncaught, inside a 'close' handler.
+// The tool is a FAKE one: this runtime running a script (a script on PATH cannot be started
+// without a shell on Windows). The code under test spawns it exactly as it spawns the real tools.
+
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+test('a hung wat2wasm is killed at the limit and the item reported as an ERROR naming it', async () => {
+  const dir = await fsx.makeTempDir({ prefix: 'binaryang-w2w-slow-' });
+  try {
+    const pidFile = `${dir}/pid`;
+    const slow = `${dir}/slow.cjs`;
+    await fsx.writeTextFile(
+      slow,
+      `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));` +
+        'setInterval(() => {}, 1000);',
+    );
+    const tool = { cmd: process.execPath, pre: [slow], limitMs: 1500 };
+    const t0 = Date.now();
+    const r = await upstream(`${dir}/a.wat`, `${dir}/a.wasm`, tool, 'custom/hung.wast#3');
+    assert(Date.now() - t0 < 30_000, 'it returned long after the limit');
+    assert('error' in r && r.infra === true, JSON.stringify(r));
+    assert(r.error.includes('TIMED OUT') && r.error.includes('custom/hung.wast#3'), r.error);
+    // The child is gone, not orphaned.
+    const pid = Number(await fsx.readTextFile(pidFile));
+    for (let i = 0; i < 50 && alive(pid); i++) await new Promise((res) => setTimeout(res, 100));
+    assert(!alive(pid), 'the hung wat2wasm child is still running');
+  } finally {
+    await fsx.remove(dir, { recursive: true });
+  }
+});
+
+test('a hung wasm-tools is killed at the limit and reported as an ERROR naming the item', async () => {
+  const dir = await fsx.makeTempDir({ prefix: 'binaryang-wt-slow-' });
+  try {
+    const slow = `${dir}/slow.cjs`;
+    await fsx.writeTextFile(slow, 'setInterval(() => {}, 1000);');
+    const tool = { cmd: process.execPath, pre: [slow], limitMs: 1500 };
+    const r = wasmTools(`${dir}/a.wat`, `${dir}/a.wasm`, tool, 'if.wast#2');
+    assert('error' in r && r.infra === true, JSON.stringify(r));
+    assert(r.error.includes('TIMED OUT') && r.error.includes('if.wast#2'), r.error);
+  } finally {
+    await fsx.remove(dir, { recursive: true });
+  }
+});
+
+test('exit 0 with no output file is an error naming the item, not an uncaught throw', async () => {
+  const dir = await fsx.makeTempDir({ prefix: 'binaryang-w2w-nofile-' });
+  try {
+    const quiet = `${dir}/quiet.cjs`;
+    await fsx.writeTextFile(quiet, 'process.exit(0);');
+    const tool = { cmd: process.execPath, pre: [quiet], limitMs: 30_000 };
+    const r = await upstream(`${dir}/a.wat`, `${dir}/missing.wasm`, tool, 'block.wast#0');
+    assert('error' in r && r.infra === true, JSON.stringify(r));
+    assert(r.error.includes('wrote no output') && r.error.includes('block.wast#0'), r.error);
+    const w = wasmTools(`${dir}/a.wat`, `${dir}/missing.wasm`, tool, 'block.wast#0');
+    assert(
+      'error' in w && w.infra === true && w.error.includes('wrote no output'),
+      JSON.stringify(w),
+    );
+  } finally {
+    await fsx.remove(dir, { recursive: true });
+  }
+});
+
+test('an oracle that rejects the text is a plain error, not an infrastructure one', async () => {
+  const dir = await fsx.makeTempDir({ prefix: 'binaryang-w2w-reject-' });
+  try {
+    const bad = `${dir}/bad.cjs`;
+    await fsx.writeTextFile(bad, "console.error('unexpected token'); process.exit(1);");
+    const tool = { cmd: process.execPath, pre: [bad], limitMs: 30_000 };
+    const r = await upstream(`${dir}/a.wat`, `${dir}/a.wasm`, tool, 'x#0');
+    assert('error' in r && r.infra === undefined && r.error.includes('unexpected token'));
   } finally {
     await fsx.remove(dir, { recursive: true });
   }

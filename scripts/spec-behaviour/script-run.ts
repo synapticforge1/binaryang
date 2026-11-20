@@ -22,7 +22,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { arg, renaming, spectest, variants } from './differential.ts';
+import { arg, type CheckHooks, renaming, spectest, variants } from './differential.ts';
 import type { MinifyMap } from '../../src/passes/index.ts';
 import { type Expect, expectOf, meets, type Raw } from './expected.ts';
 import { type Sig, v128Lanes, withV128Wrappers, wrapperName } from './v128.ts';
@@ -53,8 +53,15 @@ export interface ScriptRow {
   original: string[];
   /** A variant, as binaryang wrote it, against the script. */
   variant: string[];
-  /** Modules a variant's pipeline refused (counted: the differential pins them). */
-  refused: number;
+  /**
+   * What our pipeline refused to make, as `<script>/<file> <variant>` — the form the differential's
+   * `REFUSED_BUDGET` pins. Only a module the ENGINE ACCEPTED as the original counts: a refusal there
+   * is ours, and a module with no later invocation is never replayed by the differential, so this
+   * is the only place a pipeline bug on it can show.
+   */
+  refused: string[];
+  /** Every binary module this script reached, as `<script>/<file>` (what a pin can be retired by). */
+  modules: string[];
 }
 
 export function emptyRow(name: string): ScriptRow {
@@ -66,7 +73,8 @@ export function emptyRow(name: string): ScriptRow {
     nanBoundary: 0,
     original: [],
     variant: [],
-    refused: 0,
+    refused: [],
+    modules: [],
   };
 }
 
@@ -172,8 +180,10 @@ function run(
     asserted: { n: number };
     unchecked: Record<string, number>;
     nan: { n: number };
-    refused: { n: number };
+    refused: string[];
+    modules: Set<string>;
   },
+  hooks?: CheckHooks,
 ): void {
   const { problems, unchecked } = note;
   const named = new Map<string, Inst | Dead>();
@@ -193,9 +203,10 @@ function run(
     const original = new Uint8Array(readFileSync(`${script.dir}/${file}`));
     let bytes: Uint8Array = original;
     let map: MinifyMap | undefined;
+    note.modules.add(`${script.name}/${file}`);
     if (variant !== 'original') {
       try {
-        const make = variants(original).find(([n]) => n === variant)![1];
+        const make = variants(original, hooks).find(([n]) => n === variant)![1];
         const made = make();
         if (made instanceof Uint8Array) bytes = made;
         else {
@@ -203,7 +214,9 @@ function run(
           map = made.map;
         }
       } catch {
-        note.refused.n++;
+        // The original was not refused by the engine (it runs first, so `engineRefused` is full):
+        // a refusal here is the pipeline's, reported by the check against its pins.
+        if (!engineRefused.has(at)) note.refused.push(`${script.name}/${file} ${variant}`);
         return { dead: 'a variant the pipeline refused' };
       }
     }
@@ -367,7 +380,7 @@ function invoke(
     // An argument or result the JS API cannot carry (a `v128` the script's types did not reveal,
     // a reference type JS has no value for).
     if (e instanceof TypeError) {
-      return `JS API TypeError: ${e.message.replace(/d+/g, 'N').slice(0, 70)}`;
+      return typeErrorCause(e.message);
     }
     return {
       ok: false,
@@ -383,11 +396,19 @@ function invoke(
   }
 }
 
+/**
+ * The cause a JS API `TypeError` is counted under: its message with every number (a value, an
+ * index) made `N`, so one cause is one row. (It once read `/d+/`: the LETTER d, not a digit.)
+ */
+export function typeErrorCause(message: string): string {
+  return `JS API TypeError: ${message.replace(/\d+/g, 'N').slice(0, 70)}`;
+}
+
 /** The variants a script is run under, `original` first. */
 export const VARIANTS: string[] = ['original', ...variants(new Uint8Array(0)).map(([n]) => n)];
 
 /** Runs `script` under every variant. */
-export function checkScript(script: ScriptInput): ScriptRow {
+export function checkScript(script: ScriptInput, hooks?: CheckHooks): ScriptRow {
   const row = emptyRow(script.name);
   const sigs = signatures(script.commands);
   const engineRefused = new Set<number>();
@@ -397,10 +418,12 @@ export function checkScript(script: ScriptInput): ScriptRow {
       asserted: { n: 0 },
       unchecked: {} as Record<string, number>,
       nan: { n: 0 },
-      refused: { n: 0 },
+      refused: [] as string[],
+      modules: new Set<string>(),
     };
-    run(script, variant, sigs, engineRefused, note);
-    row.refused += note.refused.n;
+    run(script, variant, sigs, engineRefused, note, hooks);
+    row.refused.push(...note.refused);
+    for (const m of note.modules) if (!row.modules.includes(m)) row.modules.push(m);
     row.nanBoundary += note.nan.n;
     if (variant === 'original') {
       row.asserted = note.asserted.n;

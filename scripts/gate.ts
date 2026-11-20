@@ -31,7 +31,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
-import { keepFailure } from './gate-failure.ts';
+import { keepFailure, makeFailureDir, pruneFailureDirs } from './gate-failure.ts';
 
 const keep = process.argv.includes('--keep');
 const work = mkdtempSync(join(tmpdir(), 'binaryang-gate-'));
@@ -52,10 +52,11 @@ const corpus = (name: string) => {
 const suite = fileURLToPath(
   new URL('../../wasmtk/tests/module/wasm_wast/testsuite-main', import.meta.url),
 );
-// A failed step's whole output, kept after the gate ends (review Q-H6): one folder, emptied when a
-// gate starts, so it holds the last run's failures only.
-const failures = join(tmpdir(), 'binaryang-gate-failures');
-rmSync(failures, { recursive: true, force: true });
+// A failed step's whole output, kept after the gate ends (review Q-H6): a private folder made for
+// this run at its first failure (0700, never removed at exit: the failure row names it), the logs
+// written 'wx'; the folders of earlier runs are pruned to the last KEEP_RUNS now.
+pruneFailureDirs();
+let failures: string | undefined;
 const [spec, legacy, prop, teh, smoke, w2w] = ['spec', 'legacy', 'prop', 'teh', 'smoke', 'wat2wasm']
   .map(corpus);
 
@@ -199,7 +200,12 @@ for (const [name, cmd] of steps) {
     tail = `${r.stdout ?? ''}\n${r.stderr ?? ''}`.split(/\r?\n/).map((l) => l.trim())
       .filter(Boolean).slice(-3).join(' | ');
     if (status !== 0) {
-      ({ tail, log } = keepFailure(failures, name, r.stdout ?? '', r.stderr ?? ''));
+      ({ tail, log } = keepFailure(
+        failures ??= makeFailureDir(),
+        name,
+        r.stdout ?? '',
+        r.stderr ?? '',
+      ));
       if (r.error) tail = `${String(r.error)} | ${tail}`;
     }
   }

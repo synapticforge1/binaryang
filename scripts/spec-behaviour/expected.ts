@@ -24,8 +24,10 @@
  *
  * The one limit of the JS API: a scalar `f32` / `f64` crosses it as a JS number, and an engine may
  * quiet a signalling NaN there. A literal-bits expectation that is a NaN is therefore met by any
- * NaN of the expected sign class when the payload cannot be observed (counted as `nanBoundary`),
- * never by a non-NaN. `v128` lanes never cross as floats (the wrapper passes `i64`), so they are
+ * NaN of the expected SIGN when the payload cannot be observed (counted as `nanBoundary`), never by
+ * a non-NaN and never by a NaN of the other sign. The sign does cross the boundary on V8 (the
+ * engine this check runs on: `scripts/v8.ts`); an engine that canonicalises NaNs (JavaScriptCore
+ * returns a positive one) cannot show a negative expectation met, which this then reports. `v128` lanes never cross as floats (the wrapper passes `i64`), so they are
  * exact.
  */
 
@@ -78,6 +80,10 @@ function floatBitsMatch(width: 32 | 64, want: string, bits: bigint): boolean {
   return bits === BigInt.asUintN(width, BigInt(want));
 }
 
+/** The sign bit of a literal float's bit pattern (`want` is a decimal bit pattern, not a class). */
+const signOf = (width: 32 | 64, want: string): bigint =>
+  BigInt.asUintN(width, BigInt(want)) >> BigInt(width - 1);
+
 const isNaNBits = (width: 32 | 64, want: string): boolean => {
   if (want.startsWith('nan:')) return false; // handled by its own class
   const b = BigInt.asUintN(width, BigInt(want));
@@ -113,7 +119,9 @@ function matchScalar(
       }
       if (typeof a !== 'number') return `want f32 ${want}, got ${String(a)}`;
       if (floatBitsMatch(32, want!, BigInt(f32Bits(a)))) return undefined;
-      if (isNaNBits(32, want!) && Number.isNaN(a)) {
+      if (
+        isNaNBits(32, want!) && Number.isNaN(a) && signOf(32, want!) === BigInt(f32Bits(a) >>> 31)
+      ) {
         v.nanBoundary = true;
         return undefined;
       }
@@ -128,7 +136,7 @@ function matchScalar(
       }
       if (typeof a !== 'number') return `want f64 ${want}, got ${String(a)}`;
       if (floatBitsMatch(64, want!, f64Bits(a))) return undefined;
-      if (isNaNBits(64, want!) && Number.isNaN(a)) {
+      if (isNaNBits(64, want!) && Number.isNaN(a) && signOf(64, want!) === f64Bits(a) >> 63n) {
         v.nanBoundary = true;
         return undefined;
       }
