@@ -102,6 +102,19 @@ describe('binaryenSize runs wasm-opt bounded and does not turn a failed run into
       return ran(r);
     }) as unknown as typeof import('node:child_process').spawnSync;
 
+  it('a timeout names the limit that was USED, not the default', () => {
+    const timedOut = { status: null, error: Object.assign(new Error('t'), { code: 'ETIMEDOUT' }) };
+    expect(() => judgeRun(ran(timedOut), 'a.wasm', 1500)).toThrow('it ran past 1.5 s');
+    expect(() => judgeRun(ran(timedOut), 'a.wasm')).toThrow(
+      `it ran past ${WASM_OPT_TIMEOUT_MS / 1000} s`,
+    );
+    const seen: Record<string, unknown>[] = [];
+    inTmp((dir) => {
+      expect(() => binaryenSize(dir, new Uint8Array(8), '-Oz', 'm', fake(timedOut, seen), 2000))
+        .toThrow('it ran past 2 s');
+    });
+    expect(seen[0]!['timeout']).toBe(2000);
+  });
   it('sets a timeout and a maxBuffer', () => {
     const seen: Record<string, unknown>[] = [];
     inTmp((dir) => {
