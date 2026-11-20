@@ -57,8 +57,9 @@ export interface Failure {
 /** Every testcase in a node:test JUnit report: its file (tree-relative), name, and verdict. */
 function testcasesIn(
   xml: string,
-): { file: string; name: string; outcome: 'pass' | 'fail' | 'skip' }[] {
-  const out: { file: string; name: string; outcome: 'pass' | 'fail' | 'skip' }[] = [];
+): { file: string; name: string; outcome: 'pass' | 'fail' | 'skip'; message: string }[] {
+  const out: { file: string; name: string; outcome: 'pass' | 'fail' | 'skip'; message: string }[] =
+    [];
   const rel = (p: string) => p.replaceAll('\\', '/').replace(/^.*?(?=tests\/)/, '');
   const re = /<testcase((?:\s+[\w:-]+="[^"]*")*)\s*(?:\/>|>([\s\S]*?)<\/testcase>)/g;
   for (const m of xml.matchAll(re)) {
@@ -70,10 +71,21 @@ function testcasesIn(
     )
       .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&apos;/g, "'");
     const outcome = /<failure\b/.test(body) ? 'fail' : /<skipped\b/.test(body) ? 'skip' : 'pass';
-    out.push({ file: rel(file), name, outcome });
+    const message = (/<failure\b[^>]*\bmessage="([^"]*)"/.exec(body)?.[1] ?? '').replace(
+      /&quot;/g,
+      '"',
+    ).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&apos;/g, "'")
+      .replace(/\s+/g, ' ').slice(0, 160);
+    out.push({ file: rel(file), name, outcome, message });
   }
   return out;
 }
+
+/**
+ * How long the previous release's tests may run: the whole suite (~1 min on win-x64), and one
+ * file run alone. Past it the run is a failure that says it did not finish — never a hang.
+ */
+export const PREVIOUS_TESTS_LIMIT_MS = { full: 30 * 60_000, alone: 10 * 60_000 } as const;
 
 /** The failing testcases in a node:test JUnit report, files made tree-relative. */
 export function failuresIn(xml: string): Failure[] {
@@ -95,20 +107,36 @@ export function judge(failures: Failure[], accepted: AcceptedChange[]) {
   };
 }
 
-/** The PASSING testcases in a node:test JUnit report, as `file\0name` keys (files tree-relative). */
+/**
+ * The PASSING testcases in a node:test JUnit report, as `file\0name` keys (files tree-relative).
+ * A key that ALSO names a failed or skipped case is not a pass: two tests of one name in one file
+ * (in different `describe`s) must not let one's pass vouch for the other's failure (review, 2026-11-20).
+ */
 export function passesIn(xml: string): Set<string> {
-  return new Set(
-    testcasesIn(xml).filter((c) => c.outcome === 'pass').map((c) => `${c.file}\u0000${c.name}`),
-  );
+  const cases = testcasesIn(xml);
+  const key = (c: { file: string; name: string }) => `${c.file}\u0000${c.name}`;
+  const notPass = new Set(cases.filter((c) => c.outcome !== 'pass').map(key));
+  return new Set(cases.filter((c) => c.outcome === 'pass' && !notPass.has(key(c))).map(key));
+}
+
+/** Each failing testcase's `message`, one line, by `file\0name` (what the full run reported). */
+export function failureMessages(xml: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const c of testcasesIn(xml)) {
+    if (c.outcome === 'fail') out.set(`${c.file}\u0000${c.name}`, c.message);
+  }
+  return out;
 }
 
 /**
  * Splits the unexpected failures by a second run of each one's FILE alone (4.1.2's bump,
  * 2026-11-20: v4.1.1's coalesce_budget — a 20 s wall-clock bound, ~7 s alone — failed twice inside
  * the full parallel suite on a machine busy with other work, against byte-identical `src/`). A
- * test that PASSES alone failed on time, not on behaviour: `timing`, reported, not counted. One
- * that fails alone, or that the lone run never reported, stays `still` and fails the gate. A real
- * slowdown fails alone too. `rerun(file)` gives that file's lone JUnit report, or null.
+ * test that PASSES alone is `timing`: printed with its full-run message, not counted. That is load
+ * ASSUMED, not shown — a race or state shared between files would pass alone too — so the line
+ * says so and the owner reads it. One that fails or is skipped alone, or that the lone run never
+ * reported, stays `still` and fails the gate; a real slowdown fails alone too. `rerun(file)` gives
+ * that file's lone JUnit report, or null.
  */
 export function confirmAlone(
   unexpected: Failure[],
@@ -206,7 +234,18 @@ export function previousTests(ref = lastReleaseTag()): number {
     const flags = ['--test', '--test-reporter=junit', `--test-reporter-destination=${report}`];
     const globs = TEST_DIRS.map((d) => `${d}/**/*.test.ts`);
     const [bin, args] = nodeCommand(REFEREE, flags, globs[0]!, globs.slice(1));
-    const status = spawnSync(bin, args, { cwd: dir, stdio: 'ignore', env: clean }).status;
+    // Bounded: a hung old test ends the run, as a failure that says so (review, 2026-11-20).
+    const full = spawnSync(bin, args, {
+      cwd: dir,
+      stdio: 'ignore',
+      env: clean,
+      timeout: PREVIOUS_TESTS_LIMIT_MS.full,
+    });
+    if (full.error) {
+      console.error(`previous tests: the run did not finish (${full.error.message})`);
+      return 1;
+    }
+    const status = full.status;
     let xml = '';
     try {
       xml = readFileSync(report, 'utf8');
@@ -231,7 +270,13 @@ export function previousTests(ref = lastReleaseTag()): number {
       const lone = join(dir, `alone-${reruns++}.xml`);
       const f = ['--test', '--test-reporter=junit', `--test-reporter-destination=${lone}`];
       const [b, a] = nodeCommand(REFEREE, f, file, []);
-      spawnSync(b, a, { cwd: dir, stdio: 'ignore', env: clean });
+      const r = spawnSync(b, a, {
+        cwd: dir,
+        stdio: 'ignore',
+        env: clean,
+        timeout: PREVIOUS_TESTS_LIMIT_MS.alone,
+      });
+      if (r.error) return null; // did not finish: no verdict, so the failure stands
       try {
         return readFileSync(lone, 'utf8');
       } catch {
@@ -239,6 +284,7 @@ export function previousTests(ref = lastReleaseTag()): number {
       }
     });
     const j = { ...first, unexpected: still };
+    const messages = failureMessages(xml);
     console.log(
       `previous tests (${ref}'s tests/ on this tree's src/): ${total} tests, ${
         first.accepted.length + first.unexpected.length
@@ -247,8 +293,9 @@ export function previousTests(ref = lastReleaseTag()): number {
       }`,
     );
     for (const f of timing) {
+      const why = messages.get(`${f.file}\u0000${f.name}`) || '(no message)';
       console.log(
-        `  ~ passed ALONE (failed on time in the full run, not on behaviour): ${f.file} — ${f.name}`,
+        `  ~ failed in the full run, PASSED when run alone — load assumed, shared state or a race not ruled out: ${f.file} — ${f.name}\n      full-run failure: ${why}`,
       );
     }
     for (const f of j.unexpected) console.error(`  ✗ NOT accepted: ${f.file} — ${f.name}`);

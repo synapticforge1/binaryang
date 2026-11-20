@@ -8,10 +8,12 @@ import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
 import {
   confirmAlone,
+  failureMessages,
   failuresIn,
   gateHolds,
   judge,
   passesIn,
+  PREVIOUS_TESTS_LIMIT_MS,
 } from '../../../scripts/release/previous-tests.ts';
 
 const report = `<?xml version="1.0" encoding="utf-8"?>
@@ -144,11 +146,38 @@ describe('confirmAlone: an unlisted failure is run again, its file alone', () =>
     ]);
   });
 
-  it('the run uses it: only what still fails alone reaches the verdict', () => {
+  // Review (2026-11-20): two cases of one name in one file (different `describe`s) — one passing
+  // alone must not vouch for the other failing.
+  it('a name that also failed or was skipped alone is not a pass', () => {
+    const twins = lone([[slow.file, slow.name, 'pass'], [slow.file, slow.name, 'fail']]);
+    expect(passesIn(twins).size).toBe(0);
+    expect(confirmAlone([slow], () => twins).still).toEqual([slow]);
+    const skipped = lone([[slow.file, slow.name, 'pass'], [slow.file, slow.name, 'skip']]);
+    expect(confirmAlone([slow], () => skipped).still).toEqual([slow]);
+  });
+
+  it("the full run's failure message, one line, entities decoded, for the report", () => {
+    const xml = '<testsuites><testcase name="t" file="C:\\x\\tests\\ir\\a.test.ts">' +
+      '<failure message="Expected 20507 &lt; 20000&#10;at &quot;x&quot;">x</failure></testcase></testsuites>';
+    expect(failureMessages(xml).get('tests/ir/a.test.ts\u0000t')).toBe(
+      'Expected 20507 < 20000&#10;at "x"',
+    );
+  });
+
+  it('the run uses it: only what still fails alone reaches the verdict, bounded, and says so', () => {
     const src = fsx.readTextFileSync('scripts/release/previous-tests.ts');
     expect(src).toContain('const { still, timing } = confirmAlone(first.unexpected,');
     expect(src).toContain('const j = { ...first, unexpected: still };');
     expect(src).toContain('return gateHolds(j) ? 0 : 1;');
+    // Both runs have a time limit; a lone run that does not finish gives no verdict (the failure stands).
+    expect(src).toContain('timeout: PREVIOUS_TESTS_LIMIT_MS.full,');
+    expect(src).toContain('timeout: PREVIOUS_TESTS_LIMIT_MS.alone,');
+    expect(src).toContain('if (r.error) return null;');
+    expect(PREVIOUS_TESTS_LIMIT_MS.alone).toBeLessThanOrEqual(PREVIOUS_TESTS_LIMIT_MS.full);
+    // The report claims no cause it did not show.
+    expect(src).toContain('load assumed, shared state or a race not ruled out');
+    expect(src).toContain(['full-run failure: $', '{why}'].join(''));
+    expect(src).not.toContain('not on behaviour):');
   });
 });
 
@@ -177,7 +206,8 @@ describe('previousTests: the work tree the old tests run in', () => {
     const spawns = body.split('spawnSync(').slice(1).map((s) => s.slice(0, s.indexOf(')')));
     expect(spawns.length).toBe(5); // + the lone re-run of a failed file (4.1.2)
     // `env: clean`, or the work tree's `env`, built on `...clean` (checked below) — never another.
-    for (const s of spawns) expect(s).toMatch(/[{,]\s*env(?:: clean)?,?\s*\}/);
+    // `env: clean` or a bare `env` (built on `...clean`), then the next option or the end.
+    for (const s of spawns) expect(s).toMatch(/[{,]\s*env(?:: clean)?\s*[,}]/);
     expect(body).toMatch(/const env = \{\s*\.\.\.clean,/);
     expect(body).not.toContain('...process.env');
   });
