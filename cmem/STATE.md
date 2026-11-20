@@ -32,8 +32,7 @@ Updated: 2026-11-20, at the release of 4.1.2
   d1dfa0856..review-line; together every shipped change and the release tooling since 4.0.0
 
 ## Next
-1. Offered, awaiting the owner: Node 22 and 26 in the WSL, and `bun run lts` in the Linux run
-2. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4, Q-H6 (review-issues.md), when the owner opens them
+1. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4, Q-H6 (review-issues.md), when the owner opens them
 
 ## Pushed
 - 2026-11-20: `main` at cb857e212 (`bump to v4.1.2`), tag `v4.1.2` (read back).

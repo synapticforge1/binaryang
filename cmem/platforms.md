@@ -78,10 +78,13 @@ Status `runtime`: covered by the runtime and by `host`'s result for that OS.
 
 ## linux-x64
 
-- **Bun and fnm (Node 24) in this WSL** (fnm 1.39.0, Node v24.22.3, installed 2026-11-20 on the
-  owner's word; `~/.bashrc` loads it). Deno runs on win-x64 only. A Linux run covers the Bun leg,
-  the V8 leg (`bun run test`, the fnm Node 24 referee), the byte baseline, the spec suite, the
-  interpreter checks and the privacy scan.
+- **Bun and fnm in this WSL, with every current Node LTS line** (fnm 1.39.0; Node v22.23.5,
+  v24.22.3 default, v26.13.1; installed 2026-11-20 on the owner's word; `~/.bashrc` loads it, so
+  run through `bash -lic`). Deno runs on win-x64 only. A Linux run covers the Bun leg, the V8 leg
+  (`bun run test`, the Node 24 referee), `bun run lts` (every current LTS line, the same CLI
+  output — first run 2026-11-20: v22, v24, v26 all `7dbdcd45…`, as on win-x64), the byte
+  baseline, the spec suite, the interpreter checks and the privacy scan. A line that becomes LTS
+  needs `fnm install <major>` here too, or `bun run lts` fails naming it.
 - **No `wast2json` or `wasm-tools` in this WSL:** `spec-prepare` there skips every file and the spec
   and interpreter checks then pass EMPTY. Prepare the corpus on win-x64 and run the checks on it
   from Linux (done for the 4.0.0 review, 2026-11-18).
