@@ -40,6 +40,10 @@
  * `wat2wasm` and `wasm-tools` are REQUIRED: missing, this fails and says how to install them, never
  * skips.
  *
+ * Every tool run has a time limit ({@link TOOL_LIMIT_MS}): a hung `wat2wasm` or `wasm-tools` is killed
+ * and its item reported as an ERROR naming it, never left to stall the gate step for its whole
+ * budget with up to eight orphaned children.
+ *
  * Usage: `bun scripts/check-wat2wasm.ts <testsuite-dir> <work-dir>`
  */
 
@@ -68,11 +72,6 @@ const FEATURES = [
   '--enable-custom-page-sizes',
 ];
 
-/**
- * Differences between binaryang's bytes and upstream's that are kept ON PURPOSE, by corpus item and
- * difference key, each with its reason. Empty = binaryang writes upstream's bytes everywhere the
- * corpus reaches, outside the N2 normalisation above.
- */
 const BLOCK_TYPE_INDEX =
   'W15 (DESIGN): a block / loop / if written `(type $t)` stays the type INDEX as written (`02 00`); ' +
   'upstream wat2wasm inlines a `[] -> [t]` type as its value type (`02 7f`). wasm-tools writes the index ' +
@@ -96,6 +95,12 @@ const WT_SUB_FINAL =
   'W17 (DESIGN): an explicit `(sub final …)` with no supertypes is written `0x4f 00` + comptype, as the ' +
   'text wrote it; wasm-tools writes the bare-comptype shorthand. Both decode to the same type';
 
+/**
+ * Differences between binaryang's bytes and upstream's that are kept ON PURPOSE, by corpus item and
+ * difference key, each with its reason (the constants above name the causes). A ratchet: an entry
+ * that no longer occurs fails, as a new difference does. An empty list would mean binaryang writes
+ * upstream's bytes everywhere the corpus reaches, outside the N2 normalisation above.
+ */
 export const KNOWN_DIFFERENCES: { item: string; key: string; reason: string }[] = [
   { item: 'block.wast#0', key: 'section 10', reason: BLOCK_TYPE_INDEX },
   { item: 'loop.wast#0', key: 'section 10', reason: BLOCK_TYPE_INDEX },
@@ -325,37 +330,120 @@ const INSTALL =
   'macOS `brew install wabt`, Debian/Ubuntu `apt install wabt` (or a release from ' +
   'https://github.com/WebAssembly/wabt/releases) — then `wat2wasm --version` must work';
 
+/** The longest one oracle run may take (the slowest text takes milliseconds). */
+export const TOOL_LIMIT_MS = 60_000;
+
+/** An oracle command: its program, the arguments it takes first (a test's fake tool), its limit. */
+export interface Tool {
+  cmd: string;
+  pre: string[];
+  limitMs: number;
+}
+const WAT2WASM: Tool = { cmd: 'wat2wasm', pre: [], limitMs: TOOL_LIMIT_MS };
+const WASM_TOOLS: Tool = { cmd: 'wasm-tools', pre: [], limitMs: TOOL_LIMIT_MS };
+
+/**
+ * What an oracle run came to: its bytes, or why not. `infra` marks a run that did not FINISH (a
+ * time limit, a failure to start, no output though it exited 0): that is the harness's problem, never
+ * "the oracle rejects this text", and it fails the check naming the item.
+ */
+export type Ran = { bytes: Uint8Array } | { error: string; infra?: true };
+
+/** `<tool> --version`, bounded; the first line, or undefined when it did not run cleanly. */
+function toolVersion(tool: Tool): string | undefined {
+  const r = spawnSync(tool.cmd, [...tool.pre, '--version'], {
+    encoding: 'utf8',
+    timeout: tool.limitMs,
+    killSignal: 'SIGKILL',
+  });
+  return r.error !== undefined || r.status !== 0 ? undefined : r.stdout.trim();
+}
+
 function requireWat2wasm(): string {
-  const r = spawnSync('wat2wasm', ['--version'], { encoding: 'utf8' });
-  if (r.error !== undefined || r.status !== 0) {
+  const v = toolVersion(WAT2WASM);
+  if (v === undefined) {
     console.error(`check-wat2wasm: upstream wat2wasm is REQUIRED and is not on PATH — ${INSTALL}`);
     process.exit(1);
   }
-  return r.stdout.trim();
+  return v;
 }
 
 /** Runs `wasm-tools parse` (the second oracle, for what wabt cannot assemble) on `file`. */
-function wasmTools(file: string, out: string): { bytes: Uint8Array } | { error: string } {
-  const r = spawnSync('wasm-tools', ['parse', file, '-o', out], { encoding: 'utf8' });
-  if (r.error !== undefined) return { error: `could not run wasm-tools: ${r.error.message}` };
+export function wasmTools(file: string, out: string, tool: Tool = WASM_TOOLS, what = file): Ran {
+  const r = spawnSync(tool.cmd, [...tool.pre, 'parse', file, '-o', out], {
+    encoding: 'utf8',
+    timeout: tool.limitMs,
+    killSignal: 'SIGKILL',
+  });
+  if (r.error !== undefined) {
+    const timedOut = (r.error as { code?: string }).code === 'ETIMEDOUT';
+    return {
+      error: timedOut
+        ? `wasm-tools TIMED OUT after ${tool.limitMs / 1000} s on ${what}`
+        : `could not run wasm-tools on ${what}: ${r.error.message}`,
+      infra: true,
+    };
+  }
   if (r.status !== 0) {
     return { error: (r.stderr.trim().split('\n')[0] ?? `exit ${r.status}`).slice(0, 160) };
   }
-  return { bytes: new Uint8Array(readFileSync(out)) };
+  try {
+    return { bytes: new Uint8Array(readFileSync(out)) };
+  } catch (e) {
+    return {
+      error: `wasm-tools exited 0 on ${what} but wrote no output: ${(e as Error).message}`,
+      infra: true,
+    };
+  }
 }
 
-/** Runs upstream `wat2wasm` on `file`: its bytes, or why it refused. */
-function upstream(file: string, out: string): Promise<{ bytes: Uint8Array } | { error: string }> {
+/**
+ * Runs upstream `wat2wasm` on `file`: its bytes, or why it refused. Past the limit the child is
+ * killed and the item reported as an infrastructure error naming `what`.
+ */
+export function upstream(
+  file: string,
+  out: string,
+  tool: Tool = WAT2WASM,
+  what = file,
+): Promise<Ran> {
   return new Promise((resolve) => {
-    const p = spawn('wat2wasm', [...FEATURES, '--no-check', '--debug-names', file, '-o', out], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-    });
+    const p = spawn(
+      tool.cmd,
+      [...tool.pre, ...FEATURES, '--no-check', '--debug-names', file, '-o', out],
+      { stdio: ['ignore', 'ignore', 'pipe'] },
+    );
     let err = '';
+    let done = false;
+    const finish = (r: Ran) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(r);
+    };
+    const timer = setTimeout(() => {
+      p.kill('SIGKILL');
+      finish({
+        error: `wat2wasm TIMED OUT after ${tool.limitMs / 1000} s on ${what}`,
+        infra: true,
+      });
+    }, tool.limitMs);
     p.stderr.on('data', (d) => (err += d));
-    p.on('error', (e) => resolve({ error: `could not run wat2wasm: ${e.message}` }));
+    p.on(
+      'error',
+      (e) => finish({ error: `could not run wat2wasm on ${what}: ${e.message}`, infra: true }),
+    );
     p.on('close', (code) => {
-      if (code === 0) resolve({ bytes: new Uint8Array(readFileSync(out)) });
-      else resolve({ error: err.trim().split('\n')[0] ?? `exit ${code}` });
+      if (code !== 0) return finish({ error: err.trim().split('\n')[0] ?? `exit ${code}` });
+      // Exit 0 but no readable output is the harness's problem, not an uncaught throw in a handler.
+      try {
+        finish({ bytes: new Uint8Array(readFileSync(out)) });
+      } catch (e) {
+        finish({
+          error: `wat2wasm exited 0 on ${what} but wrote no output: ${(e as Error).message}`,
+          infra: true,
+        });
+      }
     });
   });
 }
@@ -368,7 +456,8 @@ type Outcome =
   | 'wt-differs' // ... and differs
   | 'neither' // neither oracle assembles it, and we do
   | 'nobody' // neither oracle assembles it, and we do not either
-  | 'OURS-REJECTS'; // an oracle assembles it and we do not
+  | 'OURS-REJECTS' // an oracle assembles it and we do not
+  | 'TOOL-ERROR'; // an oracle run did not finish (time limit, no output): the harness, not the text
 
 async function main(): Promise<number> {
   const [suite, work] = process.argv.slice(2);
@@ -377,8 +466,7 @@ async function main(): Promise<number> {
     return 2;
   }
   const version = requireWat2wasm();
-  const wt = spawnSync('wasm-tools', ['--version'], { encoding: 'utf8' });
-  if (wt.error !== undefined || wt.status !== 0) {
+  if (toolVersion(WASM_TOOLS) === undefined) {
     console.error(
       'check-wat2wasm: wasm-tools is REQUIRED (the second oracle for the GC text wabt cannot ' +
         'assemble) and is not on PATH — install it: `cargo install wasm-tools`, `scoop install ' +
@@ -401,7 +489,7 @@ async function main(): Promise<number> {
       // One file per item: a stale output from an earlier run can never be read back as this one's.
       const file = join(work, `${i}.wat`);
       writeFileSync(file, item.text);
-      const theirs = await upstream(file, join(work, `${i}.wasm`));
+      const theirs = await upstream(file, join(work, `${i}.wasm`), WAT2WASM, item.id);
       let ours: ReturnType<typeof wat2wasm> | undefined;
       let oursWhy = '';
       try {
@@ -415,7 +503,20 @@ async function main(): Promise<number> {
       }
       const wabtRejected = 'error' in theirs;
       // Upstream wabt is the oracle; for what it cannot assemble, wasm-tools.
-      const second = wabtRejected ? wasmTools(file, join(work, `${i}.wt.wasm`)) : undefined;
+      const second = wabtRejected
+        ? wasmTools(file, join(work, `${i}.wt.wasm`), WASM_TOOLS, item.id)
+        : undefined;
+      // A run that did not finish says nothing about the text: its own outcome, naming the item.
+      const infra = [theirs, second].find((r) => r !== undefined && 'infra' in r);
+      if (infra !== undefined) {
+        results.push({
+          item,
+          outcome: 'TOOL-ERROR',
+          detail: [(infra as { error: string }).error],
+          wabtRejected,
+        });
+        continue;
+      }
       const ref = !wabtRejected
         ? theirs
         : second !== undefined && 'bytes' in second
@@ -465,6 +566,11 @@ async function main(): Promise<number> {
   row('  neither assembles, we do', count('neither'));
   row('  nobody assembles', count('nobody'));
   row('WE REJECT what an oracle takes', count('OURS-REJECTS'));
+  row(
+    'oracle run did not finish',
+    count('TOOL-ERROR'),
+    '(time limit / no output: each fails below)',
+  );
 
   let failed = false;
   const list = (title: string, lines: string[]) => {
@@ -507,6 +613,13 @@ async function main(): Promise<number> {
     list(
       `${nobody.length} text(s) NO oracle assembles`,
       nobody.map((r) => `${r.item.id} [${r.outcome}]: ${r.detail.join(' | ')}`),
+    );
+  }
+  const broken = results.filter((r) => r.outcome === 'TOOL-ERROR');
+  if (broken.length > 0) {
+    list(
+      `${broken.length} text(s) whose oracle run did not finish (an ERROR of the harness, not a result)`,
+      broken.map((r) => `${r.item.id}: ${r.detail[0]}`),
     );
   }
   const bad = results.filter((r) => r.outcome === 'OURS-REJECTS');
