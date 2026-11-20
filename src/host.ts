@@ -175,25 +175,67 @@ async function bunClosedStdout(): Promise<boolean> {
   }
 }
 
+/**
+ * What one stream's writes share (see {@link writeStream}): the writes still waiting, the one
+ * 'error' listener that rejects them, and whether that listener is installed or a failure was seen.
+ */
+interface StreamWatch {
+  readonly pending: Set<(err: Error) => void>;
+  readonly onError: (err: Error) => void;
+  installed: boolean;
+  failed: boolean;
+}
+
+const watches = new WeakMap<object, StreamWatch>();
+
 /** `data` to the process's stdout or stderr, resolved once it is flushed. */
 async function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | string): Promise<void> {
   if (stream === 'stdout' && (await bunClosedStdout())) {
     throw new Error('standard output is closed (this process was started with `>&-`)');
   }
   const out = cliProcess()[stream];
+  // 🔧 Node reports a failed write TWICE: to the callback, and as an 'error' event on the stream,
+  // which with no listener is an "Unhandled 'error' event" stack trace of 23-25 lines, not the
+  // one line + exit 1 the callers print (4.1.x review, hardening F1: `> /dev/full`, a closed
+  // pipe). Bun and Deno call back only. So a listener is held while a write is pending, and the
+  // callback and the event settle the one promise, whichever comes first. 🔧 ONE listener per
+  // stream, shared by every pending write: a listener each made 50 concurrent writes a
+  // MaxListenersExceededWarning on Node 24 (round 2 review). It stays after a failure (the event
+  // can follow the callback by a tick, and the process is ending); after success, once the last
+  // write is done, it is removed, so a long run does not leave one behind.
+  let watch = watches.get(out);
+  if (watch === undefined) {
+    const pending = new Set<(err: Error) => void>();
+    const made: StreamWatch = {
+      pending,
+      installed: false,
+      failed: false,
+      onError: (err) => {
+        made.failed = true;
+        for (const reject of [...pending]) reject(err);
+        pending.clear();
+      },
+    };
+    watch = made;
+    watches.set(out, watch);
+  }
+  const w = watch;
   return new Promise((resolve, reject) => {
-    // 🔧 Node reports a failed write TWICE: to the callback, and as an 'error' event on the stream,
-    // which with no listener is an "Unhandled 'error' event" stack trace of 23-25 lines, not the
-    // one line + exit 1 the callers print (4.1.x review, hardening F1: `> /dev/full`, a closed
-    // pipe). Bun and Deno call back only. So a listener is held for the write, and the callback
-    // and the event settle the one promise, whichever comes first. The listener stays after a
-    // failure (the event can follow the callback by a tick, and the process is ending); after
-    // success it is removed, so a long run does not pile them up.
-    const onError = (err: Error) => reject(err);
-    out.once('error', onError);
+    w.pending.add(reject);
+    if (!w.installed) {
+      out.on('error', w.onError);
+      w.installed = true;
+    }
     out.write(data, (err) => {
-      if (err) return reject(err);
-      out.removeListener('error', onError);
+      w.pending.delete(reject);
+      if (err) {
+        w.failed = true;
+        return reject(err);
+      }
+      if (w.pending.size === 0 && !w.failed) {
+        out.removeListener('error', w.onError);
+        w.installed = false;
+      }
       resolve();
     });
   });
