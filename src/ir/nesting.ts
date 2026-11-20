@@ -129,6 +129,20 @@ export function nestingDepth(root: Expression, stopAbove = Infinity): number {
 }
 
 /**
+ * The height of `e` in levels, counted as {@link nestingDepth} counts them (`e` is level 1, a
+ * region is none), for a pass that must know what it is about to build: a sink nests a value under
+ * the reads' parents, and the pass keeps the result within {@link MAX_NESTING_DEPTH}. Recursive,
+ * so for a tree already known to be within the limit (a pass's input is).
+ */
+export function expressionHeight(e: Expression): number {
+  let h = 0;
+  visitChildren(e, (c) => {
+    h = Math.max(h, expressionHeight(c));
+  });
+  return h + (e.kind === 'region' ? 0 : 1);
+}
+
+/**
  * What is wrong with one FRESH tree (the reader's, the parser's: they cannot share a node) — its
  * depth past {@link MAX_NESTING_DEPTH} — or `undefined`.
  */
