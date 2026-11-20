@@ -6,6 +6,12 @@
       "name": "documents where the guards live, so the docs cannot drift silently",
       "since": "4.1.2",
       "reason": "Letter H38 step 5 (2026-11-20): cmem/publishing.md was split by subject; the release-process half, which names release-guard.ts, is now cmem/publishing-release-flow.md, which today's test reads. Repository notes only: nothing in the package changed."
+    },
+    {
+      "file": "tests/wabt-ts/scripts/previous_tests.test.ts",
+      "name": "starts every process without the caller GIT_* variables",
+      "since": "4.1.2",
+      "reason": "4.1.2 (2026-11-20): the previous-tests harness re-runs an unlisted failure's file alone, and both runs have a time limit; v4.1.1's copy of this test reads today's scripts/release/previous-tests.ts and expects four spawns, each ending in `env: clean }`. Today's test expects five, `env: clean` then the limit. Release tooling only: nothing in the package changed."
     }
   ]
 }
