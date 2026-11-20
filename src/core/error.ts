@@ -164,6 +164,9 @@ export function formatLocation(loc: Location): string {
 /** The most characters of a source line one long-format diagnostic quotes (a window around it). */
 const MAX_QUOTED_LINE = 200;
 
+const isHighSurrogate = (c: number) => c >= 0xd800 && c <= 0xdbff;
+const isLowSurrogate = (c: number) => c >= 0xdc00 && c <= 0xdfff;
+
 /** The most diagnostics {@link formatErrors} prints; the rest are counted. */
 const MAX_REPORTED_ERRORS = 100;
 
@@ -200,8 +203,14 @@ export function formatError(
     // over `MAX_QUOTED_LINE` shows a window of that width around the column, `…` at a cut
     // end; the caret stays under its token. A line within the bound prints exactly as before.
     const col = loc.column - 1;
-    const from = sourceLine.length > MAX_QUOTED_LINE ? Math.max(0, col - MAX_QUOTED_LINE / 2) : 0;
-    const to = Math.min(sourceLine.length, from + MAX_QUOTED_LINE);
+    const from0 = sourceLine.length > MAX_QUOTED_LINE ? Math.max(0, col - MAX_QUOTED_LINE / 2) : 0;
+    const to0 = Math.min(sourceLine.length, from0 + MAX_QUOTED_LINE);
+    // 🔧 The cut is by UTF-16 index, so it could fall inside a surrogate pair and print a lone
+    // half as U+FFFD at each edge (round 2 review): it moves off the pair, dropping the half.
+    const from = from0 > 0 && isLowSurrogate(sourceLine.charCodeAt(from0)) ? from0 + 1 : from0;
+    const to = to0 < sourceLine.length && isHighSurrogate(sourceLine.charCodeAt(to0 - 1))
+      ? to0 - 1
+      : to0;
     const lead = from > 0 ? '…' : '';
     const before = lead + shown(sourceLine.slice(from, col));
     const pad = [...before].map((c) => (c === '	' ? '	' : ' '));
