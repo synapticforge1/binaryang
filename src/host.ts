@@ -379,7 +379,21 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // win-x64 / win-arm64: `\\.\C:\dir\f` is the file `C:\dir\f` (the device namespace resolves `.`,
   // `..` and `/` as a plain path does). Bun 1.4.4 cannot open it (ENOENT) and Node can, so it is
   // written as the plain path on both (round 2 review; measured on Windows 11 26300).
-  if (cliProcess().platform === 'win32') path = path.replace(/^\\\\\.\\([A-Za-z]:)(?=\\)/, '$1');
+  if (cliProcess().platform === 'win32') {
+    // Round 3: the device namespace has no reserved names and trims nothing, so `\\.\D:\dir\nul`
+    // is a FILE called `nul` there (Node's raw write makes it), but the plain path `D:\dir\nul` it
+    // is rewritten to is the NUL DEVICE (data silently discarded, exit 0; Bun 1.4.4 and Node 24)
+    // and `trail. ` loses its dot and space. Such a last name is refused rather than guessed.
+    const last = /^\\\\\.\\[A-Za-z]:\\/.test(path) ? path.slice(path.lastIndexOf('\\') + 1) : '';
+    if (last !== '' && (WINDOWS_DEVICE.test(last) || /[. ]$/.test(last))) {
+      throw new Error(
+        'a \\\\.\\ path whose last name is a device name (NUL, CON, COM1 ...) or ends in a dot or ' +
+          'space cannot be written here: Windows would take it for the device or trim it, not ' +
+          'the file named; write the plain path (a device name) or name the file differently',
+      );
+    }
+    path = path.replace(/^\\\\\.\\([A-Za-z]:)(?=\\)/, '$1');
+  }
   // win-x64 / win-arm64: a reserved device name (`NUL`, `CON`, `COM1` …, any case; `/dev/null`
   // as NUL) is a DEVICE, written by its device path. 🔧 `realpath` refused it (EINVAL), so
   // `-o NUL` failed after atomic writes came in (review H-2, 2026-11-18); and written by its plain
