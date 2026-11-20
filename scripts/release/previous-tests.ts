@@ -33,6 +33,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { runBounded } from '../run-bounded.ts';
 import { TEST_DIRS } from '../test.ts';
 import { nodeCommand, REFEREE } from '../v8.ts';
 import { lastReleaseTag } from './api-surface.ts';
@@ -234,15 +235,18 @@ export function previousTests(ref = lastReleaseTag()): number {
     const flags = ['--test', '--test-reporter=junit', `--test-reporter-destination=${report}`];
     const globs = TEST_DIRS.map((d) => `${d}/**/*.test.ts`);
     const [bin, args] = nodeCommand(REFEREE, flags, globs[0]!, globs.slice(1));
-    // Bounded: a hung old test ends the run, as a failure that says so (review, 2026-11-20).
-    const full = spawnSync(bin, args, {
+    // Bounded, the WHOLE tree: a hung old test ends the run — fnm, node and its per-file test
+    // processes — as a failure that says so (review, 2026-11-20; `spawnSync`'s own timeout killed
+    // fnm alone and left node running in this tree).
+    const full = runBounded(bin, args, {
       cwd: dir,
-      stdio: 'ignore',
       env: clean,
-      timeout: PREVIOUS_TESTS_LIMIT_MS.full,
+      limitMs: PREVIOUS_TESTS_LIMIT_MS.full,
     });
-    if (full.error) {
-      console.error(`previous tests: the run did not finish (${full.error.message})`);
+    if (full.timedOut) {
+      console.error(
+        `previous tests: the run did not finish in ${PREVIOUS_TESTS_LIMIT_MS.full / 60_000} min`,
+      );
       return 1;
     }
     const status = full.status;
@@ -270,13 +274,8 @@ export function previousTests(ref = lastReleaseTag()): number {
       const lone = join(dir, `alone-${reruns++}.xml`);
       const f = ['--test', '--test-reporter=junit', `--test-reporter-destination=${lone}`];
       const [b, a] = nodeCommand(REFEREE, f, file, []);
-      const r = spawnSync(b, a, {
-        cwd: dir,
-        stdio: 'ignore',
-        env: clean,
-        timeout: PREVIOUS_TESTS_LIMIT_MS.alone,
-      });
-      if (r.error) return null; // did not finish: no verdict, so the failure stands
+      const r = runBounded(b, a, { cwd: dir, env: clean, limitMs: PREVIOUS_TESTS_LIMIT_MS.alone });
+      if (r.timedOut) return null; // did not finish: no verdict, so the failure stands
       try {
         return readFileSync(lone, 'utf8');
       } catch {

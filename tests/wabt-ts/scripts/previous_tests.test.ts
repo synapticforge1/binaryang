@@ -169,10 +169,13 @@ describe('confirmAlone: an unlisted failure is run again, its file alone', () =>
     expect(src).toContain('const { still, timing } = confirmAlone(first.unexpected,');
     expect(src).toContain('const j = { ...first, unexpected: still };');
     expect(src).toContain('return gateHolds(j) ? 0 : 1;');
-    // Both runs have a time limit; a lone run that does not finish gives no verdict (the failure stands).
-    expect(src).toContain('timeout: PREVIOUS_TESTS_LIMIT_MS.full,');
-    expect(src).toContain('timeout: PREVIOUS_TESTS_LIMIT_MS.alone,');
-    expect(src).toContain('if (r.error) return null;');
+    // Both runs are bounded over their WHOLE tree (run-bounded.ts); a lone run that does not finish
+    // gives no verdict (the failure stands), a full run that does not finish is a failure.
+    expect(src).toContain('limitMs: PREVIOUS_TESTS_LIMIT_MS.full');
+    expect(src).toContain('limitMs: PREVIOUS_TESTS_LIMIT_MS.alone');
+    expect(src).toContain('if (r.timedOut) return null;');
+    expect(src).toContain('if (full.timedOut) {');
+    expect(src).not.toMatch(/spawnSync\([^)]*timeout:/);
     expect(PREVIOUS_TESTS_LIMIT_MS.alone).toBeLessThanOrEqual(PREVIOUS_TESTS_LIMIT_MS.full);
     // The report claims no cause it did not show.
     expect(src).toContain('load assumed, shared state or a race not ruled out');
@@ -203,11 +206,15 @@ describe('previousTests: the work tree the old tests run in', () => {
     expect(body).toContain(
       'const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));',
     );
-    const spawns = body.split('spawnSync(').slice(1).map((s) => s.slice(0, s.indexOf(')')));
-    expect(spawns.length).toBe(5); // + the lone re-run of a failed file (4.1.2)
-    // `env: clean`, or the work tree's `env`, built on `...clean` (checked below) — never another.
-    // `env: clean` or a bare `env` (built on `...clean`), then the next option or the end.
-    for (const s of spawns) expect(s).toMatch(/[{,]\s*env(?:: clean)?\s*[,}]/);
+    // git archive, tar and the work tree's git (spawnSync); the full run and each lone re-run
+    // (runBounded, 4.1.2). Each gets `env: clean`, or the work tree's `env` built on `...clean`.
+    const calls = (fn: string) =>
+      body.split(`${fn}(`).slice(1).map((s) => s.slice(0, s.indexOf(')')));
+    expect(calls('spawnSync').length).toBe(3);
+    expect(calls('runBounded').length).toBe(2);
+    for (const s of [...calls('spawnSync'), ...calls('runBounded')]) {
+      expect(s).toMatch(/[{,]\s*env(?:: clean)?\s*[,}]/);
+    }
     expect(body).toMatch(/const env = \{\s*\.\.\.clean,/);
     expect(body).not.toContain('...process.env');
   });
