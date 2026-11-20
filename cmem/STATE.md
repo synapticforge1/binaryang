@@ -1,6 +1,6 @@
 # STATE: binaryang
 
-Updated: 2026-11-19, at the release of 4.1.1
+Updated: 2026-11-20, the npm provenance poll reviewed
 
 ## Version
 - Released: **4.1.1 on 2026-11-19** (JSR and npm, provenance on both; release.md § 4.1.1);
@@ -30,7 +30,7 @@ Updated: 2026-11-19, at the release of 4.1.1
   d1dfa0856..review-line; together every shipped change and the release tooling since 4.0.0
 
 ## Next
-1. The npm provenance poll (branch `npm-provenance-poll`): reviewed and fixed; ships with the next
+1. The npm provenance poll (branch `npm-provenance-poll`; review complete, gate 31/31); ships with the next
    release, whose run is its first real test (publishing.md § "The provenance read-back")
 2. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
 
