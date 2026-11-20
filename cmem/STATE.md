@@ -1,9 +1,11 @@
 # STATE: binaryang
 
-Updated: 2026-11-20, 4.1.2 in release (harness fixed, Q-H5 closed)
+Updated: 2026-11-20, at the release of 4.1.2
 
 ## Version
-- Released: **4.1.1 on 2026-11-19** (JSR and npm, provenance on both; release.md § 4.1.1);
+- Released: **4.1.2 on 2026-11-20** (JSR and npm, provenance on both; release.md § 4.1.2);
+  publish.yml run 44782414500 green in every job, first attempt (npm provenance at 2 min 47 s)
+- 4.1.1 on 2026-11-19 (release.md § 4.1.1);
   publish.yml run 44639032099 GREEN since the owner's re-run (attempt 1 red only in npm's
   provenance read-back: npm lagged ~3 min)
 - 4.1.0 on 2026-11-19, run 44621909375 green in every job
@@ -30,11 +32,11 @@ Updated: 2026-11-20, 4.1.2 in release (harness fixed, Q-H5 closed)
   d1dfa0856..review-line; together every shipped change and the release tooling since 4.0.0
 
 ## Next
-1. The npm provenance poll (branch `npm-provenance-poll`; review complete, gate 31/31); ships with the next
-   release, whose run is its first real test (publishing.md § "The provenance read-back")
-2. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
+1. Offered, awaiting the owner: Node 22 and 26 in the WSL, and `bun run lts` in the Linux run
+2. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4, Q-H6 (review-issues.md), when the owner opens them
 
 ## Pushed
+- 2026-11-20: `main` at cb857e212 (`bump to v4.1.2`), tag `v4.1.2` (read back).
 - 2026-11-19: rulesets read back — `main` (27683565: the default branch; deletion, force push)
   and a TAG ruleset (27687370, `refs/tags/v*`: deletion, force push, update; creation allowed,
   so CI tags). A history purge needs both switched off for it.
