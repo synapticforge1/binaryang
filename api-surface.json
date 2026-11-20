@@ -2350,7 +2350,7 @@
     "--version",
     "-o"
    ],
-   "usage": "53045e8f54fb"
+   "usage": "717486cc21f8"
   },
   "wasm2wat": {
    "flags": [
