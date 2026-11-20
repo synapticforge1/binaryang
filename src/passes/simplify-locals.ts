@@ -85,6 +85,13 @@ export class SimplifyLocalsPass implements Pass {
 
 registerPass(SimplifyLocalsPass);
 
+/** Whether `e` is nothing but reads and writes of locals. */
+function _onlyLocals(e: Effects): boolean {
+  return !(e.globalsRead.size > 0 || e.globalsWritten.size > 0 || e.readsMemory || e.writesMemory ||
+    e.readsTable || e.writesTable || e.readsHeap || e.writesHeap || e.calls || e.trap ||
+    e.trapsOtherwise || e.branches || e.pop || e.unknown);
+}
+
 interface Sinkable {
   set: LocalSetExpr;
   /** The value's effects, and the write of the local itself. */
@@ -116,12 +123,57 @@ function _sinkRound(fn: WasmFunction): boolean {
   const sunk = new Set<LocalSetExpr>();
   const sunkEffects = new Map<LocalSetExpr, Effects>();
   const sinkables = new Map<number, Sinkable>();
-  const clear = () => sinkables.clear();
+  // The sets waiting, found by the local their value writes / reads: a node that only touches
+  // locals (most of them) asks which waiting sets it conflicts with and goes to those, not
+  // through all of them — n sets of n different locals made that n² (20,000 sets: 45 s).
+  const writing = new Map<number, Set<number>>();
+  const reading = new Map<number, Set<number>>();
+  const indexOf = (m: Map<number, Set<number>>, local: number) => {
+    let at = m.get(local);
+    if (at === undefined) m.set(local, at = new Set());
+    return at;
+  };
+  const drop = (i: number) => {
+    const s = sinkables.get(i);
+    if (s === undefined) return;
+    sinkables.delete(i);
+    for (const x of s.effects.localsWritten) writing.get(x)!.delete(i);
+    for (const x of s.effects.localsRead) reading.get(x)!.delete(i);
+  };
+  const keep = (i: number, s: Sinkable) => {
+    drop(i); // a re-set goes last, as the newest
+    sinkables.set(i, s);
+    for (const x of s.effects.localsWritten) indexOf(writing, x).add(i);
+    for (const x of s.effects.localsRead) indexOf(reading, x).add(i);
+    if (sinkables.size > MAX_SINKABLES) drop(sinkables.keys().next().value!);
+  };
+  const clear = () => {
+    sinkables.clear();
+    writing.clear();
+    reading.clear();
+  };
   /** How many `try` / `try_table` the walk is inside (see the call rule in `visit`). */
   let tryDepth = 0;
   const invalidate = (by: Effects) => {
-    for (const [i, s] of sinkables) if (invalidates(s.effects, by)) sinkables.delete(i);
+    if (_onlyLocals(by)) {
+      // A waiting set conflicts with a node that only touches locals when its value writes one the
+      // node reads or writes, or reads one the node writes ({@link invalidates}, specialised).
+      for (const x of by.localsRead) for (const i of [...(writing.get(x) ?? [])]) drop(i);
+      for (const x of by.localsWritten) {
+        for (const i of [...(writing.get(x) ?? [])]) drop(i);
+        for (const i of [...(reading.get(x) ?? [])]) drop(i);
+      }
+      return;
+    }
+    for (const [i, s] of sinkables) if (invalidates(s.effects, by)) drop(i);
   };
+  /**
+   * The most sets waiting to sink at once. Every node of the straight line is checked against all
+   * of them, so a run of n sets of n different locals (what SSANoMerge makes of a reused one)
+   * was n² (20,000 sets: 45 s). Past the number the OLDEST waits no more: it stays where it is,
+   * still correct, only not sunk.
+   */
+  const MAX_SINKABLES = 1024;
 
   /**
    * THE BOUND. A sink nests the value under the get's parents, and a chain of sets each read once
@@ -188,7 +240,7 @@ function _sinkRound(fn: WasmFunction): boolean {
       const add = s === undefined ? 0 : s.height + (tee ? 1 : 0);
       if (s !== undefined && level + add - 1 > MAX_NESTING_DEPTH) {
         // It would nest past the limit: the set stays, and this get reads it as it stands.
-        sinkables.delete(i);
+        drop(i);
       } else if (s !== undefined) {
         if (enclosing !== undefined) {
           enclosing.height = Math.max(enclosing.height, level - enclosing.base + add);
@@ -196,7 +248,7 @@ function _sinkRound(fn: WasmFunction): boolean {
         sinks.set(e, s.set);
         sunk.add(s.set);
         sunkEffects.set(s.set, s.effects);
-        sinkables.delete(i);
+        drop(i);
         // Nothing still waiting needs checking against the value landing here:
         // each was checked against the value's nodes where they stood, and
         // keeps its order relative to it.
@@ -233,7 +285,7 @@ function _sinkRound(fn: WasmFunction): boolean {
       });
       if (!effects.branches && !effects.unknown && !effects.pop && !_hasStructure(e.value)) {
         const height = Math.max(expressionHeight(e.value), open[open.length - 1]!.height);
-        sinkables.set(i, { set: e, effects, height });
+        keep(i, { set: e, effects, height });
       }
     }
   };
