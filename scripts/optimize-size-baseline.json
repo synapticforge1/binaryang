@@ -2,7 +2,7 @@
   "binaryen": "wasm-opt version 133 (version_133)",
   "entries": {
     "corpus -Oz": {
-      "ours": 811071,
+      "ours": 810806,
       "binaryen": 809986,
       "modules": 421,
       "refused": []

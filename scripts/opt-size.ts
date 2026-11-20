@@ -7,7 +7,7 @@
  * REAL binaryen `wasm-opt`, on the real-compiler modules, pinned in a checked-in baseline.
  *
  * Until it existed nothing stopped the size gap to upstream growing; only a measurement said
- * what it was (at the baseline, binaryen 133: corpus -Oz +0.134%, six -Oz +0.573%, six -O2 -2.09%).
+ * what it was (recorded 2026-11-20, binaryen 133: corpus -Oz +0.101%, six -Oz +0.573%, six -O2 -2.09%).
  *
  * What is measured (BYTES OUTSIDE CUSTOM SECTIONS: what each optimizer made of the code, not
  * the debug info binaryang and binaryen treat differently):
