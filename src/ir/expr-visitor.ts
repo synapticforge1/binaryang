@@ -290,9 +290,19 @@ export class ExprVisitor {
       // A code-metadata annotation belongs to the NEXT instruction in its list;
       // the delegate is told which, since in folded form that instruction's own
       // opcode comes after its operands' (see `onCodeMetadataExpr`).
-      const r = expr.kind === 'code_metadata'
-        ? this.d.onCodeMetadataExpr?.(expr, exprs[i + 1]) ?? Result.Ok
-        : this.dispatch(expr);
+      // 🔧 An annotation is a NODE, one level under what holds it, as `nestingDepth` and the
+      // README's unit count it: it went uncounted here, so a delegate that recursed from it was
+      // one level further than the limit promises (4.1.x review, basic note).
+      let r: Result;
+      if (expr.kind === 'code_metadata') {
+        if (this.level >= MAX_NESTING_DEPTH) throw new NestingLimitError('ExprVisitor');
+        this.level++;
+        try {
+          r = this.d.onCodeMetadataExpr?.(expr, exprs[i + 1]) ?? Result.Ok;
+        } finally {
+          this.level--;
+        }
+      } else r = this.dispatch(expr);
       if (r === Result.Error) return Result.Error;
     }
     return Result.Ok;

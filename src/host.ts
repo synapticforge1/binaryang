@@ -30,6 +30,7 @@
  */
 
 import type nodeProcess from 'node:process';
+import { printable } from './core/printable.ts';
 
 // ⚠️ NO RUNTIME `node:` IMPORT IN THIS FILE, and none in the tools that use it (open-work 28,
 // 2026-10-12). A top-level `import … from 'node:process'` made every module that reached this
@@ -179,8 +180,22 @@ async function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | strin
   if (stream === 'stdout' && (await bunClosedStdout())) {
     throw new Error('standard output is closed (this process was started with `>&-`)');
   }
+  const out = cliProcess()[stream];
   return new Promise((resolve, reject) => {
-    cliProcess()[stream].write(data, (err) => (err ? reject(err) : resolve()));
+    // 🔧 Node reports a failed write TWICE: to the callback, and as an 'error' event on the stream,
+    // which with no listener is an "Unhandled 'error' event" stack trace of 23-25 lines, not the
+    // one line + exit 1 the callers print (4.1.x review, hardening F1: `> /dev/full`, a closed
+    // pipe). Bun and Deno call back only. So a listener is held for the write, and the callback
+    // and the event settle the one promise, whichever comes first. The listener stays after a
+    // failure (the event can follow the callback by a tick, and the process is ending); after
+    // success it is removed, so a long run does not pile them up.
+    const onError = (err: Error) => reject(err);
+    out.once('error', onError);
+    out.write(data, (err) => {
+      if (err) return reject(err);
+      out.removeListener('error', onError);
+      resolve();
+    });
   });
 }
 
@@ -231,10 +246,12 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
     probe = await open(path, constants.O_WRONLY | constants.O_NONBLOCK);
   } catch (e) {
     if ((e as { code?: string }).code === 'ENXIO') {
-      throw new Error(
-        `it is a FIFO with no reader: start the reader first (for example \`cat ${path}\`), ` +
-          'then write',
-      );
+      // The example command is given only where it can be exact: a path with a byte that acts
+      // when printed (ESC, a line break …) is escaped in the message, and an escaped name is not
+      // the file's. Elsewhere it is single-quoted, `'` written `'\''`, which no byte escapes.
+      const quoted = `'${path.split("'").join("'\\''")}'`;
+      const example = printable(path) === path ? ` (for example \`cat ${quoted}\`)` : '';
+      throw new Error(`it is a FIFO with no reader: start the reader first${example}, then write`);
     }
     throw e;
   }
@@ -250,6 +267,34 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
   } finally {
     await probe?.close();
   }
+}
+
+/**
+ * Why a Windows `path` cannot be written as a file by temp and rename, or `null`. Two shapes left
+ * debris behind (4.1.x review, security note 3; measured on Windows 11 26300, Bun 1.4.4):
+ * - `\\?\C:\x\sub\..\up.txt`: Win32 resolves no `.` or `..` after `\\?\` (a segment named `..` is
+ *   no folder), yet Bun's open of the temp name normalised it while its rename and unlink did not,
+ *   so `up.txt.<hex>.tmp` stayed beside the target. Node resolves them; both are refused, so one
+ *   path means one thing. An empty segment (`\\`) is the same.
+ * - `ads.txt:s`, an alternate data stream: opening the temp stream CREATED an empty `ads.txt`, and
+ *   renaming a stream is EINVAL. A stream name is refused up front rather than failing after.
+ */
+function windowsPathProblem(path: string): string | null {
+  const verbatim = path.startsWith('\\\\?\\');
+  let rest = verbatim ? path.slice(4) : path;
+  if (verbatim && /^UNC\\/i.test(rest)) rest = rest.slice(4);
+  rest = rest.replace(/^[A-Za-z]:/, '');
+  if (rest.includes(':')) {
+    return 'an alternate data stream (a `:` in the name) cannot be written here: name a file';
+  }
+  if (!verbatim) return null;
+  const segments = rest.split('\\').slice(1);
+  const at = segments.findIndex(
+    (x, i) => x === '.' || x === '..' || (x === '' && i < segments.length - 1),
+  );
+  if (at < 0) return null;
+  const what = segments[at] === '' ? 'an empty segment' : `a '${segments[at]}' segment`;
+  return `a \\\\?\\ path with ${what} is not resolved by Windows: write the path without it`;
 }
 
 /**
@@ -329,6 +374,10 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
     // file is. 🔧 The rename replaced the link itself with a file (security review round 2).
     const link = await lstat(path).catch(() => undefined);
     if (link?.isSymbolicLink()) target = resolve(dirname(path), await readlink(path));
+  }
+  if (cliProcess().platform === 'win32') {
+    const problem = windowsPathProblem(target);
+    if (problem !== null) throw new Error(problem);
   }
   // Eight hex digits are enough beside one file: a temp name 13 characters longer than the
   // target, not 41 (a long legal name could fail ENAMETOOLONG through the temp name alone).
@@ -411,9 +460,14 @@ export function baseName(path: string): string {
   return trimmed.slice(at + 1);
 }
 
-/** Exit with a one-line `tool: message` on stderr. Never returns. */
+/**
+ * Exit with a one-line `tool: message` on stderr. Never returns. The message is PRINTABLE: a path
+ * from the command line, and the system's own error text quoting it (`ENOENT … open '<path>'`),
+ * went to the terminal raw, so an ESC in a path acted there (4.1.x review, privacy note; the
+ * review process says paths are escaped). Line breaks and tabs are kept.
+ */
 export function cliFail(tool: string, message: string): never {
-  console.error(`${tool}: ${message}`);
+  console.error(`${tool}: ${printable(message, { keepLines: true })}`);
   cliExit(1);
 }
 

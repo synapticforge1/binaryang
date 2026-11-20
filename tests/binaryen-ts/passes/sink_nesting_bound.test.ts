@@ -9,7 +9,7 @@
 // back into a tree). A set that would nest past MAX_NESTING_DEPTH stays where it is.
 //
 // Every case asserts the depth of what comes out as the READER sees it (the bytes read back), and
-// RUNS the module before and after. The 20,000-link case takes ~20-40 s (-Oz on 260 KB).
+// RUNS the module before and after. The 20,000-link case (SINK_CHAIN_LONG=1) takes ~20-40 s and several GB (-Oz on 260 KB).
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
@@ -125,7 +125,12 @@ describe("the writer's stack form stops at the nesting limit", () => {
 });
 
 describe('optimize at -Oz of a long chain of dependent sets (letter C48)', () => {
-  for (const n of [1000, 8000, 20000]) {
+  // The suite's cases are modest: the test files run in parallel, and 20,000 links took ~5 GB of
+  // resident memory on Bun (measured 2026-11-20: garbage the collector had not yet taken, not
+  // retained: 1.7 GB with a collection after every pass, 90 MB live at the end) and 16-19 s.
+  // `SINK_CHAIN_LONG=1` adds the 20,000 case, on demand (not a skip: it is not generated).
+  const sizes = [1000, 4000, ...(process.env['SINK_CHAIN_LONG'] ? [20000] : [])];
+  for (const n of sizes) {
     it(`${n} chained sets: it completes, reads back within the limit, and computes the same`, async () => {
       const before = wat2wasm(chainWat(n), { textForm: false }).binary;
       const after = await wasmOpt(before, { optimizeLevel: 2, shrinkLevel: 2, output: '-' });

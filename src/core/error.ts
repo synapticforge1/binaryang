@@ -161,6 +161,12 @@ export function formatLocation(loc: Location): string {
   return loc.filename || '<input>';
 }
 
+/** The most characters of a source line one long-format diagnostic quotes (a window around it). */
+const MAX_QUOTED_LINE = 200;
+
+/** The most diagnostics {@link formatErrors} prints; the rest are counted. */
+const MAX_REPORTED_ERRORS = 100;
+
 /**
  * Renders a single {@link WabtError} to a human-readable string.
  *
@@ -188,14 +194,27 @@ export function formatError(
     // measured on the printable text, so an escape that widens the line keeps it aligned; tabs are
     // kept under tabs, however the terminal expands them.
     const shown = (s: string) => printable(s, { keepLines: true });
-    const before = shown(sourceLine.slice(0, loc.column - 1));
-    const pad = [...before].map((c) => (c === '\t' ? '\t' : ' '));
+    // 🔧 BOUNDED: a line of N characters quoted once per error was N squared in all (hardening F2,
+    // 4.1.x review: 2,000 nested `(catch_all` on one line, an error each, wrote 140 MB). A line
+    // over `MAX_QUOTED_LINE` shows a window of that width around the column, `…` at a cut
+    // end; the caret stays under its token. A line within the bound prints exactly as before.
+    const col = loc.column - 1;
+    const from = sourceLine.length > MAX_QUOTED_LINE ? Math.max(0, col - MAX_QUOTED_LINE / 2) : 0;
+    const to = Math.min(sourceLine.length, from + MAX_QUOTED_LINE);
+    const lead = from > 0 ? '…' : '';
+    const before = lead + shown(sourceLine.slice(from, col));
+    const pad = [...before].map((c) => (c === '	' ? '	' : ' '));
     // Under the whole token, as upstream (DG6); one `^` where its end is unknown.
     const token = loc.endColumn !== undefined
-      ? shown(sourceLine.slice(loc.column - 1, loc.endColumn - 1))
+      ? shown(sourceLine.slice(col, Math.min(loc.endColumn - 1, to)))
       : '';
-    const width = Math.max(1, [...token].length);
-    return `${header}\n${shown(sourceLine)}\n${pad.join('')}${'^'.repeat(width)}`;
+    const width = Math.min(Math.max(1, [...token].length), MAX_QUOTED_LINE);
+    const quoted = `${lead}${shown(sourceLine.slice(from, to))}${
+      to < sourceLine.length ? '…' : ''
+    }`;
+    return `${header}
+${quoted}
+${pad.join('')}${'^'.repeat(width)}`;
   }
   return header;
 }
@@ -218,7 +237,12 @@ export function formatErrors(
   source?: string,
 ): string {
   const lines = source?.split(/\r?\n/);
-  return list
+  // 🔧 BOUNDED too (hardening F2): malformed input can make an error per token, and a megabyte of
+  // them is not a report. The first `MAX_REPORTED_ERRORS` are printed, then a count.
+  const shown = list.slice(0, MAX_REPORTED_ERRORS);
+  const text = shown
     .map((e) => formatError(e, e.loc.line > 0 ? lines?.[e.loc.line - 1] : undefined, format))
     .join('\n');
+  const more = list.length - shown.length;
+  return more > 0 ? `${text}\n... ${more} more error${more === 1 ? '' : 's'}` : text;
 }
