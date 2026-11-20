@@ -13,7 +13,8 @@
  * The logs hold full output (absolute paths, the user name), so they live in a folder made for ONE
  * run by `mkdtempSync` (mode 0700, a name nobody can plant), each log is created with flag `wx`
  * (mode 0600: a planted link or file is an error, never followed), and the folders of earlier runs
- * are pruned to the last {@link KEEP_RUNS} at the next gate start (security + privacy review).
+ * are pruned at the next gate start: a failing run's folder is kept at most 7 days AND only the
+ * {@link KEEP_RUNS} newest are kept, the run in progress included (security + privacy review).
  */
 
 import { lstatSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -30,8 +31,14 @@ export const MAX_NAMED = 5;
 /** The prefix of a run's failure folder inside the shared temp dir. */
 export const FAILURE_PREFIX = 'binaryang-gate-failures-';
 
-/** Folders of earlier gate runs kept; older ones are removed at the next gate start. */
+/** At most this many failing-run folders exist after a gate starts, the current run's included. */
 export const KEEP_RUNS = 5;
+
+/** A failing-run folder older than this is removed at the next gate start, however few there are. */
+export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The folder the first version of this module used: fixed name, no suffix, world-readable on POSIX. */
+export const OLD_FIXED_NAME = 'binaryang-gate-failures';
 
 /** Makes this run's private failure folder (0700 by construction) and returns its path. */
 export function makeFailureDir(tmp: string = tmpdir()): string {
@@ -39,30 +46,46 @@ export function makeFailureDir(tmp: string = tmpdir()): string {
 }
 
 /**
- * Removes this user's failure folders of earlier runs, keeping the newest {@link KEEP_RUNS}. Only
- * a real directory (`lstat`, so a link is never followed or removed through) owned by this uid
- * (where the OS has uids) is touched; anything else with the prefix is left alone. Returns the
- * removed paths. A folder that cannot be removed is skipped, never fatal to the gate.
+ * Removes this user's failure folders that are older than {@link MAX_AGE_MS}, then all but the
+ * newest `keep` (default {@link KEEP_RUNS} - 1: this run's folder is the last of the
+ * {@link KEEP_RUNS}), and the OLD fixed-name folder ({@link OLD_FIXED_NAME}) wherever it is. Only a
+ * real directory (`lstat`, so a link is never followed or removed through) owned by this uid (where
+ * the OS has uids) is touched; anything else is left alone. Returns the removed paths. NEVER
+ * fatal to the gate: a folder that cannot be removed is skipped, and a failure to read the temp
+ * dir at all prints one line and returns what was removed so far.
  */
-export function pruneFailureDirs(tmp: string = tmpdir(), keep: number = KEEP_RUNS): string[] {
-  const uid = typeof process.getuid === 'function' ? process.getuid() : undefined;
-  const mine: { path: string; mtime: number }[] = [];
-  for (const name of readdirSync(tmp)) {
-    if (!name.startsWith(FAILURE_PREFIX)) continue;
-    const path = join(tmp, name);
-    try {
-      const st = lstatSync(path);
-      if (!st.isDirectory() || (uid !== undefined && st.uid !== uid)) continue;
-      mine.push({ path, mtime: st.mtimeMs });
-    } catch { /* gone, or not ours to read */ }
-  }
-  mine.sort((a, b) => b.mtime - a.mtime);
+export function pruneFailureDirs(
+  tmp: string = tmpdir(),
+  keep: number = KEEP_RUNS - 1,
+  now: number = Date.now(),
+): string[] {
   const removed: string[] = [];
-  for (const { path } of mine.slice(keep)) {
-    try {
-      rmSync(path, { recursive: true, force: true });
-      removed.push(path);
-    } catch { /* not removable: leave it */ }
+  try {
+    const uid = typeof process.getuid === 'function' ? process.getuid() : undefined;
+    const mine: { path: string; mtime: number }[] = [];
+    for (const name of readdirSync(tmp)) {
+      const old = name === OLD_FIXED_NAME;
+      if (!old && !name.startsWith(FAILURE_PREFIX)) continue;
+      const path = join(tmp, name);
+      try {
+        const st = lstatSync(path);
+        if (!st.isDirectory() || (uid !== undefined && st.uid !== uid)) continue;
+        if (old) {
+          rmSync(path, { recursive: true, force: true });
+          removed.push(path);
+        } else mine.push({ path, mtime: st.mtimeMs });
+      } catch { /* gone, not ours to read, or not removable: leave it */ }
+    }
+    mine.sort((a, b) => b.mtime - a.mtime);
+    mine.forEach(({ path, mtime }, n) => {
+      if (n < keep && now - mtime <= MAX_AGE_MS) return;
+      try {
+        rmSync(path, { recursive: true, force: true });
+        removed.push(path);
+      } catch { /* not removable: leave it */ }
+    });
+  } catch (e) {
+    console.log(`gate: could not prune old failure logs in ${tmp}: ${(e as Error).message}`);
   }
   return removed;
 }

@@ -102,6 +102,19 @@ describe('binaryenSize runs wasm-opt bounded and does not turn a failed run into
       return ran(r);
     }) as unknown as typeof import('node:child_process').spawnSync;
 
+  it('a timeout names the limit that was USED, not the default', () => {
+    const timedOut = { status: null, error: Object.assign(new Error('t'), { code: 'ETIMEDOUT' }) };
+    expect(() => judgeRun(ran(timedOut), 'a.wasm', 1500)).toThrow('it ran past 1.5 s');
+    expect(() => judgeRun(ran(timedOut), 'a.wasm')).toThrow(
+      `it ran past ${WASM_OPT_TIMEOUT_MS / 1000} s`,
+    );
+    const seen: Record<string, unknown>[] = [];
+    inTmp((dir) => {
+      expect(() => binaryenSize(dir, new Uint8Array(8), '-Oz', 'm', fake(timedOut, seen), 2000))
+        .toThrow('it ran past 2 s');
+    });
+    expect(seen[0]!['timeout']).toBe(2000);
+  });
   it('sets a timeout and a maxBuffer', () => {
     const seen: Record<string, unknown>[] = [];
     inTmp((dir) => {
@@ -136,6 +149,16 @@ describe('the module set and the refused set are not recorded blindly', () => {
     const src = readFileSync('scripts/check-optimize-corpus.ts', 'utf8');
     expect(src).toContain('requireSix(sixInputs.map((i) => i.name));');
     expect(src.indexOf('requireSix(')).toBeLessThan(src.indexOf('if (update)'));
+  });
+  it('no process.exit sits between the scratch folder and its removal (the `finally` would be skipped)', () => {
+    const src = readFileSync('scripts/check-optimize-corpus.ts', 'utf8');
+    const from = src.indexOf('const tmp = scratch();');
+    const to = src.indexOf('tmp.done();', from);
+    expect(from).toBeGreaterThan(0);
+    expect(to).toBeGreaterThan(from);
+    expect(src.slice(from, to)).not.toContain('process.exit');
+    // ...and the six-module problem is still reported, after the folder is gone.
+    expect(src.indexOf('sixProblem !== undefined', to)).toBeGreaterThan(to);
   });
   it('refusedChanges names a refusal that appeared or went; none for an equal set or no baseline', () => {
     const b = {

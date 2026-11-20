@@ -137,14 +137,18 @@ export type WasmOptRun = Pick<
  * signal ended it, its output overflowed, the time limit ended it, another exit code, or exit 1
  * with nothing said — is a failure of the run, not a fact about the module: it THROWS, naming `what`.
  */
-export function judgeRun(r: WasmOptRun, what: string): 'ok' | 'refused' {
+export function judgeRun(
+  r: WasmOptRun,
+  what: string,
+  limitMs: number = WASM_OPT_TIMEOUT_MS,
+): 'ok' | 'refused' {
   if (r.error !== undefined) {
     const code = (r.error as { code?: string }).code;
     throw new Error(
       `wasm-opt on ${what} did not finish (${
         code ?? 'error'
       }: ${r.error.message}): not a refusal; ` +
-        (code === 'ETIMEDOUT' ? `it ran past ${WASM_OPT_TIMEOUT_MS / 1000} s` : 'run it again'),
+        (code === 'ETIMEDOUT' ? `it ran past ${limitMs / 1000} s` : 'run it again'),
     );
   }
   if (r.signal !== null) {
@@ -171,6 +175,7 @@ export function binaryenSize(
   level: '-Oz' | '-O2',
   name = 'a module',
   run: typeof spawnSync = spawnSync,
+  limitMs: number = WASM_OPT_TIMEOUT_MS,
 ): number | undefined {
   const input = join(dir, 'in.wasm');
   const output = join(dir, 'out.wasm');
@@ -178,9 +183,9 @@ export function binaryenSize(
   const r = run(
     'wasm-opt',
     [input, level, '--strip-dwarf', '--disable-compact-imports', ...FEATURES, '-o', output],
-    { encoding: 'utf8', timeout: WASM_OPT_TIMEOUT_MS, maxBuffer: WASM_OPT_MAX_BUFFER },
+    { encoding: 'utf8', timeout: limitMs, maxBuffer: WASM_OPT_MAX_BUFFER },
   );
-  if (judgeRun(r, `${name} (${level})`) === 'refused') return undefined;
+  if (judgeRun(r, `${name} (${level})`, limitMs) === 'refused') return undefined;
   return codeBytes(readFileSync(output));
 }
 

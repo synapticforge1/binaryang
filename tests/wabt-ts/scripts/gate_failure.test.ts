@@ -26,7 +26,9 @@ import {
   KEEP_RUNS,
   keepFailure,
   makeFailureDir,
+  MAX_AGE_MS,
   MAX_NAMED,
+  OLD_FIXED_NAME,
   pruneFailureDirs,
 } from '../../../scripts/gate-failure.ts';
 
@@ -120,15 +122,16 @@ describe('keepFailure', () => {
     }
   });
 
-  it('pruneFailureDirs keeps the newest KEEP_RUNS folders and touches nothing else', () => {
+  it('pruneFailureDirs keeps the newest KEEP_RUNS - 1 folders (this run makes the fifth) and touches nothing else', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'gate-failure-tmp-'));
     try {
       const total = KEEP_RUNS + 2;
+      const t0 = Date.now() / 1000 - 3600; // an hour ago: inside the age limit
       for (let i = 0; i < total; i++) {
         const d = join(tmp, `${FAILURE_PREFIX}${i}`);
         mkdirSync(d);
         writeFileSync(join(d, 'x.log'), 'x');
-        utimesSync(d, 1_000_000 + i, 1_000_000 + i); // i = 0 is the oldest
+        utimesSync(d, t0 + i, t0 + i); // i = 0 is the oldest
       }
       const plainFile = join(tmp, `${FAILURE_PREFIX}file`); // not a directory: left alone
       writeFileSync(plainFile, 'keep me');
@@ -138,12 +141,13 @@ describe('keepFailure', () => {
       expect(removed.map((r) => r.slice(tmp.length + 1)).sort()).toEqual([
         `${FAILURE_PREFIX}0`,
         `${FAILURE_PREFIX}1`,
+        `${FAILURE_PREFIX}2`,
       ]);
       const left = readdirSync(tmp);
       expect(left).toContain(`${FAILURE_PREFIX}file`);
       expect(left).toContain('other-folder');
       expect(left.filter((n) => /\d$/.test(n) && n.startsWith(FAILURE_PREFIX))).toHaveLength(
-        KEEP_RUNS,
+        KEEP_RUNS - 1,
       );
       expect(existsSync(plainFile)).toBe(true);
     } finally {
@@ -151,10 +155,67 @@ describe('keepFailure', () => {
     }
   });
 
+  it('pruneFailureDirs removes a folder older than MAX_AGE_MS even when fewer than the keep count exist', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'gate-failure-tmp-'));
+    try {
+      const now = Date.now();
+      const stale = join(tmp, `${FAILURE_PREFIX}stale0`);
+      const fresh = join(tmp, `${FAILURE_PREFIX}fresh0`);
+      mkdirSync(stale);
+      mkdirSync(fresh);
+      utimesSync(
+        stale,
+        (now - MAX_AGE_MS - 3_600_000) / 1000,
+        (now - MAX_AGE_MS - 3_600_000) / 1000,
+      );
+      utimesSync(
+        fresh,
+        (now - MAX_AGE_MS + 3_600_000) / 1000,
+        (now - MAX_AGE_MS + 3_600_000) / 1000,
+      );
+      expect(pruneFailureDirs(tmp, KEEP_RUNS - 1, now)).toEqual([stale]);
+      expect(existsSync(stale)).toBe(false);
+      expect(existsSync(fresh)).toBe(true);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('pruneFailureDirs removes the OLD fixed-name folder when it is a real directory, and only then', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'gate-failure-tmp-'));
+    try {
+      const old = join(tmp, OLD_FIXED_NAME);
+      mkdirSync(old);
+      writeFileSync(join(old, 'lint.log'), 'old, world-readable');
+      expect(pruneFailureDirs(tmp)).toEqual([old]);
+      expect(existsSync(old)).toBe(false);
+      writeFileSync(old, 'a plain file with that name is not a folder: left alone');
+      expect(pruneFailureDirs(tmp)).toEqual([]);
+      expect(existsSync(old)).toBe(true);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('pruneFailureDirs is never fatal: an unreadable temp dir prints one line and returns', () => {
+    const seen: string[] = [];
+    const log = console.log;
+    console.log = (...a: unknown[]) => void seen.push(a.join(' '));
+    try {
+      const missing = join(tmpdir(), 'gate-failure-no-such-dir-', 'x');
+      expect(pruneFailureDirs(missing)).toEqual([]);
+    } finally {
+      console.log = log;
+    }
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain('could not prune');
+  });
+
   it('the gate uses a per-run folder, prunes at start, and prints the log path on its own line', () => {
     const gate = readFileSync('scripts/gate.ts', 'utf8');
     expect(gate).toContain('failures ??= makeFailureDir(),');
     expect(gate).toContain('pruneFailureDirs();');
+    expect(gate).toMatch(/try \{\s+pruneFailureDirs\(\);\s+\} catch/); // never fatal
     expect(gate).not.toContain("'binaryang-gate-failures'"); // the old fixed, shared name
     expect(gate).toMatch(/if \(log !== ''\) console\.log\(` {5}full output: \$\{log\}`\);/);
   });

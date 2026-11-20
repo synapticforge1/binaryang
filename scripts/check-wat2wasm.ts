@@ -349,6 +349,24 @@ const WASM_TOOLS: Tool = { cmd: 'wasm-tools', pre: [], limitMs: TOOL_LIMIT_MS };
  */
 export type Ran = { bytes: Uint8Array } | { error: string; infra?: true };
 
+/**
+ * A run that ended non-zero or by a signal: the oracle's first message line when it printed one (a
+ * rejection of the text), else an infrastructure error (an OOM kill, a crash, a signal that is not
+ * our timeout): `'' ?? x` is '', so the empty message must be tested, never defaulted (review R2).
+ * Measured: wat2wasm 1.0.41 and wasm-tools 1.x print a message on every rejection they make.
+ */
+function ended(
+  tool: string,
+  code: number | null,
+  signal: NodeJS.Signals | null,
+  stderr: string,
+  what: string,
+): Ran {
+  const message = stderr.split('\n').map((l) => l.trim()).find((l) => l !== '');
+  if (code !== null && message !== undefined) return { error: message.slice(0, 160) };
+  return { error: `${tool} exited ${code ?? signal} with no message on ${what}`, infra: true };
+}
+
 /** `<tool> --version`, bounded; the first line, or undefined when it did not run cleanly. */
 function toolVersion(tool: Tool): string | undefined {
   const r = spawnSync(tool.cmd, [...tool.pre, '--version'], {
@@ -384,9 +402,7 @@ export function wasmTools(file: string, out: string, tool: Tool = WASM_TOOLS, wh
       infra: true,
     };
   }
-  if (r.status !== 0) {
-    return { error: (r.stderr.trim().split('\n')[0] ?? `exit ${r.status}`).slice(0, 160) };
-  }
+  if (r.status !== 0) return ended('wasm-tools', r.status, r.signal, r.stderr, what);
   try {
     return { bytes: new Uint8Array(readFileSync(out)) };
   } catch (e) {
@@ -433,8 +449,8 @@ export function upstream(
       'error',
       (e) => finish({ error: `could not run wat2wasm on ${what}: ${e.message}`, infra: true }),
     );
-    p.on('close', (code) => {
-      if (code !== 0) return finish({ error: err.trim().split('\n')[0] ?? `exit ${code}` });
+    p.on('close', (code, signal) => {
+      if (code !== 0) return finish(ended('wat2wasm', code, signal, err, what));
       // Exit 0 but no readable output is the harness's problem, not an uncaught throw in a handler.
       try {
         finish({ bytes: new Uint8Array(readFileSync(out)) });
