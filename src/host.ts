@@ -540,6 +540,17 @@ export function cliError(message: string, block = false): void {
 }
 
 /**
+ * The ONE way a CLI status or progress line reaches stdout (`Wrote WASM: <path>`, a ctor-eval
+ * progress line, a bundle report line): the same rules as {@link cliError}, on stdout. A path,
+ * a ctor name or an export name inside the line acted on the terminal when printed raw (round 3
+ * review). With `block`, the text is the tool's own multi-line layout and keeps its breaks.
+ * Not for the module's own output, nor help text: those are not status lines.
+ */
+export function cliInfo(line: string, block = false): void {
+  console.log(printable(line, { keepLines: block }));
+}
+
+/**
  * Exit with a one-line `tool: message` on stderr. Never returns. The message is PRINTABLE: a path
  * from the command line, and the system's own error text quoting it (`ENOENT … open '<path>'`),
  * went to the terminal raw, so an ESC in a path acted there (4.1.x review, privacy note; the

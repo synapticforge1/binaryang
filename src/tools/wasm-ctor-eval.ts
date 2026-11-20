@@ -70,6 +70,7 @@ import {
 import {
   cliError,
   cliExit,
+  cliInfo,
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
@@ -115,7 +116,7 @@ const defaults: CtorEvalOptions = {
   keptExports: [],
   ignoreExternalInput: false,
   fuel: 20_000_000,
-  log: (line) => console.log(line),
+  log: (line) => cliInfo(line),
 };
 
 const WASI = 'wasi_snapshot_preview1';
@@ -684,7 +685,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   // The report goes to stderr when the module goes to stdout, so stdout holds the module alone.
   const say = writesToStdout(outPath)
     ? (line: string) => cliError(line)
-    : (line: string) => console.log(line);
+    : (line: string) => cliInfo(line);
   if (!('log' in options)) options.log = say;
   let result: Awaited<ReturnType<typeof wasmCtorEval>>;
   try {

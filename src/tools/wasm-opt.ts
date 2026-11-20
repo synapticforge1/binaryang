@@ -56,6 +56,7 @@ import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import {
   cliError,
   cliExit,
+  cliInfo,
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
@@ -321,7 +322,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   // the module alone.
   const say = writesToStdout(outPath)
     ? (line: string) => cliError(line)
-    : (line: string) => console.log(line);
+    : (line: string) => cliInfo(line);
   // In place is upstream's `wasm-opt a.wasm -o a.wasm`, and stays allowed: the input's own
   // format, written atomically. A CHANGE of format in place (`a.wat` rewritten as binary)
   // destroys the source, and is refused.

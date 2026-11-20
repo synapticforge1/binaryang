@@ -110,6 +110,7 @@ import {
   baseName,
   cliError,
   cliExit,
+  cliInfo,
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
@@ -207,7 +208,7 @@ const defaults: BundleOptions = {
   onConflict: 'refuse',
   named: new Set(),
   unmarked: 'refuse',
-  log: (line) => console.log(line),
+  log: (line) => cliInfo(line),
 };
 
 /** Globals that hold an address by the linker conventions: they move with the image. */
@@ -1962,7 +1963,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   // The report goes to stderr when the module goes to stdout, so stdout holds the module alone.
   const say = writesToStdout(output)
     ? (line: string) => cliError(line)
-    : (line: string) => console.log(line);
+    : (line: string) => cliInfo(line);
   if (!('log' in options)) options.log = say;
   if (options.log !== undefined) {
     say(`wasm-bundle: ${inputs.length} module${inputs.length === 1 ? '' : 's'}`);
