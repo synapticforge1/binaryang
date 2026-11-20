@@ -328,6 +328,13 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
  *   EVERY segment after the root is checked, not all but the first (`\\?\..\x`, `\\?\UNC\..\s`).
  */
 function windowsPathProblem(path: string): string | null {
+  // Round 3: an NT-namespace `\??\` path is no ordinary path either. Bun normalised
+  // `\??\UNC\localhost\C$\<dir>\sub\..\u8.txt` on the temp open and not on rename or unlink, and
+  // left `u8.txt.<hex>.tmp` (`\??\C:\...` was already refused by the `:` rule below). Refused
+  // outright, ahead of every other rule: the same file is written as `C:\...` or `\\?\C:\...`.
+  if (path.startsWith('\\??\\')) {
+    return 'an NT-namespace \\??\\ path is not supported here: write the path as C:\\... or \\\\?\\C:\\...';
+  }
   const verbatim = path.startsWith('\\\\?\\');
   // Win32 reads `\\?\` as "no processing": a `/` is a name character to it, yet Bun normalises it
   // on the temp open and not on the rename (round 2 review: `\\?\W/sub/../fs.txt` left
@@ -379,7 +386,21 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // win-x64 / win-arm64: `\\.\C:\dir\f` is the file `C:\dir\f` (the device namespace resolves `.`,
   // `..` and `/` as a plain path does). Bun 1.4.4 cannot open it (ENOENT) and Node can, so it is
   // written as the plain path on both (round 2 review; measured on Windows 11 26300).
-  if (cliProcess().platform === 'win32') path = path.replace(/^\\\\\.\\([A-Za-z]:)(?=\\)/, '$1');
+  if (cliProcess().platform === 'win32') {
+    // Round 3: the device namespace has no reserved names and trims nothing, so `\\.\D:\dir\nul`
+    // is a FILE called `nul` there (Node's raw write makes it), but the plain path `D:\dir\nul` it
+    // is rewritten to is the NUL DEVICE (data silently discarded, exit 0; Bun 1.4.4 and Node 24)
+    // and `trail. ` loses its dot and space. Such a last name is refused rather than guessed.
+    const last = /^\\\\\.\\[A-Za-z]:\\/.test(path) ? path.slice(path.lastIndexOf('\\') + 1) : '';
+    if (last !== '' && (WINDOWS_DEVICE.test(last) || /[. ]$/.test(last))) {
+      throw new Error(
+        'a \\\\.\\ path whose last name is a device name (NUL, CON, COM1 ...) or ends in a dot or ' +
+          'space cannot be written here: Windows would take it for the device or trim it, not ' +
+          'the file named; write the plain path (a device name) or name the file differently',
+      );
+    }
+    path = path.replace(/^\\\\\.\\([A-Za-z]:)(?=\\)/, '$1');
+  }
   // win-x64 / win-arm64: a reserved device name (`NUL`, `CON`, `COM1` …, any case; `/dev/null`
   // as NUL) is a DEVICE, written by its device path. 🔧 `realpath` refused it (EINVAL), so
   // `-o NUL` failed after atomic writes came in (review H-2, 2026-11-18); and written by its plain
@@ -537,6 +558,17 @@ export function baseName(path: string): string {
  */
 export function cliError(message: string, block = false): void {
   console.error(printable(message, { keepLines: block }));
+}
+
+/**
+ * The ONE way a CLI status or progress line reaches stdout (`Wrote WASM: <path>`, a ctor-eval
+ * progress line, a bundle report line): the same rules as {@link cliError}, on stdout. A path,
+ * a ctor name or an export name inside the line acted on the terminal when printed raw (round 3
+ * review). With `block`, the text is the tool's own multi-line layout and keeps its breaks.
+ * Not for the module's own output, nor help text: those are not status lines.
+ */
+export function cliInfo(line: string, block = false): void {
+  console.log(printable(line, { keepLines: block }));
 }
 
 /**

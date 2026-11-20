@@ -70,6 +70,7 @@ import {
 import {
   cliError,
   cliExit,
+  cliInfo,
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
@@ -115,7 +116,7 @@ const defaults: CtorEvalOptions = {
   keptExports: [],
   ignoreExternalInput: false,
   fuel: 20_000_000,
-  log: (line) => console.log(line),
+  log: (line) => cliInfo(line),
 };
 
 const WASI = 'wasi_snapshot_preview1';
@@ -444,7 +445,10 @@ export function ctorEval(
     }
     const of = fn.body.children.length;
     if (fn.sig.params.length > 0 && !opts.ignoreExternalInput) {
-      log(`  ...stopping due to params\n  RECOMMENDATION: consider --ignore-external-input`);
+      // Two lines, two calls: the tool's own layout, and each is a one-line status (cliInfo /
+      // cliError escape any line break in one).
+      log(`  ...stopping due to params`);
+      log(`  RECOMMENDATION: consider --ignore-external-input`);
       outcomes.push({ name: ctor.name, statements: 0, of, complete: false, reason: 'parameters' });
       continue;
     }
@@ -684,7 +688,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   // The report goes to stderr when the module goes to stdout, so stdout holds the module alone.
   const say = writesToStdout(outPath)
     ? (line: string) => cliError(line)
-    : (line: string) => console.log(line);
+    : (line: string) => cliInfo(line);
   if (!('log' in options)) options.log = say;
   let result: Awaited<ReturnType<typeof wasmCtorEval>>;
   try {

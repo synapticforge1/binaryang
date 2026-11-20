@@ -12,7 +12,7 @@
  * from one hostile module (security review round 2, 2026-11-13); `wasm-interp` echoed an import's
  * name the same way, and `commentSafe` (WIT comments) let the bidi and zero-width ones through.
  *
- * Each such character is written `\uXXXX`: the name stays readable and unambiguous, and nothing
+ * Each such character is written `\uXXXX` (`\u{XXXXX}` above U+FFFF): the name stays readable and unambiguous, and nothing
  * in it acts. A name without them is returned unchanged, so ordinary output is upstream's.
  *
  * @license MIT
@@ -22,10 +22,13 @@
 export function actsWhenPrinted(u: number): boolean {
   return u <= 0x1f || // C0, line breaks and ESC included
     (u >= 0x7f && u <= 0x9f) || // DEL and C1
+    u === 0x061c || // ARABIC LETTER MARK, a bidi control
     (u >= 0x200b && u <= 0x200f) || // zero-width space / joiners, LRM, RLM
     (u >= 0x2028 && u <= 0x202e) || // line and paragraph separators, bidi embeddings / overrides
     (u >= 0x2060 && u <= 0x2069) || // word joiner, invisible operators, bidi isolates
-    u === 0xfeff; // zero-width no-break space (BOM)
+    u === 0xfeff || // zero-width no-break space (BOM)
+    (u >= 0xd800 && u <= 0xdfff) || // a LONE surrogate (a pair is one code point here)
+    (u >= 0xe0000 && u <= 0xe007f); // the Unicode tag block: invisible, can carry hidden text
 }
 
 /**
@@ -43,7 +46,11 @@ export function printable(
     const kept = (opts.keepLines === true && c === '\n') ||
       ((opts.keepLines === true || opts.keepTabs === true) && c === '\t');
     const inert = kept || !(actsWhenPrinted(u) || (opts.backslash === true && c === '\\'));
-    out += inert ? c : `\\u${u.toString(16).padStart(4, '0')}`;
+    out += inert
+      ? c
+      : u > 0xffff
+      ? `\\u{${u.toString(16)}}`
+      : `\\u${u.toString(16).padStart(4, '0')}`;
   }
   return out;
 }
