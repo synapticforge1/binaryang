@@ -68,6 +68,7 @@ import {
   WasmException,
 } from '../interp/interpreter.ts';
 import {
+  cliError,
   cliExit,
   cliProcess,
   cliRefuseOverwritingInput,
@@ -604,16 +605,16 @@ export async function wasmCtorEval(
 }
 
 function usage(): void {
-  console.error('Usage: wasm-ctor-eval <input.wasm|.wat> [options]');
-  console.error('  -o <file>                  Output file (default: output.wasm; - for stdout)');
-  console.error('  --ctors=a,b                Exported functions to evaluate, in order');
-  console.error('  --kept-exports=a,b         Keep these exports once fully evaluated');
-  console.error('  --ignore-external-input    Assume no arguments or environment; zero parameters');
-  console.error(
+  cliError('Usage: wasm-ctor-eval <input.wasm|.wat> [options]');
+  cliError('  -o <file>                  Output file (default: output.wasm; - for stdout)');
+  cliError('  --ctors=a,b                Exported functions to evaluate, in order');
+  cliError('  --kept-exports=a,b         Keep these exports once fully evaluated');
+  cliError('  --ignore-external-input    Assume no arguments or environment; zero parameters');
+  cliError(
     '  --fuel=N                   Instructions one constructor may run (default 20000000)',
   );
-  console.error('  -q, --quiet                No progress lines');
-  console.error('  -S                         Emit WAT text');
+  cliError('  -q, --quiet                No progress lines');
+  cliError('  -S                         Emit WAT text');
 }
 
 /** The CLI: parses `args` and runs {@link wasmCtorEval}. */
@@ -651,7 +652,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       // 🔧 With no value it fell back to `output.wasm` (review H-4's sibling).
       const v = args[++i];
       if (v === undefined || v === '') {
-        console.error('wasm-ctor-eval: -o needs a file');
+        cliError('wasm-ctor-eval: -o needs a file');
         cliExit(1);
       }
       options.output = v;
@@ -663,14 +664,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       // 🔧 `Number('abc')` is NaN, which no fuel check ever stops: unlimited, without a word
       // (code lens pass 3, 2026-10-28).
       if (!/^[0-9]+$/.test(a.slice(7))) {
-        console.error(`wasm-ctor-eval: --fuel takes a number of instructions, not "${a.slice(7)}"`);
+        cliError(`wasm-ctor-eval: --fuel takes a number of instructions, not "${a.slice(7)}"`);
         cliExit(1);
       }
       options.fuel = Number(a.slice(7));
     } else if (a === '-q' || a === '--quiet') options.log = undefined;
     else if (a === '-S') options.emitText = true;
     else if (a.startsWith('-')) {
-      console.error(`wasm-ctor-eval: unknown option ${a}`);
+      cliError(`wasm-ctor-eval: unknown option ${a}`);
       usage();
       cliExit(1);
     } else input = a;
@@ -682,15 +683,16 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   const outPath = options.output ?? 'output.wasm';
   // The report goes to stderr when the module goes to stdout, so stdout holds the module alone.
   const say = writesToStdout(outPath)
-    ? (line: string) => console.error(line)
+    ? (line: string) => cliError(line)
     : (line: string) => console.log(line);
   if (!('log' in options)) options.log = say;
   let result: Awaited<ReturnType<typeof wasmCtorEval>>;
   try {
     result = await wasmCtorEval(input, options);
   } catch (e) {
-    console.error(
+    cliError(
       `wasm-ctor-eval: ${e instanceof WatInputError || e instanceof Error ? e.message : e}`,
+      e instanceof WatInputError,
     );
     cliExit(1);
   }

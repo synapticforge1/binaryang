@@ -58,6 +58,7 @@ import {
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import {
+  cliError,
   cliExit,
   cliProcess,
   cliRead,
@@ -247,7 +248,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
       if (output === undefined) {
-        console.error(`wat2wasm: ${arg} needs a file`);
+        cliError(`wat2wasm: ${arg} needs a file`);
         bad = true;
       }
     } else if (arg.startsWith('--output=')) {
@@ -263,19 +264,20 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     } else if (flags.apply(arg) !== true) {
       // It ignored an unknown option; with feature flags, a misspelled
       // `--enable-…` would have passed silently. Upstream refuses it too.
-      console.error(`wat2wasm: unknown option ${arg}`);
+      cliError(`wat2wasm: unknown option ${arg}`);
       bad = true;
     }
   }
 
   if (!input || bad) {
-    console.error(
+    cliError(
       'usage: wat2wasm <input.wat> [-o <output.wasm>] [--no-check] [--no-text-form]\n' +
         '                [--enable-<feature>|--disable-<feature>|--enable-all]\n' +
         '  --no-check      do not validate the module (validated by default, as upstream)\n' +
         '  --no-text-form  do not record how each instruction was written\n' +
         '                  (upstream wat2wasm bytes exactly; wasm2wat then folds it)\n' +
         flags.help(),
+      true,
     );
     cliExit(1);
   }
@@ -289,7 +291,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   });
 
   if (errors.length > 0) {
-    console.error(formatErrors(errors, ErrorFormat.Long, new TextDecoder().decode(source)));
+    cliError(formatErrors(errors, ErrorFormat.Long, new TextDecoder().decode(source)), true);
   }
   if (result !== Result.Ok) {
     cliExit(1);

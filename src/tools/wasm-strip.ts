@@ -49,7 +49,7 @@ import {
   unknownLocation,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliExit, cliProcess, cliRead, cliWrite } from '../host.ts';
+import { cliError, cliExit, cliProcess, cliRead, cliWrite } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
 // ---------------------------------------------------------------------------
@@ -210,7 +210,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     if (arg === '-o' || arg === '--output' || arg === '-s' || arg === '--section') {
       const value = args[++i];
       if (value === undefined) {
-        console.error(`wasm-strip: ${arg} needs a value`);
+        cliError(`wasm-strip: ${arg} needs a value`);
         bad = true;
       } else if (arg === '-o' || arg === '--output') output = value;
       else stripSections.push(value);
@@ -221,14 +221,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     } else if (!arg.startsWith('-')) {
       input = arg;
     } else {
-      console.error(`wasm-strip: unknown option ${arg}`);
+      cliError(`wasm-strip: unknown option ${arg}`);
       bad = true;
     }
   }
   if (bad) cliExit(1);
 
   if (!input) {
-    console.error('usage: wasm-strip <input.wasm> [-o <output.wasm>] [-s <section-name>]');
+    cliError('usage: wasm-strip <input.wasm> [-o <output.wasm>] [-s <section-name>]');
     cliExit(1);
   }
 
@@ -238,7 +238,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   const { binary: stripped, errors, result } = wasmStrip(binary, stripOpts);
 
   if (errors.length > 0) {
-    console.error(formatErrors(errors));
+    cliError(formatErrors(errors), true);
   }
   if (result !== Result.Ok) {
     cliExit(1);

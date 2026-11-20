@@ -483,13 +483,24 @@ export function baseName(path: string): string {
 }
 
 /**
+ * The ONE way a CLI message reaches stderr: every tool, `main.ts` and {@link cliFail} call it, so
+ * nothing from the command line or a module acts on the terminal (round 2 review: `unknown option
+ * <ESC>[2J`, an option's value, and `wasm-opt`'s error text went out raw). A character that acts
+ * when printed is written `\uXXXX` (`core/printable.ts`). With `block`, the text is the tool's
+ * own multi-line layout (a diagnostic, a usage, a map): its line breaks and tabs stay.
+ */
+export function cliError(message: string, block = false): void {
+  console.error(printable(message, { keepLines: block }));
+}
+
+/**
  * Exit with a one-line `tool: message` on stderr. Never returns. The message is PRINTABLE: a path
  * from the command line, and the system's own error text quoting it (`ENOENT … open '<path>'`),
  * went to the terminal raw, so an ESC in a path acted there (4.1.x review, privacy note; the
- * review process says paths are escaped). Line breaks and tabs are kept.
+ * review process says paths are escaped). Through {@link cliError}.
  */
 export function cliFail(tool: string, message: string): never {
-  console.error(`${tool}: ${printable(message, { keepLines: true })}`);
+  cliError(`${tool}: ${message}`, true);
   cliExit(1);
 }
 
