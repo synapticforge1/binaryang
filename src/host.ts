@@ -179,8 +179,22 @@ async function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | strin
   if (stream === 'stdout' && (await bunClosedStdout())) {
     throw new Error('standard output is closed (this process was started with `>&-`)');
   }
+  const out = cliProcess()[stream];
   return new Promise((resolve, reject) => {
-    cliProcess()[stream].write(data, (err) => (err ? reject(err) : resolve()));
+    // 🔧 Node reports a failed write TWICE: to the callback, and as an 'error' event on the stream,
+    // which with no listener is an "Unhandled 'error' event" stack trace of 23-25 lines, not the
+    // one line + exit 1 the callers print (4.1.x review, hardening F1: `> /dev/full`, a closed
+    // pipe). Bun and Deno call back only. So a listener is held for the write, and the callback
+    // and the event settle the one promise, whichever comes first. The listener stays after a
+    // failure (the event can follow the callback by a tick, and the process is ending); after
+    // success it is removed, so a long run does not pile them up.
+    const onError = (err: Error) => reject(err);
+    out.once('error', onError);
+    out.write(data, (err) => {
+      if (err) return reject(err);
+      out.removeListener('error', onError);
+      resolve();
+    });
   });
 }
 

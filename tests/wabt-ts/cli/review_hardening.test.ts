@@ -24,6 +24,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { denoCommand } from '../../../scripts/deno.ts';
+import { nodeCommand, REFEREE } from '../../../scripts/v8.ts';
 
 const MAIN = resolve('main.ts');
 let dir = '';
@@ -241,21 +242,64 @@ describe('Q-H4: a write to standard output that fails is a one-line exit 1', () 
     ['wasm-ctor-eval', ['in.wasm', '-o', '-']],
     ['wasm-bundle', ['in.wasm', '-o', '/dev/stdout']],
   ];
-  for (const [tool, args] of cases) {
-    it(`${tool} ${args.join(' ')}: EPIPE`, async () => {
-      assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
-      const c = spawn('bun', [MAIN, tool, ...args], {
-        cwd: dir,
-        stdio: ['ignore', 'pipe', 'pipe'],
+  // 🔧 Hardening F1 (4.1.x review): Node reports a failed write as an 'error' event too, and with no
+  // listener that was a 23-25 line "Unhandled 'error' event" trace, not one line: the cases above
+  // only ran on Bun. Every runtime now, Node through fnm and Deno from npm, as a user runs them.
+  // From the repository, not the temp folder: `bun run deno` finds its binary from there.
+  const here = (a: string) => (a === 'a.wat' || a === 'in.wasm' ? join(dir, a) : a);
+  const runtimes: [string, () => [string, string[]]][] = [
+    ['bun', () => ['bun', [MAIN]]],
+    ['node', () => nodeCommand(REFEREE, [], MAIN, [])],
+    ['deno', () => denoCommand(['run', '-A', MAIN])],
+  ];
+  for (const [rt, command] of runtimes) {
+    for (const [tool, args] of rt === 'bun' ? cases : cases.slice(0, 5)) {
+      it(`${rt}: ${tool} ${args.join(' ')}: EPIPE`, async () => {
+        assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+        const [cmd, head] = command();
+        const c = spawn(cmd, [...head, tool, ...args.map(here)], {
+          cwd: process.cwd(),
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        c.stdout.destroy();
+        let err = '';
+        c.stderr.on('data', (d) => (err += d));
+        const status = await new Promise<number | null>((done) => c.on('close', done));
+        assertEquals(status, 1, err);
+        // `bun run deno` adds a note of its own when deno exits 1; wasm-bundle reports its module
+        // count first: the tool's LAST line is the failure, and nothing after it (no stack trace).
+        const lines = err.trimEnd().split('\n').filter((l) => !l.startsWith('error: "deno'));
+        assert(/^[a-z0-9-]+: cannot write .*EPIPE/.test(lines.at(-1)!), err);
+        assert(!/Unhandled|^\s+at /m.test(err), err);
       });
-      c.stdout.destroy();
-      let err = '';
-      c.stderr.on('data', (d) => (err += d));
-      const status = await new Promise<number | null>((done) => c.on('close', done));
-      assertEquals(status, 1, err);
-      const last = err.trimEnd().split('\n').pop()!;
-      assert(/^[a-z0-9-]+: cannot write .*EPIPE/.test(last), err);
-    });
+    }
+  }
+  // A full device, where one exists: ENOSPC, the same one line on every runtime.
+  for (const [rt, command] of runtimes) {
+    for (
+      const [tool, args] of [
+        ['wat2wasm', ['a.wat']],
+        ['wasm2wat', ['in.wasm']],
+        ['wasm-opt', ['in.wasm', '-o', '-']],
+        ['wasm2wat', ['in.wasm', '-o', '/dev/stdout']],
+      ] as [string, string[]][]
+    ) {
+      it(`${rt}: ${tool} ${args.join(' ')} > /dev/full (Linux)`, () => {
+        assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+        if (process.platform !== 'linux') return;
+        const [cmd, head] = command();
+        const q = (x: string) => `'${x}'`;
+        const r = spawnSync(
+          'bash',
+          ['-c', `${[cmd, ...head, tool, ...args.map(here)].map(q).join(' ')} > /dev/full`],
+          { cwd: process.cwd(), encoding: 'utf8', timeout: 60_000 },
+        );
+        assertEquals(r.status, 1, r.stderr);
+        const lines = r.stderr.trimEnd().split('\n').filter((l) => !l.startsWith('error: "deno'));
+        assertEquals(lines.length, 1, r.stderr);
+        assert(/^[a-z0-9-]+: cannot write .*(ENOSPC|No space left)/.test(lines[0]!), r.stderr);
+      });
+    }
   }
 });
 
