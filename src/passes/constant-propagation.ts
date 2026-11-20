@@ -159,6 +159,14 @@ function reversePostorder(entry: BasicBlock, count: number): Int32Array {
 // Per-function implementation
 // ---------------------------------------------------------------------------
 
+/**
+ * The most lattice cells (blocks plus one, times the locals the function sets) one function may
+ * hold at once. Past it the function is left as it is (still correct): the analysis keeps one
+ * dense state per block, so it is blocks × tracked locals in memory and time (upstream has no
+ * such bound).
+ */
+export const CONSTANT_PROPAGATION_MAX_CELLS = 1 << 25;
+
 /** Propagates in one function; whether anything changed (`PrecomputePropagate` iterates on it). */
 export function propagateFunction(fn: WasmFunction): boolean {
   const numLocals = fn.locals.length;
@@ -168,7 +176,23 @@ export function propagateFunction(fn: WasmFunction): boolean {
   if (!propagated.some((p) => p)) return false;
 
   const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
-  const initial: State = fn.locals.map((l, i) => i < numParams ? VARIES : zeroOf(l.type));
+  // Only a local some block SETS can change along a path: that is the state. Every other local
+  // holds its starting value (a parameter: varies; a declared local: its zero) wherever a path
+  // reaches, so it needs no cell: `slot` maps a set local to its cell, -1 for the rest.
+  const slot = new Int32Array(numLocals).fill(-1);
+  const tracked: number[] = [];
+  for (const b of cfg.blocks) {
+    for (const a of b.actions) {
+      if (a.kind !== 'get' && propagated[a.index] && slot[a.index]! < 0) {
+        slot[a.index] = tracked.length;
+        tracked.push(a.index);
+      }
+    }
+  }
+  const numTracked = tracked.length;
+  if ((cfg.blocks.length + 1) * numTracked > CONSTANT_PROPAGATION_MAX_CELLS) return false;
+  const start = (i: number): Value => i < numParams ? VARIES : zeroOf(fn.locals[i]!.type);
+  const initial: State = tracked.map(start);
 
   // What each read saw, and what each set / tee assigned — and what the local held just before
   // it — in the latest scan.
@@ -189,19 +213,21 @@ export function propagateFunction(fn: WasmFunction): boolean {
     }
   };
 
-  const scan = (b: BasicBlock, state: State): State => {
+  // `reached`: some path gets to the block, so a local nothing sets holds its starting value there.
+  const scan = (b: BasicBlock, state: State, reached: boolean): State => {
     const s = state.slice();
     for (const a of b.actions) {
       if (!propagated[a.index]) continue;
+      const k = slot[a.index]!;
       if (a.kind === 'get') {
-        seen.set(a.origin, s[a.index]);
+        seen.set(a.origin, k >= 0 ? s[k] : reached ? start(a.index) : undefined);
       } else {
         const origin = a.origin as Extract<Expression, { kind: typeof ExpressionKind.LocalSet }>;
-        const v = s[a.index] === undefined
+        const v = s[k] === undefined
           ? undefined // a path no one has reached yet assigns nothing yet
           : valueOfExpr(origin.value, fn.locals[a.index]!.type);
-        held.set(a.origin, s[a.index]);
-        s[a.index] = v;
+        held.set(a.origin, s[k]);
+        s[k] = v;
         assigned.set(a.origin, v);
       }
     }
@@ -210,13 +236,13 @@ export function propagateFunction(fn: WasmFunction): boolean {
 
   // Forward worklist to a fixed point. A block's out-state only rises in the
   // lattice (unreached → one constant → varies), so this terminates.
-  const empty: State = new Array<Value>(numLocals).fill(undefined);
+  const empty: State = new Array<Value>(numTracked).fill(undefined);
   const outs = cfg.blocks.map(() => empty);
   const inOf = (b: BasicBlock): State => {
     const s = b === cfg.entry ? initial.slice() : empty.slice();
     for (const p of b.in) {
       const o = outs[p.id]!;
-      for (let i = 0; i < numLocals; i++) s[i] = meet(s[i], o[i]);
+      for (let i = 0; i < numTracked; i++) s[i] = meet(s[i], o[i]);
     }
     return s;
   };
@@ -262,10 +288,10 @@ export function propagateFunction(fn: WasmFunction): boolean {
   while (heap.length > 0) {
     const b = pop();
     queued[b.id] = 0;
-    const out = scan(b, inOf(b));
+    const out = scan(b, inOf(b), true);
     const prev = outs[b.id]!;
     let changed = false;
-    for (let i = 0; i < numLocals && !changed; i++) changed = !sameValue(prev[i], out[i]);
+    for (let i = 0; i < numTracked && !changed; i++) changed = !sameValue(prev[i], out[i]);
     if (!changed && prev !== empty) continue;
     outs[b.id] = out;
     for (const s of b.out) if (queued[s.id] === 0) push(s);
@@ -276,7 +302,9 @@ export function propagateFunction(fn: WasmFunction): boolean {
   seen.clear();
   assigned.clear();
   held.clear();
-  for (const b of cfg.blocks) scan(b, inOf(b));
+  for (const b of cfg.blocks) {
+    scan(b, inOf(b), b === cfg.entry || b.in.some((p) => outs[p.id] !== empty));
+  }
 
   const replace = new Map<Expression, Literal>();
   for (const [get, v] of seen) {
