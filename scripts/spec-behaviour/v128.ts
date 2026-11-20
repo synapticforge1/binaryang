@@ -45,10 +45,15 @@ const VALTYPE: Record<string, number> = {
   externref: 0x6f,
 };
 
-/** Does this signature need a wrapper — and can one be written for it? */
-export function needsWrapper(sig: Sig): boolean {
+/**
+ * Does this signature need a wrapper — and can one be written for it? With `bits`, a signature with
+ * an `f32` or `f64` does too: the spec-expected check (`script-run.ts`) passes and receives every
+ * float as its BITS (an `i32` / `i64`), because a JS number cannot carry a NaN's payload.
+ */
+export function needsWrapper(sig: Sig, bits = false): boolean {
   const all = [...sig.params, ...sig.results];
-  return all.includes('v128') && all.every((t) => t in VALTYPE);
+  const wide = all.includes('v128') || (bits && (all.includes('f32') || all.includes('f64')));
+  return wide && all.every((t) => t in VALTYPE);
 }
 
 // --- LEB128 -----------------------------------------------------------------
@@ -235,9 +240,17 @@ function extend(
 }
 
 /** One wrapper: its type (a `func` comptype) and its body. */
-function wrapper(sig: Sig, target: number): { type: number[]; body: number[] } {
+function wrapper(sig: Sig, target: number, bits: boolean): { type: number[]; body: number[] } {
   const wide = (ts: ManifestType[]) =>
-    ts.flatMap((t) => t === 'v128' ? [0x7e, 0x7e] : [VALTYPE[t]!]);
+    ts.flatMap((t) =>
+      t === 'v128'
+        ? [0x7e, 0x7e]
+        : bits && t === 'f32'
+        ? [0x7f]
+        : bits && t === 'f64'
+        ? [0x7e]
+        : [VALTYPE[t]!]
+    );
   const wparams = wide(sig.params);
   const wresults = wide(sig.results);
   const type = [0x60, ...uleb(wparams.length), ...wparams, ...uleb(wresults.length), ...wresults];
@@ -251,6 +264,9 @@ function wrapper(sig: Sig, target: number): { type: number[]; body: number[] } {
       slot += 2;
     } else {
       code.push(0x20, ...uleb(slot));
+      // f32.reinterpret_i32, f64.reinterpret_i64
+      if (bits && t === 'f32') code.push(0xbe);
+      if (bits && t === 'f64') code.push(0xbf);
       slot += 1;
     }
   }
@@ -263,6 +279,9 @@ function wrapper(sig: Sig, target: number): { type: number[]; body: number[] } {
     const l = uleb(locals[i]!);
     if (t === 'v128') code.push(0x20, ...l, 0xfd, 0x1d, 0x00, 0x20, ...l, 0xfd, 0x1d, 0x01);
     else code.push(0x20, ...l);
+    // i32.reinterpret_f32, i64.reinterpret_f64
+    if (bits && t === 'f32') code.push(0xbc);
+    if (bits && t === 'f64') code.push(0xbd);
   });
   code.push(0x0b);
   const decls = sig.results.flatMap((t) => [0x01, VALTYPE[t]!]);
@@ -276,11 +295,15 @@ function wrapper(sig: Sig, target: number): { type: number[]; body: number[] } {
  * gives the same output, so the original and a variant are instrumented alike.
  * A module with nothing to wrap comes back as it was.
  */
-export function withV128Wrappers(bytes: Uint8Array, sigs: Map<string, Sig>): Uint8Array {
+export function withV128Wrappers(
+  bytes: Uint8Array,
+  sigs: Map<string, Sig>,
+  bits = false,
+): Uint8Array {
   const secs = sections(bytes);
   const find = (id: number) => secs.find((s) => s.id === id);
   const exports = funcExports(bytes, find(7));
-  const todo = [...sigs].filter(([field, sig]) => needsWrapper(sig) && exports.has(field));
+  const todo = [...sigs].filter(([field, sig]) => needsWrapper(sig, bits) && exports.has(field));
   if (todo.length === 0) return bytes;
 
   const firstType = countTypes(bytes, find(1));
@@ -293,7 +316,7 @@ export function withV128Wrappers(bytes: Uint8Array, sigs: Map<string, Sig>): Uin
   const exps: number[] = [];
   const bodies: number[] = [];
   todo.forEach(([field, sig], i) => {
-    const w = wrapper(sig, exports.get(field)!);
+    const w = wrapper(sig, exports.get(field)!, bits);
     types.push(...w.type);
     funcs.push(...uleb(firstType + i));
     const name = new TextEncoder().encode(wrapperName(field));

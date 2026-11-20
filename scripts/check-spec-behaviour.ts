@@ -8,6 +8,14 @@
  * trip and every optimization level. What one module's check
  * does, and why the original is the oracle, is in `spec-behaviour/differential.ts`.
  *
+ * Two checks run, over the same prepared corpus. The differential above compares each variant
+ * with V8's run of the original; the SPEC-EXPECTED check (`spec-behaviour/script-run.ts`, C-R2-5)
+ * runs every script as the spec's own interpreter does and compares the original and every variant
+ * with the expected values the `.wast` states — `assert_return` (NaN canonical / arithmetic, `v128`
+ * lanes, `either`, references), `assert_trap`, `assert_exhaustion`, `assert_exception`,
+ * `assert_uninstantiable` and plain actions. V8 against the script is pinned in
+ * {@link ENGINE_LIMITS}; binaryang against the script has no pin: any disagreement fails.
+ *
  * Why it exists: on 2026-09-28 this check, then a scratch script, found eight
  * defects with every other gate green — among them a SILENT -O2 miscompile
  * shipped in 1.5.4 (Q1–Q8, cmem/divergences.md). Validity gates cannot see a
@@ -26,7 +34,12 @@
  */
 
 import type { Row, SpecInput } from './spec-behaviour/differential.ts';
-import { collectInputs } from './spec-behaviour/collect.ts';
+import { collectInputs, collectScripts } from './spec-behaviour/collect.ts';
+import {
+  emptyRow as emptyScriptRow,
+  type ScriptInput,
+  type ScriptRow,
+} from './spec-behaviour/script-run.ts';
 import { takeProposalArg } from './proposals.ts';
 
 import process from 'node:process';
@@ -83,6 +96,27 @@ const REFUSED_BUDGET: string[] = [
 ];
 
 /**
+ * What V8 itself cannot do with the CORE corpus's modules, pinned by script and line — the ORIGINAL
+ * module, run by V8 against the script's expected values (C-R2-5), is the one place the spec check
+ * can fail for a reason that is not ours. Each pin is the start of the disagreement's text. A RATCHET
+ * like {@link REFUSED_BUDGET}: a new disagreement fails, and so does a pin that no longer holds.
+ */
+const ENGINE_LIMITS: [pin: string, why: string][] = [
+  [
+    'memory64 original line 9: module memory64.5.wasm',
+    'declares a 2^48-page maximum memory: V8 limits a memory to 262,144 pages, the spec allows it (the script asserts nothing of it)',
+  ],
+];
+
+/**
+ * The assertions the CORE corpus run could not make, by cause (the total, pinned — a ratchet: more
+ * is coverage lost silently, fewer asks for the number to be lowered). 12 are `imports a module the
+ * script did not register` (a module importing from one given only as text or a
+ * `module_definition`); 7 are JS API `TypeError`s on a reference type JS has no value for.
+ */
+const NOT_RUN_BUDGET = 19;
+
+/**
  * Per-module budget: 12 variants, each optimized and run. The whole suite runs
  * in ~6 s (2026-09-28), so a module past this has hung.
  */
@@ -99,6 +133,9 @@ const BUDGET_MS = 20_000;
 const MAX_TIMEOUTS = 3;
 
 const WORKER = new URL('./spec-behaviour/worker.ts', import.meta.url);
+const SCRIPT_WORKER = new URL('./spec-behaviour/script-worker.ts', import.meta.url);
+/** A whole script: every module of it under every variant, and every assertion run. */
+const SCRIPT_BUDGET_MS = 120_000;
 
 const args = [...process.argv.slice(2)];
 /**
@@ -125,61 +162,76 @@ function collect(root: string): SpecInput[] {
 
 const rows: Row[] = [];
 
-/** Runs `queue` in a worker until it drains or a module goes quiet; resolves with what is left. */
-function drain(queue: SpecInput[]): Promise<SpecInput[]> {
+/**
+ * Runs `queue` in a worker (`worker`) until it drains or an item goes quiet; resolves with what is
+ * left. `onRow` takes each result; `fail` makes the row for an item that hung or threw.
+ */
+function drainWith<I extends { name: string }, R>(
+  worker: URL,
+  queue: I[],
+  budgetMs: number,
+  onRow: (row: R) => void,
+  fail: (item: I | undefined, why: string, hung: boolean) => R,
+): Promise<I[]> {
   return new Promise((resolve) => {
     // node:worker_threads, not the web `Worker`: it runs on Deno, Node and Bun alike (Node has no
     // global `Worker`). This harness is an engine ORACLE, so `bun run` starts it on the V8
     // referee, Node through `scripts/v8.ts` (cmem/bun-migration.md § "The engine oracle"). The
     // worker inherits this process's execArgv, so a runtime flag (a V8 flag on Node) reaches it.
-    const worker = new Worker(WORKER);
+    const w = new Worker(worker);
     let next = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const finish = (remaining: SpecInput[]) => {
+    const finish = (remaining: I[]) => {
       clearTimeout(timer);
-      void worker.terminate();
+      void w.terminate();
       resolve(remaining);
     };
     const arm = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        const stuck = queue[next]!;
-        rows.push({
-          name: stuck.name,
-          status: 'timeout',
-          invocations: stuck.invokes.length,
-          v128: 0,
-          blind: 0,
-          variants: 0,
-          refused: [],
-          detail: [`no result in ${BUDGET_MS / 1000}s — the original or a variant did not return`],
-        });
+        onRow(
+          fail(
+            queue[next],
+            `no result in ${budgetMs / 1000}s — the original or a variant did not return`,
+            true,
+          ),
+        );
         finish(queue.slice(next + 1));
-      }, BUDGET_MS);
+      }, budgetMs);
     };
-    worker.on('message', (data: { row?: Row; done?: boolean }) => {
+    w.on('message', (data: { row?: R; done?: boolean }) => {
       if (data.done) return finish([]);
-      rows.push(data.row!);
+      onRow(data.row!);
       next++;
       arm();
     });
-    worker.on('error', (err: Error) => {
-      const cur = queue[next];
-      rows.push({
-        name: cur?.name ?? '<unknown>',
-        status: 'DIVERGE',
-        invocations: cur?.invokes.length ?? 0,
-        v128: 0,
-        blind: 0,
-        variants: 0,
-        refused: [],
-        detail: [`worker error: ${err.message}`],
-      });
+    w.on('error', (err: Error) => {
+      onRow(fail(queue[next], `worker error: ${err.message}`, false));
       finish(queue.slice(next + 1));
     });
     arm();
-    worker.postMessage({ inputs: queue });
+    w.postMessage({ inputs: queue });
   });
+}
+
+/** The differential's rows: a module's variants against its original. */
+function drain(queue: SpecInput[]): Promise<SpecInput[]> {
+  return drainWith<SpecInput, Row>(
+    WORKER,
+    queue,
+    BUDGET_MS,
+    (r) => rows.push(r),
+    (cur, why, hung) => ({
+      name: cur?.name ?? '<unknown>',
+      status: hung ? 'timeout' : 'DIVERGE',
+      invocations: cur?.invokes.length ?? 0,
+      v128: 0,
+      blind: 0,
+      variants: 0,
+      refused: [],
+      detail: [why],
+    }),
+  );
 }
 
 const inputs = collect(dir);
@@ -288,7 +340,111 @@ for (
   }
 }
 
-let failed = diverged.length > 0 || timedOut.length > 0 || blindOriginals.length > 0;
+// === The spec's own expected values: every script, once per variant (spec-behaviour/script-run.ts)
+const scriptRows: ScriptRow[] = [];
+let scriptQueue: ScriptInput[] = collectScripts(dir, PREFIX);
+const scriptHangs: string[] = [];
+while (scriptQueue.length > 0) {
+  scriptQueue = await drainWith<ScriptInput, ScriptRow>(
+    SCRIPT_WORKER,
+    scriptQueue,
+    SCRIPT_BUDGET_MS,
+    (r) => scriptRows.push(r),
+    (cur, why) => {
+      scriptHangs.push(`${cur?.name ?? '<unknown>'}: ${why}`);
+      return emptyScriptRow(cur?.name ?? '<unknown>');
+    },
+  );
+  if (scriptHangs.length >= MAX_TIMEOUTS) break;
+}
+const sum = (pick: (r: ScriptRow) => number) => scriptRows.reduce((n, r) => n + pick(r), 0);
+const specOriginal = scriptRows.flatMap((r) => r.original.map((x) => `${r.name} ${x}`));
+const specVariant = scriptRows.flatMap((r) => r.variant.map((x) => `${r.name} ${x}`));
+const notRun = new Map<string, number>();
+for (const r of scriptRows) {
+  for (const [why, n] of Object.entries(r.unchecked)) notRun.set(why, (notRun.get(why) ?? 0) + n);
+}
+console.log(
+  `
+  === the spec's own expected values (assert_return, assert_trap, assert_exhaustion, assert_exception, assert_uninstantiable, actions): the .wast's script, run once per variant ===`,
+);
+console.log(`    scripts                  ${String(scriptRows.length).padStart(6)}`);
+console.log(
+  `    assertions               ${
+    String(sum((r) => r.asserted)).padStart(6)
+  }   (checked against the script's expected values on the ORIGINAL, as V8 runs it)`,
+);
+console.log(
+  `    variant checks           ${
+    String(sum((r) => r.variantChecks)).padStart(6)
+  }   (each assertion on each variant that ran it)`,
+);
+console.log(
+  `      NaN payload unseen     ${
+    String(sum((r) => r.nanBoundary)).padStart(6)
+  }   (a literal NaN met by a NaN: the JS API may quiet a payload)`,
+);
+console.log(
+  `    not run                  ${
+    String([...notRun.values()].reduce((a, b) => a + b, 0)).padStart(6)
+  }   (each counted by cause below; per original run)`,
+);
+for (const [why, n] of [...notRun].sort((a, b) => b[1] - a[1])) {
+  console.log(`      ${String(n).padStart(6)}  ${why}`);
+}
+console.log(
+  `    V8 vs the script         ${
+    String(specOriginal.length).padStart(6)
+  }   disagreements (the ORIGINAL)`,
+);
+console.log(
+  `    binaryang vs the script  ${
+    String(specVariant.length).padStart(6)
+  }   disagreements (a variant as we wrote it)`,
+);
+for (
+  const [title, list] of [['V8 vs the script', specOriginal], [
+    'binaryang vs the script',
+    specVariant,
+  ]] as const
+) {
+  if (list.length === 0) continue;
+  console.log(`\n  === ${title}: ${list.length} (first 30) ===`);
+  for (const x of list.slice(0, 30)) console.log(`    ${x.slice(0, 200)}`);
+}
+for (const h of scriptHangs) console.log(`  ✗ script did not terminate: ${h}`);
+
+let failed = diverged.length > 0 || timedOut.length > 0 || blindOriginals.length > 0 ||
+  scriptHangs.length > 0 || specVariant.length > 0;
+// V8 against the script: pinned for the core corpus (ENGINE_LIMITS), every one a finding elsewhere.
+const pins = PROPOSAL ? [] : ENGINE_LIMITS;
+const unpinned = specOriginal.filter((x) => !pins.some(([p]) => x.startsWith(p)));
+if (unpinned.length > 0) {
+  console.log(
+    `\n  ✗ ${unpinned.length} disagreement(s) of the ORIGINAL (V8) with the script, not pinned in ENGINE_LIMITS`,
+  );
+  failed = true;
+}
+const stale = pins.filter(([p]) => !specOriginal.some((x) => x.startsWith(p)));
+if (stale.length > 0) {
+  console.log(
+    `\n  ✗ ${stale.length} ENGINE_LIMITS pin(s) no longer hold — remove them: ${
+      stale.map(([p]) => p).join('; ')
+    }`,
+  );
+  failed = true;
+}
+const notRunTotal = [...notRun.values()].reduce((a, b) => a + b, 0);
+if (!PROPOSAL && notRunTotal !== NOT_RUN_BUDGET) {
+  console.log(
+    `\n  ✗ ${notRunTotal} assertion(s) not run, NOT_RUN_BUDGET is ${NOT_RUN_BUDGET} — coverage changed: fix, or set the budget with why`,
+  );
+  failed = true;
+}
+if (scriptRows.length === 0) {
+  console.log('\n  ✗ no scripts found to check against their expected values');
+  failed = true;
+}
 const added = refusedModules.filter((m) => !REFUSED_BUDGET.includes(m));
 // A pin can only be RETIRED by a run that reached it.
 const ran = new Set(rows.map((r) => r.name));
@@ -311,7 +467,9 @@ if (retired.length > 0) {
 }
 if (!failed) {
   console.log(
-    `\n  TOTAL — ${invocations} invocations on ${rows.length} modules; every variant behaves as the original.`,
+    `\n  TOTAL — ${invocations} invocations on ${rows.length} modules; every variant behaves as the original. ${
+      sum((r) => r.asserted)
+    } spec assertions, each also met by every variant (${sum((r) => r.variantChecks)} checks).`,
   );
 }
 
