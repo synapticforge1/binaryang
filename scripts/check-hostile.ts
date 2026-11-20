@@ -11,9 +11,12 @@
  * or `Trap`, the bundler's `BundleError` — and never lets a bare JavaScript
  * error escape, or runs away.
  *
- * 1. **Depth** — valid modules nesting 500 … 100,000 blocks, through every
- *    stage. Reports any raw error (a contract break) and, per stage, whether it
- *    WORKED or refused as too deep (the capability ceiling, not a break).
+ * 1. **Depth** — modules nesting 256 … 100,000 levels, through every stage. The one limit
+ *    (`MAX_NESTING_DEPTH`, 256) is the contract: a stage must take the 256-deep module and refuse
+ *    every deeper one — 257 … 100,000 — with the limit's own words (`NESTING_OVER_LIMIT`,
+ *    keyed on that text, not on any older one). A stage that works past the limit, that refuses
+ *    in other words (the host's "call stack ran out" backstop included: the limit should have
+ *    answered first), or that throws something untyped, is a break.
  * 2. **Mutation fuzz** — every `stride`-th `.wasm` under a corpus folder,
  *    truncated at 12 points and corrupted at 24 bytes, through the reader, the
  *    optimizer + writer, the interpreter, the bundler and `compat/binaryen`.
@@ -43,7 +46,9 @@ import { bundle, BundleError } from '../src/tools/wasm-bundle.ts';
 import { LinkingFormatError } from '../src/core/linking.ts';
 import { readBinary } from '../src/compat/binaryen-compat.ts';
 import { encodeU32Leb128 } from '../src/core/leb128.ts';
-import { NESTING_TOO_DEEP } from '../src/core/error.ts';
+import { NESTING_OVER_LIMIT, NestingLimitError } from '../src/ir/nesting.ts';
+import { parseWastScript } from '../src/parser/wast-parser.ts';
+import { MAX_NESTING_DEPTH } from '../src/ir/nesting.ts';
 
 import { readdirSync, readFileSync } from 'node:fs';
 import process from 'node:process';
@@ -59,7 +64,7 @@ const stride = Number(strideArg ?? 7);
 const isTyped = (e: unknown) =>
   e instanceof WasmBinaryError || e instanceof WasmEncodeError || e instanceof BundleError ||
   e instanceof LinkingFormatError || e instanceof Stop || e instanceof Trap ||
-  ((e as Error)?.message ?? '').includes(NESTING_TOO_DEEP);
+  e instanceof NestingLimitError || ((e as Error)?.message ?? '').includes(NESTING_OVER_LIMIT);
 
 let broken = 0;
 
@@ -87,25 +92,47 @@ function deepBlocks(n: number): Uint8Array {
   ]);
 }
 
-type Outcome = 'works' | 'too deep' | 'RAW';
+/** 'works': no refusal; 'too deep': the limit's own words; 'other': refused in anything else. */
+type Outcome = 'works' | 'too deep' | 'other' | 'RAW';
 function depthOutcome(f: () => unknown): [Outcome, string] {
   try {
     const r = f() as { errors?: { message: string }[]; [k: number]: unknown } | undefined;
-    const said = r?.errors?.map((e) => e.message).join(' ') ?? JSON.stringify(r ?? '');
-    return [said.includes(NESTING_TOO_DEEP) ? 'too deep' : 'works', ''];
+    const said = r?.errors?.map((e) => e.message).join(' ') ?? '';
+    if (said.includes(NESTING_OVER_LIMIT)) return ['too deep', ''];
+    return said === '' ? ['works', ''] : ['other', said.slice(0, 70)];
   } catch (e) {
+    const message = String((e as Error)?.message);
     if (isTyped(e)) {
-      return [(e as Error).message.includes(NESTING_TOO_DEEP) ? 'too deep' : 'works', ''];
+      return message.includes(NESTING_OVER_LIMIT)
+        ? ['too deep', '']
+        : ['other', message.slice(0, 70)];
     }
-    return [
-      'RAW',
-      `${(e as Error)?.constructor?.name}: ${String((e as Error)?.message).slice(0, 70)}`,
-    ];
+    return ['RAW', `${(e as Error)?.constructor?.name}: ${message.slice(0, 70)}`];
   }
 }
 
 const depthStages: Record<string, (n: number) => unknown> = {
   'wat2wasm': (n) => wat2wasm(`(module (func ${'(block '.repeat(n)}${')'.repeat(n)}))`),
+  // The shapes a token count cannot see (the pre-scan's blind spots): a (@metadata.code …)
+  // annotation per level, a folded delegate between linear blocks, a linear operand chain.
+  'wat2wasm annotated': (n) =>
+    wat2wasm(
+      `(module (func ${'(block (@metadata.code.x "d") '.repeat(n - 1)}${')'.repeat(n - 1)}))`,
+    ),
+  'wat2wasm delegate': (n) =>
+    wat2wasm(
+      `(module (func ${'block (try (do) (delegate 0)) '.repeat(n - 1)}${'end '.repeat(n - 1)}))`,
+    ),
+  'wat2wasm chain': (n) =>
+    wat2wasm(`(module (func ${'i32.const 1 '.repeat(n - 1)}${'i32.add '.repeat(n - 2)} drop))`),
+  'wat2wasm ifs': (n) =>
+    wat2wasm(
+      `(module (func ${'(if (i32.const 0) (then '.repeat(n - 1)}${'))'.repeat(n - 1)}))`,
+    ),
+  'parseWastScript': (n) =>
+    parseWastScript(
+      `(module (func ${'i32.const 1 '.repeat(n - 1)}${'i32.add '.repeat(n - 2)} drop))`,
+    ),
   'wasm2wat': (n) => wasm2wat(deepBlocks(n)),
   'wasmValidate': (n) => wasmValidate(deepBlocks(n)),
   'readForPasses': (n) => readForPasses(deepBlocks(n)),
@@ -122,16 +149,18 @@ const depthStages: Record<string, (n: number) => unknown> = {
   'compat.readBinary': (n) => readBinary(deepBlocks(n)),
 };
 
-const depths = [500, 2_000, 5_000, 20_000, 100_000];
-console.log(`=== depth: ${depths.join(' / ')} nested blocks ===`);
+const depths = [MAX_NESTING_DEPTH, MAX_NESTING_DEPTH + 1, 500, 2_000, 5_000, 20_000, 100_000];
+console.log(`=== depth: ${depths.join(' / ')} levels (the limit is ${MAX_NESTING_DEPTH}) ===`);
 for (const [stage, run] of Object.entries(depthStages)) {
   const row = depths.map((n) => {
     const [o, why] = depthOutcome(() => run(n));
-    if (o === 'RAW') {
+    // The contract: the limit exactly works; one past it and beyond are the limit's refusal.
+    const want: Outcome = n <= MAX_NESTING_DEPTH ? 'works' : 'too deep';
+    if (o !== want) {
       broken++;
-      console.log(`  RAW ${stage} @${n}: ${why}`);
+      console.log(`  BREAK ${stage} @${n}: ${o}, wanted ${want}${why === '' ? '' : ` — ${why}`}`);
     }
-    return o === 'works' ? 'ok' : o === 'too deep' ? 'deep' : 'RAW';
+    return o === want ? (o === 'works' ? 'ok' : 'deep') : o.toUpperCase();
   });
   console.log(`  ${stage.padEnd(18)} ${row.map((x) => x.padEnd(5)).join(' ')}`);
 }
