@@ -219,4 +219,10 @@ describe('keepFailure', () => {
     expect(gate).not.toContain("'binaryang-gate-failures'"); // the old fixed, shared name
     expect(gate).toMatch(/if \(log !== ''\) console\.log\(` {5}full output: \$\{log\}`\);/);
   });
+
+  it('keeping the log can never cost the FAIL row (review round 3): keepFailure is in a try', () => {
+    const gate = readFileSync('scripts/gate.ts', 'utf8');
+    expect(gate).toMatch(/try \{\s+\(\{ tail, log \} = keepFailure\(/);
+    expect(gate).toContain('(the full output could not be kept: ');
+  });
 });

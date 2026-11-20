@@ -207,12 +207,18 @@ for (const [name, cmd] of steps) {
     tail = `${r.stdout ?? ''}\n${r.stderr ?? ''}`.split(/\r?\n/).map((l) => l.trim())
       .filter(Boolean).slice(-3).join(' | ');
     if (status !== 0) {
-      ({ tail, log } = keepFailure(
-        failures ??= makeFailureDir(),
-        name,
-        r.stdout ?? '',
-        r.stderr ?? '',
-      ));
+      // Keeping the log must never cost the FAIL row: a full or read-only temp folder makes
+      // the row say so and carry the last lines instead (review round 3, hardening note).
+      try {
+        ({ tail, log } = keepFailure(
+          failures ??= makeFailureDir(),
+          name,
+          r.stdout ?? '',
+          r.stderr ?? '',
+        ));
+      } catch (e) {
+        tail = `${tail} | (the full output could not be kept: ${(e as Error).message})`;
+      }
       if (r.error) tail = `${String(r.error)} | ${tail}`;
     }
   }
