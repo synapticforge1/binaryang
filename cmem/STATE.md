@@ -30,10 +30,9 @@ Updated: 2026-11-19, at the release of 4.1.1
   d1dfa0856..review-line; together every shipped change and the release tooling since 4.0.0
 
 ## Next
-1. **The npm provenance poll window** (open-work, top): 12 × 15 s, and npm lagged ~4 min at 4.0.0
-   and ~3 min at 4.1.1 — both runs red in that step only. Lengthen it before the next release
-2. Tell wasmtk what 4.1.0 and 4.1.1 contain (handoffs.md)
-3. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
+1. The npm provenance poll (branch `npm-provenance-poll`): reviewed and fixed; ships with the next
+   release, whose run is its first real test (publishing.md § "The provenance read-back")
+2. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
 
 ## Pushed
 - 2026-11-19: rulesets read back — `main` (27683565: the default branch; deletion, force push)

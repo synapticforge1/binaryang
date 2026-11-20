@@ -159,7 +159,8 @@ The owner's go: "release" (2026-11-19), after "push" of the fix.
    (~3 min). Read back afterwards: **npm 4.1.1, SLSA provenance v1**; `latest` = 4.1.1 on both.
    "Re-run failed jobs" (owner, web UI) skips the publish and turns it green — **done: GREEN
    (owner, 2026-11-19)**. **Second time: the
-   poll window (12 × 15 s) is shorter than npm's lag — fix it before the next release.**
+   poll window (12 × 15 s) is shorter than npm's lag — fix it before the next release.** Fixed on
+   2026-11-20 (branch `npm-provenance-poll`): [publishing.md](publishing.md) § "The provenance read-back".
 5. **As a user:** `bun x @synapticforge1/binaryang@4.1.1 --version` → `binaryang 4.1.1`.
 
 ### 4.1.0 — a MINOR from `main` (2026-11-19 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both

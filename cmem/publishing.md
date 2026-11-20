@@ -317,6 +317,20 @@ being recorded. `updatedAt == createdAt` means either not-yet-attested or never-
 cache-busted read distinguishes them.
 
 
+## The provenance read-back waits for the slower registry (2026-11-20)
+
+- npm served a new version 4 min 8 s (4.0.0) and 3 min 7 s (4.1.1) after `npm publish`; the old
+  12 × 15 s poll ended both runs red with everything published (each needed "Re-run failed jobs").
+- `registry.ts` `PROVENANCE_POLL`: npm 40 × 15 s (10 min), JSR 12 × 15 s; each read limited to
+  `POLL_READ_TIMEOUT_MS` (10 s); the npm job's `timeout-minutes` (35) is held above the worst case
+  of `jsr-wait` plus the poll by `publish_preflight_wiring`.
+- Each attempt logs what came back (an HTTP status, the record without the field, a network error,
+  on one line); the error says whether the registry never served the version or served it
+  without provenance. The cache-busting key is per read AND per run attempt (`GITHUB_RUN_ATTEMPT`),
+  so a re-run never asks again for a URL whose stale answer failed the run.
+- Until a release has run it: read a red "Verify provenance … npm" back by hand first
+  (`bun scripts/release/registry.ts provenance npm <version>`).
+
 ## Moved sections
 
 § "npm as a SECOND registry", § "Measured history, 2026-08-26", § "`--allow-slow-types` was
