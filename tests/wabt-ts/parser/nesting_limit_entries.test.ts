@@ -268,6 +268,28 @@ describe('C-H4 — entries given a module nobody measured', () => {
     for (const [name, v] of Object.entries(entries(m))) assertEquals(v, 'limit', name);
   });
 
+  it('the ExprVisitor counts a code-metadata annotation as a level, as nestingDepth does', () => {
+    // An annotation in the innermost list of N - 1 blocks is the Nth level: held. In N blocks it
+    // is the N + 1th: refused (it was walked uncounted, so this one passed).
+    const annotation = { kind: 'code_metadata', name: 'x', data: new Uint8Array(1) } as unknown;
+    const nest = (blocks: number): Expression => {
+      let e = { kind: 'block', children: [annotation], label: '', loc: undefined } as unknown;
+      for (let i = 1; i < blocks; i++) {
+        e = { kind: 'block', children: [e], label: '', loc: undefined };
+      }
+      return e as Expression;
+    };
+    new ExprVisitor(new NopDelegate()).visitExpr(nest(N - 1));
+    let thrown: unknown;
+    try {
+      new ExprVisitor(new NopDelegate()).visitExpr(nest(N));
+    } catch (x) {
+      thrown = x;
+    }
+    assert(thrown instanceof NestingLimitError, String(thrown));
+    assertEquals(nestingDepth(nest(N)), N + 1);
+  });
+
   it('the ExprVisitor counts the levels it walks, so a delegate that recurses is held too', () => {
     // A tree the entry checks never saw: handed straight to the visitor.
     let e: Expression = { kind: 'nop' } as Expression;
