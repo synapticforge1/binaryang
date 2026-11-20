@@ -318,6 +318,91 @@ describe('security note 3: a failed write leaves no temp or empty file (Windows)
   }
 });
 
+describe('round 2 (security): every `\\\\?\\` shape is refused or writes, and nothing stays behind', () => {
+  // Measured (Windows 11 26300, Bun 1.4.4): `\\?\W/sub/../fs.txt` and `\\?\W\sub\x/..\fs2.txt`
+  // left `<name>.<hex>.tmp` (the first in W's parent), `\\?\..\x.txt` and `\\?\.\x.txt` failed at
+  // the rename, and `\\.\C:\…\x.wasm` was refused as an "alternate data stream". Only `\` was a
+  // separator and the first segment after the prefix was never looked at.
+  const tree = (root: string) => readdirSync(root, { recursive: true }).map(String).sort();
+  for (
+    const [rt, command] of [
+      ['bun', () => ['bun', [MAIN]] as [string, string[]]],
+      ['node', () => nodeCommand(REFEREE, [], MAIN, [])],
+    ] as [string, () => [string, string[]]][]
+  ) {
+    it(`${rt}: refusals leave the tree as it was, writes leave exactly their file`, () => {
+      const base = join(dir, `r2-${rt}`);
+      const w = join(base, 'w');
+      const cwd = join(w, 'cwd');
+      mkdirSync(join(w, 'sub'), { recursive: true });
+      mkdirSync(cwd);
+      const win = process.platform === 'win32';
+      const go = (target: string) => {
+        const [cmd, head] = command();
+        return spawnSync(cmd, [...head, 'wat2wasm', join(dir, 'a.wat'), '-o', target], {
+          cwd,
+          encoding: 'utf8',
+          timeout: 60_000,
+        });
+      };
+      // Not join(): it would resolve the `..` these paths are about.
+      const V = '\\\\?\\';
+      const rooted = w.slice(2);
+      // [target, the file it makes under base, or the refusal's text]
+      const writes: [string, string][] = win
+        ? [
+          [`${w}\\ok1.wasm`, 'w/ok1.wasm'],
+          [`${V}${w}\\ok2.wasm`, 'w/ok2.wasm'],
+          [`${w}/sub/../mixed.wasm`, 'w/mixed.wasm'],
+          [`\\\\.\\${w}\\dev.wasm`, 'w/dev.wasm'],
+          [`\\\\.\\${w}\\sub\\..\\dev2.wasm`, 'w/dev2.wasm'],
+          [`${rooted}\\root.wasm`, 'w/root.wasm'],
+          [`${w.slice(0, 2)}drive-rel.wasm`, 'w/cwd/drive-rel.wasm'],
+          [`${w}\\trail.`, 'w/trail.'],
+          [`${w}\\trail `, 'w/trail '],
+        ]
+        : [[join(w, 'ok1.wasm'), 'w/ok1.wasm']];
+      for (const [target, made] of writes) {
+        const before = tree(base);
+        const r = go(target);
+        assertEquals(r.status, 0, `${target}: ${r.stderr}`);
+        const after = tree(base);
+        assertEquals(after.filter((x) => !before.includes(x)).map((x) => x.replaceAll('\\', '/')), [
+          made,
+        ], target);
+        assertEquals(before.filter((x) => !after.includes(x)), [], target);
+      }
+      if (!win) return; // the refusals and the device namespace are Windows' own
+      const bad: [string, string][] = [
+        [`${V}${w}/sub/../fs.txt`, 'a `/` in a'],
+        [`${V}${w}\\sub\\x/..\\fs2.txt`, 'a `/` in a'],
+        [`${V}..\\x.txt`, "a '..' segment"],
+        [`${V}.\\x.txt`, "a '.' segment"],
+        [`${V}${w}\\sub\\..\\up.txt`, "a '..' segment"],
+        [`${V}UNC\\..\\share\\x.txt`, "a '..' segment"],
+        [`${V}UNC\\localhost\\.\\x.txt`, "a '.' segment"],
+        [`${V}UNC\\localhost\\\\x.txt`, 'an empty segment'],
+        [`\\\\.\\${w}\\ads.txt:s`, 'alternate data stream'],
+      ];
+      for (const [target, why] of bad) {
+        const before = tree(base);
+        const r = go(target);
+        assertEquals(r.status, 1, `${target}: ${r.stderr}`);
+        assert(r.stderr.includes(why), r.stderr);
+        assertEquals(r.stderr.trimEnd().split('\n').length, 1, r.stderr);
+        assertEquals(tree(base), before, target);
+      }
+      // A UNC path to this machine: Node writes it, Bun 1.4.4 cannot open it (ENOENT); either way
+      // no temp file stays.
+      const unc = `${V}UNC\\localhost\\${w.replace(':', '$')}\\unc.wasm`;
+      const before = tree(base);
+      const r = go(unc);
+      const added = tree(base).filter((x) => !before.includes(x));
+      assertEquals(added, r.status === 0 ? ['w\\unc.wasm'] : [], r.stderr);
+    });
+  }
+});
+
 describe('Q-H3: a \\\\?\\ path is the real file it names, even ending in a device name', () => {
   it('writes the file (Windows); a file named nul elsewhere (the control)', () => {
     const sub = join(dir, 'q3');

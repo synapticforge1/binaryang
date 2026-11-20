@@ -278,22 +278,34 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
  *   path means one thing. An empty segment (`\\`) is the same.
  * - `ads.txt:s`, an alternate data stream: opening the temp stream CREATED an empty `ads.txt`, and
  *   renaming a stream is EINVAL. A stream name is refused up front rather than failing after.
+ * - Round 2: a `/` anywhere in a `\\?\` path (Bun normalises it on open, Win32 does not), and
+ *   EVERY segment after the root is checked, not all but the first (`\\?\..\x`, `\\?\UNC\..\s`).
  */
 function windowsPathProblem(path: string): string | null {
   const verbatim = path.startsWith('\\\\?\\');
-  let rest = verbatim ? path.slice(4) : path;
-  if (verbatim && /^UNC\\/i.test(rest)) rest = rest.slice(4);
-  rest = rest.replace(/^[A-Za-z]:/, '');
-  if (rest.includes(':')) {
+  // Win32 reads `\\?\` as "no processing": a `/` is a name character to it, yet Bun normalises it
+  // on the temp open and not on the rename (round 2 review: `\\?\W/sub/../fs.txt` left
+  // `fs.txt.<hex>.tmp` in W's parent). One refusal covers every such path.
+  if (verbatim && path.includes('/')) {
+    return 'a `/` in a \\\\?\\ path is not a separator to Windows: write the path with `\\`';
+  }
+  // Every segment after the root is a name. The root is dropped alone: `X:` (a drive), or `UNC`
+  // (its server and share stay and are checked); `C:rel` loses its `C:`.
+  const parts = (verbatim ? path.slice(4) : path).split('\\');
+  let names = parts;
+  if (!verbatim) parts[0] = parts[0]!.replace(/^[A-Za-z]:/, '');
+  else if (/^[A-Za-z]:$/.test(parts[0]!) || /^UNC$/i.test(parts[0]!)) {
+    names = parts.slice(1);
+  }
+  if (names.some((x) => x.includes(':'))) {
     return 'an alternate data stream (a `:` in the name) cannot be written here: name a file';
   }
   if (!verbatim) return null;
-  const segments = rest.split('\\').slice(1);
-  const at = segments.findIndex(
-    (x, i) => x === '.' || x === '..' || (x === '' && i < segments.length - 1),
+  const at = names.findIndex(
+    (x, i) => x === '.' || x === '..' || (x === '' && i < names.length - 1),
   );
   if (at < 0) return null;
-  const what = segments[at] === '' ? 'an empty segment' : `a '${segments[at]}' segment`;
+  const what = names[at] === '' ? 'an empty segment' : `a '${names[at]}' segment`;
   return `a \\\\?\\ path with ${what} is not resolved by Windows: write the path without it`;
 }
 
@@ -318,6 +330,10 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   const { dirname, resolve } = await import('node:path');
   const stream = standardStream(path);
   if (stream !== null) return writeStream(stream, data);
+  // win-x64 / win-arm64: `\\.\C:\dir\f` is the file `C:\dir\f` (the device namespace resolves `.`,
+  // `..` and `/` as a plain path does). Bun 1.4.4 cannot open it (ENOENT) and Node can, so it is
+  // written as the plain path on both (round 2 review; measured on Windows 11 26300).
+  if (cliProcess().platform === 'win32') path = path.replace(/^\\\\\.\\([A-Za-z]:)(?=\\)/, '$1');
   // win-x64 / win-arm64: a reserved device name (`NUL`, `CON`, `COM1` …, any case; `/dev/null`
   // as NUL) is a DEVICE, written by its device path. 🔧 `realpath` refused it (EINVAL), so
   // `-o NUL` failed after atomic writes came in (review H-2, 2026-11-18); and written by its plain
@@ -357,6 +373,12 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
     if (direct.isFIFO()) return writeFifo(path, data);
     await writeFile(path, data);
     return;
+  }
+  // The path as given is checked BEFORE `realpath`, which fails on some of these (`\\?\UNC\h\.\x`:
+  // EUNKNOWN); the target is checked again below, as a link or realpath may have changed it.
+  if (cliProcess().platform === 'win32') {
+    const problem = windowsPathProblem(path);
+    if (problem !== null) throw new Error(problem);
   }
   let target = path;
   let mode: number | undefined;
