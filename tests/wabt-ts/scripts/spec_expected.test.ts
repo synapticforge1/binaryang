@@ -17,10 +17,16 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import {
   type Expect,
   type ExpectedValue,
+  f32Bits,
   meets,
   type Raw,
 } from '../../../scripts/spec-behaviour/expected.ts';
-import { checkScript, VARIANTS } from '../../../scripts/spec-behaviour/script-run.ts';
+import type { CheckHooks } from '../../../scripts/spec-behaviour/differential.ts';
+import {
+  checkScript,
+  typeErrorCause,
+  VARIANTS,
+} from '../../../scripts/spec-behaviour/script-run.ts';
 import * as fsx from '../../test_fs.ts';
 import { test } from 'node:test';
 
@@ -70,6 +76,25 @@ test('NaN: canonical, arithmetic and literal payloads, through the bit wrapper',
   assert(meets(ret(val('f32', '2141192192')), ok(1)).problem !== undefined);
 });
 
+test('a literal NaN met unwrapped must be of the expected SIGN (the JS API may quiet the payload)', () => {
+  // NaN here is a positive quiet NaN in every engine. A NEGATIVE signalling NaN expected is not met
+  // by it (f32 0xffa00000, f64 0xfff0000000000001); a positive one is, COUNTED.
+  assert(meets(ret(val('f32', '4288413696')), ok(NaN)).problem !== undefined);
+  assert(meets(ret(val('f64', '18442240474082181121')), ok(NaN)).problem !== undefined);
+  const pos32 = meets(ret(val('f32', '2141192192')), ok(NaN)); // 0x7fa00000
+  assertEquals([pos32.problem, pos32.nanBoundary], [undefined, true]);
+  const pos64 = meets(ret(val('f64', '9218868437227405313')), ok(NaN)); // 0x7ff0000000000001
+  assertEquals([pos64.problem, pos64.nanBoundary], [undefined, true]);
+  // A negative NaN meets a negative expectation wherever the engine lets its sign through (V8 does;
+  // JavaScriptCore quiets it to a positive one), and never a positive one.
+  const view = new DataView(new ArrayBuffer(8));
+  view.setUint32(0, 0xffc00000);
+  const neg32 = view.getFloat32(0);
+  const seen = f32Bits(neg32) >>> 31 === 1;
+  assertEquals(meets(ret(val('f32', '4288413696')), ok(neg32)).problem === undefined, seen);
+  assertEquals(meets(ret(val('f32', '2141192192')), ok(neg32)).problem !== undefined, seen);
+});
+
 test('v128 by lanes, and `either` (relaxed SIMD) by any one alternative', () => {
   const lanes = (lo: bigint, hi: bigint) => ok(lo, hi);
   const want = val('v128', ['1', '2', '3', '4294967295'], 'i32');
@@ -117,11 +142,15 @@ test('references: null, a function, the host value the call made', () => {
 const asm = (wat: string) => wat2wasm(wat, { textForm: false }).binary;
 
 /** Writes the modules as `m<i>.wasm` into a temp folder and runs `commands` against them. */
-async function run(modules: string[], commands: Record<string, unknown>[]) {
+async function run(
+  modules: string[],
+  commands: Record<string, unknown>[],
+  hooks?: CheckHooks,
+) {
   const dir = await fsx.makeTempDir({ prefix: 'binaryang-spec-expected-' });
   try {
     for (const [i, wat] of modules.entries()) await fsx.writeFile(`${dir}/m${i}.wasm`, asm(wat));
-    return checkScript({ name: 'synthetic', dir, commands });
+    return checkScript({ name: 'synthetic', dir, commands }, hooks);
   } finally {
     await fsx.remove(dir, { recursive: true });
   }
@@ -207,11 +236,47 @@ test('a script whose expectations are right: every assertion run, on every varia
   const row = await run([BASIC], GOOD);
   assertEquals(row.original, []);
   assertEquals(row.variant, []);
-  assertEquals(row.refused, 0);
+  assertEquals(row.refused, []);
+  assertEquals(row.modules, ['synthetic/m0.wasm']);
   assertEquals(row.unchecked, {});
   // 7 assertions and 1 action: the NaN ones ran (through the wrapper, not skipped).
   assertEquals(row.asserted, 8);
   assertEquals(row.variantChecks, 8 * (VARIANTS.length - 1));
+});
+
+test('a variant the pipeline refuses, of a module the engine ACCEPTS, is reported (F1)', async () => {
+  // A pipeline bug planted at -O2: the variant throws while being made. The script has no later
+  // invocation the differential would replay, so this row is the only place it can show.
+  const hooks: CheckHooks = {
+    afterPasses: (level) => {
+      if (level === '-O2') throw new Error('planted pipeline bug');
+    },
+  };
+  const row = await run([BASIC], [mod(0)], hooks);
+  assertEquals(row.refused, ['synthetic/m0.wasm -O2']);
+  assertEquals(row.modules, ['synthetic/m0.wasm']);
+  assertEquals((await run([BASIC], [mod(0)])).refused, []); // no bug, no refusal
+});
+
+test('a module the engine refuses as the ORIGINAL is not counted as a pipeline refusal', async () => {
+  // Type-invalid code: V8 refuses the original; whatever the pipeline then does is not ours to pin.
+  const invalid = '(module (func (export "f") (result i32) f32.const 0))';
+  const hooks: CheckHooks = {
+    afterPasses: () => {
+      throw new Error('planted pipeline bug');
+    },
+  };
+  const row = await run([invalid], [mod(0)], hooks);
+  assertEquals(row.refused, []);
+});
+
+test('a JS API TypeError is counted by cause with its numbers made N, and no letter d touched', () => {
+  assertEquals(
+    typeErrorCause('Cannot convert 12 to a BigInt'),
+    'JS API TypeError: Cannot convert N to a BigInt',
+  );
+  // Every digit run goes, wherever it is; the letter d stays (it was being replaced before).
+  assertEquals(typeErrorCause('bad 7 and 300'), 'JS API TypeError: bad N and N');
 });
 
 test('a WRONG expected value is reported on the original and on every variant', async () => {

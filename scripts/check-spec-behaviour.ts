@@ -26,7 +26,8 @@
  *   bytes) or any module that does not terminate;
  * - REFUSED variants (our pipeline threw — loud, not a miscompile) are counted
  *   against {@link REFUSED_BUDGET}: more fails, fewer asks for the budget to be
- *   lowered, so a fix is kept.
+ *   lowered, so a fix is kept. Both runs feed it: the differential, and the script run — which
+ *   also reaches the modules with no later invocation, that the differential never replays.
  *
  * It reads the corpus `bun run spec:prepare` writes, as `bun run spec` does.
  *
@@ -52,7 +53,7 @@ import { Worker } from 'node:worker_threads';
  * fails, and so does a pinned name that no longer refuses, or it could come
  * back unnoticed.
  *
- * Each pin is `<module> <variant>`. It was EMPTY at 1.6.0 (seven
+ * Each pin is `<module> <variant>`, a module the ENGINE accepts as the original. It was EMPTY at 1.6.0 (seven
  * relaxed-SIMD pins went with binaryen-ts's decoder, One front end stage 3b).
  * Since 2026-09-28 it holds `--flatten`'s refusals of `br_on_*` and
  * `try_table` — which upstream's Flatten refuses too (`throw` / `throw_ref`
@@ -61,11 +62,15 @@ import { Worker } from 'node:worker_threads';
 const REFUSED_BUDGET: string[] = [
   'br_on_cast_fail/br_on_cast_fail.0.wasm --flatten',
   'br_on_cast_fail/br_on_cast_fail.1.wasm --flatten',
+  'br_on_cast_fail/br_on_cast_fail.2.wasm --flatten',
   'br_on_cast/br_on_cast.0.wasm --flatten',
   'br_on_cast/br_on_cast.1.wasm --flatten',
+  'br_on_cast/br_on_cast.2.wasm --flatten',
   'br_on_non_null/br_on_non_null.0.wasm --flatten',
+  'br_on_non_null/br_on_non_null.1.wasm --flatten',
   'br_on_non_null/br_on_non_null.2.wasm --flatten',
   'br_on_null/br_on_null.0.wasm --flatten',
+  'br_on_null/br_on_null.1.wasm --flatten',
   'br_on_null/br_on_null.2.wasm --flatten',
   'instance/instance.1.wasm --flatten',
   'instance/instance.2.wasm --flatten',
@@ -74,19 +79,34 @@ const REFUSED_BUDGET: string[] = [
   'throw/throw.0.wasm --flatten',
   'try_table/try_table.1.wasm --flatten',
   'try_table/try_table.2.wasm --flatten',
+  'try_table/try_table.5.wasm --flatten',
   'try_table/try_table.13.wasm --flatten',
   'try_table/try_table.16.wasm --flatten',
+  // Since the script run feeds this list too (2026-11-20: 23 pairs on the core corpus, 17 seen by
+  // the differential), six more pins: modules with no invocation after them, which the differential
+  // never replays — br_on_cast.2, br_on_cast_fail.2, br_on_non_null.1, br_on_null.1, try_table.5
+  // (each placed with its file above) and this one: the same `--flatten` refusals of `br_on_*`.
+  'unreached-valid/unreached-valid.2.wasm --flatten',
   // `proposals/custom-descriptors` (2026-09-29): `--flatten` refusing `br_on_*`
   // — the `_desc_eq` forms and the proposal's own copies of the core files — for
-  // the same reason as above.
+  // the same reason as above. (Eight of them, the `.0` / `.1` / `.2` / `.19` files, have no
+  // invocation after them: found by the script run's refusal count, 2026-11-20.)
+  'proposals/custom-descriptors/br_on_cast_desc_eq_fail/br_on_cast_desc_eq_fail.0.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_desc_eq_fail/br_on_cast_desc_eq_fail.1.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_desc_eq_fail/br_on_cast_desc_eq_fail.19.wasm --flatten',
   'proposals/custom-descriptors/br_on_cast_desc_eq_fail/br_on_cast_desc_eq_fail.26.wasm --flatten',
   'proposals/custom-descriptors/br_on_cast_desc_eq_fail/br_on_cast_desc_eq_fail.27.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_desc_eq/br_on_cast_desc_eq.0.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_desc_eq/br_on_cast_desc_eq.1.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_desc_eq/br_on_cast_desc_eq.19.wasm --flatten',
   'proposals/custom-descriptors/br_on_cast_desc_eq/br_on_cast_desc_eq.26.wasm --flatten',
   'proposals/custom-descriptors/br_on_cast_desc_eq/br_on_cast_desc_eq.27.wasm --flatten',
   'proposals/custom-descriptors/br_on_cast_fail/br_on_cast_fail.0.wasm --flatten',
   'proposals/custom-descriptors/br_on_cast_fail/br_on_cast_fail.1.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast_fail/br_on_cast_fail.2.wasm --flatten',
   'proposals/custom-descriptors/br_on_cast/br_on_cast.0.wasm --flatten',
   'proposals/custom-descriptors/br_on_cast/br_on_cast.1.wasm --flatten',
+  'proposals/custom-descriptors/br_on_cast/br_on_cast.2.wasm --flatten',
   'proposals/custom-descriptors/exact-casts/exact-casts.0.wasm --flatten',
   'proposals/custom-descriptors/exact-casts/exact-casts.1.wasm --flatten',
   'proposals/custom-descriptors/exact-casts/exact-casts.2.wasm --flatten',
@@ -360,6 +380,10 @@ while (scriptQueue.length > 0) {
 const sum = (pick: (r: ScriptRow) => number) => scriptRows.reduce((n, r) => n + pick(r), 0);
 const specOriginal = scriptRows.flatMap((r) => r.original.map((x) => `${r.name} ${x}`));
 const specVariant = scriptRows.flatMap((r) => r.variant.map((x) => `${r.name} ${x}`));
+// What the script run saw our pipeline refuse, of a module the engine accepted as the original: the
+// differential replays only a module with an invocation after it, so for the rest this is the only
+// place a refusal (a pipeline bug) can show. Same `<module> <variant>` form as REFUSED_BUDGET.
+const scriptRefused = [...new Set(scriptRows.flatMap((r) => r.refused))];
 const notRun = new Map<string, number>();
 for (const r of scriptRows) {
   for (const [why, n] of Object.entries(r.unchecked)) notRun.set(why, (notRun.get(why) ?? 0) + n);
@@ -392,6 +416,13 @@ console.log(
 for (const [why, n] of [...notRun].sort((a, b) => b[1] - a[1])) {
   console.log(`      ${String(n).padStart(6)}  ${why}`);
 }
+console.log(
+  `    pipeline refused         ${
+    String(scriptRefused.length).padStart(6)
+  }   (module, variant) pairs of modules the engine accepts; ${
+    scriptRefused.filter((m) => !refusedModules.includes(m)).length
+  } not seen by the differential; every one must be pinned in REFUSED_BUDGET`,
+);
 console.log(
   `    V8 vs the script         ${
     String(specOriginal.length).padStart(6)
@@ -445,11 +476,13 @@ if (scriptRows.length === 0) {
   console.log('\n  ✗ no scripts found to check against their expected values');
   failed = true;
 }
-const added = refusedModules.filter((m) => !REFUSED_BUDGET.includes(m));
+// The differential's refusals and the script run's: a pair either one saw.
+const refusedAll = [...new Set([...refusedModules, ...scriptRefused])];
+const added = refusedAll.filter((m) => !REFUSED_BUDGET.includes(m));
 // A pin can only be RETIRED by a run that reached it.
-const ran = new Set(rows.map((r) => r.name));
+const ran = new Set([...rows.map((r) => r.name), ...scriptRows.flatMap((r) => r.modules)]);
 const retired = REFUSED_BUDGET.filter((m) =>
-  ran.has(m.slice(0, m.indexOf(' '))) && !refusedModules.includes(m)
+  ran.has(m.slice(0, m.indexOf(' '))) && !refusedAll.includes(m)
 );
 if (added.length > 0) {
   console.log(
