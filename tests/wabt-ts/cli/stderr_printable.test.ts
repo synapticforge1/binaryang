@@ -46,7 +46,11 @@ const run = (...args: string[]) =>
 
 /** Nothing in `stderr` acts on a terminal or starts a forged line. */
 function assertInert(stderr: string, what: string) {
-  assert(!/[\x00-\x08\x0b-\x1f\x7f]/.test(stderr), `${what}: a control byte reached stderr`);
+  const acts = [...stderr].some((c) => {
+    const u = c.codePointAt(0)!;
+    return (u < 0x20 && u !== 0x09 && u !== 0x0a) || u === 0x7f;
+  });
+  assert(!acts, `${what}: a control byte reached stderr`);
   assert(!/^FORGED/m.test(stderr), `${what}: a forged line\n${stderr}`);
 }
 
