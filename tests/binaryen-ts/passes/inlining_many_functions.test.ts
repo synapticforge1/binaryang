@@ -63,7 +63,10 @@ describe('inlining: many functions', () => {
     const counting = new Proxy(names, {
       get(target, prop) {
         if (prop === 'has') {
-          return (k: string) => (lookups++, target.has(k));
+          return (k: string) => {
+            lookups++;
+            return target.has(k);
+          };
         }
         const v = Reflect.get(target, prop, target);
         return typeof v === 'function' ? v.bind(target) : v;
