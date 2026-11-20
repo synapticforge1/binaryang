@@ -1,6 +1,6 @@
 # STATE: binaryang
 
-Updated: 2026-11-20, the npm provenance poll reviewed
+Updated: 2026-11-20, 4.1.2 in release (harness fixed, Q-H5 closed)
 
 ## Version
 - Released: **4.1.1 on 2026-11-19** (JSR and npm, provenance on both; release.md § 4.1.1);
