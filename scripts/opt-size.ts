@@ -22,14 +22,19 @@
  * the ones it refused at the baseline, and when `wasm-opt` is not on PATH: a missing tool
  * FAILS, never skips. When binaryang gets smaller it FAILS too, printing the command that records
  * the new baseline (a gain left unrecorded could be given back unseen); recording is a deliberate
- * act (`--update-baseline`), never automatic.
+ * act (`--update-baseline`), never automatic. Recording also refuses to change the REFUSED set
+ * (`--accept-refused-change` says it is meant), and to record over a wrong module set.
+ *
+ * A REFUSAL is wasm-opt exiting 1 with a message. A signal (a kill, the OOM killer), a spawn error,
+ * ENOBUFS or the time limit is NOT a refusal: it throws, naming the module, so a transient failure
+ * can never be recorded as "binaryen refuses this module".
  *
  * Binaryen is called with an EXPLICIT feature list, never `--all-features` (which switches on
  * compact imports our reader refuses; cmem/optimizer.md § The method) and `--strip-dwarf`
  * (binaryen dies on some DWARF).
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -114,22 +119,102 @@ export function scratch(): { dir: string; done: () => void } {
   return { dir, done: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-/** binaryen's `wasm-opt <level>` of `wasm`: its code bytes, or `undefined` if it refused. */
+/** The longest one `wasm-opt` run may take (the largest real-compiler module, -Oz, takes seconds). */
+export const WASM_OPT_TIMEOUT_MS = 300_000;
+
+/** The most output a `wasm-opt` run may print before it is ended (Node's default is 1 MB). */
+export const WASM_OPT_MAX_BUFFER = 64 * 1024 * 1024;
+
+/** The part of a `spawnSync` result the verdict reads. */
+export type WasmOptRun = Pick<
+  SpawnSyncReturns<string>,
+  'status' | 'signal' | 'error' | 'stderr' | 'stdout'
+>;
+
+/**
+ * Whether one `wasm-opt` run took the module (`'ok'`) or REFUSED it: exit 1 with a message, which is
+ * how binaryen reports an input it cannot parse or validate. Anything else — it could not start, a
+ * signal ended it, its output overflowed, the time limit ended it, another exit code, or exit 1
+ * with nothing said — is a failure of the run, not a fact about the module: it THROWS, naming `what`.
+ */
+export function judgeRun(r: WasmOptRun, what: string): 'ok' | 'refused' {
+  if (r.error !== undefined) {
+    const code = (r.error as { code?: string }).code;
+    throw new Error(
+      `wasm-opt on ${what} did not finish (${
+        code ?? 'error'
+      }: ${r.error.message}): not a refusal; ` +
+        (code === 'ETIMEDOUT' ? `it ran past ${WASM_OPT_TIMEOUT_MS / 1000} s` : 'run it again'),
+    );
+  }
+  if (r.signal !== null) {
+    throw new Error(`wasm-opt on ${what} was ended by ${r.signal}: not a refusal; run it again`);
+  }
+  if (r.status === 0) return 'ok';
+  const said = `${r.stderr ?? ''}${r.stdout ?? ''}`.trim();
+  if (r.status === 1 && said !== '') return 'refused';
+  throw new Error(
+    `wasm-opt on ${what} exited ${r.status}${
+      said === '' ? ' with no message' : `: ${said.slice(0, 200)}`
+    }: ` +
+      'not a binaryen refusal',
+  );
+}
+
+/**
+ * binaryen's `wasm-opt <level>` of `wasm`: its code bytes, or `undefined` if it REFUSED the module
+ * (see {@link judgeRun}); any other failure throws, naming `name`. `run` is the spawn seam.
+ */
 export function binaryenSize(
   dir: string,
   wasm: Uint8Array,
   level: '-Oz' | '-O2',
+  name = 'a module',
+  run: typeof spawnSync = spawnSync,
 ): number | undefined {
   const input = join(dir, 'in.wasm');
   const output = join(dir, 'out.wasm');
   writeFileSync(input, wasm);
-  const r = spawnSync(
+  const r = run(
     'wasm-opt',
     [input, level, '--strip-dwarf', '--disable-compact-imports', ...FEATURES, '-o', output],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', timeout: WASM_OPT_TIMEOUT_MS, maxBuffer: WASM_OPT_MAX_BUFFER },
   );
-  if (r.status !== 0) return undefined;
+  if (judgeRun(r, `${name} (${level})`) === 'refused') return undefined;
   return codeBytes(readFileSync(output));
+}
+
+/**
+ * The six real-compiler modules the `six` entries measure: a different set is a different
+ * measurement, so it fails — and never gets recorded.
+ */
+export function requireSix(found: readonly string[]): void {
+  if (found.length !== 6) {
+    throw new Error(
+      `expected the six real-compiler modules (benches/browser-opt/modules), found ${found.length}: ` +
+        `[${found.join(', ')}]; the size ratchet is not recorded or judged over another set`,
+    );
+  }
+}
+
+/**
+ * What a recording would change about the REFUSED sets, entry by entry, against the baseline on
+ * disk: lines naming each change. A refusal that appears or disappears is a fact about binaryen or
+ * about the module set, which a person reads before recording it (`--accept-refused-change`).
+ */
+export function refusedChanges(
+  entries: Record<string, SizeEntry>,
+  base: SizeBaseline | undefined,
+): string[] {
+  if (base === undefined) return [];
+  const out: string[] = [];
+  for (const [name, e] of Object.entries(entries)) {
+    const was = base.entries[name]?.refused ?? [];
+    if (was.join() !== e.refused.join()) {
+      out.push(`${name}: refused [${e.refused.join(', ')}], the baseline has [${was.join(', ')}]`);
+    }
+  }
+  return out;
 }
 
 /** Compares a measurement with the baseline: failures, and notes (a gain to keep). */
