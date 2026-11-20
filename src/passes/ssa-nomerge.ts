@@ -28,7 +28,9 @@
  * declared local reaches (the constant passes see it already).
  *
  * Left alone, as MergeLocals leaves them (`merge-locals.ts`): a function with `try` /
- * `try_table`.
+ * `try_table`. Also left alone: a function whose reaching-definitions bitsets would pass
+ * {@link LOCAL_GRAPH_MAX_WORDS} (quadratic in the function; upstream has no such limit and is
+ * quadratic there too: 12 s on 3,000 `if`s at -O3, measured with wasm-opt 133).
  *
  * Reference: `WebAssembly/binaryen/src/passes/SSAify.cpp`
  *
@@ -39,7 +41,7 @@ import { type Expression, ExpressionKind } from '../ir/expressions.ts';
 import { requireIndex, type Var, varIndex } from '../ir/ir.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { mapChildrenShallow, visitChildren } from '../ir/walk.ts';
-import { ENTRY, localGraph } from './local-graph.ts';
+import { ENTRY, LOCAL_GRAPH_MAX_WORDS, localGraphSummary } from './local-graph.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 /** Gives each value of a reused local its own local, where no read merges two of them. */
@@ -86,7 +88,9 @@ export function ssaNoMerge(fn: WasmFunction): boolean {
   scan(fn.body);
   if (unsupported) return false;
 
-  const { reaching, readers } = localGraph(fn);
+  const graph = localGraphSummary(fn, LOCAL_GRAPH_MAX_WORDS);
+  if (graph === undefined) return false;
+  const { reads, merged } = graph;
   const readsEntry = new Set<number>();
   // A read the graph has no answer for (no path reaches it) would keep the old local while its
   // set moved: its local is left as it is.
@@ -94,9 +98,9 @@ export function ssaNoMerge(fn: WasmFunction): boolean {
   const findGets = (e: Expression): void => {
     if (e.kind === ExpressionKind.LocalGet) {
       const i = requireIndex(e.var, 'local index');
-      const defs = reaching.get(e);
-      if (defs === undefined) unknown.add(i);
-      else if (defs.has(ENTRY)) readsEntry.add(i);
+      const r = reads.get(e);
+      if (r === undefined) unknown.add(i);
+      else if (r.entry) readsEntry.add(i);
     }
     visitChildren(e, findGets);
   };
@@ -107,9 +111,7 @@ export function ssaNoMerge(fn: WasmFunction): boolean {
     if (unknown.has(local) || shared.has(local)) continue;
     if (sets.length === 1 && !readsEntry.has(local)) continue; // already SSA
     for (const s of sets) {
-      let merges = false;
-      for (const g of readers.get(s) ?? []) if ((reaching.get(g)?.size ?? 0) > 1) merges = true;
-      if (merges) continue;
+      if (merged.has(s)) continue;
       fn.locals.push({ type: fn.locals[local]!.type });
       renamed.set(s, varIndex(fn.locals.length - 1));
     }
@@ -117,9 +119,9 @@ export function ssaNoMerge(fn: WasmFunction): boolean {
   if (renamed.size === 0) return false;
 
   const moved = new Map<Expression, Var>(); // read → the fresh local of its one definition
-  for (const [g, defs] of reaching) {
-    if (defs.size !== 1) continue;
-    const [d] = defs;
+  for (const [g, r] of reads) {
+    if (r.count !== 1) continue;
+    const d = r.only;
     const v = d === ENTRY || d === undefined ? undefined : renamed.get(d);
     if (v !== undefined) moved.set(g, v);
   }

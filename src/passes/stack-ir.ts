@@ -47,7 +47,7 @@ import {
 import type { WasmFunction } from '../ir/module.ts';
 import { requireIndex } from '../ir/ir.ts';
 import { visitChildren } from '../ir/walk.ts';
-import { localGraph } from './local-graph.ts';
+import { LOCAL_GRAPH_MAX_WORDS, localGraphSummary } from './local-graph.ts';
 import { expressionHeight, MAX_NESTING_DEPTH } from '../ir/nesting.ts';
 
 /** How many values a type puts on the stack: `none` and `unreachable` none, a tuple its arity. */
@@ -83,11 +83,15 @@ function _omissions(fn: WasmFunction): Set<Expression> {
   scan(fn.body);
   if (unsupported) return new Set();
 
-  const { reaching, readers } = localGraph(fn);
+  // Past the bitsets' budget the function is written as it is (nothing is left out).
+  const graph = localGraphSummary(fn, LOCAL_GRAPH_MAX_WORDS);
+  if (graph === undefined) return new Set();
+  const { reads, merged, sole } = graph;
+  // Exact: the get reads only this set, and no other read can see the set.
   const exact = (set: Expression, get: Expression): boolean => {
-    const defs = reaching.get(get);
-    const uses = readers.get(set);
-    return defs?.size === 1 && defs.has(set) && uses?.size === 1 && uses.has(get);
+    const r = reads.get(get);
+    return r !== undefined && r.count === 1 && r.only === set && !merged.has(set) &&
+      sole.get(set) === 1;
   };
   const out = new Set<Expression>();
   for (const [set, get] of _pairs(fn, exact)) {
