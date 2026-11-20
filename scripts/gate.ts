@@ -31,6 +31,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import { keepFailure } from './gate-failure.ts';
 
 const keep = process.argv.includes('--keep');
 const work = mkdtempSync(join(tmpdir(), 'binaryang-gate-'));
@@ -51,6 +52,10 @@ const corpus = (name: string) => {
 const suite = fileURLToPath(
   new URL('../../wasmtk/tests/module/wasm_wast/testsuite-main', import.meta.url),
 );
+// A failed step's whole output, kept after the gate ends (review Q-H6): one folder, emptied when a
+// gate starts, so it holds the last run's failures only.
+const failures = join(tmpdir(), 'binaryang-gate-failures');
+rmSync(failures, { recursive: true, force: true });
 const [spec, legacy, prop, teh, smoke] = ['spec', 'legacy', 'prop', 'teh', 'smoke'].map(corpus);
 
 type Step = [name: string, cmd: string[]];
@@ -153,6 +158,7 @@ for (const [name, cmd] of steps) {
   const started = Date.now();
   let status: number;
   let tail: string;
+  let log = '';
   if (cmd[0] === 'NO-PREVIOUS-TAG') {
     status = 1;
     tail = 'no release tag v* below HEAD, after fetching the tags from origin';
@@ -186,13 +192,17 @@ for (const [name, cmd] of steps) {
       process.exit(130);
     }
     status = r.status ?? 1;
-    const lines = `${r.stdout ?? ''}\n${r.stderr ?? ''}`.split(/\r?\n/).map((l) => l.trim())
-      .filter(Boolean);
-    tail = r.error ? String(r.error) : lines.slice(-3).join(' | ');
+    tail = `${r.stdout ?? ''}\n${r.stderr ?? ''}`.split(/\r?\n/).map((l) => l.trim())
+      .filter(Boolean).slice(-3).join(' | ');
+    if (status !== 0) {
+      ({ tail, log } = keepFailure(failures, name, r.stdout ?? '', r.stderr ?? ''));
+      if (r.error) tail = `${String(r.error)} | ${tail}`;
+    }
   }
   if (status !== 0) failed++;
   const seconds = Math.round((Date.now() - started) / 1000);
   console.log(`${status === 0 ? 'ok  ' : 'FAIL'} ${name} (${seconds} s) ${tail.slice(0, 200)}`);
+  if (log !== '') console.log(`     full output: ${log}`);
 }
 console.log(`gate: ${steps.length - failed} / ${steps.length} passed`);
 process.exit(failed === 0 ? 0 : 1);
