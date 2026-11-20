@@ -164,8 +164,52 @@ export function formatLocation(loc: Location): string {
 /** The most characters of a source line one long-format diagnostic quotes (a window around it). */
 const MAX_QUOTED_LINE = 200;
 
+/** The most characters of a message or a file name one diagnostic prints (hardening, round 2). */
+const MAX_PART = 1000;
+
+/** The most characters of one quoted token or name inside a message. */
+const MAX_QUOTED_NAME = 200;
+
 const isHighSurrogate = (c: number) => c >= 0xd800 && c <= 0xdbff;
 const isLowSurrogate = (c: number) => c >= 0xdc00 && c <= 0xdfff;
+
+/** `s` cut to its first `n` characters, never inside a surrogate pair. */
+function head(s: string, n: number): string {
+  return s.slice(0, n > 0 && isHighSurrogate(s.charCodeAt(n - 1)) ? n - 1 : n);
+}
+
+/**
+ * A user-derived part of a diagnostic, bounded (hardening, round 2): a message that quotes a 2 MB
+ * token printed all 2 MB. A quoted piece (in `"`, `'` or a backtick) over {@link MAX_QUOTED_NAME}
+ * characters keeps its start, then `…` and its length; the whole part is cut at {@link MAX_PART}
+ * the same way. A part within the bounds is returned as it is.
+ */
+function bounded(text: string): string {
+  if (text.length <= MAX_QUOTED_NAME) return text;
+  // A scan, not a regular expression: JavaScriptCore gave up matching one over 2 MB (no match).
+  let quoted = '';
+  let kept = 0; // text before this index is already in `quoted`
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i]!;
+    const close = c === '"' || c === "'" || c === '`' ? text.indexOf(c, i + 1) : -1;
+    if (close < 0) {
+      i++;
+      continue;
+    }
+    if (close - i - 1 > MAX_QUOTED_NAME) {
+      const inner = text.slice(i + 1, close);
+      quoted += text.slice(kept, i) +
+        `${c}${head(inner, MAX_QUOTED_NAME / 2)}…${c} (${inner.length} characters)`;
+      kept = close + 1;
+    }
+    i = close + 1;
+  }
+  quoted += text.slice(kept);
+  return quoted.length <= MAX_PART
+    ? quoted
+    : `${head(quoted, MAX_PART)}… (${quoted.length} characters)`;
+}
 
 /** The most diagnostics {@link formatErrors} prints; the rest are counted. */
 const MAX_REPORTED_ERRORS = 100;
@@ -186,10 +230,10 @@ export function formatError(
   // A message quotes the module's names, which may hold an ESC, a bidi override or a line break:
   // printable, tabs kept. A break is escaped too: the layout's own line breaks are the only ones
   // (round 2 review: a name with a newline forged a `file:1:1: error:` line).
-  const message = printable(err.message, { keepTabs: true });
+  const message = printable(bounded(err.message), { keepTabs: true });
   const severity = level === ErrorLevel.Warning ? 'warning' : 'error';
   // The file name comes from the command line: printable too.
-  const header = `${printable(formatLocation(loc))}: ${severity}: ${message}`;
+  const header = `${printable(bounded(formatLocation(loc)))}: ${severity}: ${message}`;
 
   if (format === ErrorFormat.Long && sourceLine !== undefined && loc.column > 0) {
     // The SOURCE LINE is the input's own text: printable as the message is. 🔧 It was printed raw,
