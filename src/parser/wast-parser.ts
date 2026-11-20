@@ -7337,6 +7337,8 @@ function parseDepth(tokens: readonly Token[]): number {
   // 🔧 They were counted, so a folded text nest of `if`s or `try`s was refused at ~136 levels
   // though the binary route takes 256 (C-H5).
   const counted: boolean[] = [];
+  // Whether each open parenthesis is a region opener at all (counted or not).
+  const regions: boolean[] = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i]!.tokenType;
     // `(@metadata.code.…` is a token too (LparAnn), and its `)` is counted below: left out, each
@@ -7346,9 +7348,15 @@ function parseDepth(tokens: readonly Token[]): number {
       const region = t === TokenType.Lpar &&
         (next === TokenType.Then || next === TokenType.Else || next === TokenType.Do ||
           next === TokenType.Catch || next === TokenType.CatchAll);
-      counted.push(!region);
-      if (!region) parens++;
+      // 🔧 A region opener directly inside ANOTHER region opener (`(do (catch_all (catch_all …`)
+      // is no list of a construct's: it is malformed, and counted. Left uncounted, 2,000 of them
+      // reached the parser, one "expected )" per token, each quoting its line (hardening F2).
+      const counts = !region || regions[regions.length - 1] === true;
+      counted.push(counts);
+      regions.push(region);
+      if (counts) parens++;
     } else if (t === TokenType.Rpar) {
+      regions.pop();
       if (counted.pop() === true) parens--;
     } else if (isBlockInstr(t) && tokens[i - 1]?.tokenType !== TokenType.Lpar) linear++;
     else if (t === TokenType.End) linear = Math.max(0, linear - 1);

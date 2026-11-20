@@ -481,3 +481,67 @@ describe('C-H5 — the unit: what counts as a level', () => {
     }
   });
 });
+
+describe('F2 — a malformed nest of region openers is refused cheaply, and no input makes output quadratic', () => {
+  // Hardening F2 (4.1.x review): the pre-scan stopped counting `(do`, `(catch …`, `(catch_all`,
+  // `(then` and `(else` (C-H5), so `(try (do) (catch_all (catch_all …` reached the parser: one
+  // "expected ), got (" per token, and the long format quoted the whole line for each — 140 MB
+  // and 5.7 s at 2,000, over 106 s at 20,000. A region opener directly inside another is
+  // malformed and counts as a level again; `formatErrors` is bounded in both its dimensions.
+  const shapes: Record<string, (n: number) => string> = {
+    'catch_all in catch_all': (n) =>
+      `(module (func (try (do) ${'(catch_all '.repeat(n)}${')'.repeat(n)})))`,
+    'do in do': (n) => `(module (func (try ${'(do '.repeat(n)}${')'.repeat(n)})))`,
+    'catch $t in catch $t': (n) =>
+      `(module (tag $t) (func (try (do) ${'(catch $t '.repeat(n)}${')'.repeat(n)})))`,
+    'then in then': (n) =>
+      `(module (func (if (i32.const 0) ${'(then '.repeat(n)}${')'.repeat(n)})))`,
+    'else in else': (n) =>
+      `(module (func (if (i32.const 0) (then) ${'(else '.repeat(n)}${')'.repeat(n)})))`,
+  };
+  for (const [name, make] of Object.entries(shapes)) {
+    for (const n of [2000, DEEP]) {
+      it(`${name} x ${n}: the limit's one line, in under 2 s, bounded output`, () => {
+        const text = make(n);
+        const t0 = performance.now();
+        const r = wat2wasm(text, { filename: 'c.wat' });
+        const out = formatErrors(r.errors, 'long', text);
+        const ms = performance.now() - t0;
+        assert(ms < 2000, `${ms} ms`);
+        assert(out.length < 20_000, `${out.length} characters`);
+        assertRefused(r.errors, name);
+      });
+    }
+  }
+
+  it('formatErrors prints at most 100 errors, then counts the rest', () => {
+    const loc = { filename: 'x.wat', line: 1, column: 1, offset: 0, endColumn: 2 };
+    const list = makeErrorList();
+    for (let i = 0; i < 100_000; i++) list.push({ loc, message: 'm', level: 1 });
+    const out = formatErrors(list, 'long', '(x)');
+    assertEquals(out.split('\n').filter((l) => l.includes('error: m')).length, 100);
+    assert(out.endsWith('... 99900 more errors'), out.slice(-60));
+    assert(out.length < 20_000, String(out.length));
+    // Under the cap nothing is added.
+    assert(!formatErrors(list.slice(0, 100)).includes('more error'));
+  });
+
+  it('formatErrors quotes a bounded window of a long line, the caret under the token', () => {
+    const line = `${'a '.repeat(50_000)}TOKEN${' b'.repeat(50_000)}`;
+    const column = line.indexOf('TOKEN') + 1;
+    const loc = { filename: 'x.wat', line: 1, column, offset: 0, endColumn: column + 5 };
+    const out = formatErrors([{ loc, message: 'm', level: 1 }], 'long', line);
+    const [, quoted, caret] = out.split('\n');
+    assert(out.length < 1000, String(out.length));
+    assert(quoted!.startsWith('\u2026') && quoted!.endsWith('\u2026'), quoted);
+    assertEquals(caret!.indexOf('^'), quoted!.indexOf('TOKEN'));
+    assertEquals(caret!.trimStart().length, 5);
+    // A line within the bound prints whole, as ever.
+    const short = formatErrors(
+      [{ loc: { ...loc, column: 3, endColumn: 8 }, message: 'm', level: 1 }],
+      'long',
+      'ab TOKEN cd',
+    );
+    assertEquals(short, 'x.wat:1:3: error: m\nab TOKEN cd\n  ^^^^^');
+  });
+});

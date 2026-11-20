@@ -439,6 +439,7 @@ name. Each limit refuses with a typed error or diagnostic; none is silent. (Secu
 | --- | --- | --- |
 | A file the CLI reads | 1 GiB (`MAX_INPUT_BYTES`); a pipe or device read only up to it | `tool: cannot read …` |
 | Expression nesting: every expression node on a path counts (see below) | 256 levels (`MAX_NESTING_DEPTH`), the same on every runtime | "the module nests deeper than 256 levels, binaryang's limit on every runtime" |
+| A diagnostics report (`formatErrors`, the CLI's stderr) | 100 diagnostics printed, then `... N more errors`; a source line over 200 characters is quoted as a 200-character window around the error | the cut is marked `…`; the caret stays under its token |
 | A module built through the API that reuses objects (a node, a list, bytes, a long string) | walked, copied or written per use: at most twice what it holds, plus 1,000,000 expression nodes / 8,000,000 entries; data nested at most 1,536 objects deep (`MAX_DATA_DEPTH`); no cycle, no sparse array, no number past 64 bits | "… shared by reference expand the module to …", "the module's data nests deeper than 1536 objects …", or the cycle's, the hole's or the number's own words |
 | Locals in one function | 1,000,000 (`MAX_MATERIALIZED_LOCALS`) | decode error |
 | Locals in a whole module | 1,000,000 plus one per byte of the module (`maxModuleLocals`) | decode error |
