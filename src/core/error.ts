@@ -180,9 +180,10 @@ export function formatError(
   format: ErrorFormat = ErrorFormat.Short,
 ): string {
   const { loc, level } = err;
-  // A message quotes the module's names, which may hold an ESC or a bidi override: printable,
-  // its own line breaks and tabs kept (security review round 2, 2026-11-13; core/printable.ts).
-  const message = printable(err.message, { keepLines: true });
+  // A message quotes the module's names, which may hold an ESC, a bidi override or a line break:
+  // printable, tabs kept. A break is escaped too: the layout's own line breaks are the only ones
+  // (round 2 review: a name with a newline forged a `file:1:1: error:` line).
+  const message = printable(err.message, { keepTabs: true });
   const severity = level === ErrorLevel.Warning ? 'warning' : 'error';
   // The file name comes from the command line: printable too.
   const header = `${printable(formatLocation(loc))}: ${severity}: ${message}`;
@@ -193,7 +194,7 @@ export function formatError(
     // (OSC 52), a screen clear — on the user's stderr (review S-1, 2026-11-18). The caret is
     // measured on the printable text, so an escape that widens the line keeps it aligned; tabs are
     // kept under tabs, however the terminal expands them.
-    const shown = (s: string) => printable(s, { keepLines: true });
+    const shown = (s: string) => printable(s, { keepTabs: true });
     // 🔧 BOUNDED: a line of N characters quoted once per error was N squared in all (hardening F2,
     // 4.1.x review: 2,000 nested `(catch_all` on one line, an error each, wrote 140 MB). A line
     // over `MAX_QUOTED_LINE` shows a window of that width around the column, `…` at a cut

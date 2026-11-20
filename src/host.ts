@@ -500,7 +500,7 @@ export function cliError(message: string, block = false): void {
  * review process says paths are escaped). Through {@link cliError}.
  */
 export function cliFail(tool: string, message: string): never {
-  cliError(`${tool}: ${message}`, true);
+  cliError(`${tool}: ${message}`);
   cliExit(1);
 }
 

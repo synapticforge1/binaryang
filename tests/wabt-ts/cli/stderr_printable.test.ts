@@ -10,6 +10,14 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import {
+  ErrorFormat,
+  ErrorLevel,
+  formatError,
+  formatErrors,
+  type Location,
+  type WabtError,
+} from '../../../src/core/error.ts';
 
 const MAIN = resolve('main.ts');
 const ESC = '\x1b';
@@ -47,7 +55,9 @@ describe('every CLI message is printable, one line where it is one message', () 
     it(`${tool}: an unknown option, a missing input, a bad output path`, () => {
       const cases: [string, string[]][] = [
         ['unknown option', [tool, join(dir, 'a.wat'), `--bad${ESC}[2Jopt`]],
+        ['unknown option with a line break', [tool, join(dir, 'a.wat'), `--bad\n${FORGED}`]],
         ['missing input', [tool, join(dir, `no${ESC}pe.wasm`)]],
+        ['missing input with a line break', [tool, join(dir, `no\r\n${FORGED}.wasm`)]],
         ['missing input, -o', [tool, join(dir, `no${ESC}.wasm`), '-o', join(dir, `o${ESC}.out`)]],
       ];
       for (const [what, args] of cases) {
@@ -58,6 +68,11 @@ describe('every CLI message is printable, one line where it is one message', () 
           assert(r.stderr.includes('\\u001b'), `${tool} ${what}: the escape is written out`);
         }
       }
+      // The message that names a path is ONE line, so nothing after the break can pass as the
+      // tool's own: `tool: cannot read '<path>': ENOENT …` is a single line.
+      const r = run(tool, join(dir, `no\n${FORGED}.wasm`));
+      const named = r.stderr.split('\n').filter((l) => l.includes('\\u000a'));
+      assert(named.length >= 1, r.stderr);
     });
   }
 
@@ -85,5 +100,55 @@ describe('every CLI message is printable, one line where it is one message', () 
     assertInert(r.stderr, 'unknown command');
     assertEquals(r.status, 1);
     assert(r.stderr.includes('\\u001b'), r.stderr);
+  });
+});
+
+describe('a diagnostic keeps its own layout and nothing else', () => {
+  const at = (filename: string, line = 1, column = 1, endColumn?: number): Location => ({
+    filename,
+    line,
+    column,
+    offset: 0,
+    ...(endColumn === undefined ? {} : { endColumn }),
+  });
+  const err = (loc: Location, message: string): WabtError => ({
+    loc,
+    message,
+    level: ErrorLevel.Error,
+  });
+
+  it('a file name and a message with line breaks stay on the one line', () => {
+    const e = err(at(`a\n${FORGED}`, 0, 0), `bad name "x\r\n${FORGED}"`);
+    const out = formatError(e);
+    assertEquals(out.split('\n').length, 1, out);
+    assert(!out.includes('\r'), out);
+    assert(out.includes('\\u000a') && out.includes('\\u000d'), out);
+  });
+
+  it('the long layout is three lines however the source and message are broken', () => {
+    const e = err(at(`f\n${FORGED}`, 1, 3, 6), `m\n${FORGED}`);
+    const out = formatError(e, `ab\rcd ef\tg`, ErrorFormat.Long);
+    const lines = out.split('\n');
+    assertEquals(lines.length, 3, out);
+    assert(lines.every((l) => !l.startsWith('FORGED')), out);
+    assert(lines[1]!.includes('\t'), 'a tab in the source stays');
+  });
+
+  it('formatErrors: every entry keeps to its own lines', () => {
+    const out = formatErrors([
+      err(at('a', 0, 0), `x\n${FORGED}`),
+      err(at('b', 0, 0), `y\n${FORGED}`),
+    ]);
+    assertEquals(out.split('\n').length, 2, out);
+  });
+});
+
+describe('a path with a line break cannot forge a tool line', () => {
+  it('wat2wasm names it on one line', () => {
+    const r = run('wat2wasm', join(dir, `x\nwat2wasm: ok: all fine\n`));
+    const lines = r.stderr.trimEnd().split('\n');
+    assertEquals(lines.length, 1, r.stderr);
+    assert(lines[0]!.startsWith("wat2wasm: cannot read '"), r.stderr);
+    assert(lines[0]!.includes('\\u000a'), r.stderr);
   });
 });
