@@ -20,6 +20,7 @@
  */
 
 import { Result } from '../core/result.ts';
+import { MAX_NESTING_DEPTH, NestingLimitError } from './nesting.ts';
 import type {
   ArrayCopyExpr,
   ArrayFillExpr,
@@ -265,7 +266,25 @@ export class ExprVisitor {
     this.d = delegate;
   }
 
+  /**
+   * How many nodes deep the walk is now: the one nesting limit's count, kept as the walk goes
+   * (a node is a level, a region is not), so an over-deep tree is refused at once, in the limit's
+   * words, by every entry — an API-built module included — never by the host's stack (C-H4).
+   * Each public entry restores it, so a walk that threw leaves nothing behind.
+   */
+  private level = 0;
+
+  /** Walks a list of instructions; throws {@link NestingLimitError} past {@link MAX_NESTING_DEPTH}. */
   visitExprList(exprs: Expr[]): Result {
+    const saved = this.level;
+    try {
+      return this.visitList(exprs);
+    } finally {
+      this.level = saved;
+    }
+  }
+
+  private visitList(exprs: Expr[]): Result {
     for (let i = 0; i < exprs.length; i++) {
       const expr = exprs[i]!;
       // A code-metadata annotation belongs to the NEXT instruction in its list;
@@ -273,7 +292,7 @@ export class ExprVisitor {
       // opcode comes after its operands' (see `onCodeMetadataExpr`).
       const r = expr.kind === 'code_metadata'
         ? this.d.onCodeMetadataExpr?.(expr, exprs[i + 1]) ?? Result.Ok
-        : this.visitExpr(expr);
+        : this.dispatch(expr);
       if (r === Result.Error) return Result.Error;
     }
     return Result.Ok;
@@ -293,7 +312,12 @@ export class ExprVisitor {
   }
 
   visitExpr(expr: Expr): Result {
-    return this.dispatch(expr);
+    const saved = this.level;
+    try {
+      return this.dispatch(expr);
+    } finally {
+      this.level = saved;
+    }
   }
 
   /** Set while {@link visitShallow} runs: the one node visited in full. */
@@ -311,12 +335,14 @@ export class ExprVisitor {
    */
   visitShallow(expr: Expr, onOperand: (e: Expr) => void): Result {
     const saved = [this.shallowTop, this.shallowOperand] as const;
+    const level = this.level;
     this.shallowTop = expr;
     this.shallowOperand = onOperand;
     try {
       return this.dispatch(expr);
     } finally {
       [this.shallowTop, this.shallowOperand] = saved;
+      this.level = level;
     }
   }
 
@@ -329,6 +355,15 @@ export class ExprVisitor {
       this.shallowOperand(e);
       return Result.Ok;
     }
+    if (e.kind === 'region') return this.dispatchNode(e);
+    if (this.level >= MAX_NESTING_DEPTH) throw new NestingLimitError('ExprVisitor');
+    this.level++;
+    const r = this.dispatchNode(e);
+    this.level--;
+    return r;
+  }
+
+  private dispatchNode(e: Expr): Result {
     this.d.everyExpr?.(e);
     switch (e.kind) {
       // --- No children, single callback ---
@@ -836,7 +871,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginBlockExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.children);
+        r = this.visitList(e.children);
         if (r === Result.Error) return r;
         return this.d.endBlockExpr?.(e) ?? Result.Ok;
       }
@@ -845,7 +880,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginLoopExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.body.children);
+        r = this.visitList(e.body.children);
         if (r === Result.Error) return r;
         return this.d.endLoopExpr?.(e) ?? Result.Ok;
       }
@@ -857,11 +892,11 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginIfExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.ifTrue.children);
+        r = this.visitList(e.ifTrue.children);
         if (r === Result.Error) return r;
         r = this.d.afterIfTrueExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.ifFalse?.children ?? []);
+        r = this.visitList(e.ifFalse?.children ?? []);
         if (r === Result.Error) return r;
         return this.d.endIfExpr?.(e) ?? Result.Ok;
       }
@@ -870,7 +905,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginTryExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.body.children);
+        r = this.visitList(e.body.children);
         if (r === Result.Error) return r;
         if (e.delegate !== undefined) {
           return this.d.onDelegateExpr?.(e) ?? Result.Ok;
@@ -878,7 +913,7 @@ export class ExprVisitor {
         for (const [i, c] of e.catches.entries()) {
           r = this.d.onCatchExpr?.(e, c, i) ?? Result.Ok;
           if (r === Result.Error) return r;
-          r = this.visitExprList(c.body.children);
+          r = this.visitList(c.body.children);
           if (r === Result.Error) return r;
         }
         return this.d.endTryExpr?.(e) ?? Result.Ok;
@@ -888,7 +923,7 @@ export class ExprVisitor {
         if (r === Result.Error) return r;
         r = this.d.beginTryTableExpr?.(e) ?? Result.Ok;
         if (r === Result.Error) return r;
-        r = this.visitExprList(e.body.children);
+        r = this.visitList(e.body.children);
         if (r === Result.Error) return r;
         return this.d.endTryTableExpr?.(e) ?? Result.Ok;
       }
@@ -896,7 +931,7 @@ export class ExprVisitor {
       // A region reached as an expression (its slots are walked above, through
       // 'children', so no hook fires twice): its instructions, nothing else.
       case 'region':
-        return this.visitExprList(e.children);
+        return this.visitList(e.children);
 
       // A leaf: it stands for a value already on the stack, so there is
       // nothing below it to walk and no delegate hook to fire.

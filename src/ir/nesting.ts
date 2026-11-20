@@ -21,8 +21,21 @@
  * it stage by stage; until then this is the promise, and `nesting_limit.test.ts` holds every
  * stage to it on every runtime CI runs.
  *
- * DEPTH counts every expression level, operands included: `(i32.add (i32.add …))` nests as
- * `(block (block …))` does, and a long operand chain was the lowest ceiling of all.
+ * THE UNIT — what counts as one level (README § "Limits on untrusted input" says the same):
+ * the depth of the expression tree as the IR holds it. Every expression NODE on a path counts as
+ * one: a `block`, `loop`, `if`, `try` and `try_table`, and equally every operand —
+ * `(i32.add (i32.add …))` nests as `(block (block …))` does, an `if`'s condition is one level
+ * under it, a code-metadata annotation is one level under the node holding it. The first
+ * instruction of a function body (or an initialiser) is level 1. NOT counted: the body itself, an
+ * arm of an `if` or the body of a `try` / catch (a region is a list, not a node), and how a level
+ * was written — folded `(block (block …))`, linear `block block … end end` and an unparenthesised
+ * operand chain (`i32.const 1 … i32.add …`) are the same depth. `(drop (i32.add (i32.const 0)
+ * (i32.const 1)))` is 3. A long operand chain was the lowest ceiling of all.
+ *
+ * WHERE it is held: at every entry that recurses — the readers, the parser (a token pre-scan,
+ * then the built tree), the writers, the pass runner (at its entry and AFTER EACH PASS: a pass can
+ * deepen a module), `createPass().run`, `resolveNames`, `validateModule`, `ExprVisitor`, the
+ * interpreter and the bundler.
  *
  * @license MIT
  */
@@ -32,7 +45,12 @@ import { FidelityTable } from './fidelity.ts';
 import type { Module } from './ir.ts';
 import { visitChildren } from './walk.ts';
 
-/** The deepest expression nesting binaryang accepts, on every runtime. */
+/**
+ * The deepest expression nesting binaryang accepts, on every runtime: the most expression NODES on
+ * one path from a body or initialiser to a leaf (see "THE UNIT" in the module doc: blocks, loops,
+ * ifs, trys and try_tables count, and so does every operand, folded or not; the body itself, an
+ * arm and a catch body, which are lists, do not).
+ */
 export const MAX_NESTING_DEPTH = 256;
 
 /** The words every refusal of {@link MAX_NESTING_DEPTH} uses. */
@@ -84,7 +102,18 @@ export function nestingDepth(root: Expression, stopAbove = Infinity): number {
     nodes.push(e);
     depths.push(d);
   };
-  if (root.kind === 'region') visitChildren(root, (c) => push(c, 1));
+  // A REGION (a body, an `if` arm, a `loop` or `try` body) is a list, not a level: its children
+  // are one level under the node that holds it, as {@link measure} counts them. 🔧 Only the root
+  // region was skipped, so the reader and the parser counted a `loop`, an `if` and a `try` as TWO
+  // levels and refused 129 of them nested, where the writers, the passes and the interpreter
+  // accept 256 (C-H5, 2026-11-20).
+  const pushChildren = (e: Expression, d: number) => {
+    visitChildren(e, (c) => {
+      if (c.kind === 'region') pushChildren(c, d);
+      else push(c, d + 1);
+    });
+  };
+  if (root.kind === 'region') pushChildren(root, 0);
   else push(root, 1);
   let max = 0;
   while (nodes.length > 0) {
@@ -94,7 +123,7 @@ export function nestingDepth(root: Expression, stopAbove = Infinity): number {
       max = d;
       if (max > stopAbove) return max;
     }
-    visitChildren(e, (c) => push(c, d + 1));
+    pushChildren(e, d);
   }
   return max;
 }
@@ -238,17 +267,12 @@ export interface ModuleShape {
   distinct: number;
 }
 
-/** The module's {@link moduleLimitProblem}, with its expression nodes as walked and distinct. */
-export function moduleShape(m: Module): ModuleShape {
-  return modulesShape([m]);
-}
-
 /**
- * {@link moduleShape} for several modules TOGETHER — one call's inputs (the bundler's): what they
- * share between them is measured once, so one module given as many inputs is bounded by what it
- * holds, not by how many times it is given (class 1's eighth retest).
+ * The EXPRESSION part of {@link modulesShape} alone — depth, a cycle, sharing — without the held
+ * data's walk, so it is cheap enough to run after every pass (the pass runner's re-check: a pass
+ * can deepen a module past the limit, Inlining nests a callee's body inside the call site's).
  */
-export function modulesShape(ms: readonly Module[]): ModuleShape {
+export function expressionShape(ms: readonly Module[]): ModuleShape {
   const memo = new Map<Expression, number>();
   let walked = 0;
   for (const m of ms) {
@@ -263,6 +287,23 @@ export function modulesShape(ms: readonly Module[]): ModuleShape {
   if (walked > 2 * distinct + MAX_SHARED_SLACK) {
     return { problem: subtreesExpand(walked, distinct), walked, distinct };
   }
+  return { walked, distinct };
+}
+
+/** The module's {@link moduleLimitProblem}, with its expression nodes as walked and distinct. */
+export function moduleShape(m: Module): ModuleShape {
+  return modulesShape([m]);
+}
+
+/**
+ * {@link moduleShape} for several modules TOGETHER — one call's inputs (the bundler's): what they
+ * share between them is measured once, so one module given as many inputs is bounded by what it
+ * holds, not by how many times it is given (class 1's eighth retest).
+ */
+export function modulesShape(ms: readonly Module[]): ModuleShape {
+  const shape = expressionShape(ms);
+  if (shape.problem !== undefined) return shape;
+  const { walked, distinct } = shape;
   const data = heldData(ms);
   return data.problem === undefined
     ? { walked, distinct }

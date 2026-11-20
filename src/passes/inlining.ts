@@ -81,6 +81,7 @@ import {
 } from '../ir/walk.ts';
 import { operandsInOrder } from '../ir/phantoms.ts';
 import { slots } from '../ir/derive-types.ts';
+import { MAX_NESTING_DEPTH, nestingDepth } from '../ir/nesting.ts';
 import { optimizeNode } from './optimize-instructions.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { vacuumNode } from './vacuum.ts';
@@ -1067,8 +1068,20 @@ export class InliningPass implements Pass {
       // iteration (avoids unsafe mutation of a function being read as callee).
       if (inlinedUses.has(fn.name)) continue;
 
-      const changed = inlineIntoFunction(fn, inlineable, opts, labelHint, consumed);
+      // A callee's body goes INSIDE the call site's blocks, so inlining ADDS depth: a chain of
+      // single-caller functions, each 250 deep, came out 2,000 deep — past what the next pass and
+      // the writers may recurse over (a host stack overflow on V8, a refusal on Bun: C-H2). A
+      // function the inlining would take past the nesting limit is left as it was, still correct
+      // and simply not inlined into.
+      const before = fn.body;
+      const here = new Map<string, number>();
+      const changed = inlineIntoFunction(fn, inlineable, opts, labelHint, here);
       if (!changed) continue;
+      if (nestingDepth(fn.body, MAX_NESTING_DEPTH) > MAX_NESTING_DEPTH) {
+        fn.body = before;
+        continue;
+      }
+      for (const [name, n] of here) consumed.set(name, (consumed.get(name) ?? 0) + n);
 
       anyInlined = true;
 

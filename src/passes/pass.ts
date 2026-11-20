@@ -33,7 +33,12 @@ import { isStackExhausted, NESTING_TOO_DEEP } from '../core/error.ts';
 import type { WasmModule } from '../ir/module.ts';
 import { dropWrittenTypeIndex, type Expression, ExpressionKind } from '../ir/expressions.ts';
 import { mapExpression, stripCodeMetadata } from '../ir/walk.ts';
-import { moduleShape, NestingLimitError } from '../ir/nesting.ts';
+import {
+  expressionShape,
+  moduleShape,
+  NestingLimitError,
+  requireNestingWithinLimit,
+} from '../ir/nesting.ts';
 import { unshareInPlace } from '../ir/unshare.ts';
 import { lowerBlockParams } from './lower-block-params.ts';
 import { spillStackValues } from './spill-stack-values.ts';
@@ -235,6 +240,27 @@ export function listPasses(): string[] {
  * Throws if the name is unknown.
  */
 export function createPass(name: string): Pass {
+  const pass = createRegisteredPass(name);
+  // `createPass(name).run(module, options)` is a public entry of its own: a module built through
+  // the API never passed the reader's or the parser's check, and a pass recurses once per level.
+  // A pass run by a {@link PassRunner} is already checked there (and after each pass), so the
+  // runner's module is skipped, not measured again for every pass (C-H4).
+  const run = pass.run.bind(pass);
+  Object.defineProperty(pass, 'run', {
+    value: (module: WasmModule, options: PassOptions): void => {
+      if (!underRunner.has(module)) requireNestingWithinLimit(module, `pass ${pass.name}`);
+      run(module, options);
+    },
+    writable: true,
+    configurable: true,
+  });
+  return pass;
+}
+
+/** Modules a {@link PassRunner} is running now: their passes were checked at the runner's entry. */
+const underRunner = new WeakSet<WasmModule>();
+
+function createRegisteredPass(name: string): Pass {
   let ctor = registry.get(name);
   if (!ctor) {
     // Registry names are PascalCase (`CoalesceLocals`); upstream binaryen — which
@@ -348,11 +374,15 @@ export class PassRunner {
     const shape = moduleShape(this._module);
     if (shape.problem !== undefined) throw new NestingLimitError('optimizer', shape.problem);
     unshareInPlace(this._module);
+    const reentrant = underRunner.has(this._module);
+    underRunner.add(this._module);
     try {
       this.runQueue();
     } catch (e) {
       if (isStackExhausted(e)) throw new Error(`optimizer: ${NESTING_TOO_DEEP}`);
       throw e;
+    } finally {
+      if (!reentrant) underRunner.delete(this._module);
     }
   }
 
@@ -392,6 +422,14 @@ export class PassRunner {
       if (pass.requiresNonNullableLocalFixups) {
         for (const fn of this._module.functions) handleNonDefaultableLocals(fn);
       }
+      // A pass can nest a module deeper than it was given (Inlining puts a callee's body inside the
+      // call site's blocks, once per level of a chain of single-caller functions): the NEXT pass
+      // and the writers recurse once per level, so the limit is checked again here, after each
+      // pass, and refused in its words — not left to the host's stack, which ended a run on V8
+      // and not on Bun (C-H2). Depth, cycles and sharing only: the held data's walk (the
+      // entry's) costs a full pass of its own.
+      const grown = expressionShape([this._module]).problem;
+      if (grown !== undefined) throw new NestingLimitError(`optimizer (after ${pass.name})`, grown);
     }
     this._queue.length = 0;
     // Names follow `-g` once a pass has run, as upstream: there is no original

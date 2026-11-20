@@ -438,12 +438,12 @@ name. Each limit refuses with a typed error or diagnostic; none is silent. (Secu
 | What | Limit | Past it |
 | --- | --- | --- |
 | A file the CLI reads | 1 GiB (`MAX_INPUT_BYTES`); a pipe or device read only up to it | `tool: cannot read …` |
-| Expression nesting, operands included | 256 levels (`MAX_NESTING_DEPTH`), the same on every runtime | "the module nests deeper than 256 levels, binaryang's limit on every runtime" |
+| Expression nesting: every expression node on a path counts (see below) | 256 levels (`MAX_NESTING_DEPTH`), the same on every runtime | "the module nests deeper than 256 levels, binaryang's limit on every runtime" |
 | A module built through the API that reuses objects (a node, a list, bytes, a long string) | walked, copied or written per use: at most twice what it holds, plus 1,000,000 expression nodes / 8,000,000 entries; data nested at most 1,536 objects deep (`MAX_DATA_DEPTH`); no cycle, no sparse array, no number past 64 bits | "… shared by reference expand the module to …", "the module's data nests deeper than 1536 objects …", or the cycle's, the hole's or the number's own words |
 | Locals in one function | 1,000,000 (`MAX_MATERIALIZED_LOCALS`) | decode error |
 | Locals in a whole module | 1,000,000 plus one per byte of the module (`maxModuleLocals`) | decode error |
 | CoalesceLocals | colours a function of up to 20,000 referenced locals (`COALESCE_MAX_REFERENCED_LOCALS`) | that function is left as it is (still correct) |
-| Interpreter: nested calls | 1,000 (`maxDepth`); on V8 (Node, Deno) the host's JavaScript stack can end a run first, measured at 130–440 calls | trap `call stack exhausted` at the limit; `Stop('unsupported')`, "ran out of its host's stack …", when the host's stack ends it first (no claim about the program) |
+| Interpreter: nested calls | 1,000 (`maxDepth`); on V8 (Node, Deno) the host's JavaScript stack can end a run first, measured at 130–440 calls | trap `call stack exhausted` at the limit; `Stop('unsupported')`, "ran out of its host's stack …", when the host's stack ends it first (no claim about the program). Blocks and calls share that stack: a call inside nested blocks nests the callee's blocks on top of them, so the depth that ends a run is the two added, not either alone |
 | Interpreter: locals of every active call | 4,000,000 (`maxStackLocals`) | trap `call stack exhausted` |
 | Interpreter: fuel | unlimited by default; when set, charged per instruction AND per element, per 8 bytes and per local of bulk work | `Stop('fuel')` |
 | Interpreter: a memory / a table / an array | 1 GiB / 10,000,000 / 10,000,000 elements | `Stop('unsupported')` |
@@ -453,7 +453,20 @@ byte: 1,000,000 empty functions (4 MB) took about 2 GB at peak to validate, to r
 optimizer, or to print as WAT — some 500 bytes per input byte (measured 2026-11-13, Bun 1.4.4,
 Windows). Real compiler output costs far less per byte, but a service taking untrusted modules
 should cap their size before handing them over. **Nesting** is held to one number on every
-runtime. The stages recurse once per level, so the depth they could reach was the host's
+runtime. **The unit:** the depth of the expression tree as the IR holds it. Every expression
+node on the path from a function body (or a global, segment or element initialiser) down to a
+node counts as one level — a `block`, `loop`, `if`, `try` and `try_table` each, and equally every
+operand: `(i32.add (i32.add …))` nests as `(block (block …))` does, a condition is one level
+under its `if`, a `(@metadata.code.…)` annotation is one level under the node that holds it.
+What does NOT count: the function body itself, an arm of an `if` or the body of a `try` or
+catch (a list, not a node), and how a level was written, so the folded `(block (block …))`,
+the linear `block block … end end` and an operand chain written without parentheses
+(`i32.const 1 … i32.add …`) are the same depth. The first instruction of a body is level 1:
+`(drop (i32.add (i32.const 0) (i32.const 1)))` is 3 deep. The limit holds where a module meets
+the recursive stages, not only where it is read: a pass that deepens a module (inlining puts a
+callee's blocks inside the call site's) is refused after that pass, and a module built through
+the API is refused by the writers, the passes, `resolveNames`, `validateModule`, `ExprVisitor`
+and the interpreter. The stages recurse once per level, so the depth they could reach was the host's
 JavaScript stack: measured 2026-11-13 from a cold start, 425 levels at the lowest on Node 22.18,
 24 and 26 and on Deno, 5,794 on Bun 1.4.4, and on Node one module at one depth was refused cold
 and accepted once the JIT had warmed. 256 sits under the lowest of those, with room for a
