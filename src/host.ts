@@ -328,6 +328,13 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
  *   EVERY segment after the root is checked, not all but the first (`\\?\..\x`, `\\?\UNC\..\s`).
  */
 function windowsPathProblem(path: string): string | null {
+  // Round 3: an NT-namespace `\??\` path is no ordinary path either. Bun normalised
+  // `\??\UNC\localhost\C$\<dir>\sub\..\u8.txt` on the temp open and not on rename or unlink, and
+  // left `u8.txt.<hex>.tmp` (`\??\C:\...` was already refused by the `:` rule below). Refused
+  // outright, ahead of every other rule: the same file is written as `C:\...` or `\\?\C:\...`.
+  if (path.startsWith('\\??\\')) {
+    return 'an NT-namespace \\??\\ path is not supported here: write the path as C:\\... or \\\\?\\C:\\...';
+  }
   const verbatim = path.startsWith('\\\\?\\');
   // Win32 reads `\\?\` as "no processing": a `/` is a name character to it, yet Bun normalises it
   // on the temp open and not on the rename (round 2 review: `\\?\W/sub/../fs.txt` left

@@ -74,3 +74,45 @@ describe('round 3: a `\\\\.\\X:\\...` path whose last name is a device name or e
     });
   }
 });
+
+describe('round 3: an NT-namespace `\\??\\` path is refused, and nothing stays behind', () => {
+  for (const [rt, command] of RUNTIMES) {
+    it(`${rt}: one line, no file or temp name in the folder or its parents`, () => {
+      const base = join(dir, `nt-${rt}`);
+      const w = join(base, 'w');
+      mkdirSync(join(w, 'sub'), { recursive: true });
+      const go = (target: string) => {
+        const [cmd, head] = command();
+        return spawnSync(cmd, [...head, 'wat2wasm', join(dir, 'a.wat'), '-o', target], {
+          cwd: w,
+          encoding: 'utf8',
+          timeout: 60_000,
+        });
+      };
+      if (!WIN) {
+        // The control: elsewhere `\??\x.wasm` is an ordinary file name in the folder.
+        const r = go('\\??\\x.wasm');
+        assertEquals(r.status, 0, r.stderr);
+        assertEquals(tree(w), ['\\??\\x.wasm', 'sub']);
+        return;
+      }
+      // The share form `C$` has no colon, so only the `\??\` rule can stop it.
+      const share = w.replace(':', '$');
+      const targets = [
+        `\\??\\UNC\\localhost\\${share}\\sub\\..\\u8.txt`,
+        `\\??\\UNC\\localhost\\${share}\\u9.txt`,
+        `\\??\\${w}\\u10.txt`,
+        `\\??\\GLOBALROOT\\Device\\HarddiskVolume1\\x.txt`,
+        `\\??\\Volume{00000000-0000-0000-0000-000000000000}\\x.txt`,
+      ];
+      for (const target of targets) {
+        const before = tree(dir);
+        const r = go(target);
+        assertEquals(r.status, 1, `${target}: ${r.stderr}`);
+        assert(r.stderr.includes('NT-namespace'), r.stderr);
+        assertEquals(r.stderr.trimEnd().split('\n').length, 1, r.stderr);
+        assertEquals(tree(dir), before, target); // the whole tree, parents included
+      }
+    });
+  }
+});
