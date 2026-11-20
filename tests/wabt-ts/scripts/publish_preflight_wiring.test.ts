@@ -24,6 +24,11 @@ import {
 } from '../../../scripts/release/release-run.ts';
 import { RELEASE_FILES } from '../../../scripts/release/release-guard.ts';
 import {
+  JSR_WAIT,
+  POLL_READ_TIMEOUT_MS,
+  PROVENANCE_POLL,
+} from '../../../scripts/release/registry.ts';
+import {
   parseReviewRecord,
   readReviewRecord,
   resolveCommit,
@@ -776,6 +781,16 @@ describe('the release workflows, off Deno except for the publish itself', () => 
     expect(live('jsr')).toMatch(
       /if: steps\.jsr\.outputs\.present == 'false'\n\s+run: deno publish\n/,
     );
+  });
+
+  // A job killed by its timeout prints nothing about why: the npm job outlasts the worst case of
+  // its two polls — every read hung to its limit — plus 5 minutes for its other steps.
+  it('the npm job outlasts its polls at their worst', () => {
+    const minutes = Number(/timeout-minutes: (\d+)/.exec(jobs['npm']!)?.[1]);
+    const wait = JSR_WAIT.tries * 30_000 + (JSR_WAIT.tries - 1) * JSR_WAIT.everyMs;
+    const p = PROVENANCE_POLL.npm;
+    const poll = p.tries * POLL_READ_TIMEOUT_MS + (p.tries - 1) * p.everyMs;
+    expect(minutes * 60_000).toBeGreaterThanOrEqual(wait + poll + 5 * 60_000);
   });
 
   it('the npm job: checks the tarball, skips a version npm serves, reads provenance back', () => {

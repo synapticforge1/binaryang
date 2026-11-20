@@ -119,11 +119,11 @@ export async function jsrHas(net: Net, jsrName: string, version: string): Promis
  */
 export async function jsrWait(net: Net, jsrName: string, version: string): Promise<boolean> {
   const sleep = net.sleep ?? realSleep;
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= JSR_WAIT.tries; i++) {
     try {
       if (await jsrHas(net, jsrName, version)) return true;
     } catch { /* a transient answer: the next try */ }
-    if (i < 12) await sleep(15_000);
+    if (i < JSR_WAIT.tries) await sleep(JSR_WAIT.everyMs);
   }
   return false;
 }
@@ -209,6 +209,16 @@ export const PROVENANCE_POLL = {
   jsr: { tries: 12, everyMs: 15_000 },
 } as const;
 
+/** `jsrWait`'s reads (each with the default 30 s request limit). */
+export const JSR_WAIT = { tries: 12, everyMs: 15_000 } as const;
+
+/**
+ * Each provenance read's own limit. With the 30 s default, 40 hung npm reads plus the sleeps ran
+ * past the npm job's timeout, which killed the job before the error saying why (review of this
+ * change, 2026-11-20). `publish_preflight_wiring` holds the job's timeout above the worst case.
+ */
+export const POLL_READ_TIMEOUT_MS = 10_000;
+
 /**
  * Polls a registry until the version records provenance (`PROVENANCE_POLL`), each read
  * cache-busted. JSR ingests attestation asynchronously AND caches the endpoint, so a plain re-read
@@ -229,19 +239,29 @@ export async function provenance(
   const url = provenanceUrl(registry, jsrManifest().name, version);
   const read = registry === 'npm' ? npmProvenance : jsrRekor;
   console.log(`Checking ${url} (${tries} tries, ${everyMs / 1000}s apart)`);
+  const reads: Net = { ...net, timeoutMs: net.timeoutMs ?? POLL_READ_TIMEOUT_MS };
+  // Unique per read, and per ATTEMPT of the run: a "Re-run failed jobs" keeps GITHUB_RUN_ID, so
+  // without GITHUB_RUN_ATTEMPT it would ask again for the URLs whose stale answers failed it.
+  const run = process.env['GITHUB_RUN_ID'];
+  const key = run === undefined
+    ? `${Date.now()}`
+    : `${run}-${process.env['GITHUB_RUN_ATTEMPT'] ?? 1}`;
   let served = false;
   let last = 'no answer';
   for (let i = 1; i <= tries; i++) {
     let found = '';
     try {
-      const r = await get(net, `${url}?cb=${process.env['GITHUB_RUN_ID'] ?? Date.now()}-${i}`);
+      const r = await get(reads, `${url}?cb=${key}-${i}`);
       if (r.status === 200) {
         served = true;
         found = read(r.text);
         last = 'the version record, without provenance yet';
       } else last = `HTTP ${r.status}`;
     } catch (e) {
-      last = `network error: ${e instanceof Error ? e.message : String(e)}`;
+      // One line: the text ends up in a `::error::` workflow command.
+      last = `network error: ${
+        (e instanceof Error ? e.message : String(e)).replace(/[\r\n]+/g, ' ')
+      }`;
     }
     if (found !== '') {
       const what = registry === 'npm' ? `provenance ${found}` : `Rekor log ID ${found}`;

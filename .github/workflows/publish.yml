@@ -351,7 +351,9 @@ jobs:
     needs: [checks, jsr, npm-build]
     if: ${{ !cancelled() && needs.jsr.outputs.uploaded == 'true' && needs.npm-build.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Above the worst case of its two polls (jsr-wait, then up to 10 min of provenance reads), so
+    # a slow registry ends in the poll's own error, never in a killed job: a test holds this.
+    timeout-minutes: 35
     permissions:
       contents: read
       id-token: write
