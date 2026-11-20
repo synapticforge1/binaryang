@@ -6,7 +6,13 @@
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import * as fsx from '../../test_fs.ts';
-import { failuresIn, gateHolds, judge } from '../../../scripts/release/previous-tests.ts';
+import {
+  confirmAlone,
+  failuresIn,
+  gateHolds,
+  judge,
+  passesIn,
+} from '../../../scripts/release/previous-tests.ts';
 
 const report = `<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
@@ -92,6 +98,60 @@ describe('judge: failures against the accepted list', () => {
   });
 });
 
+// 4.1.2's bump (2026-11-20): v4.1.1's coalesce_budget (a 20 s wall-clock bound, ~7 s alone)
+// failed twice inside the full parallel suite on a busy machine, against byte-identical src/.
+describe('confirmAlone: an unlisted failure is run again, its file alone', () => {
+  const lone = (cases: [string, string, 'pass' | 'fail' | 'skip'][]) =>
+    `<testsuites>${
+      cases.map(([file, name, o]) =>
+        `<testcase name="${name}" file="C:\\tmp\\x\\${file.replaceAll('/', '\\')}">${
+          o === 'fail' ? '<failure message="x">x</failure>' : o === 'skip' ? '<skipped/>' : ''
+        }</testcase>`
+      ).join('')
+    }</testsuites>`;
+  const slow = { file: 'tests/binaryen-ts/passes/b.test.ts', name: 'within budget' };
+  const broken = { file: 'tests/ir/a.test.ts', name: 'folds' };
+
+  it('passesIn reads only the passing cases, tree-relative', () => {
+    const xml = lone([['tests/ir/a.test.ts', 'p', 'pass'], ['tests/ir/a.test.ts', 'f', 'fail'], [
+      'tests/ir/a.test.ts',
+      's',
+      'skip',
+    ]]);
+    expect([...passesIn(xml)]).toEqual(['tests/ir/a.test.ts\u0000p']);
+  });
+
+  it('passing alone is timing; failing alone stays a failure; each file is run once', () => {
+    const asked: string[] = [];
+    const r = confirmAlone([slow, broken, { ...broken, name: 'other' }], (file) => {
+      asked.push(file);
+      return file === slow.file
+        ? lone([[slow.file, slow.name, 'pass']])
+        : lone([[broken.file, 'folds', 'fail'], [broken.file, 'other', 'pass']]);
+    });
+    expect(r.timing).toEqual([slow, { ...broken, name: 'other' }]);
+    expect(r.still).toEqual([broken]);
+    expect(asked).toEqual([slow.file, broken.file]);
+  });
+
+  it('no lone report, a skip, or a case the lone run never reached is NOT a pass', () => {
+    expect(confirmAlone([slow], () => null).still).toEqual([slow]);
+    expect(confirmAlone([slow], () => lone([[slow.file, slow.name, 'skip']])).still).toEqual([
+      slow,
+    ]);
+    expect(confirmAlone([slow], () => lone([[slow.file, 'another', 'pass']])).still).toEqual([
+      slow,
+    ]);
+  });
+
+  it('the run uses it: only what still fails alone reaches the verdict', () => {
+    const src = fsx.readTextFileSync('scripts/release/previous-tests.ts');
+    expect(src).toContain('const { still, timing } = confirmAlone(first.unexpected,');
+    expect(src).toContain('const j = { ...first, unexpected: still };');
+    expect(src).toContain('return gateHolds(j) ? 0 : 1;');
+  });
+});
+
 // The harness's work tree (4.1.1's bump, 2026-11-19): v4.1.0's tests failed two that were the
 // harness's doing — `resolveCommit('HEAD')` in a repository with nothing committed, and
 // corpus_roundtrip without the gitignored binaryen corpus. Read from the source: the run itself
@@ -115,7 +175,7 @@ describe('previousTests: the work tree the old tests run in', () => {
       'const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^GIT_/i.test(k)));',
     );
     const spawns = body.split('spawnSync(').slice(1).map((s) => s.slice(0, s.indexOf(')')));
-    expect(spawns.length).toBe(4);
+    expect(spawns.length).toBe(5); // + the lone re-run of a failed file (4.1.2)
     // `env: clean`, or the work tree's `env`, built on `...clean` (checked below) — never another.
     for (const s of spawns) expect(s).toMatch(/[{,]\s*env(?:: clean)?,?\s*\}/);
     expect(body).toMatch(/const env = \{\s*\.\.\.clean,/);

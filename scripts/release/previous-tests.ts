@@ -54,21 +54,33 @@ export interface Failure {
   name: string;
 }
 
-/** The failing testcases in a node:test JUnit report, files made tree-relative. */
-export function failuresIn(xml: string): Failure[] {
-  const out: Failure[] = [];
+/** Every testcase in a node:test JUnit report: its file (tree-relative), name, and verdict. */
+function testcasesIn(
+  xml: string,
+): { file: string; name: string; outcome: 'pass' | 'fail' | 'skip' }[] {
+  const out: { file: string; name: string; outcome: 'pass' | 'fail' | 'skip' }[] = [];
   const rel = (p: string) => p.replaceAll('\\', '/').replace(/^.*?(?=tests\/)/, '');
-  for (const m of xml.matchAll(/<testcase((?:\s+[\w:-]+="[^"]*")*)\s*>([\s\S]*?)<\/testcase>/g)) {
-    if (!/<failure\b/.test(m[2]!)) continue;
+  const re = /<testcase((?:\s+[\w:-]+="[^"]*")*)\s*(?:\/>|>([\s\S]*?)<\/testcase>)/g;
+  for (const m of xml.matchAll(re)) {
+    const body = m[2] ?? '';
     const file = /\bfile="([^"]+)"/.exec(m[1]!)?.[1] ?? '?';
     const name = (/\bname="([^"]*)"/.exec(m[1]!)?.[1] ?? '?').replace(/&quot;/g, '"').replace(
       /&amp;/g,
       '&',
     )
       .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&apos;/g, "'");
-    out.push({ file: rel(file), name });
+    const outcome = /<failure\b/.test(body) ? 'fail' : /<skipped\b/.test(body) ? 'skip' : 'pass';
+    out.push({ file: rel(file), name, outcome });
   }
   return out;
+}
+
+/** The failing testcases in a node:test JUnit report, files made tree-relative. */
+export function failuresIn(xml: string): Failure[] {
+  return testcasesIn(xml).filter((c) => c.outcome === 'fail').map(({ file, name }) => ({
+    file,
+    name,
+  }));
 }
 
 /** Splits failures into those the accepted list explains and those it does not; and stale entries. */
@@ -81,6 +93,40 @@ export function judge(failures: Failure[], accepted: AcceptedChange[]) {
     accepted: failures.filter((f) => listed.has(key(f))),
     stale: accepted.filter((a) => !failing.has(key(a))),
   };
+}
+
+/** The PASSING testcases in a node:test JUnit report, as `file\0name` keys (files tree-relative). */
+export function passesIn(xml: string): Set<string> {
+  return new Set(
+    testcasesIn(xml).filter((c) => c.outcome === 'pass').map((c) => `${c.file}\u0000${c.name}`),
+  );
+}
+
+/**
+ * Splits the unexpected failures by a second run of each one's FILE alone (4.1.2's bump,
+ * 2026-11-20: v4.1.1's coalesce_budget — a 20 s wall-clock bound, ~7 s alone — failed twice inside
+ * the full parallel suite on a machine busy with other work, against byte-identical `src/`). A
+ * test that PASSES alone failed on time, not on behaviour: `timing`, reported, not counted. One
+ * that fails alone, or that the lone run never reported, stays `still` and fails the gate. A real
+ * slowdown fails alone too. `rerun(file)` gives that file's lone JUnit report, or null.
+ */
+export function confirmAlone(
+  unexpected: Failure[],
+  rerun: (file: string) => string | null,
+): { still: Failure[]; timing: Failure[] } {
+  const reports = new Map<string, Set<string> | null>();
+  const still: Failure[] = [];
+  const timing: Failure[] = [];
+  for (const f of unexpected) {
+    if (!reports.has(f.file)) {
+      const xml = rerun(f.file);
+      reports.set(f.file, xml === null ? null : passesIn(xml));
+    }
+    const passed = reports.get(f.file);
+    if (passed?.has(`${f.file}\u0000${f.name}`)) timing.push(f);
+    else still.push(f);
+  }
+  return { still, timing };
 }
 
 /**
@@ -178,12 +224,33 @@ export function previousTests(ref = lastReleaseTag()): number {
     }
     const accepted =
       (JSON.parse(readFileSync(ACCEPTED, 'utf8')) as { entries: AcceptedChange[] }).entries;
-    const j = judge(failuresIn(xml), accepted);
+    const first = judge(failuresIn(xml), accepted);
+    // Each unlisted failure's file once more, ALONE, in the same tree and environment.
+    let reruns = 0;
+    const { still, timing } = confirmAlone(first.unexpected, (file) => {
+      const lone = join(dir, `alone-${reruns++}.xml`);
+      const f = ['--test', '--test-reporter=junit', `--test-reporter-destination=${lone}`];
+      const [b, a] = nodeCommand(REFEREE, f, file, []);
+      spawnSync(b, a, { cwd: dir, stdio: 'ignore', env: clean });
+      try {
+        return readFileSync(lone, 'utf8');
+      } catch {
+        return null;
+      }
+    });
+    const j = { ...first, unexpected: still };
     console.log(
       `previous tests (${ref}'s tests/ on this tree's src/): ${total} tests, ${
-        j.accepted.length + j.unexpected.length
-      } failed, ${j.accepted.length} accepted`,
+        first.accepted.length + first.unexpected.length
+      } failed, ${j.accepted.length} accepted${
+        timing.length > 0 ? `, ${timing.length} passed when run alone` : ''
+      }`,
     );
+    for (const f of timing) {
+      console.log(
+        `  ~ passed ALONE (failed on time in the full run, not on behaviour): ${f.file} — ${f.name}`,
+      );
+    }
     for (const f of j.unexpected) console.error(`  ✗ NOT accepted: ${f.file} — ${f.name}`);
     for (const s of j.stale) {
       console.error(`  ✗ STALE entry (no longer fails): ${s.file} — ${s.name} (since ${s.since})`);
