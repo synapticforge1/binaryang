@@ -66,4 +66,35 @@ describe('ConstantPropagation: work bounded by blocks and set locals', () => {
     expect(JSON.stringify(big.body, (_k, v) => typeof v === 'bigint' ? String(v) : v)).toBe(body);
     expect(await call(bigBytes, 1)).toBe(1);
   });
+
+  // What SSANoMerge feeds it, under the LocalGraph budget (round 3 review: PrecomputePropagate
+  // 4.3 s and 5.2 GB after SSANoMerge on 10,000 `x = i; if (x) nop`; -O3 5.3 GB).
+  const afterSsa = (wat: string) => {
+    const m = readForPasses(bytesOf(wat));
+    new PassRunner(m, {}).add('SSANoMerge').run();
+    const t = performance.now();
+    new PassRunner(m, {}).add('PrecomputePropagate').run();
+    return performance.now() - t;
+  };
+
+  it('after SSANoMerge: 9,000 `x = i; if (x) nop` under 3 s', () => {
+    const wat = `(module (func (export "f") (param i32) (result i32) (local i32)
+      ${rep(9000, (i) => `(local.set 1 (i32.const ${i})) (if (local.get 1) (then (nop)))`)}
+      (i32.add (local.get 0) (local.get 1))))`;
+    expect(afterSsa(wat)).toBeLessThan(3000); // 9,002 locals, each set its own; measured ~0.1 s; the dense states: ~4 s, 5 GB
+  });
+
+  it('after SSANoMerge: 9,000 `if (a) x = i` under 3 s', () => {
+    const wat = `(module (func (export "f") (param i32) (result i32) (local i32)
+      ${rep(9000, (i) => `(if (local.get 0) (then (local.set 1 (i32.const ${i}))))`)}
+      (local.get 1)))`;
+    expect(afterSsa(wat)).toBeLessThan(3000);
+  });
+
+  it('20,000 locals nothing sets, 20,000 ifs: under 3 s', () => {
+    const m = readForPasses(bytesOf(unsetWat(20_000, 20_000)));
+    const t = performance.now();
+    new PassRunner(m, {}).add('PrecomputePropagate').run();
+    expect(performance.now() - t).toBeLessThan(3000); // the dense states: 36 s and 16 GB at -O2 on Bun
+  });
 });
