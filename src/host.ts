@@ -422,8 +422,22 @@ export async function cliWrite(
  * module can exceed the pipe buffer, and a process that exits before the flush
  * completes truncates its own output.
  */
-export function writeStdout(data: Uint8Array): Promise<void> {
+export function writeStdout(data: Uint8Array | string): Promise<void> {
   return writeStream('stdout', data);
+}
+
+/**
+ * Output of a CLI tool to stdout, awaited: a write that fails (EPIPE from a reader that left,
+ * ENOSPC, EBADF) is a one-line `tool: cannot write standard output: …` and exit 1, as a file write
+ * is. 🔧 Through 4.1.2 `-o -` in wasm-bundle, wasm-ctor-eval and wasm-opt called an unawaited
+ * `stdout.write` with no handler (4.1.0 notes review, Q-H4). A string gets no newline added.
+ */
+export async function cliWriteStdout(tool: string, data: Uint8Array | string): Promise<void> {
+  try {
+    await writeStdout(data);
+  } catch (e) {
+    cliFail(tool, `cannot write standard output: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /** One line of {@link selfCheck}'s report. */

@@ -5,7 +5,7 @@
 
 import { after, before, describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   closeSync,
@@ -226,6 +226,37 @@ describe('Q-H3: a \\\\?\\ path is the real file it names, even ending in a devic
       assert(existsSync(join(sub, 'nul')));
     }
   });
+});
+
+describe('Q-H4: a write to standard output that fails is a one-line exit 1', () => {
+  // The reader is gone before the tool writes (the read end of its stdout pipe is destroyed at
+  // once): EPIPE. Through 4.1.2 wasm-bundle, wasm-ctor-eval and wasm-opt wrote `-o -` through an
+  // unawaited `stdout.write` with no handler: no message, exit 0 or an unhandled error.
+  const cases: [string, string[]][] = [
+    ['wat2wasm', ['a.wat']],
+    ['wasm2wat', ['in.wasm']],
+    ['wasm-bundle', ['in.wasm', '-o', '-']],
+    ['wasm-opt', ['in.wasm', '-o', '-']],
+    ['wasm-opt', ['a.wat', '-o', '-']],
+    ['wasm-ctor-eval', ['in.wasm', '-o', '-']],
+    ['wasm-bundle', ['in.wasm', '-o', '/dev/stdout']],
+  ];
+  for (const [tool, args] of cases) {
+    it(`${tool} ${args.join(' ')}: EPIPE`, async () => {
+      assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+      const c = spawn('bun', [MAIN, tool, ...args], {
+        cwd: dir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      c.stdout.destroy();
+      let err = '';
+      c.stderr.on('data', (d) => (err += d));
+      const status = await new Promise<number | null>((done) => c.on('close', done));
+      assertEquals(status, 1, err);
+      const last = err.trimEnd().split('\n').pop()!;
+      assert(/^[a-z0-9-]+: cannot write .*EPIPE/.test(last), err);
+    });
+  }
 });
 
 describe('H-3: a folder that refuses new files, around a writable output', () => {

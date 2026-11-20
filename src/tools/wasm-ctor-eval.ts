@@ -72,6 +72,7 @@ import {
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
+  cliWriteStdout,
   fsRead,
   writesToStdout,
 } from '../host.ts';
@@ -694,8 +695,8 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     cliExit(1);
   }
   if (outPath === '-') {
-    if (typeof result.output === 'string') console.log(result.output);
-    else cliProcess().stdout.write(result.output);
+    const out = typeof result.output === 'string' ? result.output + '\n' : result.output;
+    await cliWriteStdout('wasm-ctor-eval', out);
     return;
   }
   // In place in the input's own format stays allowed (atomic); a change of format is refused.

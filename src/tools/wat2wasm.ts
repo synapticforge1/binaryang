@@ -63,7 +63,7 @@ import {
   cliRead,
   cliRefuseOverwritingInput,
   cliWrite,
-  writeStdout,
+  cliWriteStdout,
 } from '../host.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
@@ -299,6 +299,6 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     await cliRefuseOverwritingInput('wat2wasm', [input], output);
     await cliWrite('wat2wasm', output, binary);
   } else {
-    await writeStdout(binary);
+    await cliWriteStdout('wat2wasm', binary);
   }
 }
