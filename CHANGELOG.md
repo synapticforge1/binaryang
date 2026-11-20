@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.1.2
+
+The same package as 4.1.1 — **nothing in it changed**. The release workflow changed: after
+publishing to npm it now waits up to 10 minutes for npm to show the version's provenance (it
+waited 3, and npm took 3 to 4 minutes at 4.0.0 and 4.1.1, so both of those publish runs ended red
+with everything published). Each check says what the registry answered, so a refusal or a rate
+limit is no longer reported as missing provenance.
+
 ## 4.1.1
 
 A patch release: two fixes from [issue #1](https://github.com/synapticforge1/binaryang/issues/1),
