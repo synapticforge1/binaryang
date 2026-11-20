@@ -10,6 +10,7 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import type { Invoke, SpecInput } from './differential.ts';
+import type { ScriptInput } from './script-run.ts';
 import { needsWrapper, type Sig } from './v128.ts';
 
 /** Every binary module with invocations after it, in manifest order; names start with `prefix`. */
@@ -62,4 +63,21 @@ export function collectInputs(root: string, prefix = ''): SpecInput[] {
     }
   }
   return inputs;
+}
+
+/** Every prepared manifest as a script to run against its expected values (`script-run.ts`). */
+export function collectScripts(root: string, prefix = ''): ScriptInput[] {
+  const out: ScriptInput[] = [];
+  const dirs = readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) =>
+    e.name
+  ).sort();
+  for (const d of dirs) {
+    try {
+      const manifest = JSON.parse(readFileSync(`${root}/${d}/${d}.json`, 'utf8'));
+      out.push({ name: `${prefix}${d}`, dir: `${root}/${d}`, commands: manifest.commands });
+    } catch {
+      // A directory without a manifest is not a script.
+    }
+  }
+  return out;
 }

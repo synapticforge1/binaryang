@@ -210,7 +210,7 @@ Each import below is the JSR name; from npm, each starts with `@synapticforge1/b
 
 **No external dependencies.** binaryang's reader, validator, writers, text tools and optimizer are
 entirely its own TypeScript; it has no external dependencies beyond the standard Node and Deno
-packages, and calls no external tool. Upstream tools (`wast2json`, `wasm-tools`, upstream binaryen)
+packages, and calls no external tool. Upstream tools (`wast2json`, `wat2wasm`, `wasm-tools`, upstream binaryen)
 are used only by the repository's tests and its separate comparison suite — never by the published
 package. The `compat/*` subpaths reproduce upstream's API _shapes_; they do not load upstream.
 

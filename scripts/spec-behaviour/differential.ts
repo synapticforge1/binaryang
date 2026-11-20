@@ -13,10 +13,13 @@
  * that every gate had passed (Q1–Q8 in cmem/divergences.md), one a silent
  * -O2 miscompile shipped in 1.5.4.
  *
- * **The oracle is the original module, run by the engine.** Each invocation's
+ * **The oracle HERE is the original module, run by the engine.** Each invocation's
  * outcome on the original — a value, compared by bits, or a trap — must be the
- * outcome on every variant. So the manifests' `expected` values are never
- * needed, and our code never decides what is right. The variants:
+ * outcome on every variant, so our code never decides what is right. That is a
+ * differential, and shares the engine's mistakes with the original: the spec's OWN
+ * expected values are checked beside it, over the whole script and with the
+ * bytes NaN payloads need, by `script-run.ts` (C-R2-5, security review round 4).
+ * The variants:
  *
  * - `round trip` — what the tools do: the one reader through `readForPasses`,
  *   the one writer through `writeWasm`, no pass.
@@ -122,10 +125,10 @@ const LEVELS: [string, PassOptions['optimizeLevel'], PassOptions['shrinkLevel']]
  * HOST applies: it supplies its imports under the new names and calls the
  * exports by them.
  */
-type Made = Uint8Array | { bytes: Uint8Array; map: MinifyMap };
+export type Made = Uint8Array | { bytes: Uint8Array; map: MinifyMap };
 
 /** Every variant, built lazily so one that throws is refused alone. */
-function variants(bytes: Uint8Array): [string, () => Made][] {
+export function variants(bytes: Uint8Array): [string, () => Made][] {
   const out: [string, () => Made][] = [];
   out.push(['round trip', () => writeWasm(readForPasses(bytes))]);
   for (const [level, o, s] of LEVELS) {
@@ -164,7 +167,7 @@ function variants(bytes: Uint8Array): [string, () => Made][] {
 }
 
 /** The names a host uses for `map`'s module: export old → new, import new → old. */
-function renaming(map: MinifyMap | undefined) {
+export function renaming(map: MinifyMap | undefined) {
   const exports = new Map(map?.exports ?? []);
   const imports = new Map(
     (map?.imports ?? []).map(([m, f, n]) => [`${map!.module ?? m}\0${n}`, [m, f] as const]),
@@ -177,7 +180,7 @@ function renaming(map: MinifyMap | undefined) {
 }
 
 /** The testsuite's `spectest` module, as `spec/interpreter` defines it. */
-function spectest(name: string): unknown {
+export function spectest(name: string): unknown {
   switch (name) {
     case 'global_i32':
       return new WebAssembly.Global({ value: 'i32', mutable: false }, 666);
@@ -233,7 +236,7 @@ function importsFor(
 }
 
 /** An argument as the manifest spells it, as the JS API takes it. */
-function arg(a: { type: string; value: unknown }): unknown {
+export function arg(a: { type: string; value: unknown }): unknown {
   const v = a.value as string;
   switch (a.type) {
     case 'i32':
