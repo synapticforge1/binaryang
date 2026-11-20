@@ -66,12 +66,17 @@ const coalesce = (m: WasmModule) =>
   new PassRunner(m, { ...defaultPassOptions, optimizeLevel: 2 }).add('CoalesceLocals').run();
 
 /**
- * This process's CPU time in ms (user + system). The bounds below catch a quadratic pass —
- * minutes of CPU. Wall time also counts every other test file sharing the machine: the budget
- * test's 20 s wall bound failed at 20.5 s, and at 28.7 s, inside full parallel runs that took
- * ~7 s alone (Q-H5, 2026-11-20). CPU time grows far less, but it does grow (cache and SMT
- * sharing): measured on win-x64 with 24 busy workers, the budget span 6.5 s → 12.7 s of CPU,
- * the 1,000,000-local span 1.1 s → 2.2 s. Each bound sits about 3× above its loaded figure.
+ * This process's CPU time in ms (user + system), for the two bounds below. Wall time also counts
+ * every other test file sharing the machine: the budget test's 20 s wall bound failed at 20.5 s,
+ * and at 28.7 s, inside full parallel runs that took ~7 s alone (Q-H5, 2026-11-20). CPU time
+ * grows far less, but it does grow (cache and SMT sharing): measured on win-x64 with 24 busy
+ * workers, the budget span 6.5 s → 12.7 s of CPU, the 1,000,000-local span 1.1 s → 2.2 s. The
+ * budget bound sits ~3× above its loaded figure, the 1,000,000-local bound ~13×.
+ *
+ * What each guards: the ORIGINAL quadratic (the header: hours at 1,000,000 locals) is caught by
+ * the 1,000,000-local test and by the cap ("one past it is left as it is"); at the 20,000-local
+ * cap it would cost only ~1 s, so the budget test does not see it — the budget test bounds the
+ * current bitset colouring's own cost at the cap.
  */
 const cpuMs = () => {
   const u = process.cpuUsage();
@@ -148,7 +153,7 @@ describe('security round 2 — CoalesceLocals is bounded by the input, not by th
     const m = readForPasses(allLive(COALESCE_MAX_REFERENCED_LOCALS));
     const t = cpuMs();
     coalesce(m);
-    // 40 s of CPU: ~3× the loaded figure above; a 6× slowdown (~40 s) fails, a quadratic one by far.
+    // 40 s of CPU: ~3× the loaded 12.7 s; a 6× slowdown of the colouring (6.5 s alone) fails.
     expect(cpuMs() - t).toBeLessThan(40_000);
     // none can share: all live together
     expect(m.functions[0]!.locals.length).toBe(COALESCE_MAX_REFERENCED_LOCALS);
