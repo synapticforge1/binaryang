@@ -8,11 +8,17 @@ import { assert, assertEquals } from '@std/assert';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  closeSync,
+  constants,
   existsSync,
+  mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
+  readSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -160,6 +166,65 @@ describe('H-2: the null device is the device, on every OS', () => {
       );
     }
     assertEquals(readdirSync(dir).filter((n) => /^(con|stdout|1)/i.test(n)), []);
+  });
+});
+
+describe('Q-H2: -o to a FIFO with no reader is refused, not waited on for ever', () => {
+  const WASM = [0x00, 0x61, 0x73, 0x6d];
+  it('no reader: exit 1 at once, naming the FIFO and why', () => {
+    // Windows has no FIFO; its named pipe that is not there is refused at once too (ENOENT).
+    const fifo = process.platform === 'win32'
+      ? `\\\\.\\pipe\\binaryang-no-such-pipe-${process.pid}`
+      : join(dir, 'noreader.fifo');
+    if (process.platform !== 'win32') assertEquals(spawnSync('mkfifo', [fifo]).status, 0);
+    const t0 = Date.now();
+    const r = run('wat2wasm', 'a.wat', '-o', fifo);
+    assertEquals(r.status, 1, `${r.stderr} ${r.error}`);
+    assert(Date.now() - t0 < 20_000, 'it waited');
+    assert(r.stderr.includes(fifo), r.stderr);
+    if (process.platform !== 'win32') assert(r.stderr.includes('FIFO with no reader'), r.stderr);
+  });
+  it('with a reader the module arrives whole (POSIX; the control on Windows is a file)', () => {
+    if (process.platform === 'win32') {
+      assertEquals(run('wat2wasm', 'a.wat', '-o', 'ctl.wasm').status, 0);
+      assertEquals([...readFileSync(join(dir, 'ctl.wasm')).subarray(0, 4)], WASM);
+      return;
+    }
+    const fifo = join(dir, 'reader.fifo');
+    assertEquals(spawnSync('mkfifo', [fifo]).status, 0);
+    // This process is the reader: a non-blocking read open succeeds with no writer yet.
+    const fd = openSync(fifo, constants.O_RDONLY | constants.O_NONBLOCK);
+    try {
+      const r = run('wat2wasm', 'a.wat', '-o', fifo);
+      assertEquals(r.status, 0, r.stderr);
+      const buf = new Uint8Array(4096);
+      const n = readSync(fd, buf, 0, buf.length, null);
+      assertEquals([...buf.subarray(0, 4)], WASM);
+      assert(n > 8, String(n));
+    } finally {
+      closeSync(fd);
+    }
+    assert(!statSync(fifo).isFile(), 'the FIFO was replaced by a file');
+  });
+});
+
+describe('Q-H3: a \\\\?\\ path is the real file it names, even ending in a device name', () => {
+  it('writes the file (Windows); a file named nul elsewhere (the control)', () => {
+    const sub = join(dir, 'q3');
+    mkdirSync(sub);
+    if (process.platform === 'win32') {
+      for (const name of ['nul', 'CON', 'aux.']) {
+        const target = '\\\\?\\' + join(sub, name);
+        const r = run('wat2wasm', 'a.wat', '-o', target);
+        assertEquals(r.status, 0, `${name}: ${r.stderr}`);
+        assert(existsSync(target), `${name}: no file was made`);
+        assertEquals([...readFileSync(target).subarray(0, 4)], [0x00, 0x61, 0x73, 0x6d], name);
+        rmSync(target);
+      }
+    } else {
+      assertEquals(run('wat2wasm', 'a.wat', '-o', join(sub, 'nul')).status, 0);
+      assert(existsSync(join(sub, 'nul')));
+    }
   });
 });
 

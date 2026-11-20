@@ -156,8 +156,13 @@ function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | string): Pr
   });
 }
 
-/** The bare device name (`NUL`, `CON`, `COM1` …) `path` names on Windows, or `null`. */
+/**
+ * The bare device name (`NUL`, `CON`, `COM1` …) `path` names on Windows, or `null`. A `\\?\` path
+ * is never a device: Win32 does no device-name parsing after that prefix, so `\\?\C:\x\nul` names
+ * a real file called `nul` (4.1.0 notes review, Q-H3; `\\.\NUL`, with a dot, is the device).
+ */
 async function windowsDeviceName(path: string): Promise<string | null> {
+  if (path.startsWith('\\\\?\\')) return null;
   const { basename } = await import('node:path');
   const m = WINDOWS_DEVICE.exec(path === '/dev/null' ? 'NUL' : basename(path));
   return m === null ? null : m[1]!.toUpperCase();
@@ -179,6 +184,43 @@ export async function isDevice(path: string): Promise<boolean> {
     return !st.isFile() && !st.isDirectory();
   } catch {
     return false;
+  }
+}
+
+/**
+ * Writes `data` into the FIFO at `path`, refusing at once when nothing has it open for reading.
+ * 🔧 Opening a FIFO for writing blocks until a reader opens it, so `-o <FIFO>` with no reader hung
+ * the tool for ever (4.1.0 notes review, Q-H2). A non-blocking open fails with ENXIO exactly then.
+ * That probe handle stays open until the blocking one is, so the reader never sees the FIFO's last
+ * writer leave and end its input early. (Only a reader that exits in the instant between the two
+ * opens can still leave the write waiting.) Windows has no FIFO: a named pipe that does not exist
+ * (`\\.\pipe\x`) is refused at once with ENOENT there (measured 2026-11-20), so nothing hangs.
+ */
+async function writeFifo(path: string, data: Uint8Array | string): Promise<void> {
+  const { constants, open } = await import('node:fs/promises');
+  let probe;
+  try {
+    probe = await open(path, constants.O_WRONLY | constants.O_NONBLOCK);
+  } catch (e) {
+    if ((e as { code?: string }).code === 'ENXIO') {
+      throw new Error(
+        `it is a FIFO with no reader: start the reader first (for example \`cat ${path}\`), ` +
+          'then write',
+      );
+    }
+    throw e;
+  }
+  try {
+    const out = await open(path, constants.O_WRONLY);
+    try {
+      await probe.close();
+      probe = undefined;
+      await out.writeFile(data);
+    } finally {
+      await out.close();
+    }
+  } finally {
+    await probe?.close();
   }
 }
 
@@ -239,6 +281,7 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // its target has no path, so realpath failed with ENOENT (4.1.0 notes review, linux-x64).
   const direct = await stat(path).catch(() => undefined);
   if (direct !== undefined && !direct.isFile() && !direct.isDirectory()) {
+    if (direct.isFIFO()) return writeFifo(path, data);
     await writeFile(path, data);
     return;
   }
