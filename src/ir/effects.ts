@@ -122,7 +122,6 @@ export function shallowEffects(expr: Expression): Effects {
     case ExpressionKind.RefTest:
     case ExpressionKind.AnyConvertExtern:
     case ExpressionKind.ExternConvertAny:
-    case ExpressionKind.StructNew:
     case ExpressionKind.ArrayNewFixed:
     case ExpressionKind.SIMDExtract:
     case ExpressionKind.SIMDReplace:
@@ -219,6 +218,12 @@ export function shallowEffects(expr: Expression): Effects {
       break;
     case ExpressionKind.ArrayNewData:
       e.trap = e.readsMemory = true;
+      break;
+    case ExpressionKind.StructNew:
+      // `struct.new_desc` / `struct.new_default_desc` (custom descriptors) TRAP on a null
+      // descriptor. Upstream asks whether the descriptor's type is nullable; this keeps the trap for
+      // every descriptor operand, which only costs a removal that was safe.
+      if (expr.desc !== undefined) e.trap = true;
       break;
     case ExpressionKind.ArrayNewElem:
       e.trap = e.readsTable = true;

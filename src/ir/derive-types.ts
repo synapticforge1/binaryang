@@ -604,14 +604,27 @@ class Deriver {
       case ExpressionKind.RefCast:
         return { heapType: e.heapType, nullable: e.nullable } as ValueType;
       case ExpressionKind.RefGetDesc: {
-        // `(ref (exact? $y))`, `$y` the descriptor of the named type; exact
-        // when the operand is.
+        // `(ref (exact? $y))`, `$y` the descriptor of the named type. EXACT only when the operand is
+        // exact AND of the named type itself — `(ref (exact $c))` under `ref.get_desc $a` gives
+        // `(ref $b)`, its own descriptor being a SUBtype of `$a`'s — or the bottom type `none`
+        // (`ref.null none`). The engine's rule, and the spec testsuite's (`ref_get_desc.wast`).
+        // 🔧 Exactness followed any exact operand, and none of the bottom: `--flatten`, which types
+        // its temporary by the expression, then wrote modules the engine refused (`ref_get_desc.0`,
+        // `.1` and `.9` of the proposal's corpus, found by the spec-expected check).
         const t = this.typeEntry(e.typeVar);
         if (t.descriptor === undefined) {
           throw new Error('derive-types: ref.get_desc names a type without a descriptor');
         }
         const operand = typeOf(e.ref);
-        const exact = isRefType(operand) && operand.heapType.kind === 'exact';
+        const named = e.typeVar.kind === 'index' ? e.typeVar.value : this.m.typeIndex(e.typeVar);
+        const exact = operand === ValType.NullRef ||
+          (isRefType(operand) &&
+            ((operand.heapType.kind === 'exact' &&
+              (operand.heapType.type.kind === 'index'
+                  ? operand.heapType.type.value
+                  : this.m.typeIndex(operand.heapType.type)) === named) ||
+              (operand.heapType.kind === 'abstract' &&
+                operand.heapType.name === AbstractHeapType.None)));
         return exact ? this.gcRefExact(t.descriptor) : this.gcRef(t.descriptor);
       }
       case ExpressionKind.BrOn:

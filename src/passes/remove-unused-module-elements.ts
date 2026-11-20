@@ -50,6 +50,7 @@ import { elemFuncNames, type WasmModule } from '../ir/module.ts';
 import type { FuncSignature, Var } from '../ir/ir.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { walkExpression } from '../ir/walk.ts';
+import { deepEffects } from '../ir/effects.ts';
 import { requireName } from '../ir/ir.ts';
 import { ExternalKind } from '../core/binary.ts';
 
@@ -184,6 +185,16 @@ function _removeUnused(module: WasmModule): void {
   for (const global of module.globals) {
     if (importedGlobals.has(global.name) || global.init === undefined) continue;
     _collectGlobalRefs(global.init, liveGlobals);
+  }
+
+  // A global whose initializer can TRAP stays: the trap is the instance failing to instantiate
+  // (`struct.new_desc` with a null descriptor, custom descriptors), and removing the global would
+  // let a module the spec says is uninstantiable instantiate (spec testsuite
+  // `proposals/custom-descriptors/struct_new_desc.wast`, the three `assert_trap (module …)`).
+  // Upstream's pass keeps it too.
+  for (const global of module.globals) {
+    if (importedGlobals.has(global.name) || global.init === undefined) continue;
+    if (deepEffects(global.init).trap) liveGlobals.add(global.name);
   }
 
   // Globals read by the module's other constant expressions. 🔧 Missing: an
