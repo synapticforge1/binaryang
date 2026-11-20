@@ -209,6 +209,49 @@ describe('Q-H2: -o to a FIFO with no reader is refused, not waited on for ever',
   });
 });
 
+describe('privacy: a path from the command line is printable in every message', () => {
+  // 4.1.x review: cliRead / cliWrite and the FIFO hint carried the path raw, and Node's own error
+  // text quotes it too (`ENOENT … open '<path>'`), so an ESC in a path acted on the terminal.
+  const ESC = '\x1b';
+  const bad = `nodir${ESC}[31mRED${ESC}[0m/x.wasm`;
+  it('-o a path with ESC: one line, no ESC byte, the escape written out', () => {
+    const r = run('wat2wasm', 'a.wat', '-o', bad);
+    assertEquals(r.status, 1, r.stderr);
+    assert(!r.stderr.includes(ESC), JSON.stringify(r.stderr));
+    assert(r.stderr.includes('\\u001b[31mRED'), r.stderr);
+    assertEquals(r.stderr.trimEnd().split('\n').length, 1, r.stderr);
+  });
+  it('an input path with ESC and BEL', () => {
+    const r = run('wat2wasm', `no${ESC}]52;c;AAAA\x07.wat`);
+    assertEquals(r.status, 1, r.stderr);
+    assert(!r.stderr.includes(ESC) && !r.stderr.includes('\x07'), JSON.stringify(r.stderr));
+    assert(r.stderr.includes('cannot read'), r.stderr);
+  });
+  it('a FIFO with no reader: the hint is shell-quoted, exact for any path it can name', () => {
+    if (process.platform === 'win32') return; // no FIFO there
+    for (const name of ['my fifo', "it's", 'a"b$(x)`y`;z']) {
+      const fifo = join(dir, `${name}.fifo`);
+      assertEquals(spawnSync('mkfifo', [fifo]).status, 0);
+      const r = run('wat2wasm', 'a.wat', '-o', fifo);
+      assertEquals(r.status, 1, r.stderr);
+      const m = /for example `cat (.*)`\)/.exec(r.stderr);
+      assert(m !== null, r.stderr);
+      // The shell reads the quoted word back as exactly the path, whatever its bytes.
+      const back = spawnSync('bash', ['-c', `printf %s ${m![1]}`], { encoding: 'utf8' });
+      assertEquals(back.stdout, fifo, name);
+    }
+  });
+  it('a FIFO whose name has ESC: no ESC byte, and no example command', () => {
+    if (process.platform === 'win32') return;
+    const fifo = join(dir, `e${ESC}[31mfifo`);
+    assertEquals(spawnSync('mkfifo', [fifo]).status, 0);
+    const r = run('wat2wasm', 'a.wat', '-o', fifo);
+    assertEquals(r.status, 1, r.stderr);
+    assert(!r.stderr.includes(ESC), JSON.stringify(r.stderr));
+    assert(r.stderr.includes('FIFO with no reader') && !r.stderr.includes('for example'), r.stderr);
+  });
+});
+
 describe('Q-H3: a \\\\?\\ path is the real file it names, even ending in a device name', () => {
   it('writes the file (Windows); a file named nul elsewhere (the control)', () => {
     const sub = join(dir, 'q3');

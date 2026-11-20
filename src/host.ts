@@ -30,6 +30,7 @@
  */
 
 import type nodeProcess from 'node:process';
+import { printable } from './core/printable.ts';
 
 // ⚠️ NO RUNTIME `node:` IMPORT IN THIS FILE, and none in the tools that use it (open-work 28,
 // 2026-10-12). A top-level `import … from 'node:process'` made every module that reached this
@@ -245,10 +246,12 @@ async function writeFifo(path: string, data: Uint8Array | string): Promise<void>
     probe = await open(path, constants.O_WRONLY | constants.O_NONBLOCK);
   } catch (e) {
     if ((e as { code?: string }).code === 'ENXIO') {
-      throw new Error(
-        `it is a FIFO with no reader: start the reader first (for example \`cat ${path}\`), ` +
-          'then write',
-      );
+      // The example command is given only where it can be exact: a path with a byte that acts
+      // when printed (ESC, a line break …) is escaped in the message, and an escaped name is not
+      // the file's. Elsewhere it is single-quoted, `'` written `'\''`, which no byte escapes.
+      const quoted = `'${path.split("'").join("'\\''")}'`;
+      const example = printable(path) === path ? ` (for example \`cat ${quoted}\`)` : '';
+      throw new Error(`it is a FIFO with no reader: start the reader first${example}, then write`);
     }
     throw e;
   }
@@ -425,9 +428,14 @@ export function baseName(path: string): string {
   return trimmed.slice(at + 1);
 }
 
-/** Exit with a one-line `tool: message` on stderr. Never returns. */
+/**
+ * Exit with a one-line `tool: message` on stderr. Never returns. The message is PRINTABLE: a path
+ * from the command line, and the system's own error text quoting it (`ENOENT … open '<path>'`),
+ * went to the terminal raw, so an ESC in a path acted there (4.1.x review, privacy note; the
+ * review process says paths are escaped). Line breaks and tabs are kept.
+ */
 export function cliFail(tool: string, message: string): never {
-  console.error(`${tool}: ${message}`);
+  console.error(`${tool}: ${printable(message, { keepLines: true })}`);
   cliExit(1);
 }
 
