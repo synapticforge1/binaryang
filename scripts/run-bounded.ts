@@ -10,7 +10,9 @@
  *
  * Synchronous for its callers: `runBounded()` runs THIS file as a child, which spawns the command
  * and, at the limit, kills the tree (`taskkill /T /F` on win32; the process group, made with
- * `detached`, elsewhere), then reports `{ status, timedOut }` as one line of JSON.
+ * `detached`, elsewhere), then reports `{ status, timedOut, failed? }` as one line of JSON.
+ * Interrupted or terminated itself, it kills the tree first; a run that could not start says why
+ * in `failed`, never as a timeout.
  */
 
 import { spawn, spawnSync } from 'node:child_process';

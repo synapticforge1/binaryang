@@ -25,7 +25,8 @@ const alive = (pid: number) => {
 /** Ends a leftover process. On win32 by taskkill: the runtime's own kill misses one it did not start. */
 const stop = (pid: number) => {
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    const taskkill = join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'taskkill.exe');
+    spawnSync(taskkill, ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', timeout: 30_000 });
   } else {
     try {
       process.kill(pid, 'SIGKILL');
