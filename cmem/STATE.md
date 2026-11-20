@@ -15,7 +15,7 @@ Updated: 2026-11-19, at the release of 4.1.1
 ## Now
 - Bun runs with memory64 on; the Bun known-differences list is EMPTY; no test skips anywhere
 - H39 is merged and reviewed (`src/host.ts`, its gate, `--self-check`; `-o NUL` on Deno fixed)
-- H38 steps 1–3 and 7 are done, and the ★ copy is decided (best-practices-shared.md); steps 4–6 open
+- H38 is done in all seven steps (4–6 on 2026-11-20); `check-cmem`: all limits hold
 - Letter H43 (Tooling rule 15) recorded: working-rules (scratch bounded, "commit" empties it,
   helper scripts TypeScript), review-process (reviewer folders, links removed first)
 
@@ -33,8 +33,7 @@ Updated: 2026-11-19, at the release of 4.1.1
 1. **The npm provenance poll window** (open-work, top): 12 × 15 s, and npm lagged ~4 min at 4.0.0
    and ~3 min at 4.1.1 — both runs red in that step only. Lengthen it before the next release
 2. Tell wasmtk what 4.1.0 and 4.1.1 contain (handoffs.md)
-3. H38 steps 4–6 (archive, split, wrap)
-4. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
+3. The carried issues C-H2…C-R2-5 and queued Q-H2…Q-H4 (review-issues.md), when the owner opens them
 
 ## Pushed
 - 2026-11-19: rulesets read back — `main` (27683565: the default branch; deletion, force push)

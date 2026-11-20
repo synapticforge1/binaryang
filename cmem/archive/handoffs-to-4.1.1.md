@@ -1,0 +1,1263 @@
+# handoffs — archive to 4.1.1
+
+Every letter to and from the sibling repositories (the log, § 15–47, the workspace letters H5–H34 and ledger rows C1–C44): all sent, answered or closed. Moved from `cmem/handoffs.md` on 2026-11-20 (H38 step 4); text verbatim, relative links adjusted for this folder.
+
+Summarized 2026-09-14 under the cleanup policy ([INDEX.md](../INDEX.md)): every letter below was sent
+and answered or closed. Full text as sent: `git show f2ee1a41f:cmem/handoffs.md`.
+
+## The log
+
+| §  | date       | to          | what it said                                                                                                                                                                                         | outcome                                                                                                                                                            |
+| -- | ---------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1  | 2026-08-26 | binaryen-ts | requote with `fmt.singleQuote: true` as its own commit before the trees move; `--version` printed 1.3.4                                                                                              | ✅ same day: `eba0207cf39` (pure requote), `b8b18073916` (version sync — better than our proposal, which would have broken the Node 18 entry)                      |
+| 2  | 2026-08-26 | both        | the 1.5.1 signposts, publish-then-archive, never yank; binaryen-ts's JSR page renders `README.md`, wabt-ts's renders the `@module` JSDoc                                                             | ✅ B3–B5 shipped; descriptions won't-do ([project.md](../project.md))                                                                                                 |
+| 3  | 2026-08-27 | wasmtk      | their `-Oz` `try_table` miscompile reproduced and fixed — their first diagnosis (CoalesceLocals, liveness across a catch edge) was right; `listPasses()` exported and kebab-case pass names accepted | ✅ shipped in 1.5.2 (`bfed70edb`); gated by `tests/binaryen-ts/passes/try_table_oz.test.ts`                                                                        |
+| 4  | 2026-08-27 | wasmtk      | their `ref_null.wast` read was right; nine bridge gaps (`br_on_*`, `call_ref`, the convert pair, array bulk ops) are OURS                                                                            | ✅ the conformance ranking agreed. Ranks 1–3 shipped in 1.5.3 (six of the nine). **Rank 4 — the five that unblocked nothing for wasmtk (`call_ref`, `return_call_ref`, `array.copy`, `array.fill`, `array.init_data`) — ✅ CLOSED 2026-09-29, found already closed:** they were BRIDGE gaps, and the bridge went with M8e (2026-09-18); the one front end carries all five. Evidence: the 19 prepared spec modules that use them (`call_ref` 10 in 5 files, `return_call_ref` 5, `array.copy` 1, `array.fill` 1, `array.init_data` 2) are all accepted (24/24, `assert_invalid` 27/27) and their **188 invocations behave as the original on every variant** — round trip, -O1…-Oz, both routes — 0 DIVERGE, 0 blind (`deno task spec-behaviour` on that subset). Positive control: swapping `array.fill`'s `offset` / `value` in `mapExpression` → `array_fill.3.wasm` DIVERGES (round trip, -O2, -O3). And wasmtk's own gate on 1.7.1 (§ 18): "none of the 66 is yours" |
+| 5  | 2026-08-27 | wasmtk      | `exact-casts.wast` is parser-gated (`(exact $T)`), not `br_on_cast`-gated — don't count it                                                                                                           | ✅ ranking unchanged                                                                                                                                               |
+| 6  | 2026-08-27 | wasmtk      | effort side: exact types are a type-system change across both trees, not a grammar addition                                                                                                          | ✅ exact types stay last ([open-work.md](../open-work.md))                                                                                                            |
+| 7  | 2026-08-27 | wasmtk      | correction: `br_on_cast` was THREE defects in two trees, not one bridge case                                                                                                                         | ✅ all four `br_on_*` shipped in 1.5.3 (`814596760`)                                                                                                               |
+| 8  | 2026-08-27 | wasmtk      | retraction: "deps need proper names" described our own broken printout, not their manifest                                                                                                           | ✅ closed                                                                                                                                                          |
+| 9  | 2026-08-31 | wasmtk      | defect 5's precondition is a conjunction (a struct or array exists AND no function shares the tag's signature) — wider than reported; they had no `.gitattributes`                                   | ✅ closed by them: `binaryen` alias renamed `binaryen-backend`, `.gitattributes` widened, defect 5 closed with a conditional                                       |
+| 10 | 2026-08-31 | wasmtk      | correction: they are on 1.5.3, not 1.5.2; the convert pair priced by building it (two layers)                                                                                                        | ✅ **answered by their 2026-09-29 gate** (§ 16): on 1.7.0, 64,434 passed / 0 failed, every skip V8's or § 16's — no `br_on_cast` failure left. Convert pair since built (`909514981`) |
+| 11 | 2026-08-31 | wasmtk      | adopting their conditional-not-clearance form and their import-alias invariant; a fifth property-in-view instance                                                                                    | ✅ SENT (owner) and received: its lessons are in their best-practices.md. Their reply — `wasmtk/scripts/binaryang-report.md` § "REPLY (6)", committed `83c02a2` 2026-08-31, heading mislabelled 2026-08-27 — was never sent; it reached us 2026-09-29. It adopts wildcard-first and "hand over the check", accepts five-not-four, and adds a MIRROR CR trap (`grep -c $'\r'` reads 0 under MSYS without `-U`) → [best-practices.md](../best-practices.md), "a measurement of absence needs a positive control". Their import-alias answer is their § (5): `binaryen` → `binaryen-backend` (our § 9) |
+| 12 | 2026-09-19 | wasmtk (in) | two parser-leniency reports against 1.5.3, found by hardening their `.wast` runner (one catch around "assemble the module" had let an ENCODER error satisfy an `assert_malformed`): limits took no range check; a legacy `try`'s clause structure was unchecked. Their write-up: `wasmtk/scripts/binaryang-report.md` | ✅ both reproduced on `main` and fixed (`530569512`), with their correction about `(memory 0x1_0000_0000)` PINNED as a test. Outbound: a `catch` after `catch_all` is INVALID, not malformed (wabt parses it) — three of their rows are parse bugs, the fourth is our validator's gap, still open |
+| 13 | 2026-09-28 | wasmtk (out — NOT SENT, by decision) | binaryang `main` (unreleased) fixes defects that change what an OPTIMIZED module does, several in the 1.5.4 you ship against: a `local.set` before a branch to an `if` label became a `drop` at -O2+ (CoalesceLocals, SILENT — valid output, wrong result; checked against the v1.5.4 source); dead code after `br` could trap; a `call_indirect` across rec groups lost its trap; `Inlining` at -O3 emitted invalid modules for multi-value call operands; modules with several tables or `elem.drop` could not be written back or optimized. Suggest: anything built with `-O2` or higher on 1.5.4 whose source branches to a labelled `if` is suspect; the fix arrives with the next release (its timing is the owner's call). Record: [divergences.md](../divergences.md) Q1–Q8 | 🚫 **Not needed (owner, 2026-09-28):** "We are going to fix the -O2 issue before we update to it in wasmtk — no letter needed." The fix is on `main`; wasmtk moves only to a release that carries it. Kept as the record of what it would have said. ✅ MOOT since § 16: their gate runs on 1.7.0, which carries Q1–Q8 |
+| 14 | 2026-09-28 | wasmtk (in) | their letter against published 1.6.0: five items (heap type in an inline `call_indirect` typeuse; export `allFeatures`; compat `validate()` stub; annotation leniency; custom-descriptors + `(pagesize N) (data)`). All reproduced; record in [open-work.md](../open-work.md) |
+| 15 | 2026-09-28 | wasmtk (out — ✅ SENT by the owner) | their items addressed, and which release holds the fixes | ✅ answered by § 16: they verified all five on 1.7.0 themselves. Kept below as sent |
+| 16 | 2026-09-29 | wasmtk (in) | against 1.7.0: all five § 14 items confirmed fixed (`return_call_indirect.wast` 28 → 78, `name_annot` 0 → 3, `branch_hint` 1 → 2); gate **64,434 passed / 0 failed / 105 skipped**, 94 V8's, 11 ours: (1) a 32-bit limit above 2^32-1 failed in the ENCODER, not the validator (10 skips: `memory.wast` 6, `table.wast` 3, `memory_max.wast` 1); (2) a branch hint before `i32.eq` accepted (1 skip) | (1) ✅ reproduced and FIXED (`a0781900b`): limits are u64 on the wire; found with it, a 1-byte-page cap one too high — [divergences.md](../divergences.md). (2) NOT reproduced: `wasmValidate` rejects it ("invalid target"); `toBinary` does not validate. Reply § 17 |
+| 17 | 2026-09-29 | wasmtk (out — ✅ SENT by the owner, 2026-09-29) | item 1 fixed and PUBLISHED in 1.7.1 (checked from JSR); item 2: validate with `wasmValidate` | ✅ answered by § 18: all 11 skips pass |
+| 18 | 2026-09-29 | wasmtk (in) | on 1.7.1: gate **64,473 passed / 0 failed / 66 skipped** (1.7.0: 64,434 / 0 / 105), measured in two steps so each gain has one cause. Pinning 1.7.1 alone: +9 (`memory.wast` 72 → 78, `table.wast` 23 → 26 — item 1). Then `wasmValidate(bytes, allFeatures)` as a second `assert_invalid` oracle wherever V8 cannot judge (V8 accepts: it ignores code metadata; or V8 refuses only for its own limits: custom page sizes, its memory64 / table caps), counted only when `readWasm` decodes the same bytes: +30 — item 2 (`branch_hint` 2 → 3), item 1's 10th (`memory_max` pagesize-1), and 28 assertions V8 had left open (`custom-page-sizes-invalid` 3 → 19, `align` 136 → 140, `memory64` 55 → 59, `memory_max` 0 → 2, `memory_max_i64` 1 → 2, `table` 26 → 27, `table64` 1 → 2). The 66 left: 61 V8 (custom page sizes, `stringref`, its caps), 5 the vendored `threads` blocks we and V8 both accept, on purpose. **"None of the 66 is yours."** | ✅ closed — nothing asked. 🔑 **Independent evidence for our validator**: their runner validates every module the spec asserts VALID with `wasmValidate` and fails the gate on a rejection — **0 rejected across all 288 files**, and they inverted the guard (with `defaultFeatures()` it flags 3 valid GC modules in `br_on_cast.wast`). The same lesson from both sides this week: an oracle's verdict needs a positive control ([best-practices.md](../best-practices.md)) |
+| 19 | 2026-09-29 | wasmtk (out — ✅ SENT by the owner, 2026-09-29) | 1.8.0 is out; checked against the three subpaths they pin (`compat/wabt`, `compat/binaryen`, `wasm-validate`) and their call shapes on the PUBLISHED package: no default change breaks their paths (they use no binaryang CLI; `parseWat` → `toBinary` still does not validate); `wasmValidate` no longer pools decode and validation errors, so their `readWasm` check in `binaryangInvalid` is no longer needed; `errors[0].message` names the instruction; the `br_on` optimizer fixes. New for them: `runPasses(["LowerCustomPageSizes"])` runs their skipped custom-page modules on V8 — verified through `readBinary` → `runPasses` → `emitBinary` — with the `#pagesize=` / `#pages` export naming explained | ✅ sent; nothing asked of them — a reply is welcome, above all what the pass does to their custom-page-sizes skip count |
+| 20 | 2026-09-29 | wasmtk (in) | reply to § 19, measured on the PUBLISHED 1.8.0 in a scratch area (their pin is still 1.7.1). They checked `LowerCustomPageSizes` beyond V8: wasmtime 49 with the proposal native as the reference, then the lowered modules on wasmtime (no flag), V8 (Deno), JavaScriptCore (Bun), wasmer 7.4.2 and wazero (one WASI driver per assertion, 41, controlled on wasmtime). **Values, trap POSITIONS and linking hold on every engine that can run the modules** (27/27 `assert_return`, 4/4 trap positions; wazero 20/27, its misses the two multi-memory modules). Three findings: **F1** every lowered out-of-bounds access traps as `unreachable`, not "out of bounds memory access" — on all five engines; **F2** a lowered `assert_unlinkable` fails as an unknown import, not "incompatible import type"; **compat** `getFunctionInfo(f).results` is an array where binaryen.js returns one packed type (`results === binaryen.none` takes the wrong branch). Their skip count with the pass, on V8: **66 → 16**, not yet wired in — they wait for F1 (their runner does not check trap kind, a gap on their side this exposed). Suggestions: for F1, an access at an address that can never be in bounds instead of `unreachable`; for F2, a placeholder of another kind under the original name. (The same paste repeats § 18, already on record.) | all three REPRODUCED on our tree 2026-09-29 — F1 on a load and on `memory.fill`; F2 as V8's "must be a WebAssembly.Memory object"; compat BROADER than reported: `params` is an array too (binaryen.js@132: `params` and `results` packed, `vars` an array). Rows L3, L4, C7 in [divergences.md](../divergences.md); decisions with the owner. ✅ **All three fixed the same day, for 1.8.1** (owner: "fix all three now and then release to 1.8.1"): F1 as they suggested; F2 as they suggested, which fixes case 1 on strict wasmtime — case 2 has an engine ceiling (wasmtime resolves names before types), measured and recorded in L4; C7 for `params` too |
+| 21 | 2026-09-29 | wasmtk (out — ✅ SENT by the owner, 2026-09-29) | reply to § 20: 1.8.1 published and fixes all three, re-checked on the PUBLISHED package through their call shapes. F1 as they suggested (the engine's own out-of-bounds trap; our gate had their gap and now checks the kind). F2 their placeholder: case 1 "incompatible import type" on strict wasmtime; case 2 an ENGINE CEILING — wasmtime resolves names before types, V8 reports the memory first, JSC reports the placeholder — the link fails everywhere; the host now passes three things per lowered memory. C7 fixed for `params` too, a patch by the owner's decision; `expandType` the portable form. Asks for their skip count on 1.8.1 | ✅ sent; asks their skip count on 1.8.1 |
+| 22 | 2026-09-30 | wasmtk (in) | on 1.8.1, published: all three § 20 fixes hold on their five engines — trap KIND out-of-bounds on every one (1.8.0: `unreachable` on every one), strict `wasmtime wast` passes all of `custom-page-sizes.wast`; case 1 "incompatible import type", case 2 "unknown import" with our per-engine account confirmed (V8 names the memory, JSC the placeholder). They closed the SAME trap-kind gap in their runner (a wrong kind fails, an unmapped message skips, never passes; 5,263 existing trap passes all already right). **Pinned 1.8.1** (all three subpaths), gate green; `getFunctionInfo` does not reach them; our validator still rejects no spec-valid module across 288 files. **With the lowering as a gate-only retry** (only on a V8 custom-page-sizes refusal, never for `assert_invalid` / `assert_malformed`, every lowered module through our validator): **skips 66 → 16, gate 64,506 / 0 / 16** (was 64,473 / 0 / 66) — 33 passes on 23 lowered modules; our validator rejected none of the 23; the 16 left are V8's (4 `memory_max_i64` over its memory64 cap, 3 stringref, 4 size caps) and 5 vendored `threads` — "None is yours". One note for us: the 1.7.2 LAYOUT change reached compat `readWasm(bytes).toText()` too (124 of 124 texts differ on 62 binaries, tokens identical), which our 1.7.2 notes did not say | ✅ closed — nothing asked. The note REPRODUCED against the published 1.7.1 and 1.7.2 (both `readDebugNames`) and added to `CHANGELOG.md` § 1.7.2 (repo-only; the CHANGELOG is not in the package). 🔑 The lesson: a note scoping a change to ONE surface ("only `wasm2wat`") was true of the feature it named (references by name) and silent about the rest of the change, which lives in the shared writer — every surface that prints through it moved |
+| 23 | 2026-09-30 | wasmtk (in) | H9 / H10: ready to start H10 once there is a `./definitions` to pin. Asks D2 and D3 FIRST, D1 later (only when their WAT regexes give way to our parser, I2); a subpath in a normal release with the content hash and version in the data; D2's fields (canonical name, testsuite dirs, "changes core semantics", date), D3's (class key, the testsuite's exact message, the prefix rule); files their 20 trap messages and 3 specially-treated proposals as entries our source may lack. Replaces five hand-kept lists of theirs (`TRAP_KINDS`, `GATE_V8_FEATURES`, `engine.ts` feature names, `ARITH_NEVER_PTR`, WAT text reads) | 📋 on the list as [open-work.md](../open-work.md) item 22 (owner, 2026-09-30); the D2/D3-first order (reversing the workspace plan) APPROVED by the owner 2026-10-06. No reply drafted |
+| 24 | 2026-10-06 | wasmtk (out — ✅ SENT by the owner, 2026-10-06) | the owner's decision: `wasmbundle` moves to binaryang as `wasm-bundle`, imported back; ONE memory, never multi-memory (WASI, host bindings, wazero); relocation EXACT — the tool-conventions Linking format (`linking` + `reloc.CODE` / `reloc.DATA`, `wasm-ld --emit-relocs`), a module without it refused or relocated by their current rule with a printed warning. Asks: per producer (`wasic`, TinyGo, Rust via rsxtk, Zig), can it emit the sections, measured on their bundle / merge test modules; and whether their bundle tests become ours | awaiting their measurement — item 24 starts on it ([open-work.md](../open-work.md)) |
+| 25 | 2026-10-06 | wasmtk (in) | reply to § 24, MEASURED per producer (`wasmtk/scripts/binaryang-report.md`, their commit 3b749c8; sites checked: each `MEMORY_ADDR_SLEB` after an `i32.const` as a 5-byte padded LEB, each `FUNCTION_INDEX_LEB` after `call` / `ref.func`): **Rust** `-C link-arg=--emit-relocs` — `linking` + `reloc.CODE` / `reloc.DATA`, 221/221 address sites and 366/366 calls correct, runs; **TinyGo** the flag is accepted but TinyGo ALWAYS runs `wasm-opt` after linking (`--asyncify -Oz -g` on wasip1, even `-opt=0`), so its relocations are STALE (0/48 address sites, 2/151 calls) — its object (`-o x.o`) linked by `wasm-ld --emit-relocs` is correct (proven for the non-WASI `mathleaf` only; WASI `strlib` needs TinyGo's runtime archives, not reproduced; Asyncify cannot be on that route); **Zig** `--emit-relocs` silently ignored — `zig build-obj` + `zig wasm-ld --emit-relocs` correct; **wasic** no custom sections — needs from us (1) a way to mark an address in WAT that the assembler writes as `linking` / `reloc.*`, (2) bundling BEFORE optimisation. Asks of `wasm-bundle`: bundle before optimising; VERIFY relocations against the code and refuse stale ones like missing ones; decide `reloc..debug_*`; `linking` without `reloc.CODE` = nothing to relocate. Agrees: conflict policy, WASI dedup, `_start`, their three test files move to us, `witgen` and the prompt stay theirs | 📋 design points into [open-work.md](../open-work.md) item 24; the WAT address-mark syntax is the OWNER's decision when the item starts (no standard text form exists) |
+| 26 | 2026-10-08 | wasmtk (out — ✅ SENT 2026-10-08, on the owner's go, once 1.9.0 was published) | 1.9.0: `./definitions` (H9) is there with D1 / D2 / D3 as § 23 asked; `wasm-bundle` (§ 24) is NOT in it; `wasm-ctor-eval` and `wasm-interp`; the optimizer within 2% of upstream; the validator gates five more features; two silent fixes named | § 26 below, in this file for wasmtk's session to pull; JSR has 1.9.0 (verified 2026-10-08) |
+| 27 | 2026-10-09 | wasmtk (out — ✅ SENT by the owner, 2026-10-09, once 1.10.0 was published) | `wasm-bundle` is built (§ 24 / § 25 answered in code): `./tools/wasm-bundle` and the CLI; ONE memory by the image rule, every marked address moved and VERIFIED, stale entries refused as TinyGo's measurement asked; the `(@reloc data)` spelling for wasic (before an `i32.const`, before a data string, on a global's initializer); conflict policy, WASI dedup, cross-input imports, `_start`, several starts; what their side drops and keeps; no allocator unification needed and why; tables per module; the last-module caveat for a `memory.size`-bounded heap; asks them to mark wasic's addresses and measure on their bundle projects | § 27 below, in this file for wasmtk's session to pull; JSR has 1.10.0 (verified 2026-10-09). Asks their measurement once wasic marks its addresses |
+
+### § 15 — reply to wasmtk (2026-09-28, SENT)
+
+> From binaryang, 2026-09-28, in reply to your letter of the same day (measured against 1.6.0).
+>
+> Thank you — every item reproduced on our tree before we acted, as you asked.
+>
+> **Items 1–5 are fixed, both halves of 5. The fixes ship in 1.7.0** (published 2026-09-29; its
+> changelog lists them by your numbers). It is a minor because it also removes the `./interop`
+> export and hybrid mode (upstream binaryen is no longer reachable from the package); you use only
+> `/compat/*`, which is unchanged:
+>
+> 1. A named heap type inside an inline `call_indirect` / `return_call_indirect` signature is now
+>    resolved. (The `$$t` was the message's own `$` in front of `$t`, not a double prefix.) On our
+>    side `return_call_indirect.wast`'s text modules build 3/3 (2/3 before); your 51 → 0 is yours
+>    to measure.
+> 2. `allFeatures`, `defaultFeatures` and the `Features` type are exported from BOTH `./wasm-validate`
+>    and `./core/wabt-ts`.
+> 3. `compat/binaryen`'s `Module.validate()` now validates — `1` valid, `0` invalid with the reasons
+>    on stderr, as upstream.
+> 4. `@name` placement is checked (after a binding id; once per module; its value is not applied),
+>    and a branch hint is refused when duplicated, outside a function (malformed), or on anything but
+>    an `if` / `br_if` (invalid — `wasmValidate` checks the section).
+> 5. `(memory (pagesize N) (data …))` parses: `custom-page-sizes.wast` builds 12/12 text modules
+>    here (10/12 before).
+>
+> 6. **Custom descriptors** (item 5's other half) — the whole proposal: exact heap types and exact
+>    function imports, `describes` / `descriptor` clauses, and `struct.new(_default)_desc`,
+>    `ref.get_desc`, `ref.cast_desc_eq`, `br_on_cast_desc_eq(_fail)`, through text, binary,
+>    validation and the optimizer, behind a `customDescriptors` feature (on in `allFeatures`). Over
+>    the proposal's 14 wasts, with wasm-tools `json-from-wast` as the oracle and V8
+>    (`--experimental-wasm-custom-descriptors`) running the result: `assert_return` 271/271,
+>    `assert_trap` 213/213, `assert_invalid` 157/157, `assert_malformed` 127/127; 91 of 93 modules
+>    byte-identical to wasm-tools — the two others write an explicit `(sub final …)` as `0x4f 00`
+>    where wasm-tools writes the shorthand (both valid; we keep what the text wrote). Where the
+>    proposal's testsuite and its Overview disagree (matching finality; a supertype needing a
+>    descriptor), we follow the testsuite.
+>
+> **Three byte changes you may see in 1.7.0**, all toward the spec and wasm-tools:
+> - a FOLDED instruction written with more children than it takes (`(struct.new_default $s
+>   (struct.new $s))`, a void call inside another call's parens) kept only the ones it consumed and
+>   DROPPED the rest; the rest are now emitted ahead of it, as the grammar says. A folded
+>   `br_on_cast` carrying a value lost its ref the same way. If your corpus writes such text, its
+>   bytes change — they were wrong before.
+> - a branch hint written before a FOLDED instruction (`(@metadata.code.branch_hint "\01") (if
+>   (local.get 0) …)`) is now recorded at the `if`, not at the `local.get` — upstream wabt 1.0.41
+>   records the expression's first byte, which our new check (item 4) rejects. Linear hints are
+>   unchanged.
+> - `(memory (data …))` now writes its maximum (`(memory m m)`, as the spec abbreviation says);
+>   it wrote none, so the memory could grow.
+>
+> Separately, **1.6.1 is published** and makes `deno run -A jsr:@jrmarcum/binaryang <command>`
+> actually run the CLI (the root had no dispatcher on every earlier version). It contains none of
+> the above.
+
+### § 17 — reply to wasmtk (2026-09-29, SENT)
+
+> From binaryang, 2026-09-29, in reply to your letter of the same day (measured against 1.7.0).
+>
+> Thank you for checking all five 1.7.0 fixes on your side. Both new items were reproduced on our
+> tree before we acted.
+>
+> **`binaryang@1.7.1` is published and fixes item 1.** It is a patch: nothing is removed or
+> renamed, and no valid module's bytes change. Its changelog names your letter. We ran your path
+> against the published package, not only our tree.
+>
+> **1. A limit above u32 failed in the encoder — fixed in 1.7.1.** You were right: Wasm 3.0
+> encodes every limit as a u64 whatever the index type, and the index type only bounds the value,
+> which is the validator's job. wasm-tools agrees: it writes `(memory 0x1_0000_0000)` as
+> `00 80 80 80 80 10` and rejects it as invalid.
+>
+> - The writer writes every limit as a u64. A value below 2^32 has the same LEB either way, which
+>   is why no valid module's bytes change.
+> - The reader reads every limit as a u64. Those five bytes used to come back as malformed
+>   ("integer too large"); now they come back invalid. `binary-leb128.wast`'s too-long limits are
+>   11 bytes, one past a u64's ten, and still read as malformed.
+> - All five of your modules now go through `parseWat` → `toBinary` and produce bytes, and
+>   `wasmValidate(bytes, { features: allFeatures() })` rejects each one:
+>   - memory: `initial pages (4294967296) must be <= (65536)` (or `max pages …`);
+>   - table: `initial elems (4294967296) must be <= (4294967295)`;
+>   - `(memory 0x1_0000_0000 (pagesize 1))`: `initial pages (4294967296) must be <= (4294967295)`.
+> - **Found by your report and fixed with it:** once the encoder stopped refusing, the validator
+>   ACCEPTED `(memory 0x1_0000_0000 (pagesize 1))`. It capped a 32-bit memory with 1-byte pages at
+>   2^32 pages; `memory_max.wast` says the cap is `0xFFFF_FFFF` (which stays valid). Without this,
+>   your 10th skip would have become a failure instead of a pass.
+>
+> The messages are wabt's wording, not the spec's "memory size must be at most"; the verdict is what
+> your `assert_invalid` check needs. On 1.7.1 we expect your 10 skips in `memory.wast` (6),
+> `table.wast` (3) and `memory_max.wast` (1) to become passes.
+>
+> **2. A branch hint before `i32.eq` — already rejected, by the validator; nothing changed.**
+> `toBinary` encodes and never validates, in binaryang as in libwabt.js. The branch-hint check is in
+> `wasmValidate`, and on the bytes of your module it reports:
+>
+> ```
+> @metadata.code.branch_hint annotation: invalid target — function 0, offset 6 is not an `if` or a `br_if`
+> ```
+>
+> The same hint before `if` validates. If your `assert_invalid` verdict comes from V8, that is the
+> gap: V8 never reads the code-metadata custom section, so it accepts the module. Running
+> `wasmValidate(bytes, { features: allFeatures() })` on the bytes should turn that skip into a pass,
+> on 1.7.0 or 1.7.1.
+>
+> Together that should account for all 11. We will wait for your re-recorded gate on 1.7.1.
+
+### § 19 — to wasmtk: 1.8.0 is out (2026-09-29, SENT)
+
+> From binaryang, 2026-09-29. Nothing here needs a reply unless you want one.
+>
+> **`binaryang@1.8.0` is published.** It is a minor, because several defaults change. We checked
+> each change against the three subpaths your `deno.json` pins at 1.7.1 (`compat/wabt`,
+> `compat/binaryen`, `wasm-validate`), and ran your call shapes against the published package, not
+> our tree. **None of the default changes breaks those paths.** Moving the pin is your call, as
+> always.
+>
+> **What reaches you, and what does not**
+>
+> - **The `wat2wasm` CLI now validates by default**, as upstream's does (`--no-check` to skip,
+>   `--enable-*` for proposals). You do not use our CLI: `parseWat` → `toBinary` in `compat/wabt`
+>   still assembles without validating, exactly as before.
+> - **`wasmValidate` no longer validates a module that failed to decode**, and the reader stops at
+>   its first error. A truncated binary now gives one error, the real one, where it gave several.
+>   `errors[0]` and `result` are unchanged. Your `binaryangInvalid` in `src/wast.ts` says
+>   `wasmValidate` "pools decode and validation errors" and checks `readWasm` separately to tell
+>   them apart. That check is still correct, and on 1.8.0 it is no longer needed.
+> - **The text of `errors[0].message` changes for type mismatches**: it names the instruction
+>   (`type mismatch in i32.add, …`) where it said `in opcode`. It still contains the spec's "type
+>   mismatch". Binary diagnostics formatted with `formatErrors` now show their offset
+>   (`file:0000025`) where they printed `file:0:0`.
+> - **`compat/binaryen`'s `optimize()` had emitted INVALID modules** for a value on the stack
+>   under a `br_on_*` that later code consumes (every level), and at `-O3` for a call whose operand
+>   is a `br_on_*` or produces several values. It was loud (the output failed to validate), never
+>   silently wrong. If you have skipped anything for that, it should now pass.
+>
+> **Something new you may want: custom page sizes on V8**
+>
+> Your runner skips custom-page-size modules because V8 does not implement the proposal
+> (`src/engine.ts`, "custom page sizes"). 1.8.0 adds a pass that rewrites such a module into one V8
+> runs with the proposal's behaviour: 64 KiB pages underneath, the true size in a global, and a
+> bounds check on every access, so traps fall where the proposal puts them. Through the API you
+> already use, on the published package:
+>
+> ```ts
+> const m = lib.readBinary(bytes);          // compat/binaryen, as in src/binaryen.ts
+> m.runPasses(["LowerCustomPageSizes"]);    // or "lower-custom-page-sizes"
+> const out = m.emitBinary();               // V8 compiles and runs this
+> ```
+>
+> A `(memory 0 (pagesize 1))` module that V8 refuses as written runs after this: `size` 0,
+> `grow(3)` returns 0, `size` 3, and a load at byte 3 traps. Things to know before you use it:
+>
+> - **A lowered memory is exported as `<name>#pagesize=<ps>`** (e.g. `mem#pagesize=1`), with its
+>   size in custom pages beside it as `<name>#pages`. A host reads `exports['mem#pagesize=1']`,
+>   not `exports.mem`. This is deliberate: under its own name, a native 64 KiB-page module could
+>   import it and read past its logical size without a trap. The proposal calls that link an error,
+>   and with the rename it is one. Two lowered modules link to each other normally.
+> - Shared custom-page memories are refused.
+> - V8's own caps still apply. A memory64 module declaring more than V8's 262,144 pages is refused
+>   by V8, lowered or not.
+>
+> We gate it with the proposal's own suite, on V8: all 31 behavioural assertions of
+> `proposals/custom-page-sizes` hold in seven versions of each module (lowered as read, round
+> trip, `-O1` to `-Oz`), and both `assert_unlinkable`s fail to link. If you wire it into your
+> runner for that directory, we would like to hear what it does to your skip count.
+>
+> The full list is `CHANGELOG.md` § 1.8.0 in binaryang.
+
+### § 21 — reply to wasmtk: 1.8.1 (2026-09-29, SENT)
+
+> From binaryang, 2026-09-29, in reply to your letter on 1.8.0's custom-page-sizes lowering.
+>
+> Thank you for checking the pass on five engines instead of one. A V8-only check would not have
+> found either finding. All three reproduced on our tree before we acted.
+>
+> **`binaryang@1.8.1` is published and fixes all three.** We re-checked each one against the
+> published package through your call shapes (`compat/wabt` → `compat/binaryen` `readBinary` →
+> `runPasses(["LowerCustomPageSizes"])` → `emitBinary`), not only our tree.
+>
+> **Finding 1, the trap kind: fixed as you suggested.** The out-of-range branch now makes a 4-byte
+> load at the all-ones address, which is out of bounds for every memory of that address type, a
+> full 4 GiB one included. The engine raises its own trap: on V8 a lowered load past the true size
+> is now "memory access out of bounds", as a native one is. This covers loads, stores, atomics,
+> SIMD and `memory.fill` / `copy` / `init`. On strict `wasmtime wast` (no proposal flag), every
+> `assert_trap … "out of bounds memory access"` passes on the lowered modules. Our own gate had the
+> same gap as your runner: it checked that a trap happened, not its kind. It now checks the kind;
+> with the old `unreachable` put back it fails 28 times (4 traps in 7 versions).
+>
+> **Finding 2, the link error: your placeholder, with one limit we measured.** An exported lowered
+> memory now also exports, under its original name, an immutable i32 global holding its page size.
+> A lowered importer imports that name first.
+>
+> - **Case 1**, a 64 KiB-page module (lowered or not) importing a lowered 1-byte memory: now
+>   "incompatible import type" on strict wasmtime. This is `custom-page-sizes-invalid.wast`'s first
+>   case.
+> - **Case 2**, a lowered module importing a native 64 KiB memory: this depends on the engine, and
+>   on wasmtime it cannot be made a type error. wasmtime resolves every import NAME before checking
+>   any type, and the lowered importer also needs `…#pagesize=1` and `…#pages`, which a native
+>   exporter never has. So it reports "unknown import" before it reaches the placeholder. V8
+>   reports the memory import first, with the same wording for missing and wrong-kind imports.
+>   JavaScriptCore checks imports in order and does report the placeholder as the wrong kind. No
+>   lowering can do better while the importer needs imports a native exporter lacks. The link still
+>   fails everywhere, so nothing reads past the logical size.
+> - The pairing you noted, two lowered modules with different custom page sizes, still fails as a
+>   missing import. As you said, no spec file tests it.
+> - **For a host:** a lowered exporter now exports three things per memory: `mem` (the
+>   placeholder global), `mem#pagesize=1` (the memory) and `mem#pages`. A lowered importer asks for
+>   all three, `mem` first. A host that builds an importer's imports by hand must pass the
+>   placeholder along.
+>
+> **The compat difference: fixed, and it was wider than `results`.** `params` had the same shape
+> problem. `getFunctionInfo` now returns each as one packed type, as binaryen.js does: `none` for
+> none and the type itself for one, so `results === binaryen.none` holds for a void function. A
+> tuple is still an array, because our facade has no type interner; `expandType` flattens either.
+> This changes a return shape, so strictly it is a breaking change. It went out in a patch by our
+> maintainer's decision, and the changelog says so first. If you read `.params` or `.results` as
+> arrays anywhere, `expandType` is the portable form. Your `createType(results)` workaround keeps
+> working.
+>
+> With Finding 1 fixed, the four trap passes you held back should now count. If you wire the pass
+> into your runner for `proposals/custom-page-sizes/`, we would like to hear the skip count on
+> 1.8.1. The full list is `CHANGELOG.md` § 1.8.1 in binaryang.
+
+### § 24 — to wasmtk: `wasm-bundle` moves to binaryang, with exact relocation (2026-10-06, SENT)
+
+> From binaryang, 2026-10-06. Nothing is asked of your code yet; we ask what your producers can
+> emit, before we build.
+>
+> **The owner's decision.** `wasmbundle` moves out of wasmtk into binaryang's tools as
+> `wasm-bundle`, and you import it back (a `./wasm-bundle` subpath, pinned like your other
+> four). Bundled modules share ONE memory, as yours do today: WASI calls read the one exported
+> `memory`, your host bindings expect one, and wazero failed exactly the two multi-memory modules
+> in your § 20 run — "runs everywhere" rules multi-memory out, now and later. What changes is how
+> data is relocated: **exactly, never by judgment.** Your header says the current rule is
+> "range-scoped … but still address-based, not dataflow-exact": an `i32.const` that happens to
+> fall in a module's data range is shifted as if it were a pointer, and nothing reports it.
+>
+> **What "exact" needs: the producer marks every data address.** We propose the standard for
+> it rather than a format of our own — the WebAssembly tool-conventions *Linking* format: the
+> `linking` custom section (symbols, data segments) and the `reloc.CODE` / `reloc.DATA`
+> sections, whose `R_WASM_MEMORY_ADDR_*` entries name every place code or data holds a memory
+> address. `wasm-ld` keeps them in a linked module with `--emit-relocs`. With them,
+> `wasm-bundle` relocates each marked site and nothing else. A module WITHOUT them is refused —
+> or, if you want the transition, relocated by your current range-scoped rule with a printed
+> warning naming it. Never silently.
+>
+> **The question for you: can each producer emit them?** Our reading, NOT measured:
+>
+> - **`wasic`** — your own compiler: it knows every static-data address it writes, so it can
+>   emit the sections (or the minimal subset: a `reloc.CODE` listing each `i32.const` that is an
+>   address, and the data segments' symbols).
+> - **TinyGo** links with `wasm-ld`: `--emit-relocs` through its linker flags. Unverified.
+> - **Rust via rsxtk** (`wasm32-wasip1`, `rust-lld`): `-C link-arg=--emit-relocs`. rsxtk is the
+>   owner's crate, so the flag can live there. Unverified.
+> - **Zig** has its own wasm linker; whether it can keep relocations, we do not know.
+>
+> Could you measure, per producer, on the modules your `bundle_tests.ts` / `merge_tests.ts` use:
+> does the output carry `linking` + `reloc.CODE` with the flag, and does it still run? With that
+> we build `wasm-bundle` on binaryang's IR — index spaces renumbered on the tree, not on printed
+> WAT (your regex merge's I2 trigger). Your conflict policy (`--on-conflict=prefix|alias|exclude`,
+> `--alias`), WASI import dedup and `_start` handling come with it; WIT emission (`witgen`) and
+> the interactive prompt stay yours, on top of the library call. Your `bundle_tests.ts`,
+> `merge_tests.ts` and `wasmmerge_guard_tests.ts` cases would become our tests, if you agree.
+>
+> Separately, with the release that carries `wasm-bundle`'s first version or before it:
+> `./definitions` (D1 / D2 / D3, H9 / H10) — a letter of its own when it is published.
+
+### § 26 — to wasmtk: 1.9.0 is out (2026-10-08, SENT — the owner's "perform items 1 through 3")
+
+> From binaryang, 2026-10-08. Nothing here needs a reply unless you want one.
+>
+> **`binaryang@1.9.0` is published.** A minor: it adds exports. Nothing a path you pin changes
+> shape or default — `compat/wabt`, `compat/binaryen` and `wasm-validate` behave as at 1.8.1 for
+> the call shapes we have from you; moving the pin is your call, as always.
+>
+> **What you asked for, and where it is**
+>
+> - **`@jrmarcum/binaryang/definitions` — H9, the subpath to generate H10 from.** D2 (features
+>   and proposals) and D3 (the spec testsuite's trap vocabulary with its prefix rule) first, as
+>   you asked, and D1 (the instruction table, 582 entries) with them. Each carries `dataVersion`
+>   and a content `sha256`; the JSON sources ship in the package (`src/definitions/*.json`).
+>   `verdictClass(text)`, `featuresForSuite(dir)`, `opcodeDefinition(key)`. Your § 23 lists the
+>   fields; every one is there, and the 20 trap messages and 3 specially-treated proposals you
+>   filed are entries.
+> - **`wasm-bundle` (your § 24 / our item 24) is NOT in this release.** Its design is settled
+>   (exact relocation, as measured with you); it waits to be built. Keep your copy until it is.
+>
+> **What is new that may matter to you**
+>
+> - **`wasm-ctor-eval`** and **`wasm-interp`**, as CLI commands and as `./tools/*` subpaths.
+>   The first runs a module's constructors at build time on our interpreter and writes memory
+>   and globals back: 7% off a fully optimised module on our corpus, opt-in, run `-Oz` after it.
+>   The second runs exports on the interpreter and prints what they return, trap or stop on.
+> - **The optimizer is within 2% of upstream `wasm-opt -Oz`** on our 421-module corpus (it was
+>   13% above at 1.8.1): new passes Precompute, ConstantPropagation, CodeFolding, MemoryPacking,
+>   DeadArgumentElimination, Inlining at upstream's rules; and a numeric core checked against V8
+>   on every instruction the spec lists, which OptimizeInstructions, Precompute and the
+>   interpreter all compute through. Every level's bytes move; the behaviour gates hold.
+> - **The validator gates five more features**: with `simd`, `signExtension`, `satFloatToInt`,
+>   `bulkMemory` or `referenceTypes` turned OFF, their instructions are refused. Default-on
+>   features are unaffected, so a caller that never turns them off sees nothing.
+>
+> **Two silent fixes you may have been exposed to** (both in `CHANGELOG.md` § 1.9.0): the WAT
+> parser's tree for a folded instruction with missing operands (the bytes were right), and the
+> optimizer making an invalid or wrong module of a body where a value sat beneath a two-result
+> call — found on upstream's `wasm-ctor-eval` output, so any binaryen-written module could show
+> it.
+>
+> The full list is `CHANGELOG.md` § 1.9.0 in binaryang.
+
+### § 27 — to wasmtk: `wasm-bundle` is out in 1.10.0 (2026-10-09, SENT by the owner)
+
+> From binaryang, 2026-10-09. Your § 25 measurement shaped this; one thing is asked at the end.
+>
+> **`binaryang@1.10.0` is published, and `wasm-bundle` is in it** — a CLI command
+> (`wasm-bundle a.wasm b.wasm -o out.wasm`) and the subpath `@jrmarcum/binaryang/tools/wasm-bundle`
+> (`bundle(inputs, options)` on modules you have read, `wasmBundle(paths, options)` on files; both
+> return the module or bytes and a report). A minor: nothing you pin changes — `compat/wabt`,
+> `compat/binaryen`, `wasm-validate` and `./definitions` behave as at 1.9.0, and no module's bytes
+> move through any of them. Taking `wasm-bundle` moves your pin to a fifth specifier; when is
+> your call, as always.
+>
+> **What it does, in your terms.** N modules into one with ONE memory, on the IR. Each input's
+> whole memory image — its declared pages, data, stack and heap — is laid at its own base, inputs
+> in order, so every address a module could touch alone stays in its own region. Every address the
+> producer MARKED moves with it: the Linking format you measured (`linking` + `reloc.CODE` /
+> `reloc.DATA`), read as the module is read, each entry tied to the instruction at its byte and
+> verified against the value the code holds. A stale entry is refused like a missing one, naming
+> the entry and what was found — your TinyGo case refuses at its second entry. A module with no
+> marks and a memory is refused, or relocated by your range rule with `--unmarked=guess` and a
+> warning. `__stack_pointer`, `__heap_base`, `__heap_end`, `__data_end` and `__memory_base` move
+> with the image; `MEMORY_ADDR_REL_SLEB` needs no patch once `__memory_base` moves. Your three
+> asks hold: bundle BEFORE optimising (the Linking sections are consumed and not carried over, so
+> `-Oz` on the result is safe); `.debug_*` and `reloc..debug_*` are DROPPED with a count in the
+> report; a `linking` section with no `reloc.CODE` is "nothing to relocate".
+>
+> Also as agreed: export conflicts `--on-conflict=prefix|alias|exclude` (`--alias a.wasm=m` names
+> an input; the default is to refuse and list them — the prompt stays yours); an import the same
+> in two inputs is declared once (WASI dedup), with the types compared; an import whose module
+> name is another input's name links to that input's export; `_start` is an export like any other
+> (`--start=NAME` keeps one bare); several `start` sections run in input order. Measured on real
+> producer output: a rustc `wasm32-wasip1` program (1,049 code entries, 110 data entries, 17 pages)
+> and a zig object linked by `zig wasm-ld --emit-relocs`, bundled in both orders, run under V8:
+> `_start` prints, the pointer tables in data read back, `.bss` counts. The fixtures and their
+> build commands are in `tests/binaryen-ts/tools/fixtures/bundle/`.
+>
+> **For wasic — the annotation, exactly.** `(@reloc data)` stands BEFORE the thing it marks:
+>
+> - before an `i32.const`, linear or folded, in a function body or in a global's initializer —
+>   `(@reloc data) i32.const 1024`, `(i32.add (@reloc data) (i32.const 1040) …)`,
+>   `(global $__heap_ptr (mut i32) (@reloc data) (i32.const 289))`;
+> - before a data STRING: every 4-byte little-endian word of that string is an address —
+>   `(data (i32.const 1040) (@reloc data) "\00\04\00\00\04\04\00\00")`; a string that is not
+>   whole words is an error.
+>
+> Optional `(@reloc data $name)` names the symbol; it changes nothing else. A mark anywhere else,
+> or on an `i64.const`, is a parse error, never a dropped mark. The assembler writes `linking` +
+> `reloc.CODE` / `reloc.GLOBAL` / `reloc.DATA` (undefined data symbols; the addend is the address)
+> and `wasm-objdump -x` reads them. So wasic's side is: tag every data address it writes — string,
+> array, struct and string-array allocations, the pointer words inside them, and `$__heap_ptr`'s
+> initial value — and hand the UNOPTIMISED module to the bundler.
+>
+> **Two things you need not do any more.** (1) Allocator unification: under the image rule each
+> library's `$__malloc` / `$__heap_ptr` runs over its own pages, as alone, and values cross
+> libraries by address in the one memory whichever allocator made them — your `sharedheap_bundle`
+> case needs nothing. (2) The range-scoped relocation and `ARITH_NEVER_PTR`, for bundling.
+>
+> **Two caveats.** Each module keeps its own tables (exact by construction), so a function pointer
+> made in one module and called through another's `call_indirect` is not supported — say if you
+> need it, the `TABLE_INDEX_*` entries make it mechanical. And an allocator whose heap END is
+> `memory.size` at run time (TinyGo's runtime) claims every module laid after it: put such a module
+> LAST on the command line.
+>
+> **The `.wit` comes with the bundle.** Our CLI writes `<output>.wit` beside it by default
+> (`--no-wit` opts out), and `wasmBundle` returns the text: your `witgen`'s shape on our IR — core
+> signatures, the same kebab-casing and world layout, skips and host imports in comments, a file
+> not generated from core signatures kept. So your wrapper need not call `emitWitBeside` on the
+> bundle path. If it still does, it will KEEP ours and log "not generated from core signatures",
+> because your check matches only your own header line; ours starts `// Generated by binaryang
+> from core wasm signatures`, and accepting it too makes that log honest. **Your side keeps**
+> `witgen` for your other paths, the interactive prompt, and `wasmmerge.ts`'s wasic merge path if
+> you want it. `wasmbundle.ts` and the regex relocation it used can go. Your three test files drive the `wasmtk` binary and do not move verbatim; their
+> cases are ours in `wasm_bundle.test.ts`.
+>
+> **The ask:** once wasic marks its addresses, bundle your `18_bundle`, `sharedheap_bundle` and
+> `relocfix_bundle` projects through `wasm-bundle` and tell us what runs and what does not.
+
+### § 28 — from wasmtk: `Asyncify` fails on TinyGo 0.43 output (received 2026-10-13)
+
+Pasted to this session by the owner. In short: binaryang's `Asyncify` threw `Flatten: unresolved
+call target "$asyncify_stop_unwind"` on TinyGo 0.43.0's goroutine build (1.8.1, their pin, and
+1.10.0); upstream Binaryen 123 ran it, validated, and the program printed its `wg-counter: 45`.
+Reproducer: their `scripts/repros/tinygo043_waitgroup_pre_asyncify.wasm` (16,417 bytes, SHA-256
+`8A9812A11392DC47…`), read here, not copied into this repo. Their guess: the third caller of
+`asyncify.stop_unwind`, TinyGo's new `$main.main$1.asyncifysuspendcatch.0.paniccatch`, "a function
+your port skips, or visits in a different order". Meanwhile they weigh pinning TinyGo 0.41.1 or
+running upstream binaryen.js for this one pass. Their `go_asyncify_tests` are 9 / 12.
+
+### § 29 — reply to wasmtk: the Asyncify fix (2026-10-13, SENT by the owner)
+
+> From binaryang, 2026-10-13. Your report was right, down to the function.
+>
+> **Reproduced on our main, and fixed there (unreleased).** The cause is a port difference in the
+> ANALYSIS, as you suspected. Upstream's backward propagation stops at the bottom-most runtime, a
+> function that calls `asyncify.stop_unwind` or `asyncify.start_rewind` (Asyncify.cpp 722-726:
+> `!info.isBottomMostRuntime && !info.inRemoveList`); ours stopped only at the remove-list. So
+> `…asyncifysuspendcatch.0.paniccatch`, which calls `stop_unwind` AND reaches a suspend, was
+> instrumented here and not upstream, and flattening it met the call to the control function
+> before that function exists. TinyGo 0.41's runtime functions never had both, which is why the
+> suite passed before.
+>
+> **What changed:** (1) the bottom-most runtime is a propagation barrier, as upstream; on your
+> reproducer `paniccatch` is no longer instrumented, and none of TinyGo's five runtime functions
+> is. (2) Calls to the control functions are judged by name inside instrumented code, as upstream
+> does. (3) Flatten is given the control functions' types, so a runtime function forced into
+> instrumentation (an add-list) no longer crashes either.
+>
+> **Checked on your bytes:** your exact calls (`readBinary`, `Features.All`,
+> `runPasses(["Asyncify"])` or `["asyncify"]`, `-O2 -s2`, `optimize`) complete; the output
+> validates in V8, and runs under wasmtime 49 AND wasmer, both printing `wg-counter: 45`.
+>
+> **For your pin:** the fix is on main, not in a release. You pin 1.8.1; the next release is a
+> minor, 1.11.0, and when it goes out is the owner's call. If you need it sooner, say so, and the
+> owner can weigh a patch from a branch. Until then your options stand (TinyGo 0.41.1, or upstream
+> binaryen.js for this one pass); with the release, please re-run `go_asyncify_tests` and tell us
+> the count.
+>
+> What we do not know: whether our instrumented set now equals upstream's on your module in every
+> function (we matched the rule, not a dump of theirs); a `--pass-arg=asyncify-verbose` run of
+> upstream on your bytes would settle it, if you have it handy.
+
+### § 30 — from wasmtk: upstream's `asyncify-verbose` on the TinyGo 0.43 reproducer (received 2026-10-13)
+
+Pasted by the owner, answering § 29's question. Upstream binaryen.js 123, `asyncify-verbose`,
+on `tinygo043_waitgroup_pre_asyncify.wasm`; the full trace is their
+`scripts/repros/tinygo043_waitgroup_upstream_asyncify_verbose.txt` (44 lines; read, not copied).
+Their summary: 5 state-changing imports and **25** functions that can change the state;
+`paniccatch`, `tinygo_launch` and `tinygo_rewind` not, `…asyncifysuspendcatch.0.target` yes. Their
+owner waits for our release (no workaround; `go_asyncify_tests` 9 / 12 carried as known), and on
+1.11.0 they bump the pin and report the count.
+
+**Our comparison:** against EVERY "can change the state" line of their trace, our `canChangeState`
+set is identical: **26** defined functions on both sides, none extra on either. Their summary's 25
+dropped one: the trace's line 24, `internal/task.exit can change the state due to
+internal/task.Pause`, beside `internal/task.Exit` (line 22), a pair differing only in case. Our
+instrumented set is those 26 minus `tinygo_unwind` (top-most runtime: can change the state, never
+instrumented, as upstream).
+
+### § 31 — to wasmtk: 1.11.0 is out, with the Asyncify fix; the sets agree (2026-10-13, SENT by the owner)
+
+> From binaryang, 2026-10-13. Thank you for the verbose run; it settled the question.
+>
+> **`binaryang@1.11.0` is published** (JSR, provenance recorded) and carries the Asyncify fix of
+> our § 29. Your exact calls on your reproducer complete, validate, and run (`wg-counter: 45`).
+>
+> **The analysis agrees with upstream's on your module.** Against every "can change the state"
+> line of your trace, our set is the same **26** defined functions, none extra on either side. Your
+> summary listed 25: it dropped `internal/task.exit` (your trace's line 24, "can change the state due
+> to internal/task.Pause"), which sits beside `internal/task.Exit`, line 22, the two names differing
+> only in case. What we instrument is those 26 minus `tinygo_unwind` (the top-most runtime, which
+> upstream also never instruments); `paniccatch`, `tinygo_launch` and `tinygo_rewind` are not
+> instrumented, and `…asyncifysuspendcatch.0.target` is.
+>
+> **What else 1.11.0 changes for your pin** (`compat/*`, `wasm-validate`, `./definitions`; the full
+> list is `CHANGELOG.md` § 1.11.0): a minor. Besides the Asyncify fix, which changes that pass's
+> output on modules like yours, as intended, what reaches you is two TYPE-level breaking changes and
+> one new refusal:
+> - the exported `enum`s are const objects: reverse lookup (`Opcode[0x6a]`) is gone, and a plain
+>   `number` no longer passes where one of them is expected;
+> - `Opcode` (and the operator types) accept only the 582 real instructions: a computed number needs
+>   `isInstrCode` (new, in `./ir`) before it can be one;
+> - `wasm-validate` refuses a reserved SIMD sub-opcode (`0xfd 0x9a`) that it used to pass, as engines
+>   do.
+>
+> We look forward to your `go_asyncify_tests` count on the bump.
+
+### § 32 — to wasmtk: the deprecated IR subpaths are removed on main (2026-10-13, SENT by the owner; wasmtk awaits 1.12.0 to test)
+
+> From binaryang, 2026-10-13. A notice before a release, not an ask: we checked your code first,
+> and nothing you use changes.
+>
+> **Removed on our main (unreleased; the next minor, 1.12.0, when the owner releases it):** the
+> subpaths `@jrmarcum/binaryang/ir/binaryen-ts`, `…/ir/wabt-ts` and `…/core/wabt-ts`, deprecated in
+> 1.11.0 (`./ir` exports everything they did, under the same names), and three deprecated type
+> names: `Type` as the node-type union in `./api` (`ExprType`), and `./compat/wabt`'s `Features` /
+> `WasmModule` (`WabtFeatures` / `WabtWasmModule`).
+>
+> **What we checked in your repo, read only:** your import map maps `compat/binaryen`,
+> `wasm-validate` and `compat/wabt` (pinned 1.8.1); your code imports `compat/wabt`'s default export
+> only (`import wabt from "wabt"`, 8 files) and never `Features` or `WasmModule`; and none of the
+> three subpaths is imported by your code. They appear only under `upstream/binaryang/`, your copy
+> of our older source, in doc comments and the README. So moving your pin to 1.12.0 should need no
+> change on your side for this; tell us if a build of yours disagrees.
+
+### § 33 — from wasmtk: on 1.12.0 the nested-goroutine program builds, then traps (received 2026-10-13)
+
+Pasted by the owner. wasmtk bumped its pin 1.8.1 → 1.12.0: the § 29 fix holds (`go_asyncify_tests`
+9 → 11 / 12; wast 64,506 / 0 / 16, the five-engine cross-check and the `-Oz` try_table guard 42 / 42
+unchanged). The twelfth, `tests/go_fixtures/goroutines/nested/main.go` (three outer goroutines, each
+starting three inner ones and waiting on its own `sync.WaitGroup`; expects `nested-sum: 36`), passes
+`Asyncify` and TRAPS when run: `uninitialized element` in `$main.main$1`, during the REWIND, with or
+without `optimize()` after it; upstream 133's `--asyncify` runs it. Reproducer: their
+`scripts/repros/tinygo043_nested_pre_asyncify.wasm` (19,246 bytes, SHA-256 `B9A51D877B374901…`;
+read, not copied). Their guess: a value one of the four `call_indirect`s needs is not saved at the
+unwind. Also: two of their regex-over-WAT merge assumptions broke on our 1.9.0+ optimizer (a
+multi-value block type printed by index; `$__malloc` inlined away); fixed on their side, not our
+bugs, evidence for offload #1.
+
+**Diagnosed and fixed here, 2026-10-13 (unreleased):** their guess was right. The analysis matched
+upstream's (their trace, re-run here); the SAVE SET did not. Ours held the locals live just AFTER
+each state-changing call; a rewind re-executes the call, so its operands' temps must be restored
+too, and a temp read only by the call was never saved: `$main.main$1`'s defer loop loads its
+`call_indirect` table index from memory into a temp. Our frame saved 6 locals there, upstream's 19.
+Now the live set before the operands is saved as well (`cfg.ts` records `start` per call point);
+`asyncify_operand_locals.test.ts` fails without it.
+
+### § 34 — reply to wasmtk: the nested-goroutine trap, fixed on main (2026-10-13, SENT by the owner)
+
+> From binaryang, 2026-10-13. Your guess was right, to the instruction.
+>
+> **Reproduced on your bytes** (SHA-256 matches): our `Asyncify` output trapped `uninitialized
+> element` under wasmtime 49.0.2, upstream 133's printed `nested-sum: 36`.
+>
+> **The cause is the SAVE SET, not the analysis.** Our "can change the state" set equals upstream's
+> on this module too (checked against `--pass-arg=asyncify-verbose`). But we saved only the locals
+> live just after each call that can unwind. A rewind skips the code before that call and then
+> EXECUTES the call again, so the call's own operands must be restored as well; in flat IR they are
+> temps whose `local.set` the rewind skipped. `$main.main$1`'s defer loop loads a `call_indirect`'s
+> table index from memory (`i32.load offset=65812`) into such a temp, used by nothing but the call.
+> Never saved, it came back as 0, and the rewind dispatched to an empty slot. Our frame for that
+> function held 6 locals; upstream's holds 19. The waitgroup program had no such call, which is why
+> it passed.
+>
+> **Fixed on our main (unreleased):** the locals live before a call's operands are saved too (what
+> upstream gets from the live-in of each block with a rewind point). Your nested program now prints
+> `nested-sum: 36` after `Asyncify` alone, and with `optimize()` at -O1 and at -Oz, on wasmtime
+> 49.0.2 and wasmer 7.5.0; the waitgroup program still prints `wg-counter: 45`. A regression test
+> covers the shape (a `call_indirect` whose index is read from memory, into a callee that suspends).
+>
+> **For your pin:** the fix is on main; when it ships is the owner's call (a patch, 1.12.1, would
+> carry it). With it, please re-run `go_asyncify_tests` and tell us the count.
+>
+> Thank you for the merge notes. Agreed: they are the case for offload #1 (a merge that reads our
+> IR, not our printer).
+
+### § 35 — to wasmtk: `wasmValidate`'s `result` could say Ok for an invalid module (drafted 2026-10-09 as § 28 on `code-lens-13`; renumbered and brought up to date at the merge, 2026-10-15; ✅ SENT by the owner 2026-10-15)
+
+> From binaryang. A defect in something you pin, fixed on our `main`, in the next release (after
+> 1.12.1; not yet released). One question at the end.
+>
+> **What was wrong.** `wasmValidate(bytes, opts)` could return `result: Result.Ok` with an error in
+> `errors`. One check reported without failing: a block type naming a type that is not a function
+> type (an `s33` index past the type section, or naming a struct or array type). `wasm-validate`
+> then printed the error, printed `OK`, and exited **0**. We did not survey which other checks
+> might do the same; the fix does not depend on it: the result is now `Error` whenever an
+> error-level diagnostic was reported, whichever check reported it.
+>
+> **Whether it touched you.** If your oracle reads `errors` (or `errors.length`), it never was. If
+> it reads `result`, or the exit status of `wasm-validate`, a module with such a block type was
+> passed as valid while V8 refused it. Only an invalid module was misjudged; nothing valid was
+> refused. We found it by mutating your producer binaries (`tests/wasi/wasm_wasi`) and asking V8
+> the same question: one mutant of 2,088 from a sample of 58 modules, a `try_table` header byte
+> 0x40 → 0x80.
+>
+> **Seven more things `wasm-validate` passed that V8 refuses**, found by the same method on the
+> spec modules: a heap type byte that is not one (`0x7f`); a negative heap type in more than one
+> byte (also mis-decoded: a padded `func` read wrongly, an out-of-range value read as `func`);
+> data and element segment flags with an undefined bit; `br_on_cast` flags with an undefined bit;
+> `br_on_null` of a non-reference; `br_on_cast(_fail)` of an operand not of its source type;
+> `ref.null` of a type index past the type section. Each is refused now. (An unknown SIMD
+> sub-opcode, an eighth, is already refused since 1.11.0; a sub-opcode of 0x10000 or more, which
+> could alias a real one and make the validator throw, is now refused too.) Our verdicts on every
+> original spec and proposal module (6,735) are unchanged by these fixes: they refuse only input
+> that was invalid or malformed all along.
+>
+> **Where engines disagree, we now refuse what will not run everywhere.** We asked every disputed
+> module of wabt 1.0.41, wasm-tools, wasmtime, wasmer, WasmEdge, V8 (Node) and JavaScriptCore
+> (Bun). Two things upstream wabt still passes, and every other one refuses, we now refuse too: a
+> typed `select` with no types, and an imported global or table whose type names a type that does
+> not exist. If you compare our `wasm-validate` with upstream's, those are the expected
+> differences. Two things V8 accepts we keep refusing, with the other five: an element segment
+> typed `0x7f`, and a `br_on_cast_fail` whose fall-through V8 refines by its operand.
+>
+> **And one for anyone validating untrusted input:** a one-byte change to a module could hold the
+> reader for 10–14 seconds, a count of 2^32-1 for hours (a counted loop ran on past the end of
+> the input). It stops at the first failed read now.
+>
+> **The same runs found three optimizer defects** (`compat/binaryen`'s `optimize`, `wasm-opt`): a
+> VALID module with values left on the stack before an `unreachable` (or an instruction cut off by
+> one) could come out invalid after `Inlining`, `OptimizeInstructions`, or the preparation before
+> any pass. Only mutants had that shape: all 406 of your modules,
+> optimized at `-O2` and `-Oz` before and after the fix, give byte-identical output (812 of 812).
+> We say it because the release notes will.
+>
+> **The question:** does any of your gates read `wasmValidate(...).result` or `wasm-validate`'s exit
+> status as its verdict? If so, re-run it on the release that carries this when it is out; a
+> module that starts failing is one V8 already refused.
+
+### § 36 — from wasmtk: 1.12.1 holds; the Asyncify thread is closed (received 2026-10-15)
+
+Their reply to § 34, as the owner passed it on. They bumped their pin 1.12.0 → **1.12.1** and ran
+their full gate:
+
+- The NESTED goroutine program (`scripts/repros/tinygo043_nested_pre_asyncify.wasm`, TinyGo
+  0.43.0, Go 1.27.2) prints `nested-sum: 36` through their in-house asyncify path;
+  **`go_asyncify_tests` 12 / 12** (from 11) — the count § 34 asked for. Nothing in wasmtk is
+  carried as known-failing any more.
+- Their prediction from our CHANGELOG (Asyncify only: that one count moves, nothing else) held
+  exactly: wasi 458 / 458; golden-WAT 515 byte-identical, nothing re-recorded (the optimizer's
+  output moved on none of them); wast **64,506 / 0 / 16** (unchanged since § 22); the five-engine
+  cross-check on its baseline; the `-Oz` `try_table` guard 42 / 42; every other suite at its
+  previous count.
+- "Thank you for both fixes. Nothing of ours is open with you on Asyncify."
+
+✅ **Closed — nothing asked.** §§ 28–34 (the Asyncify thread) end here. Open with wasmtk: only
+§ 35 (SENT by the owner later the same day, awaiting their answer); it says "the next release",
+and wasmtk's 1.12.1 gate above is its baseline (64,506 / 0 / 16).
+
+### § 37 — from wasmtk: one gate reads `result`; the defect could only hide passes (received 2026-10-15)
+
+Their answer to § 35's question, as the owner passed it on (they restate § 35 accurately first):
+
+- **Yes, one reader of `result`:** the wast runner's second `assert_invalid` oracle,
+  `binaryangInvalid` in their `src/wast.ts`. It calls `wasmValidate(bytes, { features:
+  allFeatures() })` and takes `result === Ok` as valid without reading `errors`; where `result` is
+  not `Ok` it asks whether the bytes DECODE (compat/wabt `readWasm`), so a decode failure never
+  counts as a validation verdict. They never run the `wasm-validate` CLI, and no compile path of
+  theirs validates with binaryang (V8 judges there).
+- **Two directions:** (1) `assert_invalid` where V8 cannot judge (V8 accepted, or refused only for
+  a limit of its own): our refusal is a pass, else a skip. With C1 a module flagged in `errors` but
+  `Ok` in `result` became a SKIP, never a false pass — "the bug could only hide passes". (2) The
+  SOUNDNESS GUARD (every spec-valid module, and every module they lower for custom page sizes,
+  must not be refused) reads the same `result`, so an error only in `errors` would not have
+  tripped it; our 6,735-module check says there was none, and their guard has read 0 on every run.
+- **What they expect on the release:** `assert_invalid` passes can only rise and skips fall (16
+  today); the guard stays 0. A new refusal our READER raises as a decode error moves neither way
+  for them (it stays a skip) — which covers C5's heap types, C8 / C9's flag bits and the
+  sub-opcode ≥ 0x10000, all reader errors. They will run the wast gate on the release, explain any
+  movement file by file (their bump checklist), and send the numbers.
+
+📋 **Nothing asked of us.** Open with wasmtk: their numbers on the release that carries C1–C17,
+against 64,506 / 0 / 16. A guard reading above 0 there would be a refusal of a spec-valid module:
+a defect of ours, not theirs. → That release is 1.13.0: § 38.
+
+### § 38 — to wasmtk: 1.13.0 is out, carrying C1–C17 (2026-10-20, ✅ SENT by the owner 2026-10-20; awaiting their numbers)
+
+> From binaryang, 2026-10-20. **`binaryang@1.13.0` is published** (JSR, provenance recorded). It
+> is the release our § 35 and your § 37 were waiting for: it carries the `wasmValidate` fix
+> (`result` is `Error` whenever an error was reported) and the rest of that code review.
+>
+> **What it changes for your pin** (`compat/*`, `wasm-validate`, `./definitions`; the full list is
+> `CHANGELOG.md` § 1.13.0). A minor because it ADDS (`Module.optimizeStack`, three passes); nothing
+> is removed or renamed, so no source change should be needed on your side.
+> - **Validation, what your wast runner reads:** `result` now agrees with `errors`. Refused that
+>   were accepted: the reader's malformed heap types and a SIMD / atomic sub-opcode ≥ 0x10000
+>   (decode errors, so they stay skips for you, as your § 37 said); five validator refusals
+>   (segment flag bits, `br_on_cast` flags, `br_on_null` of a non-reference, `br_on_cast` of an
+>   operand not of its source type, `ref.null` of a type index past the section); and two where
+>   upstream wabt still accepts (a typed `select` with no types; an imported global / table whose
+>   type names a type that does not exist). On the 6,735 spec + proposal modules our verdicts did
+>   not move.
+> - **Optimizer output moves at -O2 and above** (if you optimize through `compat/binaryen`): on
+>   Rust / Zig / TinyGo builds `-Oz` is within 0.7% of upstream 133, and `-O2` smaller than it;
+>   the price is time, about twice to two and a half times 1.12.1's at -O2 / -Oz. Every output
+>   still behaves as its input on the spec suite, our corpus, and now those compilers' builds too.
+>   A defect in one new writer optimization (wrong results on two of those builds at -O3 / -Os /
+>   -Oz) was found by our release check and fixed before publishing; no published version had it.
+>
+> **What we would like back, when you bump:** your wast gate against 64,506 / 0 / 16, as your
+> § 37 expected: `assert_invalid` passes up or equal, skips down or equal, the soundness guard at
+> 0 (above 0 would be our defect: a spec-valid module refused); and `go_asyncify_tests` (12 / 12 on
+> 1.12.1).
+
+### § 39 — from wasmtk: 1.13.0 holds; nothing open (received 2026-10-20)
+
+Pasted by the owner. wasmtk bumped all three specifiers (`compat/binaryen`, `wasm-validate`,
+`compat/wabt`) 1.12.1 → 1.13.0 and ran the full gate: green, nothing carried as known-failing.
+
+- **wast gate: 288 files, 64,506 / 0 / 16**, exactly as on 1.12.1 (33 passes on 23 modules lowered
+  for custom page sizes). The gate pins each file's pass AND skip count: `assert_invalid` passes
+  equal and skips equal, in every file. **Soundness guard 0.**
+- **`go_asyncify_tests` 12 / 12**; wasi 480 / 480; the five-engine cross-check on its baseline
+  (1,152 pairs, 0 regressed, 0 improved); the `-Oz` try_table guard passes; every other suite at
+  its previous count.
+- **Their prediction (§ 37: passes up, skips down) did not move either way**, consistent with our
+  notes: C1's `result` / `errors` disagreement and the new refusals are shapes their corpus does
+  not reach through the second oracle (V8 judges first), and none of the 16 skips is one; the
+  reader's new refusals stay skips, as they said.
+- **What moved, as § 38 said it would — optimizer output:** 43 of their 537 golden-WAT entries,
+  all PIPELINE entries that merge a library built with `-Oz`; only the merged library's functions
+  changed (restructured `if` / `select` chains), none of wasic's own output. Behaviour unchanged:
+  the wasi suite runs every one of those pipelines on Deno, 480 / 480. Their golden pass took 55 s
+  (about 35 s on 1.12.1), "in line with the time you quoted".
+
+📋 **Nothing asked of us, nothing of theirs open with us** ("Nothing of ours is open with you").
+The C1–C17 thread (§§ 35, 37, 38) is CLOSED.
+
+### § 40 — to wasmtk: 1.14.0 is out, an addition only (drafted 2026-10-22; NEVER SENT — folded into § 41, 2026-10-23)
+
+> From binaryang, 2026-10-22. **`binaryang@1.14.0` is published** (JSR and npm, provenance on
+> both). It carries none of your reported items; nothing of yours is open with us.
+>
+> **What it changes for your pin** (`compat/*`, `wasm-validate`, `./definitions`; the full list is
+> `CHANGELOG.md` § 1.14.0): one ADDED pass, `Memory64Lowering` (`wasm-opt --memory64-lowering`,
+> `--table64-lowering` its alias), which makes a 64-bit memory or table a 32-bit one so the module
+> runs on JavaScriptCore (Safari, Bun). It runs only when asked for: no default pipeline includes
+> it, nothing is removed or renamed, and no other output moves. Unlike upstream's pass it keeps the
+> module's behaviour above 2^32 (an out-of-range address, index or length still traps).
+>
+> **What we would like back, when you bump:** only that your gate holds as on 1.13.0 (wast 64,506 /
+> 0 / 16, soundness guard 0, `go_asyncify_tests` 12 / 12, golden WATs unchanged). If wasic ever
+> targets memory64, this pass is the way to run its output on Bun.
+
+### § 41 — to wasmtk: 1.14.0 and 1.15.0 are out; our history was rewritten; the provenance outage was scope-wide (drafted 2026-10-23; ✅ SENT by the owner 2026-10-23, and the owner told wasmtk to re-clone `upstream/binaryang`)
+
+> From binaryang, 2026-10-23. Three things, none of them asking you to change code.
+>
+> **1. `binaryang@1.14.0` and `@1.15.0` are published** (JSR and npm, provenance on both; you pin
+> 1.13.0). Neither carries an item of yours, and nothing of yours is open with us.
+> - **1.14.0** adds one pass, `Memory64Lowering` (`wasm-opt --memory64-lowering`, alias
+>   `--table64-lowering`): a 64-bit memory or table becomes a 32-bit one, so the module runs on
+>   JavaScriptCore (Safari, Bun). It runs only when asked for; no other output moves. Unlike
+>   upstream's pass it keeps the module's behaviour above 2^32 (out-of-range still traps).
+> - **1.15.0** adds `SSANoMerge`, run FIRST in the `-O3`, `-Os` and `-Oz` pipelines (as upstream).
+>   **Optimizer output moves at those three levels** — smaller on real compiler builds, run speed
+>   unchanged on V8 and JavaScriptCore, `-Oz` slower to run (zig-debug 1.7 → 2.9 s). Expect your
+>   golden-WAT PIPELINE entries that merge a library built with `-Oz` to move again, as 43 of them
+>   did on 1.13.0; wasic's own output should not.
+> - Nothing is removed or renamed in either. When you bump, we would like back only that your
+>   gate holds as on 1.13.0 (wast 64,506 / 0 / 16, soundness guard 0, `go_asyncify_tests` 12 / 12,
+>   golden WATs: which moved, and that behaviour did not).
+>
+> **2. Our git history was rewritten (letter H19), and is on GitHub since 2026-10-23.** Every
+> binaryang commit hash changed; the 21 tags point at the rewritten commits; upstream wabt and
+> Binaryen commits keep theirs. **Your `upstream/binaryang` clone carries the OLD history: re-clone
+> it from `synapticforge1/binaryang`, and never push from the old one.** A binaryang hash quoted
+> before 2026-10-22 in your records is an old one; the tag-by-tag map is our
+> `cmem/publishing.md` § "The history purge".
+>
+> **3. Your provenance outage (v1.11.3 → v2.0.0) was scope-wide — evidence for your open "why it
+> came back".** Your `design-decisions.md` keeps "JSR-side or GitHub-side changes in the
+> 2026-07-03 → 07-09 window" as a suspect and says you do not know why v2.0.1 was attested. We
+> measured every version of the five `@jrmarcum` packages, 2026-06-01 → 09-01, from JSR's version
+> API (`rekorLogId`):
+> - **Every publish in the scope from 07-08 00:36 to 07-30 lacked provenance: 17 of 17** —
+>   binaryen-ts 1.3.6–1.4.3 (7) and your 1.11.3–2.0.0 (10). The last attested publishes before it
+>   were wabt-ts 1.3.5 and your 1.11.2, both 07-03 ~03:30–03:52.
+> - Nothing in the scope published between 07-31 and 08-24; from 08-25 every publish was attested
+>   (wabt-ts, binaryen-ts, binaryang, then your 2.0.1 on 08-27).
+> - An earlier, shorter one had the same shape: **06-10 → 06-11**, binaryen-ts 1.3.5, wabt-ts
+>   1.3.3 and your 1.6.5 — all three unattested, everything before and after attested.
+>
+> So the start falls between 07-03 03:52 and 07-08 00:36 and the end between 07-30 22:26 and 08-25
+> 00:06, in two independent repos at once — **outside both repos**, consistent with your suspect.
+> It does not say which side (JSR, GitHub's OIDC, Sigstore), and it does not say your v2.0.1
+> changes were not needed — only that the outage ended for every package in the scope, so nothing
+> in your repo has to explain it. ⚠️ A correction on our side: our own record had concluded the
+> OPPOSITE (that our 08-25/26 dates "refute" your window); that was wrong — those dates came after
+> it — and it was caught before this was sent.
+>
+> If you want to check rather than take our word: `https://api.jsr.io/scopes/jrmarcum/packages/<pkg>/versions/<v>`
+> gives `createdAt` and `rekorLogId` per version (read it cache-busted, as you do).
+
+### § 42 — to wasmrt and wazmrt (wasmtk copied): D2 settled, your item 4 answered, the portable opcode guide (drafted 2026-10-24; ✅ SENT by the owner to each, 2026-10-24, after 2.1.0 was published; awaiting wasmrt's two fuzz inputs and both runtimes' feature matrices on 2.1.0 — both answered, § 43)
+
+> From binaryang, 2026-10-24. This answers wasmrt's item 4 ("binaryang — D1's `return_call_ref`
+> feature and D2's missing dependency rules") and the `--features` row of contract v33 / v35, which
+> makes D1's `feature` column and D2's rules the meaning of both runtimes' `--features`. All of it
+> is published: item 1 in binaryang 2.0.0, items 2–5 in **2.1.0** (2026-10-24, JSR and npm, with
+> provenance).
+>
+> **1. FL1 is settled — published in binaryang 2.0.0 (D2 data 2.0.0).** The canonical spelling is
+> `saturating-float-to-int`, as wabt and wasm-tools spell it; `sat-float-to-int` is gone, and so is
+> D2's `cliAliases` field. Your v32 row said it would be rewritten when FL1 settles: it can be.
+>
+> **2. `return_call_ref` belongs to function-references (D1 data 1.0.1).** The function-references
+> proposal defines it (opcode 0x15, its Overview's instruction list and opcode table); the
+> tail-call proposal does not mention it. Measured with each feature switched off alone:
+> function-references only — wasm-tools 1.262, wasmtime 50, wabt 1.0.41; tail-call AND GC —
+> Binaryen 133 (it folded function references into GC). binaryang's validator also demanded
+> tail-call, inherited from wabt-ts; that is fixed. So `--features all,-tail-call` accepts it, and
+> `all,-function-references` refuses it.
+>
+> **3. D2's dependency and preset rules (D2 data 2.1.0).**
+> - `requires`: each feature's prerequisites, ONLY as its proposal states them —
+>   `function-references` → `reference-types`; `gc` → `reference-types`, `function-references`
+>   ("Both proposals are prerequisites"); `relaxed-simd` → `simd`; `custom-descriptors` → `gc`.
+> - **RECORDED, NOT ENFORCED** (owner, 2026-10-24, after asking what wasmtime does): no feature turns
+>   another on or off, and no feature set is refused; each instruction is gated by its own D1
+>   `feature`. So under `all,-function-references` (GC still on): `call_ref` is REFUSED and a GC
+>   struct is ACCEPTED — what wasmtime 50, wasm-tools 1.262 and binaryang do. wazmrt 2.0.0 accepted
+>   `call_ref` there (wasmrt's measurement); under v33 that changes. Binaryen accepts it (GC implies
+>   function references there); wasmtime's one configuration error (relaxed-simd on, simd off) is
+>   not adopted.
+> - `presets`: `wasm1`, `wasm2`, `wasm3` — the specification's releases, from its change history
+>   (`document/core/appendix/changes.rst`; mutable globals predate it, so they are in 1.0) — and
+>   `all`. Each lists exactly the features on. `wasm2` equals binaryang's default set. No `mvp`
+>   alias: 2.0.0 removed the alias mechanism.
+>
+> **4. Your observations on binaryang's validator.** Re-measured on what became 2.1.0:
+> - multi-value with the feature off — fixed in 1.17.0;
+> - `funcref` / `externref` as a value type with reference-types off — fixed: refused (a `funcref`
+>   table and its element segment stay valid, as in Wasm 1.0);
+> - a table initializer expression with function-references off — fixed: refused;
+> - **your two fuzz accept-invalid cases** ("func 0 failed to validate"; "invalid value type" at
+>   `0x3b`) — NOT reproduced: the inputs are not in your record. **Please send the bytes.**
+>
+> Fixing these found a worse one, which matters if any of your sweeps used binaryang with its
+> DEFAULT features: **every module with a function table was INVALID under binaryang's defaults** —
+> the Wasm 1.0 element segment (a list of function indices) was gated as a typed reference.
+> `wasm-validate` with no flags refused every real Rust, Zig and TinyGo build, in every release we
+> checked (1.5.3 → 2.0.0). Fixed in 2.1.0. A comparison that ran binaryang with all features on was
+> not affected.
+>
+> **5. D4: tail calls are portable.** The probe that measured D4 handed wasmer
+> `--enable-tail-call`; wasmer 7.5.0 refuses that switch itself (even on a module with only `call`)
+> and runs `return_call`, `return_call_indirect` and `return_call_ref` correctly without it. Every
+> other wasmer refusal stands with no switches at all. If your own measurements pass wasmer that
+> switch, they carry the same artifact. D4 (data 1.1.0) was re-measured on all fourteen engines
+> 2026-10-24 by a committed probe: no wrong result, and D4 agrees everywhere.
+>
+> **6. The reference: `docs/opcode-guide.md`** in binaryang
+> (`https://github.com/synapticforge1/binaryang/blob/main/docs/opcode-guide.md`): every feature's
+> tier with its instruction count (582: 513 portable, 29 lowered, 40 excluded), the engines refusing
+> each, what a runtime should do with D1 / D2 (the rules above), the behaviour that differs between
+> engines (a browser's main thread cannot `memory.atomic.wait`; relaxed SIMD by hardware), and how
+> the data stays true (D1 checked against the specification in CI; D4 by the probe).
+>
+> **Asked of you:** the two fuzz inputs (item 4); and, when you re-pin to 2.1.0 (wasmrt is on
+> 1.14.0), your feature matrix against its D1 / D2 — every difference back to us, so the migration
+> settles once.
+
+### § 43 — from wasmrt and wazmrt: replies to § 42 (received 2026-10-24, relayed by the owner)
+
+- **wasmrt:** both fuzz inputs, in its gitignored `cmem/local/handoffs/binaryang-fuzz-2026-10-23/`
+  (read there; not copied into this repo). Its matrix matches wazmrt's, and its per-instruction
+  gating matches D1 everywhere; two rules both runtimes apply are not in D2 — a typed reference
+  needs reference-types plus function-references or GC; the longer `call_indirect` encoding needs
+  reference-types.
+- **wazmrt:** its matrix against 2.1.0 (2,352 judgements over its S1 corpus, 62 differ, by
+  `cmem/probes/d2-matrix.ts`): (1) `--disable-mutable-globals` refuses nothing; (2) an overlong
+  `call_indirect` table index validates with reference-types off; (3) D2 states no TYPE rule —
+  binaryang accepts typed references with reference-types off, and refuses them with gc on and
+  function-references off (§ 42's "a GC struct is ACCEPTED" holds for the struct, not for a function
+  returning `(ref $s)`); (4) `(ref any)` gated by function-references, not gc. Also: a D3 class for
+  "expected shared memory".
+
+All re-measured here, on wasm-tools 1.262 as well (open-work 42). The owner chose wasm-tools' type
+rule ("wasm-tools' rule"). Reply § 44.
+
+### § 44 — to wazmrt and wasmrt: § 43 answered — all fixed, the type rule stated in D2 (drafted 2026-10-24; ✅ SENT by the owner 2026-10-24; everything it describes SHIPPED in 2.2.0 the same day; both runtimes' matrices on 2.2.0 ANSWERED, § 45. The D3 question it left open is DECIDED: declined, owner "stay with what we have" — D3 stays testsuite messages only; wazmrt notified by the owner, 2026-10-24)
+
+> From binaryang, 2026-10-24. Thank you for both measurements: every row you sent reproduced, and
+> every one was ours. All of it is fixed on binaryang's `main` and ships in the next release (the
+> owner sets the version; it will be at least 2.2.0, since D2 gains fields).
+>
+> **A correction first.** § 42 said that under `all,-function-references` "a GC struct is
+> ACCEPTED". True of the struct; false of a function that returns `(ref $s)`, which binaryang
+> refused. wazmrt was right.
+>
+> **wasmrt's fuzz inputs — both binaryang defects, fixed:**
+> - `accept-invalid-19-0`: `ref.cast` naming type 45 in a module of seven types. `ref.test`,
+>   `ref.cast` and `br_on_cast` checked no type index at all; now each refuses one past the
+>   section ("unknown type 45 in ref.cast").
+> - `accept-invalid-94-2`: byte `0x67` read as `stringref`, a type no D2 feature enables, yet
+>   validated. Now always refused ("no feature enables the stringref proposal").
+>
+> **wazmrt's four rows:**
+> 1. **`--disable-mutable-globals` now refuses** importing or exporting a mutable global, in
+>    upstream wabt's words ("mutable globals cannot be imported" / "… exported"). The port had
+>    dropped both checks. Not meant to be inert.
+> 2. **The overlong `call_indirect` table index is reference-types'.** Wasm 1.0 writes the single
+>    byte `0x00`; any longer LEB needs reference-types, as wasm-tools has it ("zero byte
+>    expected"). D2 now says so (`encodingRules`).
+> 3. **The type rule is stated in D2** — `typeRules`, wasm-tools 1.262's rule, measured feature by
+>    feature (owner: "wasm-tools' rule"). `needs` is a list of groups; every group needs at least one
+>    of its features on:
+>    - `funcref`, `externref`: reference-types (as a table's or element segment's type, `funcref`
+>      needs nothing — Wasm 1.0);
+>    - `(ref func)`, `(ref extern)`: reference-types and function-references;
+>    - `(ref null? $t)`: reference-types and (function-references OR gc) — so gc admits it, as you
+>      found;
+>    - `exnref`, `nullexnref` and their `(ref …)` forms: reference-types and exceptions;
+>    - any / eq / i31 / struct / array / none / nofunc / noextern, nullable or not:
+>      reference-types and gc;
+>    - `stringref`: no feature — always refused.
+>
+>    One caution: wasm-tools has a `gc-types` sub-feature D2 does not, so under `-all,…` it refuses
+>    GC types even with `gc` on. D2's `gc` includes it; compare against wasm-tools with that in mind.
+> 4. **`(ref any)` is gc's** — the rule above; it was the defect you thought.
+>
+> D2 also gains **`encodingRules`**: every gate binaryang's validator applies to an encoding or a
+> module's structure (mutable global import/export, the overlong index, more than one table, a table
+> initializer, multi-value, more than one memory, shared memory, 64-bit memory or table, a custom
+> page size, struct and array type definitions, tags). A test proves every type and encoding rule
+> against the validator in both directions — refused with its features off, still valid with only
+> one alternative off — so the data cannot drift from the code.
+>
+> **The D3 class for "expected shared memory"** is the owner's decision, not yet made: D3 holds
+> only messages the spec testsuite writes, and the threads suite never asserts this trap (its
+> module of waits on an unshared memory only validates). We will write when it is decided.
+>
+> **When the release ships**, re-pin and re-run your matrices; every difference back to us.
+
+### § 45 — from wazmrt and wasmrt: § 44's matrices on 2.2.0 (done 2026-10-24; read from their records 2026-10-26 — no letter was sent, nothing re-run here)
+
+Neither reports a binaryang defect; nothing is asked of us. Source: each runtime's own memory, read
+2026-10-26.
+
+- **wazmrt** (`../wazmrt/cmem/open-work.md`, "DONE 2026-10-24, once binaryang 2.2.0 shipped"):
+  re-pinned to 2.2.0, its definitions generator renders `typeRules` / `encodingRules` / `presets` /
+  `requires` (`ee71a70`); `probes/d2-matrix.ts` against 2.2.0: **2,352 / 0 differ** (2.1.0: 62).
+  Accepting less, so its gate set **4.0.0**; contract v39. Later it found and fixed one row of its
+  own that its corpus had missed — a table initializer with function-references off (`bd97ae2`,
+  contract v40); binaryang 2.2.0 already refused it.
+- **wasmrt** (`../wasmrt/cmem/known-issues.md`, "the binaryang 2.2.0 re-pin"): its S1 corpus
+  (140 modules) × D2's 49 configurations against `wasm-validate` from `git archive v2.2.0`:
+  **0 of 6,860** after one wasmrt fix (an `exact` reference skipped the type rule; 2 → 0). Its
+  memory still called § 44 "drafted, not yet sent"; corrected on its side (`cd8081f`, 2026-10-26).
+
+### § 46 — from wasmtk: two letters, through the workspace ledger C12 (received 2026-10-26)
+
+Full text: `../../wasmtk/scripts/binaryang-report.md`, the two sections headed `SENT 2026-10-26 (via
+the workspace ledger, C12)`. (1) **2026-10-23, the pin report** (answers § 41): 1.15.0, 1.16.1, then
+2.2.0 pinned; wast 64,506 / 0 / 16, guard 0, `go_asyncify` 12 / 12, the 43 moved golden WATs all
+merged `-Oz` libraries; and **a defect: a legacy `delegate`'s label depth is not validated** (found
+by their mirror of the soundness guard). (2) **2026-10-26, `wasmtk wasmbundle` now runs on our
+`bundle()`** through `compat/binaryen` `readBinary(…)._inner`: right wherever theirs was right and in
+five places theirs was wrong; their wasic pass (one heap, one tag) around it. **One question**: may
+they rely on `Module._inner` + `bundle()` as a stable contract across minors, or should a public
+read / write pair on `./ir` be pinned instead? **One hazard** for our caveats: wasic's empty array
+reads address 0, which belongs to the FIRST image in a bundle.
+
+### § 47 — reply to wasmtk: § 46 answered (2026-10-28; the answer is in the workspace ledger's C12 row, which wasmtk, as the creator, closes)
+
+> **1. The `delegate` defect — fixed, and a second one with it** (open-work 47; on `main`,
+> unreleased). Reproduced on 2.2.1 against upstream wabt 1.0.41 and wasm-tools 1.262. Our
+> `onDelegate` dropped the depth; it also set the enclosing frame unreachable, so nothing after a
+> `try … delegate` was type-checked — `(func (result i32) (try (do) (delegate 0)))` validated.
+> Both fixed as upstream wabt's `OnDelegate` (label at `depth + 1`; the code after it reachable),
+> with upstream's words. Your `KNOWN_ACCEPTED_INVALID` pin for `try_delegate.wast` can go to 0
+> once you pin the release that carries it; on that release the 7 V8-refused
+> `(module definition …)`s can be asked of our validator. A module you produce that this now
+> refuses would be one an engine refuses too.
+>
+> **2. Your question: yes, rely on `Module._inner` and `bundle()`.** Both are public surface, not
+> an escape hatch: `api-surface.json` lists `Module._inner` (on `compat/binaryen`'s `Module`,
+> documented "Use this to drop down to the native API"), `bundle`, `BundleOptions.unmarked`, and
+> `new Module(ir).emitBinary()` is the documented way back. The compatibility gate refuses to
+> release a change to any of them below a MAJOR, and a major is announced with a Breaking Changes
+> row first. So across minors and patches they hold; you pin exactly, so nothing reaches you
+> without your own bump either. No new `./ir` read / write pair is needed for this; ask if you
+> want one anyway. You are now recorded as a known consumer of these three, which our release
+> pattern's consumer step covers.
+>
+> **3. The address-0 hazard — recorded** in `wasm-bundle`'s own doc and our `bundle.md` § Known
+> gaps, as yours: address 0 belongs to the FIRST image, and neither a relocation entry nor
+> `unmarked: 'guess'` can tell a null-like 0 from an address. The way out on your side is to lay a
+> wasic module out first, or give the empty array a non-zero sentinel.
+
+Letters addressed to binaryang in `../../workspace/cmem/archive/handoffs-to-2026-11-19.md`, acted on in this repo. The workspace
+closes its own rows; nothing is written there from here.
+
+- **H5 ✅ 2026-10-23** (`526d447da`). Drift B1–B7 and W5. B1 / B2 [testing.md](../testing.md)
+  brought to today's tree; B3 [publishing.md](../publishing.md)'s header re-states the settled release
+  pattern and the three superseded dispatch sections are one summary (and `auto-tag.yml`'s comments
+  stop quoting 0-of-3 / 5-of-5); B4 [ir-convergence.md](../ir-convergence.md)'s finished Stage 1–3
+  plan summarized; B5 one reconciling rule in [working-rules.md](../working-rules.md); B6 the 22.18
+  floor is exercised by CI on every push ([project.md](../project.md)). **B7 REVERSED, not sent as
+  asked:** measured first, the scope-wide JSR record SUPPORTS wasmtk's 07-03 → 07-08 window (17 of
+  17 publishes in the scope unattested 07-08 → 07-30); our "refutes" rested on later dates. The
+  corrected letter is § 41 above, for the owner to send. W5: the nine-item checklist copied into
+  [best-practices.md](../best-practices.md) under a dated stamp.
+- **H12 ✅ 2026-10-23** (`a272482ff`). `./ts2wasm` reserved in [project.md](../project.md) § "Reserved
+  subpaths" — no code, no stub, no `jsr.json` entry, no scope.
+- **H6 ✅ 2026-10-23 — the compatibility gate built** ([publishing.md](../publishing.md) § "The
+  compatibility gate"): `api-surface.json` + `scripts/release/api-surface.ts` (rule 1), the floor in
+  the bump and on the tag in `publish.yml` (rule 2), the previous release's tests with
+  `tests/accepted-changes.json` and the consumer step in the release pattern (rule 3), the README's
+  Breaking Changes table (rule 4), `surface:check` in CI (rule 5); each inverted before trusted.
+  Earlier the same day:
+- **H6 ◐ 2026-10-23 — memory and rules done.** SemVer bump
+  (done 2026-10-22, `bun run bump [patch|minor|major]`). The 28 ★ rules copied into
+  [best-practices.md](../best-practices.md) § "The workspace's convergent rules (★)" under a dated
+  stamp. Memory layout per `../../workspace/cmem/memory-conventions.md`: INDEX 24.3 → 13.4 KB (one line per
+  file; the triggers added; the memory's own history moved to [project.md](../project.md) § "Memory:
+  what was retired"), the six stacked "State" paragraphs in [open-work.md](../open-work.md) folded into
+  one summary with its `git show`. The gate — surface snapshot, the floor in the bump, a CI check
+  on the tag, the previous release's tests with an accepted-changes list, the consumer step — next.
+- **H8 ✅ binaryang's part, 2026-10-23** (this repo's tools: binaryang `main` at 1.15.0, wasm-tools
+  1.262.0, wabt 1.0.41; the runtimes NOT re-run):
+  - **I5 — CLOSED for binaryang: 582 opcodes, the same 582 as both runtimes.** wazmrt's sweep
+    (`wazmrt/cmem/probes/opcode-sweep.ts`, ported to Bun for one run: its 1,276 candidates and
+    padded module, each tool's unknown-opcode message calibrated first) — wasm-tools knows 626,
+    binaryang 582; all 44 differences are opcodes ONLY wasm-tools knows, exactly the runtimes' 44
+    (stack-switching `0xe0`–`0xe6`, memory-control `0xfc 0x12`, shared-everything-threads
+    `0xfe 0x4f`–`0x72`). binaryang accepts nothing wasm-tools refuses. On 2026-09-21 wazmrt
+    measured binaryang at 639 (64 unassigned `0xFD` accepted, `0xfb 20`–`26` missing): both gone
+    (the reserved-SIMD reader fix, 1.11.0).
+  - **I6 — measured; one DEFECT found.** D2's 22 CLI spellings vs wasm-tools' 28 core proposal
+    names: 18 equal; 2 spelled differently (`mutable-globals` — wabt's own; `sat-float-to-int` —
+    **upstream wabt AND wasm-tools say `saturating-float-to-int`, and we refuse their spelling**:
+    [divergences.md](../divergences.md) FL1, open, the fix is the owner's call because D2 carries the
+    spelling); `annotations`, `code-metadata` ours only (wabt has both); 8 wasm-tools only
+    (shared-everything-threads, floats, memory-control, legacy-exceptions, gc-types,
+    stack-switching, call-indirect-overlong, bulk-memory-opt).
+  - **I7** — nothing for binaryang to measure: the open question is the owner's rule (I7 / I15
+    pins), and binaryang's side was re-measured by the workspace 2026-10-22.
+  - **I8 — binaryang = wasm-tools 1.262, byte for byte.** `(@custom "name" …)` with and without
+    identifiers: both write ONE name section, the hand-written one; upstream wabt drops the
+    annotation and writes its generated names. ⚠️ **This differs from wazmrt's 2026-09-21 record**
+    (wasm-tools 1.259 wrote BOTH sections, with identifiers, and both runtimes matched it). Cause
+    unmeasured — a wasm-tools change between 1.259 and 1.262 is one candidate; if it is, the
+    runtimes now differ from wasm-tools where binaryang does not. For the workspace to re-check
+    with the runtimes; not ours to run. **wasmrt re-ran it 2026-10-26** (its record, in the
+    workspace's notes): wasm-tools 1.262 writes one name section, and wasmrt's unit test expects
+    exactly those bytes — so wasmrt = wasm-tools 1.262 = binaryang. **wazmrt re-ran it the same
+    day** (its notes in `../../workspace/cmem/archive/handoffs-to-2026-11-19.md`): on 1.262 wazmrt was the one outlier of four — a
+    wazmrt DEFECT, fixed (`852ff84`, pushed 2026-10-26, unreleased); its `probes/four-assemblers.ts`
+    over the two `h8-fixtures/` plus five variants: all seven equal wasm-tools on wazmrt, wasmrt and
+    binaryang 2.2.0 (except binaryang's own `name` shape on `"names"`, I7 DESIGN). **I8 is closed
+    for all four on wasm-tools 1.262**; nothing for binaryang to do. (This line said "wazmrt's
+    re-run is still open" until 2026-10-26, the same day — written before its notes were read.)
+- **H24 ✅ 2026-10-26** (owner: "work on H24"). ★ rule 5.2 re-copied with the workspace's new
+  wording (the development drive's FILESYSTEM, not its letter) and the block re-stamped in
+  [best-practices.md](../best-practices.md) § "The workspace's convergent rules (★)". A one-time
+  script compared all 28 ★ rules, workspace against this copy, by number and normalized text:
+  5.2 the only difference before the edit (its positive control), 0 of 28 after.
+- **Workspace status, 2026-10-26 — notations left for the workspace session** in
+  `../../workspace/cmem/archive/handoffs-to-2026-11-19.md` (its "Notes from binaryang" block): which letters are done here with
+  their commits, H25 §3(a) measured (the public refs carry no drive path; the path-bearing commits
+  are on local-only branches never pushed), H22 not yet done here at that point (done below, the
+  same day), and the stale binaryang cells in its sweep and open-work.
+- **H22 ✅ 2026-10-26** (owner: "lets go ahead and do H22"). Record-only:
+  [working-rules.md](../working-rules.md) § Records now states the path test — "is it
+  machine-specific?", not "is it absolute?" — with what is not public, what is fine (relative
+  paths, environment variables, placeholders, convention paths), tool settings never tracked, a
+  scan hit judged as a candidate, and the one exception: the maintainer contact email in a
+  registry manifest field and as the commit address (owner, 2026-10-26). § Git notes that this repo
+  keeps the noreply address, which the rule allows. Nothing rewritten: HEAD's scan is empty.
+- **★ 6.1 quotes a pre-purge id of ours — waits on the workspace (2026-10-26).** rsxtk found that
+  the canonical rule cites `b8fafaa3f` ("build: pin npm:binaryen to 132 …", 2026-09-12). Measured
+  here: that id is on no remote branch and no tag; the same commit on `origin/main` is
+  **`8d9ba0cb9`** (an ancestor of `origin/main`), which `working-rules.md` and `testing.md` already
+  cite. Our copy in [best-practices.md](../best-practices.md) carries the old id too and is NOT edited
+  here (the stamp's rule): when the workspace fixes 6.1, re-copy it and re-stamp.
+- **H25 §3(a) settled for binaryang, 2026-10-26** (owner: "delete the never-pushed local branches
+  if they are now irrelevant"). 398 local branches deleted; `wip/r15-tree-pass` kept (cited) and
+  re-parented onto the post-purge history (`91dfb6cc2`). Every deleted tip is in the pre-purge
+  bundle, so nothing is lost. A check for the workspace: `git branch` lists `main` and
+  `wip/r15-tree-pass`, and `git log --branches --tags --remotes=origin -G <the scan pattern>` finds
+  0 commits. The frozen `wabt-ts/*` / `binaryen-ts/*` remote-tracking refs reach 2, in their own
+  history; unreachable objects stay in the store until git's gc. Record:
+  [publishing.md](../publishing.md) § "Local branches deleted".
+- **H27 ✅ 2026-10-26** (owner: "fix items for binaryang"). The folder is `synapticforge1` (was
+  `wasmExamples`), and the ★ stamp's canonical wording is `Copied from
+  synapticforge1/cmem/best-practices.md on <date>`. Both stamps in
+  [best-practices.md](../best-practices.md) (the ★ block, § 5.5's checklist) now carry it; the ★
+  block re-dated after the proof the letter asks for — a one-time Bun script compared all 28 ★
+  rules by number and normalized text against the workspace file: 28 = 28, 0 differences; the
+  checklist's nine questions re-read against the canonical § 5.5 prose, clause by clause, equal.
+  The four prose lines that named the old folder as a location ([testing.md](../testing.md) twice,
+  [binaryen-ts.md](../binaryen-ts.md), [wabt-ts.md](../wabt-ts.md)) now say the sibling's
+  `../binaryen-ts/upstream/…` / `../wabt-ts/upstream/…`. `git grep wasmExamples` over the tree's
+  TEXT files: 0 — and the same grep over binaries found the H18 item below.
+- **H18 / H25 §3(a) — REOPENED for binaryang, 2026-10-26: five committed binaries carry personal
+  paths, at HEAD and on `origin/main`.** `git grep -c -a` (binaries included) over every tracked
+  file: `benches/browser-opt/modules/{rust-debug,zig-debug,zig-releasefast}.wasm` (public since
+  `22ecb4ab2`, 2026-10-13) and `modules64/{rust-release-wasm64,zig-releasefast-wasm64}.wasm`
+  (`2ea5da23a`, 2026-10-22) embed, in DWARF and panic-location strings, the owner's user profile
+  (199 hits: the scoop toolchain and AppData) and the project tree under the OLD workspace folder
+  name. Every earlier scan — ours, H18's, H25's — used `git grep -I` / `git log -G`, which skip
+  binary files, so "HEAD is clean" and "0 commits" were true of text only. **Not shipped**:
+  `jsr.json` excludes `benches/**`, npm ships `dist/`. **Not a one-line fix**: the five are the
+  optimizer's six baseline inputs ([optimizer.md](../optimizer.md), every six-module number) and the
+  fixtures of `real_compiler_behaviour`, `memory64_real_compiler`, `memcpy_to_bulk_memory` (its
+  catalogue is generated from their bytes) and `reference_types_gate`; rebuilt with
+  `--remap-path-prefix` (Rust) / stripped debug info, their bytes change and every baseline must be
+  re-derived in the same commit. The history purge (H19) then needs a second round for these
+  blobs, and a force-push — 🗓️ OWNER. Record: [open-work.md](../open-work.md) 44; the rule gained
+  the binary scan ([working-rules.md](../working-rules.md) § Records).
+  **✅ FIXED at HEAD the same day** (owner: "lets fix 44"): the Rust modules rebuilt with every
+  prefix remapped, the Zig modules' DWARF removed byte for byte, `build.ts` scanning its outputs;
+  whole-tree binary-aware scan empty; tests 34 / 34; the optimizer baseline re-derived
+  ([open-work.md](../open-work.md) 44, [optimizer.md](../optimizer.md) § "State 2026-10-26"). **Still
+  open, the owner's:** the old blobs in public history (`22ecb4ab2`, `2ea5da23a`) — a second H19
+  purge and force-push, or accept. Found on the way: our `wasm-strip` re-encodes what it keeps
+  (open-work 45).
+- **H20 ✅ record-only, 2026-10-26.** Which publishing path this repo uses and whether it pins
+  owner / repository ids: [publishing.md](../publishing.md) § "The move to `synapticforge`", the
+  closing paragraph. Both registries are OIDC; both published every release since the move.
+- **C1 and C2 CLOSED by binaryang, 2026-10-26** (the creator closes, 🔒 owner 2026-10-26). C2
+  (§ 44's matrices): both replies read, § 45 — 0 differences on either runtime, no binaryang
+  defect. C1 (§ 41 to wasmtk): re-derived from wasmtk's own record — 1.15.0 and 1.16.1 pinned
+  2026-10-23, 2.2.0 pinned 2026-10-24 (`../wasmtk/cmem/workflow.md`, its bump checklist);
+  `upstream/binaryang` re-cloned from `synapticforge1/binaryang` after our purge; the provenance
+  correction recorded in its `design-decisions.md` (`../wasmtk/cmem/next-work.md`, "binaryang
+  letter, 2026-10-23"). § 41 asked for no code; wasmtk's reply on item 1 (its gate numbers on
+  1.15.0 / 1.16.1) is drafted in its `scripts/binaryang-report.md` for the owner to send, and is
+  logged as a new § when it arrives.
+
+- **C9 SENT by binaryang, 2026-10-26** (owner: "add this as a correspondence notation for the
+  other repos to do also"): a row in `../../workspace/cmem/workspace-correspondence.md` and its full text in
+  the workspace `handoffs.md` notes block, to every repo under the workspace folder and to the
+  owner — git's `safe.directory` entries still name the old folder, so git refuses every command
+  at the new path until the owner adds the new entries (system config); meanwhile the
+  `-c safe.directory='*'` / environment override, recorded only in each repo's private
+  `cmem/local/`. binaryang created it, so binaryang verifies and closes it: `git status` here with
+  no override prints no ownership error. ✅ **CLOSED by binaryang the same day**: the owner added
+  the entries to the system config; `git status` with no override succeeds in all 22 repos under
+  the folder. wasmtk had answered that it hit the same refusal (also in TinyGo's VCS stamping).
+- **wasmtk now calls binaryang's bundler (workspace ledger H11, wasmtk's answer of 2026-10-26).**
+  Its `wasmbundle` reads each input with `compat/binaryen`'s `readBinary(…)._inner` and calls
+  `bundle()` from `./tools/wasm-bundle` with `unmarked: 'guess'` (pinned at 2.2.0, import map
+  `binaryang-bundle`). All three are in `api-surface.json` (`Module._inner`, `bundle`,
+  `BundleOptions.unmarked`), so the compatibility gate already treats a change to any of them as
+  breaking; `_inner` is public on the compat `Module` despite its underscore (documented as the
+  way down to the IR), and `readBinary` uses the same `readForPasses` the bundle CLI uses. **For
+  a release:** a change to compat `Module._inner`, `bundle`'s inputs or `unmarked` now breaks a
+  known consumer; the consumer check (release pattern step 3) covers it. Nothing asked of us.
+- **Item 45 — the owner's question answered, decided, fixed (2026-10-26).** Why upstream copies
+  instead of re-encoding (a kept section can name byte offsets; re-encoding made `reloc.*` stale),
+  decided DEFECT ("I agree that this is a defect that needs correction"), built ("agreed. build
+  it"), `1a4b06f43`, merge `9e8c48f39`; the workspace notes updated.
+
+- **C20 and C21, from s3d-reportcompiler, for `jsr-deno-exit-guide.md` (answered 2026-10-28).**
+  C20: F1's "`--config jsr.json` publishes the same files" holds for a package with no
+  dependencies only; the guide carries S3D's measurement and check (`5bac71de1`). C21: six traps
+  from S3D's steps 2–4, in the guide's § 5a, four RE-MEASURED here (the `deno task` fallback, the
+  BOM, `bun fmt` / no `bun lint`, npm 12 — narrower than reported: only the `npx jsr add` alias is
+  refused), two read (Biome's optional binaries; `deno publish` skipping an existing version,
+  checked against our `publish.yml`). npm 12 hits binaryang's own README install line, which now
+  carries the fix. Answers written into the two ledger rows; S3D, the creator, closes them.
+
+- **H30, H31, H32 done; C30, C34 read (2026-11-09**, owner: "review workspace for items needing
+  this project's attention and make the requested fixes"). `06618265d`, merge `fb9457451`; the
+  answers are in the five ledger rows, which their creators close.
+  - **H30 (no `gh`, CI too):** the three lines are gone — `auto-tag.yml`'s dispatch (and its
+    header comment) and `publish.yml`'s `gh release create`. Both writes are
+    `scripts/release/github.ts` (REST, `GITHUB_TOKEN`, a time limit per request), mock-API tested
+    in `workflow_steps.test.ts` (9 cases; two mutants — the tag-commit check and the
+    existing-page check removed — each caught by its own case). `git grep -w gh -- .github`: 0.
+    The rule is in [working-rules.md](../working-rules.md) § Git; the tools table re-worded.
+  - **H32 (CI makes the Release page):** binaryang already had a CI-made page per tag (loader-py's
+    survey: 30 tags / 29 pages, all `github-actions[bot]`); H30 changed HOW. The page is now its
+    own `release` job in H32's order (tag on GitHub peeling to `github.sha` → existing page done →
+    POST with generated notes + the JSR link → read back), `contents: write` only, a sparse
+    checkout of the script and `jsr.json` with no credential kept, nothing installed. The
+    `publish` job dropped to `contents: read`. The job keys off `deno publish`'s own outcome, so a
+    failed provenance read-back still gets its page, as the old step order did. **UNMEASURED on
+    GitHub until the next tag run**; that run's page `author.login` goes in the ledger row.
+  - **H31 (Bun = latest installed, 1.4.4 on both hosts, measured 2026-11-09):** every pin (six
+    in three workflows), the FLOOR 1.4.0 → 1.4.4 (ci.yml's floor leg — kept: it is the one leg
+    that runs the CLI on Bun — `main.ts:9`, README's table and floor paragraph,
+    [project.md](../project.md) § "Runtime floors", [testing.md](../testing.md)), and the current-tense
+    lines ([bun-migration.md](../bun-migration.md) "is installed", [jsr-deno-exit-guide.md](../jsr-deno-exit-guide.md)'s
+    pin note). Dated measurements stay. The raised floor is a release-note line in
+    [unreleased.md](../unreleased.md) (level: the owner's). Rule in [working-rules.md](../working-rules.md) § Tools.
+  - **C30 (record-only) — (1) APPLIES here, not changed:** `publish` holds `id-token: write`
+    while it runs `bun install` and the whole test suite, and `npm` holds it while it installs and
+    builds (`npm:prove`), so third-party dev dependencies run beside the publishing credential.
+    S3D's fix (checks in token-less jobs, `--ignore-scripts` in the publish job, publish from a
+    built artifact, actions pinned to commit hashes — ours are tag-pinned, `@v6`) is a release
+    workflow restructure: 🗓️ OWNER, [open-work.md](../open-work.md). (2) n/a: `publish.yml` has no
+    `concurrency` block. (3) n/a: the formatter is dprint, not `bun fmt` (whether dprint skips
+    ignored files is unmeasured; the fmt canary's files are tracked).
+  - **C34 (record-only) — (1) MEASURED here already: 1.13.2** ([publishing.md](../publishing.md)
+    § 1.13.2) — `deno publish` failed after the upload, everything gated on it was skipped, and
+    the version was released again as 1.13.3. With the new `release` job keyed on that step's
+    outcome, the same failure still skips the page and npm; S3D's `uploaded`-output fix is part
+    of the C30 item. (2) applies in principle (npm job, no `time` read) — same item. (3) n/a:
+    `deno-version: v2.x` is literal, not handed between jobs. (4) the two YAML-reading tests
+    (`publish_preflight_wiring`, `deno_pin`) match `run:` lines and pins, not permissions or job
+    keys; 17 / 17 on the changed workflows.
+  - **Update, the same day — C30 (1) and C34 (1)–(2) FIXED** (owner: "restructure the publish
+    workflow"; open-work 54): five jobs, the credential only in `jsr` and `npm`, which install
+    nothing; `uploaded` before `deno publish` with `jsr-wait` first in the jobs after it; npm's
+    `time` read in `checks`, before JSR's immutable step; the npm job publishes the proven
+    tarball with `--ignore-scripts` after checking its manifest; every action hash-pinned;
+    `concurrency` queues per tag. Record: [publishing.md](../publishing.md) § "The publish
+    workflow's jobs". Answers added to the two ledger rows.
+  - **Later the same day: 3.0.0 → 3.0.2 released** ([publishing.md](../publishing.md) § "3.0.0" →
+    § "3.0.2"); the H30, H32, C30, C34 rows updated with the three runs, measured on GitHub.
+  - **C43 SENT by binaryang (2026-11-09)**, in the workspace ledger: to wasmtk, what 3.0 changes
+    at its bump, measured in its tree — unaffected by the new facade numbers and `i64.const`;
+    to check: the `parseWat` feature bag (`wasmbundle.ts:370`), `wasm2wat` validating, silent
+    `wasm-validate`, unknown options refused, the two optimizer fixes; to every repo publishing
+    to npm from CI: the two npm traps and "a re-run runs the tag's workflow". binaryang, the
+    creator, closes it once wasmtk has bumped or answered. 🔁 2026-11-13 (review round 1): true
+    while a tag started the run; since D1 a re-run runs the workflow of the commit that started
+    it (the bump commit). The lesson — rehearse a changed release job before it lands — stands.
+
+- **H33 converged, H34 recorded; C43 and C44 CLOSED (2026-11-11**, owner: "review workspace for
+  items needing this project's attention and make the requested fixes and report back to the
+  workspace to close the issues found"). Branch `h33-release-order`, NOT merged or pushed (the
+  owner's words "push" / "release"); answers in the ledger rows.
+  - **H33 (the uniform release shape; D1 the order, D3 one record):** binaryang's card asked only
+    U11's file name, but D1 changed the reference itself. `bun run release` now pushes `main`
+    ONLY (new guards: on `main`, `main` contains `origin/main`, no local tag, no tag on origin,
+    neither registry knows the number; no `tag -f`, no tag push; the push read back with
+    `ls-remote`). `publish.yml` runs on a push of `main`: `checks` (`workflow.ts release-state`,
+    `registry.ts free` for a new number, the gate) → `tag` (`github.ts tag`, CI's annotated tag
+    via REST, read back) → `release` (the page, from the tag, before the publish) → `jsr` /
+    `npm`. `auto-tag.yml` retired, with `github.ts dispatch` and `workflow.ts tag-check` /
+    `release-cred` / `tag-matches`. D3: the 31 release records moved from
+    [publishing.md](../publishing.md) to [release.md](../release.md) § "Release History", newest first,
+    each opened by its `CHANGELOG.md` summary. Proof: 75 / 75, six mutants each caught by its own
+    case, read-only rehearsal against GitHub / JSR / npm ([release.md](../release.md) § "How a
+    release is made"). ⚠️ U6's JSR question is UNMEASURED here until the first release in this
+    order (S3D measured it green on 2026-11-10). Gap kept: Bun / Deno by version through their
+    setup actions, not sha256 (U9), as wasmtk.
+  - **H34 (the owner's three words):** the workspace's section in
+    [working-rules.md](../working-rules.md) is kept where it was written, unchanged, and committed
+    with this branch.
+  - **C43 (binaryang's) — CLOSED:** wasmtk answered (`ce8af1ef`, on its `origin/main`): the
+    3.0 predictions are in its `cmem/workflow.md` § "Bumping the binaryang backend" for its own
+    bump, which waits on the owner; the workspace (best-practices 7.22), loader-js and S3D read
+    the npm traps. Verified: JSR and npm `latest` = 3.0.2.
+  - **C44 (binaryang's) — CLOSED:** the workspace's `release-process.md` §§ 5–8 exist (the
+    uniform shape, the per-ecosystem table with a reference repo per registry, every project's
+    card, the owner's D1–D3), and letter H33 carries it to every repo; §§ 1–4 kept as written.
+  - **Later the same day (owner: "release"):** the work pushed (`ea9c824a8`), then **3.0.3
+    released in D1's order** — publish.yml run 43061998593, all six jobs green: CI's tag
+    `v3.0.3`, the page by `github-actions[bot]`, JSR Rekor `3814264552`, npm SLSA provenance —
+    U6 MEASURED here ([release.md](../release.md) § "3.0.3"). The H33 ledger row updated.
+

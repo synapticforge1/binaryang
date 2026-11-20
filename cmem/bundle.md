@@ -15,14 +15,18 @@ through 3", item 3; a new export, so the release was a MINOR. wasmtk's letter is
 
 ## What landed, and where it lives
 
-| piece                                         | lives in                                                                                                                    |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| the Linking format codec (`linking`, `reloc.*`) | `src/core/linking.ts` — decode / encode, the type and flag constants, `listSections`                              |
-| the bundler, its file entry and its CLI       | `src/tools/wasm-bundle.ts` — `bundle(inputs, options)`, `wasmBundle(paths, options)`, `main(args)`              |
-| the `(@reloc data)` annotation                | lexer (`reloc` → `LparAnn`), parser (`parseRelocInstr`, `parseDataChunks`), IR (`ConstExpr.reloc`, `DataSegment.relocs`), binary writer (`writeRelocSections`) |
-| the reader's one addition                     | `DataSegment.dataLoc` — where a segment's bytes begin; a `reloc.DATA` offset points into them                               |
-| the CLI command and the subpath               | `main.ts` `wasm-bundle`; `deno.json` `./tools/wasm-bundle`                                                                  |
-| the tests                                     | `tests/binaryen-ts/tools/wasm_bundle.test.ts` (25 steps); fixtures in `tests/binaryen-ts/tools/fixtures/bundle/` (README with the build commands) |
+- **piece:** the Linking format codec (`linking`, `reloc.*`)
+  - lives in: `src/core/linking.ts` — decode / encode, the type and flag constants, `listSections`
+- **piece:** the bundler, its file entry and its CLI
+  - lives in: `src/tools/wasm-bundle.ts` — `bundle(inputs, options)`, `wasmBundle(paths, options)`, `main(args)`
+- **piece:** the `(@reloc data)` annotation
+  - lives in: lexer (`reloc` → `LparAnn`), parser (`parseRelocInstr`, `parseDataChunks`), IR (`ConstExpr.reloc`, `DataSegment.relocs`), binary writer (`writeRelocSections`)
+- **piece:** the reader's one addition
+  - lives in: `DataSegment.dataLoc` — where a segment's bytes begin; a `reloc.DATA` offset points into them
+- **piece:** the CLI command and the subpath
+  - lives in: `main.ts` `wasm-bundle`; `deno.json` `./tools/wasm-bundle`
+- **piece:** the tests
+  - lives in: `tests/binaryen-ts/tools/wasm_bundle.test.ts` (25 steps); fixtures in `tests/binaryen-ts/tools/fixtures/bundle/` (README with the build commands)
 
 ## How it works — the rules as built
 

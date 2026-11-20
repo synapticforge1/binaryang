@@ -9,13 +9,26 @@ E4 record is here in full.
 
 ## What landed, and where it lives
 
-| stage | what                                                                                       | commit      | lives in                                                                                     |
-| ----- | ------------------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------- |
-| E1    | the evaluator's numeric core: every scalar operator, exact, a trap a RESULT                | `b86ff770e` | `src/interp/numeric.ts`; `numeric_differential.test.ts` (V8, 136 ops, coverage)  |
-| E2    | `Precompute`, on it; ONE fold rule (`foldedLiteral`) shared with OptimizeInstructions      | `97080c38b` | `passes/precompute.ts`; `precompute.test.ts`                                                 |
-| E3a–d | the interpreter: numbers, control, calls; memory; tables, references, tail calls; EH; GC   | `c45edd392` `5034c21de` `12f4a6479` `acfa7cb87` `f18bbe473` | `interp/interpreter.ts` `memory.ts` `table.ts` `types.ts`; `interpreter.test.ts`; `scripts/check-interp.ts` |
-| E3e   | `v128`: every SIMD operator, relaxed SIMD deterministically, SIMD loads / stores; wide arithmetic | `fdbfb888a` `7e455789d` | `interp/simd.ts`; `simd_differential.test.ts`                                        |
-| E4    | `wasm-ctor-eval` and `wasm-interp`, CLI commands and `./tools/*` subpaths                   | `c8ed3831f` `269e8e1d6` | `tools/wasm-ctor-eval.ts` `tools/wasm-interp.ts`; `wasm_ctor_eval.test.ts` `wasm_interp.test.ts` |
+- **stage:** E1
+  - what: the evaluator's numeric core: every scalar operator, exact, a trap a RESULT
+  - commit: `b86ff770e`
+  - lives in: `src/interp/numeric.ts`; `numeric_differential.test.ts` (V8, 136 ops, coverage)
+- **stage:** E2
+  - what: `Precompute`, on it; ONE fold rule (`foldedLiteral`) shared with OptimizeInstructions
+  - commit: `97080c38b`
+  - lives in: `passes/precompute.ts`; `precompute.test.ts`
+- **stage:** E3a–d
+  - what: the interpreter: numbers, control, calls; memory; tables, references, tail calls; EH; GC
+  - commit: `c45edd392` `5034c21de` `12f4a6479` `acfa7cb87` `f18bbe473`
+  - lives in: `interp/interpreter.ts` `memory.ts` `table.ts` `types.ts`; `interpreter.test.ts`; `scripts/check-interp.ts`
+- **stage:** E3e
+  - what: `v128`: every SIMD operator, relaxed SIMD deterministically, SIMD loads / stores; wide arithmetic
+  - commit: `fdbfb888a` `7e455789d`
+  - lives in: `interp/simd.ts`; `simd_differential.test.ts`
+- **stage:** E4
+  - what: `wasm-ctor-eval` and `wasm-interp`, CLI commands and `./tools/*` subpaths
+  - commit: `c8ed3831f` `269e8e1d6`
+  - lives in: `tools/wasm-ctor-eval.ts` `tools/wasm-interp.ts`; `wasm_ctor_eval.test.ts` `wasm_interp.test.ts`
 
 **One semantics.** OptimizeInstructions, Precompute, the interpreter and `wasm-ctor-eval` all compute
 through `numeric.ts` / `simd.ts`; `foldedLiteral` is the one rule for WHETHER a pass may fold: never
