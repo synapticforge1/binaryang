@@ -215,7 +215,7 @@ const HELP: ToolHelp = {
     ],
   ],
   options: [
-    ['-o, --output <file>', 'Output file (default: the binary to stdout)'],
+    ['-o, --output <file>', 'Output file (default, or `-`: the binary to stdout)'],
     ['--no-check', 'Do not validate the module'],
     ['--no-text-form', 'Do not record how each instruction was written (upstream bytes exactly)'],
   ],
@@ -295,7 +295,10 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     cliExit(1);
   }
 
-  if (output !== undefined) {
+  // `-o -` is standard output, as upstream's help says ("Use "-" to write to stdout") and as
+  // wasm-opt, wasm-bundle and wasm-ctor-eval already took it; it made a file named `-` (4.1.x
+  // review, hardening note; wabt 1.0.41 measured: `wat2wasm a.wat -o -` writes the bytes to stdout).
+  if (output !== undefined && output !== '-') {
     await cliRefuseOverwritingInput('wat2wasm', [input], output);
     await cliWrite('wat2wasm', output, binary);
   } else {

@@ -252,6 +252,23 @@ describe('privacy: a path from the command line is printable in every message', 
   });
 });
 
+describe('wat2wasm -o - is standard output, as upstream (wabt 1.0.41) and the other tools', () => {
+  it('the bytes on stdout, no file named -; wasm2wat -o - stays a file, as in wabt', () => {
+    const r = spawnSync('bun', [MAIN, 'wat2wasm', 'a.wat', '-o', '-'], {
+      cwd: dir,
+      timeout: 60_000,
+    });
+    assertEquals(r.status, 0, r.stderr.toString());
+    assertEquals([...r.stdout.subarray(0, 4)], [0x00, 0x61, 0x73, 0x6d]);
+    assert(!existsSync(join(dir, '-')), 'a file named - was made');
+    // wabt 1.0.41's wasm2wat writes a FILE named `-` (its help says nothing of stdout there): kept.
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'dash.wasm').status, 0);
+    assertEquals(run('wasm2wat', 'dash.wasm', '-o', '-').status, 0);
+    assert(readFileSync(join(dir, '-'), 'utf8').includes('(module'));
+    rmSync(join(dir, '-'));
+  });
+});
+
 describe('Q-H3: a \\\\?\\ path is the real file it names, even ending in a device name', () => {
   it('writes the file (Windows); a file named nul elsewhere (the control)', () => {
     const sub = join(dir, 'q3');
