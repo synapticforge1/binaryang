@@ -226,3 +226,20 @@ test('an oracle that rejects the text is a plain error, not an infrastructure on
     await fsx.remove(dir, { recursive: true });
   }
 });
+
+test('a tool that exits non-zero with NO message is an infrastructure error, never a rejection', async () => {
+  const dir = await fsx.makeTempDir({ prefix: 'binaryang-w2w-silent-' });
+  try {
+    const silent = `${dir}/silent.cjs`;
+    await fsx.writeTextFile(silent, "process.stderr.write(' \\n  \\n'); process.exit(3);");
+    const tool = { cmd: process.execPath, pre: [silent], limitMs: 30_000 };
+    const r = await upstream(`${dir}/a.wat`, `${dir}/a.wasm`, tool, 'x.wast#4');
+    assert('error' in r && r.infra === true, JSON.stringify(r));
+    assert(r.error === 'wat2wasm exited 3 with no message on x.wast#4', r.error);
+    const w = wasmTools(`${dir}/a.wat`, `${dir}/a.wasm`, tool, 'x.wast#4');
+    assert('error' in w && w.infra === true, JSON.stringify(w));
+    assert(w.error === 'wasm-tools exited 3 with no message on x.wast#4', w.error);
+  } finally {
+    await fsx.remove(dir, { recursive: true });
+  }
+});
