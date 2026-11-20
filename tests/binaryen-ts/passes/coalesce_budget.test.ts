@@ -67,9 +67,11 @@ const coalesce = (m: WasmModule) =>
 
 /**
  * This process's CPU time in ms (user + system). The bounds below catch a quadratic pass —
- * minutes of CPU — and CPU time does not grow when other test files share the machine: wall time
- * did, and the 20 s bound failed at 20.5 s, 28.7 s inside full parallel runs that took ~7 s alone
- * (Q-H5, 2026-11-20).
+ * minutes of CPU. Wall time also counts every other test file sharing the machine: the budget
+ * test's 20 s wall bound failed at 20.5 s, and at 28.7 s, inside full parallel runs that took
+ * ~7 s alone (Q-H5, 2026-11-20). CPU time grows far less, but it does grow (cache and SMT
+ * sharing): measured on win-x64 with 24 busy workers, the budget span 6.5 s → 12.7 s of CPU,
+ * the 1,000,000-local span 1.1 s → 2.2 s. Each bound sits about 3× above its loaded figure.
  */
 const cpuMs = () => {
   const u = process.cpuUsage();
@@ -146,7 +148,8 @@ describe('security round 2 — CoalesceLocals is bounded by the input, not by th
     const m = readForPasses(allLive(COALESCE_MAX_REFERENCED_LOCALS));
     const t = cpuMs();
     coalesce(m);
-    expect(cpuMs() - t).toBeLessThan(20_000);
+    // 40 s of CPU: ~3× the loaded figure above; a 6× slowdown (~40 s) fails, a quadratic one by far.
+    expect(cpuMs() - t).toBeLessThan(40_000);
     // none can share: all live together
     expect(m.functions[0]!.locals.length).toBe(COALESCE_MAX_REFERENCED_LOCALS);
   });
