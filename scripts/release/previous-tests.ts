@@ -243,6 +243,10 @@ export function previousTests(ref = lastReleaseTag()): number {
       env: clean,
       limitMs: PREVIOUS_TESTS_LIMIT_MS.full,
     });
+    if (full.failed !== undefined) {
+      console.error(`previous tests: the run could not start (${full.failed})`);
+      return 1;
+    }
     if (full.timedOut) {
       console.error(
         `previous tests: the run did not finish in ${PREVIOUS_TESTS_LIMIT_MS.full / 60_000} min`,
@@ -275,7 +279,8 @@ export function previousTests(ref = lastReleaseTag()): number {
       const f = ['--test', '--test-reporter=junit', `--test-reporter-destination=${lone}`];
       const [b, a] = nodeCommand(REFEREE, f, file, []);
       const r = runBounded(b, a, { cwd: dir, env: clean, limitMs: PREVIOUS_TESTS_LIMIT_MS.alone });
-      if (r.timedOut) return null; // did not finish: no verdict, so the failure stands
+      // Did not finish, or could not start: no verdict, so the failure stands.
+      if (r.timedOut || r.failed !== undefined) return null;
       try {
         return readFileSync(lone, 'utf8');
       } catch {

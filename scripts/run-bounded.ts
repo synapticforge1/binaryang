@@ -15,13 +15,19 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-/** How a bounded run ended: its exit code (null when killed or not started), and whether by the limit. */
+/**
+ * How a bounded run ended: its exit code (null when killed or not started), whether by the limit,
+ * and — when the command or this helper could not run at all — why (`failed`), so a start
+ * failure is never reported as a run that "did not finish".
+ */
 export interface Bounded {
   status: number | null;
   timedOut: boolean;
+  failed?: string;
 }
 
 /** Runs `cmd args` in `cwd` with `env`; past `limitMs` its whole tree is killed. Blocks until done. */
@@ -44,13 +50,22 @@ export function runBounded(
     const b = JSON.parse(last) as Bounded;
     if (typeof b.timedOut === 'boolean') return b;
   } catch { /* no report: the helper itself failed or was killed */ }
-  return { status: null, timedOut: r.error !== undefined };
+  // The helper's own limit is ETIMEDOUT; anything else is a helper that could not run.
+  const code = (r.error as { code?: string } | undefined)?.code;
+  if (code === 'ETIMEDOUT') return { status: null, timedOut: true };
+  return {
+    status: null,
+    timedOut: false,
+    failed: r.error?.message ?? `the bounded-run helper exited ${r.status} with no report`,
+  };
 }
 
 /** Kills a process and every descendant it still has. */
 function killTree(pid: number): void {
   if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    // By its full path: found through PATH, a `taskkill.exe` in the working folder would run.
+    const taskkill = join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'taskkill.exe');
+    spawnSync(taskkill, ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', timeout: 30_000 });
   } else {
     try {
       process.kill(-pid, 'SIGKILL'); // the group `detached` made
@@ -74,9 +89,18 @@ if (import.meta.main) {
     timedOut = true;
     if (child.pid !== undefined) killTree(child.pid);
   }, limitMs);
-  child.on('error', () => {
+  // Interrupted or terminated itself (a Ctrl-C, the caller's own end): the tree goes first. On
+  // POSIX it is in its own group, so a terminal's Ctrl-C would not reach it otherwise (review,
+  // 2026-11-20, measured on linux-x64).
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    process.on(signal, () => {
+      if (child.pid !== undefined) killTree(child.pid);
+      process.exit(130);
+    });
+  }
+  child.on('error', (e) => {
     clearTimeout(timer);
-    report({ status: null, timedOut: false });
+    report({ status: null, timedOut: false, failed: e.message });
   });
   child.on('exit', (code) => {
     clearTimeout(timer);

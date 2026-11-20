@@ -173,8 +173,11 @@ describe('confirmAlone: an unlisted failure is run again, its file alone', () =>
     // gives no verdict (the failure stands), a full run that does not finish is a failure.
     expect(src).toContain('limitMs: PREVIOUS_TESTS_LIMIT_MS.full');
     expect(src).toContain('limitMs: PREVIOUS_TESTS_LIMIT_MS.alone');
-    expect(src).toContain('if (r.timedOut) return null;');
+    expect(src).toContain('if (r.timedOut || r.failed !== undefined) return null;');
     expect(src).toContain('if (full.timedOut) {');
+    // A run that could not start says so — never "did not finish".
+    expect(src).toContain('if (full.failed !== undefined) {');
+    expect(src).toContain('the run could not start');
     expect(src).not.toMatch(/spawnSync\([^)]*timeout:/);
     expect(PREVIOUS_TESTS_LIMIT_MS.alone).toBeLessThanOrEqual(PREVIOUS_TESTS_LIMIT_MS.full);
     // The report claims no cause it did not show.

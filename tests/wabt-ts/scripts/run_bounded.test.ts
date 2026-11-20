@@ -3,6 +3,7 @@
  * `timeout` kills the direct child alone; the previous-tests harness runs `fnm exec … node --test`,
  * whose node and per-file test processes outlived it (review, 2026-11-20, measured on win-x64).
  */
+import { spawnSync } from 'node:child_process';
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,6 +19,17 @@ const alive = (pid: number) => {
     return true;
   } catch {
     return false;
+  }
+};
+
+/** Ends a leftover process. On win32 by taskkill: the runtime's own kill misses one it did not start. */
+const stop = (pid: number) => {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch { /* gone */ }
   }
 };
 
@@ -57,17 +69,31 @@ setInterval(() => {}, 1000);
         await new Promise((res) => setTimeout(res, 100));
       }
       const left = [p, g].filter(alive);
-      for (const pid of left) process.kill(pid); // never leave one behind, even when this fails
+      for (const pid of left) stop(pid); // never leave one behind, even when this fails
       expect(left).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('a command that cannot start is no timeout and no exit code', () => {
-    expect(runBounded('no-such-command-binaryang', [], { limitMs: 10_000 })).toEqual({
-      status: null,
-      timedOut: false,
-    });
+  it('a command that cannot start is no timeout and no exit code, and says why', () => {
+    const r = runBounded('no-such-command-binaryang', [], { limitMs: 10_000 });
+    expect(r.status).toBe(null);
+    expect(r.timedOut).toBe(false);
+    expect(r.failed).toMatch(/no-such-command-binaryang|ENOENT/);
+  });
+
+  // Review (2026-11-20, measured on linux-x64): on POSIX the tree is its own process group, so a
+  // terminal's Ctrl-C reaches only the helper — which must take the tree with it.
+  it('the helper kills the tree when it is itself interrupted or terminated', () => {
+    const src = readFileSync('scripts/run-bounded.ts', 'utf8');
+    expect(src).toMatch(/for \(const signal of \['SIGINT', 'SIGTERM', 'SIGHUP'\] as const\)/);
+    expect(src).toMatch(
+      /process\.on\(signal, \(\) => \{\s*if \(child\.pid !== undefined\) killTree\(child\.pid\);/,
+    );
+    // taskkill by its full path, never found through PATH or the working folder.
+    expect(src).toContain(
+      "join(process.env['SystemRoot'] ?? 'C:\\\\Windows', 'System32', 'taskkill.exe')",
+    );
   });
 });
