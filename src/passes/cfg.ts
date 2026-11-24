@@ -534,22 +534,26 @@ class _CFGBuilder {
  * iteration only adds locals, so the analysis monotonically converges.
  *
  * @param cfg - The CFG to annotate. `start` and `end` are populated in place.
- * @param extraLiveIn - Locals to seed as live-in to every block (rare —
- *   used for params under specific edge cases). Default empty.
+ * @param maxCells - Give up once the blocks' `start` and `end` sets hold more entries than
+ *   this together (they are blocks × live locals: gigabytes on a hostile function). Default: never.
+ * @returns `false` when it gave up, leaving the sets half-filled: the caller must not use them.
  */
-export function computeLiveness(cfg: CFG): void {
+export function computeLiveness(cfg: CFG, maxCells = Infinity): boolean {
   // Initial: scan each block once with end = empty to get a starting `start`.
   // We then re-flow until convergence. A block's end is the union of its
-  // successors' starts.
+  // successors' starts. The last block first: liveness flows backward.
   const queue: BasicBlock[] = [];
   const queued = new Set<number>();
-  for (const b of cfg.blocks) {
-    queue.push(b);
-    queued.add(b.id);
+  for (let i = cfg.blocks.length - 1; i >= 0; i--) {
+    queue.push(cfg.blocks[i]!);
+    queued.add(cfg.blocks[i]!.id);
   }
+  /** Entries held by every block's `start` and `end` right now: the sets are blocks × live locals. */
+  let cells = 0;
 
-  while (queue.length > 0) {
-    const b = queue.shift()!;
+  // A head index, not `shift()`: that moves the whole array each time.
+  for (let head = 0; head < queue.length; head++) {
+    const b = queue[head]!;
     queued.delete(b.id);
 
     // new_end = ⋃ successors' starts
@@ -563,8 +567,10 @@ export function computeLiveness(cfg: CFG): void {
 
     const startChanged = !setsEqual(newStart, b.start);
 
+    cells += newStart.size - b.start.size + newEnd.size - b.end.size;
     b.start = newStart;
     b.end = newEnd;
+    if (cells > maxCells) return false;
 
     if (startChanged) {
       // Predecessors depend on our start; re-flow them. (An `end` change that
@@ -577,6 +583,7 @@ export function computeLiveness(cfg: CFG): void {
       }
     }
   }
+  return true;
 }
 
 /**

@@ -95,6 +95,14 @@ registerPass(CoalesceLocalsPass);
  */
 export const COALESCE_MAX_REFERENCED_LOCALS = 20_000;
 
+/**
+ * The most entries the blocks' live-in and live-out sets may hold together (blocks × live locals;
+ * the live sets are one Set of numbers per block, some 40 bytes an entry): 2^23. A function with
+ * 10,000 locals each read in one of 10,000 loops took 40 s and gigabytes. A function that passes
+ * it is left as it is (still correct). Upstream has no such bound.
+ */
+export const COALESCE_MAX_LIVENESS_CELLS = 1 << 23;
+
 function _coalesceFunction(fn: WasmFunction): void {
   const numLocals = fn.locals.length;
   if (numLocals === 0) return;
@@ -102,7 +110,7 @@ function _coalesceFunction(fn: WasmFunction): void {
 
   // 1. CFG + liveness ------------------------------------------------------
   const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
-  computeLiveness(cfg);
+  if (!computeLiveness(cfg, COALESCE_MAX_LIVENESS_CELLS)) return;
 
   // The locals anything references: the params, every local an action reads or writes, and
   // any live at entry. Only these can interfere; the matrix is over them alone.
