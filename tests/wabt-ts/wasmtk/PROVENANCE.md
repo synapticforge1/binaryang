@@ -9,13 +9,13 @@ Read that before drawing any conclusion about wasmtk or its wasic compiler from 
 | Files here                          | **421** — 413 regenerated from wasic + 8 non-wasic fixtures (below)                                   |
 | Files wasmtk's current corpus emits | **373** by their count (2026-08-24); we generate **413** from 417 sources — see the note below        |
 | Snapshot date                       | **2026-08-25** — REFRESHED (was 2026-05-25, recovered; see history below)                             |
-| Source commit                       | **`4600ba9`** — wasmtk `main`, 2026-08-10 18:29:20 -0400, verified level with `origin/main` at refresh time                  |
-| Captured by                         | Regenerated with `deno run -A main.ts wasic <src>.ts` over all 417 of `tests/wasi/wasm_wasi/*.ts`. Previous capture: wabt-ts `fbafca9e`, 278 files from wasmtk `e147d28` (2026-05-25) |
+| Source commit                       | **`59252ad5`** (quoted as `4600ba9` until wasmtk rewrote its history on 2026-11-20, workspace letter C49) — wasmtk `main`, 2026-08-10 18:29:20 -0400, verified level with `origin/main` at refresh time |
+| Captured by                         | Regenerated with `deno run -A main.ts wasic <src>.ts` over all 417 of `tests/wasi/wasm_wasi/*.ts`. Previous capture: wabt-ts `fbafca9e`, 278 files from wasmtk `e147d28` (2026-05-25; that id was rewritten by wasmtk in 2026-10, and the 2026-05-25 commit is now `127ca761` or `2b884a46` — not resolved, C49) |
 | The 8 non-wasic fixtures            | `18_symbol_table`, `1_fib-rs`, `1_fib-rs-opt`, `1_fib-zig-opt`, `1_fizzbuzz_wat`, `1_helloWorld_wat`, `1_helloworld`, `1_print` — Rust / Zig / hand-written WAT, NOT wasic output. A refresh must preserve them |
 
 ## Refreshed 2026-08-25 — and a count we deliberately did NOT reconcile
 
-Regenerated from wasmtk `4600ba9`, verified level with `origin/main` at the time. Every one of
+Regenerated from wasmtk `59252ad5` (was `4600ba9`, C49), verified level with `origin/main` at the time. Every one of
 the 417 `tests/wasi/wasm_wasi/*.ts` sources was compiled; **413 produced a `.wat`** and 4 failed
 to compile (`18zl_VarGateBlockEscape`, `18zm_VarGateLoopClosure`,
 `33_IntersectionBasePrefixGuard`, `34_InlinePredicateUnresolvable`). Those four are wasic
