@@ -60,6 +60,24 @@ describe('round 3: a `\\\\.\\X:\\...` path whose last name is a device name or e
         assertEquals(r.stderr.trimEnd().split('\n').length, 1, r.stderr);
         assertEquals(tree(base), before, target);
       }
+      // Round 4: the same device name written with `/` separators, the `//./` prefix, mixed
+      // separators, or a trailing `\` reached the NUL device (exit 0, data lost) past the check.
+      const fwd = w.replace(/\\/g, '/');
+      for (
+        const target of [
+          `\\\\.\\${w}/nul`,
+          `//./${fwd}/nul`,
+          `//./${w}\\nul`,
+          `\\\\.\\${w}\\nul\\`,
+          `//./${fwd}/COM1`,
+        ]
+      ) {
+        const before = tree(base);
+        const r = go(target);
+        assertEquals(r.status, 1, `${target}: ${r.stderr}`);
+        assert(r.stderr.includes('device name'), r.stderr);
+        assertEquals(tree(base), before, target);
+      }
       // What still writes: an ordinary last name in the device namespace, the plain path of a
       // device name (the device, as documented), and a plain trailing-dot name.
       for (const [target, made] of [[`\\\\.\\${w}\\nul.wasm`, ['nul.wasm']], [`${w}\\nul`, []]]) {

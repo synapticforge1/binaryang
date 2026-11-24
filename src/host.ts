@@ -391,7 +391,13 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
     // is a FILE called `nul` there (Node's raw write makes it), but the plain path `D:\dir\nul` it
     // is rewritten to is the NUL DEVICE (data silently discarded, exit 0; Bun 1.4.4 and Node 24)
     // and `trail. ` loses its dot and space. Such a last name is refused rather than guessed.
-    const last = /^\\\\\.\\[A-Za-z]:\\/.test(path) ? path.slice(path.lastIndexOf('\\') + 1) : '';
+    // Round 4: Win32 reads `/` as a separator in a `\\.\` path (only `\\?\` skips that), so
+    // `\\.\D:/dir/nul`, `//./D:/dir/nul` and a trailing `\` are the same path and reached the NUL
+    // device past the check above. Separators are made one form first, and the last name is
+    // taken with any trailing separator removed.
+    if (/^[\\/]{2}\.[\\/]/.test(path)) path = `\\\\.\\${path.slice(4).replace(/\//g, '\\')}`;
+    const bare = path.replace(/\\+$/, '');
+    const last = /^\\\\\.\\[A-Za-z]:\\/.test(path) ? bare.slice(bare.lastIndexOf('\\') + 1) : '';
     if (last !== '' && (WINDOWS_DEVICE.test(last) || /[. ]$/.test(last))) {
       throw new Error(
         'a \\\\.\\ path whose last name is a device name (NUL, CON, COM1 ...) or ends in a dot or ' +
