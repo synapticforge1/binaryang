@@ -79,4 +79,13 @@ describe('inlining: many functions', () => {
     expect(calleeOfLabel('$f12x', counting)).toBeUndefined();
     expect(lookups).toBeLessThan(20);
   });
+
+  it('a callee named "" is found, as the old scan found it (review round 4)', () => {
+    // The old scan matched "" against any label rest starting with `$`; a longer name still wins.
+    const names = new Map<string, unknown>([['', 0], ['$g', 0]]);
+    expect(calleeOfLabel('$3', names)).toBe('');
+    expect(calleeOfLabel('$x$3', names)).toBe('');
+    expect(calleeOfLabel('$g$3', names)).toBe('$g');
+    expect(calleeOfLabel('x', names)).toBeUndefined();
+  });
 });

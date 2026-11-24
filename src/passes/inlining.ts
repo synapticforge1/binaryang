@@ -1178,7 +1178,14 @@ export class InliningPass implements Pass {
  */
 function calleeOfLabel(rest: string, inlineable: ReadonlyMap<string, unknown>): string | undefined {
   if (inlineable.has(rest)) return rest;
-  for (let at = rest.lastIndexOf('$'); at > 0; at = rest.lastIndexOf('$', at - 1)) {
+  // Down to `at === 0`: a callee named "" (possible from a binary module's name section) is the
+  // shortest prefix, as the old scan over every name found it (review round 4, basic note).
+  // `lastIndexOf('$', -1)` searches from 0 again, so the loop ends after position 0 by hand.
+  for (
+    let at = rest.lastIndexOf('$');
+    at >= 0;
+    at = at === 0 ? -1 : rest.lastIndexOf('$', at - 1)
+  ) {
     const name = rest.slice(0, at);
     if (inlineable.has(name)) return name;
   }
