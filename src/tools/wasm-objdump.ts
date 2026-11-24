@@ -106,7 +106,9 @@ function dump(binary: Uint8Array, opts: WasmObjdumpOptions): WasmObjdumpResult {
   }
 
   const lines: string[] = [];
-  lines.push(`${filename}:\tfile format wasm 0x1`);
+  // The file name is the caller's (a CLI path): escaped here, as every module name below is
+  // (review round 4, security). readBinaryIr gets it raw; formatError escapes it itself.
+  lines.push(`${printable(filename)}:\tfile format wasm 0x1`);
   lines.push('');
 
   const showHeaders = opts.headers !== false;

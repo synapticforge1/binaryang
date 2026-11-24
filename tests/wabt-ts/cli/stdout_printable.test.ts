@@ -31,17 +31,20 @@ before(() => {
   writeFileSync(join(dir, 'p.wat'), '(module (func (export "f") (param i32)))');
   writeFileSync(join(dir, 'c.wat'), String.raw`(module (func $s (export "f\1b[2Jx")) (start $s))`);
   writeFileSync(join(dir, `i${ODD}.wat`), '(module (memory 1) (func (export "g")))');
+  // The smallest module, its file name odd: `wasm-objdump` names the file on its header line.
+  writeFileSync(join(dir, `d${ODD}.wasm`), new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]));
 });
 after(() => rmSync(dir, { recursive: true, force: true }));
 
 const run = (...args: string[]) =>
   spawnSync('bun', [MAIN, ...args], { cwd: dir, encoding: 'utf8', timeout: 60_000 });
 
-/** Nothing in `stdout` acts on a terminal: only the line breaks that end a line. */
+/** Nothing in `stdout` acts on a terminal: only the tool's own line breaks and tabs (objdump). */
 function assertInert(stdout: string, what: string) {
   for (const c of stdout) {
     const u = c.codePointAt(0)!;
-    assert(c === '\n' || !actsWhenPrinted(u), `${what}: raw U+${u.toString(16)} on stdout`);
+    const layout = c === '\n' || c === '\t';
+    assert(layout || !actsWhenPrinted(u), `${what}: raw U+${u.toString(16)} on stdout`);
   }
 }
 
@@ -76,6 +79,9 @@ describe('a status line on stdout is printable', () => {
       ['wasm-bundle', `i${ODD}.wat`, '--unmarked=guess', '-o', 'o.wasm'],
       'no linking section',
     ],
+    // Round 4 (security): the header line `<file>:\tfile format wasm 0x1` printed the name raw.
+    ['wasm-objdump -x, input path', ['wasm-objdump', '-x', `d${ODD}.wasm`], 'file format wasm'],
+    ['wasm-objdump -h, input path', ['wasm-objdump', '-h', `d${ODD}.wasm`], 'file format wasm'],
   ];
   for (const [what, args, mustHave] of cases) {
     it(what, () => {
