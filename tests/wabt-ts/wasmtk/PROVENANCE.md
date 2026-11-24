@@ -7,6 +7,7 @@ Read that before drawing any conclusion about wasmtk or its wasic compiler from 
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Source                              | [wasmtk](https://github.com/jrmarcum/wasmtk) — `.wat` emitted by its `wasic` TypeScript→WAT compiler |
 | Files here                          | **421** — 413 regenerated from wasic + 8 non-wasic fixtures (below)                                   |
+| Licence                             | wasmtk's own: `MIT OR Apache-2.0` (its `LICENSE`, `deno.json`; © J.R. Marcum, this project's owner). All 421 come from wasmtk's tracked tree — the 413 as wasic output, the 8 non-wasic fixtures as wasmtk's own files in `tests/wasi/wasm_wasi/` (checked 2026-11-24) |
 | Files wasmtk's current corpus emits | **373** by their count (2026-08-24); we generate **413** from 417 sources — see the note below        |
 | Snapshot date                       | **2026-08-25** — REFRESHED (was 2026-05-25, recovered; see history below)                             |
 | Source commit                       | **`59252ad5`** (quoted as `4600ba9` until wasmtk rewrote its history on 2026-11-20, workspace letter C49) — wasmtk `main`, 2026-08-10 18:29:20 -0400, verified level with `origin/main` at refresh time |
