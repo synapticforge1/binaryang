@@ -13,8 +13,9 @@ nesting now reads, and the optimizer has new limits on huge functions.
   Through 4.1.2 it wrote a file named `-`. (`wasm2wat -o -` still writes a file named `-`, as
   wabt's does.)
 - **A failed write to standard output is one line and exit 1** on Bun, Node and Deno (a reader
-  that went away, a full disk). Through 4.1.2, with `-o -`, `wasm-bundle`, `wasm-ctor-eval` and
-  `wasm-opt` did not report it.
+  that went away, a full disk). Through 4.1.2, `wasm-bundle`, `wasm-ctor-eval` and `wasm-opt`
+  with `-o -` did not report it, and `wat2wasm` and `wasm2wat` writing to standard output did not
+  report it as one line and exit 1 either.
 - **A closed standard output is refused on Bun on Linux, and only there.** Node and Deno reopen a
   closed standard output as `/dev/null` before any program runs, so it cannot be told from a
   deliberate discard; Bun on macOS has no `/proc` to ask, and on Windows a closed handle arrives as
@@ -37,7 +38,8 @@ nesting now reads, and the optimizer has new limits on huge functions.
   operating-system errors can no longer send control characters to the terminal. A line break in
   a name can no longer forge a line of the tool's own output (through 4.1.2 it was printed as is),
   and bidi marks and invisible tag characters are escaped too. A one-line message is at most
-  1,000 characters before escaping (an escaped character prints as six).
+  1,000 characters before escaping (an escaped character prints as six characters, or nine for
+  one outside the Basic Multilingual Plane such as a tag character).
 
 **Nesting**
 
