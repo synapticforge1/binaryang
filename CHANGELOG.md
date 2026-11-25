@@ -1,5 +1,88 @@
 # Changelog
 
+## 4.2.0
+
+A minor release: hardening against hostile input, and fixes to how the command-line tools write
+their output. Nothing is removed or renamed in the API. It is a minor because behaviour changes:
+`wat2wasm -o -` now writes standard output, more Windows output paths are refused, deeper
+nesting now reads, and the optimizer has new limits on huge functions.
+
+**Writing output**
+
+- **`wat2wasm -o -` writes the module to standard output**, as wabt's `wat2wasm` 1.0.41 does.
+  Through 4.1.2 it wrote a file named `-`. (`wasm2wat -o -` still writes a file named `-`, as
+  wabt's does.)
+- **A failed write to standard output is one line and exit 1** on Bun, Node and Deno (a reader
+  that went away, a full disk). Through 4.1.2, `wasm-bundle`, `wasm-ctor-eval` and `wasm-opt`
+  with `-o -` did not report it, and `wat2wasm` and `wasm2wat` writing to standard output did not
+  report it as one line and exit 1 either.
+- **A closed standard output is refused on Bun on Linux, and only there.** Node and Deno reopen a
+  closed standard output as `/dev/null` before any program runs, so it cannot be told from a
+  deliberate discard; Bun on macOS has no `/proc` to ask, and on Windows a closed handle arrives as
+  `NUL`. Everywhere but Bun on Linux the write still succeeds into nothing.
+- **`-o` to a FIFO with no reader is refused at once** (Linux, macOS). It waited forever.
+- **Windows: output paths are written only in the forms Windows resolves as files**: a plain or
+  UNC path, `\\?\X:\…`, `\\?\UNC\…`, `\\.\X:\…`, and a one-name device path such as `\\.\NUL`.
+  Every other namespace form is refused with one line (`\??\…`, `\\.\GLOBALROOT\…`,
+  `\\.\pipe\…`, a bare `\\?\nul`, …). Through 4.1.2 some of them reached the NUL device: the
+  write was discarded and the tool exited 0.
+- **No write reaches a device through a path that only contains a device name**: not through a
+  device name inside a `\\.\` path, not through a UNC path ending in `nul` (a file on the share),
+  and not through a directory named `nul`. A directory is always refused. A one-name `\\.\` path
+  is still opened as the device it names: `\\.\NUL`, but equally `\\.\C:` or `\\.\PhysicalDrive0`
+  (a raw volume) if the process may open it, so a service passing untrusted paths to the tools
+  must refuse those itself.
+- **`\\?\` paths with a `/`, a `.` or `..` segment, an empty segment or a `:` stream are
+  refused** before anything is written. Through 4.1.2 some left a temporary file behind.
+- **Every message the tools print is escaped**: file names, option values, export names and
+  operating-system errors can no longer send control characters to the terminal. A line break in
+  a name can no longer forge a line of the tool's own output (through 4.1.2 it was printed as is),
+  and bidi marks and invisible tag characters are escaped too. A one-line message is at most
+  1,000 characters before escaping (an escaped character prints as six characters, or nine for
+  one outside the Basic Multilingual Plane such as a tag character).
+
+**Nesting**
+
+- **The nesting limit (256 levels) is the same at every stage.** The binary reader counted a
+  loop, an if or a try twice, so it refused 129 to 256 nested ones that every other stage accepted;
+  the text parser did the same for folded `if` and `try` (from about 136). They now read them.
+- **Every way in refuses a module past the limit** with the nesting error, instead of running
+  out of stack: text annotations, folded `delegate`, long chains of operands, `.wast` scripts,
+  and modules built through the API given to `createPass().run`, `resolveNames`,
+  `validateModule` or `ExprVisitor`.
+- **The optimizer never builds past the limit.** Inlining, SimplifyLocals, the stack form at
+  `-O3`/`-Os`/`-Oz` and RemoveUnusedBrs stop short of it, so a valid program always optimizes.
+  Through 4.1.2 a function of 500, 1,000 or 2,000 chained assignments failed at `-O2`, `-O3`
+  and `-Oz` alike, and one of 20,000 ran out of memory (wasmtk's letter C48).
+
+**Untrusted input** (README, "Limits on untrusted input", has a row for each)
+
+- **The passes a crafted module made quadratic are bounded**: PrecomputePropagate (a 60 KB
+  module needed 5.8 GB), SSANoMerge and MergeLocals, SimplifyLocals, CoalesceLocals and Inlining.
+  Past each limit the function is left as it is, which is still correct. Memory still grows with
+  the input: dense straight-line code costs about 2.5 to 3.7 KB of peak memory per input byte at
+  `-O2` (1.5 MB took 5 GB and minutes), so a service optimizing untrusted modules should cap their
+  size and run the optimizer with a memory limit.
+- **Error reports are bounded**: 100 diagnostics are printed, then a count; a long source line
+  is shown as a window around the error, and long names are cut.
+
+**Fixed**
+
+- `struct.new_desc` with a null descriptor is known to trap, so the optimizer no longer removes
+  a global that runs it; `ref.get_desc` is typed as the engines type it.
+- Characters that act on a terminal while staying invisible (U+061C, the Unicode tag block, lone
+  surrogates) are escaped in names.
+
+Repository only (nothing here is in the package):
+
+- The gate compares `wat2wasm`'s bytes with the real wabt `wat2wasm` over the spec suite and the
+  corpus, and checks the spec suite's own expected results, not only V8's.
+- The optimizer is checked at every level, with calls to imports logged and floats compared by
+  their bits, and a size ratchet holds it against binaryen 133's `wasm-opt` (the corpus at `-Oz`
+  is 0.101% larger).
+- A failed gate step keeps its full output in a private folder and names its failing tests (the
+  README's section for maintainers says how long the logs are kept; the gate itself does not ship).
+
 ## 4.1.2
 
 The same package as 4.1.1 — **nothing in it changed**. The release workflow changed: after

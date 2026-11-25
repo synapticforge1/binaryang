@@ -38,6 +38,10 @@ before(() => {
     join(dir, 'a.wat'),
     '(module (func (export "f") (param i32) (result i32) (local.get 0)))',
   );
+  // `in.wasm` is made ONCE for the file (the 4.2.0 release gate): rebuilt before a case, its
+  // atomic rename could meet an earlier case's child still holding the file open, which Windows
+  // refuses. No case writes it; every one only reads it.
+  assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
 });
 after(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -105,7 +109,6 @@ describe('H-2: the null device is the device, on every OS', () => {
   // 🔧 Through 4.0.0 `wasm-bundle -o NUL` wrote a FILE named `NUL.wit` beside its output (Windows),
   // and `-o /dev/null` tried `/dev/null.wit` (Linux): no `.wit` beside a device (4.1.0 notes review).
   it('wasm-bundle to the null device writes no .wit beside it', () => {
-    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
     for (const o of devices) {
       const r = run('wasm-bundle', 'in.wasm', '-o', o);
       assertEquals(r.status, 0, `${o}: ${r.stderr}`);
@@ -122,7 +125,6 @@ describe('H-2: the null device is the device, on every OS', () => {
   // stdout with the module when the module went there too (`-o -`, and `-o /dev/stdout` once it
   // worked): stdout must hold exactly the module the tool writes to a file; the report goes to stderr.
   it('stdout holds the module alone; the report goes to stderr', () => {
-    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
     for (const tool of ['wasm-bundle', 'wasm-opt', 'wasm-ctor-eval']) {
       assertEquals(run(tool, 'in.wasm', '-o', `${tool}.file.wasm`).status, 0, tool);
       const want = [...readFileSync(join(dir, `${tool}.file.wasm`))];
@@ -465,7 +467,6 @@ describe('Q-H4: a write to standard output that fails is a one-line exit 1', () 
   for (const [rt, command] of runtimes) {
     for (const [tool, args] of rt === 'bun' ? cases : cases.slice(0, 5)) {
       it(`${rt}: ${tool} ${args.join(' ')}: EPIPE`, async () => {
-        assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
         const [cmd, head] = command();
         const c = spawn(cmd, [...head, tool, ...args.map(here)], {
           cwd: process.cwd(),
@@ -495,8 +496,8 @@ describe('Q-H4: a write to standard output that fails is a one-line exit 1', () 
       ] as [string, string[]][]
     ) {
       it(`${rt}: ${tool} ${args.join(' ')} > /dev/full (Linux)`, () => {
-        assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
-        if (process.platform !== 'linux') return;
+        // No /dev/full elsewhere: the module the file made is the control there.
+        if (process.platform !== 'linux') return assert(existsSync(join(dir, 'in.wasm')));
         const [cmd, head] = command();
         const q = (x: string) => `'${x}'`;
         const r = spawnSync(
@@ -526,8 +527,7 @@ describe('Q-H4: a stdout closed at start (`>&-`) is refused, a discarded one is 
     });
   const targets = ['wasm-opt in.wasm -o -', 'wasm-opt in.wasm -o /dev/stdout', 'wat2wasm a.wat'];
   it('closed: one line on stderr and exit 1 (Linux)', () => {
-    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
-    if (process.platform !== 'linux') return;
+    if (process.platform !== 'linux') return assert(existsSync(join(dir, 'in.wasm')));
     for (const t of targets) {
       const r = sh('>&-', t);
       assertEquals(r.status, 1, `${t}: ${r.stderr}`);
@@ -537,7 +537,6 @@ describe('Q-H4: a stdout closed at start (`>&-`) is refused, a discarded one is 
     }
   });
   it('discarded: exit 0 for every way a parent hands over /dev/null (Linux)', () => {
-    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
     for (const t of targets) {
       if (process.platform === 'linux') {
         for (const redirect of ['>/dev/null', '>>/dev/null', '1<>/dev/null']) {

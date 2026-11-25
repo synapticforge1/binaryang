@@ -1,17 +1,11 @@
 {
-  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2; 2.2.2's two, DG7's words, dropped at 3.0.3; 3.0.3's six, the release order D1, dropped at 3.0.4; 3.0.4's one, the two-job browser check, dropped at 4.0.0; 4.0.0's twenty-five, the security reviews and H37's CI, dropped at 4.1.0; 4.1.0's three, the tests that read src/cli/io.ts, dropped at 4.1.1). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;. A test FILE that fails to load is reported under its own path as the name, with the platform's separator (the bump runs on win-x64).",
+  "about": "Previous-release tests allowed to fail against the new source, because behaviour changed on purpose (workspace letter H6, rule 3; scripts/release/previous-tests.ts). Each entry: the test file and name, the version the change ships in, and why. A test failing that is not listed fails the release gate. Only the release just before is run, so an entry is dropped at the next release (2.1.0's four, for tail calls portable, are in git history at ec6dc1bba; 2.2.0's one, D2's type rule, dropped at 2.2.2; 2.2.2's two, DG7's words, dropped at 3.0.3; 3.0.3's six, the release order D1, dropped at 3.0.4; 3.0.4's one, the two-job browser check, dropped at 4.0.0; 4.0.0's twenty-five, the security reviews and H37's CI, dropped at 4.1.0; 4.1.0's three, the tests that read src/cli/io.ts, dropped at 4.1.1; 4.1.2's two, the cmem split and the bounded harness, dropped at 4.2.0). A name is written as previous-tests.ts reports it: Node's JUnit reporter escapes a double quote twice and the script decodes once, so a quote reads &quot;. A test FILE that fails to load is reported under its own path as the name, with the platform's separator (the bump runs on win-x64).",
   "entries": [
     {
-      "file": "tests/wabt-ts/scripts/publish_preflight_wiring.test.ts",
-      "name": "documents where the guards live, so the docs cannot drift silently",
-      "since": "4.1.2",
-      "reason": "Letter H38 step 5 (2026-11-20): cmem/publishing.md was split by subject; the release-process half, which names release-guard.ts, is now cmem/publishing-release-flow.md, which today's test reads. Repository notes only: nothing in the package changed."
-    },
-    {
-      "file": "tests/wabt-ts/scripts/previous_tests.test.ts",
-      "name": "starts every process without the caller GIT_* variables",
-      "since": "4.1.2",
-      "reason": "4.1.2 (2026-11-20): the previous-tests harness re-runs an unlisted failure's file alone, and both runs are bounded over their whole process tree (scripts/run-bounded.ts); v4.1.1's copy of this test reads today's scripts/release/previous-tests.ts and expects four spawnSync calls, each ending in `env: clean }`. Today there are three, plus two runBounded calls. Release tooling only: nothing in the package changed."
+      "file": "tests/wabt-ts/tools/security_round2.test.ts",
+      "name": "every diagnostic: a name in a message cannot drive the terminal; its line breaks stay",
+      "since": "4.2.0",
+      "reason": "Review round 2 of the 4.2.0 batch (privacy and security, 2026-11-20, commit 5705f48b7): a line break in a file name or message let a crafted path forge a second line of tool output (`wat2wasm: ok: all fine`). formatError now escapes line breaks in the file name, the message and the quoted source line (tabs kept), and every one-line CLI message escapes them; v4.1.2's copy of this test expects a message's line breaks to stay. Today's copy expects them escaped."
     }
   ]
 }
