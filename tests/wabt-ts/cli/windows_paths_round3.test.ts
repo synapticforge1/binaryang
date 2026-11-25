@@ -70,12 +70,25 @@ describe('round 3: a `\\\\.\\X:\\...` path whose last name is a device name or e
           `//./${w}\\nul`,
           `\\\\.\\${w}\\nul\\`,
           `//./${fwd}/COM1`,
+          // Round 5: anything between `\\.\` and the drive hid the device name from the check.
+          `\\\\.\\\\${w}\\nul`,
+          `\\\\.\\.\\${w}\\nul`,
+          `\\\\.\\UNC\\localhost\\${w.replace(':', '$')}\\nul`,
         ]
       ) {
         const before = tree(base);
         const r = go(target);
         assertEquals(r.status, 1, `${target}: ${r.stderr}`);
         assert(r.stderr.includes('device name'), r.stderr);
+        assertEquals(tree(base), before, target);
+      }
+      // Round 5: three leading separators also wrote NUL, exit 0; refused outright.
+      {
+        const target = `\\\\\\.\\${w}\\nul`;
+        const before = tree(base);
+        const r = go(target);
+        assertEquals(r.status, 1, `${target}: ${r.stderr}`);
+        assert(r.stderr.includes('three or more separators'), r.stderr);
         assertEquals(tree(base), before, target);
       }
       // What still writes: an ordinary last name in the device namespace, the plain path of a

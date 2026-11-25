@@ -395,9 +395,21 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
     // `\\.\D:/dir/nul`, `//./D:/dir/nul` and a trailing `\` are the same path and reached the NUL
     // device past the check above. Separators are made one form first, and the last name is
     // taken with any trailing separator removed.
+    // Round 5: the check keyed on a drive letter right after `\\.\`, so `\\.\\C:\w\nul`,
+    // `\\.\.\C:\w\nul` and `\\.\UNC\host\C$\w\nul` (each the file `nul` to Win32) still reached the
+    // NUL device. Now ANY `\\.\` path with a separator after its first name has its last name
+    // checked, whatever lies between; a single-name device path (`\\.\NUL`, `\\.\nul\`) is the
+    // device, as documented. Three or more leading separators (`\\\.\C:\w\nul` also wrote NUL,
+    // exit 0) name nothing Win32 resolves predictably: refused.
+    if (/^[\\/]{3,}/.test(path)) {
+      throw new Error(
+        'a path that starts with three or more separators is not one Windows resolves ' +
+          'predictably: write it as C:\\... or \\\\server\\share\\...',
+      );
+    }
     if (/^[\\/]{2}\.[\\/]/.test(path)) path = `\\\\.\\${path.slice(4).replace(/\//g, '\\')}`;
-    const bare = path.replace(/\\+$/, '');
-    const last = /^\\\\\.\\[A-Za-z]:\\/.test(path) ? bare.slice(bare.lastIndexOf('\\') + 1) : '';
+    const rest = path.startsWith('\\\\.\\') ? path.slice(4).replace(/\\+$/, '') : '';
+    const last = rest.includes('\\') ? rest.slice(rest.lastIndexOf('\\') + 1) : '';
     if (last !== '' && (WINDOWS_DEVICE.test(last) || /[. ]$/.test(last))) {
       throw new Error(
         'a \\\\.\\ path whose last name is a device name (NUL, CON, COM1 ...) or ends in a dot or ' +
