@@ -242,9 +242,41 @@ async function writeStream(stream: 'stdout' | 'stderr', data: Uint8Array | strin
 }
 
 /**
+ * Whether a Windows output path is in a namespace this tool writes (review round 7). An ALLOW-list:
+ * rounds 3 to 7 each found another spelling (`\\.\nul\x`, `\\?\nul\x`, `\\.\GLOBALROOT\…`,
+ * `\??\nul\x`) that reached a device past a check built for the ones before it, data discarded
+ * with exit 0 on one runtime or the other. So every form outside these is refused, before
+ * anything is opened or stat'ed:
+ * - a path with no namespace prefix (`C:\…`, `\…`, `rel\…`) or a UNC path (`\\server\share\…`);
+ * - `\\?\X:\…` and `\\?\UNC\server\share\…` (verbatim, written with `\`);
+ * - `\\.\X:\…` (written as the plain `X:\…`), or a ONE-name `\\.\NAME`, the device it names.
+ * Refused: `\??\…`, `\\?\` and `\\.\` with anything else (GLOBALROOT, Global, pipe, a bare `\\?\nul`),
+ * and `//?/` (a verbatim path is written with `\`).
+ */
+function windowsNamespaceProblem(path: string): string | null {
+  const refused =
+    'a path in this Windows namespace is not written here: write it as C:\\..., \\\\server\\share\\..., ' +
+    '\\\\?\\C:\\... or \\\\?\\UNC\\server\\share\\... (a device as its plain name, e.g. NUL)';
+  if (path.startsWith('\\??\\') || path.startsWith('/??/')) return refused;
+  const p = path.replace(/\//g, '\\');
+  if (!p.startsWith('\\\\?\\') && !p.startsWith('\\\\.\\')) return null; // plain, UNC
+  const rest = p.slice(4);
+  if (p[2] === '?') {
+    if (!path.startsWith('\\\\?\\')) return refused; // `//?/`: verbatim means `\`
+    return /^[A-Za-z]:\\/.test(rest) || /^UNC\\/i.test(rest) ? null : refused;
+  }
+  if (/^[A-Za-z]:\\/.test(rest)) return null; // `\\.\X:\…`: the plain path, checked below
+  let end = rest.length;
+  while (end > 0 && rest[end - 1] === '\\') end--;
+  return rest.slice(0, end).includes('\\') ? refused : null; // one name: the device it names
+}
+
+/**
  * The bare device name (`NUL`, `CON`, `COM1` …) `path` names on Windows, or `null`. A `\\?\` path
- * is never a device: Win32 does no device-name parsing after that prefix, so `\\?\C:\x\nul` names
- * a real file called `nul` (4.1.0 notes review, Q-H3; `\\.\NUL`, with a dot, is the device).
+ * never comes here as a device: only `\\?\X:\…` and `\\?\UNC\…` are written at all
+ * (windowsNamespaceProblem), and after that prefix Win32 does no device-name parsing, so
+ * `\\?\C:\x\nul` names a real file called `nul` (4.1.0 notes review, Q-H3; `\\.\NUL`, with a dot,
+ * is the device). A bare `\\?\nul` IS a device (round 7): it is refused, not written.
  */
 async function windowsDeviceName(path: string): Promise<string | null> {
   if (path.startsWith('\\\\?\\')) return null;
@@ -387,6 +419,9 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   // `..` and `/` as a plain path does). Bun 1.4.4 cannot open it (ENOENT) and Node can, so it is
   // written as the plain path on both (round 2 review; measured on Windows 11 26300).
   if (cliProcess().platform === 'win32') {
+    // Round 7: the namespace allow-list first, before any stat or open (see its comment).
+    const namespace = windowsNamespaceProblem(path);
+    if (namespace !== null) throw new Error(namespace);
     // Round 3: the device namespace has no reserved names and trims nothing, so `\\.\D:\dir\nul`
     // is a FILE called `nul` there (Node's raw write makes it), but the plain path `D:\dir\nul` it
     // is rewritten to is the NUL DEVICE (data silently discarded, exit 0; Bun 1.4.4 and Node 24)

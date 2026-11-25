@@ -29,7 +29,7 @@ const RUNTIMES: [string, () => [string, string[]]][] = [
 ];
 const tree = (root: string) => readdirSync(root, { recursive: true }).map(String).sort();
 
-describe('round 3: a `\\\\.\\X:\\...` path whose last name is a device name or ends in . or space', () => {
+describe('rounds 3-6: a `\\\\.\\` path with a device name among its names, or a last name ending in . or space', () => {
   for (const [rt, command] of RUNTIMES) {
     it(`${rt}: refused with one accurate line, no file, no device write`, () => {
       const base = join(dir, `dev-${rt}`);
@@ -84,7 +84,8 @@ describe('round 3: a `\\\\.\\X:\\...` path whose last name is a device name or e
         const before = tree(base);
         const r = go(target);
         assertEquals(r.status, 1, `${target}: ${r.stderr}`);
-        assert(r.stderr.includes('device name'), r.stderr);
+        // Round 7: some of these are now refused earlier, by the namespace allow-list.
+        assert(/device name|Windows namespace/.test(r.stderr), r.stderr);
         assertEquals(tree(base), before, target);
       }
       // Round 5: three leading separators also wrote NUL, exit 0; refused outright.
@@ -145,7 +146,8 @@ describe('round 3: an NT-namespace `\\??\\` path is refused, and nothing stays b
         const before = tree(dir);
         const r = go(target);
         assertEquals(r.status, 1, `${target}: ${r.stderr}`);
-        assert(r.stderr.includes('NT-namespace'), r.stderr);
+        // Round 7: the namespace allow-list refuses every `\??\` path, before anything else.
+        assert(r.stderr.includes('Windows namespace'), r.stderr);
         assertEquals(r.stderr.trimEnd().split('\n').length, 1, r.stderr);
         assertEquals(tree(dir), before, target); // the whole tree, parents included
       }
@@ -163,5 +165,56 @@ describe('round 5: the device-path check is linear in the path', () => {
     await fsWrite(`//./${'/'.repeat(300_000)}x`, 'x').catch(() => undefined);
     const u = process.cpuUsage(u0);
     assert((u.user + u.system) / 1000 < 1000, `${(u.user + u.system) / 1000} ms of CPU`);
+  });
+});
+
+describe('round 7: a Windows namespace path is written only in the allowed forms', () => {
+  // Rounds 3-7 each found another spelling that reached a device past a check built for the ones
+  // before it (data discarded, exit 0, on one runtime or the other): `\\?\nul\x`, `//?/nul\x`,
+  // `\\?\Global\nul`, `\\.\GLOBALROOT\Device\Null\x` (Node), `\??\nul\x` (Bun). fsWrite now
+  // writes only an allow-list of forms and refuses the rest before any stat or open. Called in
+  // process, on each runtime the suite runs on; on other systems the rule does not apply.
+  it('every refused form is refused with the namespace line, and nothing is written', async () => {
+    const { fsWrite } = await import('../../../src/host.ts');
+    if (!WIN) {
+      // The control: no namespace rule applies here, so an ordinary path writes.
+      await fsWrite(join(dir, 'ctl.wasm'), 'x');
+      assertEquals(readdirSync(dir).includes('ctl.wasm'), true);
+      return;
+    }
+    const B = String.fromCharCode(92);
+    const refused = [
+      `${B}${B}?${B}nul${B}x`,
+      `//?/nul${B}x`,
+      `${B}${B}?${B}nul${B}x${B}y`,
+      `${B}${B}?${B}Global${B}nul`,
+      `${B}${B}?${B}nul`,
+      `${B}${B}.${B}GLOBALROOT${B}Device${B}Null${B}x`,
+      `${B}${B}?${B}GLOBALROOT${B}Device${B}Null${B}x`,
+      `${B}??${B}nul${B}x`,
+      `${B}${B}.${B}pipe${B}x`,
+    ];
+    for (const p of refused) {
+      let why = '';
+      await fsWrite(p, 'x').catch((e: Error) => why = e.message);
+      assert(why.includes('Windows namespace'), `${p}: ${why || 'written'}`);
+    }
+  });
+
+  it('the allowed forms still write the file they name', async () => {
+    const { fsWrite } = await import('../../../src/host.ts');
+    const B = String.fromCharCode(92);
+    const base = join(dir, 'allow');
+    mkdirSync(base, { recursive: true });
+    // Off Windows the plain path alone is the control.
+    const made = WIN
+      ? [
+        [`${B}${B}?${B}${base}${B}v.wasm`, 'v.wasm'],
+        [`${B}${B}.${B}${base}${B}d.wasm`, 'd.wasm'],
+        [join(base, 'p.wasm'), 'p.wasm'],
+      ]
+      : [[join(base, 'p.wasm'), 'p.wasm']];
+    for (const [p] of made) await fsWrite(p!, 'x');
+    assertEquals(readdirSync(base).sort(), made.map(([, n]) => n!).sort());
   });
 });

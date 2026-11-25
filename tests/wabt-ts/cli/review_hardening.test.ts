@@ -404,7 +404,7 @@ describe('round 2 (security): every `\\\\?\\` shape is refused or writes, and no
         const before = tree(base);
         const r = go(target);
         assertEquals(r.status, 1, `${target}: ${r.stderr}`);
-        assert(r.stderr.includes(why), r.stderr);
+        assert(r.stderr.includes(why) || r.stderr.includes('Windows namespace'), r.stderr); // round 7: or the allow-list
         assertEquals(r.stderr.trimEnd().split('\n').length, 1, r.stderr);
         assertEquals(tree(base), before, target);
       }
