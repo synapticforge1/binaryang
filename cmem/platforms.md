@@ -85,9 +85,11 @@ Status `runtime`: covered by the runtime and by `host`'s result for that OS.
   output — first run 2026-11-20: v22, v24, v26 all `7dbdcd45…`, as on win-x64), the byte
   baseline, the spec suite, the interpreter checks and the privacy scan. A line that becomes LTS
   needs `fnm install <major>` here too, or `bun run lts` fails naming it.
-- **No `wast2json` or `wasm-tools` in this WSL:** `spec-prepare` there skips every file and the spec
-  and interpreter checks then pass EMPTY. Prepare the corpus on win-x64 and run the checks on it
-  from Linux (done for the 4.0.0 review, 2026-11-18).
+- **The reference tools in this WSL** (installed 2026-11-20 on the owner's word, the same versions as
+  win-x64, under `~/.local/opt`, on PATH from `~/.bashrc`): binaryen 133 (`wasm-opt`), wabt 1.0.41
+  (`wat2wasm`, `wast2json`), wasm-tools 1.263.0 (sha256 checked for the first two; wasm-tools
+  publishes none). So a Linux run prepares the spec corpus itself and runs the `wat2wasm` and
+  size-ratchet steps. Last full Linux run 2026-11-25 at 29decb34d: every step passed.
 - **A fresh clone has no `upstream/binaryen/test`** (gitignored): corpus_roundtrip fails, by design,
   until it is copied in — `cp -r /mnt/d/…/binaryang/upstream/binaryen/test upstream/binaryen/`
   (2026-11-19). From Git Bash, pass `MSYS_NO_PATHCONV=1` to `wsl -e <cmd> /home/…`, or the

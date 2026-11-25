@@ -14,7 +14,14 @@ Last verified 2026-11-18.
 - A reviewer's folder is a folder under the main session's scratchpad, said so in its brief, and
   removed by the main session at triage (letter H43). ⚠️ First remove any link a reviewer made
   into the repo (a junction to `node_modules`, seen 2026-11-19) by itself, non-recursively: a
-  recursive delete can follow it into the real folder.
+  recursive delete can follow it into the real folder. Removing a finished reviewer's folder needs
+  no asking (owner, 2026-11-20); name it by a literal path, never a shell variable. A directory a
+  reviewer made named `nul` is removed by its `\\?\` name first.
+- **No gate until a round is clean** (owner, 2026-11-25): fix and re-review until a round comes
+  back with NO items in any class (notes included: "fix the notes"), THEN the gate once and the
+  Linux run. A gate run while fixes still land is wasted, and a file edited mid-gate spoils it.
+- Briefs say: never search any repo's `cmem/local` (a reviewer's grep surfaced wasmtk's private
+  notes, round 6); the shell halves `\\`, so Windows paths are built in TypeScript.
 - Issues, fixes, rejections and counts: the gitignored `review-issues.md`. A completed review is
   RECORDED with `bun run review:record <commit>`, which writes only that hash to the gitignored
   `cmem/local/review-complete` (owner, 2026-11-19, option C: reading it from the prose failed

@@ -4,6 +4,32 @@
 ([release.md](release.md) § "4.1.2"). Nothing is unreleased on `main`. (Check:
 `git log --oneline v4.1.2..main -- src/ main.ts jsr.json README.md`.)
 
+**Pending: on local branch `fixes-batch` (29decb34d, not yet on `main`), 2026-11-20..25.** Reviewed
+in 11 rounds (the last with no items) and gated on win-x64 and linux-x64. The API surface is
+unchanged; what a user sees:
+- **CLI output:** a failed stdout write is one line and exit 1 on Bun, Node and Deno (EPIPE,
+  ENOSPC); a closed stdout is detected on Bun/Linux only (Node and Deno reopen it as /dev/null,
+  which no process can tell from a deliberate discard); `wat2wasm -o -` writes stdout, as wabt
+  1.0.41 does (it wrote a file named `-`); every stdout status line and stderr message is escaped
+  (`cliInfo`, `cliError`), one line where it is one message, at most 1,000 characters.
+- **Output paths:** a FIFO with no reader is refused at once (it hung); on Windows a namespace
+  allow-list (`\\?\X:\`, `\\?\UNC\`, `\\.\X:\`, a one-name `\\.\NAME`; everything else refused);
+  no device reached through a `\\.\` path with a device name among its names, a UNC path's last
+  name or a directory named `nul`; `\\?\` paths with `/`, `.`, `..`, empty segments or `:` refused.
+- **Nesting (MAX_NESTING_DEPTH 256):** the unit is exact (regions are lists, so 129–256 nested
+  loops/ifs/trys now read); every public entry and the WAT pre-scan refuse past it; the
+  optimizer never builds past it (Inlining, SimplifyLocals' sink, the stack form,
+  RemoveUnusedBrs' br_if merge stop short; the runner re-checks after each pass).
+- **Resource bounds** (README "Limits on untrusted input", a row each): PrecomputePropagate's
+  state and worklist, the LocalGraph (counts, word and work budgets), SSANoMerge past 20,000
+  locals, SimplifyLocals' waiting sets, CoalesceLocals' liveness, Inlining's callee lookup;
+  diagnostics bounded (100 printed, windows and parts cut).
+- **Fixed:** `struct.new_desc` with a null descriptor kept as trapping; `ref.get_desc` typed as the
+  engine types it; `printable` escapes U+061C, the tag block and lone surrogates.
+- **Repo only:** gate steps `wat2wasm` (against real wabt) and the spec's own expected values;
+  the optimizer checked at every level with import calls logged and floats by bits; a size
+  ratchet against binaryen 133 (corpus -Oz 810,806, +0.101%); a failed gate step keeps its log.
+
 **Shipped in 4.1.2** (CHANGELOG § 4.1.2; kept here until the next release): no package change —
 the release workflow's npm provenance read-back (10 min, says what it saw).
 
