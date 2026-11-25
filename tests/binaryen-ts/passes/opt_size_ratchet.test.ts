@@ -6,7 +6,7 @@
  */
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -137,6 +137,12 @@ describe('binaryenSize runs wasm-opt bounded and does not turn a failed run into
     });
     expect(inputs).toHaveLength(2);
     expect(inputs[0]).not.toBe(inputs[1]);
+  });
+  it("each run's files are removed when it is done, not left for the end (round 6)", () => {
+    inTmp((dir) => {
+      binaryenSize(dir, new Uint8Array(8), '-Oz', 'a', fake({ status: 1, stderr: 'no' }));
+      expect(readdirSync(dir)).toEqual([]);
+    });
   });
   it('a killed run throws, naming the module', () => {
     inTmp((dir) => {

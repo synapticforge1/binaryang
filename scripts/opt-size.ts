@@ -187,13 +187,24 @@ export function binaryenSize(
   const input = join(dir, `in-${n}.wasm`);
   const output = join(dir, `out-${n}.wasm`);
   writeFileSync(input, wasm);
-  const r = run(
-    'wasm-opt',
-    [input, level, '--strip-dwarf', '--disable-compact-imports', ...FEATURES, '-o', output],
-    { encoding: 'utf8', timeout: limitMs, maxBuffer: WASM_OPT_MAX_BUFFER },
-  );
-  if (judgeRun(r, `${name} (${level})`, limitMs) === 'refused') return undefined;
-  return codeBytes(readFileSync(output));
+  try {
+    const r = run(
+      'wasm-opt',
+      [input, level, '--strip-dwarf', '--disable-compact-imports', ...FEATURES, '-o', output],
+      { encoding: 'utf8', timeout: limitMs, maxBuffer: WASM_OPT_MAX_BUFFER },
+    );
+    if (judgeRun(r, `${name} (${level})`, limitMs) === 'refused') return undefined;
+    return codeBytes(readFileSync(output));
+  } finally {
+    // Each run's two files go as soon as it is done (round 6: they piled up until the end).
+    // Best effort: the lock that made a reused name fail can refuse this too, and the folder
+    // is removed whole at the end anyway.
+    for (const f of [input, output]) {
+      try {
+        rmSync(f, { force: true });
+      } catch { /* left for scratch().done() */ }
+    }
+  }
 }
 
 /**
