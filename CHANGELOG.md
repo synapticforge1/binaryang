@@ -34,22 +34,24 @@ nesting now reads, and the optimizer has new limits on huge functions.
 - **`\\?\` paths with a `/`, a `.` or `..` segment, an empty segment or a `:` stream are
   refused** before anything is written. Through 4.1.2 some left a temporary file behind.
 - **Every message the tools print is escaped**: file names, option values, export names and
-  operating-system errors can no longer send control characters to the terminal, and a one-line
-  message is at most 1,000 characters before escaping (an escaped character prints as six).
+  operating-system errors can no longer send control characters to the terminal. A line break in
+  a name can no longer forge a line of the tool's own output (through 4.1.2 it was printed as is),
+  and bidi marks and invisible tag characters are escaped too. A one-line message is at most
+  1,000 characters before escaping (an escaped character prints as six).
 
 **Nesting**
 
-- **The nesting limit (256 levels) is the same at every stage.** The binary reader and the text
-  parser counted a loop, an if or a try twice, so they refused 129 to 256 nested ones that every
-  other stage accepted. They now read them.
+- **The nesting limit (256 levels) is the same at every stage.** The binary reader counted a
+  loop, an if or a try twice, so it refused 129 to 256 nested ones that every other stage accepted;
+  the text parser did the same for folded `if` and `try` (from about 136). They now read them.
 - **Every way in refuses a module past the limit** with the nesting error, instead of running
   out of stack: text annotations, folded `delegate`, long chains of operands, `.wast` scripts,
   and modules built through the API given to `createPass().run`, `resolveNames`,
   `validateModule` or `ExprVisitor`.
 - **The optimizer never builds past the limit.** Inlining, SimplifyLocals, the stack form at
   `-O3`/`-Os`/`-Oz` and RemoveUnusedBrs stop short of it, so a valid program always optimizes.
-  Through 4.1.2 a function of 1,000 chained assignments failed at `-Oz`, and one of 20,000 ran out
-  of memory (wasmtk's letter C48).
+  Through 4.1.2 a function of 500, 1,000 or 2,000 chained assignments failed at `-O2`, `-O3`
+  and `-Oz` alike, and one of 20,000 ran out of memory (wasmtk's letter C48).
 
 **Untrusted input** (README, "Limits on untrusted input", has a row for each)
 
@@ -76,7 +78,8 @@ Repository only (nothing here is in the package):
 - The optimizer is checked at every level, with calls to imports logged and floats compared by
   their bits, and a size ratchet holds it against binaryen 133's `wasm-opt` (the corpus at `-Oz`
   is 0.101% larger).
-- A failed gate step keeps its full output in a private folder and names its failing tests.
+- A failed gate step keeps its full output in a private folder and names its failing tests (the
+  README's section for maintainers says how long the logs are kept; the gate itself does not ship).
 
 ## 4.1.2
 
