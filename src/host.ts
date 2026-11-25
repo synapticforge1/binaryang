@@ -645,21 +645,24 @@ export function cliError(message: string, block = false): void {
 const MAX_CLI_LINE = 1000;
 
 /**
- * A one-line message cut to {@link MAX_CLI_LINE} characters, its length said (round 8: an OS error
- * echoes the path it failed on, so a 2,000,000-character path printed a 2 MB line). The start and
- * the last {@link CLI_LINE_TAIL} are kept (round 9: `<long path>: EACCES` lost its reason when only
- * the start was). Never splits a surrogate pair. A multi-line block (formatErrors' output) is
- * bounded where it is made. Counts are UTF-16 code units.
+ * A one-line message cut to at most {@link MAX_CLI_LINE} characters IN ALL, the marker included,
+ * its length said (round 8: an OS error echoes the path it failed on, so a 2,000,000-character
+ * path printed a 2 MB line). The start and the last {@link CLI_LINE_TAIL} are kept (round 9:
+ * `<long path>: EACCES` lost its reason when only the start was); the start gives up the
+ * marker's room (round 10: the line was ~1,023). Never splits a surrogate pair. A multi-line
+ * block (formatErrors' output) is bounded where it is made. Counts are UTF-16 code units, before
+ * escaping.
  */
 function capLine(message: string): string {
   if (message.length <= MAX_CLI_LINE) return message;
-  let end = MAX_CLI_LINE - CLI_LINE_TAIL;
+  const marker = ` … (${message.length} characters) … `;
+  let end = MAX_CLI_LINE - CLI_LINE_TAIL - marker.length;
   const c = message.charCodeAt(end - 1);
   if (c >= 0xd800 && c <= 0xdbff) end--; // a high surrogate whose pair is past the cut
   let tail = message.length - CLI_LINE_TAIL;
   const t = message.charCodeAt(tail);
   if (t >= 0xdc00 && t <= 0xdfff) tail++; // a low surrogate whose pair is before the cut
-  return `${message.slice(0, end)} … (${message.length} characters) … ${message.slice(tail)}`;
+  return `${message.slice(0, end)}${marker}${message.slice(tail)}`;
 }
 
 /** The end of a cut one-line message that is kept: where a reason follows a long path. */

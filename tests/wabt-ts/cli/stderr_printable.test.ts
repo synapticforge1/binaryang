@@ -167,7 +167,9 @@ describe('a one-line message is bounded (round 8)', () => {
     // after the count (round 9: only the start was, and `<long path>: EACCES` lost its reason).
     const r = run('wat2wasm', `--${'x'.repeat(10_000)}END`);
     const line = r.stderr.split('\n')[0]!;
-    assert(line.length < 1200, `the message line: ${line.length} characters`);
+    // At most 1,000 in all, the marker included (round 10: it was ~1,023). Counted before
+    // escaping; this message has nothing to escape. The line's `wat2wasm: ` prefix is part of it.
+    assert(line.length <= 1000, `the message line: ${line.length} characters`);
     assert(/ … \(\d{5} characters\) … x+END$/.test(line), `count and tail: ${line.slice(-80)}`);
   });
 });
