@@ -456,11 +456,14 @@ name. Each limit refuses with a typed error or diagnostic; none is silent. (Secu
 | Interpreter: fuel | unlimited by default; when set, charged per instruction AND per element, per 8 bytes and per local of bulk work | `Stop('fuel')` |
 | Interpreter: a memory / a table / an array | 1 GiB / 10,000,000 / 10,000,000 elements | `Stop('unsupported')` |
 
-**Memory grows with the input, linearly.** A module of many tiny functions costs the most per
-byte: 1,000,000 empty functions (4 MB) took about 2 GB at peak to validate, to read for the
-optimizer, or to print as WAT — some 500 bytes per input byte (measured 2026-11-13, Bun 1.4.4,
-Windows). Real compiler output costs far less per byte, but a service taking untrusted modules
-should cap their size before handing them over. **Nesting** is held to one number on every
+**Memory grows with the input.** The live data is linear; the PEAK a process reaches is higher,
+because the engine's garbage collector lags behind each pass's temporary work. Measured peaks:
+1,000,000 empty functions (4 MB) took about 2 GB to validate, to read for the optimizer, or to
+print as WAT — some 500 bytes per input byte (2026-11-13, Bun 1.4.4, Windows). The OPTIMIZER on
+dense straight-line code costs more: 2.5–3.7 KB of peak per input byte at `-O2` (50,000 sets in
+one function, 368 KB: 920 MB; 200,000 sets, 1.5 MB: 5 GB and minutes; review round 5, 2026-11-25,
+Bun and Node 24). A service taking untrusted modules should cap their size, and run the
+optimizer with a memory limit, before handing them over. **Nesting** is held to one number on every
 runtime. **The unit:** the depth of the expression tree as the IR holds it. Every expression
 node on the path from a function body (or a global, segment or element initialiser) down to a
 node counts as one level — a `block`, `loop`, `if`, `try` and `try_table` each, and equally every
