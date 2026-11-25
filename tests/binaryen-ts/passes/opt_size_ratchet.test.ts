@@ -6,7 +6,7 @@
  */
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -137,6 +137,17 @@ describe('binaryenSize runs wasm-opt bounded and does not turn a failed run into
     });
     expect(inputs).toHaveLength(2);
     expect(inputs[0]).not.toBe(inputs[1]);
+  });
+  it('a write that throws is reported as is, its cleanup hiding nothing (round 8)', () => {
+    // The input write is inside the try (round 7): when it throws, the finally's removals run
+    // and must not hide the write's own error. `dir` here is a FILE, so the write is ENOTDIR.
+    inTmp((dir) => {
+      const notADir = join(dir, 'file');
+      writeFileSync(notADir, 'x');
+      expect(() => binaryenSize(notADir, new Uint8Array(8), '-Oz', 'a', fake({ status: 0 })))
+        .toThrow(/ENOTDIR|ENOENT|EEXIST/);
+      expect(readdirSync(dir)).toEqual(['file']);
+    });
   });
   it("each run's files are removed when it is done, not left for the end (round 6)", () => {
     inTmp((dir) => {
