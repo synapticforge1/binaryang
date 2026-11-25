@@ -1062,6 +1062,10 @@ export class InliningPass implements Pass {
     }
 
     if (inlineable.size === 0) return false;
+    // The longest name a label's callee can have: calleeOfLabel tries no longer prefix (review
+    // round 5: a crafted label with many `$` and no match was quadratic). Once per iteration.
+    let longestName = 0;
+    for (const name of inlineable.keys()) longestName = Math.max(longestName, name.length);
 
     const labelHint = { value: 0 };
     const inlinedUses = new Map<string, number>();
@@ -1122,7 +1126,7 @@ export class InliningPass implements Pass {
       walkExpression(bodyBefore, (e) => {
         if (e.kind === ExpressionKind.Block && e.label.startsWith('__inlined_func$')) {
           const rest = e.label.slice('__inlined_func$'.length);
-          const calleeName = calleeOfLabel(rest, inlineable);
+          const calleeName = calleeOfLabel(rest, inlineable, longestName);
           if (calleeName !== undefined) {
             inlinedUses.set(calleeName, (inlinedUses.get(calleeName) ?? 0) + 1);
           }
@@ -1174,15 +1178,21 @@ export class InliningPass implements Pass {
  * The inlineable callee a wrapper label names: the LONGEST name that is `rest` or a prefix of
  * it followed by `$` (the hint suffix). Looks each such prefix up, so it costs the length of the
  * label, not the number of inlineable functions: scanning them all for every wrapper was
- * quadratic (20,000 functions in a chain: 24 s at --inlining).
+ * quadratic (20,000 functions in a chain: 24 s at --inlining). `longest` is the longest
+ * inlineable name: no longer prefix can match, so none is tried (round 5: a crafted label of
+ * 1,000,000 `$` with no match took 71 s; now it costs at most `longest` probes).
  */
-function calleeOfLabel(rest: string, inlineable: ReadonlyMap<string, unknown>): string | undefined {
-  if (inlineable.has(rest)) return rest;
+function calleeOfLabel(
+  rest: string,
+  inlineable: ReadonlyMap<string, unknown>,
+  longest = Infinity,
+): string | undefined {
+  if (rest.length <= longest && inlineable.has(rest)) return rest;
   // Down to `at === 0`: a callee named "" (possible from a binary module's name section) is the
   // shortest prefix, as the old scan over every name found it (review round 4, basic note).
   // `lastIndexOf('$', -1)` searches from 0 again, so the loop ends after position 0 by hand.
   for (
-    let at = rest.lastIndexOf('$');
+    let at = rest.lastIndexOf('$', Math.min(longest, rest.length));
     at >= 0;
     at = at === 0 ? -1 : rest.lastIndexOf('$', at - 1)
   ) {

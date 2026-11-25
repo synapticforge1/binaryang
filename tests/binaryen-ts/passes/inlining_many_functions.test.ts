@@ -88,6 +88,18 @@ describe('inlining: many functions', () => {
     expect(lookups).toBeLessThan(20);
   });
 
+  it('a long label with no match costs at most the longest name, not its own length (round 5)', () => {
+    // 1,000,000 `$` and no callee: every `$` was a probe, each slicing the label (71 s). With the
+    // longest inlineable name passed, no prefix longer than it is tried.
+    const names = new Map<string, unknown>([['$a', 0], ['$a$b', 0]]);
+    const t = cpuMs();
+    expect(calleeOfLabel('$'.repeat(1_000_000), names, 4)).toBeUndefined();
+    expect(cpuMs() - t).toBeLessThan(1000);
+    // The bound keeps every answer within it: the longest match still wins.
+    expect(calleeOfLabel('$a$b$3', names, 4)).toBe('$a$b');
+    expect(calleeOfLabel('$a$c', names, 4)).toBe('$a');
+  });
+
   it('a callee named "" is found, as the old scan found it (review round 4)', () => {
     // The old scan matched "" against any label rest starting with `$`; a longer name still wins.
     const names = new Map<string, unknown>([['', 0], ['$g', 0]]);
