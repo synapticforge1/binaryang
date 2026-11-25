@@ -12,7 +12,7 @@ Updated: 2026-11-25, the fixes batch reviewed clean and gated (not yet pushed)
 - 4.0.0's run 44412712388 is GREEN since its re-run (attempt 2, 2026-11-19 21:58Z: publish
   skipped, provenance found on the first read); attempt 1 was red only because npm lagged ~4 min
 - Unreleased on main: nothing; on local `fixes-batch`: the batch below (unreleased.md § "Pending")
-- Working branch: `fixes-batch` (29decb34d; unpushed)
+- Working branch: `fixes-batch` (977cf27ab; unpushed)
 
 ## Now
 - Bun runs with memory64 on; the Bun known-differences list is EMPTY; no test skips anywhere
@@ -22,10 +22,10 @@ Updated: 2026-11-25, the fixes batch reviewed clean and gated (not yet pushed)
   helper scripts TypeScript), review-process (reviewer folders, links removed first)
 
 ## Review
-- Last: the fixes batch main..29decb34d (Q-H2…Q-H6, C-H2…C-H6, C-R2-1/2/5, C48, C49 and every
-  finding since), 11 rounds, round 11 NO ITEMS in any class at 29decb34d; not yet review:record'ed
+- Last: the fixes batch main..977cf27ab (Q-H2…Q-H6, C-H2…C-H6, C-R2-1/2/5, C48, C49 and every
+  finding since), 11 rounds, round 11 NO ITEMS in any class at 977cf27ab; not yet review:record'ed
 - Before it: the 4.1.0 release notes and their fixes, COMPLETE at 18733943a (`review:record`)
-- Platforms passed at 29decb34d: win-x64 (gate 32/32, 7,189 Bun tests), linux-x64 (fresh WSL
+- Platforms passed at 977cf27ab: win-x64 (gate 32/32, 7,189 Bun tests), linux-x64 (fresh WSL
   clone: every step incl. spec, wat2wasm, size ratchet, --self-check); pending: four
 - **The review set for 4.1.0** (owner, 2026-11-19): v4.0.0..review-h39, 7d3a1feee..review-bun and
   d1dfa0856..review-line; together every shipped change and the release tooling since 4.0.0
@@ -33,7 +33,7 @@ Updated: 2026-11-25, the fixes batch reviewed clean and gated (not yet pushed)
 ## Next
 1. The owner's "push" for `fixes-batch` (merge --no-ff to main), then a release when asked:
    the API surface is unchanged; the level is the owner's (CLI behaviour changes) — unreleased.md § "Pending"
-2. Workspace: binaryang's C49 answer is edited in the letter, uncommitted there
+2. Workspace: binaryang's C49 answer committed there (71fea74, 2026-11-25; C48's in 543ff2e)
 
 ## Pushed
 - 2026-11-20: `main` at cb857e212 (`bump to v4.1.2`), tag `v4.1.2` (read back).

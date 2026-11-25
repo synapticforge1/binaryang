@@ -3,8 +3,8 @@
 The size gap to upstream `wasm-opt -Oz`: the method, the decisions kept, the browser measurement, the current baseline and the lessons.
 Last verified 2026-11-25.
 
-**Now (2026-11-25, `fixes-batch` 29decb34d): corpus -Oz 810,806 bytes, +0.101% over binaryen 133's
-809,986** (Inlining's upstream `inlinedInto` rule, 9b84f3266; was 811,071, +0.134%); the six
+**Now (2026-11-25, `fixes-batch` 977cf27ab): corpus -Oz 810,806 bytes, +0.101% over binaryen 133's
+809,986** (Inlining's upstream `inlinedInto` rule, 58c7e3c52; was 811,071, +0.134%); the six
 real-compiler modules -Oz 138,410 (+0.573%), -O2 139,865 (−2.09%). These are the size ratchet's
 baseline (`scripts/optimize-size-baseline.json`, gate step `optimize-corpus`): growth fails, and
 so does a gain until it is recorded (`--update-baseline`).

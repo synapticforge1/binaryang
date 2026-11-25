@@ -4,7 +4,7 @@
 ([release.md](release.md) § "4.1.2"). Nothing is unreleased on `main`. (Check:
 `git log --oneline v4.1.2..main -- src/ main.ts jsr.json README.md`.)
 
-**Pending: on local branch `fixes-batch` (29decb34d, not yet on `main`), 2026-11-20..25.** Reviewed
+**Pending: on local branch `fixes-batch` (977cf27ab, not yet on `main`), 2026-11-20..25.** Reviewed
 in 11 rounds (the last with no items) and gated on win-x64 and linux-x64. The API surface is
 unchanged; what a user sees:
 - **CLI output:** a failed stdout write is one line and exit 1 on Bun, Node and Deno (EPIPE,
