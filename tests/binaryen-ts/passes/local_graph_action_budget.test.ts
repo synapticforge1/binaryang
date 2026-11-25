@@ -13,14 +13,6 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { LOCAL_GRAPH_MAX_WORDS, localGraphSummary } from '../../../src/passes/local-graph.ts';
 import { ssaNoMerge } from '../../../src/passes/ssa-nomerge.ts';
-import process from 'node:process';
-
-/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
- * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
-const cpuMs = () => {
-  const u = process.cpuUsage();
-  return (u.user + u.system) / 1000;
-};
 
 const rep = (n: number, f: (i: number) => string) =>
   Array.from({ length: n }, (_, i) => f(i)).join('\n');
@@ -39,10 +31,10 @@ describe('the local graph budget counts the work of each set and read', () => {
   });
 
   it('60,000 sets in one block (60,000 sets and reads over 1,876 words): given up at once', () => {
+    // The work bound is that the summary is NOT built (round 7: no time bound; CPU time is no
+    // measure beside a gate).
     const fn = fnOf(plusWat(60_000));
-    const t = cpuMs();
     expect(localGraphSummary(fn, LOCAL_GRAPH_MAX_WORDS)).toBeUndefined(); // it was solved, ~4 s
     expect(ssaNoMerge(fn)).toBe(false); // so SSANoMerge leaves the function
-    expect(cpuMs() - t).toBeLessThan(3000);
   });
 });

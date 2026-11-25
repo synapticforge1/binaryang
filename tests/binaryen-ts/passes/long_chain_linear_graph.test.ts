@@ -95,16 +95,17 @@ describe('the local graph on a long flat chain', () => {
     // (the count is the point: 6,002 entries, not ~4.5 million)
   });
 
-  it('-O3 over n = 3,000 sequential ifs: under 10 s', async () => {
+  it('-O3 over n = 3,000 sequential ifs: finishes, and runs the same', async () => {
+    // No time bound (round 7): CPU time grew about 4x beside a gate, past a bound that could
+    // still catch the old 27 s. The quadratic is held by the COUNT test above (one summary entry
+    // per read, 6,002 here, not ~4.5 million); this case keeps the whole pipeline honest.
     const before = bytesOf(ifsWat(3000));
-    const t = cpuMs();
     const after = await wasmOpt(before, {
       optimizeLevel: 3,
       shrinkLevel: 0,
       passes: [],
       output: '-',
     }) as Uint8Array;
-    expect(cpuMs() - t).toBeLessThan(10_000); // measured ~2.6 s; was ~27 s and 2.4 GB
     await same(before, after);
   });
 });

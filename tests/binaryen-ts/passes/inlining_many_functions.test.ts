@@ -39,11 +39,13 @@ function chainWat(n: number): string {
 }
 
 describe('inlining: many functions', () => {
-  it('a chain of 20,000 functions at --inlining: under 6 s', () => {
+  it('a chain of 20,000 functions at --inlining: under 30 s', () => {
     const m = readForPasses(wat2wasm(chainWat(20_000), { textForm: false }).binary);
     const t = cpuMs();
     new PassRunner(m, {}).add('Inlining').run();
-    expect(cpuMs() - t).toBeLessThan(6000); // measured ~1.5 s; scanning every name: ~9 s
+    // ~1.5 s alone; a loose bound (round 7: CPU time grew ~4x beside a gate). The old scan's
+    // quadratic is held by the lookup COUNTS below, which no load can move.
+    expect(cpuMs() - t).toBeLessThan(30_000);
   });
 
   it('a chain of 2,000 functions inlines and the result still runs', async () => {
