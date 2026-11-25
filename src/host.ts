@@ -408,7 +408,11 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
       );
     }
     if (/^[\\/]{2}\.[\\/]/.test(path)) path = `\\\\.\\${path.slice(4).replace(/\//g, '\\')}`;
-    const rest = path.startsWith('\\\\.\\') ? path.slice(4).replace(/\\+$/, '') : '';
+    // Trailing separators dropped by a loop: the regex `/\\+$/` was quadratic in a long run of
+    // backslashes not at the end (300,000: 30 s; round 5 review, a library caller's path).
+    let end = path.length;
+    while (end > 4 && path[end - 1] === '\\') end--;
+    const rest = path.startsWith('\\\\.\\') ? path.slice(4, end) : '';
     const last = rest.includes('\\') ? rest.slice(rest.lastIndexOf('\\') + 1) : '';
     if (last !== '' && (WINDOWS_DEVICE.test(last) || /[. ]$/.test(last))) {
       throw new Error(

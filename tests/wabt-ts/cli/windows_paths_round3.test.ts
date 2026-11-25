@@ -12,6 +12,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { nodeCommand, REFEREE } from '../../../scripts/v8.ts';
+import process from 'node:process';
 
 const MAIN = resolve('main.ts');
 const WIN = process.platform === 'win32';
@@ -146,4 +147,17 @@ describe('round 3: an NT-namespace `\\??\\` path is refused, and nothing stays b
       }
     });
   }
+});
+
+describe('round 5: the device-path check is linear in the path', () => {
+  // The trailing-separator regex was quadratic in a long run of separators not at the end: a
+  // library caller's path of 300,000 took 30 s (Windows; the command line caps near 32k). On
+  // other systems the check does not run, and the same call is the control.
+  it('a path of 300,000 separators is refused or fails within a second of CPU', async () => {
+    const { fsWrite } = await import('../../../src/host.ts');
+    const u0 = process.cpuUsage();
+    await fsWrite(`//./${'/'.repeat(300_000)}x`, 'x').catch(() => undefined);
+    const u = process.cpuUsage(u0);
+    assert((u.user + u.system) / 1000 < 1000, `${(u.user + u.system) / 1000} ms of CPU`);
+  });
 });
