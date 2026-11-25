@@ -1,5 +1,77 @@
 # Changelog
 
+## 4.2.0
+
+A minor release: hardening against hostile input, and fixes to how the command-line tools write
+their output. Nothing is removed or renamed in the API. It is a minor because behaviour changes:
+`wat2wasm -o -` now writes standard output, more Windows output paths are refused, deeper
+nesting now reads, and the optimizer has new limits on huge functions.
+
+**Writing output**
+
+- **`wat2wasm -o -` writes the module to standard output**, as wabt's `wat2wasm` 1.0.41 does.
+  Through 4.1.2 it wrote a file named `-`. (`wasm2wat -o -` still writes a file named `-`, as
+  wabt's does.)
+- **A failed write to standard output is one line and exit 1** on Bun, Node and Deno (a reader
+  that went away, a full disk). Through 4.1.2, with `-o -`, `wasm-bundle`, `wasm-ctor-eval` and
+  `wasm-opt` did not report it.
+- **A closed standard output is refused on Bun on Linux.** Node and Deno reopen a closed standard
+  output as `/dev/null` before any program runs, so there it cannot be told from a deliberate
+  discard, and the write still succeeds into nothing.
+- **`-o` to a FIFO with no reader is refused at once** (Linux, macOS). It waited forever.
+- **Windows: output paths are written only in the forms Windows resolves as files**: a plain or
+  UNC path, `\\?\X:\…`, `\\?\UNC\…`, `\\.\X:\…`, and a one-name device path such as `\\.\NUL`.
+  Every other namespace form is refused with one line (`\??\…`, `\\.\GLOBALROOT\…`,
+  `\\.\pipe\…`, a bare `\\?\nul`, …). Through 4.1.2 some of them reached the NUL device: the
+  write was discarded and the tool exited 0.
+- **No write reaches a device by accident**: not through a device name inside a `\\.\` path, not
+  through a UNC path ending in `nul` (a file on the share), and not through a directory named
+  `nul`. A directory is always refused.
+- **`\\?\` paths with a `/`, a `.` or `..` segment, an empty segment or a `:` stream are
+  refused** before anything is written. Through 4.1.2 some left a temporary file behind.
+- **Every message the tools print is escaped**: file names, option values, export names and
+  operating-system errors can no longer send control characters to the terminal, and a one-line
+  message is at most 1,000 characters.
+
+**Nesting**
+
+- **The nesting limit (256 levels) is the same at every stage.** The binary reader and the text
+  parser counted a loop, an if or a try twice, so they refused 129 to 256 nested ones that every
+  other stage accepted. They now read them.
+- **Every way in refuses a module past the limit** with the nesting error, instead of running
+  out of stack: text annotations, folded `delegate`, long chains of operands, `.wast` scripts,
+  and modules built through the API given to `createPass().run`, `resolveNames`,
+  `validateModule` or `ExprVisitor`.
+- **The optimizer never builds past the limit.** Inlining, SimplifyLocals, the stack form at
+  `-O3`/`-Os`/`-Oz` and RemoveUnusedBrs stop short of it, so a valid program always optimizes.
+  Through 4.1.2 a function of 1,000 chained assignments failed at `-Oz`, and one of 20,000 ran out
+  of memory (wasmtk's letter C48).
+
+**Untrusted input** (README, "Limits on untrusted input", has a row for each)
+
+- **The optimizer's work and memory are bounded** where a crafted module made them quadratic:
+  PrecomputePropagate (a 60 KB module needed 5.8 GB), SSANoMerge and MergeLocals, SimplifyLocals,
+  CoalesceLocals and Inlining. Past each limit the function is left as it is, which is still
+  correct.
+- **Error reports are bounded**: 100 diagnostics are printed, then a count; a long source line
+  is shown as a window around the error, and long names are cut.
+
+**Fixed**
+
+- `struct.new_desc` with a null descriptor is known to trap, so the optimizer no longer removes
+  a global that runs it; `ref.get_desc` is typed as the engines type it.
+- Characters that act on a terminal while staying invisible (U+061C, the Unicode tag block, lone
+  surrogates) are escaped in names.
+
+Repository only (nothing here is in the package):
+
+- The gate compares `wat2wasm`'s bytes with the real wabt `wat2wasm` over the spec suite and the
+  corpus, and checks the spec suite's own expected results, not only V8's.
+- The optimizer is checked at every level, with calls to imports logged and floats compared by
+  their bits, and a size ratchet holds it against binaryen 133's `wasm-opt` (the corpus at `-Oz`
+  is 0.101% larger).
+- A failed gate step keeps its full output in a private folder and names its failing tests.
+
 ## 4.1.2
 
 The same package as 4.1.1 — **nothing in it changed**. The release workflow changed: after
