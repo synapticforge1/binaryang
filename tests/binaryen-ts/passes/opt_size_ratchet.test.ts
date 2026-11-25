@@ -125,6 +125,19 @@ describe('binaryenSize runs wasm-opt bounded and does not turn a failed run into
     expect(seen[0]!['timeout']).toBe(WASM_OPT_TIMEOUT_MS);
     expect(seen[0]!['maxBuffer']).toBe(WASM_OPT_MAX_BUFFER);
   });
+  it('each run writes its own input file, never reusing one (EBUSY on Windows, the gate)', () => {
+    const inputs: string[] = [];
+    const record = ((_cmd: string, args: readonly string[]) => {
+      inputs.push(args[0]!);
+      return ran({ status: 1, stderr: 'no' });
+    }) as unknown as typeof import('node:child_process').spawnSync;
+    inTmp((dir) => {
+      binaryenSize(dir, new Uint8Array(8), '-Oz', 'a', record);
+      binaryenSize(dir, new Uint8Array(8), '-Oz', 'b', record);
+    });
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]).not.toBe(inputs[1]);
+  });
   it('a killed run throws, naming the module', () => {
     inTmp((dir) => {
       expect(() =>

@@ -165,6 +165,9 @@ export function judgeRun(
   );
 }
 
+/** How many wasm-opt runs this process has made: each gets its own file names. */
+let runCount = 0;
+
 /**
  * binaryen's `wasm-opt <level>` of `wasm`: its code bytes, or `undefined` if it REFUSED the module
  * (see {@link judgeRun}); any other failure throws, naming `name`. `run` is the spawn seam.
@@ -177,8 +180,12 @@ export function binaryenSize(
   run: typeof spawnSync = spawnSync,
   limitMs: number = WASM_OPT_TIMEOUT_MS,
 ): number | undefined {
-  const input = join(dir, 'in.wasm');
-  const output = join(dir, 'out.wasm');
+  // A fresh name per run: reusing one `in.wasm` failed with EBUSY on Windows when the previous
+  // run's file was still held (a scanner, a slow exit; the gate, 2026-11-25). The folder is removed
+  // as a whole by `scratch().done()`.
+  const n = runCount++;
+  const input = join(dir, `in-${n}.wasm`);
+  const output = join(dir, `out-${n}.wasm`);
   writeFileSync(input, wasm);
   const r = run(
     'wasm-opt',
