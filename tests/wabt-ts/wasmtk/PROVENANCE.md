@@ -115,8 +115,10 @@ Every file here comes from wasmtk's tracked tree, but not every byte is wasmtk's
 - **`1_fib-rs.wat`, `1_fib-rs-opt.wat`** are disassembled `wasm32-wasip1` Rust binaries: they embed
   the compiled Rust standard library (`MIT OR Apache-2.0`; rustc `ed61e7d7`) and are linked against
   wasi-libc (its start code `__main_void`). wasi-libc is multi-licensed (Apache-2.0 WITH
-  LLVM-exception, Apache-2.0, MIT); its third-party parts carry their own: its libc top half is
-  musl (Copyright © 2005-2020 Rich Felker, et al., MIT), dlmalloc CC0, cloudlibc BSD-2-Clause.
+  LLVM-exception, Apache-2.0, MIT); its third-party parts carry their own, among them: its libc
+  top half, musl (Copyright © 2005-2020 Rich Felker, et al., MIT), dlmalloc CC0, cloudlibc
+  BSD-2-Clause, emmalloc MIT (as wasi-libc's LICENSE lists them), and musl-fts, under its own
+  COPYING: BSD-3-Clause, the Regents of the University of California.
   The bytes cannot show which of those parts are linked in.
   `1_fib-zig-opt.wat` has no libc; its 7 functions (no names kept) are consistent with Zig start
   and standard-library code (MIT), as its WASI imports suggest, but its bytes do not name them.
