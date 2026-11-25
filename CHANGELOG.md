@@ -15,23 +15,27 @@ nesting now reads, and the optimizer has new limits on huge functions.
 - **A failed write to standard output is one line and exit 1** on Bun, Node and Deno (a reader
   that went away, a full disk). Through 4.1.2, with `-o -`, `wasm-bundle`, `wasm-ctor-eval` and
   `wasm-opt` did not report it.
-- **A closed standard output is refused on Bun on Linux.** Node and Deno reopen a closed standard
-  output as `/dev/null` before any program runs, so there it cannot be told from a deliberate
-  discard, and the write still succeeds into nothing.
+- **A closed standard output is refused on Bun on Linux, and only there.** Node and Deno reopen a
+  closed standard output as `/dev/null` before any program runs, so it cannot be told from a
+  deliberate discard; Bun on macOS has no `/proc` to ask, and on Windows a closed handle arrives as
+  `NUL`. Everywhere but Bun on Linux the write still succeeds into nothing.
 - **`-o` to a FIFO with no reader is refused at once** (Linux, macOS). It waited forever.
 - **Windows: output paths are written only in the forms Windows resolves as files**: a plain or
   UNC path, `\\?\X:\…`, `\\?\UNC\…`, `\\.\X:\…`, and a one-name device path such as `\\.\NUL`.
   Every other namespace form is refused with one line (`\??\…`, `\\.\GLOBALROOT\…`,
   `\\.\pipe\…`, a bare `\\?\nul`, …). Through 4.1.2 some of them reached the NUL device: the
   write was discarded and the tool exited 0.
-- **No write reaches a device by accident**: not through a device name inside a `\\.\` path, not
-  through a UNC path ending in `nul` (a file on the share), and not through a directory named
-  `nul`. A directory is always refused.
+- **No write reaches a device through a path that only contains a device name**: not through a
+  device name inside a `\\.\` path, not through a UNC path ending in `nul` (a file on the share),
+  and not through a directory named `nul`. A directory is always refused. A one-name `\\.\` path
+  is still opened as the device it names: `\\.\NUL`, but equally `\\.\C:` or `\\.\PhysicalDrive0`
+  (a raw volume) if the process may open it, so a service passing untrusted paths to the tools
+  must refuse those itself.
 - **`\\?\` paths with a `/`, a `.` or `..` segment, an empty segment or a `:` stream are
   refused** before anything is written. Through 4.1.2 some left a temporary file behind.
 - **Every message the tools print is escaped**: file names, option values, export names and
   operating-system errors can no longer send control characters to the terminal, and a one-line
-  message is at most 1,000 characters.
+  message is at most 1,000 characters before escaping (an escaped character prints as six).
 
 **Nesting**
 
@@ -49,10 +53,12 @@ nesting now reads, and the optimizer has new limits on huge functions.
 
 **Untrusted input** (README, "Limits on untrusted input", has a row for each)
 
-- **The optimizer's work and memory are bounded** where a crafted module made them quadratic:
-  PrecomputePropagate (a 60 KB module needed 5.8 GB), SSANoMerge and MergeLocals, SimplifyLocals,
-  CoalesceLocals and Inlining. Past each limit the function is left as it is, which is still
-  correct.
+- **The passes a crafted module made quadratic are bounded**: PrecomputePropagate (a 60 KB
+  module needed 5.8 GB), SSANoMerge and MergeLocals, SimplifyLocals, CoalesceLocals and Inlining.
+  Past each limit the function is left as it is, which is still correct. Memory still grows with
+  the input: dense straight-line code costs about 2.5 to 3.7 KB of peak memory per input byte at
+  `-O2` (1.5 MB took 5 GB and minutes), so a service optimizing untrusted modules should cap their
+  size and run the optimizer with a memory limit.
 - **Error reports are bounded**: 100 diagnostics are printed, then a count; a long source line
   is shown as a window around the error, and long names are cut.
 
