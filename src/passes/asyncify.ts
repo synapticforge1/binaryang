@@ -89,6 +89,7 @@ import {
   type WasmImport,
   type WasmModule,
 } from '../ir/module.ts';
+import { printable } from '../core/printable.ts';
 import type { ExprType } from '../ir/ir.ts';
 import { None, typeToString, ValType } from '../ir/types.ts';
 import { mapExpression, walkExpression } from '../ir/walk.ts';
@@ -613,14 +614,16 @@ export function analyzeModule(
   ) {
     for (const entry of list) {
       if (entry.includes('*')) continue; // wildcard patterns are matched by shape
+      // The entry is the caller's text (a CLI `--pass-arg`): escaped before it is printed, so a
+      // control character in it cannot act on the terminal (review round 2, the stderr sweep).
       if (importFnNames.has(entry)) {
         throw new Error(
-          `asyncify: ${label} entry "${entry}" names an imported function; ` +
+          `asyncify: ${label} entry "${printable(entry)}" names an imported function; ` +
             `use asyncify-imports to control imports, not a function list.`,
         );
       }
       if (!definedNames.has(entry)) {
-        console.warn(`asyncify: ${label} entry "${entry}" matches no defined function.`);
+        console.warn(`asyncify: ${label} entry "${printable(entry)}" matches no defined function.`);
       }
     }
   }

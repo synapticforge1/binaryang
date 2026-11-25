@@ -50,14 +50,17 @@ import {
 } from '../passes/index.ts';
 import type { PassOptions } from '../passes/pass.ts';
 import { ModuleBuilder } from '../ir/module.ts';
-import { applyTarget, checkTarget } from './target.ts';
+import { applyTarget, checkTarget, TargetError } from './target.ts';
 import { memcpyToBulkMemory } from './memcpy-to-bulk-memory.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import {
+  cliError,
   cliExit,
+  cliInfo,
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
+  cliWriteStdout,
   fsRead,
   writesToStdout,
 } from '../host.ts';
@@ -194,7 +197,7 @@ export async function wasmOpt(
   if (opts.validate) {
     const { errors } = wasmValidate(out, { filename: '<optimized>', features: allFeatures() });
     if (hasErrors(errors)) {
-      throw new Error(`optimized module failed validation:\n${formatErrors(errors)}`);
+      throw new WatInputError(`optimized module failed validation:\n${formatErrors(errors)}`);
     }
   }
   // `-S`: the bytes just validated, as text — read back by the one reader and
@@ -264,7 +267,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   try {
     parsed = parseArgs(args);
   } catch (e) {
-    console.error(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
+    cliError(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
     cliExit(1);
   }
 
@@ -276,19 +279,19 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   }
 
   if (!parsed.input) {
-    console.error('Usage: wasm-opt <input.wasm> [options]');
-    console.error('  -o <file>            Output file (default: output.wasm)');
-    console.error('  -O0 .. -O4           Optimization level');
-    console.error('  -Os, -Oz             Size optimization (shrink level 1, 2)');
-    console.error('  -c, --converge       Repeat the passes until a round saves < 0.1%');
-    console.error('  -S                   Emit WAT text');
-    console.error('  --<pass-name>        Run a specific pass by name');
-    console.error('  --pass-arg key=val   Per-pass argument (passname@key=val)');
-    console.error('  --partial-inlining-ifs N  Enable split inlining (Pattern A/B); -pii N');
-    console.error(
+    cliError('Usage: wasm-opt <input.wasm> [options]');
+    cliError('  -o <file>            Output file (default: output.wasm)');
+    cliError('  -O0 .. -O4           Optimization level');
+    cliError('  -Os, -Oz             Size optimization (shrink level 1, 2)');
+    cliError('  -c, --converge       Repeat the passes until a round saves < 0.1%');
+    cliError('  -S                   Emit WAT text');
+    cliError('  --<pass-name>        Run a specific pass by name');
+    cliError('  --pass-arg key=val   Per-pass argument (passname@key=val)');
+    cliError('  --partial-inlining-ifs N  Enable split inlining (Pattern A/B); -pii N');
+    cliError(
       '  --target portable    Make the output run on every widely used engine, or refuse',
     );
-    console.error('  --print-all-passes   List all registered passes and exit');
+    cliError('  --print-all-passes   List all registered passes and exit');
     cliExit(1);
   }
 
@@ -297,24 +300,29 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   let result: Uint8Array | string;
   // The minify map goes to stdout, as upstream prints it — to stderr when
   // stdout carries the module itself (`-o -`, `-o /dev/stdout`).
+  let minifyOut = '';
   const toStdout = !writesToStdout(parsed.options.output ?? 'output.wasm');
   const onMinifyMap = (map: MinifyMap) => {
     const text = formatMinifyMap(map);
-    if (toStdout) cliProcess().stdout.write(text);
-    else cliProcess().stderr.write(text);
+    if (toStdout) minifyOut = text;
+    else cliError(text.endsWith(String.fromCharCode(10)) ? text.slice(0, -1) : text, true);
   };
   try {
     result = await wasmOpt(parsed.input, { ...parsed.options, onMinifyMap });
   } catch (e) {
-    console.error(`wasm-opt: ${e instanceof Error ? e.message : String(e)}`);
+    cliError(
+      `wasm-opt: ${e instanceof Error ? e.message : String(e)}`,
+      e instanceof WatInputError || e instanceof TargetError,
+    );
     cliExit(1);
   }
+  if (minifyOut !== '') await cliWriteStdout('wasm-opt', minifyOut);
   const outPath = parsed.options.output ?? 'output.wasm';
   // The report goes to stderr when the module goes to stdout (`-o /dev/stdout`), so stdout holds
   // the module alone.
   const say = writesToStdout(outPath)
-    ? (line: string) => console.error(line)
-    : (line: string) => console.log(line);
+    ? (line: string) => cliError(line)
+    : (line: string) => cliInfo(line);
   // In place is upstream's `wasm-opt a.wasm -o a.wasm`, and stays allowed: the input's own
   // format, written atomically. A CHANGE of format in place (`a.wat` rewritten as binary)
   // destroys the source, and is refused.
@@ -324,14 +332,14 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
 
   if (typeof result === 'string') {
     if (outPath === '-') {
-      console.log(result);
+      await cliWriteStdout('wasm-opt', result + '\n');
     } else {
       await cliWrite('wasm-opt', outPath, result);
       say(`Wrote WAT: ${outPath}`);
     }
   } else {
     if (outPath === '-') {
-      cliProcess().stdout.write(result);
+      await cliWriteStdout('wasm-opt', result);
     } else {
       await cliWrite('wasm-opt', outPath, result);
       say(`Wrote WASM: ${outPath} (${result.byteLength} bytes)`);
@@ -360,7 +368,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
 function validateInput(bytes: Uint8Array, filename: string): void {
   const { errors } = wasmValidate(bytes, { filename, features: allFeatures() });
   if (!hasErrors(errors)) return;
-  throw new Error(`input module is not valid:\n${formatErrors(errors)}`);
+  throw new WatInputError(`input module is not valid:\n${formatErrors(errors)}`);
 }
 
 /** Whether `b` starts with the binary format's magic number, `\0asm`. */

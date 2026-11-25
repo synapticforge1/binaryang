@@ -369,6 +369,25 @@ test('Asyncify — an add-listed bottom-most function is flattened, not a crash'
   assert(WebAssembly.validate(writeWasm(m) as BufferSource), 'the asyncified module validates');
 });
 
+test('Asyncify — a list entry is escaped before it is printed (review round 2)', () => {
+  // The entry is the caller's text (a CLI `--pass-arg`): a control character in it must reach the
+  // terminal escaped, in the warning and in the error alike.
+  const warned: string[] = [];
+  const warn = console.warn;
+  console.warn = (...a: unknown[]) => void warned.push(a.join(' '));
+  try {
+    new AsyncifyPass().run(
+      readWat(BOTTOM_MOST),
+      PASS_OPTIONS({ 'asyncify-addlist': '$no\u001b[2Jsuch' }),
+    );
+  } finally {
+    console.warn = warn;
+  }
+  assertEquals(warned.length, 1);
+  assert(!warned[0]!.includes('\u001b'), `raw ESC in: ${JSON.stringify(warned[0])}`);
+  assert(warned[0]!.includes('\\u001b[2J'), 'the ESC is written out');
+});
+
 test('Asyncify Stage 1 — rejects multi-memory modules', () => {
   const m = moduleWithImport();
   m.memories.push({ name: '$mem2', limits: limitsOf(1) });

@@ -85,6 +85,23 @@ const blocks = (depth: number) => {
   for (let i = 0; i <= depth; i++) c.push(0x0b);
   return wrap(c);
 };
+/**
+ * A function `depth` deep in loops, and in `if`s: a loop's body and an if's arm are lists, not
+ * levels, so each is ONE level — the reader and the parser counted two (C-H5). The innermost `if`
+ * has its condition, one level under it: `depth - 1` ifs.
+ */
+const loops = (depth: number) => {
+  const c = [0];
+  for (let i = 0; i < depth; i++) c.push(0x03, 0x40);
+  for (let i = 0; i <= depth; i++) c.push(0x0b);
+  return wrap(c);
+};
+const ifs = (depth: number) => {
+  const c = [0];
+  for (let i = 0; i < depth - 1; i++) c.push(0x41, 0, 0x04, 0x40);
+  for (let i = 0; i <= depth - 1; i++) c.push(0x0b);
+  return wrap(c);
+};
 /** A function `depth` deep with no block at all: `drop` of `depth - 2` adds over a constant. */
 const chain = (depth: number) => {
   const c = [0, 0x41, 0];
@@ -125,7 +142,14 @@ const every = (v: Record<string, Verdict>, want: Verdict) =>
   Object.entries(v).filter(([, x]) => x !== want);
 
 describe('one nesting limit — binary input, at every stage', () => {
-  for (const [shape, make] of [['blocks', blocks], ['an operand chain', chain]] as const) {
+  for (
+    const [shape, make] of [
+      ['blocks', blocks],
+      ['loops', loops],
+      ['ifs', ifs],
+      ['an operand chain', chain],
+    ] as const
+  ) {
     it(`${shape}: ${N} deep is taken by every stage`, async () => {
       assertEquals(every(await stages(make(N)), 'ok'), []);
     });

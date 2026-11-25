@@ -10,7 +10,9 @@
  * @module passes/local-graph
  *
  * Which writes each `local.get` may read, and which reads each `local.set` / `local.tee` may
- * feed: upstream's LocalGraph, over {@link buildCFG} (open-work 31). Shared by Local2Stack
+ * feed: upstream's LocalGraph, over {@link buildCFG} (open-work 31), kept as COUNTS
+ * ({@link localGraphSummary}), not as a Set of definitions per read: that was quadratic in memory
+ * (2.6 GB on 3,000 sequential `if`s). Shared by SSANoMerge, MergeLocals and Local2Stack
  * (`stack-ir.ts`).
  *
  * @license MIT
@@ -26,15 +28,112 @@ export const ENTRY = Symbol('entry');
 export type Def = Expression | typeof ENTRY;
 
 /**
- * Reaching definitions per `local.get` (the sets, or the entry, whose value it may read) and the
- * readers of each `local.set` / `local.tee`: upstream's LocalGraph, over {@link buildCFG}.
- * Given `locals`, only those are followed: the gets and sets of the others are not in the result
- * (MergeLocals asks about the few locals its copies touch, on functions with hundreds).
+ * The most 32-bit words the reaching-definitions bitsets of one function may hold: 2^25 words,
+ * 128 MB, which a function of some 11,000 sets and branches stays under. They are quadratic in the
+ * function (blocks × definitions / 32), so a hostile function could make them gigabytes. A client
+ * of {@link localGraphSummary} that gets `undefined` leaves the function as it is.
  */
-export function localGraph(fn: WasmFunction, locals?: ReadonlySet<number>): {
-  reaching: Map<Expression, Set<Def>>;
-  readers: Map<Expression, Set<Expression>>;
-} {
+export const LOCAL_GRAPH_MAX_WORDS = 1 << 25;
+
+/** What SSANoMerge, MergeLocals and Local2Stack need from the graph, as counts. */
+export interface LocalGraphSummary {
+  /** Per reached `local.get`: how many definitions reach it, the one if exactly one, whether the entry is among them. */
+  reads: Map<Expression, { count: number; only: Def | undefined; entry: boolean }>;
+  /** The sets / tees that a read reached by more than one definition may read. */
+  merged: Set<Expression>;
+  /** Per set / tee: how many reads have it as their ONLY reaching definition. */
+  sole: Map<Expression, number>;
+}
+
+/** Population count of a 32-bit word. */
+function popcount(v: number): number {
+  v = v - ((v >>> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+  return Math.imul((v + (v >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
+}
+
+/**
+ * What upstream's LocalGraph tells its clients, kept as counts: a read reached by n definitions
+ * costs O(1) memory, not a Set of n. (A flat run of n `if (c) x = i;` each followed by a read of
+ * x gives n reads of up to n definitions: n² Set entries, 2.6 GB at n = 3,000.) Work is n² / 32
+ * word operations on that shape. `undefined` when the bitsets would hold more than `maxWords`
+ * words (see {@link LOCAL_GRAPH_MAX_WORDS}): the caller gives that function up. Given `locals`,
+ * only those are followed: the gets and sets of the others are not in the result (MergeLocals asks
+ * about the few locals its copies touch, on functions with hundreds).
+ */
+export function localGraphSummary(
+  fn: WasmFunction,
+  maxWords: number,
+  locals?: ReadonlySet<number>,
+): LocalGraphSummary | undefined {
+  const g = solve(fn, locals, maxWords);
+  if (g === undefined) return undefined;
+  const { cfg, defs, ofLocal, masks, idOf, ins, reached, W, followed } = g;
+  const sole = new Map<Expression, number>();
+  const reads: LocalGraphSummary['reads'] = new Map();
+  const mergedBits = new Uint32Array(W); // every definition some merging read may see
+  for (const b of cfg.blocks) {
+    if (reached[b.id] === 0) continue;
+    const s = ins[b.id]!.slice();
+    for (const a of b.actions) {
+      if (!followed(a.index)) continue;
+      const m = masks.get(a.index)!;
+      if (a.kind === 'set') {
+        const id = idOf.get(a.origin)!;
+        for (let w = 0; w < W; w++) s[w]! &= ~m[w]!;
+        s[id >>> 5]! |= 1 << (id & 31);
+        continue;
+      }
+      let count = 0;
+      let first = -1;
+      for (let w = 0; w < W; w++) {
+        const v = (s[w]! & m[w]!) >>> 0;
+        if (v === 0) continue;
+        if (first < 0) first = (w << 5) + 31 - Math.clz32(v & -v);
+        count += popcount(v);
+      }
+      const e = ofLocal.get(a.index)![0]!; // each local's entry is its first definition
+      const only = count === 1 ? defs[first] : undefined;
+      if (only !== undefined && only !== ENTRY) sole.set(only, (sole.get(only) ?? 0) + 1);
+      reads.set(a.origin, {
+        count,
+        only,
+        entry: ((s[e >>> 5]! >>> (e & 31)) & 1) === 1,
+      });
+      if (count > 1) { for (let w = 0; w < W; w++) mergedBits[w]! |= s[w]! & m[w]!; }
+    }
+  }
+  const merged = new Set<Expression>();
+  for (const [set, id] of idOf) {
+    if (((mergedBits[id >>> 5]! >>> (id & 31)) & 1) === 1) merged.add(set);
+  }
+  return { reads, merged, sole };
+}
+
+/** The solved dataflow: each block's in-state over the numbered definitions. */
+interface Solved {
+  cfg: ReturnType<typeof buildCFG>;
+  defs: Def[];
+  ofLocal: Map<number, number[]>;
+  masks: Map<number, Uint32Array>;
+  idOf: Map<Expression, number>;
+  ins: Uint32Array[];
+  reached: Uint8Array;
+  W: number;
+  followed: (i: number) => boolean;
+}
+
+/**
+ * The reaching-definitions fixed point. `undefined` when (blocks × 4 + locals) × words per
+ * bitset would pass `maxWords`: the bitsets are quadratic in the function's size (blocks ×
+ * definitions / 32), and a hostile function can make them gigabytes. Or when (sets + reads) ×
+ * words per bitset would pass four times `maxWords`: each of them is a pass over a bitset.
+ */
+function solve(
+  fn: WasmFunction,
+  locals: ReadonlySet<number> | undefined,
+  maxWords: number,
+): Solved | undefined {
   const cfg = buildCFG(fn.body, fn.bodyFrameLabel);
   const followed = (i: number) => locals === undefined || locals.has(i);
 
@@ -53,13 +152,20 @@ export function localGraph(fn: WasmFunction, locals?: ReadonlySet<number>): {
   for (let i = 0; i < fn.locals.length; i++) if (followed(i)) define(ENTRY, i);
   const entryBits = defs.length;
   const idOf = new Map<Expression, number>();
+  let followedActions = 0;
   for (const b of cfg.blocks) {
     for (const a of b.actions) {
-      if (a.kind === 'set' && followed(a.index)) idOf.set(a.origin, define(a.origin, a.index));
+      if (!followed(a.index)) continue;
+      followedActions++;
+      if (a.kind === 'set') idOf.set(a.origin, define(a.origin, a.index));
     }
   }
   const W = (defs.length + 31) >>> 5;
-  const bit = (bits: Uint32Array, id: number) => (bits[id >>> 5]! >>> (id & 31)) & 1;
+  if ((cfg.blocks.length * 4 + ofLocal.size) * W > maxWords) return undefined;
+  // Every set and read also costs a pass over one bitset (a mask, a population count), however
+  // few blocks hold them: 200,000 sets of one local in one block took 18 s. Four times the memory
+  // budget, as those are single word operations.
+  if (followedActions * W > maxWords * 4) return undefined;
   const masks = new Map<number, Uint32Array>(); // local → all its definitions
   for (const [local, ids] of ofLocal) {
     const m = new Uint32Array(W);
@@ -124,30 +230,5 @@ export function localGraph(fn: WasmFunction, locals?: ReadonlySet<number>): {
     }
   }
 
-  const reaching = new Map<Expression, Set<Def>>();
-  const readers = new Map<Expression, Set<Expression>>();
-  for (const b of cfg.blocks) {
-    if (reached[b.id] === 0) continue; // no path reaches it
-    const s = ins[b.id]!.slice();
-    for (const a of b.actions) {
-      if (!followed(a.index)) continue;
-      if (a.kind === 'set') {
-        const m = masks.get(a.index)!, id = idOf.get(a.origin)!;
-        for (let w = 0; w < W; w++) s[w]! &= ~m[w]!;
-        s[id >>> 5]! |= 1 << (id & 31);
-        if (!readers.has(a.origin)) readers.set(a.origin, new Set());
-        continue;
-      }
-      const set = new Set<Def>();
-      for (const id of ofLocal.get(a.index) ?? []) if (bit(s, id) === 1) set.add(defs[id]!);
-      reaching.set(a.origin, set);
-      for (const d of set) {
-        if (d === ENTRY) continue;
-        const r = readers.get(d) ?? new Set<Expression>();
-        r.add(a.origin);
-        readers.set(d, r);
-      }
-    }
-  }
-  return { reaching, readers };
+  return { cfg, defs, ofLocal, masks, idOf, ins, reached, W, followed };
 }

@@ -35,6 +35,7 @@
     "direct-behaviour": "bun scripts/v8.ts scripts/check-direct-behaviour.ts",
     "translate-eh": "bun scripts/v8.ts scripts/check-translate-eh.ts",
     "optimize-corpus": "bun scripts/v8.ts scripts/check-optimize-corpus.ts",
+    "wat2wasm-parity": "bun scripts/check-wat2wasm.ts",
     "spec-behaviour": "bun scripts/v8.ts scripts/check-spec-behaviour.ts",
     "lowering": "bun scripts/check-lowering.ts",
     "hostile": "bun scripts/v8.ts scripts/check-hostile.ts",

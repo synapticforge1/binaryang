@@ -49,7 +49,7 @@ import {
 import { BinarySection, binarySectionName, ExternalKind } from '../core/binary.ts';
 import type { ErrorList } from '../core/error.ts';
 import type { Limits, Module, SectionMeta, ValueType, Var } from '../ir/ir.ts';
-import { cliExit, cliProcess, cliRead } from '../host.ts';
+import { cliError, cliExit, cliProcess, cliRead } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { countImports } from '../ir/ir.ts';
 
@@ -106,7 +106,9 @@ function dump(binary: Uint8Array, opts: WasmObjdumpOptions): WasmObjdumpResult {
   }
 
   const lines: string[] = [];
-  lines.push(`${filename}:\tfile format wasm 0x1`);
+  // The file name is the caller's (a CLI path): escaped here, as every module name below is
+  // (review round 4, security). readBinaryIr gets it raw; formatError escapes it itself.
+  lines.push(`${printable(filename)}:\tfile format wasm 0x1`);
   lines.push('');
 
   const showHeaders = opts.headers !== false;
@@ -419,7 +421,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       // CL7 step 2 (owner, 2026-11-05: upstream's flags; landed in 3.0.0): `-d` is upstream's
       // `--disassemble`. binaryang has no disassembler yet, so it is REFUSED — never silently
       // another meaning. Before 3.0.0 `-d` printed the details, as `-x` does (2.2.x).
-      console.error(
+      cliError(
         `wasm-objdump: ${arg} (disassembly) is not supported yet; use -x for the section details`,
       );
       bad = true;
@@ -431,7 +433,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       // An option this tool does not have is an ERROR, never skipped (workspace contract S2:
       // "an error in syntax of the CLI options or commands throws"; code lens pass 2,
       // 2026-10-28: `-x`, upstream's details flag and not yet ours, silently printed the headers).
-      console.error(`wasm-objdump: unknown option ${arg}`);
+      cliError(`wasm-objdump: unknown option ${arg}`);
       bad = true;
     }
   }
@@ -442,7 +444,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   headers ??= !details;
 
   if (inputs.length === 0) {
-    console.error('usage: wasm-objdump [-h] [-x] <input.wasm> [...]');
+    cliError('usage: wasm-objdump [-h] [-x] <input.wasm> [...]');
     cliExit(1);
   }
 
@@ -457,7 +459,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     });
 
     if (errors.length > 0) {
-      console.error(formatErrors(errors));
+      cliError(formatErrors(errors), true);
     }
     if (result !== Result.Ok) {
       anyFailed = true;

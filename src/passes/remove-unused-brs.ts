@@ -62,6 +62,7 @@ import { varName } from '../ir/ir.ts';
 import { None, ValType } from '../ir/types.ts';
 import { deepEffects, hasSideEffects, invalidates, mergeEffects } from '../ir/effects.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
+import { expressionHeight, MAX_NESTING_DEPTH, nestingDepth } from '../ir/nesting.ts';
 import { branchTargets, mapChildrenShallow, mapExpression, walkExpression } from '../ir/walk.ts';
 
 // ---------------------------------------------------------------------------
@@ -77,8 +78,20 @@ export class RemoveUnusedBrsPass implements Pass {
 
   run(module: WasmModule, _options: PassOptions): void {
     for (const fn of module.functions) {
-      const body = _tailReturn(mapExpression(fn.body, _removeUnusedBrsNode));
-      fn.body = _dropFlowingBrs(body, new Set()) as RegionExpr;
+      // Merging adjacent `br_if`s nests: n of them in a row become an `i32.or` chain n deep, and a
+      // flat run of 255 refused the module after this pass (the runner's re-check). The merge is
+      // the only step that can deepen a body by more than a level, so when the result is past the
+      // limit the function is redone without it, and — the `eqz` of the flowing-branch rule may
+      // add a level at the very limit — left as it was if that is still past (the input was
+      // within: the runner checks it first). Below the limit, nothing changes.
+      for (const merge of [true, false]) {
+        const body = _tailReturn(mapExpression(fn.body, (e) => _removeUnusedBrsNode(e, merge)));
+        const out = _dropFlowingBrs(body, new Set()) as RegionExpr;
+        if (nestingDepth(out, MAX_NESTING_DEPTH) <= MAX_NESTING_DEPTH) {
+          fn.body = out;
+          break;
+        }
+      }
     }
   }
 }
@@ -89,11 +102,12 @@ registerPass(RemoveUnusedBrsPass);
 // Implementation
 // ---------------------------------------------------------------------------
 
-function _removeUnusedBrsNode(expr: Expression): Expression {
+function _removeUnusedBrsNode(expr: Expression, merge: boolean): Expression {
+  const brIfs = merge ? _mergeBrIfs : <T>(e: T) => e;
   if (expr.kind === ExpressionKind.If) return _optimizeIf(expr);
-  if (expr.kind === ExpressionKind.Region) return _mergeBrIfs(_threadJumps(expr));
+  if (expr.kind === ExpressionKind.Region) return brIfs(_threadJumps(expr));
   if (expr.kind !== ExpressionKind.Block) return expr;
-  const threaded = _mergeBrIfs(_threadJumps(expr));
+  const threaded = brIfs(_threadJumps(expr));
   return threaded.kind === ExpressionKind.Block ? _optimizeBlock(threaded) : threaded;
 }
 
@@ -106,7 +120,10 @@ function _removeUnusedBrsNode(expr: Expression): Expression {
  *
  * The second condition now runs even when the first held, so it must have no effect at all and
  * not trap ({@link hasSideEffects}); `x` and `c` both, as the `select` runs `x` before `c`.
- * Valueless branches only.
+ * Valueless branches only. The merged condition's height is tracked as it grows (the unit of
+ * {@link expressionHeight}) and a merge that would take it past {@link _MAX_MERGED_HEIGHT} is not
+ * made: a flat run of n branches would otherwise build a chain n deep (3,000 ran Node out of
+ * stack, and 255 were refused by the runner's re-check); the run stays as separate branches.
  */
 function _mergeBrIfs<T extends Expression & { children: Expression[] }>(e: T): T {
   const brIf = (x: Expression | undefined): x is BreakExpr =>
@@ -114,12 +131,18 @@ function _mergeBrIfs<T extends Expression & { children: Expression[] }>(e: T): T
   const pure = (x: Expression) => !hasSideEffects(deepEffects(x));
   let changed = false;
   const out: Expression[] = [];
+  // The height of `out`'s last branch's condition, once it is known (it is after a merge).
+  let prevHeight: number | undefined;
   for (const c of e.children) {
     const prev = out[out.length - 1];
     if (brIf(prev)) {
       const l = labelName(prev.target);
       let second: Expression | undefined;
-      if (brIf(c) && labelName(c.target) === l && pure(c.condition!)) second = c.condition!;
+      let secondHeight = 0;
+      if (brIf(c) && labelName(c.target) === l && pure(c.condition!)) {
+        second = c.condition!;
+        secondHeight = expressionHeight(second);
+      }
       // The reader names every `if`: nothing branches to this one, as its only statement is a
       // `br_if` elsewhere whose condition (pure) holds no branch.
       if (c.kind === ExpressionKind.If && c.type === None && c.ifFalse === null) {
@@ -129,18 +152,33 @@ function _mergeBrIfs<T extends Expression & { children: Expression[] }>(e: T): T
           pure(c.condition)
         ) {
           second = makeSelect(t.condition!, makeI32Const(0), c.condition);
+          secondHeight = Math.max(expressionHeight(t.condition!), expressionHeight(c.condition)) +
+            1;
         }
       }
       if (second !== undefined) {
-        out[out.length - 1] = makeBreak(l, makeBinary(BinaryOp.OrI32, prev.condition!, second));
-        changed = true;
-        continue;
+        const height = Math.max(prevHeight ?? expressionHeight(prev.condition!), secondHeight) + 1;
+        if (height <= _MAX_MERGED_HEIGHT) {
+          out[out.length - 1] = makeBreak(l, makeBinary(BinaryOp.OrI32, prev.condition!, second));
+          prevHeight = height;
+          changed = true;
+          continue;
+        }
       }
     }
+    prevHeight = undefined;
     out.push(c);
   }
   return changed ? { ...e, children: out } : e;
 }
+
+/**
+ * The tallest condition a merge builds. Under {@link MAX_NESTING_DEPTH} by what sits above it —
+ * the body's block, the `br_if` — so a run in a function's top block can merge up to the limit;
+ * a branch deeper in the tree may not, and the function is then redone without merging (see
+ * {@link RemoveUnusedBrsPass}).
+ */
+const _MAX_MERGED_HEIGHT = MAX_NESTING_DEPTH - 2;
 
 const _DECLARES_LABEL = new Set<string>([
   ExpressionKind.Block,

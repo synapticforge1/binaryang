@@ -50,7 +50,15 @@ import {
   nestingTooDeep,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliExit, cliProcess, cliRead, cliRefuseOverwritingInput, cliWrite } from '../host.ts';
+import {
+  cliError,
+  cliExit,
+  cliProcess,
+  cliRead,
+  cliRefuseOverwritingInput,
+  cliWrite,
+  cliWriteStdout,
+} from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 import { allFeatures, type Features } from '../core/feature.ts';
@@ -249,7 +257,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     } else if (arg === '-o' || arg === '--output') {
       output = args[++i];
       if (output === undefined) {
-        console.error(`wasm2wat: ${arg} needs a file`);
+        cliError(`wasm2wat: ${arg} needs a file`);
         bad = true;
       }
     } else if (arg.startsWith('--output=')) {
@@ -275,21 +283,22 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       input = arg;
     } else if (flags.apply(arg) !== true) {
       // An option this tool does not have is an ERROR, never skipped (workspace contract S2).
-      console.error(`wasm2wat: unknown option ${arg}`);
+      cliError(`wasm2wat: unknown option ${arg}`);
       bad = true;
     }
   }
   if (bad) cliExit(1);
 
   if (!input) {
-    console.error(
+    cliError(
       'usage: wasm2wat <input.wasm> [-o <output.wat>] [--linear|-l] [--fold|-f] [--generate-names]',
     );
-    console.error(
+    cliError(
       '  every instruction is written in the form it was written (our wat2wasm records it),\n' +
         '  otherwise FOLDED; --fold folds every function, --linear writes every one flat',
+      true,
     );
-    console.error(
+    cliError(
       '  --generate-names invents $f0, $g0, ... for entities the binary does not name',
     );
     cliExit(1);
@@ -306,7 +315,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   });
 
   if (errors.length > 0) {
-    console.error(formatErrors(errors));
+    cliError(formatErrors(errors), true);
   }
   if (result !== Result.Ok) {
     cliExit(1);
@@ -316,6 +325,6 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     await cliRefuseOverwritingInput('wasm2wat', [input], output);
     await cliWrite('wasm2wat', output, text);
   } else {
-    console.log(text);
+    await cliWriteStdout('wasm2wat', text + '\n');
   }
 }

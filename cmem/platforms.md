@@ -78,13 +78,18 @@ Status `runtime`: covered by the runtime and by `host`'s result for that OS.
 
 ## linux-x64
 
-- **Bun and fnm (Node 24) in this WSL** (fnm 1.39.0, Node v24.22.3, installed 2026-11-20 on the
-  owner's word; `~/.bashrc` loads it). Deno runs on win-x64 only. A Linux run covers the Bun leg,
-  the V8 leg (`bun run test`, the fnm Node 24 referee), the byte baseline, the spec suite, the
-  interpreter checks and the privacy scan.
-- **No `wast2json` or `wasm-tools` in this WSL:** `spec-prepare` there skips every file and the spec
-  and interpreter checks then pass EMPTY. Prepare the corpus on win-x64 and run the checks on it
-  from Linux (done for the 4.0.0 review, 2026-11-18).
+- **Bun and fnm in this WSL, with every current Node LTS line** (fnm 1.39.0; Node v22.23.5,
+  v24.22.3 default, v26.13.1; installed 2026-11-20 on the owner's word; `~/.bashrc` loads it, so
+  run through `bash -lic`). Deno runs on win-x64 only. A Linux run covers the Bun leg, the V8 leg
+  (`bun run test`, the Node 24 referee), `bun run lts` (every current LTS line, the same CLI
+  output — first run 2026-11-20: v22, v24, v26 all `7dbdcd45…`, as on win-x64), the byte
+  baseline, the spec suite, the interpreter checks and the privacy scan. A line that becomes LTS
+  needs `fnm install <major>` here too, or `bun run lts` fails naming it.
+- **The reference tools in this WSL** (installed 2026-11-20 on the owner's word, the same versions as
+  win-x64, under `~/.local/opt`, on PATH from `~/.bashrc`): binaryen 133 (`wasm-opt`), wabt 1.0.41
+  (`wat2wasm`, `wast2json`), wasm-tools 1.263.0 (sha256 checked for the first two; wasm-tools
+  publishes none). So a Linux run prepares the spec corpus itself and runs the `wat2wasm` and
+  size-ratchet steps. Last full Linux run 2026-11-25 at 977cf27ab: every step passed.
 - **A fresh clone has no `upstream/binaryen/test`** (gitignored): corpus_roundtrip fails, by design,
   until it is copied in — `cp -r /mnt/d/…/binaryang/upstream/binaryen/test upstream/binaryen/`
   (2026-11-19). From Git Bash, pass `MSYS_NO_PATHCONV=1` to `wsl -e <cmd> /home/…`, or the

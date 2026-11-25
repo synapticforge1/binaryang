@@ -21,7 +21,13 @@ import {
 } from '../core/error.ts';
 import { Result } from '../core/result.ts';
 import { ExprVisitor } from '../ir/expr-visitor.ts';
-import { MAX_NESTING_DEPTH, moduleLimitProblem, NESTING_OVER_LIMIT } from '../ir/nesting.ts';
+import {
+  limitProblem,
+  MAX_NESTING_DEPTH,
+  moduleLimitProblem,
+  NESTING_OVER_LIMIT,
+  regionsOf,
+} from '../ir/nesting.ts';
 import {
   decimalToBits,
   decodeStringToken,
@@ -1266,6 +1272,14 @@ export class WastParser {
    * See {@link assignImplicitTypes}.
    */
   private pendingBlockSigs = new Map<BlockType, FuncSignature>();
+
+  /**
+   * Set when a function body or constant expression the parser BUILT nests deeper than
+   * {@link MAX_NESTING_DEPTH}: a linear operand chain (`i32.const 1` … `i32.add` …) nests with no
+   * parenthesis for the pre-scan to count. Every walk of the tree after that point (the implicit
+   * types' `ExprVisitor`) is skipped, and the entry point reports the one refusal (C-H3, C-H4).
+   */
+  nestingRefused = false;
 
   /**
    * Param count of every function in the index space of the module whose
@@ -2628,7 +2642,11 @@ export class WastParser {
     // text order, after the explicit ones (W5).
     const blockSigs = this.pendingBlockSigs;
     this.pendingBlockSigs = savedBlockSigs;
-    this.assignImplicitTypes(module, blockSigs);
+    // The built trees, judged BEFORE anything recurses over them (iteratively: ir/nesting.ts).
+    for (const r of regionsOf(module)) {
+      if (limitProblem(r) !== undefined) this.nestingRefused = true;
+    }
+    if (!this.nestingRefused) this.assignImplicitTypes(module, blockSigs);
     const typeUses = this.pendingTypeUses;
     this.pendingTypeUses = savedTypeUses;
     this.checkPendingTypeUses(typeUses, module);
@@ -2809,6 +2827,12 @@ export class WastParser {
       this.labels = [{ name: '', arity: sigOf(pb.func)?.results.length }];
       this.writtenForm = new WeakMap();
       this.parseInstrListInto(pb.func.body.children);
+      // A linear operand chain nests with no parenthesis for the pre-scan to count: judge the
+      // BUILT body (iteratively) before `formNodes` and `checkLabelScopes` recurse over it.
+      if (limitProblem(pb.func.body) !== undefined) {
+        this.nestingRefused = true;
+        continue;
+      }
       // S7: how each instruction was written, in binary order, for every
       // function (`text-form.ts`) — the encoder writes only what a reader would
       // not predict. A node the parser did not build as an instruction keeps
@@ -7308,12 +7332,40 @@ export interface ParseWastResult {
  */
 function parseDepth(tokens: readonly Token[]): number {
   let parens = 0, linear = 0, max = 0;
+  // Whether each OPEN parenthesis counted as a level: `(then`, `(else`, `(do`, `(catch …` and
+  // `(catch_all` open a list of instructions, which is not a level (the unit: ir/nesting.ts).
+  // 🔧 They were counted, so a folded text nest of `if`s or `try`s was refused at ~136 levels
+  // though the binary route takes 256 (C-H5).
+  const counted: boolean[] = [];
+  // Whether each open parenthesis is a region opener at all (counted or not).
+  const regions: boolean[] = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i]!.tokenType;
-    if (t === TokenType.Lpar) parens++;
-    else if (t === TokenType.Rpar) parens = Math.max(0, parens - 1);
-    else if (isBlockInstr(t) && tokens[i - 1]?.tokenType !== TokenType.Lpar) linear++;
-    else if (t === TokenType.End || t === TokenType.Delegate) linear = Math.max(0, linear - 1);
+    // `(@metadata.code.…` is a token too (LparAnn), and its `)` is counted below: left out, each
+    // one hid a level (C-H3). The other annotations are skipped by the lexer, no token at all.
+    if (t === TokenType.Lpar || t === TokenType.LparAnn) {
+      const next = tokens[i + 1]?.tokenType;
+      const region = t === TokenType.Lpar &&
+        (next === TokenType.Then || next === TokenType.Else || next === TokenType.Do ||
+          next === TokenType.Catch || next === TokenType.CatchAll);
+      // 🔧 A region opener directly inside ANOTHER region opener (`(do (catch_all (catch_all …`)
+      // is no list of a construct's: it is malformed, and counted. Left uncounted, 2,000 of them
+      // reached the parser, one "expected )" per token, each quoting its line (hardening F2).
+      const counts = !region || regions[regions.length - 1] === true;
+      counted.push(counts);
+      regions.push(region);
+      if (counts) parens++;
+    } else if (t === TokenType.Rpar) {
+      regions.pop();
+      if (counted.pop() === true) parens--;
+    } else if (isBlockInstr(t) && tokens[i - 1]?.tokenType !== TokenType.Lpar) linear++;
+    else if (t === TokenType.End) linear = Math.max(0, linear - 1);
+    // `try` … `delegate` closes a LINEAR `try`; the folded `(delegate $l)` closes only its own
+    // parenthesis (counted above). 🔧 It closed a linear level too, so `block (try (delegate 0))`
+    // repeated hid every `block` from the count: 100,000 deep reached the recursion (C-H3).
+    else if (t === TokenType.Delegate && tokens[i - 1]?.tokenType !== TokenType.Lpar) {
+      linear = Math.max(0, linear - 1);
+    }
     if (parens + linear > max) max = parens + linear;
   }
   return max;
@@ -7344,6 +7396,11 @@ function runParse<T>(
     }
     parser = new WastParser(tokens);
     const value = build(parser);
+    if (parser.nestingRefused) {
+      const errors: WabtError[] = [...lexer.errors];
+      addError(errors, unknownLocation(), NESTING_OVER_LIMIT);
+      return { value: empty(), errors };
+    }
     return { value, errors: [...lexer.errors, ...parser.errors] };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

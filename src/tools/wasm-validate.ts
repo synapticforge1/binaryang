@@ -55,7 +55,7 @@ import {
   nestingTooDeep,
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
-import { cliExit, cliProcess, cliRead } from '../host.ts';
+import { cliError, cliExit, cliProcess, cliRead } from '../host.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 
@@ -236,17 +236,17 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       continue;
     }
     if (flags.apply(arg) !== true) {
-      console.error(`wasm-validate: unknown option ${arg}`);
+      cliError(`wasm-validate: unknown option ${arg}`);
       bad = true;
     }
   }
   if (bad) {
-    console.error(flags.help());
+    cliError(flags.help(), true);
     cliExit(1);
   }
 
   if (inputs.length === 0) {
-    console.error('usage: wasm-validate [--enable-all|--enable-<feature>] <input.wasm> [...]');
+    cliError('usage: wasm-validate [--enable-all|--enable-<feature>] <input.wasm> [...]');
     cliExit(1);
   }
 
@@ -257,7 +257,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     const { errors, result } = wasmValidate(binary, { filename: input, features });
 
     if (errors.length > 0) {
-      console.error(formatErrors(errors));
+      cliError(formatErrors(errors), true);
     }
 
     // Silent on success, as upstream wasm-validate: the exit code is the verdict, and an invalid

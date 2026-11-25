@@ -47,7 +47,8 @@ import {
 import type { WasmFunction } from '../ir/module.ts';
 import { requireIndex } from '../ir/ir.ts';
 import { visitChildren } from '../ir/walk.ts';
-import { localGraph } from './local-graph.ts';
+import { LOCAL_GRAPH_MAX_WORDS, localGraphSummary } from './local-graph.ts';
+import { expressionHeight, MAX_NESTING_DEPTH } from '../ir/nesting.ts';
 
 /** How many values a type puts on the stack: `none` and `unreachable` none, a tuple its arity. */
 function arity(e: Expression): number {
@@ -82,11 +83,15 @@ function _omissions(fn: WasmFunction): Set<Expression> {
   scan(fn.body);
   if (unsupported) return new Set();
 
-  const { reaching, readers } = localGraph(fn);
+  // Past the bitsets' budget the function is written as it is (nothing is left out).
+  const graph = localGraphSummary(fn, LOCAL_GRAPH_MAX_WORDS);
+  if (graph === undefined) return new Set();
+  const { reads, merged, sole } = graph;
+  // Exact: the get reads only this set, and no other read can see the set.
   const exact = (set: Expression, get: Expression): boolean => {
-    const defs = reaching.get(get);
-    const uses = readers.get(set);
-    return defs?.size === 1 && defs.has(set) && uses?.size === 1 && uses.has(get);
+    const r = reads.get(get);
+    return r !== undefined && r.count === 1 && r.only === set && !merged.has(set) &&
+      sole.get(set) === 1;
   };
   const out = new Set<Expression>();
   for (const [set, get] of _pairs(fn, exact)) {
@@ -117,6 +122,16 @@ function _pairs(
   const pairs: [Expression, Expression][] = [];
   const localOf = (e: LocalGetExpr | LocalSetExpr) => requireIndex(e.var, 'local index');
 
+  // THE BOUND (see simplify-locals.ts): a pair leaves the set's value where the get stood, and a
+  // reader folds the bytes into a tree with it there. Past MAX_NESTING_DEPTH the module could not
+  // be read back (`wasm-opt -Oz` of a chain of 20,000 dependent sets wrote one: wasmtk's letter
+  // C48), so such a pair is kept as written. `level` is the visited node's level, `open` the sets
+  // whose value the walk is in (innermost last), `heights` each candidate's value height as it
+  // will stand.
+  let level = 0;
+  const open: { base: number; height: number }[] = [];
+  const heights = new Map<LocalSetExpr, number>();
+
   const consume = (n: number): void => {
     while (n > 0) {
       // A candidate above the consumed value would be under it: it can never be reached.
@@ -134,6 +149,12 @@ function _pairs(
         if (c === null || c === undefined) break; // an actual value in the way
         if (localOf(c) === local) {
           if (!exact(c, e)) break; // kept: this get pushes its value, as written
+          const add = heights.get(c)!;
+          if (level + add - 1 > MAX_NESTING_DEPTH) break; // kept: the tree would be too deep
+          const enclosing = open[open.length - 1];
+          if (enclosing !== undefined) {
+            enclosing.height = Math.max(enclosing.height, level - enclosing.base + add);
+          }
           pairs.push([c, e]);
           values[j] = null; // the set's value stays on the stack as a plain value
           return;
@@ -152,6 +173,15 @@ function _pairs(
   };
 
   const emit = (e: Expression): void => {
+    if (e.kind === ExpressionKind.Region) return emitNode(e);
+    level++;
+    const isSet = e.kind === ExpressionKind.LocalSet;
+    if (isSet) open.push({ base: level + 1, height: 0 });
+    emitNode(e);
+    if (isSet) open.pop();
+    level--;
+  };
+  const emitNode = (e: Expression): void => {
     switch (e.kind) {
       case ExpressionKind.Region:
         for (const c of e.children) emit(c);
@@ -190,6 +220,7 @@ function _pairs(
       return;
     }
     if (e.kind === ExpressionKind.LocalSet && arity(e.value) === 1) {
+      heights.set(e, Math.max(expressionHeight(e.value), open[open.length - 1]!.height));
       values.push(e); // a candidate
       return;
     }

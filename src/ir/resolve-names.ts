@@ -19,6 +19,7 @@ import { combineResults, Result } from '../core/result.ts';
 import { ExternalKind } from '../core/binary.ts';
 import { Type } from '../core/types.ts';
 import { addError, makeErrorList, unknownLocation } from '../core/error.ts';
+import { moduleLimitProblem } from './nesting.ts';
 import type { ErrorList, Location } from '../core/error.ts';
 import type {
   BlockParams,
@@ -68,6 +69,13 @@ class NameScope {
  * Errors for unresolved names accumulate in `errors` rather than throwing.
  */
 export function resolveNames(module: Module, errors: ErrorList = makeErrorList()): Result {
+  // The one nesting limit, at this public entry too: a module built through the API never passed
+  // the reader's or the parser's check, and this walk recurses once per level (C-H4).
+  const over = moduleLimitProblem(module);
+  if (over !== undefined) {
+    addError(errors, unknownLocation(), over);
+    return Result.Error;
+  }
   const ctx = new ResolveContext(module, errors);
   return ctx.resolveModule();
 }

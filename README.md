@@ -140,7 +140,7 @@ deno run -A jsr:@jrmarcum/binaryang <command> [options]             # Deno, no i
 
 | command                   | does                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wat2wasm <in.wat>`       | assemble and validate WAT to a WASM binary, as upstream · `-o <file>` · `--no-check` · `--enable-all`, `--enable-<feature>`, `--disable-<feature>` · `--no-text-form`¹                                                                                                                                                                                                       |
+| `wat2wasm <in.wat>`       | assemble and validate WAT to a WASM binary, as upstream · `-o <file>` (`-o -` is stdout, as upstream) · `--no-check` · `--enable-all`, `--enable-<feature>`, `--disable-<feature>` · `--no-text-form`¹                                                                                                                                                                                                       |
 | `wasm2wat <in.wasm>`      | disassemble to WAT, every instruction in its written form¹ · `-o <file>` · `--linear` / `--fold` for one form throughout                                                                                                                                                                                                                                                     |
 | `wasm-validate <in.wasm>` | validate · `--enable-all`, `--enable-<feature>`, `--disable-<feature>`                                                                                                                                                                                                                                                                                                       |
 | `wasm-objdump <in.wasm>`  | dump sections                                                                                                                                                                                                                                                                                                                                                                |
@@ -210,7 +210,7 @@ Each import below is the JSR name; from npm, each starts with `@synapticforge1/b
 
 **No external dependencies.** binaryang's reader, validator, writers, text tools and optimizer are
 entirely its own TypeScript; it has no external dependencies beyond the standard Node and Deno
-packages, and calls no external tool. Upstream tools (`wast2json`, `wasm-tools`, upstream binaryen)
+packages, and calls no external tool. Upstream tools (`wast2json`, `wat2wasm`, `wasm-tools`, upstream binaryen)
 are used only by the repository's tests and its separate comparison suite — never by the published
 package. The `compat/*` subpaths reproduce upstream's API _shapes_; they do not load upstream.
 
@@ -246,6 +246,9 @@ engines) are not yet run on the test machine.
 The checks run on the maintainer's machine before each release (`bun run gate`, on Windows x64; a
 Linux x64 run covers the Bun test leg, the spec suite and the byte baseline); GitHub Actions only
 publishes.
+A failed gate step's whole output (it holds absolute paths, so your user name) is kept in a private
+folder under the system temp directory, named on the failing row: at most 7 days, and at most the
+5 newest failing runs (the one in progress counts).
 
 ### Making a module run on every widely used engine
 
@@ -438,22 +441,51 @@ name. Each limit refuses with a typed error or diagnostic; none is silent. (Secu
 | What | Limit | Past it |
 | --- | --- | --- |
 | A file the CLI reads | 1 GiB (`MAX_INPUT_BYTES`); a pipe or device read only up to it | `tool: cannot read …` |
-| Expression nesting, operands included | 256 levels (`MAX_NESTING_DEPTH`), the same on every runtime | "the module nests deeper than 256 levels, binaryang's limit on every runtime" |
+| A path the CLI writes, on Windows | written only in these forms: a plain or UNC path (`C:\…`, `\\server\share\…`; a device name as the last name of a UNC path is never taken for the device: written as that file on the share, or refused where the runtime cannot), `\\?\X:\…`, `\\?\UNC\server\share\…` (Bun 1.4 cannot open this form: `ENOENT`; Node can), `\\.\X:\…` (as the plain path), or a device-namespace path of ONE name, opened as the device it names where the runtime can open it (`\\.\NUL`; equally `\\.\C:` or `\\.\PhysicalDrive0`, a raw volume, if the process may: a caller passing untrusted paths through must refuse those itself). Every other `\\?\`, `\\.\`, `\??\` or `//?/` form is refused, and within the allowed ones a device name among a `\\.\` path's names or a last name ending in a dot or space, three or more leading separators, a `/` or a `.`/`..` segment in a `\\?\` path, and a `:` stream | one line naming why; nothing is written |
+| Expression nesting: every expression node on a path counts (see below) | 256 levels (`MAX_NESTING_DEPTH`), the same on every runtime | "the module nests deeper than 256 levels, binaryang's limit on every runtime" |
+| Any other one-line CLI message (an OS error echoing a path, an unknown option) | at most 1,000 characters printed in all (`MAX_CLI_LINE`; UTF-16 code units, before escaping): its start, then ` … (N characters) … `, then its last 200 | the marker says how long the message was |
+| A diagnostics report (`formatErrors`, the CLI's stderr) | 100 diagnostics printed, then `... N more errors`; a source line over 200 characters is quoted as a 200-character window around the error; a file name or message over 1,000 characters, and a quoted piece over 200, is cut (the file name alone, so `:line:col` stays). The caps count characters BEFORE escaping, and an escaped character (ESC, a bidi mark) prints as six: the true worst case is 14,058 characters for one diagnostic and 1,405,800 for the 100 | the cut is marked `…`; the caret stays under its token |
 | A module built through the API that reuses objects (a node, a list, bytes, a long string) | walked, copied or written per use: at most twice what it holds, plus 1,000,000 expression nodes / 8,000,000 entries; data nested at most 1,536 objects deep (`MAX_DATA_DEPTH`); no cycle, no sparse array, no number past 64 bits | "… shared by reference expand the module to …", "the module's data nests deeper than 1536 objects …", or the cycle's, the hole's or the number's own words |
 | Locals in one function | 1,000,000 (`MAX_MATERIALIZED_LOCALS`) | decode error |
 | Locals in a whole module | 1,000,000 plus one per byte of the module (`maxModuleLocals`) | decode error |
 | CoalesceLocals | colours a function of up to 20,000 referenced locals (`COALESCE_MAX_REFERENCED_LOCALS`) | that function is left as it is (still correct) |
-| Interpreter: nested calls | 1,000 (`maxDepth`); on V8 (Node, Deno) the host's JavaScript stack can end a run first, measured at 130–440 calls | trap `call stack exhausted` at the limit; `Stop('unsupported')`, "ran out of its host's stack …", when the host's stack ends it first (no claim about the program) |
+| SSANoMerge, MergeLocals, the writer's Local2Stack | reaching-definitions bitsets of up to 2^25 words (128 MB; `LOCAL_GRAPH_MAX_WORDS`: about 11,000 sets and branches in one function), and the work of each set and read over one bitset (sets + reads) × words, up to four times that (about 60,000 sets of one local in one block) | that function is left as it is (still correct) |
+| SSANoMerge | the locals it would leave the function with: at most `COALESCE_MAX_REFERENCED_LOCALS` (20,000), the number CoalesceLocals colours; past it the new locals would stay and SimplifyLocals and LocalCSE would pay for them | that function is left as it is (still correct) |
+| CoalesceLocals | the liveness sets of its blocks: one entry per block and live local, up to 2^23 entries together (`COALESCE_MAX_LIVENESS_CELLS`: about 2 × blocks × live locals, so about 1,450 locals each live across 1,450 loops) | that function is left as it is (still correct) |
+| ConstantPropagation, PrecomputePropagate | one lattice cell per block and per local the function SETS (a local nothing sets needs none): at most 2^25 cells (`CONSTANT_PROPAGATION_MAX_CELLS`: (blocks + 1) × set locals; about 3,000 set locals and 11,000 blocks) | that function is left as it is (still correct) |
+| Interpreter: nested calls | 1,000 (`maxDepth`); on V8 (Node, Deno) the host's JavaScript stack can end a run first, measured at 130–440 calls | trap `call stack exhausted` at the limit; `Stop('unsupported')`, "ran out of its host's stack …", when the host's stack ends it first (no claim about the program). Blocks and calls share that stack: a call inside nested blocks nests the callee's blocks on top of them, so the depth that ends a run is the two added, not either alone |
 | Interpreter: locals of every active call | 4,000,000 (`maxStackLocals`) | trap `call stack exhausted` |
 | Interpreter: fuel | unlimited by default; when set, charged per instruction AND per element, per 8 bytes and per local of bulk work | `Stop('fuel')` |
 | Interpreter: a memory / a table / an array | 1 GiB / 10,000,000 / 10,000,000 elements | `Stop('unsupported')` |
 
-**Memory grows with the input, linearly.** A module of many tiny functions costs the most per
-byte: 1,000,000 empty functions (4 MB) took about 2 GB at peak to validate, to read for the
-optimizer, or to print as WAT — some 500 bytes per input byte (measured 2026-11-13, Bun 1.4.4,
-Windows). Real compiler output costs far less per byte, but a service taking untrusted modules
-should cap their size before handing them over. **Nesting** is held to one number on every
-runtime. The stages recurse once per level, so the depth they could reach was the host's
+**Memory grows with the input.** The live data is linear; the PEAK a process reaches is higher,
+because the engine's garbage collector lags behind each pass's temporary work. Measured peaks:
+1,000,000 empty functions (4 MB) took about 2 GB to validate, to read for the optimizer, or to
+print as WAT — some 500 bytes per input byte (2026-11-13, Bun 1.4.4, Windows). The OPTIMIZER on
+dense straight-line code costs more: 2.5–3.7 KB of peak per input byte at `-O2` (50,000 sets in
+one function, 368 KB: 920 MB; 200,000 sets, 1.5 MB: 5 GB and minutes; review round 5, 2026-11-25,
+Bun and Node 24). A service taking untrusted modules should cap their size, and run the
+optimizer with a memory limit, before handing them over. **Nesting** is held to one number on every
+runtime. **The unit:** the depth of the expression tree as the IR holds it. Every expression
+node on the path from a function body (or a global, segment or element initialiser) down to a
+node counts as one level — a `block`, `loop`, `if`, `try` and `try_table` each, and equally every
+operand: `(i32.add (i32.add …))` nests as `(block (block …))` does, a condition is one level
+under its `if`, a `(@metadata.code.…)` annotation is one level under the node that holds it.
+What does NOT count: the function body itself, an arm of an `if` or the body of a `try` or
+catch (a list, not a node), and how a level was written, so the folded `(block (block …))`,
+the linear `block block … end end` and an operand chain written without parentheses
+(`i32.const 1 … i32.add …`) are the same depth. The first instruction of a body is level 1:
+`(drop (i32.add (i32.const 0) (i32.const 1)))` is 3 deep. The limit holds where a module meets
+the recursive stages, not only where it is read: a pass that deepens a module (inlining puts a
+callee's blocks inside the call site's) is refused after that pass, so the optimizer's sinks stay
+inside it: SimplifyLocals and the writer's stack form (`-O3`, `-Os`, `-Oz`) leave a `local.set`
+where it is rather than sink it into a read when the result would nest past 256 (a chain of 20,000
+dependent sets once ran the optimizer out of memory; upstream Binaryen has no such bound),
+RemoveUnusedBrs stops merging adjacent `br_if`s to one label into an `i32.or` chain where the
+chain would pass 256 (a flat run of 255 once refused the module; the branches stay separate),
+and a module built through
+the API is refused by the writers, the passes, `resolveNames`, `validateModule`, `ExprVisitor`
+and the interpreter. The stages recurse once per level, so the depth they could reach was the host's
 JavaScript stack: measured 2026-11-13 from a cold start, 425 levels at the lowest on Node 22.18,
 24 and 26 and on Deno, 5,794 on Bun 1.4.4, and on Node one module at one depth was refused cold
 and accepted once the JIT had warmed. 256 sits under the lowest of those, with room for a

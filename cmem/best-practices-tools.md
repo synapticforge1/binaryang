@@ -32,7 +32,7 @@ the tool** — `deno fmt --check` going from `32 not formatted` to `Checked 283 
 unambiguous signal in the entire line-ending episode, and every hand-rolled measurement around it
 was noise.
 
-**The mirror trap, from wasmtk's reply to § 11 (their report § (6), `83c02a2`, written 2026-08-31,
+**The mirror trap, from wasmtk's reply to § 11 (their report § (6), `7ac7fbf5` (was `83c02a2`, C49), written 2026-08-31,
 heading mislabelled 2026-08-27; reached us 2026-09-29).** Ours read HIGH; theirs reads LOW, from a
 nearly identical command. Against `LICENSE-APACHE`, 184 real CRs: `grep -c '\r'` → 140 (our BRE
 case); `grep -c $'\r'` → **0**, because GNU grep under MSYS strips CR in text mode; `grep -cU $'\r'`

@@ -61,7 +61,7 @@ import { main as wasm2tsMain } from './src/tools/wasm2ts.ts';
 import { main as wasmCtorEvalMain } from './src/tools/wasm-ctor-eval.ts';
 import { main as wasmInterpMain } from './src/tools/wasm-interp.ts';
 import { main as wasmBundleMain } from './src/tools/wasm-bundle.ts';
-import { cliExit, cliProcess, cliSelfCheck } from './src/host.ts';
+import { cliError, cliExit, cliProcess, cliSelfCheck } from './src/host.ts';
 
 export * from './src/index.ts';
 
@@ -121,8 +121,8 @@ async function main(): Promise<void> {
   // An OWN key only: `constructor` / `toString` ran an Object.prototype method (round 4, A2).
   const handler = Object.hasOwn(COMMANDS, command) ? COMMANDS[command] : undefined;
   if (!handler) {
-    console.error(`Unknown command: ${command}`);
-    console.error(`Run with --help to see available commands.`);
+    cliError(`Unknown command: ${command}`);
+    cliError(`Run with --help to see available commands.`);
     cliExit(1);
   }
 

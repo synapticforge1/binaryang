@@ -23,7 +23,14 @@ import {
   PREFIX_SIMD,
   PREFIX_THREADS,
 } from '../core/opcode.ts';
-import { type ErrorList, hasErrors, type Location } from '../core/error.ts';
+import {
+  addError,
+  type ErrorList,
+  hasErrors,
+  type Location,
+  unknownLocation,
+} from '../core/error.ts';
+import { moduleLimitProblem } from '../ir/nesting.ts';
 import type {
   ArrayCopyExpr,
   ArrayFillExpr,
@@ -281,6 +288,13 @@ export function validateModule(
   errors: ErrorList,
   options?: ValidateOptions,
 ): Result {
+  // The one nesting limit, at this public entry too: a module built through the API never passed
+  // the reader's or the parser's check, and the validator recurses once per level (C-H4).
+  const over = moduleLimitProblem(module);
+  if (over !== undefined) {
+    addError(errors, unknownLocation(), over);
+    return Result.Error;
+  }
   const before = errors.length;
   const v = new ModuleValidator(module, errors, options);
   const result = v.checkModule();

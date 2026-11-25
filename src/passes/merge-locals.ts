@@ -49,7 +49,7 @@ import {
 import { requireIndex, valueTypeEquals } from '../ir/ir.ts';
 import type { WasmFunction, WasmModule } from '../ir/module.ts';
 import { mapExpression, visitChildren } from '../ir/walk.ts';
-import { localGraph } from './local-graph.ts';
+import { LOCAL_GRAPH_MAX_WORDS, localGraphSummary } from './local-graph.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 
 /** Redirects reads of a copied local to the original, where it still holds the value. */
@@ -108,9 +108,11 @@ export function mergeLocals(fn: WasmFunction): boolean {
   const tracked = new Set<number>(); // the graphs follow only the locals copies touch
   for (const [c, g] of copyOf) tracked.add(localOf(c as LocalSetExpr)).add(localOf(g));
   const source = new Map<Expression, LocalGetExpr>(); // candidate read → the copy's read of $a
-  for (const [get, defs] of localGraph(fn, tracked).reaching) {
-    if (defs.size !== 1 || inner.has(get)) continue;
-    const from = copyOf.get([...defs][0] as Expression);
+  const first = localGraphSummary(fn, LOCAL_GRAPH_MAX_WORDS, tracked);
+  if (first === undefined) return false; // past the bitsets' budget: the function is left as it is
+  for (const [get, r] of first.reads) {
+    if (r.count !== 1 || inner.has(get)) continue;
+    const from = r.only === undefined ? undefined : copyOf.get(r.only as Expression);
     if (from !== undefined) source.set(get, from);
   }
   if (source.size === 0) return false;
@@ -138,12 +140,12 @@ export function mergeLocals(fn: WasmFunction): boolean {
   });
 
   // A rewrite stands where the copy's tee is all that reaches it; then the tees come out.
-  const reaching = localGraph(fn, tracked).reaching;
+  const second = localGraphSummary(fn, LOCAL_GRAPH_MAX_WORDS, tracked);
   const keep = new Set<Expression>();
   for (const [r, [, from]] of moved) {
-    const defs = reaching.get(r);
+    const d = second?.reads.get(r);
     const t = tees.get(from);
-    if (defs !== undefined && defs.size === 1 && t !== undefined && defs.has(t)) keep.add(r);
+    if (d !== undefined && d.count === 1 && t !== undefined && d.only === t) keep.add(r);
   }
   fn.body = mapExpression(fn.body, (e) => {
     const m = moved.get(e);

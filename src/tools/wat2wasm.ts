@@ -58,12 +58,13 @@ import {
 } from '../core/error.ts';
 import type { ErrorList } from '../core/error.ts';
 import {
+  cliError,
   cliExit,
   cliProcess,
   cliRead,
   cliRefuseOverwritingInput,
   cliWrite,
-  writeStdout,
+  cliWriteStdout,
 } from '../host.ts';
 import { FeatureFlags } from '../cli/feature-flags.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
@@ -215,7 +216,7 @@ const HELP: ToolHelp = {
     ],
   ],
   options: [
-    ['-o, --output <file>', 'Output file (default: the binary to stdout)'],
+    ['-o, --output <file>', 'Output file (default, or `-`: the binary to stdout)'],
     ['--no-check', 'Do not validate the module'],
     ['--no-text-form', 'Do not record how each instruction was written (upstream bytes exactly)'],
   ],
@@ -247,7 +248,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     if (arg === '-o' || arg === '--output') {
       output = args[++i];
       if (output === undefined) {
-        console.error(`wat2wasm: ${arg} needs a file`);
+        cliError(`wat2wasm: ${arg} needs a file`);
         bad = true;
       }
     } else if (arg.startsWith('--output=')) {
@@ -263,19 +264,20 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     } else if (flags.apply(arg) !== true) {
       // It ignored an unknown option; with feature flags, a misspelled
       // `--enable-…` would have passed silently. Upstream refuses it too.
-      console.error(`wat2wasm: unknown option ${arg}`);
+      cliError(`wat2wasm: unknown option ${arg}`);
       bad = true;
     }
   }
 
   if (!input || bad) {
-    console.error(
+    cliError(
       'usage: wat2wasm <input.wat> [-o <output.wasm>] [--no-check] [--no-text-form]\n' +
         '                [--enable-<feature>|--disable-<feature>|--enable-all]\n' +
         '  --no-check      do not validate the module (validated by default, as upstream)\n' +
         '  --no-text-form  do not record how each instruction was written\n' +
         '                  (upstream wat2wasm bytes exactly; wasm2wat then folds it)\n' +
         flags.help(),
+      true,
     );
     cliExit(1);
   }
@@ -289,16 +291,19 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   });
 
   if (errors.length > 0) {
-    console.error(formatErrors(errors, ErrorFormat.Long, new TextDecoder().decode(source)));
+    cliError(formatErrors(errors, ErrorFormat.Long, new TextDecoder().decode(source)), true);
   }
   if (result !== Result.Ok) {
     cliExit(1);
   }
 
-  if (output !== undefined) {
+  // `-o -` is standard output, as upstream's help says ("Use "-" to write to stdout") and as
+  // wasm-opt, wasm-bundle and wasm-ctor-eval already took it; it made a file named `-` (4.1.x
+  // review, hardening note; wabt 1.0.41 measured: `wat2wasm a.wat -o -` writes the bytes to stdout).
+  if (output !== undefined && output !== '-') {
     await cliRefuseOverwritingInput('wat2wasm', [input], output);
     await cliWrite('wat2wasm', output, binary);
   } else {
-    await writeStdout(binary);
+    await cliWriteStdout('wat2wasm', binary);
   }
 }

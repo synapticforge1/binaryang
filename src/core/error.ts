@@ -161,6 +161,67 @@ export function formatLocation(loc: Location): string {
   return loc.filename || '<input>';
 }
 
+/** The most characters of a source line one long-format diagnostic quotes (a window around it). */
+const MAX_QUOTED_LINE = 200;
+
+/**
+ * The most characters of a message or a file name one diagnostic prints (hardening, round 2).
+ *
+ * Measured BEFORE `printable`, which writes each escaped character as six (`\u001b`): the true
+ * bound is six times this for a part of nothing but escapes (round 3 measurement). The worst case
+ * is a 1,000-character file name, a 1,000-character message, and a long-format source window and
+ * caret, every character an ESC: 14,058 characters for one diagnostic, 1,405,800 for the 100
+ * {@link formatErrors} prints (plus its count line); `tests/wabt-ts/core/error_format.test.ts` holds that bound.
+ */
+const MAX_PART = 1000;
+
+/** The most characters of one quoted token or name inside a message. */
+const MAX_QUOTED_NAME = 200;
+
+const isHighSurrogate = (c: number) => c >= 0xd800 && c <= 0xdbff;
+const isLowSurrogate = (c: number) => c >= 0xdc00 && c <= 0xdfff;
+
+/** `s` cut to its first `n` characters, never inside a surrogate pair. */
+function head(s: string, n: number): string {
+  return s.slice(0, n > 0 && isHighSurrogate(s.charCodeAt(n - 1)) ? n - 1 : n);
+}
+
+/**
+ * A user-derived part of a diagnostic, bounded (hardening, round 2): a message that quotes a 2 MB
+ * token printed all 2 MB. A quoted piece (in `"`, `'` or a backtick) over {@link MAX_QUOTED_NAME}
+ * characters keeps its start, then `…` and its length; the whole part is cut at {@link MAX_PART}
+ * the same way. A part within the bounds is returned as it is.
+ */
+function bounded(text: string): string {
+  if (text.length <= MAX_QUOTED_NAME) return text;
+  // A scan, not a regular expression: JavaScriptCore gave up matching one over 2 MB (no match).
+  let quoted = '';
+  let kept = 0; // text before this index is already in `quoted`
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i]!;
+    const close = c === '"' || c === "'" || c === '`' ? text.indexOf(c, i + 1) : -1;
+    if (close < 0) {
+      i++;
+      continue;
+    }
+    if (close - i - 1 > MAX_QUOTED_NAME) {
+      const inner = text.slice(i + 1, close);
+      quoted += text.slice(kept, i) +
+        `${c}${head(inner, MAX_QUOTED_NAME / 2)}…${c} (${inner.length} characters)`;
+      kept = close + 1;
+    }
+    i = close + 1;
+  }
+  quoted += text.slice(kept);
+  return quoted.length <= MAX_PART
+    ? quoted
+    : `${head(quoted, MAX_PART)}… (${quoted.length} characters)`;
+}
+
+/** The most diagnostics {@link formatErrors} prints; the rest are counted. */
+const MAX_REPORTED_ERRORS = 100;
+
 /**
  * Renders a single {@link WabtError} to a human-readable string.
  *
@@ -174,12 +235,15 @@ export function formatError(
   format: ErrorFormat = ErrorFormat.Short,
 ): string {
   const { loc, level } = err;
-  // A message quotes the module's names, which may hold an ESC or a bidi override: printable,
-  // its own line breaks and tabs kept (security review round 2, 2026-11-13; core/printable.ts).
-  const message = printable(err.message, { keepLines: true });
+  // A message quotes the module's names, which may hold an ESC, a bidi override or a line break:
+  // printable, tabs kept. A break is escaped too: the layout's own line breaks are the only ones
+  // (round 2 review: a name with a newline forged a `file:1:1: error:` line).
+  const message = printable(bounded(err.message), { keepTabs: true });
   const severity = level === ErrorLevel.Warning ? 'warning' : 'error';
   // The file name comes from the command line: printable too.
-  const header = `${printable(formatLocation(loc))}: ${severity}: ${message}`;
+  // Round 3: the NAME is bounded alone, so a long one cannot cut the position off the end.
+  const where = formatLocation({ ...loc, filename: bounded(loc.filename) });
+  const header = `${printable(where)}: ${severity}: ${message}`;
 
   if (format === ErrorFormat.Long && sourceLine !== undefined && loc.column > 0) {
     // The SOURCE LINE is the input's own text: printable as the message is. 🔧 It was printed raw,
@@ -187,15 +251,34 @@ export function formatError(
     // (OSC 52), a screen clear — on the user's stderr (review S-1, 2026-11-18). The caret is
     // measured on the printable text, so an escape that widens the line keeps it aligned; tabs are
     // kept under tabs, however the terminal expands them.
-    const shown = (s: string) => printable(s, { keepLines: true });
-    const before = shown(sourceLine.slice(0, loc.column - 1));
-    const pad = [...before].map((c) => (c === '\t' ? '\t' : ' '));
+    const shown = (s: string) => printable(s, { keepTabs: true });
+    // 🔧 BOUNDED: a line of N characters quoted once per error was N squared in all (hardening F2,
+    // 4.1.x review: 2,000 nested `(catch_all` on one line, an error each, wrote 140 MB). A line
+    // over `MAX_QUOTED_LINE` shows a window of that width around the column, `…` at a cut
+    // end; the caret stays under its token. A line within the bound prints exactly as before.
+    const col = loc.column - 1;
+    const from0 = sourceLine.length > MAX_QUOTED_LINE ? Math.max(0, col - MAX_QUOTED_LINE / 2) : 0;
+    const to0 = Math.min(sourceLine.length, from0 + MAX_QUOTED_LINE);
+    // 🔧 The cut is by UTF-16 index, so it could fall inside a surrogate pair and print a lone
+    // half as U+FFFD at each edge (round 2 review): it moves off the pair, dropping the half.
+    const from = from0 > 0 && isLowSurrogate(sourceLine.charCodeAt(from0)) ? from0 + 1 : from0;
+    const to = to0 < sourceLine.length && isHighSurrogate(sourceLine.charCodeAt(to0 - 1))
+      ? to0 - 1
+      : to0;
+    const lead = from > 0 ? '…' : '';
+    const before = lead + shown(sourceLine.slice(from, col));
+    const pad = [...before].map((c) => (c === '	' ? '	' : ' '));
     // Under the whole token, as upstream (DG6); one `^` where its end is unknown.
     const token = loc.endColumn !== undefined
-      ? shown(sourceLine.slice(loc.column - 1, loc.endColumn - 1))
+      ? shown(sourceLine.slice(col, Math.min(loc.endColumn - 1, to)))
       : '';
-    const width = Math.max(1, [...token].length);
-    return `${header}\n${shown(sourceLine)}\n${pad.join('')}${'^'.repeat(width)}`;
+    const width = Math.min(Math.max(1, [...token].length), MAX_QUOTED_LINE);
+    const quoted = `${lead}${shown(sourceLine.slice(from, to))}${
+      to < sourceLine.length ? '…' : ''
+    }`;
+    return `${header}
+${quoted}
+${pad.join('')}${'^'.repeat(width)}`;
   }
   return header;
 }
@@ -218,7 +301,12 @@ export function formatErrors(
   source?: string,
 ): string {
   const lines = source?.split(/\r?\n/);
-  return list
+  // 🔧 BOUNDED too (hardening F2): malformed input can make an error per token, and a megabyte of
+  // them is not a report. The first `MAX_REPORTED_ERRORS` are printed, then a count.
+  const shown = list.slice(0, MAX_REPORTED_ERRORS);
+  const text = shown
     .map((e) => formatError(e, e.loc.line > 0 ? lines?.[e.loc.line - 1] : undefined, format))
     .join('\n');
+  const more = list.length - shown.length;
+  return more > 0 ? `${text}\n... ${more} more error${more === 1 ? '' : 's'}` : text;
 }

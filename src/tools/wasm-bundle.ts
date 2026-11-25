@@ -108,10 +108,13 @@ import {
 } from '../core/linking.ts';
 import {
   baseName,
+  cliError,
   cliExit,
+  cliInfo,
   cliProcess,
   cliRefuseOverwritingInput,
   cliWrite,
+  cliWriteStdout,
   fsRead,
   isDevice,
   writesToStdout,
@@ -205,7 +208,7 @@ const defaults: BundleOptions = {
   onConflict: 'refuse',
   named: new Set(),
   unmarked: 'refuse',
-  log: (line) => console.log(line),
+  log: (line) => cliInfo(line),
 };
 
 /** Globals that hold an address by the linker conventions: they move with the image. */
@@ -1845,24 +1848,24 @@ export async function wasmBundle(
 }
 
 function usage(): void {
-  console.error('Usage: wasm-bundle <input.wasm|.wat>... [options]');
-  console.error('  -o <file>                  Output file (default: bundle.wasm; - for stdout)');
-  console.error(
+  cliError('Usage: wasm-bundle <input.wasm|.wat>... [options]');
+  cliError('  -o <file>                  Output file (default: bundle.wasm; - for stdout)');
+  cliError(
     '  --on-conflict=MODE         Same export name in two inputs: prefix | alias | exclude',
   );
-  console.error('                             (default: refuse, listing them)');
-  console.error(
+  cliError('                             (default: refuse, listing them)');
+  cliError(
     '  --alias a.wasm=m,b.wasm=n  Name inputs (the prefix on conflict; what others import from)',
   );
-  console.error(
+  cliError(
     '  --unmarked=guess           Relocate an input without relocations by address range (warned)',
   );
-  console.error('  --start=NAME               Whose _start stays _start (the others are prefixed)');
-  console.error(
+  cliError('  --start=NAME               Whose _start stays _start (the others are prefixed)');
+  cliError(
     '  --no-wit                   Do not write <output>.wit (the interface, from core signatures)',
   );
-  console.error('  -q, --quiet                No report lines');
-  console.error('  -S                         Emit WAT text');
+  cliError('  -q, --quiet                No report lines');
+  cliError('  -S                         Emit WAT text');
 }
 
 /** The CLI: parses `args` and runs {@link wasmBundle}. */
@@ -1912,7 +1915,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       // 🔧 With no value it fell back to `bundle.wasm` in the current folder, exit 0 (review H-4).
       const v = args[++i];
       if (v === undefined || v === '') {
-        console.error('wasm-bundle: -o needs a file');
+        cliError('wasm-bundle: -o needs a file');
         cliExit(1);
       }
       output = v;
@@ -1921,7 +1924,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     else if (a.startsWith('--on-conflict=')) {
       const v = a.slice(14);
       if (v !== 'prefix' && v !== 'alias' && v !== 'exclude' && v !== 'refuse') {
-        console.error(`wasm-bundle: --on-conflict is prefix, alias or exclude, not "${v}"`);
+        cliError(`wasm-bundle: --on-conflict is prefix, alias or exclude, not "${v}"`);
         cliExit(1);
       }
       options.onConflict = v;
@@ -1930,7 +1933,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       for (const pair of spec.split(',').filter(Boolean)) {
         const eq = pair.indexOf('=');
         if (eq <= 0) {
-          console.error(`wasm-bundle: --alias takes file=name pairs, not "${pair}"`);
+          cliError(`wasm-bundle: --alias takes file=name pairs, not "${pair}"`);
           cliExit(1);
         }
         aliases.set(pair.slice(0, eq), pair.slice(eq + 1));
@@ -1938,7 +1941,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     } else if (a.startsWith('--unmarked=')) {
       const v = a.slice(11);
       if (v !== 'refuse' && v !== 'guess') {
-        console.error(`wasm-bundle: --unmarked is refuse or guess, not "${v}"`);
+        cliError(`wasm-bundle: --unmarked is refuse or guess, not "${v}"`);
         cliExit(1);
       }
       options.unmarked = v;
@@ -1946,7 +1949,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
     else if (a === '-q' || a === '--quiet') options.log = undefined;
     else if (a === '-S') options.emitText = true;
     else if (a.startsWith('-')) {
-      console.error(`wasm-bundle: unknown option ${a}`);
+      cliError(`wasm-bundle: unknown option ${a}`);
       usage();
       cliExit(1);
     } else inputs.push(a);
@@ -1959,8 +1962,8 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   options.witName = witNameOf(output === '-' ? 'bundle.wasm' : output);
   // The report goes to stderr when the module goes to stdout, so stdout holds the module alone.
   const say = writesToStdout(output)
-    ? (line: string) => console.error(line)
-    : (line: string) => console.log(line);
+    ? (line: string) => cliError(line)
+    : (line: string) => cliInfo(line);
   if (!('log' in options)) options.log = say;
   if (options.log !== undefined) {
     say(`wasm-bundle: ${inputs.length} module${inputs.length === 1 ? '' : 's'}`);
@@ -1969,14 +1972,15 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   try {
     result = await wasmBundle(inputs, options);
   } catch (e) {
-    console.error(
+    cliError(
       `wasm-bundle: ${e instanceof WatInputError || e instanceof Error ? e.message : e}`,
+      e instanceof WatInputError,
     );
     cliExit(1);
   }
   if (output === '-') {
-    if (typeof result.output === 'string') console.log(result.output);
-    else cliProcess().stdout.write(result.output);
+    const out = typeof result.output === 'string' ? result.output + '\n' : result.output;
+    await cliWriteStdout('wasm-bundle', out);
     return;
   }
   // Every input is read by now; the output must not be one of them.
@@ -2008,7 +2012,7 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
         );
       }
     } catch (e) {
-      console.error(`wasm-bundle: could not write the .wit: ${e instanceof Error ? e.message : e}`);
+      cliError(`wasm-bundle: could not write the .wit: ${e instanceof Error ? e.message : e}`);
     }
   }
 }

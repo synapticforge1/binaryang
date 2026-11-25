@@ -15,11 +15,13 @@
  * commits not yet on GitHub), the dependency audit, the browser bundle, both test legs (V8 and
  * Bun), the byte baseline, the API surface, the JSR dry run, the npm package, the CLI on Bun and
  * on Deno (the same bytes), every Node LTS line, then the spec testsuite prepared from the sibling
- * wasmtk checkout and every corpus and behaviour check.
+ * wasmtk checkout and every corpus and behaviour check, and binaryang's `wat2wasm` bytes against upstream's.
  *
  * The prepared corpora go in a fresh folder under the system temp directory, removed at the end
- * (`--keep` keeps it and prints where). Node, Deno (from npm, `scripts/deno.ts`), `wast2json` and
- * `wasm-tools` must be on PATH; a step whose tool is missing FAILS, never skips.
+ * (`--keep` keeps it and prints where). A FAILED step's whole output is kept in a private folder
+ * under the system temp directory (`gate-failure.ts`): at most 7 days, at most the 5 newest runs'.
+ * Node, Deno (from npm, `scripts/deno.ts`), `wast2json`, `wat2wasm`
+ * (wabt) and `wasm-tools` must be on PATH; a step whose tool is missing FAILS, never skips.
  */
 
 // First: every Bun started from here runs with memory64 on (owner, 2026-11-19).
@@ -31,6 +33,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import { keepFailure, makeFailureDir, pruneFailureDirs } from './gate-failure.ts';
 
 const keep = process.argv.includes('--keep');
 const work = mkdtempSync(join(tmpdir(), 'binaryang-gate-'));
@@ -51,7 +54,18 @@ const corpus = (name: string) => {
 const suite = fileURLToPath(
   new URL('../../wasmtk/tests/module/wasm_wast/testsuite-main', import.meta.url),
 );
-const [spec, legacy, prop, teh, smoke] = ['spec', 'legacy', 'prop', 'teh', 'smoke'].map(corpus);
+// A failed step's whole output, kept after the gate ends (review Q-H6): a private folder made for
+// this run at its first failure (0700, never removed at exit: the failure row names it), the logs
+// written 'wx'. Retention: a failing run's folder lives at most 7 days and only the KEEP_RUNS (5)
+// newest are kept, this run's included, so earlier runs are pruned to 4 now (never fatal).
+try {
+  pruneFailureDirs();
+} catch (e) {
+  console.log(`gate: could not prune old failure logs: ${(e as Error).message}`);
+}
+let failures: string | undefined;
+const [spec, legacy, prop, teh, smoke, w2w] = ['spec', 'legacy', 'prop', 'teh', 'smoke', 'wat2wasm']
+  .map(corpus);
 
 type Step = [name: string, cmd: string[]];
 const bun = (...a: string[]): string[] => ['bun', ...a];
@@ -77,6 +91,9 @@ const steps: Step[] = [
   ['spec:prepare legacy', bun('scripts/spec-prepare.ts', join(suite, 'legacy'), legacy!)],
   ['operators', bun('run', 'operators')],
   ['spec', bun('scripts/spec-testsuite.ts', spec!)],
+  // binaryang's `wat2wasm` against upstream's (and `wasm-tools` where wabt cannot assemble), on the
+  // spec scripts' text modules and the wasmtk fixtures: the bytes (C-R2-1)
+  ['wat2wasm', bun('scripts/check-wat2wasm.ts', suite, w2w!)],
   ['spec-behaviour', bun('scripts/v8.ts', 'scripts/check-spec-behaviour.ts', spec!)],
   ['lowering', bun('scripts/check-lowering.ts', spec!)],
   ['direct', bun('run', 'direct')],
@@ -153,6 +170,7 @@ for (const [name, cmd] of steps) {
   const started = Date.now();
   let status: number;
   let tail: string;
+  let log = '';
   if (cmd[0] === 'NO-PREVIOUS-TAG') {
     status = 1;
     tail = 'no release tag v* below HEAD, after fetching the tags from origin';
@@ -186,13 +204,28 @@ for (const [name, cmd] of steps) {
       process.exit(130);
     }
     status = r.status ?? 1;
-    const lines = `${r.stdout ?? ''}\n${r.stderr ?? ''}`.split(/\r?\n/).map((l) => l.trim())
-      .filter(Boolean);
-    tail = r.error ? String(r.error) : lines.slice(-3).join(' | ');
+    tail = `${r.stdout ?? ''}\n${r.stderr ?? ''}`.split(/\r?\n/).map((l) => l.trim())
+      .filter(Boolean).slice(-3).join(' | ');
+    if (status !== 0) {
+      // Keeping the log must never cost the FAIL row: a full or read-only temp folder makes
+      // the row say so and carry the last lines instead (review round 3, hardening note).
+      try {
+        ({ tail, log } = keepFailure(
+          failures ??= makeFailureDir(),
+          name,
+          r.stdout ?? '',
+          r.stderr ?? '',
+        ));
+      } catch (e) {
+        tail = `${tail} | (the full output could not be kept: ${(e as Error).message})`;
+      }
+      if (r.error) tail = `${String(r.error)} | ${tail}`;
+    }
   }
   if (status !== 0) failed++;
   const seconds = Math.round((Date.now() - started) / 1000);
   console.log(`${status === 0 ? 'ok  ' : 'FAIL'} ${name} (${seconds} s) ${tail.slice(0, 200)}`);
+  if (log !== '') console.log(`     full output: ${log}`);
 }
 console.log(`gate: ${steps.length - failed} / ${steps.length} passed`);
 process.exit(failed === 0 ? 0 : 1);

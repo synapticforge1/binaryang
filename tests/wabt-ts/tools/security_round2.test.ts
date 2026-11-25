@@ -58,6 +58,21 @@ describe('security round 2 — printable: what acts when printed is escaped, the
     }
   });
 
+  it('round 3: ARABIC LETTER MARK, the tag block and a lone surrogate are escaped too', () => {
+    assertEquals(printable('a؜b'), 'a\\u061cb');
+    // A tag block character is invisible and carries hidden text: written as its code point.
+    for (const u of [0xe0000, 0xe0001, 0xe0041, 0xe007f]) {
+      assertEquals(printable(`a${String.fromCodePoint(u)}b`), `a\\u{${u.toString(16)}}b`);
+    }
+    assertEquals(printable('a\ud800b'), 'a\\ud800b'); // a lone high surrogate
+    assertEquals(printable('a\udfffb'), 'a\\udfffb'); // a lone low surrogate
+    assertEquals(printable('\ud83d'), '\\ud83d'); // at the end, cut off from its pair
+    // The edges stay as they were, and a valid pair stays a pair.
+    assertEquals(printable('\u{e0080}\u{1f600}؛'), '\u{e0080}\u{1f600}؛');
+    assert(actsWhenPrinted(0x061c) && actsWhenPrinted(0xe0041) && actsWhenPrinted(0xdc00));
+    assert(!actsWhenPrinted(0x061b) && !actsWhenPrinted(0xe000) && !actsWhenPrinted(0x1f600));
+  });
+
   it('leaves every other character, and a backslash unless asked', () => {
     assertEquals(printable('añ€😀 $f a\\b'), 'añ€😀 $f a\\b');
     assertEquals(printable('a\\b', { backslash: true }), 'a\\u005cb');
@@ -68,7 +83,7 @@ describe('security round 2 — printable: what acts when printed is escaped, the
     assertEquals(commentSafe(`a${RLO}b​c\\`), 'a\\u202eb\\u200bc\\u005c');
   });
 
-  it('every diagnostic: a name in a message cannot drive the terminal; its line breaks stay', () => {
+  it('every diagnostic: a name in a message cannot drive the terminal; a line break in it is escaped, not kept', () => {
     const out = formatError({
       loc: unknownLocation(),
       level: ErrorLevel.Error,
@@ -76,7 +91,8 @@ describe('security round 2 — printable: what acts when printed is escaped, the
     });
     assert(!out.includes(ESC), out);
     assert(out.includes('\\u001b[2J'), out);
-    assert(out.includes('\n  first line kept'), out);
+    assert(out.includes('\\u000a  first line kept'), out);
+    assertEquals(out.split(String.fromCharCode(10)).length, 1, out);
   });
 });
 

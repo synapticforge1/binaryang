@@ -326,7 +326,7 @@ Main file: [wabt-ts.md](wabt-ts.md). Moved from it on 2026-11-20 (H38 step 5), u
   - what it was, and how it closed: wasmtk snapshot "provenance unknown" was one `git log` away — stamped (`1ff92e71`, 2026-05-25) and gated
   - commit(s): `d6cae5e5e`
 - **id:** T13.46
-  - what it was, and how it closed: corpus regenerated from wasmtk `4600ba9`: 272→421 (413 wasic + 8 other); `KNOWN_INVALID` emptied
+  - what it was, and how it closed: corpus regenerated from wasmtk `59252ad5` (was `4600ba9`, C49): 272→421 (413 wasic + 8 other); `KNOWN_INVALID` emptied
   - commit(s): `5c89647cf`
 - **id:** T13.47
   - what it was, and how it closed: binaryen-ts 1.5.0 pin + T13.22 fix in one merge; the 12 bridge failures were two defects (coarsened sigs, undeclared func heap types) — bridge 28/28

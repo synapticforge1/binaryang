@@ -41,7 +41,7 @@ import {
   type Value,
   WasmException,
 } from '../interp/interpreter.ts';
-import { cliExit, cliProcess, fsRead } from '../host.ts';
+import { cliError, cliExit, cliProcess, fsRead } from '../host.ts';
 import { printable } from '../core/printable.ts';
 import { helpText, type ToolHelp, wantsHelp } from '../cli/help.ts';
 
@@ -298,19 +298,19 @@ export async function wasmInterp(
 }
 
 function usage(): void {
-  console.error('Usage: wasm-interp <input.wasm|.wat> [options]');
-  console.error('  --run-all-exports          Run every exported function that takes no arguments');
-  console.error('  --run-export=NAME          Run one export');
-  console.error('  --argument=V               An argument for --run-export (repeat, in order)');
-  console.error('  --dummy-import-func        Every imported function returns zeros');
-  console.error('  --fuel=N                   Instructions one call may run');
-  console.error(
+  cliError('Usage: wasm-interp <input.wasm|.wat> [options]');
+  cliError('  --run-all-exports          Run every exported function that takes no arguments');
+  cliError('  --run-export=NAME          Run one export');
+  cliError('  --argument=V               An argument for --run-export (repeat, in order)');
+  cliError('  --dummy-import-func        Every imported function returns zeros');
+  cliError('  --fuel=N                   Instructions one call may run');
+  cliError(
     '  --hang-check=SECONDS       Check for a loop that provably never exits after this long,',
   );
-  console.error(
+  cliError(
     '                             and every this long after (default 2; 0 from the start)',
   );
-  console.error('  --no-hang-check            Do not check');
+  cliError('  --no-hang-check            Do not check');
 }
 
 /** The CLI: parses `args` and runs {@link wasmInterp}. */
@@ -358,20 +358,20 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
       // 🔧 `Number('abc')` is NaN, and `fuel < 0` is never true for NaN: the fuel became
       // unlimited without a word (code lens pass 3, 2026-10-28).
       if (!/^[0-9]+$/.test(a.slice(7))) {
-        console.error(`wasm-interp: --fuel takes a number of instructions, not "${a.slice(7)}"`);
+        cliError(`wasm-interp: --fuel takes a number of instructions, not "${a.slice(7)}"`);
         cliExit(1);
       }
       options.fuel = Number(a.slice(7));
     } else if (a.startsWith('--hang-check=')) {
       const seconds = Number(a.slice(13));
       if (!Number.isFinite(seconds) || seconds < 0) {
-        console.error(`wasm-interp: --hang-check takes a number of seconds, not "${a.slice(13)}"`);
+        cliError(`wasm-interp: --hang-check takes a number of seconds, not "${a.slice(13)}"`);
         cliExit(1);
       }
       options.hangCheck = seconds * 1000;
     } else if (a === '--no-hang-check') options.hangCheck = null;
     else if (a.startsWith('-')) {
-      console.error(`wasm-interp: unknown option ${a}`);
+      cliError(`wasm-interp: unknown option ${a}`);
       usage();
       cliExit(1);
     } else input = a;
@@ -383,15 +383,16 @@ export async function main(args: string[] = cliProcess().argv.slice(2)): Promise
   // An argument is for the export `--run-export` names. 🔧 Without one it was ignored, exit 0
   // (review RH-2, 2026-11-18).
   if (options.args!.length > 0 && options.runExport === undefined) {
-    console.error('wasm-interp: --argument needs --run-export=NAME, the export it is for');
+    cliError('wasm-interp: --argument needs --run-export=NAME, the export it is for');
     cliExit(1);
   }
   let invocations: Invocation[];
   try {
     invocations = await wasmInterp(input, options);
   } catch (e) {
-    console.error(
+    cliError(
       `wasm-interp: ${e instanceof WatInputError || e instanceof Error ? e.message : e}`,
+      e instanceof WatInputError,
     );
     cliExit(1);
   }

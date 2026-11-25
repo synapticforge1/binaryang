@@ -81,6 +81,7 @@ import {
 } from '../ir/walk.ts';
 import { operandsInOrder } from '../ir/phantoms.ts';
 import { slots } from '../ir/derive-types.ts';
+import { MAX_NESTING_DEPTH, nestingDepth } from '../ir/nesting.ts';
 import { optimizeNode } from './optimize-instructions.ts';
 import { type Pass, type PassOptions, registerPass } from './pass.ts';
 import { vacuumNode } from './vacuum.ts';
@@ -922,6 +923,7 @@ function inlineIntoFunction(
   _opts: PassOptions,
   labelHint: { value: number },
   consumed: Map<string, number>,
+  inlinedInto: ReadonlySet<string>,
 ): boolean {
   const usedLabels = collectLabels(fn.body);
   let changed = false;
@@ -944,6 +946,12 @@ function inlineIntoFunction(
     if (requireName(call.func, 'call target') === fn.name) return e; // skip recursive calls
     const callee = inlineable.get(requireName(call.func, 'call target'));
     if (!callee) return e;
+    // Upstream's `inlinedInto.contains(inlinedFunction)`: a function something was inlined INTO
+    // earlier in this iteration is not itself inlined now. With callees first in the module, each
+    // caller would otherwise copy the whole tail already inlined into its callee — a chain of N
+    // grew quadratically in time and memory (400 links: 7 s, 2.7 GB) where upstream takes one
+    // link per iteration.
+    if (inlinedInto.has(callee.name)) return e;
     // At a plain call site the callee's tail calls become ordinary calls (`substituteBody`),
     // which is not equivalent under a `try` in the callee.
     if (!call.isReturn && tailCallUnderTry(callee)) return e;
@@ -1054,12 +1062,18 @@ export class InliningPass implements Pass {
     }
 
     if (inlineable.size === 0) return false;
+    // The lengths a label's callee name can have: calleeOfLabel tries a prefix only at one of them
+    // (review rounds 5 and 6: a crafted label of many `$` was quadratic). Once per iteration.
+    const nameLengths = new Set<number>();
+    for (const name of inlineable.keys()) nameLengths.add(name.length);
 
     const labelHint = { value: 0 };
     const inlinedUses = new Map<string, number>();
     /** Call sites inlined THIS iteration, per callee — what the removal below counts. */
     const consumed = new Map<string, number>();
     let anyInlined = false;
+    /** Functions an inlining went INTO this iteration (upstream's `inlinedInto`). */
+    const inlinedInto = new Set<string>();
 
     for (const fn of module.functions) {
       if (importedNames.has(fn.name)) continue;
@@ -1067,10 +1081,23 @@ export class InliningPass implements Pass {
       // iteration (avoids unsafe mutation of a function being read as callee).
       if (inlinedUses.has(fn.name)) continue;
 
-      const changed = inlineIntoFunction(fn, inlineable, opts, labelHint, consumed);
+      // A callee's body goes INSIDE the call site's blocks, so inlining ADDS depth: a chain of
+      // single-caller functions, each 250 deep, came out 2,000 deep — past what the next pass and
+      // the writers may recurse over (a host stack overflow on V8, a refusal on Bun: C-H2). A
+      // function the inlining would take past the nesting limit is left as it was, still correct
+      // and simply not inlined into.
+      const before = fn.body;
+      const here = new Map<string, number>();
+      const changed = inlineIntoFunction(fn, inlineable, opts, labelHint, here, inlinedInto);
       if (!changed) continue;
+      if (nestingDepth(fn.body, MAX_NESTING_DEPTH) > MAX_NESTING_DEPTH) {
+        fn.body = before;
+        continue;
+      }
+      for (const [name, n] of here) consumed.set(name, (consumed.get(name) ?? 0) + n);
 
       anyInlined = true;
+      inlinedInto.add(fn.name);
 
       // Post-inline cleanup (InliningOptimizing only). Inlining drops the
       // callee body into a wrapper block plus zero-init local.sets for the
@@ -1099,14 +1126,7 @@ export class InliningPass implements Pass {
       walkExpression(bodyBefore, (e) => {
         if (e.kind === ExpressionKind.Block && e.label.startsWith('__inlined_func$')) {
           const rest = e.label.slice('__inlined_func$'.length);
-          let calleeName: string | undefined;
-          for (const name of inlineable.keys()) {
-            if (rest === name || rest.startsWith(name + '$')) {
-              if (calleeName === undefined || name.length > calleeName.length) {
-                calleeName = name;
-              }
-            }
-          }
+          const calleeName = calleeOfLabel(rest, inlineable, nameLengths);
           if (calleeName !== undefined) {
             inlinedUses.set(calleeName, (inlinedUses.get(calleeName) ?? 0) + 1);
           }
@@ -1155,6 +1175,41 @@ export class InliningPass implements Pass {
 }
 
 /**
+ * The inlineable callee a wrapper label names: the LONGEST name that is `rest` or a prefix of
+ * it followed by `$` (the hint suffix). Looks each such prefix up, so it costs the length of the
+ * label, not the number of inlineable functions: scanning them all for every wrapper was
+ * quadratic (20,000 functions in a chain: 24 s at --inlining). `lengths` holds the lengths of
+ * the inlineable names: a prefix of any other length cannot match, so it is neither cut nor
+ * looked up. Rounds 5 and 6: a crafted label of 1,000,000 `$` took 71 s with every `$` a probe,
+ * and still 6 s at 240,000 with one long name when the bound was the longest length. Now a
+ * label costs its length plus at most one prefix lookup per DISTINCT name length at a `$`, and a
+ * module holds at most about √(2 × its name characters) distinct lengths: a label's work is
+ * bounded by its length times that root, not by the number of `$` in it (round 7: 4,000 crafted
+ * labels against 1,500 lengths, 1.2 s, called directly; a label the pass makes matches at once).
+ */
+function calleeOfLabel(
+  rest: string,
+  inlineable: ReadonlyMap<string, unknown>,
+  lengths?: ReadonlySet<number>,
+): string | undefined {
+  const tried = (n: number) => lengths === undefined || lengths.has(n);
+  if (tried(rest.length) && inlineable.has(rest)) return rest;
+  // Down to `at === 0`: a callee named "" (possible from a binary module's name section) is the
+  // shortest prefix, as the old scan over every name found it (review round 4, basic note).
+  // `lastIndexOf('$', -1)` searches from 0 again, so the loop ends after position 0 by hand.
+  for (
+    let at = rest.lastIndexOf('$');
+    at >= 0;
+    at = at === 0 ? -1 : rest.lastIndexOf('$', at - 1)
+  ) {
+    if (!tried(at)) continue;
+    const name = rest.slice(0, at);
+    if (inlineable.has(name)) return name;
+  }
+  return undefined;
+}
+
+/**
  * Inlining pass with post-inline optimization.
  *
  * After each inlining iteration runs Vacuum and OptimizeInstructions on
@@ -1174,7 +1229,7 @@ registerPass(InliningOptimizingPass);
 // Exported helpers (used by tests)
 // ---------------------------------------------------------------------------
 
-export { deepCopy, measureSize };
+export { calleeOfLabel, deepCopy, measureSize };
 
 /** Counts instruction nodes in an expression tree. */
 function measureSize(expr: Expression): number {
