@@ -7,11 +7,11 @@ Read that before drawing any conclusion about wasmtk or its wasic compiler from 
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Source                              | [wasmtk](https://github.com/jrmarcum/wasmtk) — `.wat` emitted by its `wasic` TypeScript→WAT compiler |
 | Files here                          | **421** — 413 regenerated from wasic + 8 non-wasic fixtures (below)                                   |
-| Licence                             | wasmtk's own: `MIT OR Apache-2.0` (its `LICENSE`, `deno.json`; © J.R. Marcum, this project's owner). All 421 come from wasmtk's tracked tree — the 413 as wasic output, the 8 non-wasic fixtures as wasmtk's own files in `tests/wasi/wasm_wasi/` (checked 2026-11-24) |
+| Licence                             | wasmtk's own: `MIT OR Apache-2.0` (its `LICENSE`, `deno.json`; © J.R. Marcum, this project's owner). All 421 come from wasmtk's tracked tree — the 413 as wasic output, the 8 non-wasic fixtures as wasmtk's own files in `tests/wasi/wasm_wasi/` (checked 2026-11-24). Third-party code compiled into some of them: see [Third-party code in this corpus](#third-party-code-in-this-corpus) |
 | Files wasmtk's current corpus emits | **373** by their count (2026-08-24); we generate **413** from 417 sources — see the note below        |
 | Snapshot date                       | **2026-08-25** — REFRESHED (was 2026-05-25, recovered; see history below)                             |
 | Source commit                       | **`59252ad5`** (quoted as `4600ba9` until wasmtk rewrote its history on 2026-11-20, workspace letter C49) — wasmtk `main`, 2026-08-10 18:29:20 -0400, verified level with `origin/main` at refresh time |
-| Captured by                         | Regenerated with `deno run -A main.ts wasic <src>.ts` over all 417 of `tests/wasi/wasm_wasi/*.ts`. Previous capture: wabt-ts `fbafca9e`, 278 files from wasmtk `e147d28` (2026-05-25; that id was rewritten by wasmtk in 2026-10; it is now `2b884a46`, the 11:25 commit the history below names, C49) |
+| Captured by                         | Regenerated with `deno run -A main.ts wasic <src>.ts` over all 417 of `tests/wasi/wasm_wasi/*.ts`. Previous capture: wabt-ts `fbafca9e`, 278 files from wasmtk `e147d28` (2026-05-25; that id was rewritten by wasmtk's 2026-10-23 purge, which changed every hash, before the 2026-11-20 one; it is now `2b884a46`, the 11:25 commit the history below names, C49) |
 | The 8 non-wasic fixtures            | `18_symbol_table`, `1_fib-rs`, `1_fib-rs-opt`, `1_fib-zig-opt`, `1_fizzbuzz_wat`, `1_helloWorld_wat`, `1_helloworld`, `1_print` — Rust / Zig / hand-written WAT, NOT wasic output. A refresh must preserve them |
 
 ## Refreshed 2026-08-25 — and a count we deliberately did NOT reconcile
@@ -106,3 +106,30 @@ A full refresh is 373 modules and moves the WASI round-trip denominator, so it i
 with its own re-measurement — not a drive-by. When it happens, expect `KNOWN_INVALID` to empty out
 (all seven are fixed upstream) and expect the legacy-EH modules to change shape if wasic has
 migrated to `try_table` by then (**10 of them upstream, of which this snapshot holds 6**) (see `scripts/wabt-ts/wasmtk-eh-report.md`).
+
+## Third-party code in this corpus
+
+Every file here comes from wasmtk's tracked tree, but not every byte is wasmtk's own work
+(review round 5, licensing, 2026-11-25):
+
+- **`1_fib-rs.wat`, `1_fib-rs-opt.wat`** are disassembled `wasm32-wasip1` Rust binaries: they embed
+  the compiled Rust standard library (`MIT OR Apache-2.0`; rustc `ed61e7d7`) and the wasi-libc / musl
+  runtime (MIT, Apache-2.0 WITH LLVM-exception, CC0; musl is Copyright © 2005-2020 Rich Felker et al.,
+  MIT). `1_fib-zig-opt.wat` embeds no runtime of that kind.
+- **13 wasic outputs inline wasmtk's `mathlib`** (`$mathlib_*` functions), which wasmtk's NOTICE.md
+  says adapts the trigonometric kernels, the 2/π argument-reduction table and the `atan` coefficients
+  of fdlibm. That notice, preserved as it requires:
+
+  > Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+  >
+  > Developed at SunSoft, a Sun Microsystems, Inc. business.
+  > Permission to use, copy, modify, and distribute this
+  > software is freely granted, provided that this notice
+  > is preserved.
+
+  wasmtk's mathlib is going away (the owner, 2026-11-25). These 13 files are a frozen snapshot, so
+  they keep it, and this notice stays with them, until the corpus is refreshed from a wasmtk without
+  it; that refresh removes both.
+
+This corpus is a test fixture: it ships in neither package (jsr.json and the npm build exclude
+`tests/`), so binaryang's NOTICE.md, which covers what ships, does not list it.
