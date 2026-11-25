@@ -457,6 +457,12 @@ describe('Q-H4: a write to standard output that fails is a one-line exit 1', () 
   // only ran on Bun. Every runtime now, Node through fnm and Deno from npm, as a user runs them.
   // From the repository, not the temp folder: `bun run deno` finds its binary from there.
   const here = (a: string) => (a === 'a.wat' || a === 'in.wasm' ? join(dir, a) : a);
+  // `in.wasm` is made ONCE for the group (the 4.2.0 release gate): rebuilt before every case, its
+  // atomic rename could meet the previous case's child still holding the file open, which Windows
+  // refuses, and the setup itself failed (exit 1) on a case that then does nothing on Windows.
+  before(() => {
+    assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
+  });
   const runtimes: [string, () => [string, string[]]][] = [
     ['bun', () => ['bun', [MAIN]]],
     ['node', () => nodeCommand(REFEREE, [], MAIN, [])],
@@ -465,7 +471,6 @@ describe('Q-H4: a write to standard output that fails is a one-line exit 1', () 
   for (const [rt, command] of runtimes) {
     for (const [tool, args] of rt === 'bun' ? cases : cases.slice(0, 5)) {
       it(`${rt}: ${tool} ${args.join(' ')}: EPIPE`, async () => {
-        assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
         const [cmd, head] = command();
         const c = spawn(cmd, [...head, tool, ...args.map(here)], {
           cwd: process.cwd(),
@@ -495,8 +500,8 @@ describe('Q-H4: a write to standard output that fails is a one-line exit 1', () 
       ] as [string, string[]][]
     ) {
       it(`${rt}: ${tool} ${args.join(' ')} > /dev/full (Linux)`, () => {
-        assertEquals(run('wat2wasm', 'a.wat', '-o', 'in.wasm').status, 0);
-        if (process.platform !== 'linux') return;
+        // No /dev/full elsewhere: the module the group made is the control there.
+        if (process.platform !== 'linux') return assert(existsSync(join(dir, 'in.wasm')));
         const [cmd, head] = command();
         const q = (x: string) => `'${x}'`;
         const r = spawnSync(
