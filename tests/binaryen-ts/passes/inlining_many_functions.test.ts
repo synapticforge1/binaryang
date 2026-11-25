@@ -15,6 +15,7 @@ import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { calleeOfLabel } from '../../../src/passes/inlining.ts';
+import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
 /** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
@@ -124,5 +125,18 @@ describe('inlining: many functions', () => {
     expect(calleeOfLabel('$x$3', names)).toBe('');
     expect(calleeOfLabel('$g$3', names)).toBe('$g');
     expect(calleeOfLabel('x', names)).toBeUndefined();
+  });
+
+  it('the pass finds a wrapper label by calleeOfLabel with the name lengths (round 8, wiring)', () => {
+    // The lookup counts above hold the helper; this holds that the PASS uses it. Without it, a
+    // pass gone back to scanning every name (~9 s on the 20,000 chain) would pass the loose time
+    // bound there. A wiring test, like the gate's: it reads the source.
+    const src = readFileSync('src/passes/inlining.ts', 'utf8');
+    expect(src).toContain('calleeOfLabel(rest, inlineable, nameLengths)');
+    expect(src).toMatch(
+      /for \(const name of inlineable\.keys\(\)\) nameLengths\.add\(name\.length\);/,
+    );
+    // And no scan of the names per label: the old loop's shape is gone.
+    expect(src).not.toMatch(/for \(const name of inlineable\.keys\(\)\) \{\s*if \(rest === name/);
   });
 });

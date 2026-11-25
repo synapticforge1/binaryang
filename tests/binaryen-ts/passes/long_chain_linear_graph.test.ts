@@ -97,8 +97,10 @@ describe('the local graph on a long flat chain', () => {
 
   it('-O3 over n = 3,000 sequential ifs: finishes, and runs the same', async () => {
     // No time bound (round 7): CPU time grew about 4x beside a gate, past a bound that could
-    // still catch the old 27 s. The quadratic is held by the COUNT test above (one summary entry
-    // per read, 6,002 here, not ~4.5 million); this case keeps the whole pipeline honest.
+    // still catch the old 27 s. The quadratic is held twice above: the COUNT test (one summary
+    // entry per read, 6,002 here, not ~4.5 million) for the graph itself, and the SSANoMerge
+    // case's own bound (6,000 ifs, 3 s against ~0.3 s; the old code took several seconds) for
+    // the pass that runs at -O3 (round 8). This case keeps the whole pipeline honest.
     const before = bytesOf(ifsWat(3000));
     const after = await wasmOpt(before, {
       optimizeLevel: 3,
