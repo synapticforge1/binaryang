@@ -6,23 +6,17 @@
 // block, n = 750 / 1500 / 3000 took 1.9 / 5.7 / 19.7 s at -O2 on Bun (26 s on 3,000):
 // ConstantPropagation's worklist was a FIFO queue, so the block after `$out`, with n predecessors,
 // ran once per predecessor and each run met all n. Now blocks run in reverse postorder: once.
-// (Upstream's wasm-opt 133: 0.7 s.) The case asserts a time bound the quadratic code misses by a
-// wide margin, and RUNS the module before and after.
+// (Upstream's wasm-opt 133: 0.7 s.) The case bounds the WORK, the predecessor states met
+// (`propagationWork`), which no load on the machine can move: a time bound failed twice beside a
+// gate (review round 6). It also RUNS the module before and after.
 
 import { describe, it } from 'node:test';
 import { expect } from '@std/expect';
 import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
+import { propagationWork } from '../../../src/passes/constant-propagation.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
-import process from 'node:process';
-
-/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
- * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
-const cpuMs = () => {
-  const u = process.cpuUsage();
-  return (u.user + u.system) / 1000;
-};
 
 type Fn = (a: number) => number;
 
@@ -46,14 +40,13 @@ const bytesOf = (wat: string) => wat2wasm(wat, { textForm: false }).binary;
 const exportOf = async (b: Uint8Array) =>
   (await WebAssembly.instantiate(b as BufferSource)).instance.exports['f'] as Fn;
 
+/** Runs `pass` once; the module before and after, and the predecessor states it met. */
 function runPass(wat: string, pass: string) {
   const before = bytesOf(wat);
   const m = readForPasses(before);
-  const declared = m.functions[0]!.locals.length;
-  const t = cpuMs();
+  const at = propagationWork.meets;
   new PassRunner(m, {}).add(pass).run();
-  const ms = cpuMs() - t;
-  return { before, after: writeWasm(m), ms, added: m.functions[0]!.locals.length - declared };
+  return { before, after: writeWasm(m), meets: propagationWork.meets - at };
 }
 
 async function same(before: Uint8Array, after: Uint8Array) {
@@ -62,12 +55,12 @@ async function same(before: Uint8Array, after: Uint8Array) {
 }
 
 describe('PrecomputePropagate on a long flat chain', () => {
-  it('PrecomputePropagate: n = 12,000 `if (x == k) br` in one block, under 15 s of CPU', async () => {
-    const { before, after, ms } = runPass(brWat(12000), 'PrecomputePropagate');
-    // CPU ms: ~4 s on Node 24, ~1 s on Bun; the old FIFO worklist ~50 s. n is 12,000, not 6,000,
-    // so a busy machine (the gate runs files in parallel: 4.6 s at 6,000) still passes and the
-    // quadratic still fails, by a wide margin both ways.
-    expect(ms).toBeLessThan(15_000);
+  it('PrecomputePropagate: n = 6,000 `if (x == k) br` in one block, linear work', async () => {
+    const n = 6000;
+    const { before, after, meets } = runPass(brWat(n), 'PrecomputePropagate');
+    // Measured (round 6): 191 meets per statement at n = 1,500 / 3,000 / 6,000, linear. The FIFO
+    // order met 70.9M / 285.8M / 1,147.6M, quadratic: about 190 times this bound at 6,000.
+    expect(meets).toBeLessThan(1000 * n);
     await same(before, after);
   });
 });

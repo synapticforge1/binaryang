@@ -167,6 +167,15 @@ function reversePostorder(entry: BasicBlock, count: number): Int32Array {
  */
 export const CONSTANT_PROPAGATION_MAX_CELLS = 1 << 25;
 
+/**
+ * Predecessor states met, summed over every run in this process: the work the tests bound, since
+ * time is no measure on a loaded machine (round 6: the CPU time of the same run grew from 4 s
+ * alone to 15.8 s beside a gate). The quadratic was here, not in the blocks taken: the FIFO order
+ * took a flat chain's merge block once per predecessor, and each time met all n of them;
+ * reversed postorder takes it once per round.
+ */
+export const propagationWork = { meets: 0 };
+
 /** Propagates in one function; whether anything changed (`PrecomputePropagate` iterates on it). */
 export function propagateFunction(fn: WasmFunction): boolean {
   const numLocals = fn.locals.length;
@@ -241,6 +250,7 @@ export function propagateFunction(fn: WasmFunction): boolean {
   const inOf = (b: BasicBlock): State => {
     const s = b === cfg.entry ? initial.slice() : empty.slice();
     for (const p of b.in) {
+      propagationWork.meets++;
       const o = outs[p.id]!;
       for (let i = 0; i < numTracked; i++) s[i] = meet(s[i], o[i]);
     }
