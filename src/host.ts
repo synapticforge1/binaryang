@@ -257,8 +257,10 @@ function windowsNamespaceProblem(path: string): string | null {
   const refused =
     'a path in this Windows namespace is not written here: write it as C:\\..., \\\\server\\share\\..., ' +
     '\\\\?\\C:\\... or \\\\?\\UNC\\server\\share\\... (a device as its plain name, e.g. NUL)';
-  if (path.startsWith('\\??\\') || path.startsWith('/??/')) return refused;
   const p = path.replace(/\//g, '\\');
+  // Round 8: after making the separators one form, so `\??/nul/x` and `/??\nul\x` are refused
+  // here too, not only stopped by a failing open further on.
+  if (p.startsWith('\\??\\')) return refused;
   if (!p.startsWith('\\\\?\\') && !p.startsWith('\\\\.\\')) return null; // plain, UNC
   const rest = p.slice(4);
   if (p[2] === '?') {
@@ -276,10 +278,15 @@ function windowsNamespaceProblem(path: string): string | null {
  * never comes here as a device: only `\\?\X:\…` and `\\?\UNC\…` are written at all
  * (windowsNamespaceProblem), and after that prefix Win32 does no device-name parsing, so
  * `\\?\C:\x\nul` names a real file called `nul` (4.1.0 notes review, Q-H3; `\\.\NUL`, with a dot,
- * is the device). A bare `\\?\nul` IS a device (round 7): it is refused, not written.
+ * is the device). A bare `\\?\nul` IS a device (round 7): it is refused, not written. Nor is a
+ * UNC path one (round 8): Win32 maps a bare device name only in a drive or relative path, so
+ * `\\server\share\…\nul` is a real FILE on the share (its stat says so), yet it was written to the
+ * local NUL device, data lost with exit 0. Only `\\.\` among the `\\`-forms names a device.
  */
 async function windowsDeviceName(path: string): Promise<string | null> {
   if (path.startsWith('\\\\?\\')) return null;
+  if (/^[\\/]{2}/.test(path) && !/^[\\/]{2}\.[\\/]/.test(path)) return null; // UNC: a file
+
   const { basename } = await import('node:path');
   const m = WINDOWS_DEVICE.exec(path === '/dev/null' ? 'NUL' : basename(path));
   return m === null ? null : m[1]!.toUpperCase();
@@ -310,8 +317,9 @@ export async function isDevice(path: string): Promise<boolean> {
  * the tool for ever (4.1.0 notes review, Q-H2). A non-blocking open fails with ENXIO exactly then.
  * That probe handle stays open until the blocking one is, so the reader never sees the FIFO's last
  * writer leave and end its input early. (Only a reader that exits in the instant between the two
- * opens can still leave the write waiting.) Windows has no FIFO: a named pipe that does not exist
- * (`\\.\pipe\x`) is refused at once with ENOENT there (measured 2026-11-20), so nothing hangs.
+ * opens can still leave the write waiting.) Windows has no FIFO, and a named pipe (`\\.\pipe\x`)
+ * is never opened for output there: the namespace allow-list refuses it at once (round 7), so
+ * nothing hangs.
  */
 async function writeFifo(path: string, data: Uint8Array | string): Promise<void> {
   const { constants, open } = await import('node:fs/promises');
@@ -622,7 +630,23 @@ export function baseName(path: string): string {
  * own multi-line layout (a diagnostic, a usage, a map): its line breaks and tabs stay.
  */
 export function cliError(message: string, block = false): void {
-  console.error(printable(message, { keepLines: block }));
+  console.error(printable(block ? message : capLine(message), { keepLines: block }));
+}
+
+/** The most characters of a one-line CLI message printed: the rest is counted, not printed. */
+const MAX_CLI_LINE = 1000;
+
+/**
+ * A one-line message cut at {@link MAX_CLI_LINE}, its length said (round 8: an OS error echoes
+ * the path it failed on, so a 2,000,000-character path printed a 2 MB line). Never splits a
+ * surrogate pair. A multi-line block (formatErrors' output) is bounded where it is made.
+ */
+function capLine(message: string): string {
+  if (message.length <= MAX_CLI_LINE) return message;
+  let end = MAX_CLI_LINE;
+  const c = message.charCodeAt(end - 1);
+  if (c >= 0xd800 && c <= 0xdbff) end--; // a high surrogate whose pair is past the cut
+  return `${message.slice(0, end)}… (${message.length} characters)`;
 }
 
 /**

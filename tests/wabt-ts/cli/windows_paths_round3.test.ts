@@ -8,7 +8,7 @@
 import { after, before, describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { nodeCommand, REFEREE } from '../../../scripts/v8.ts';
@@ -207,14 +207,63 @@ describe('round 7: a Windows namespace path is written only in the allowed forms
     const base = join(dir, 'allow');
     mkdirSync(base, { recursive: true });
     // Off Windows the plain path alone is the control.
+    const share = `${B}${B}localhost${B}${base.replace(':', '$')}`;
     const made = WIN
       ? [
         [`${B}${B}?${B}${base}${B}v.wasm`, 'v.wasm'],
+        [`${B}${B}?${B}${base[0]!.toLowerCase()}${base.slice(1)}${B}lc.wasm`, 'lc.wasm'], // round 8
         [`${B}${B}.${B}${base}${B}d.wasm`, 'd.wasm'],
         [join(base, 'p.wasm'), 'p.wasm'],
+        [`${base.replace(/\\/g, '/')}/f.wasm`, 'f.wasm'], // round 8: forward slashes
+        [`${share}${B}u.wasm`, 'u.wasm'], // round 8: a UNC path
       ]
       : [[join(base, 'p.wasm'), 'p.wasm']];
     for (const [p] of made) await fsWrite(p!, 'x');
     assertEquals(readdirSync(base).sort(), made.map(([, n]) => n!).sort());
+  });
+
+  // Round 8 (security): a UNC path's last name `nul` is a FILE on the share (its stat says so),
+  // but it was written to the local NUL device, data lost with exit 0 (Bun and Node).
+  it('a device name as the last name of a UNC path writes the file it names', async () => {
+    const { fsWrite } = await import('../../../src/host.ts');
+    const B = String.fromCharCode(92);
+    const base = join(dir, 'unc');
+    mkdirSync(base, { recursive: true });
+    if (!WIN) {
+      await fsWrite(join(base, 'nul'), 'kept'); // the control: an ordinary file here
+      assertEquals(readFileSync(join(base, 'nul'), 'utf8'), 'kept');
+      return;
+    }
+    // Never the device: the write either makes the file it names, or fails aloud (on this
+    // machine `realpath` refuses the name with EPERM on both runtimes). What may not happen is
+    // what did: success with the data gone.
+    let failed = '';
+    await fsWrite(`${B}${B}localhost${B}${base.replace(':', '$')}${B}nul`, 'kept')
+      .catch((e: Error) => failed = e.message);
+    if (failed === '') assertEquals(readFileSync(`${B}${B}?${B}${base}${B}nul`, 'utf8'), 'kept');
+    else assert(failed.length > 0, 'an error that says why');
+  });
+
+  it('`\\\\?\\UNC\\…` passes the allow-list; mixed-slash NT forms are refused (round 8)', async () => {
+    const { fsWrite } = await import('../../../src/host.ts');
+    const B = String.fromCharCode(92);
+    const base = join(dir, 'vunc');
+    mkdirSync(base, { recursive: true });
+    if (!WIN) {
+      // The control: these are Windows namespaces only; here an ordinary write is the check.
+      await fsWrite(join(base, 'ctl.wasm'), 'x');
+      return assertEquals(readdirSync(base), ['ctl.wasm']);
+    }
+    // Bun 1.4 cannot open this form (ENOENT) and Node writes it: either is fine, a namespace
+    // refusal is not.
+    let why = '';
+    await fsWrite(`${B}${B}?${B}UNC${B}localhost${B}${base.replace(':', '$')}${B}x.wasm`, 'x')
+      .catch((e: Error) => why = e.message);
+    assert(!why.includes('Windows namespace'), why);
+    for (const p of [`${B}??/nul/x`, `/??${B}nul${B}x`]) {
+      let refusal = '';
+      await fsWrite(p, 'x').catch((e: Error) => refusal = e.message);
+      assert(refusal.includes('Windows namespace'), `${p}: ${refusal || 'written'}`);
+    }
   });
 });

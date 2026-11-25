@@ -156,3 +156,16 @@ describe('a path with a line break cannot forge a tool line', () => {
     assert(lines[0]!.includes('\\u000a'), r.stderr);
   });
 });
+
+describe('a one-line message is bounded (round 8)', () => {
+  // An OS error echoes the path it failed on: a 2,000,000-character path printed a 2 MB line. A
+  // one-line message is cut at 1,000 characters and says how long it was.
+  it('a 10,000-character unknown option prints one short line that counts the rest', () => {
+    // The message is the first line; the tool's own usage text follows it, as for any unknown
+    // option.
+    const r = run('wat2wasm', `--${'x'.repeat(10_000)}`);
+    const line = r.stderr.split('\n')[0]!;
+    assert(line.length < 1200, `the message line: ${line.length} characters`);
+    assert(/… \(\d{5} characters\)$/.test(line), `no length said: ${line.slice(-80)}`);
+  });
+});
