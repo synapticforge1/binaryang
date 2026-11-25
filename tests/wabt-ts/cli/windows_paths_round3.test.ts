@@ -75,6 +75,10 @@ describe('round 3: a `\\\\.\\X:\\...` path whose last name is a device name or e
           `\\\\.\\\\${w}\\nul`,
           `\\\\.\\.\\${w}\\nul`,
           `\\\\.\\UNC\\localhost\\${w.replace(':', '$')}\\nul`,
+          // Round 6: a device as the FIRST or a middle name (Node 24 wrote nothing, exit 0).
+          `\\\\.\\NUL\\x.wasm`,
+          `\\\\.\\nul\\${w.slice(3)}\\out.wasm`,
+          `\\\\.\\${w}\\con\\out.wasm`,
         ]
       ) {
         const before = tree(base);

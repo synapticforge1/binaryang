@@ -412,13 +412,21 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
     // backslashes not at the end (300,000: 30 s; round 5 review, a library caller's path).
     let end = path.length;
     while (end > 4 && path[end - 1] === '\\') end--;
+    // Round 6: a device in the FIRST name went unseen (`\\.\NUL\x`, `\\.\nul\w\out.wasm`: Node 24
+    // wrote nothing, exit 0; Bun failed EINVAL). So EVERY name of a `\\.\` path with more than
+    // one is checked against the device names, and the last also for a trailing dot or space.
+    // A single-name path (`\\.\NUL`, `\\.\nul\`) is the device, as documented. Deliberately, this
+    // also refuses a named pipe or other object whose name is a device name (`\\.\pipe\nul`):
+    // refused rather than guessed.
     const rest = path.startsWith('\\\\.\\') ? path.slice(4, end) : '';
-    const last = rest.includes('\\') ? rest.slice(rest.lastIndexOf('\\') + 1) : '';
-    if (last !== '' && (WINDOWS_DEVICE.test(last) || /[. ]$/.test(last))) {
+    const names = rest.includes('\\') ? rest.split('\\') : [];
+    const last = names.at(-1) ?? '';
+    if (names.some((n) => WINDOWS_DEVICE.test(n)) || (last !== '' && /[. ]$/.test(last))) {
       throw new Error(
-        'a \\\\.\\ path whose last name is a device name (NUL, CON, COM1 ...) or ends in a dot or ' +
-          'space cannot be written here: Windows would take it for the device or trim it, not ' +
-          'the file named; write the plain path (a device name) or name the file differently',
+        'a \\\\.\\ path with a device name (NUL, CON, COM1 ...) among its names, or whose last ' +
+          'name ends in a dot or space, cannot be written here: Windows would take it for the ' +
+          'device or trim it, not the file named; write the plain path (a device name) or name ' +
+          'the file differently',
       );
     }
     path = path.replace(/^\\\\\.\\([A-Za-z]:)(?=\\)/, '$1');
