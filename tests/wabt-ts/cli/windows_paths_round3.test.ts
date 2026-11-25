@@ -8,7 +8,15 @@
 import { after, before, describe, it } from 'node:test';
 import { assert, assertEquals } from '@std/assert';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { nodeCommand, REFEREE } from '../../../scripts/v8.ts';
@@ -236,7 +244,9 @@ describe('round 7: a Windows namespace path is written only in the allowed forms
     }
     // Never the device: the write either makes the file it names, or fails aloud (on this
     // machine `realpath` refuses the name with EPERM on both runtimes). What may not happen is
-    // what did: success with the data gone.
+    // what did: success with the data gone. Rounds 8-9: this holds that property and no more. It
+    // does not show the file CAN be written: where the `C$` admin share is missing or denied, any
+    // error passes. The file being written was shown by hand on a WSL share (round 9 review).
     let failed = '';
     await fsWrite(`${B}${B}localhost${B}${base.replace(':', '$')}${B}nul`, 'kept')
       .catch((e: Error) => failed = e.message);
@@ -265,5 +275,28 @@ describe('round 7: a Windows namespace path is written only in the allowed forms
       await fsWrite(p, 'x').catch((e: Error) => refusal = e.message);
       assert(refusal.includes('Windows namespace'), `${p}: ${refusal || 'written'}`);
     }
+  });
+});
+
+describe('round 9: a directory is never written to, whatever its name', () => {
+  // Bun 1.4's writeFile on a directory named `nul` (through a UNC share or `\\?\C:\…\nul`) returned
+  // success and wrote nothing, though EISDIR for any other name. fsWrite refuses a directory
+  // itself. On Windows the directory is made by its verbatim name (a plain `nul` is the device);
+  // elsewhere a directory named `nul` is an ordinary one, and the same refusal is the check.
+  it('a directory named nul is refused, not reported written', async () => {
+    const { fsWrite } = await import('../../../src/host.ts');
+    const B = String.fromCharCode(92);
+    const base = join(dir, 'dirnul');
+    mkdirSync(base, { recursive: true });
+    const target = WIN ? `${B}${B}?${B}${base}${B}nul` : join(base, 'nul');
+    mkdirSync(target);
+    let why = '';
+    await fsWrite(target, 'x').catch((e: Error) => why = e.message);
+    assert(/EISDIR|directory/i.test(why), `${target}: ${why || 'reported written'}`);
+    // Off Windows the directory is listed empty too; on Windows Bun cannot list a `\\?\…\nul`
+    // directory at all (ENOTSUP), so the refusal is the check there.
+    if (!WIN) assertEquals(readdirSync(target), []);
+    rmdirSync(target); // by its own (verbatim) name first: a plain recursive walk meets the device
+    rmSync(base, { recursive: true, force: true });
   });
 });

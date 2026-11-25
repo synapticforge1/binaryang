@@ -163,9 +163,11 @@ describe('a one-line message is bounded (round 8)', () => {
   it('a 10,000-character unknown option prints one short line that counts the rest', () => {
     // The message is the first line; the tool's own usage text follows it, as for any unknown
     // option.
-    const r = run('wat2wasm', `--${'x'.repeat(10_000)}`);
+    // The option ends `END`: the end of a long message, where a reason follows a path, is kept
+    // after the count (round 9: only the start was, and `<long path>: EACCES` lost its reason).
+    const r = run('wat2wasm', `--${'x'.repeat(10_000)}END`);
     const line = r.stderr.split('\n')[0]!;
     assert(line.length < 1200, `the message line: ${line.length} characters`);
-    assert(/… \(\d{5} characters\)$/.test(line), `no length said: ${line.slice(-80)}`);
+    assert(/ … \(\d{5} characters\) … x+END$/.test(line), `count and tail: ${line.slice(-80)}`);
   });
 });

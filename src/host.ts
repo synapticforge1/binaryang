@@ -525,6 +525,14 @@ export async function fsWrite(path: string, data: Uint8Array | string): Promise<
   try {
     target = await realpath(path);
     const st = await stat(target);
+    // A directory is refused HERE, not left to writeFile (round 9): Bun 1.4's writeFile on a
+    // directory named `nul` (through a UNC share or `\\?\C:\…\nul`) returned success and wrote
+    // nothing, though EISDIR for every other name; Node said EPERM.
+    if (st.isDirectory()) {
+      throw Object.assign(new Error('EISDIR: illegal operation on a directory'), {
+        code: 'EISDIR',
+      });
+    }
     if (!st.isFile()) {
       await writeFile(target, data);
       return;
@@ -637,17 +645,25 @@ export function cliError(message: string, block = false): void {
 const MAX_CLI_LINE = 1000;
 
 /**
- * A one-line message cut at {@link MAX_CLI_LINE}, its length said (round 8: an OS error echoes
- * the path it failed on, so a 2,000,000-character path printed a 2 MB line). Never splits a
- * surrogate pair. A multi-line block (formatErrors' output) is bounded where it is made.
+ * A one-line message cut to {@link MAX_CLI_LINE} characters, its length said (round 8: an OS error
+ * echoes the path it failed on, so a 2,000,000-character path printed a 2 MB line). The start and
+ * the last {@link CLI_LINE_TAIL} are kept (round 9: `<long path>: EACCES` lost its reason when only
+ * the start was). Never splits a surrogate pair. A multi-line block (formatErrors' output) is
+ * bounded where it is made. Counts are UTF-16 code units.
  */
 function capLine(message: string): string {
   if (message.length <= MAX_CLI_LINE) return message;
-  let end = MAX_CLI_LINE;
+  let end = MAX_CLI_LINE - CLI_LINE_TAIL;
   const c = message.charCodeAt(end - 1);
   if (c >= 0xd800 && c <= 0xdbff) end--; // a high surrogate whose pair is past the cut
-  return `${message.slice(0, end)}… (${message.length} characters)`;
+  let tail = message.length - CLI_LINE_TAIL;
+  const t = message.charCodeAt(tail);
+  if (t >= 0xdc00 && t <= 0xdfff) tail++; // a low surrogate whose pair is before the cut
+  return `${message.slice(0, end)} … (${message.length} characters) … ${message.slice(tail)}`;
 }
+
+/** The end of a cut one-line message that is kept: where a reason follows a long path. */
+const CLI_LINE_TAIL = 200;
 
 /**
  * The ONE way a CLI status or progress line reaches stdout (`Wrote WASM: <path>`, a ctor-eval
