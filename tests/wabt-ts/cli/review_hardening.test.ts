@@ -496,7 +496,7 @@ describe('Q-H4: a write to standard output that fails is a one-line exit 1', () 
       ] as [string, string[]][]
     ) {
       it(`${rt}: ${tool} ${args.join(' ')} > /dev/full (Linux)`, () => {
-        // No /dev/full elsewhere: the module the group made is the control there.
+        // No /dev/full elsewhere: the module the file made is the control there.
         if (process.platform !== 'linux') return assert(existsSync(join(dir, 'in.wasm')));
         const [cmd, head] = command();
         const q = (x: string) => `'${x}'`;
