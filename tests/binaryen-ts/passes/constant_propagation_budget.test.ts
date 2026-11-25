@@ -19,6 +19,14 @@ import {
   CONSTANT_PROPAGATION_MAX_CELLS,
   propagateFunction,
 } from '../../../src/passes/constant-propagation.ts';
+import process from 'node:process';
+
+/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
+ * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
+const cpuMs = () => {
+  const u = process.cpuUsage();
+  return (u.user + u.system) / 1000;
+};
 
 const rep = (n: number, f: (i: number) => string) =>
   Array.from({ length: n }, (_, i) => f(i)).join('\n');
@@ -45,9 +53,9 @@ describe('ConstantPropagation: work bounded by blocks and set locals', () => {
   it('10,000 locals nothing sets, 10,000 ifs: under 3 s, and the read still becomes its zero', async () => {
     const before = bytesOf(unsetWat(10_000, 10_000));
     const m = readForPasses(before);
-    const t = performance.now();
+    const t = cpuMs();
     new PassRunner(m, {}).add('PrecomputePropagate').run();
-    expect(performance.now() - t).toBeLessThan(3000); // measured ~0.2 s; the dense states: 6 s, 5.8 GB
+    expect(cpuMs() - t).toBeLessThan(3000); // measured ~0.2 s; the dense states: 6 s, 5.8 GB
     const after = writeWasm(m);
     for (const c of [0, 1, 5]) expect(await call(after, c)).toBe(await call(before, c));
     // `(local.get 1)` is a declared local nothing sets: it is its zero.
@@ -72,9 +80,9 @@ describe('ConstantPropagation: work bounded by blocks and set locals', () => {
   const afterSsa = (wat: string) => {
     const m = readForPasses(bytesOf(wat));
     new PassRunner(m, {}).add('SSANoMerge').run();
-    const t = performance.now();
+    const t = cpuMs();
     new PassRunner(m, {}).add('PrecomputePropagate').run();
-    return performance.now() - t;
+    return cpuMs() - t;
   };
 
   it('after SSANoMerge: 9,000 `x = i; if (x) nop` under 3 s', () => {
@@ -93,8 +101,8 @@ describe('ConstantPropagation: work bounded by blocks and set locals', () => {
 
   it('20,000 locals nothing sets, 20,000 ifs: under 3 s', () => {
     const m = readForPasses(bytesOf(unsetWat(20_000, 20_000)));
-    const t = performance.now();
+    const t = cpuMs();
     new PassRunner(m, {}).add('PrecomputePropagate').run();
-    expect(performance.now() - t).toBeLessThan(3000); // the dense states: 36 s and 16 GB at -O2 on Bun
+    expect(cpuMs() - t).toBeLessThan(3000); // the dense states: 36 s and 16 GB at -O2 on Bun
   });
 });

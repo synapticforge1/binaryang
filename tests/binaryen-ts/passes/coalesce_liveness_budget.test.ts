@@ -13,6 +13,14 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { buildCFG, computeLiveness } from '../../../src/passes/cfg.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
+import process from 'node:process';
+
+/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
+ * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
+const cpuMs = () => {
+  const u = process.cpuUsage();
+  return (u.user + u.system) / 1000;
+};
 
 const rep = (n: number, f: (i: number) => string) =>
   Array.from({ length: n }, (_, i) => f(i)).join('\n');
@@ -45,9 +53,9 @@ describe('CoalesceLocals: liveness sets bounded by blocks × live locals', () =>
   }, () => {
     const m = readForPasses(wat2wasm(loopsWat(3000), { textForm: false }).binary);
     const before = shape(m.functions[0]!);
-    const t = performance.now();
+    const t = cpuMs();
     new PassRunner(m, {}).add('CoalesceLocals').run();
-    expect(performance.now() - t).toBeLessThan(10_000); // measured ~0.3 s; was over 100 s
+    expect(cpuMs() - t).toBeLessThan(10_000); // measured ~0.3 s; was over 100 s
     expect(shape(m.functions[0]!)).toBe(before);
   });
 });

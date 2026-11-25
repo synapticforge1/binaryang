@@ -17,6 +17,14 @@ import { wasmOpt } from '../../../src/tools/wasm-opt.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { ssaNoMerge } from '../../../src/passes/ssa-nomerge.ts';
 import { LOCAL_GRAPH_MAX_WORDS, localGraphSummary } from '../../../src/passes/local-graph.ts';
+import process from 'node:process';
+
+/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
+ * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
+const cpuMs = () => {
+  const u = process.cpuUsage();
+  return (u.user + u.system) / 1000;
+};
 
 type Fn = (a: number) => number;
 
@@ -48,9 +56,9 @@ function runPass(wat: string, pass: string) {
   const before = bytesOf(wat);
   const m = readForPasses(before);
   const declared = m.functions[0]!.locals.length;
-  const t = performance.now();
+  const t = cpuMs();
   new PassRunner(m, {}).add(pass).run();
-  const ms = performance.now() - t;
+  const ms = cpuMs() - t;
   return { before, after: writeWasm(m), ms, added: m.functions[0]!.locals.length - declared };
 }
 
@@ -89,14 +97,14 @@ describe('the local graph on a long flat chain', () => {
 
   it('-O3 over n = 3,000 sequential ifs: under 10 s', async () => {
     const before = bytesOf(ifsWat(3000));
-    const t = performance.now();
+    const t = cpuMs();
     const after = await wasmOpt(before, {
       optimizeLevel: 3,
       shrinkLevel: 0,
       passes: [],
       output: '-',
     }) as Uint8Array;
-    expect(performance.now() - t).toBeLessThan(10_000); // measured ~2.6 s; was ~27 s and 2.4 GB
+    expect(cpuMs() - t).toBeLessThan(10_000); // measured ~2.6 s; was ~27 s and 2.4 GB
     await same(before, after);
   });
 });

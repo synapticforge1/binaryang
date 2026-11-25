@@ -15,6 +15,14 @@ import { MAX_NESTING_DEPTH, nestingDepth } from '../../../src/ir/nesting.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { wasmValidate } from '../../../src/tools/wasm-validate.ts';
 import { allFeatures } from '../../../src/core/feature.ts';
+import process from 'node:process';
+
+/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
+ * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
+const cpuMs = () => {
+  const u = process.cpuUsage();
+  return (u.user + u.system) / 1000;
+};
 
 /** `$f0` calls `$f1` … `$f(n-1)`; the functions are laid out callee first. */
 function chainWat(n: number): string {
@@ -39,9 +47,9 @@ describe('inlining: a chain with the callees first', () => {
   it('-O2 over 1,500 links finishes, stays within the depth limit and behaves the same', async () => {
     const before = wat2wasm(chainWat(1500), { textForm: false }).binary;
     const m = readForPasses(before);
-    const t = performance.now();
+    const t = cpuMs();
     new PassRunner(m, { optimizeLevel: 2, shrinkLevel: 0 }).addDefaultOptimizationPasses().run();
-    const ms = performance.now() - t;
+    const ms = cpuMs() - t;
     const after = writeWasm(m);
     // Measured 2026-11-20: ~0.5 s here; 400 links took 7 s before, so 1,500 ran for minutes.
     expect(ms).toBeLessThan(30_000);

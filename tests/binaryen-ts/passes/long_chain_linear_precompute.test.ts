@@ -15,6 +15,14 @@ import { wat2wasm } from '../../../src/tools/wat2wasm.ts';
 import { readForPasses } from '../../../src/ir/prepare.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
+import process from 'node:process';
+
+/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
+ * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
+const cpuMs = () => {
+  const u = process.cpuUsage();
+  return (u.user + u.system) / 1000;
+};
 
 type Fn = (a: number) => number;
 
@@ -42,9 +50,9 @@ function runPass(wat: string, pass: string) {
   const before = bytesOf(wat);
   const m = readForPasses(before);
   const declared = m.functions[0]!.locals.length;
-  const t = performance.now();
+  const t = cpuMs();
   new PassRunner(m, {}).add(pass).run();
-  const ms = performance.now() - t;
+  const ms = cpuMs() - t;
   return { before, after: writeWasm(m), ms, added: m.functions[0]!.locals.length - declared };
 }
 
@@ -54,9 +62,12 @@ async function same(before: Uint8Array, after: Uint8Array) {
 }
 
 describe('PrecomputePropagate on a long flat chain', () => {
-  it('PrecomputePropagate: n = 6,000 `if (x == k) br` in one block, under 4 s', async () => {
-    const { before, after, ms } = runPass(brWat(6000), 'PrecomputePropagate');
-    expect(ms).toBeLessThan(4000); // measured ~1.1 s; the FIFO worklist took ~9 s
+  it('PrecomputePropagate: n = 12,000 `if (x == k) br` in one block, under 15 s of CPU', async () => {
+    const { before, after, ms } = runPass(brWat(12000), 'PrecomputePropagate');
+    // CPU ms: ~4 s on Node 24, ~1 s on Bun; the old FIFO worklist ~50 s. n is 12,000, not 6,000,
+    // so a busy machine (the gate runs files in parallel: 4.6 s at 6,000) still passes and the
+    // quadratic still fails, by a wide margin both ways.
+    expect(ms).toBeLessThan(15_000);
     await same(before, after);
   });
 });

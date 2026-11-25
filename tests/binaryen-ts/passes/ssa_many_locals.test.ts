@@ -16,6 +16,14 @@ import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { COALESCE_MAX_REFERENCED_LOCALS } from '../../../src/passes/coalesce-locals.ts';
 import { ssaNoMerge } from '../../../src/passes/ssa-nomerge.ts';
+import process from 'node:process';
+
+/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
+ * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
+const cpuMs = () => {
+  const u = process.cpuUsage();
+  return (u.user + u.system) / 1000;
+};
 
 const rep = (n: number, f: (i: number) => string) =>
   Array.from({ length: n }, (_, i) => f(i)).join('\n');
@@ -58,8 +66,8 @@ describe('SSANoMerge and the locals CoalesceLocals will not take back', () => {
 
   it('SimplifyLocals over 30,000 sets of different locals: under 4 s', () => {
     const m = readForPasses(bytesOf(distinctWat(30_000)));
-    const t = performance.now();
+    const t = cpuMs();
     new PassRunner(m, {}).add('SimplifyLocals').run();
-    expect(performance.now() - t).toBeLessThan(4000); // measured ~0.8 s; going through every waiting set: minutes
+    expect(cpuMs() - t).toBeLessThan(4000); // measured ~0.8 s; going through every waiting set: minutes
   });
 });

@@ -15,6 +15,14 @@ import { readForPasses } from '../../../src/ir/prepare.ts';
 import { writeWasm } from '../../../src/ir/write-wasm.ts';
 import { PassRunner } from '../../../src/passes/index.ts';
 import { calleeOfLabel } from '../../../src/passes/inlining.ts';
+import process from 'node:process';
+
+/** CPU time of this process, in ms: the bounds below are on work, not on how busy the machine
+ * is (a wall-clock bound failed under the gate's load, 2026-11-25; Q-H5's method). */
+const cpuMs = () => {
+  const u = process.cpuUsage();
+  return (u.user + u.system) / 1000;
+};
 
 function chainWat(n: number): string {
   const fs: string[] = [];
@@ -33,9 +41,9 @@ function chainWat(n: number): string {
 describe('inlining: many functions', () => {
   it('a chain of 20,000 functions at --inlining: under 6 s', () => {
     const m = readForPasses(wat2wasm(chainWat(20_000), { textForm: false }).binary);
-    const t = performance.now();
+    const t = cpuMs();
     new PassRunner(m, {}).add('Inlining').run();
-    expect(performance.now() - t).toBeLessThan(6000); // measured ~1.5 s; scanning every name: ~9 s
+    expect(cpuMs() - t).toBeLessThan(6000); // measured ~1.5 s; scanning every name: ~9 s
   });
 
   it('a chain of 2,000 functions inlines and the result still runs', async () => {
