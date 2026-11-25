@@ -88,16 +88,31 @@ describe('inlining: many functions', () => {
     expect(lookups).toBeLessThan(20);
   });
 
-  it('a long label with no match costs at most the longest name, not its own length (round 5)', () => {
-    // 1,000,000 `$` and no callee: every `$` was a probe, each slicing the label (71 s). With the
-    // longest inlineable name passed, no prefix longer than it is tried.
-    const names = new Map<string, unknown>([['$a', 0], ['$a$b', 0]]);
-    const t = cpuMs();
-    expect(calleeOfLabel('$'.repeat(1_000_000), names, 4)).toBeUndefined();
-    expect(cpuMs() - t).toBeLessThan(1000);
-    // The bound keeps every answer within it: the longest match still wins.
-    expect(calleeOfLabel('$a$b$3', names, 4)).toBe('$a$b');
-    expect(calleeOfLabel('$a$c', names, 4)).toBe('$a');
+  it('a long label costs one lookup per distinct name length, not one per `$` (rounds 5, 6)', () => {
+    // Counted, not timed: every lookup the label causes is a `has` on this map.
+    let lookups = 0;
+    const counted = (entries: [string, unknown][]) =>
+      new (class extends Map<string, unknown> {
+        override has(k: string) {
+          lookups++;
+          return super.has(k);
+        }
+      })(entries);
+    const lengthsOf = (m: Map<string, unknown>) => new Set([...m.keys()].map((k) => k.length));
+    // 1,000,000 `$` and no callee: every `$` was a lookup (71 s). Two lengths: two lookups.
+    const short = counted([['$a', 0], ['$a$b', 0]]);
+    expect(calleeOfLabel('$'.repeat(1_000_000), short, lengthsOf(short))).toBeUndefined();
+    expect(lookups).toBeLessThanOrEqual(2);
+    // One name of 240,000 characters and a label of 240,000 `$`: each lookup hashed a prefix that
+    // long (6 s with the round-5 bound, the longest length). One length: one lookup.
+    lookups = 0;
+    const long = counted([['f'.repeat(240_000), 0]]);
+    expect(calleeOfLabel('$'.repeat(240_000), long, lengthsOf(long))).toBeUndefined();
+    expect(lookups).toBeLessThanOrEqual(1);
+    // The answers are the same: the longest match still wins.
+    expect(calleeOfLabel('$a$b$3', short, lengthsOf(short))).toBe('$a$b');
+    expect(calleeOfLabel('$a$c', short, lengthsOf(short))).toBe('$a');
+    expect(calleeOfLabel('$3', counted([['', 0]]), new Set([0]))).toBe('');
   });
 
   it('a callee named "" is found, as the old scan found it (review round 4)', () => {
