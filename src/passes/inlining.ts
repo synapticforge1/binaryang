@@ -1182,8 +1182,10 @@ export class InliningPass implements Pass {
  * the inlineable names: a prefix of any other length cannot match, so it is neither cut nor
  * looked up. Rounds 5 and 6: a crafted label of 1,000,000 `$` took 71 s with every `$` a probe,
  * and still 6 s at 240,000 with one long name when the bound was the longest length. Now a
- * label costs its length plus one probe per DISTINCT name length at a `$`, and a module holds at
- * most about √(2 × its name characters) distinct lengths, so the whole is linear in the module.
+ * label costs its length plus at most one prefix lookup per DISTINCT name length at a `$`, and a
+ * module holds at most about √(2 × its name characters) distinct lengths: a label's work is
+ * bounded by its length times that root, not by the number of `$` in it (round 7: 4,000 crafted
+ * labels against 1,500 lengths, 1.2 s, called directly; a label the pass makes matches at once).
  */
 function calleeOfLabel(
   rest: string,

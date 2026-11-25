@@ -116,7 +116,8 @@ Every file here comes from wasmtk's tracked tree, but not every byte is wasmtk's
   the compiled Rust standard library (`MIT OR Apache-2.0`; rustc `ed61e7d7`) and are linked against
   wasi-libc (its start code `__main_void`; wasi-libc is MIT, Apache-2.0 WITH LLVM-exception and CC0,
   and its libc top half is derived from musl: Copyright © 2005-2020 Rich Felker, et al., MIT).
-  `1_fib-zig-opt.wat` holds a few functions of the Zig standard library (MIT) and no libc.
+  `1_fib-zig-opt.wat` has no libc; its 7 functions (no names kept) are consistent with Zig start
+  and standard-library code (MIT), as its WASI imports suggest, but its bytes do not name them.
 - **13 wasic outputs inline wasmtk's `mathlib`** (`$mathlib_*` functions), which wasmtk's NOTICE.md
   says adapts the trigonometric kernels, the 2/π argument-reduction table and the `atan` coefficients
   of fdlibm. That notice, preserved as it requires:

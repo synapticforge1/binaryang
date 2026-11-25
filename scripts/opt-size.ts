@@ -181,13 +181,14 @@ export function binaryenSize(
   limitMs: number = WASM_OPT_TIMEOUT_MS,
 ): number | undefined {
   // A fresh name per run: reusing one `in.wasm` failed with EBUSY on Windows when the previous
-  // run's file was still held (a scanner, a slow exit; the gate, 2026-11-25). The folder is removed
-  // as a whole by `scratch().done()`.
+  // run's file was still held (a scanner, a slow exit; the gate, 2026-11-25). Each run's two
+  // files are removed when it is done (the finally below), the folder whole by `scratch().done()`.
   const n = runCount++;
   const input = join(dir, `in-${n}.wasm`);
   const output = join(dir, `out-${n}.wasm`);
-  writeFileSync(input, wasm);
   try {
+    // Inside the try: a write that fails part-way is removed too (round 7).
+    writeFileSync(input, wasm);
     const r = run(
       'wasm-opt',
       [input, level, '--strip-dwarf', '--disable-compact-imports', ...FEATURES, '-o', output],
