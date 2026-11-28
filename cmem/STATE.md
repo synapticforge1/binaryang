@@ -1,6 +1,6 @@
 # STATE: binaryang
 
-Updated: 2026-11-27, 4.2.0 released and verified as a user
+Updated: 2026-11-27, 4.2.0 released, verified as a user, its record pushed
 
 ## Version
 - Released: **4.2.0 on 2026-11-25** (JSR and npm, provenance on both; release.md § 4.2.0);
@@ -11,7 +11,7 @@ Updated: 2026-11-27, 4.2.0 released and verified as a user
   provenance read-back: npm lagged ~3 min)
 - 4.1.0 on 2026-11-19, run 44621909375 green in every job
 - Unreleased on main: nothing (unreleased.md)
-- Working branch: `released-4.2.0` (this record)
+- Working branch: none (main)
 
 ## Now
 - Bun runs with memory64 on; the Bun known-differences list is EMPTY; no test skips anywhere
@@ -28,12 +28,12 @@ Updated: 2026-11-27, 4.2.0 released and verified as a user
   --self-check); pending: four
 
 ## Next
-1. The owner's "push" for `released-4.2.0` (this record)
-2. Owner's call: delete the local backup branch `fixes-batch-before-trailers` (the pre-rewrite
-   copy of the fixes batch; main holds the rewritten one)
-3. Workspace: binaryang's C49 answer committed there (71fea74, 2026-11-25; C48's in 543ff2e)
+1. Nothing queued; the next work is the owner's call
+2. Workspace: binaryang's C49 answer committed there (71fea74, 2026-11-25; C48's in 543ff2e)
 
 ## Pushed
+- 2026-11-27: `main` at ff1178746 (the 4.2.0 record, run 46089585871 green: not a release);
+  the backup branch `fixes-batch-before-trailers` deleted (owner).
 - 2026-11-25: `main` at 3d7046355 (`bump to v4.2.0`), tag `v4.2.0` (read back); `main` at
   5b4388137 unbumped before it (run 45709775698 green); `release/4.2.0`, `accept-4.2.0`.
 - 2026-11-20: `main` at cb857e212 (`bump to v4.1.2`), tag `v4.1.2` (read back).
