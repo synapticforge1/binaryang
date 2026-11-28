@@ -15,6 +15,12 @@ not survive a clone is not a project rule. The lessons behind them are in
 - **Branch, commit, then `git merge --no-ff` to `main`.** Never commit directly to `main` — two
   docs-only commits did, and the owner had the history REWRITTEN so it would be uniform. Docs-only
   changes follow the same rule.
+- 🔒 **Local branches: merged ones are deleted, unmerged ones live on GitHub** (owner,
+  2026-11-27: "all local branches that are not merged into main are to have their own wip
+  branch on github. all local branches that are already merged into main shall be deleted").
+  A branch not merged into `main` is pushed as `wip/<name>` and read back with `git ls-remote`;
+  a merged one is deleted with `git branch -d` (it refuses an unmerged one). First applied
+  2026-11-27: 58 merged branches deleted, none unmerged. Remote branches are left as they are.
 - **Workflow logic is TypeScript too** (owner, 2026-10-21): a GitHub workflow `run:` block only
   launches; any condition, loop or poll is a subcommand of `scripts/release/workflow.ts` (or a
   script like it: `registry.ts`, `github.ts`), tested in
