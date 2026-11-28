@@ -29,7 +29,9 @@ Updated: 2026-11-27, 4.2.0 released, verified as a user, its record pushed
 
 ## Next
 1. Nothing queued; the next work is the owner's call
-2. Workspace: binaryang's C49 answer committed there (71fea74, 2026-11-25; C48's in 543ff2e)
+2. Workspace: C48's "shipped in 4.2.0" bullet committed and pushed there (277b3f0, 2026-11-27,
+   owner-directed); C48 stays open for wasmtk. C49's answer 71fea74. Open for binaryang: C52
+   (wasmrt: four D1 names, which spelling D1 intends)
 
 ## Pushed
 - 2026-11-27: `main` at ff1178746 (the 4.2.0 record, run 46089585871 green: not a release);
