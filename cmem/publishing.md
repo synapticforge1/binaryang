@@ -54,7 +54,7 @@ B3):
    (CI's tag, only once both are green) → `release` (the page) → `jsr` (credential) → `npm`
    (credential). 🔁 2026-11-13 (review rounds 1–3): `npm-build` runs BEFORE the tag; until then
    it ran beside `jsr`, after the tag. ✅ **Order measured by 3.0.3** (run 43061998593, all six
-   green); the round-1 change to it is UNMEASURED until the next release — read every job of a
+   green); the round-1 change to it MEASURED by 4.2.0 (run 45712317393) — read every job of a
    release run, and on a failure use "Re-run failed jobs" (the jobs skip what is done), never a
    new tag.
 6. Read both registries back (Rekor id on JSR, the attestation on npm), run the package as a user

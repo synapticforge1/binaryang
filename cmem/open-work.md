@@ -2,7 +2,7 @@
 
 > Summary: the open items only, with the standing decisions ("Not tasks, by decision"). Every
 > closed, done, superseded or fixed item and every dated "State" paragraph is in
-> [archive/open-work-to-4.1.1.md](archive/open-work-to-4.1.1.md). Last verified 2026-11-20.
+> [archive/open-work-to-4.1.1.md](archive/open-work-to-4.1.1.md). Last verified 2026-11-27.
 
 **The single list of what is outstanding.** A list split across three documents is a list nobody
 reads, so this file holds only open items, each with a pointer to where its record lives. When an
@@ -15,7 +15,9 @@ message at every entry — the binary reader (bodies and constant expressions), 
 token pre-scan before it recurses, then the built tree exactly), the writers, the passes, the
 interpreter and the bundler — and `tests/wabt-ts/parser/nesting_limit.test.ts` holds every stage
 at exactly 256 and refuses 257 and 100,000, run locally on Bun 1.4.4, Node 22.18 / 24 / 26 and
-Deno (2026-11-13), and in CI on both test legs. Why 256: the cold capacities measured that day
+Deno (2026-11-13), and in CI on both test legs. Option 1's gaps closed in **4.2.0**: the reader's and
+folded parser's double count and every API entry (C-H2…C-H6, `fd51d4644`); an optimizer that
+never builds past the limit (C48, `6c5e3c876`, `a388ebe82`). Why 256: the cold capacities measured that day
 (Windows, a fresh process per probe) were 425 at the lowest on every V8 runtime (an operand
 chain through `wat2wasm` and the writer; blocks through the interpreter ~490) and 5,794+ on Bun;
 real code nests 25 (421 real-compiler modules) and 40 (spec). **Option 2, stage by stage, lowest

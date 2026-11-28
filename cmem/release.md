@@ -110,9 +110,9 @@ owner's push started. **U9:** top-level
 queues and never cancels, a time limit on every job; Bun (1.4.4), Deno (2.9.6, as
 `scripts/deno.ts`) and npm (11.21.2) at EXACT versions (review round 1, 2026-11-13; `v2.x` and
 `npm@11` floated until then), Bun and Deno through their setup actions, **not sha256-pinned** — a
-gap kept, as wasmtk's. ⚠️ The round-1 changes to the job graph (`tag` waiting for `npm-build`,
-the explicit `if:`s) are proven by the tests and by Bun.YAML, **UNMEASURED on GitHub until the
-next release**.
+gap kept, as wasmtk's. ✅ The round-1 changes to the job graph (`tag` waiting for `npm-build`,
+the explicit `if:`s) are proven by the tests and by Bun.YAML, and **MEASURED on GitHub**: in
+4.2.0's run 45712317393 `npm-build` ended 22:20:32Z and `tag` started 22:20:35Z, all six green.
 
 **After (U10–U12):** install as a user — `npx @synapticforge1/binaryang@X.Y.Z --version` and
 `deno run -A jsr:@jrmarcum/binaryang@X.Y.Z --version` — and record the version below, newest first,
