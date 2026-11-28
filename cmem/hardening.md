@@ -1,6 +1,6 @@
 # The hardening round — open-work item 13
 
-Summary: the contract every entry point keeps against hostile input, the instruments, and the standing ceilings and fuel decisions. Last verified 2026-11-20.
+Summary: the contract every entry point keeps against hostile input, the instruments, and the standing ceilings and fuel decisions. Last verified 2026-11-27.
 Pass-by-pass history: [archive/hardening-to-4.1.1.md](archive/hardening-to-4.1.1.md).
 
 **The lens** ([open-work.md](open-work.md) § "Quality passes"): does it survive HOSTILE or
@@ -93,3 +93,27 @@ ordinary run is ever sampled, and a stuck spin is reported in 2–3 s instead of
 every branch is a thrown JavaScript exception. A speed item for the interpreter, not hardening.
 
 § "Code lens, pass 2", § "Code lens, pass 3", § "2026-10-12 — open-work 27": moved to [archive/hardening-to-4.1.1.md](archive/hardening-to-4.1.1.md).
+
+## Peak memory on linux-x64 — the 2026-11-24 hardening probes
+
+Measured by a reviewer in WSL (Ubuntu, Bun 1.4.4 and Node 24, `/usr/bin/time` max RSS, one
+`main.ts` run each); the generator, probes and logs are kept in the gitignored
+`cmem/local/probes/rv4-2026-11-24/`. They agree with README's "Memory grows with the input" and
+add what it does not state: on Linux the peaks run above the 2026-11-13 Windows ones.
+
+| input | tool | time | peak RSS |
+| --- | --- | --- | --- |
+| 1,000,000 empty functions (4 MB) | `wasm-validate` | 7.7 s | 2.7 GB |
+| the same | `wasm2wat` | 10.7 s | 3.0 GB |
+| the same | `wasm-opt --vacuum` | 45.6 s | 7.5 GB |
+| 1,000,000 empty functions (6 MB, another shape) | `wasm-opt --vacuum` | 95.6 s | 9.6 GB |
+| an 80,000-link chain (1 MB) | `wasm-opt -O2` | 19.5 s | 1.1 GB |
+| 200,000 sinkable sets (1.4 MB) | `wasm-opt -O2` | 12.2 s | 2.1 GB |
+
+These six exited 0; the README's advice (cap the size, run with a memory limit) covers them, and
+the peak is mostly the collector's lag (letter C48's follow-up, `ebc9539e6`). Of the 103 runs, 94
+exited 0. Eight exited 1: five 255-deep `nest` / `brtable` modules refused at the 256 limit (the
+reader's double count, fixed in 4.2.0, C-H2…C-H6) and three `csedeep` (7.5 MB) refused while
+reading, "local variable out of range (max 1)" after 12–17 s and 2.8–4.7 GB — most likely the
+generator's module, NOT checked. One timed out: `straight` 100,000 sets, Bun `-O2`, killed at 150 s
+(1.2 GB), measured before the 2026-11-25 pass bounds; not re-run on 4.2.0.
