@@ -102,7 +102,8 @@ Add an entry when a change on `main` is one a release note must carry — say wh
 ⚠️ **wasmtk pins binaryang EXACTLY** and wants each release to say which of their reported items it
 contains ([handoffs.md](handoffs.md)).
 
-## Since 4.1.2
+## Since 4.2.0
 
-Nothing yet. `tests/accepted-changes.json` lists 2 entries since 4.1.2 (v4.1.1's tests that read
-cmem/publishing.md and today's previous-tests.ts); they are dropped at the next release.
+Nothing yet. `tests/accepted-changes.json` lists 1 entry since 4.2.0 (v4.1.2's
+security_round2 test expecting a line break kept in a diagnostic; 5705f48b7 escapes it); it is
+dropped at the next release.
