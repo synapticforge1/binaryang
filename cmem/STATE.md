@@ -28,10 +28,10 @@ Updated: 2026-11-27, 4.2.0 released, verified as a user, its record pushed
   --self-check); pending: four
 
 ## Next
-1. Nothing queued; the next work is the owner's call
+1. Nothing queued but open-work 55 (D1 rules text, next release); the next work is the owner's call
 2. Workspace: C48's "shipped in 4.2.0" bullet committed and pushed there (277b3f0, 2026-11-27,
-   owner-directed); C48 stays open for wasmtk. C49's answer 71fea74. Open for binaryang: C52
-   (wasmrt: four D1 names, which spelling D1 intends)
+   owner-directed); C48 stays open for wasmtk. C49's answer 71fea74. C52 answered (2c9c272,
+   owner-directed): D1's names intended, the encoding the key — open-work 55 for the next release
 
 ## Pushed
 - 2026-11-27: `main` at ff1178746 (the 4.2.0 record, run 46089585871 green: not a release);

@@ -166,6 +166,11 @@ fatigue.
 
 ## Repo work
 
+55. ⬚ **D1's rules say the encoding is the key** (workspace letter C52, wasmrt; answered
+    2026-11-27). Add to `rules.encoding` in `src/definitions/opcodes.json`: "The entry's unique
+    key; `name` is not unique". Data version 1.0.1 → 1.0.2 (rules text and `sha256` only, no
+    entry); `bun run definitions` restamps. Promised for the next release.
+
 15. ⬚ **A2 — `wasm2ts` is a stub that throws.** The long-term goal is WASI Preview 1 capable
     TypeScript output. **Blocked, and not close:** as of 2026-09-02 the wasmtk side had a long way
     to go before there is anything to implement against.
