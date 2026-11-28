@@ -132,6 +132,32 @@ with the needs above, 0 unpinned actions.
 
 ## Release History
 
+### 4.2.0 — a MINOR from `main` (2026-11-25 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
+
+**What changed** (`CHANGELOG.md` § 4.2.0): the fixes batch (Q-H2…Q-H6, C-H2…C-H6, C-R2-1/2/5,
+wasmtk's C48 and C49) — CLI output (`wat2wasm -o -` to stdout, a failed stdout write one line
+and exit 1), the Windows output-path allow-list, one nesting limit at every stage, the
+optimizer's bounds on huge functions, every CLI message escaped and capped. API: three
+`ExprVisitor` members added (`./ir`); nothing removed or renamed.
+
+The owner's go: "release" (2026-11-25), level minor (the owner's choice: CLI behaviour changes).
+
+1. The batch: 11 review rounds, the last with no items; gated on both platforms; merged
+   (`e3a9be2db`). Notes on `release/4.2.0` (`00bc25905`), the accept list on `accept-4.2.0`:
+   6 release-review rounds (rounds 1–5 notes and wording, all fixed; round 6 no findings).
+2. First gate at `d31190334` 31 / 32: the Q-H4 test rebuilt `in.wasm` per case and Windows
+   refused a rename over an open file. Made once per file (`3cef35e35`, `a5ffeeefd`, `36e6141c8`).
+3. Full suite at `36e6141c8`: win-x64 gate 32 / 32 (7,189 Bun tests); linux-x64 fresh WSL clone,
+   every step. `review:record 36e6141c8`; merged (`5b4388137`, the same tree), pushed unbumped:
+   run 45709775698 green.
+4. `bun run bump minor`: floor minor; previous tests (v4.1.2) 6811, 1 failed, 1 accepted.
+   `bun run release`: gate --release 34 / 34; `bump to v4.2.0` (`3d7046355`) pushed, read back.
+5. **publish.yml run 45712317393 — GREEN in every job, first attempt:** tag `v4.2.0`
+   (`c00ba4231`, peels to `3d7046355`) → page → **JSR 4.2.0, Rekor `4112907672`** (22:21:12Z) →
+   npm published 22:27:42Z, provenance read back by 22:27:54Z. `latest` = 4.2.0 on both. As a
+   user: `npx @synapticforge1/binaryang@4.2.0 --version` and
+   `deno run -A jsr:@jrmarcum/binaryang@4.2.0 --version` → `binaryang 4.2.0` (2026-11-27).
+
 ### 4.1.2 — a PATCH from `main` (2026-11-20 UTC) — 🚀 PUBLISHED to JSR AND npm, provenance on both
 
 **What changed** (`CHANGELOG.md` § 4.1.2): the same package as 4.1.1. The release workflow: npm's

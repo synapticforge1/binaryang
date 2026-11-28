@@ -1,12 +1,13 @@
 # Unreleased on `main` — what the next release note must say
 
-**As of 2026-11-20 (UTC): the last release is `v4.1.2`, on JSR AND npm, both with provenance**
-([release.md](release.md) § "4.1.2"). Nothing is unreleased on `main`. (Check:
-`git log --oneline v4.1.2..main -- src/ main.ts jsr.json README.md`.)
+**As of 2026-11-25 (UTC): the last release is `v4.2.0`, on JSR AND npm, both with provenance**
+([release.md](release.md) § "4.2.0"). Nothing is unreleased on `main`. (Check:
+`git log --oneline v4.2.0..main -- src/ main.ts jsr.json README.md`.)
 
-**Pending: on local branch `fixes-batch` (977cf27ab, not yet on `main`), 2026-11-20..25.** Reviewed
-in 11 rounds (the last with no items) and gated on win-x64 and linux-x64. The API surface is
-unchanged; what a user sees:
+**Shipped in 4.2.0** (CHANGELOG § 4.2.0; kept here until the next release): the fixes batch,
+reviewed in 11 rounds (the last with no items), gated on win-x64 and linux-x64. The API surface
+gained `ExprVisitor`'s `dispatchNode`, `level` and `visitList` (`./ir`, hence the minor); what a
+user sees:
 - **CLI output:** a failed stdout write is one line and exit 1 on Bun, Node and Deno (EPIPE,
   ENOSPC); a closed stdout is detected on Bun/Linux only (Node and Deno reopen it as /dev/null,
   which no process can tell from a deliberate discard); `wat2wasm -o -` writes stdout, as wabt
@@ -29,9 +30,6 @@ unchanged; what a user sees:
 - **Repo only:** gate steps `wat2wasm` (against real wabt) and the spec's own expected values;
   the optimizer checked at every level with import calls logged and floats by bits; a size
   ratchet against binaryen 133 (corpus -Oz 810,806, +0.101%); a failed gate step keeps its log.
-
-**Shipped in 4.1.2** (CHANGELOG § 4.1.2; kept here until the next release): no package change —
-the release workflow's npm provenance read-back (10 min, says what it saw).
 
 **Repo-only since 2.2.0 (nothing in either package; no release-note line):** the benchmark
 modules rebuilt with no machine path (open-work 44, the optimizer's six baseline moved —
