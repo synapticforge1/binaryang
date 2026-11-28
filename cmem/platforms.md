@@ -89,7 +89,7 @@ Status `runtime`: covered by the runtime and by `host`'s result for that OS.
   win-x64, under `~/.local/opt`, on PATH from `~/.bashrc`): binaryen 133 (`wasm-opt`), wabt 1.0.41
   (`wat2wasm`, `wast2json`), wasm-tools 1.263.0 (sha256 checked for the first two; wasm-tools
   publishes none). So a Linux run prepares the spec corpus itself and runs the `wat2wasm` and
-  size-ratchet steps. Last full Linux run 2026-11-25 at 977cf27ab: every step passed.
+  size-ratchet steps. Last full Linux run 2026-11-25 at 36e6141c8 (4.2.0): every step passed.
 - **A fresh clone has no `upstream/binaryen/test`** (gitignored): corpus_roundtrip fails, by design,
   until it is copied in — `cp -r /mnt/d/…/binaryang/upstream/binaryen/test upstream/binaryen/`
   (2026-11-19). From Git Bash, pass `MSYS_NO_PATHCONV=1` to `wsl -e <cmd> /home/…`, or the
