@@ -1,6 +1,6 @@
 # STATE: binaryang
 
-Updated: 2026-11-27, after 4.2.0: C48 and C52 answered, local branches cleaned
+Updated: 2026-11-27, machine-only material pulled in before the drive leaves
 
 ## Version
 - Released: **4.2.0 on 2026-11-25** (JSR and npm, provenance on both; release.md § 4.2.0);
@@ -14,6 +14,10 @@ Updated: 2026-11-27, after 4.2.0: C48 and C52 answered, local branches cleaned
 - Working branch: none (main)
 
 ## Now
+- 2026-11-27: the drive leaves the dev machine for the platform checks (workspace
+  machine-setup.md). Everything machine-only was pulled in first: the 11-24 memory probes
+  (hardening.md § "Peak memory on linux-x64"), the Linux-run script, and the rebuild notes for
+  what stays (`cmem/local/environment.md` § "What stays behind"); scratch and temp emptied
 - Bun runs with memory64 on; the Bun known-differences list is EMPTY; no test skips anywhere
 - H39 is merged and reviewed (`src/host.ts`, its gate, `--self-check`; `-o NUL` on Deno fixed)
 - H38 is done in all seven steps (4–6 on 2026-11-20); `check-cmem`: all limits hold
