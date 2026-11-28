@@ -1,6 +1,6 @@
 # STATE: binaryang
 
-Updated: 2026-11-27, 4.2.0 released, verified as a user, its record pushed
+Updated: 2026-11-27, after 4.2.0: C48 and C52 answered, local branches cleaned
 
 ## Version
 - Released: **4.2.0 on 2026-11-25** (JSR and npm, provenance on both; release.md § 4.2.0);
@@ -34,6 +34,8 @@ Updated: 2026-11-27, 4.2.0 released, verified as a user, its record pushed
    owner-directed): D1's names intended, the encoding the key — open-work 55 for the next release
 
 ## Pushed
+- 2026-11-27: local branches cleaned on the owner's rule (working-rules § Git): 58 merged ones
+  deleted, none unmerged, so no `wip/` branch; only `main` is local. Remote branches untouched.
 - 2026-11-27: `main` at ff1178746 (the 4.2.0 record, run 46089585871 green: not a release);
   the backup branch `fixes-batch-before-trailers` deleted (owner).
 - 2026-11-25: `main` at 3d7046355 (`bump to v4.2.0`), tag `v4.2.0` (read back); `main` at
